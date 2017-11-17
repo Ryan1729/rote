@@ -2,8 +2,8 @@ extern crate libc;
 
 /*** includes ***/
 
-use libc::{iscntrl, perror, tcgetattr, tcsetattr, termios, CS8, BRKINT, ECHO, ICANON, ICRNL,
-           IEXTEN, INPCK, ISIG, ISTRIP, IXON, OPOST, TCSAFLUSH, VMIN, VTIME};
+use libc::{perror, tcgetattr, tcsetattr, termios, CS8, BRKINT, ECHO, ICANON, ICRNL, IEXTEN, INPCK,
+           ISIG, ISTRIP, IXON, OPOST, TCSAFLUSH, VMIN, VTIME};
 use std::io::{self, ErrorKind, Read};
 use std::os::unix::io::AsRawFd;
 use std::ffi::CString;
@@ -72,37 +72,39 @@ fn enable_raw_mode() {
     }
 }
 
+fn editor_read_key() -> u8 {
+    let mut buffer = [0; 1];
+    let mut stdin = io::stdin();
+    stdin
+        .read_exact(&mut buffer)
+        .or_else(|e| if e.kind() == ErrorKind::UnexpectedEof {
+            buffer[0] = 0;
+            Ok(())
+        } else {
+            Err(e)
+        })
+        .unwrap();
+
+    buffer[0]
+}
+
+/*** input ***/
+
+fn editor_process_keypress() {
+    let c = editor_read_key();
+
+    if c == CTRL_KEY!(b'q') {
+        disable_raw_mode();
+        std::process::exit(0);
+    }
+}
+
 /*** init ***/
 
 fn main() {
     enable_raw_mode();
 
-    let mut stdin = io::stdin();
-
     loop {
-        let mut buffer = [0; 1];
-        stdin
-            .read_exact(&mut buffer)
-            .or_else(|e| if e.kind() == ErrorKind::UnexpectedEof {
-                buffer[0] = 0;
-                Ok(())
-            } else {
-                Err(e)
-            })
-            .unwrap();
-
-        let c = buffer[0];
-
-        if unsafe { iscntrl(c as _) } != 0 {
-            print!("{}\r\n", c);
-        } else {
-            print!("{} ('{}')\r\n", c, c as char);
-        }
-
-        if c == CTRL_KEY!(b'q') {
-            break;
-        }
+        editor_process_keypress();
     }
-
-    disable_raw_mode();
 }
