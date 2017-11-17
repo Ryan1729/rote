@@ -93,6 +93,7 @@ fn editor_read_key() -> u8 {
 fn editor_refresh_screen() {
     let mut stdout = io::stdout();
     stdout.write(b"\x1b[2J").unwrap_or_default();
+    stdout.write(b"\x1b[H").unwrap_or_default();
 
     stdout.flush().unwrap_or_default();
 }
