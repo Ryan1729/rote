@@ -23,6 +23,12 @@ static mut ORIG_TERMIOS: Option<termios> = None;
 /*** terminal ***/
 
 fn die(s: &str) {
+    let mut stdout = io::stdout();
+    stdout.write(b"\x1b[2J").unwrap_or_default();
+    stdout.write(b"\x1b[H").unwrap_or_default();
+
+    stdout.flush().unwrap_or_default();
+
     if let Ok(c_s) = CString::new(s) {
         unsafe { perror(c_s.as_ptr()) };
     }
@@ -104,6 +110,12 @@ fn editor_process_keypress() {
     let c = editor_read_key();
 
     if c == CTRL_KEY!(b'q') {
+        let mut stdout = io::stdout();
+        stdout.write(b"\x1b[2J").unwrap_or_default();
+        stdout.write(b"\x1b[H").unwrap_or_default();
+
+        stdout.flush().unwrap_or_default();
+
         disable_raw_mode();
         std::process::exit(0);
     }
