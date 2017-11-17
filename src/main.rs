@@ -8,6 +8,12 @@ use std::io::{self, ErrorKind, Read};
 use std::os::unix::io::AsRawFd;
 use std::ffi::CString;
 
+/*** defines ***/
+macro_rules! CTRL_KEY {
+    ($k :expr) => (($k) & 0b0001_1111)
+}
+
+
 /*** data ***/
 
 // This is a reasonably nice way to have a "uninitialized/zeroed" global,
@@ -85,15 +91,15 @@ fn main() {
             })
             .unwrap();
 
-        let c = buffer[0] as char;
+        let c = buffer[0];
 
         if unsafe { iscntrl(c as _) } != 0 {
-            print!("{}\r\n", c as u8);
+            print!("{}\r\n", c);
         } else {
-            print!("{} ('{}')\r\n", c as u8, c);
+            print!("{} ('{}')\r\n", c, c as char);
         }
 
-        if c == 'q' {
+        if c == CTRL_KEY!(b'q') {
             break;
         }
     }
