@@ -1,6 +1,6 @@
 extern crate libc;
 
-use libc::{tcgetattr, tcsetattr, termios, ECHO, ICANON, TCSAFLUSH};
+use libc::{iscntrl, tcgetattr, tcsetattr, termios, ECHO, ICANON, TCSAFLUSH};
 use std::io::{self, Read};
 use std::os::unix::io::AsRawFd;
 
@@ -42,7 +42,14 @@ fn main() {
     let mut buffer = [0; 1];
     let mut stdin = io::stdin();
 
-    while stdin.read_exact(&mut buffer).is_ok() && buffer[0] != b'q' {}
+    while stdin.read_exact(&mut buffer).is_ok() && buffer[0] != b'q' {
+        let c = buffer[0] as char;
+        if unsafe { iscntrl(c as _) } != 0 {
+            println!("{}", c as u8);
+        } else {
+            println!("{} ('{}')", c as u8, c);
+        }
+    }
 
     disable_raw_mode();
 }
