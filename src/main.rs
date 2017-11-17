@@ -4,5 +4,5 @@ fn main() {
     let mut buffer = [0; 1];
     let mut stdin = io::stdin();
 
-    while stdin.read_exact(&mut buffer).is_ok() {}
+    while stdin.read_exact(&mut buffer).is_ok() && buffer[0] != b'q' {}
 }
