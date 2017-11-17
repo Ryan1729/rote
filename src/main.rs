@@ -4,7 +4,7 @@ extern crate libc;
 
 use libc::{perror, tcgetattr, tcsetattr, termios, CS8, BRKINT, ECHO, ICANON, ICRNL, IEXTEN, INPCK,
            ISIG, ISTRIP, IXON, OPOST, TCSAFLUSH, VMIN, VTIME};
-use std::io::{self, ErrorKind, Read};
+use std::io::{self, ErrorKind, Read, Write};
 use std::os::unix::io::AsRawFd;
 use std::ffi::CString;
 
@@ -88,6 +88,15 @@ fn editor_read_key() -> u8 {
     buffer[0]
 }
 
+/*** output ***/
+
+fn editor_refresh_screen() {
+    let mut stdout = io::stdout();
+    stdout.write(b"\x1b[2J").unwrap_or_default();
+
+    stdout.flush().unwrap_or_default();
+}
+
 /*** input ***/
 
 fn editor_process_keypress() {
@@ -105,6 +114,7 @@ fn main() {
     enable_raw_mode();
 
     loop {
+        editor_refresh_screen();
         editor_process_keypress();
     }
 }
