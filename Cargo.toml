@@ -5,3 +5,4 @@ authors = ["Ryan1729 <Ryan1729@gmail.com>"]
 license = "MIT"
 
 [dependencies]
+libc = "0.2.33"
