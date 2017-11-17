@@ -4,16 +4,35 @@ use libc::{tcgetattr, tcsetattr, termios, ECHO, TCSAFLUSH};
 use std::io::{self, Read};
 use std::os::unix::io::AsRawFd;
 
+// This is a reasonably nice way to have a "uninitialized/zeroed" global,
+// given what is stable in Rust 1.21.0
+static mut ORIG_TERMIOS: Option<termios> = None;
+
+fn disable_raw_mode() {
+    if let Some(orig_termios) = unsafe { ORIG_TERMIOS.as_mut() } {
+        unsafe {
+            tcsetattr(
+                io::stdin().as_raw_fd(),
+                TCSAFLUSH,
+                orig_termios as *mut termios,
+            );
+        }
+    }
+}
+
 fn enable_raw_mode() {
     unsafe {
-        let mut raw: termios = std::mem::uninitialized();
-        let stdin_fileno = io::stdin().as_raw_fd();
-        let raw_ptr = &mut raw as *mut termios;
-        tcgetattr(stdin_fileno, raw_ptr);
+        ORIG_TERMIOS = Some(std::mem::zeroed());
+        if let Some(orig_termios) = ORIG_TERMIOS.as_mut() {
+            let stdin_fileno = io::stdin().as_raw_fd();
+            tcgetattr(stdin_fileno, orig_termios as *mut termios);
 
-        raw.c_lflag &= !ECHO;
+            let mut raw = *orig_termios;
 
-        tcsetattr(stdin_fileno, TCSAFLUSH, raw_ptr);
+            raw.c_lflag &= !ECHO;
+
+            tcsetattr(stdin_fileno, TCSAFLUSH, &mut raw as *mut termios);
+        }
     }
 }
 
@@ -24,4 +43,6 @@ fn main() {
     let mut stdin = io::stdin();
 
     while stdin.read_exact(&mut buffer).is_ok() && buffer[0] != b'q' {}
+
+    disable_raw_mode();
 }
