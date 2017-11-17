@@ -1,6 +1,6 @@
 extern crate libc;
 
-use libc::{tcgetattr, tcsetattr, termios, ECHO, TCSAFLUSH};
+use libc::{tcgetattr, tcsetattr, termios, ECHO, ICANON, TCSAFLUSH};
 use std::io::{self, Read};
 use std::os::unix::io::AsRawFd;
 
@@ -29,7 +29,7 @@ fn enable_raw_mode() {
 
             let mut raw = *orig_termios;
 
-            raw.c_lflag &= !ECHO;
+            raw.c_lflag &= !(ECHO | ICANON);
 
             tcsetattr(stdin_fileno, TCSAFLUSH, &mut raw as *mut termios);
         }
