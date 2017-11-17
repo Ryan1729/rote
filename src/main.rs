@@ -1,7 +1,7 @@
 extern crate libc;
 
 use libc::{iscntrl, tcgetattr, tcsetattr, termios, CS8, BRKINT, ECHO, ICANON, ICRNL, IEXTEN,
-           INPCK, ISIG, ISTRIP, IXON, OPOST, TCSAFLUSH};
+           INPCK, ISIG, ISTRIP, IXON, OPOST, TCSAFLUSH, VMIN, VTIME};
 use std::io::{self, Read};
 use std::os::unix::io::AsRawFd;
 
@@ -35,6 +35,9 @@ fn enable_raw_mode() {
             raw.c_cflag |= (CS8);
             raw.c_lflag &= !(ECHO | ICANON | IEXTEN | ISIG);
 
+            raw.c_cc[VMIN] = 0;
+            raw.c_cc[VTIME] = 1;
+
             tcsetattr(stdin_fileno, TCSAFLUSH, &mut raw as *mut termios);
         }
     }
@@ -43,15 +46,22 @@ fn enable_raw_mode() {
 fn main() {
     enable_raw_mode();
 
-    let mut buffer = [0; 1];
     let mut stdin = io::stdin();
 
-    while stdin.read_exact(&mut buffer).is_ok() && buffer[0] != b'q' {
+    loop {
+        let mut buffer = [0; 1];
+        stdin.read_exact(&mut buffer).unwrap_or_default();
+
         let c = buffer[0] as char;
+
         if unsafe { iscntrl(c as _) } != 0 {
             print!("{}\r\n", c as u8);
         } else {
             print!("{} ('{}')\r\n", c as u8, c);
+        }
+
+        if c == 'q' {
+            break;
         }
     }
 
