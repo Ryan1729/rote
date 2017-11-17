@@ -48,9 +48,9 @@ fn main() {
     while stdin.read_exact(&mut buffer).is_ok() && buffer[0] != b'q' {
         let c = buffer[0] as char;
         if unsafe { iscntrl(c as _) } != 0 {
-            println!("{}", c as u8);
+            print!("{}\r\n", c as u8);
         } else {
-            println!("{} ('{}')", c as u8, c);
+            print!("{} ('{}')\r\n", c as u8, c);
         }
     }
 
