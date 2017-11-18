@@ -16,9 +16,13 @@ macro_rules! CTRL_KEY {
 
 /*** data ***/
 
+struct EditorConfig {
+    orig_termios: termios,
+}
+
 // This is a reasonably nice way to have a "uninitialized/zeroed" global,
 // given what is stable in Rust 1.21.0
-static mut ORIG_TERMIOS: Option<termios> = None;
+static mut EDITOR_CONFIG: Option<EditorConfig> = None;
 
 /*** terminal ***/
 
@@ -36,12 +40,12 @@ fn die(s: &str) {
 }
 
 fn disable_raw_mode() {
-    if let Some(orig_termios) = unsafe { ORIG_TERMIOS.as_mut() } {
+    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
         unsafe {
             if tcsetattr(
                 io::stdin().as_raw_fd(),
                 TCSAFLUSH,
-                orig_termios as *mut termios,
+                &mut editor_config.orig_termios as *mut termios,
             ) == -1
             {
                 die("tcsetattr");
@@ -52,15 +56,19 @@ fn disable_raw_mode() {
 
 fn enable_raw_mode() {
     unsafe {
-        ORIG_TERMIOS = Some(std::mem::zeroed());
-        if let Some(orig_termios) = ORIG_TERMIOS.as_mut() {
+        EDITOR_CONFIG = Some(std::mem::zeroed());
+        if let Some(editor_config) = EDITOR_CONFIG.as_mut() {
             let stdin_fileno = io::stdin().as_raw_fd();
 
-            if tcgetattr(stdin_fileno, orig_termios as *mut termios) == -1 {
+            if tcgetattr(
+                stdin_fileno,
+                &mut editor_config.orig_termios as *mut termios,
+            ) == -1
+            {
                 die("tcgetattr");
             }
 
-            let mut raw = *orig_termios;
+            let mut raw = editor_config.orig_termios;
 
             raw.c_iflag &= !(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
             raw.c_oflag &= !(OPOST);
