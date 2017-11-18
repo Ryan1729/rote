@@ -2,8 +2,8 @@ extern crate libc;
 
 /*** includes ***/
 
-use libc::{ioctl, perror, tcgetattr, tcsetattr, termios, winsize, CS8, BRKINT, ECHO, ICANON,
-           ICRNL, IEXTEN, INPCK, ISIG, ISTRIP, IXON, OPOST, STDIN_FILENO, STDOUT_FILENO,
+use libc::{ioctl, iscntrl, perror, tcgetattr, tcsetattr, termios, winsize, CS8, BRKINT, ECHO,
+           ICANON, ICRNL, IEXTEN, INPCK, ISIG, ISTRIP, IXON, OPOST, STDIN_FILENO, STDOUT_FILENO,
            TCSAFLUSH, TIOCGWINSZ, VMIN, VTIME};
 use std::io::{self, ErrorKind, Read, Write};
 use std::os::unix::io::AsRawFd;
@@ -102,6 +102,28 @@ fn editor_read_key() -> u8 {
     buffer[0]
 }
 
+fn get_cursor_position() -> Option<(u32, u32)> {
+    let mut stdout = io::stdout();
+    if stdout.write(b"\x1b[6n").is_err() || stdout.flush().is_err() {
+        return None;
+    }
+
+    let mut buffer = [0; 1];
+    while let Ok(()) = io::stdin().read_exact(&mut buffer) {
+        let c = buffer[0];
+
+        if unsafe { iscntrl(c as _) } != 0 {
+            print!("{}\r\n", c);
+        } else {
+            print!("{} ('{}')\r\n", c, c as char);
+        }
+    }
+
+    editor_read_key();
+
+    None
+}
+
 fn get_window_size() -> Option<(u32, u32)> {
     unsafe {
         let mut ws: winsize = std::mem::zeroed();
@@ -110,8 +132,7 @@ fn get_window_size() -> Option<(u32, u32)> {
             if stdout.write(b"\x1b[999C\x1b[999B").is_err() || stdout.flush().is_err() {
                 return None;
             }
-            editor_read_key();
-            None
+            get_cursor_position()
         } else {
             Some((ws.ws_row as u32, ws.ws_col as u32))
         }
