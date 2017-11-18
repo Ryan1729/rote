@@ -103,7 +103,39 @@ fn editor_read_key() -> u8 {
         })
         .unwrap();
 
-    buffer[0]
+    let c = buffer[0];
+
+    if c == b'\x1b' {
+        let mut seq = [0; 3];
+
+        if stdin.read_exact(&mut seq[0..1]).is_err() {
+            return b'\x1b';
+        }
+        if stdin.read_exact(&mut seq[1..2]).is_err() {
+            return b'\x1b';
+        }
+        if seq[0] == b'[' {
+            match seq[1] {
+                b'A' => {
+                    return b'w';
+                }
+                b'B' => {
+                    return b's';
+                }
+                b'C' => {
+                    return b'd';
+                }
+                b'D' => {
+                    return b'a';
+                }
+                _ => {}
+            }
+        }
+
+        b'\x1b'
+    } else {
+        c
+    }
 }
 
 fn get_cursor_position() -> Option<(u32, u32)> {
@@ -245,6 +277,7 @@ fn editor_process_keypress() {
             stdout.write(b"\x1b[H").unwrap_or_default();
 
             stdout.flush().unwrap_or_default();
+
             disable_raw_mode();
             std::process::exit(0);
         }
