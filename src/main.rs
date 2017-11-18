@@ -161,8 +161,12 @@ fn editor_draw_rows() {
     let mut stdout = io::stdout();
 
     if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
-        for _ in 0..editor_config.screen_rows {
-            stdout.write(b"~\r\n").unwrap_or_default();
+        for y in 0..editor_config.screen_rows {
+            stdout.write(b"~").unwrap_or_default();
+
+            if y < editor_config.screen_rows - 1 {
+                stdout.write(b"\r\n").unwrap_or_default();
+            }
         }
     }
 }
