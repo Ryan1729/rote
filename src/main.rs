@@ -164,6 +164,15 @@ fn editor_draw_rows(buf: &mut String) {
         for y in 0..editor_config.screen_rows {
             if y == editor_config.screen_rows / 3 {
                 let mut welcome = format!("Kilo editor -- version {}", KILO_VERSION);
+                let mut padding = (editor_config.screen_cols as usize - welcome.len()) / 2;
+
+                if padding > 0 {
+                    buf.push('~');
+                    padding -= 1;
+                }
+                for _ in 0..padding {
+                    buf.push(' ');
+                }
 
                 welcome.truncate(editor_config.screen_cols as _);
                 buf.push_str(&welcome);
