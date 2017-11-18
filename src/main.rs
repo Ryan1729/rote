@@ -2,8 +2,8 @@ extern crate libc;
 
 /*** includes ***/
 
-use libc::{ioctl, iscntrl, perror, tcgetattr, tcsetattr, termios, winsize, CS8, BRKINT, ECHO,
-           ICANON, ICRNL, IEXTEN, INPCK, ISIG, ISTRIP, IXON, OPOST, STDIN_FILENO, STDOUT_FILENO,
+use libc::{ioctl, perror, tcgetattr, tcsetattr, termios, winsize, CS8, BRKINT, ECHO, ICANON,
+           ICRNL, IEXTEN, INPCK, ISIG, ISTRIP, IXON, OPOST, STDIN_FILENO, STDOUT_FILENO,
            TCSAFLUSH, TIOCGWINSZ, VMIN, VTIME};
 use std::io::{self, ErrorKind, Read, Write};
 use std::os::unix::io::AsRawFd;
@@ -21,6 +21,8 @@ enum EditorKey {
     Byte(u8),
     Arrow(Arrow),
     Page(Page),
+    Home,
+    End,
 }
 use EditorKey::*;
 
@@ -145,6 +147,8 @@ fn editor_read_key() -> EditorKey {
                         match c {
                             b'5' => return Page(Page::Up),
                             b'6' => return Page(Page::Down),
+                            b'1' | b'7' => return Home,
+                            b'4' | b'8' => return End,
                             _ => {}
                         }
                     }
@@ -160,6 +164,22 @@ fn editor_read_key() -> EditorKey {
                 }
                 b'D' => {
                     return Arrow(Arrow::Left);
+                }
+                b'H' => {
+                    return Home;
+                }
+                b'F' => {
+                    return End;
+                }
+                _ => {}
+            }
+        } else if seq[0] == b'O' {
+            match seq[1] {
+                b'H' => {
+                    return Home;
+                }
+                b'F' => {
+                    return End;
                 }
                 _ => {}
             }
@@ -313,6 +333,12 @@ fn editor_process_keypress() {
             disable_raw_mode();
             std::process::exit(0);
         }
+        Home => if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+            editor_config.cx = 0;
+        },
+        End => if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+            editor_config.cx = editor_config.screen_cols - 1;
+        },
         Page(page) => if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
             let arrow = match page {
                 Page::Up => Arrow::Up,
