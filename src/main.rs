@@ -108,18 +108,34 @@ fn get_cursor_position() -> Option<(u32, u32)> {
         return None;
     }
 
-    let mut buffer = [0; 1];
-    while let Ok(()) = io::stdin().read_exact(&mut buffer) {
-        let c = buffer[0];
+    print!("\r\n");
 
-        if unsafe { iscntrl(c as _) } != 0 {
-            print!("{}\r\n", c);
-        } else {
-            print!("{} ('{}')\r\n", c, c as char);
+    let mut buffer = [0; 32];
+    let mut i = 0;
+    while i < buffer.len() {
+        if io::stdin().read_exact(&mut buffer[i..i + 1]).is_err() {
+            break;
         }
+
+        if buffer[i] == b'R' {
+            break;
+        }
+
+        i += 1;
     }
 
-    editor_read_key();
+    if buffer[0] == b'\x1b' && buffer[1] == b'[' {
+        if let Ok(s) = std::str::from_utf8(&buffer[2..i]) {
+            let mut split = s.split(";").map(str::parse::<u32>);
+
+            match (split.next(), split.next()) {
+                (Some(Ok(rows)), Some(Ok(cols))) => {
+                    return Some((rows, cols));
+                }
+                _ => {}
+            }
+        }
+    }
 
     None
 }
@@ -127,7 +143,7 @@ fn get_cursor_position() -> Option<(u32, u32)> {
 fn get_window_size() -> Option<(u32, u32)> {
     unsafe {
         let mut ws: winsize = std::mem::zeroed();
-        if true || ioctl(STDOUT_FILENO, TIOCGWINSZ, &mut ws) == -1 || ws.ws_col == 0 {
+        if ioctl(STDOUT_FILENO, TIOCGWINSZ, &mut ws) == -1 || ws.ws_col == 0 {
             let mut stdout = io::stdout();
             if stdout.write(b"\x1b[999C\x1b[999B").is_err() || stdout.flush().is_err() {
                 return None;
