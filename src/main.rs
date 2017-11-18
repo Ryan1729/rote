@@ -169,13 +169,13 @@ fn editor_draw_rows(buf: &mut String) {
     }
 }
 
-fn editor_refresh_screen() {
-    let mut buf = String::new();
+fn editor_refresh_screen(buf: &mut String) {
+    buf.clear();
 
     buf.push_str("\x1b[2J");
     buf.push_str("\x1b[H");
 
-    editor_draw_rows(&mut buf);
+    editor_draw_rows(buf);
 
     buf.push_str("\x1b[H");
 
@@ -221,8 +221,10 @@ fn main() {
     init_editor();
     enable_raw_mode();
 
+    let mut buf = String::new();
+
     loop {
-        editor_refresh_screen();
+        editor_refresh_screen(&mut buf);
         editor_process_keypress();
     }
 }
