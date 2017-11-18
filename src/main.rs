@@ -20,6 +20,8 @@ macro_rules! CTRL_KEY {
 /*** data ***/
 
 struct EditorConfig {
+    cx: u32,
+    cy: u32,
     screen_rows: u32,
     screen_cols: u32,
     orig_termios: termios,
@@ -196,7 +198,14 @@ fn editor_refresh_screen(buf: &mut String) {
 
     editor_draw_rows(buf);
 
-    buf.push_str("\x1b[H");
+    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+        buf.push_str(&format!(
+            "\x1b[{};{}H",
+            editor_config.cy + 1,
+            editor_config.cx + 1
+        ));
+    }
+
     buf.push_str("\x1b[?25h");
 
     let mut stdout = io::stdout();
@@ -206,18 +215,43 @@ fn editor_refresh_screen(buf: &mut String) {
 
 /*** input ***/
 
+fn editor_move_cursor(key: char) {
+    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+        match key {
+            'a' => {
+                editor_config.cx = editor_config.cx.saturating_sub(1);
+            }
+            'd' => {
+                editor_config.cx = editor_config.cx.saturating_add(1);
+            }
+            'w' => {
+                editor_config.cy = editor_config.cy.saturating_sub(1);
+            }
+            's' => {
+                editor_config.cy = editor_config.cy.saturating_add(1);
+            }
+            _ => {}
+        }
+    }
+}
+
 fn editor_process_keypress() {
     let c = editor_read_key();
 
-    if c == CTRL_KEY!(b'q') {
-        let mut stdout = io::stdout();
-        stdout.write(b"\x1b[2J").unwrap_or_default();
-        stdout.write(b"\x1b[H").unwrap_or_default();
+    match c {
+        c0 if c0 == CTRL_KEY!(b'q') => {
+            let mut stdout = io::stdout();
+            stdout.write(b"\x1b[2J").unwrap_or_default();
+            stdout.write(b"\x1b[H").unwrap_or_default();
 
-        stdout.flush().unwrap_or_default();
-
-        disable_raw_mode();
-        std::process::exit(0);
+            stdout.flush().unwrap_or_default();
+            disable_raw_mode();
+            std::process::exit(0);
+        }
+        b'w' | b'a' | b's' | b'd' => {
+            editor_move_cursor(c as _);
+        }
+        _ => {}
     }
 }
 
