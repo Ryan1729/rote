@@ -96,9 +96,22 @@ fn editor_read_key() -> u8 {
 
 /*** output ***/
 
+fn editor_draw_rows() {
+    let mut stdout = io::stdout();
+
+    for _ in 0..24 {
+        stdout.write(b"~\r\n").unwrap_or_default();
+    }
+}
+
 fn editor_refresh_screen() {
     let mut stdout = io::stdout();
+
     stdout.write(b"\x1b[2J").unwrap_or_default();
+    stdout.write(b"\x1b[H").unwrap_or_default();
+
+    editor_draw_rows();
+
     stdout.write(b"\x1b[H").unwrap_or_default();
 
     stdout.flush().unwrap_or_default();
