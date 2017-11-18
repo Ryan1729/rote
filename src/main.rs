@@ -265,15 +265,15 @@ fn editor_move_cursor(arrow: Arrow) {
             Arrow::Left => {
                 editor_config.cx = editor_config.cx.saturating_sub(1);
             }
-            Arrow::Right => {
-                editor_config.cx = editor_config.cx.saturating_add(1);
-            }
+            Arrow::Right => if editor_config.cx < editor_config.screen_cols - 1 {
+                editor_config.cx += 1;
+            },
             Arrow::Up => {
                 editor_config.cy = editor_config.cy.saturating_sub(1);
             }
-            Arrow::Down => {
-                editor_config.cy = editor_config.cy.saturating_add(1);
-            }
+            Arrow::Down => if editor_config.cy < editor_config.screen_rows - 1 {
+                editor_config.cy += 1;
+            },
         }
     }
 }
