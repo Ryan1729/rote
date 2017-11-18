@@ -2,8 +2,9 @@ extern crate libc;
 
 /*** includes ***/
 
-use libc::{perror, tcgetattr, tcsetattr, termios, CS8, BRKINT, ECHO, ICANON, ICRNL, IEXTEN, INPCK,
-           ISIG, ISTRIP, IXON, OPOST, TCSAFLUSH, VMIN, VTIME};
+use libc::{ioctl, perror, tcgetattr, tcsetattr, termios, winsize, CS8, BRKINT, ECHO, ICANON,
+           ICRNL, IEXTEN, INPCK, ISIG, ISTRIP, IXON, OPOST, STDIN_FILENO, STDOUT_FILENO,
+           TCSAFLUSH, TIOCGWINSZ, VMIN, VTIME};
 use std::io::{self, ErrorKind, Read, Write};
 use std::os::unix::io::AsRawFd;
 use std::ffi::CString;
@@ -17,6 +18,8 @@ macro_rules! CTRL_KEY {
 /*** data ***/
 
 struct EditorConfig {
+    screen_rows: u32,
+    screen_cols: u32,
     orig_termios: termios,
 }
 
@@ -56,12 +59,9 @@ fn disable_raw_mode() {
 
 fn enable_raw_mode() {
     unsafe {
-        EDITOR_CONFIG = Some(std::mem::zeroed());
         if let Some(editor_config) = EDITOR_CONFIG.as_mut() {
-            let stdin_fileno = io::stdin().as_raw_fd();
-
             if tcgetattr(
-                stdin_fileno,
+                STDIN_FILENO,
                 &mut editor_config.orig_termios as *mut termios,
             ) == -1
             {
@@ -79,7 +79,7 @@ fn enable_raw_mode() {
             raw.c_cc[VTIME] = 1;
 
 
-            if tcsetattr(stdin_fileno, TCSAFLUSH, &mut raw as *mut termios) == -1 {
+            if tcsetattr(STDIN_FILENO, TCSAFLUSH, &mut raw as *mut termios) == -1 {
                 die("tcsetattr");
             }
         }
@@ -102,13 +102,26 @@ fn editor_read_key() -> u8 {
     buffer[0]
 }
 
+fn get_window_size() -> Option<(u32, u32)> {
+    unsafe {
+        let mut ws: winsize = std::mem::zeroed();
+        if ioctl(STDOUT_FILENO, TIOCGWINSZ, &mut ws) == -1 || ws.ws_col == 0 {
+            None
+        } else {
+            Some((ws.ws_row as u32, ws.ws_col as u32))
+        }
+    }
+}
+
 /*** output ***/
 
 fn editor_draw_rows() {
     let mut stdout = io::stdout();
 
-    for _ in 0..24 {
-        stdout.write(b"~\r\n").unwrap_or_default();
+    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+        for _ in 0..editor_config.screen_rows {
+            stdout.write(b"~\r\n").unwrap_or_default();
+        }
     }
 }
 
@@ -144,7 +157,22 @@ fn editor_process_keypress() {
 
 /*** init ***/
 
+fn init_editor() {
+    let mut editor_config: EditorConfig = unsafe { std::mem::zeroed() };
+    match get_window_size() {
+        None => die("get_window_size"),
+        Some((rows, cols)) => {
+            editor_config.screen_rows = rows;
+            editor_config.screen_cols = cols;
+        }
+    }
+    unsafe {
+        EDITOR_CONFIG = Some(editor_config);
+    }
+}
+
 fn main() {
+    init_editor();
     enable_raw_mode();
 
     loop {
