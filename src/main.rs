@@ -16,6 +16,18 @@ macro_rules! CTRL_KEY {
     ($k :expr) => (($k) & 0b0001_1111)
 }
 
+enum EditorKey {
+    Byte(u8),
+    Arrow(Arrow),
+}
+use EditorKey::*;
+
+enum Arrow {
+    Left,
+    Right,
+    Up,
+    Down,
+}
 
 /*** data ***/
 
@@ -90,7 +102,7 @@ fn enable_raw_mode() {
     }
 }
 
-fn editor_read_key() -> u8 {
+fn editor_read_key() -> EditorKey {
     let mut buffer = [0; 1];
     let mut stdin = io::stdin();
     stdin
@@ -109,32 +121,32 @@ fn editor_read_key() -> u8 {
         let mut seq = [0; 3];
 
         if stdin.read_exact(&mut seq[0..1]).is_err() {
-            return b'\x1b';
+            return Byte(b'\x1b');
         }
         if stdin.read_exact(&mut seq[1..2]).is_err() {
-            return b'\x1b';
+            return Byte(b'\x1b');
         }
         if seq[0] == b'[' {
             match seq[1] {
                 b'A' => {
-                    return b'w';
+                    return Arrow(Arrow::Up);
                 }
                 b'B' => {
-                    return b's';
+                    return Arrow(Arrow::Down);
                 }
                 b'C' => {
-                    return b'd';
+                    return Arrow(Arrow::Right);
                 }
                 b'D' => {
-                    return b'a';
+                    return Arrow(Arrow::Left);
                 }
                 _ => {}
             }
         }
 
-        b'\x1b'
+        Byte(b'\x1b')
     } else {
-        c
+        Byte(c)
     }
 }
 
@@ -247,31 +259,30 @@ fn editor_refresh_screen(buf: &mut String) {
 
 /*** input ***/
 
-fn editor_move_cursor(key: char) {
+fn editor_move_cursor(arrow: Arrow) {
     if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
-        match key {
-            'a' => {
+        match arrow {
+            Arrow::Left => {
                 editor_config.cx = editor_config.cx.saturating_sub(1);
             }
-            'd' => {
+            Arrow::Right => {
                 editor_config.cx = editor_config.cx.saturating_add(1);
             }
-            'w' => {
+            Arrow::Up => {
                 editor_config.cy = editor_config.cy.saturating_sub(1);
             }
-            's' => {
+            Arrow::Down => {
                 editor_config.cy = editor_config.cy.saturating_add(1);
             }
-            _ => {}
         }
     }
 }
 
 fn editor_process_keypress() {
-    let c = editor_read_key();
+    let key = editor_read_key();
 
-    match c {
-        c0 if c0 == CTRL_KEY!(b'q') => {
+    match key {
+        Byte(c0) if c0 == CTRL_KEY!(b'q') => {
             let mut stdout = io::stdout();
             stdout.write(b"\x1b[2J").unwrap_or_default();
             stdout.write(b"\x1b[H").unwrap_or_default();
@@ -281,8 +292,8 @@ fn editor_process_keypress() {
             disable_raw_mode();
             std::process::exit(0);
         }
-        b'w' | b'a' | b's' | b'd' => {
-            editor_move_cursor(c as _);
+        Arrow(arrow) => {
+            editor_move_cursor(arrow);
         }
         _ => {}
     }
