@@ -105,7 +105,12 @@ fn editor_read_key() -> u8 {
 fn get_window_size() -> Option<(u32, u32)> {
     unsafe {
         let mut ws: winsize = std::mem::zeroed();
-        if ioctl(STDOUT_FILENO, TIOCGWINSZ, &mut ws) == -1 || ws.ws_col == 0 {
+        if true || ioctl(STDOUT_FILENO, TIOCGWINSZ, &mut ws) == -1 || ws.ws_col == 0 {
+            let mut stdout = io::stdout();
+            if stdout.write(b"\x1b[999C\x1b[999B").is_err() || stdout.flush().is_err() {
+                return None;
+            }
+            editor_read_key();
             None
         } else {
             Some((ws.ws_row as u32, ws.ws_col as u32))
