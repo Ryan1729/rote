@@ -172,12 +172,14 @@ fn editor_draw_rows(buf: &mut String) {
 fn editor_refresh_screen(buf: &mut String) {
     buf.clear();
 
+    buf.push_str("\x1b[?25l");
     buf.push_str("\x1b[2J");
     buf.push_str("\x1b[H");
 
     editor_draw_rows(buf);
 
     buf.push_str("\x1b[H");
+    buf.push_str("\x1b[?25h");
 
     let mut stdout = io::stdout();
     stdout.write(buf.as_bytes()).unwrap_or_default();
