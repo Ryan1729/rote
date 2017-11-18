@@ -21,6 +21,7 @@ enum EditorKey {
     Byte(u8),
     Arrow(Arrow),
     Page(Page),
+    Delete,
     Home,
     End,
 }
@@ -145,6 +146,7 @@ fn editor_read_key() -> EditorKey {
                     }
                     if seq[2] == b'~' {
                         match c {
+                            b'3' => return Delete,
                             b'5' => return Page(Page::Up),
                             b'6' => return Page(Page::Down),
                             b'1' | b'7' => return Home,
