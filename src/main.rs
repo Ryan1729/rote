@@ -10,6 +10,8 @@ use std::os::unix::io::AsRawFd;
 use std::ffi::CString;
 
 /*** defines ***/
+const KILO_VERSION: &'static str = "0.0.1";
+
 macro_rules! CTRL_KEY {
     ($k :expr) => (($k) & 0b0001_1111)
 }
@@ -160,8 +162,16 @@ fn get_window_size() -> Option<(u32, u32)> {
 fn editor_draw_rows(buf: &mut String) {
     if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
         for y in 0..editor_config.screen_rows {
-            buf.push('~');
+            if y == editor_config.screen_rows / 3 {
+                let mut welcome = format!("Kilo editor -- version {}", KILO_VERSION);
 
+                welcome.truncate(editor_config.screen_cols as _);
+                buf.push_str(&welcome);
+            } else {
+                buf.push('~');
+            }
+
+            buf.push_str("\x1b[K");
             if y < editor_config.screen_rows - 1 {
                 buf.push_str("\r\n");
             }
@@ -173,7 +183,6 @@ fn editor_refresh_screen(buf: &mut String) {
     buf.clear();
 
     buf.push_str("\x1b[?25l");
-    buf.push_str("\x1b[2J");
     buf.push_str("\x1b[H");
 
     editor_draw_rows(buf);
