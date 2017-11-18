@@ -16,15 +16,24 @@ macro_rules! CTRL_KEY {
     ($k :expr) => (($k) & 0b0001_1111)
 }
 
+#[derive(Clone, Copy)]
 enum EditorKey {
     Byte(u8),
     Arrow(Arrow),
+    Page(Page),
 }
 use EditorKey::*;
 
+#[derive(Clone, Copy)]
 enum Arrow {
     Left,
     Right,
+    Up,
+    Down,
+}
+
+#[derive(Clone, Copy)]
+enum Page {
     Up,
     Down,
 }
@@ -128,6 +137,18 @@ fn editor_read_key() -> EditorKey {
         }
         if seq[0] == b'[' {
             match seq[1] {
+                c if c >= b'0' && c <= b'9' => {
+                    if stdin.read_exact(&mut seq[2..3]).is_err() {
+                        return Byte(b'\x1b');
+                    }
+                    if seq[2] == b'~' {
+                        match c {
+                            b'5' => return Page(Page::Up),
+                            b'6' => return Page(Page::Down),
+                            _ => {}
+                        }
+                    }
+                }
                 b'A' => {
                     return Arrow(Arrow::Up);
                 }
@@ -292,6 +313,16 @@ fn editor_process_keypress() {
             disable_raw_mode();
             std::process::exit(0);
         }
+        Page(page) => if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+            let arrow = match page {
+                Page::Up => Arrow::Up,
+                Page::Down => Arrow::Down,
+            };
+
+            for _ in 0..editor_config.screen_rows {
+                editor_move_cursor(arrow);
+            }
+        },
         Arrow(arrow) => {
             editor_move_cursor(arrow);
         }
