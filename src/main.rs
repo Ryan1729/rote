@@ -157,30 +157,30 @@ fn get_window_size() -> Option<(u32, u32)> {
 
 /*** output ***/
 
-fn editor_draw_rows() {
-    let mut stdout = io::stdout();
-
+fn editor_draw_rows(buf: &mut String) {
     if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
         for y in 0..editor_config.screen_rows {
-            stdout.write(b"~").unwrap_or_default();
+            buf.push('~');
 
             if y < editor_config.screen_rows - 1 {
-                stdout.write(b"\r\n").unwrap_or_default();
+                buf.push_str("\r\n");
             }
         }
     }
 }
 
 fn editor_refresh_screen() {
+    let mut buf = String::new();
+
+    buf.push_str("\x1b[2J");
+    buf.push_str("\x1b[H");
+
+    editor_draw_rows(&mut buf);
+
+    buf.push_str("\x1b[H");
+
     let mut stdout = io::stdout();
-
-    stdout.write(b"\x1b[2J").unwrap_or_default();
-    stdout.write(b"\x1b[H").unwrap_or_default();
-
-    editor_draw_rows();
-
-    stdout.write(b"\x1b[H").unwrap_or_default();
-
+    stdout.write(buf.as_bytes()).unwrap_or_default();
     stdout.flush().unwrap_or_default();
 }
 
