@@ -425,6 +425,16 @@ fn editor_move_cursor(arrow: Arrow) {
                 editor_config.cy += 1;
             },
         }
+
+
+        let new_row_len = if editor_config.cy < editor_config.num_rows {
+            editor_config.rows[editor_config.cy as usize].len() as u32
+        } else {
+            0
+        };
+        if editor_config.cx > new_row_len {
+            editor_config.cx = new_row_len;
+        }
     }
 }
 
