@@ -11,6 +11,7 @@ use std::ffi::CString;
 
 /*** defines ***/
 const KILO_VERSION: &'static str = "0.0.1";
+const KILO_TAB_STOP: usize = 8;
 
 macro_rules! CTRL_KEY {
     ($k :expr) => (($k) & 0b0001_1111)
@@ -43,7 +44,10 @@ enum Page {
 
 /*** data ***/
 
-type Row = String;
+struct Row {
+    row: String,
+    render: String,
+}
 
 struct EditorConfig {
     cx: u32,
@@ -272,8 +276,37 @@ fn get_window_size() -> Option<(u32, u32)> {
 
 /*** row operations ***/
 
-fn editor_append_row(row: String) {
+fn editor_update_row(row: &mut Row) {
+    let mut tabs = 0;
+
+    for c in row.row.chars() {
+        if c == '\t' {
+            tabs += 1;
+        }
+    }
+
+    row.render = String::with_capacity(row.row.len() + tabs * (KILO_TAB_STOP - 1));
+
+    for c in row.row.chars() {
+        if c == '\t' {
+            tabs += 1;
+            row.render.push(' ');
+            while row.render.len() % KILO_TAB_STOP != 0 {
+                row.render.push(' ');
+            }
+        } else {
+            row.render.push(c);
+        }
+    }
+}
+
+fn editor_append_row(s: String) {
     if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+        let mut row = Row {
+            row: s,
+            render: String::new(),
+        };
+        editor_update_row(&mut row);
         editor_config.rows.push(row);
         editor_config.num_rows += 1;
     }
@@ -348,12 +381,14 @@ fn editor_draw_rows(buf: &mut String) {
             } else {
                 let mut len = std::cmp::min(
                     editor_config.rows[file_row as usize]
+                        .render
                         .len()
                         .saturating_sub(editor_config.col_offset as _),
                     editor_config.screen_cols as usize,
                 );
 
                 for (i, c) in editor_config.rows[file_row as usize]
+                    .render
                     .chars()
                     .skip(editor_config.col_offset as _)
                     .enumerate()
@@ -403,7 +438,7 @@ fn editor_refresh_screen(buf: &mut String) {
 fn editor_move_cursor(arrow: Arrow) {
     if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
         let row_len = if editor_config.cy < editor_config.num_rows {
-            Some(editor_config.rows[editor_config.cy as usize].len())
+            Some(editor_config.rows[editor_config.cy as usize].row.len())
         } else {
             None
         };
@@ -413,7 +448,7 @@ fn editor_move_cursor(arrow: Arrow) {
                 editor_config.cx -= 1;
             } else if editor_config.cy > 0 {
                 editor_config.cy -= 1;
-                editor_config.cx = editor_config.rows[editor_config.cy as usize].len() as u32;
+                editor_config.cx = editor_config.rows[editor_config.cy as usize].row.len() as u32;
             },
             Arrow::Right => match row_len {
                 Some(len) if (editor_config.cx as usize) < len => {
@@ -435,7 +470,7 @@ fn editor_move_cursor(arrow: Arrow) {
 
 
         let new_row_len = if editor_config.cy < editor_config.num_rows {
-            editor_config.rows[editor_config.cy as usize].len() as u32
+            editor_config.rows[editor_config.cy as usize].row.len() as u32
         } else {
             0
         };
