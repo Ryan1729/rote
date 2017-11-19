@@ -409,9 +409,12 @@ fn editor_move_cursor(arrow: Arrow) {
         };
 
         match arrow {
-            Arrow::Left => {
-                editor_config.cx = editor_config.cx.saturating_sub(1);
-            }
+            Arrow::Left => if editor_config.cx != 0 {
+                editor_config.cx -= 1;
+            } else if editor_config.cy > 0 {
+                editor_config.cy -= 1;
+                editor_config.cx = editor_config.rows[editor_config.cy as usize].len() as u32;
+            },
             Arrow::Right => match row_len {
                 Some(len) if (editor_config.cx as usize) < len => {
                     editor_config.cx += 1;
