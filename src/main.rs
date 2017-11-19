@@ -425,9 +425,8 @@ fn editor_draw_rows(buf: &mut String) {
             }
 
             buf.push_str("\x1b[K");
-            if y < editor_config.screen_rows - 1 {
-                buf.push_str("\r\n");
-            }
+
+            buf.push_str("\r\n");
         }
     }
 }
@@ -562,7 +561,8 @@ fn init_editor() {
     match get_window_size() {
         None => die("get_window_size"),
         Some((rows, cols)) => {
-            editor_config.screen_rows = rows;
+            //leave room for the status bar
+            editor_config.screen_rows = rows - 1;
             editor_config.screen_cols = cols;
         }
     }
