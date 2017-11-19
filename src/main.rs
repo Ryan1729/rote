@@ -302,7 +302,7 @@ fn editor_draw_rows(buf: &mut String) {
     if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
         for y in 0..editor_config.screen_rows {
             if y >= editor_config.numrows {
-                if y == editor_config.screen_rows / 3 {
+                if editor_config.numrows == 0 && y == editor_config.screen_rows / 3 {
                     let mut welcome = format!("Kilo editor -- version {}", KILO_VERSION);
                     let mut padding = (editor_config.screen_cols as usize - welcome.len()) / 2;
 
