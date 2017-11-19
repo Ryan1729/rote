@@ -387,7 +387,7 @@ fn editor_refresh_screen(buf: &mut String) {
         buf.push_str(&format!(
             "\x1b[{};{}H",
             (editor_config.cy - editor_config.row_offset) + 1,
-            editor_config.cx + 1
+            (editor_config.cx - editor_config.col_offset) + 1
         ));
     }
 
