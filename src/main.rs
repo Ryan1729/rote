@@ -521,7 +521,9 @@ fn editor_process_keypress() {
             editor_config.cx = 0;
         },
         End => if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
-            editor_config.cx = editor_config.screen_cols - 1;
+            if editor_config.cy < editor_config.num_rows {
+                editor_config.cx = editor_config.rows[editor_config.cy as usize].row.len() as u32;
+            }
         },
         Page(page) => if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
             match page {
