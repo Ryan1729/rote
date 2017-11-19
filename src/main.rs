@@ -371,7 +371,7 @@ fn editor_refresh_screen(buf: &mut String) {
     if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
         buf.push_str(&format!(
             "\x1b[{};{}H",
-            editor_config.cy + 1,
+            (editor_config.cy - editor_config.row_offset) + 1,
             editor_config.cx + 1
         ));
     }
