@@ -43,12 +43,30 @@ enum Page {
 
 /*** data ***/
 
+type Row = String;
+
 struct EditorConfig {
     cx: u32,
     cy: u32,
     screen_rows: u32,
     screen_cols: u32,
+    numrows: u32,
+    row: Row,
     orig_termios: termios,
+}
+
+impl Default for EditorConfig {
+    fn default() -> EditorConfig {
+        EditorConfig {
+            cx:Default::default(),
+            cy:Default::default(),
+            screen_rows:Default::default(),
+            screen_cols:Default::default(),
+            numrows:Default::default(),
+            row:Default::default(),
+            orig_termios: unsafe {std::mem::zeroed()},
+        }
+    }
 }
 
 // This is a reasonably nice way to have a "uninitialized/zeroed" global,
@@ -246,27 +264,50 @@ fn get_window_size() -> Option<(u32, u32)> {
     }
 }
 
+/*** file i/o ***/
+
+fn editor_open() {
+    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+        editor_config.row = "Hello, world!".to_string();
+        editor_config.numrows = 1;
+    } else {
+        die("editor_open");
+    }
+}
+
 /*** output ***/
 
 fn editor_draw_rows(buf: &mut String) {
     if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
         for y in 0..editor_config.screen_rows {
-            if y == editor_config.screen_rows / 3 {
-                let mut welcome = format!("Kilo editor -- version {}", KILO_VERSION);
-                let mut padding = (editor_config.screen_cols as usize - welcome.len()) / 2;
+            if y >= editor_config.numrows {
+                if y == editor_config.screen_rows / 3 {
+                    let mut welcome = format!("Kilo editor -- version {}", KILO_VERSION);
+                    let mut padding = (editor_config.screen_cols as usize - welcome.len()) / 2;
 
-                if padding > 0 {
+                    if padding > 0 {
+                        buf.push('~');
+                        padding -= 1;
+                    }
+                    for _ in 0..padding {
+                        buf.push(' ');
+                    }
+
+                    welcome.truncate(editor_config.screen_cols as _);
+                    buf.push_str(&welcome);
+                } else {
                     buf.push('~');
-                    padding -= 1;
                 }
-                for _ in 0..padding {
-                    buf.push(' ');
-                }
-
-                welcome.truncate(editor_config.screen_cols as _);
-                buf.push_str(&welcome);
             } else {
-                buf.push('~');
+                let len =
+                    std::cmp::min(editor_config.row.len(), editor_config.screen_cols as usize);
+
+                for (i, c) in editor_config.row.char_indices() {
+                    if i >= len {
+                        break;
+                    }
+                    buf.push(c);
+                }
             }
 
             buf.push_str("\x1b[K");
@@ -361,7 +402,7 @@ fn editor_process_keypress() {
 /*** init ***/
 
 fn init_editor() {
-    let mut editor_config: EditorConfig = unsafe { std::mem::zeroed() };
+    let mut editor_config: EditorConfig = Default::default();
     match get_window_size() {
         None => die("get_window_size"),
         Some((rows, cols)) => {
@@ -376,6 +417,7 @@ fn init_editor() {
 
 fn main() {
     init_editor();
+    editor_open();
     enable_raw_mode();
 
     let mut buf = String::new();
