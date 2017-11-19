@@ -58,13 +58,13 @@ struct EditorConfig {
 impl Default for EditorConfig {
     fn default() -> EditorConfig {
         EditorConfig {
-            cx:Default::default(),
-            cy:Default::default(),
-            screen_rows:Default::default(),
-            screen_cols:Default::default(),
-            numrows:Default::default(),
-            row:Default::default(),
-            orig_termios: unsafe {std::mem::zeroed()},
+            cx: Default::default(),
+            cy: Default::default(),
+            screen_rows: Default::default(),
+            screen_cols: Default::default(),
+            numrows: Default::default(),
+            row: Default::default(),
+            orig_termios: unsafe { std::mem::zeroed() },
         }
     }
 }
@@ -137,11 +137,13 @@ fn editor_read_key() -> EditorKey {
     let mut stdin = io::stdin();
     stdin
         .read_exact(&mut buffer)
-        .or_else(|e| if e.kind() == ErrorKind::UnexpectedEof {
-            buffer[0] = 0;
-            Ok(())
-        } else {
-            Err(e)
+        .or_else(|e| {
+            if e.kind() == ErrorKind::UnexpectedEof {
+                buffer[0] = 0;
+                Ok(())
+            } else {
+                Err(e)
+            }
         })
         .unwrap();
 
@@ -265,11 +267,30 @@ fn get_window_size() -> Option<(u32, u32)> {
 }
 
 /*** file i/o ***/
+use std::io::{BufRead, BufReader};
+use std::fs::File;
+use std::path::Path;
 
-fn editor_open() {
+fn editor_open<P: AsRef<Path>>(filename: P) {
     if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
-        editor_config.row = "Hello, world!".to_string();
-        editor_config.numrows = 1;
+        if let Ok(file) = File::open(filename) {
+            if let Some(x) = BufReader::new(file).lines().next() {
+                match x {
+                    Ok(mut line) => {
+                        while line.ends_with(|c| c == '\n' || c == '\r') {
+                            line.pop();
+                        }
+                        editor_config.row = line;
+                        editor_config.numrows = 1;
+                    }
+                    Err(e) => {
+                        die(&e.to_string());
+                    }
+                }
+            }
+        } else {
+            die("File::open");
+        }
     } else {
         die("editor_open");
     }
@@ -417,7 +438,13 @@ fn init_editor() {
 
 fn main() {
     init_editor();
-    editor_open();
+
+    let mut args = std::env::args();
+    //skip binary name
+    args.next();
+    if let Some(filename) = args.next() {
+        editor_open(filename);
+    }
     enable_raw_mode();
 
     let mut buf = String::new();
