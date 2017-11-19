@@ -51,7 +51,7 @@ struct EditorConfig {
     screen_rows: u32,
     screen_cols: u32,
     numrows: u32,
-    row: Row,
+    rows: Vec<Row>,
     orig_termios: termios,
 }
 
@@ -63,7 +63,7 @@ impl Default for EditorConfig {
             screen_rows: Default::default(),
             screen_cols: Default::default(),
             numrows: Default::default(),
-            row: Default::default(),
+            rows: Default::default(),
             orig_termios: unsafe { std::mem::zeroed() },
         }
     }
@@ -266,30 +266,34 @@ fn get_window_size() -> Option<(u32, u32)> {
     }
 }
 
+/*** row operations ***/
+
+fn editor_append_row(row: String) {
+    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+        editor_config.rows.push(row);
+        editor_config.numrows += 1;
+    }
+}
+
 /*** file i/o ***/
 use std::io::{BufRead, BufReader};
 use std::fs::File;
 use std::path::Path;
 
 fn editor_open<P: AsRef<Path>>(filename: P) {
-    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
-        if let Ok(file) = File::open(filename) {
-            if let Some(x) = BufReader::new(file).lines().next() {
-                match x {
-                    Ok(mut line) => {
-                        while line.ends_with(|c| c == '\n' || c == '\r') {
-                            line.pop();
-                        }
-                        editor_config.row = line;
-                        editor_config.numrows = 1;
+    if let Ok(file) = File::open(filename) {
+        for res in BufReader::new(file).lines() {
+            match res {
+                Ok(mut line) => {
+                    while line.ends_with(|c| c == '\n' || c == '\r') {
+                        line.pop();
                     }
-                    Err(e) => {
-                        die(&e.to_string());
-                    }
+                    editor_append_row(line);
+                }
+                Err(e) => {
+                    die(&e.to_string());
                 }
             }
-        } else {
-            die("File::open");
         }
     } else {
         die("editor_open");
@@ -320,10 +324,12 @@ fn editor_draw_rows(buf: &mut String) {
                     buf.push('~');
                 }
             } else {
-                let len =
-                    std::cmp::min(editor_config.row.len(), editor_config.screen_cols as usize);
+                let len = std::cmp::min(
+                    editor_config.rows[y as usize].len(),
+                    editor_config.screen_cols as usize,
+                );
 
-                for (i, c) in editor_config.row.char_indices() {
+                for (i, c) in editor_config.rows[y as usize].char_indices() {
                     if i >= len {
                         break;
                     }
