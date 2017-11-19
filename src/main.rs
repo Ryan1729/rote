@@ -419,6 +419,10 @@ fn editor_move_cursor(arrow: Arrow) {
                 Some(len) if (editor_config.cx as usize) < len => {
                     editor_config.cx += 1;
                 }
+                Some(len) if (editor_config.cx as usize) == len => {
+                    editor_config.cy += 1;
+                    editor_config.cx = 0;
+                }
                 _ => {}
             },
             Arrow::Up => {
