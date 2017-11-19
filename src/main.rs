@@ -524,6 +524,19 @@ fn editor_process_keypress() {
             editor_config.cx = editor_config.screen_cols - 1;
         },
         Page(page) => if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+            match page {
+                Page::Up => {
+                    editor_config.cy = editor_config.row_offset;
+                }
+                Page::Down => {
+                    editor_config.cy = editor_config.row_offset + editor_config.screen_rows - 1;
+                    if editor_config.cy > editor_config.num_rows {
+                        editor_config.cy = editor_config.num_rows;
+                    }
+                }
+            };
+
+
             let arrow = match page {
                 Page::Up => Arrow::Up,
                 Page::Down => Arrow::Down,
