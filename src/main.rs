@@ -402,13 +402,22 @@ fn editor_refresh_screen(buf: &mut String) {
 
 fn editor_move_cursor(arrow: Arrow) {
     if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+        let row_len = if editor_config.cy < editor_config.num_rows {
+            Some(editor_config.rows[editor_config.cy as usize].len())
+        } else {
+            None
+        };
+
         match arrow {
             Arrow::Left => {
                 editor_config.cx = editor_config.cx.saturating_sub(1);
             }
-            Arrow::Right => {
-                editor_config.cx += 1;
-            }
+            Arrow::Right => match row_len {
+                Some(len) if (editor_config.cx as usize) < len => {
+                    editor_config.cx += 1;
+                }
+                _ => {}
+            },
             Arrow::Up => {
                 editor_config.cy = editor_config.cy.saturating_sub(1);
             }
