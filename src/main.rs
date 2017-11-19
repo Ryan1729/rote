@@ -48,9 +48,10 @@ type Row = String;
 struct EditorConfig {
     cx: u32,
     cy: u32,
+    row_offset: u32,
     screen_rows: u32,
     screen_cols: u32,
-    numrows: u32,
+    num_rows: u32,
     rows: Vec<Row>,
     orig_termios: termios,
 }
@@ -60,9 +61,10 @@ impl Default for EditorConfig {
         EditorConfig {
             cx: Default::default(),
             cy: Default::default(),
+            row_offset: Default::default(),
             screen_rows: Default::default(),
             screen_cols: Default::default(),
-            numrows: Default::default(),
+            num_rows: Default::default(),
             rows: Default::default(),
             orig_termios: unsafe { std::mem::zeroed() },
         }
@@ -271,7 +273,7 @@ fn get_window_size() -> Option<(u32, u32)> {
 fn editor_append_row(row: String) {
     if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
         editor_config.rows.push(row);
-        editor_config.numrows += 1;
+        editor_config.num_rows += 1;
     }
 }
 
@@ -302,11 +304,23 @@ fn editor_open<P: AsRef<Path>>(filename: P) {
 
 /*** output ***/
 
+fn editor_scroll() {
+    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+        if editor_config.cy < editor_config.row_offset {
+            editor_config.row_offset = editor_config.cy;
+        }
+        if editor_config.cy >= editor_config.row_offset + editor_config.screen_rows {
+            editor_config.row_offset = editor_config.cy - editor_config.screen_rows + 1;
+        }
+    }
+}
+
 fn editor_draw_rows(buf: &mut String) {
     if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
         for y in 0..editor_config.screen_rows {
-            if y >= editor_config.numrows {
-                if editor_config.numrows == 0 && y == editor_config.screen_rows / 3 {
+            let file_row = y + editor_config.row_offset;
+            if file_row >= editor_config.num_rows {
+                if editor_config.num_rows == 0 && y == editor_config.screen_rows / 3 {
                     let mut welcome = format!("Kilo editor -- version {}", KILO_VERSION);
                     let mut padding = (editor_config.screen_cols as usize - welcome.len()) / 2;
 
@@ -325,11 +339,11 @@ fn editor_draw_rows(buf: &mut String) {
                 }
             } else {
                 let len = std::cmp::min(
-                    editor_config.rows[y as usize].len(),
+                    editor_config.rows[file_row as usize].len(),
                     editor_config.screen_cols as usize,
                 );
 
-                for (i, c) in editor_config.rows[y as usize].char_indices() {
+                for (i, c) in editor_config.rows[file_row as usize].char_indices() {
                     if i >= len {
                         break;
                     }
@@ -346,6 +360,7 @@ fn editor_draw_rows(buf: &mut String) {
 }
 
 fn editor_refresh_screen(buf: &mut String) {
+    editor_scroll();
     buf.clear();
 
     buf.push_str("\x1b[?25l");
@@ -382,7 +397,7 @@ fn editor_move_cursor(arrow: Arrow) {
             Arrow::Up => {
                 editor_config.cy = editor_config.cy.saturating_sub(1);
             }
-            Arrow::Down => if editor_config.cy < editor_config.screen_rows - 1 {
+            Arrow::Down => if editor_config.cy < editor_config.num_rows {
                 editor_config.cy += 1;
             },
         }
