@@ -49,6 +49,7 @@ struct EditorConfig {
     cx: u32,
     cy: u32,
     row_offset: u32,
+    col_offset: u32,
     screen_rows: u32,
     screen_cols: u32,
     num_rows: u32,
@@ -62,6 +63,7 @@ impl Default for EditorConfig {
             cx: Default::default(),
             cy: Default::default(),
             row_offset: Default::default(),
+            col_offset: Default::default(),
             screen_rows: Default::default(),
             screen_cols: Default::default(),
             num_rows: Default::default(),
@@ -312,6 +314,12 @@ fn editor_scroll() {
         if editor_config.cy >= editor_config.row_offset + editor_config.screen_rows {
             editor_config.row_offset = editor_config.cy - editor_config.screen_rows + 1;
         }
+        if editor_config.cx < editor_config.col_offset {
+            editor_config.col_offset = editor_config.cx;
+        }
+        if editor_config.cx >= editor_config.col_offset + editor_config.screen_cols {
+            editor_config.col_offset = editor_config.cx - editor_config.screen_cols + 1;
+        }
     }
 }
 
@@ -338,15 +346,22 @@ fn editor_draw_rows(buf: &mut String) {
                     buf.push('~');
                 }
             } else {
-                let len = std::cmp::min(
-                    editor_config.rows[file_row as usize].len(),
+                let mut len = std::cmp::min(
+                    editor_config.rows[file_row as usize]
+                        .len()
+                        .saturating_sub(editor_config.col_offset as _),
                     editor_config.screen_cols as usize,
                 );
 
-                for (i, c) in editor_config.rows[file_row as usize].char_indices() {
+                for (i, c) in editor_config.rows[file_row as usize]
+                    .chars()
+                    .skip(editor_config.col_offset as _)
+                    .enumerate()
+                {
                     if i >= len {
                         break;
                     }
+
                     buf.push(c);
                 }
             }
@@ -391,9 +406,9 @@ fn editor_move_cursor(arrow: Arrow) {
             Arrow::Left => {
                 editor_config.cx = editor_config.cx.saturating_sub(1);
             }
-            Arrow::Right => if editor_config.cx < editor_config.screen_cols - 1 {
+            Arrow::Right => {
                 editor_config.cx += 1;
-            },
+            }
             Arrow::Up => {
                 editor_config.cy = editor_config.cy.saturating_sub(1);
             }
