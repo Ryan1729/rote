@@ -52,6 +52,7 @@ struct Row {
 struct EditorConfig {
     cx: u32,
     cy: u32,
+    rx: u32,
     row_offset: u32,
     col_offset: u32,
     screen_rows: u32,
@@ -66,6 +67,7 @@ impl Default for EditorConfig {
         EditorConfig {
             cx: Default::default(),
             cy: Default::default(),
+            rx: Default::default(),
             row_offset: Default::default(),
             col_offset: Default::default(),
             screen_rows: Default::default(),
@@ -276,6 +278,19 @@ fn get_window_size() -> Option<(u32, u32)> {
 
 /*** row operations ***/
 
+fn editor_row_cx_to_rx(row: &Row, cx: u32) -> u32 {
+    let mut rx = 0;
+
+    for c in row.row.chars().take(cx as usize) {
+        if c == '\t' {
+            rx += (KILO_TAB_STOP - 1) - (rx % KILO_TAB_STOP);
+        }
+        rx += 1;
+    }
+
+    rx as u32
+}
+
 fn editor_update_row(row: &mut Row) {
     let mut tabs = 0;
 
@@ -341,17 +356,25 @@ fn editor_open<P: AsRef<Path>>(filename: P) {
 
 fn editor_scroll() {
     if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+        editor_config.rx = 0;
+        if editor_config.cy < editor_config.num_rows {
+            editor_config.rx = editor_row_cx_to_rx(
+                &editor_config.rows[editor_config.cy as usize],
+                editor_config.cx,
+            )
+        }
+
         if editor_config.cy < editor_config.row_offset {
             editor_config.row_offset = editor_config.cy;
         }
         if editor_config.cy >= editor_config.row_offset + editor_config.screen_rows {
             editor_config.row_offset = editor_config.cy - editor_config.screen_rows + 1;
         }
-        if editor_config.cx < editor_config.col_offset {
-            editor_config.col_offset = editor_config.cx;
+        if editor_config.rx < editor_config.col_offset {
+            editor_config.col_offset = editor_config.rx;
         }
-        if editor_config.cx >= editor_config.col_offset + editor_config.screen_cols {
-            editor_config.col_offset = editor_config.cx - editor_config.screen_cols + 1;
+        if editor_config.rx >= editor_config.col_offset + editor_config.screen_cols {
+            editor_config.col_offset = editor_config.rx - editor_config.screen_cols + 1;
         }
     }
 }
@@ -422,7 +445,7 @@ fn editor_refresh_screen(buf: &mut String) {
         buf.push_str(&format!(
             "\x1b[{};{}H",
             (editor_config.cy - editor_config.row_offset) + 1,
-            (editor_config.cx - editor_config.col_offset) + 1
+            (editor_config.rx - editor_config.col_offset) + 1
         ));
     }
 
