@@ -77,6 +77,7 @@ struct EditorConfig {
     screen_cols: u32,
     num_rows: u32,
     rows: Vec<Row>,
+    dirty: bool,
     filename: Option<String>,
     status_msg: String,
     status_msg_time: Instant,
@@ -95,6 +96,7 @@ impl Default for EditorConfig {
             screen_cols: Default::default(),
             num_rows: Default::default(),
             rows: Default::default(),
+            dirty: false,
             filename: Default::default(),
             status_msg: Default::default(),
             status_msg_time: Instant::now(),
@@ -348,6 +350,7 @@ fn editor_append_row(s: String) {
         editor_update_row(&mut row);
         editor_config.rows.push(row);
         editor_config.num_rows += 1;
+        editor_config.dirty = true;
     }
 }
 
@@ -359,6 +362,9 @@ fn editor_row_insert_char(row: &mut Row, at: u32, c: char) {
     }
     row.row.insert(i, c);
     editor_update_row(row);
+    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+        editor_config.dirty = true;
+    }
 }
 
 /*** editor operations ***/
@@ -525,7 +531,16 @@ fn editor_draw_status_bar(buf: &mut String) {
             &None => "[No Name]",
         };
 
-        let status = format!("{:.20} - {} lines", name, editor_config.num_rows);
+        let status = format!(
+            "{:.20} - {} lines {}",
+            name,
+            editor_config.num_rows,
+            if editor_config.dirty {
+                "(modified)"
+            } else {
+                ""
+            }
+        );
         let r_status = format!("{}/{}", editor_config.cy + 1, editor_config.num_rows);
 
         buf.push_str(&status);
