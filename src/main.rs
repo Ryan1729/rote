@@ -334,6 +334,32 @@ fn editor_append_row(s: String) {
     }
 }
 
+fn editor_row_insert_char(row: &mut Row, at: u32, c: char) {
+    //we allow at == len so we can add c to the end.
+    let mut i = at as usize;
+    if i > row.row.len() {
+        i = row.row.len();
+    }
+    row.row.insert(i, c);
+    editor_update_row(row);
+}
+
+/*** editor operations ***/
+
+fn editor_insert_char(c: char) {
+    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+        if editor_config.cy == editor_config.num_rows {
+            editor_append_row(String::new());
+        }
+        editor_row_insert_char(
+            &mut editor_config.rows[editor_config.cy as usize],
+            editor_config.cx,
+            c,
+        );
+        editor_config.cx += 1;
+    }
+}
+
 /*** file i/o ***/
 use std::io::{BufRead, BufReader};
 use std::fs::File;
@@ -624,6 +650,9 @@ fn editor_process_keypress() {
         },
         Arrow(arrow) => {
             editor_move_cursor(arrow);
+        }
+        Byte(c0) if c0 != 0 => {
+            editor_insert_char(c0 as char);
         }
         _ => {}
     }
