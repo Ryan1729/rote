@@ -399,45 +399,49 @@ fn editor_rows_to_string() -> String {
 fn editor_open<P: AsRef<Path>>(filename: P) {
     if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
         editor_config.filename = Some(format!("{}", filename.as_ref().display()));
-    }
 
-    if let Ok(file) = File::open(filename) {
-        for res in BufReader::new(file).lines() {
-            match res {
-                Ok(mut line) => {
-                    while line.ends_with(|c| c == '\n' || c == '\r') {
-                        line.pop();
+        if let Ok(file) = File::open(filename) {
+            for res in BufReader::new(file).lines() {
+                match res {
+                    Ok(mut line) => {
+                        while line.ends_with(|c| c == '\n' || c == '\r') {
+                            line.pop();
+                        }
+                        editor_append_row(line);
                     }
-                    editor_append_row(line);
-                }
-                Err(e) => {
-                    die(&e.to_string());
+                    Err(e) => {
+                        die(&e.to_string());
+                    }
                 }
             }
+        } else {
+            die("editor_open");
         }
-    } else {
-        die("editor_open");
+        editor_config.dirty = false;
     }
 }
 
 fn editor_save() {
-    if let Some(filename) = unsafe { EDITOR_CONFIG.as_mut() }.and_then(|e| e.filename.as_ref()) {
-        use std::fs::OpenOptions;
+    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+        if let Some(filename) = editor_config.filename.as_ref() {
+            use std::fs::OpenOptions;
 
-        let s = editor_rows_to_string();
-        let data = s.as_bytes();
-        let len = data.len();
-        match OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .open(filename)
-        {
-            Ok(mut file) => if let Ok(()) = file.write_all(data) {
-                editor_set_status_message!("{} bytes written to disk", len);
-            },
-            Err(err) => {
-                editor_set_status_message!("Can't save! I/O error: {}", err);
+            let s = editor_rows_to_string();
+            let data = s.as_bytes();
+            let len = data.len();
+            match OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .open(filename)
+            {
+                Ok(mut file) => if let Ok(()) = file.write_all(data) {
+                    editor_config.dirty = false;
+                    editor_set_status_message!("{} bytes written to disk", len);
+                },
+                Err(err) => {
+                    editor_set_status_message!("Can't save! I/O error: {}", err);
+                }
             }
         }
     }
