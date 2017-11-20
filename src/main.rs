@@ -13,6 +13,7 @@ use std::time::{Duration, Instant};
 /*** defines ***/
 const KILO_VERSION: &'static str = "0.0.1";
 const KILO_TAB_STOP: usize = 8;
+const BACKSPACE: u8 = 127;
 
 macro_rules! CTRL_KEY {
     ($k :expr) => (($k) & 0b0001_1111)
@@ -606,7 +607,10 @@ fn editor_move_cursor(arrow: Arrow) {
 fn editor_process_keypress() {
     let key = editor_read_key();
 
+    const CTRL_H: u8 = CTRL_KEY!(b'h');
+
     match key {
+        Byte(b'\r') => { /* TODO */ }
         Byte(c0) if c0 == CTRL_KEY!(b'q') => {
             let mut stdout = io::stdout();
             stdout.write(b"\x1b[2J").unwrap_or_default();
@@ -625,6 +629,7 @@ fn editor_process_keypress() {
                 editor_config.cx = editor_config.rows[editor_config.cy as usize].row.len() as u32;
             }
         },
+        Byte(BACKSPACE) | Delete | Byte(CTRL_H) => { /* TODO */ }
         Page(page) => if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
             match page {
                 Page::Up => {
@@ -651,10 +656,10 @@ fn editor_process_keypress() {
         Arrow(arrow) => {
             editor_move_cursor(arrow);
         }
-        Byte(c0) if c0 != 0 => {
+        Byte(c0) if c0 == CTRL_KEY!(b'l') || c0 == b'\x1b' || c0 == 0 => {}
+        Byte(c0) => {
             editor_insert_char(c0 as char);
         }
-        _ => {}
     }
 }
 
