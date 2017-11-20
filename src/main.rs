@@ -22,6 +22,19 @@ macro_rules! CTRL_KEY {
     ($k :expr) => (($k) & 0b0001_1111)
 }
 
+macro_rules! editor_set_status_message {
+    ($($arg:tt)*) => {
+        if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+            editor_config.status_msg.clear();
+            std::fmt::write(
+                &mut editor_config.status_msg,
+                format_args!($($arg)*)
+            ).unwrap_or_default();
+            editor_config.status_msg_time = Instant::now();
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 enum EditorKey {
     Byte(u8),
@@ -405,14 +418,21 @@ fn editor_save() {
     if let Some(filename) = unsafe { EDITOR_CONFIG.as_mut() }.and_then(|e| e.filename.as_ref()) {
         use std::fs::OpenOptions;
 
-        let data = editor_rows_to_string();
-        if let Ok(mut file) = OpenOptions::new()
+        let s = editor_rows_to_string();
+        let data = s.as_bytes();
+        let len = data.len();
+        match OpenOptions::new()
             .write(true)
             .create(true)
             .truncate(true)
             .open(filename)
         {
-            file.write_all(data.as_bytes());
+            Ok(mut file) => if let Ok(()) = file.write_all(data) {
+                editor_set_status_message!("{} bytes written to disk", len);
+            },
+            Err(err) => {
+                editor_set_status_message!("Can't save! I/O error: {}", err);
+            }
         }
     }
 }
@@ -570,20 +590,6 @@ fn editor_refresh_screen(buf: &mut String) {
     stdout.flush().unwrap_or_default();
 }
 
-macro_rules! editor_set_status_message {
-    ($($arg:tt)*) => {
-        if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
-            editor_config.status_msg.clear();
-            std::fmt::write(
-                &mut editor_config.status_msg,
-                format_args!($($arg)*)
-            ).unwrap_or_default();
-            editor_config.status_msg_time = Instant::now();
-        }
-    }
-
-}
-
 /*** input ***/
 
 fn editor_move_cursor(arrow: Arrow) {
@@ -721,7 +727,7 @@ fn main() {
     }
     enable_raw_mode();
 
-    editor_set_status_message!("HELP: Ctrl-Q = quit");
+    editor_set_status_message!("HELP: Ctrl-S = save | Ctrl-Q = quit");
 
     let mut buf = String::new();
 
