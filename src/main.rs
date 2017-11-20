@@ -431,6 +431,17 @@ fn editor_draw_rows(buf: &mut String) {
     }
 }
 
+fn editor_draw_status_bar(buf: &mut String) {
+    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+        buf.push_str("\x1b[7m");
+
+        buf.push_str(&" ".repeat(editor_config.screen_cols as usize));
+
+        buf.push_str("\x1b[m");
+    }
+}
+
+
 fn editor_refresh_screen(buf: &mut String) {
     editor_scroll();
     buf.clear();
@@ -439,6 +450,7 @@ fn editor_refresh_screen(buf: &mut String) {
     buf.push_str("\x1b[H");
 
     editor_draw_rows(buf);
+    editor_draw_status_bar(buf);
 
     if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
         buf.push_str(&format!(
