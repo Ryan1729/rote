@@ -8,7 +8,7 @@ use libc::{ioctl, perror, tcgetattr, tcsetattr, termios, winsize, CS8, BRKINT, E
 use std::io::{self, ErrorKind, Read, Write};
 use std::os::unix::io::AsRawFd;
 use std::ffi::CString;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 /*** defines ***/
 const KILO_VERSION: &'static str = "0.0.1";
@@ -473,6 +473,22 @@ fn editor_draw_status_bar(buf: &mut String) {
     }
 }
 
+fn editor_draw_message_bar(buf: &mut String) {
+    buf.push_str("\x1b[K");
+
+    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+        let msglen = std::cmp::min(
+            editor_config.status_msg.len(),
+            editor_config.screen_cols as usize,
+        );
+
+        if msglen > 0
+            && Instant::now().duration_since(editor_config.status_msg_time) < Duration::from_secs(5)
+        {
+            buf.push_str(&editor_config.status_msg[..msglen]);
+        }
+    }
+}
 
 fn editor_refresh_screen(buf: &mut String) {
     editor_scroll();
@@ -483,6 +499,7 @@ fn editor_refresh_screen(buf: &mut String) {
 
     editor_draw_rows(buf);
     editor_draw_status_bar(buf);
+    editor_draw_message_bar(buf);
 
     if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
         buf.push_str(&format!(
