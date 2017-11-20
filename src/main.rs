@@ -59,6 +59,7 @@ struct EditorConfig {
     screen_cols: u32,
     num_rows: u32,
     rows: Vec<Row>,
+    filename: Option<String>,
     orig_termios: termios,
 }
 
@@ -74,6 +75,7 @@ impl Default for EditorConfig {
             screen_cols: Default::default(),
             num_rows: Default::default(),
             rows: Default::default(),
+            filename: Default::default(),
             orig_termios: unsafe { std::mem::zeroed() },
         }
     }
@@ -333,6 +335,10 @@ use std::fs::File;
 use std::path::Path;
 
 fn editor_open<P: AsRef<Path>>(filename: P) {
+    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+        editor_config.filename = Some(format!("{}", filename.as_ref().display()));
+    }
+
     if let Ok(file) = File::open(filename) {
         for res in BufReader::new(file).lines() {
             match res {
@@ -435,7 +441,16 @@ fn editor_draw_status_bar(buf: &mut String) {
     if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
         buf.push_str("\x1b[7m");
 
-        buf.push_str(&" ".repeat(editor_config.screen_cols as usize));
+        let name = match &editor_config.filename {
+            &Some(ref f_n) => f_n,
+            &None => "[No Name]",
+        };
+
+        let status = format!("{:.20} - {} lines", name, editor_config.num_rows);
+
+        buf.push_str(&status);
+        let len = std::cmp::min(status.len(), editor_config.screen_cols as usize);
+        buf.push_str(&" ".repeat((editor_config.screen_cols as usize).saturating_sub(len)));
 
         buf.push_str("\x1b[m");
     }
