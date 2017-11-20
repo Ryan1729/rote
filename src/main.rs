@@ -16,6 +16,7 @@ use std::path::Path;
 /*** defines ***/
 const KILO_VERSION: &'static str = "0.0.1";
 const KILO_TAB_STOP: usize = 8;
+const KILO_QUIT_TIMES: u32 = 3;
 const BACKSPACE: u8 = 127;
 
 macro_rules! CTRL_KEY {
@@ -657,6 +658,7 @@ fn editor_move_cursor(arrow: Arrow) {
 }
 
 fn editor_process_keypress() {
+    static mut QUIT_TIMES: u32 = KILO_QUIT_TIMES;
     let key = editor_read_key();
 
     const CTRL_H: u8 = CTRL_KEY!(b'h');
@@ -664,6 +666,20 @@ fn editor_process_keypress() {
     match key {
         Byte(b'\r') => { /* TODO */ }
         Byte(c0) if c0 == CTRL_KEY!(b'q') => {
+            if unsafe { EDITOR_CONFIG.as_mut() }
+                .map(|e| e.dirty)
+                .unwrap_or(true) && unsafe { QUIT_TIMES > 0 }
+            {
+                editor_set_status_message!(
+                    "WARNING!!! File has unsaved changes. Press Ctrl-Q {} more times to quit.",
+                    unsafe { QUIT_TIMES }
+                );
+                unsafe {
+                    QUIT_TIMES -= 1;
+                }
+                return;
+            }
+
             let mut stdout = io::stdout();
             stdout.write(b"\x1b[2J").unwrap_or_default();
             stdout.write(b"\x1b[H").unwrap_or_default();
@@ -711,10 +727,16 @@ fn editor_process_keypress() {
         Arrow(arrow) => {
             editor_move_cursor(arrow);
         }
-        Byte(c0) if c0 == CTRL_KEY!(b'l') || c0 == b'\x1b' || c0 == 0 => {}
+        Byte(c0) if c0 == CTRL_KEY!(b'l') || c0 == b'\x1b' => {}
+        Byte(c0) if c0 == 0 => {
+            return;
+        }
         Byte(c0) => {
             editor_insert_char(c0 as char);
         }
+    }
+    unsafe {
+        QUIT_TIMES = KILO_QUIT_TIMES;
     }
 }
 
