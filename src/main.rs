@@ -368,6 +368,18 @@ fn editor_row_insert_char(row: &mut Row, at: u32, c: char) {
     }
 }
 
+fn editor_row_del_char(row: &mut Row, at: u32) {
+    let i = at as usize;
+    if i >= row.row.len() {
+        return;
+    }
+    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+        row.row.remove(i);
+        editor_update_row(row);
+        editor_config.dirty = true;
+    }
+}
+
 /*** editor operations ***/
 
 fn editor_insert_char(c: char) {
@@ -381,6 +393,21 @@ fn editor_insert_char(c: char) {
             c,
         );
         editor_config.cx += 1;
+    }
+}
+
+fn editor_del_char() {
+    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+        if editor_config.cy == editor_config.num_rows {
+            return;
+        };
+        if editor_config.cx > 0 {
+            editor_row_del_char(
+                &mut editor_config.rows[editor_config.cy as usize],
+                editor_config.cx - 1,
+            );
+            editor_config.cx -= 1;
+        }
     }
 }
 
@@ -700,7 +727,15 @@ fn editor_process_keypress() {
                 editor_config.cx = editor_config.rows[editor_config.cy as usize].row.len() as u32;
             }
         },
-        Byte(BACKSPACE) | Delete | Byte(CTRL_H) => { /* TODO */ }
+        Byte(BACKSPACE) | Delete | Byte(CTRL_H) => {
+            match key {
+                Delete => {
+                    editor_move_cursor(Arrow::Right);
+                }
+                _ => {}
+            }
+            editor_del_char();
+        }
         Page(page) => if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
             match page {
                 Page::Up => {
