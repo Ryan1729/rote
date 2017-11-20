@@ -9,6 +9,9 @@ use std::io::{self, ErrorKind, Read, Write};
 use std::os::unix::io::AsRawFd;
 use std::ffi::CString;
 use std::time::{Duration, Instant};
+use std::io::{BufRead, BufReader};
+use std::fs::File;
+use std::path::Path;
 
 /*** defines ***/
 const KILO_VERSION: &'static str = "0.0.1";
@@ -362,9 +365,17 @@ fn editor_insert_char(c: char) {
 }
 
 /*** file i/o ***/
-use std::io::{BufRead, BufReader};
-use std::fs::File;
-use std::path::Path;
+
+fn editor_rows_to_string() -> String {
+    let mut buf = String::new();
+    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+        for row in editor_config.rows.iter() {
+            buf.push_str(&row.row);
+            buf.push('\n');
+        }
+    }
+    buf
+}
 
 fn editor_open<P: AsRef<Path>>(filename: P) {
     if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
@@ -387,6 +398,22 @@ fn editor_open<P: AsRef<Path>>(filename: P) {
         }
     } else {
         die("editor_open");
+    }
+}
+
+fn editor_save() {
+    if let Some(filename) = unsafe { EDITOR_CONFIG.as_mut() }.and_then(|e| e.filename.as_ref()) {
+        use std::fs::OpenOptions;
+
+        let data = editor_rows_to_string();
+        if let Ok(mut file) = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(filename)
+        {
+            file.write_all(data.as_bytes());
+        }
     }
 }
 
@@ -620,6 +647,9 @@ fn editor_process_keypress() {
 
             disable_raw_mode();
             std::process::exit(0);
+        }
+        Byte(c0) if c0 == CTRL_KEY!(b's') => {
+            editor_save();
         }
         Home => if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
             editor_config.cx = 0;
