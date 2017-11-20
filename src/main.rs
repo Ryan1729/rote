@@ -355,6 +355,19 @@ fn editor_append_row(s: String) {
     }
 }
 
+fn editor_del_row(at: u32) {
+    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+        if at >= editor_config.num_rows {
+            return;
+        }
+
+        editor_config.rows.remove(at as usize);
+
+        editor_config.num_rows -= 1;
+        editor_config.dirty = true;
+    }
+}
+
 fn editor_row_insert_char(row: &mut Row, at: u32, c: char) {
     //we allow at == len so we can add c to the end.
     let mut i = at as usize;
@@ -364,6 +377,14 @@ fn editor_row_insert_char(row: &mut Row, at: u32, c: char) {
     row.row.insert(i, c);
     editor_update_row(row);
     if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+        editor_config.dirty = true;
+    }
+}
+
+fn editor_row_append_string(row: &mut Row, s: &str) {
+    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+        row.row.push_str(s);
+        editor_update_row(row);
         editor_config.dirty = true;
     }
 }
@@ -401,12 +422,29 @@ fn editor_del_char() {
         if editor_config.cy == editor_config.num_rows {
             return;
         };
+        if editor_config.cx == 0 && editor_config.cy == 0 {
+            return;
+        };
+
         if editor_config.cx > 0 {
             editor_row_del_char(
                 &mut editor_config.rows[editor_config.cy as usize],
                 editor_config.cx - 1,
             );
             editor_config.cx -= 1;
+        } else {
+            {
+                let (before, after) = editor_config.rows.split_at_mut(editor_config.cy as usize);
+                match (before.last_mut(), after.first_mut()) {
+                    (Some(previous_row), Some(row)) => {
+                        editor_config.cx = previous_row.row.len() as u32;
+                        editor_row_append_string(previous_row, &row.row);
+                    }
+                    _ => die("editor_del_char"),
+                }
+            }
+            editor_del_row(editor_config.cy);
+            editor_config.cy -= 1;
         }
     }
 }
