@@ -8,6 +8,7 @@ use libc::{ioctl, perror, tcgetattr, tcsetattr, termios, winsize, CS8, BRKINT, E
 use std::io::{self, ErrorKind, Read, Write};
 use std::os::unix::io::AsRawFd;
 use std::ffi::CString;
+use std::time::Instant;
 
 /*** defines ***/
 const KILO_VERSION: &'static str = "0.0.1";
@@ -60,6 +61,8 @@ struct EditorConfig {
     num_rows: u32,
     rows: Vec<Row>,
     filename: Option<String>,
+    status_msg: String,
+    status_msg_time: Instant,
     orig_termios: termios,
 }
 
@@ -76,6 +79,8 @@ impl Default for EditorConfig {
             num_rows: Default::default(),
             rows: Default::default(),
             filename: Default::default(),
+            status_msg: Default::default(),
+            status_msg_time: Instant::now(),
             orig_termios: unsafe { std::mem::zeroed() },
         }
     }
@@ -464,6 +469,7 @@ fn editor_draw_status_bar(buf: &mut String) {
         }
 
         buf.push_str("\x1b[m");
+        buf.push_str("\r\n");
     }
 }
 
@@ -491,6 +497,20 @@ fn editor_refresh_screen(buf: &mut String) {
     let mut stdout = io::stdout();
     stdout.write(buf.as_bytes()).unwrap_or_default();
     stdout.flush().unwrap_or_default();
+}
+
+macro_rules! editor_set_status_message {
+    ($($arg:tt)*) => {
+        if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+            editor_config.status_msg.clear();
+            std::fmt::write(
+                &mut editor_config.status_msg,
+                format_args!($($arg)*)
+            ).unwrap_or_default();
+            editor_config.status_msg_time = Instant::now();
+        }
+    }
+
 }
 
 /*** input ***/
@@ -600,7 +620,7 @@ fn init_editor() {
         None => die("get_window_size"),
         Some((rows, cols)) => {
             //leave room for the status bar
-            editor_config.screen_rows = rows - 1;
+            editor_config.screen_rows = rows - 2;
             editor_config.screen_cols = cols;
         }
     }
@@ -619,6 +639,8 @@ fn main() {
         editor_open(filename);
     }
     enable_raw_mode();
+
+    editor_set_status_message!("HELP: Ctrl-Q = quit");
 
     let mut buf = String::new();
 
