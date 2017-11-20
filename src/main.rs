@@ -447,10 +447,21 @@ fn editor_draw_status_bar(buf: &mut String) {
         };
 
         let status = format!("{:.20} - {} lines", name, editor_config.num_rows);
+        let r_status = format!("{}/{}", editor_config.cy + 1, editor_config.num_rows);
 
         buf.push_str(&status);
-        let len = std::cmp::min(status.len(), editor_config.screen_cols as usize);
-        buf.push_str(&" ".repeat((editor_config.screen_cols as usize).saturating_sub(len)));
+
+        let screen_cols = editor_config.screen_cols as usize;
+        let mut len = std::cmp::min(status.len(), screen_cols);
+        let rlen = r_status.len();
+        while len < screen_cols {
+            if screen_cols - len == rlen {
+                buf.push_str(&r_status);
+                break;
+            }
+            buf.push(' ');
+            len += 1;
+        }
 
         buf.push_str("\x1b[m");
     }
