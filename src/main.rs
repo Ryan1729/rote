@@ -36,6 +36,36 @@ macro_rules! editor_set_status_message {
     }
 }
 
+//returns the prompted for string
+macro_rules! editor_prompt {
+    ($format_str: expr) => {{
+      let mut buf = String::new();
+      let mut display_buf = String::new();
+
+      loop {
+            editor_set_status_message!($format_str, buf);
+
+            editor_refresh_screen(&mut display_buf);
+            let key = editor_read_key();
+            match key {
+                Byte(b'\r') => {
+                    if buf.len() != 0 {
+                      editor_set_status_message!("");
+                      break;
+                    }
+                }
+                Byte(c) if !(c as char).is_control() => {
+                    buf.push(c as char);
+                }
+                _ => {}
+            }
+      }
+
+      buf
+  }}
+}
+
+
 #[derive(Clone, Copy)]
 enum EditorKey {
     Byte(u8),
@@ -510,6 +540,10 @@ fn editor_open<P: AsRef<Path>>(filename: P) {
 
 fn editor_save() {
     if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+        if editor_config.filename.is_none() {
+            editor_config.filename = Some(editor_prompt!("Save as: {}"));
+        }
+
         if let Some(filename) = editor_config.filename.as_ref() {
             use std::fs::OpenOptions;
 
