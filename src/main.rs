@@ -36,11 +36,12 @@ macro_rules! editor_set_status_message {
     }
 }
 
-//returns the prompted for string
+//returns An Option which may contain a prompted for string
 macro_rules! editor_prompt {
     ($format_str: expr) => {{
       let mut buf = String::new();
       let mut display_buf = String::new();
+      let mut result = None;
 
       loop {
             editor_set_status_message!($format_str, buf);
@@ -48,9 +49,14 @@ macro_rules! editor_prompt {
             editor_refresh_screen(&mut display_buf);
             let key = editor_read_key();
             match key {
+                Byte(b'\x1b') => {
+                    editor_set_status_message!("");
+                    break;
+                }
                 Byte(b'\r') => {
                     if buf.len() != 0 {
                       editor_set_status_message!("");
+                      result = Some(buf);
                       break;
                     }
                 }
@@ -61,7 +67,7 @@ macro_rules! editor_prompt {
             }
       }
 
-      buf
+      result
   }}
 }
 
@@ -541,7 +547,7 @@ fn editor_open<P: AsRef<Path>>(filename: P) {
 fn editor_save() {
     if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
         if editor_config.filename.is_none() {
-            editor_config.filename = Some(editor_prompt!("Save as: {}"));
+            editor_config.filename = editor_prompt!("Save as: {}");
         }
 
         if let Some(filename) = editor_config.filename.as_ref() {
