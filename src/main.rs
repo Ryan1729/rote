@@ -23,6 +23,8 @@ macro_rules! CTRL_KEY {
     ($k :expr) => (($k) & 0b0001_1111)
 }
 
+const CTRL_H: u8 = CTRL_KEY!(b'h');
+
 macro_rules! editor_set_status_message {
     ($($arg:tt)*) => {
         if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
@@ -49,6 +51,11 @@ macro_rules! editor_prompt {
             editor_refresh_screen(&mut display_buf);
             let key = editor_read_key();
             match key {
+
+                Byte(BACKSPACE) | Delete | Byte(CTRL_H) => {
+                    buf.pop();
+                }
+
                 Byte(b'\x1b') => {
                     editor_set_status_message!("");
                     break;
@@ -788,8 +795,6 @@ fn editor_move_cursor(arrow: Arrow) {
 fn editor_process_keypress() {
     static mut QUIT_TIMES: u32 = KILO_QUIT_TIMES;
     let key = editor_read_key();
-
-    const CTRL_H: u8 = CTRL_KEY!(b'h');
 
     match key {
         Byte(b'\r') => editor_insert_newline(),
