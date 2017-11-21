@@ -570,6 +570,8 @@ fn editor_save() {
                     editor_set_status_message!("Can't save! I/O error: {}", err);
                 }
             }
+        } else {
+            editor_set_status_message!("Save aborted");
         }
     }
 }
