@@ -342,14 +342,18 @@ fn editor_update_row(row: &mut Row) {
     }
 }
 
-fn editor_append_row(s: String) {
+fn editor_insert_row(at: u32, s: String) {
     if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+        if at > editor_config.num_rows {
+            return;
+        }
+
         let mut row = Row {
             row: s,
             render: String::new(),
         };
         editor_update_row(&mut row);
-        editor_config.rows.push(row);
+        editor_config.rows.insert(at as usize, row);
         editor_config.num_rows += 1;
         editor_config.dirty = true;
     }
@@ -406,7 +410,7 @@ fn editor_row_del_char(row: &mut Row, at: u32) {
 fn editor_insert_char(c: char) {
     if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
         if editor_config.cy == editor_config.num_rows {
-            editor_append_row(String::new());
+            editor_insert_row(editor_config.num_rows, String::new());
         }
         editor_row_insert_char(
             &mut editor_config.rows[editor_config.cy as usize],
@@ -414,6 +418,23 @@ fn editor_insert_char(c: char) {
             c,
         );
         editor_config.cx += 1;
+    }
+}
+
+fn editor_insert_newline() {
+    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+        if editor_config.cx == 0 {
+            editor_insert_row(editor_config.cy, String::new());
+        } else {
+            let row = &mut editor_config.rows[editor_config.cy as usize];
+            editor_insert_row(
+                editor_config.cy + 1,
+                row.row.split_off(editor_config.cx as usize),
+            );
+            editor_update_row(row);
+        }
+        editor_config.cy += 1;
+        editor_config.cx = 0;
     }
 }
 
@@ -473,7 +494,7 @@ fn editor_open<P: AsRef<Path>>(filename: P) {
                         while line.ends_with(|c| c == '\n' || c == '\r') {
                             line.pop();
                         }
-                        editor_append_row(line);
+                        editor_insert_row(editor_config.num_rows, line);
                     }
                     Err(e) => {
                         die(&e.to_string());
@@ -729,7 +750,7 @@ fn editor_process_keypress() {
     const CTRL_H: u8 = CTRL_KEY!(b'h');
 
     match key {
-        Byte(b'\r') => { /* TODO */ }
+        Byte(b'\r') => editor_insert_newline(),
         Byte(c0) if c0 == CTRL_KEY!(b'q') => {
             if unsafe { EDITOR_CONFIG.as_mut() }
                 .map(|e| e.dirty)
