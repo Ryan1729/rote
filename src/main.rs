@@ -361,6 +361,22 @@ fn editor_row_cx_to_rx(row: &Row, cx: u32) -> u32 {
     rx as u32
 }
 
+fn editor_row_rx_to_cx(row: &Row, rx: u32) -> u32 {
+    let rx_usize = rx as usize;
+    let mut cur_rx = 0;
+
+    for (cx, c) in row.row.char_indices() {
+        if c == '\t' {
+            cur_rx += (KILO_TAB_STOP - 1) - (cur_rx % KILO_TAB_STOP);
+        }
+        cur_rx += 1;
+        if cur_rx > rx_usize {
+            return cx as u32;
+        }
+    }
+    return row.row.len() as u32;
+}
+
 fn editor_update_row(row: &mut Row) {
     let mut tabs = 0;
 
@@ -579,6 +595,23 @@ fn editor_save() {
             }
         } else {
             editor_set_status_message!("Save aborted");
+        }
+    }
+}
+
+/*** find ***/
+fn editor_find() {
+    if let Some(query) = editor_prompt!("Search: {} (ESC to cancel)") {
+        if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+            for i in 0..editor_config.num_rows {
+                let row = &editor_config.rows[i as usize];
+                if let Some(index) = row.render.find(&query) {
+                    editor_config.cy = i;
+                    editor_config.cx = editor_row_rx_to_cx(row, index as u32);
+                    editor_config.row_offset = editor_config.num_rows;
+                    break;
+                }
+            }
         }
     }
 }
@@ -833,6 +866,9 @@ fn editor_process_keypress() {
                 editor_config.cx = editor_config.rows[editor_config.cy as usize].row.len() as u32;
             }
         },
+        Byte(c0) if c0 == CTRL_KEY!(b'f') => {
+            editor_find();
+        }
         Byte(BACKSPACE) | Delete | Byte(CTRL_H) => {
             match key {
                 Delete => {
@@ -909,7 +945,7 @@ fn main() {
     }
     enable_raw_mode();
 
-    editor_set_status_message!("HELP: Ctrl-S = save | Ctrl-Q = quit");
+    editor_set_status_message!("HELP: Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find");
 
     let mut buf = String::new();
 
