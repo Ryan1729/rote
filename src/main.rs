@@ -677,7 +677,11 @@ fn editor_find() {
         let saved_col_offset = editor_config.col_offset;
         let saved_row_offset = editor_config.row_offset;
 
-        if editor_prompt!("Search: {} (ESC to cancel)", Some(&editor_find_callback)).is_none() {
+        if editor_prompt!(
+            "Search: {} (Use ESC/Arrows/Enter)",
+            Some(&editor_find_callback)
+        ).is_none()
+        {
             editor_config.cx = saved_cx;
             editor_config.cy = saved_cy;
             editor_config.col_offset = saved_col_offset;
