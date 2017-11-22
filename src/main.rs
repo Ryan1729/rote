@@ -758,7 +758,13 @@ fn editor_draw_rows(buf: &mut String) {
                         break;
                     }
 
-                    buf.push(c);
+                    if c.is_digit(10) {
+                        buf.push_str("\x1b[31m");
+                        buf.push(c);
+                        buf.push_str("\x1b[39m");
+                    } else {
+                        buf.push(c);
+                    }
                 }
             }
 
