@@ -82,8 +82,13 @@ macro_rules! editor_prompt {
                 _ => {}
             }
 
-            if let Some(cb) = callback {
-                cb(&mut buf, key);
+            match key {
+                Byte(0) => {}
+                _ => {
+                    if let Some(cb) = callback {
+                        cb(&mut buf, key);
+                    }
+                }
             }
       }
 
@@ -657,6 +662,20 @@ fn editor_find_callback(query: &str, key: EditorKey) {
     static mut LAST_MATCH: i32 = -1;
     static mut FORWARD: bool = true;
 
+    static mut SAVED_HIGHLIGHT_LINE: u32 = 0;
+    static mut SAVED_HIGHLIGHT: Option<Vec<EditorHighlight>> = None;
+
+    unsafe {
+        if let Some(ref highlight) = SAVED_HIGHLIGHT {
+            if let Some(editor_config) = EDITOR_CONFIG.as_mut() {
+                editor_config.rows[SAVED_HIGHLIGHT_LINE as usize]
+                    .highlight
+                    .copy_from_slice(highlight);
+            }
+            SAVED_HIGHLIGHT = None;
+        }
+    }
+
     match key {
         Byte(b'\r') | Byte(b'\x1b') => {
             unsafe {
@@ -703,6 +722,11 @@ fn editor_find_callback(query: &str, key: EditorKey) {
                 editor_config.cy = current as u32;
                 editor_config.cx = editor_row_rx_to_cx(row, index as u32);
                 editor_config.row_offset = editor_config.num_rows;
+
+                unsafe {
+                    SAVED_HIGHLIGHT_LINE = current as u32;
+                    SAVED_HIGHLIGHT = Some(row.highlight.clone());
+                }
                 for i in index..index + query.len() {
                     row.highlight[i] = EditorHighlight::Match;
                 }
