@@ -415,29 +415,48 @@ fn editor_update_syntax(row: &mut Row) {
         row.highlight.reserve(extra_needed);
     }
 
-    let mut prev_sep = true;
-
-    let mut char_indices = row.render.char_indices();
-
-    while let Some((i, c)) = char_indices.next() {
-        let prev_highlight = if i > 0 {
-            row.highlight[i - 1]
-        } else {
-            EditorHighlight::Normal
-        };
-
-        if c.is_digit(10) && (prev_sep || prev_highlight == EditorHighlight::Number)
-            || (c == '.' && prev_highlight == EditorHighlight::Number)
-        {
-            row.highlight.push(EditorHighlight::Number);
-            prev_sep = false;
-
-            continue;
-        } else {
-            row.highlight.push(EditorHighlight::Normal);
+    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+        if editor_config.syntax.is_none() {
+            for _ in 0..row.render.len() {
+                row.highlight.push(EditorHighlight::Normal);
+            }
+            return;
         }
 
-        prev_sep = is_separator(c);
+        let mut prev_sep = true;
+
+        let mut char_indices = row.render.char_indices();
+
+        while let Some((i, c)) = char_indices.next() {
+            let prev_highlight = if i > 0 {
+                row.highlight[i - 1]
+            } else {
+                EditorHighlight::Normal
+            };
+
+            if editor_config
+                .syntax
+                .as_ref()
+                .map(|s| s.flags & HL_HIGHLIGHT_NUMBERS != 0)
+                .unwrap_or(false)
+            {
+                if c.is_digit(10) && (prev_sep || prev_highlight == EditorHighlight::Number)
+                    || (c == '.' && prev_highlight == EditorHighlight::Number)
+                {
+                    row.highlight.push(EditorHighlight::Number);
+                    prev_sep = false;
+                    continue;
+                } else {
+                    row.highlight.push(EditorHighlight::Normal);
+                }
+            }
+
+            prev_sep = is_separator(c);
+        }
+    } else {
+        for _ in 0..row.render.len() {
+            row.highlight.push(EditorHighlight::Normal);
+        }
     }
 }
 
