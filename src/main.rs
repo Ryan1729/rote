@@ -615,21 +615,58 @@ fn editor_save() {
 /*** find ***/
 
 fn editor_find_callback(query: &str, key: EditorKey) {
+    static mut LAST_MATCH: i32 = -1;
+    static mut FORWARD: bool = true;
+
     match key {
         Byte(b'\r') | Byte(b'\x1b') => {
+            unsafe {
+                LAST_MATCH = -1;
+                FORWARD = true;
+            }
             return;
         }
-        _ => if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
-            for i in 0..editor_config.num_rows {
-                let row = &editor_config.rows[i as usize];
-                if let Some(index) = row.render.find(query) {
-                    editor_config.cy = i;
-                    editor_config.cx = editor_row_rx_to_cx(row, index as u32);
-                    editor_config.row_offset = editor_config.num_rows;
-                    break;
-                }
-            }
+        Arrow(Arrow::Right) | Arrow(Arrow::Down) => unsafe {
+            FORWARD = true;
         },
+        Arrow(Arrow::Left) | Arrow(Arrow::Up) => unsafe {
+            FORWARD = false;
+        },
+        Byte(c0) if c0 == 0 => {
+            return;
+        }
+        _ => unsafe {
+            LAST_MATCH = -1;
+            FORWARD = true;
+        },
+    }
+
+    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+        unsafe {
+            if LAST_MATCH == -1 {
+                FORWARD = true;
+            }
+        }
+        let mut current: i32 = unsafe { LAST_MATCH };
+        for _ in 0..editor_config.num_rows {
+            current += if unsafe { FORWARD } { 1 } else { -1 };
+            if current == -1 {
+                current = (editor_config.num_rows as i32) - 1;
+            } else if current == editor_config.num_rows as _ {
+                current = 0;
+            }
+
+            let row = &editor_config.rows[current as usize];
+            if let Some(index) = row.render.find(query) {
+                unsafe {
+                    LAST_MATCH = current;
+                }
+                editor_config.cy = current as u32;
+                editor_config.cx = editor_row_rx_to_cx(row, index as u32);
+                editor_config.row_offset = editor_config.num_rows;
+                break;
+            }
+        }
     }
 }
 
