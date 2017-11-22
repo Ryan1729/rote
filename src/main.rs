@@ -40,15 +40,18 @@ macro_rules! editor_set_status_message {
 
 //returns An Option which may contain a prompted for string
 macro_rules! editor_prompt {
-    ($format_str: expr) => {{
+    ($format_str: expr) => {editor_prompt!($format_str, None)};
+    ($format_str: expr, $callback: expr) => {{
       let mut buf = String::new();
       let mut display_buf = String::new();
       let mut result = None;
 
+      let callback : Option<&Fn(&str, EditorKey)> = $callback;
+
       loop {
             editor_set_status_message!($format_str, buf);
-
             editor_refresh_screen(&mut display_buf);
+
             let key = editor_read_key();
             match key {
 
@@ -58,11 +61,17 @@ macro_rules! editor_prompt {
 
                 Byte(b'\x1b') => {
                     editor_set_status_message!("");
+                    if let Some(cb) = callback {
+                        cb(&mut buf, key);
+                    }
                     break;
                 }
                 Byte(b'\r') => {
                     if buf.len() != 0 {
                       editor_set_status_message!("");
+                      if let Some(cb) = callback {
+                          cb(&mut buf, key);
+                      }
                       result = Some(buf);
                       break;
                     }
@@ -71,6 +80,10 @@ macro_rules! editor_prompt {
                     buf.push(c as char);
                 }
                 _ => {}
+            }
+
+            if let Some(cb) = callback {
+                cb(&mut buf, key);
             }
       }
 
@@ -600,20 +613,28 @@ fn editor_save() {
 }
 
 /*** find ***/
-fn editor_find() {
-    if let Some(query) = editor_prompt!("Search: {} (ESC to cancel)") {
-        if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+
+fn editor_find_callback(query: &str, key: EditorKey) {
+    match key {
+        Byte(b'\r') | Byte(b'\x1b') => {
+            return;
+        }
+        _ => if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
             for i in 0..editor_config.num_rows {
                 let row = &editor_config.rows[i as usize];
-                if let Some(index) = row.render.find(&query) {
+                if let Some(index) = row.render.find(query) {
                     editor_config.cy = i;
                     editor_config.cx = editor_row_rx_to_cx(row, index as u32);
                     editor_config.row_offset = editor_config.num_rows;
                     break;
                 }
             }
-        }
+        },
     }
+}
+
+fn editor_find() {
+    editor_prompt!("Search: {} (ESC to cancel)", Some(&editor_find_callback));
 }
 
 /*** output ***/
