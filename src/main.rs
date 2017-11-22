@@ -117,11 +117,18 @@ enum Page {
     Down,
 }
 
+#[derive(Clone, Copy)]
+enum EditorHighlight {
+    Normal,
+    Number,
+}
+
 /*** data ***/
 
 struct Row {
     row: String,
     render: String,
+    highlight: Vec<EditorHighlight>,
 }
 
 struct EditorConfig {
@@ -359,6 +366,31 @@ fn get_window_size() -> Option<(u32, u32)> {
     }
 }
 
+/*** syntax highlighting ***/
+
+fn editor_update_syntax(row: &mut Row) {
+    row.highlight.clear();
+    let extra_needed = row.render.len().saturating_sub(row.highlight.capacity());
+    if extra_needed != 0 {
+        row.highlight.reserve(extra_needed);
+    }
+
+    for c in row.render.chars() {
+        row.highlight.push(if c.is_digit(10) {
+            EditorHighlight::Number
+        } else {
+            EditorHighlight::Normal
+        });
+    }
+}
+
+fn editor_syntax_to_color(highlight: EditorHighlight) -> i32 {
+    match highlight {
+        EditorHighlight::Number => 31,
+        EditorHighlight::Normal => 37,
+    }
+}
+
 /*** row operations ***/
 
 fn editor_row_cx_to_rx(row: &Row, cx: u32) -> u32 {
@@ -412,6 +444,8 @@ fn editor_update_row(row: &mut Row) {
             row.render.push(c);
         }
     }
+
+    editor_update_syntax(row);
 }
 
 fn editor_insert_row(at: u32, s: String) {
@@ -420,9 +454,12 @@ fn editor_insert_row(at: u32, s: String) {
             return;
         }
 
+        let s_capacity = s.capacity();
+
         let mut row = Row {
             row: s,
-            render: String::new(),
+            render: String::with_capacity(s_capacity),
+            highlight: Vec::with_capacity(s_capacity),
         };
         editor_update_row(&mut row);
         editor_config.rows.insert(at as usize, row);
@@ -720,8 +757,8 @@ fn editor_scroll() {
 fn editor_draw_rows(buf: &mut String) {
     if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
         for y in 0..editor_config.screen_rows {
-            let file_row = y + editor_config.row_offset;
-            if file_row >= editor_config.num_rows {
+            let file_index = y + editor_config.row_offset;
+            if file_index >= editor_config.num_rows {
                 if editor_config.num_rows == 0 && y == editor_config.screen_rows / 3 {
                     let mut welcome = format!("Kilo editor -- version {}", KILO_VERSION);
                     let mut padding = (editor_config.screen_cols as usize - welcome.len()) / 2;
@@ -740,15 +777,18 @@ fn editor_draw_rows(buf: &mut String) {
                     buf.push('~');
                 }
             } else {
+                let current_row = &editor_config.rows[file_index as usize];
                 let mut len = std::cmp::min(
-                    editor_config.rows[file_row as usize]
+                    current_row
                         .render
                         .len()
                         .saturating_sub(editor_config.col_offset as _),
                     editor_config.screen_cols as usize,
                 );
 
-                for (i, c) in editor_config.rows[file_row as usize]
+
+                let mut current_colour = None;
+                for (i, c) in current_row
                     .render
                     .chars()
                     .skip(editor_config.col_offset as _)
@@ -757,15 +797,25 @@ fn editor_draw_rows(buf: &mut String) {
                     if i >= len {
                         break;
                     }
-
-                    if c.is_digit(10) {
-                        buf.push_str("\x1b[31m");
-                        buf.push(c);
-                        buf.push_str("\x1b[39m");
-                    } else {
-                        buf.push(c);
+                    match current_row.highlight[i] {
+                        EditorHighlight::Normal => {
+                            if current_colour.is_some() {
+                                buf.push_str("\x1b[39m");
+                                current_colour = None;
+                            }
+                            buf.push(c);
+                        }
+                        _ => {
+                            let colour = editor_syntax_to_color(current_row.highlight[i]);
+                            if Some(colour) != current_colour {
+                                current_colour = Some(colour);
+                                buf.push_str(&format!("\x1b[{}m", colour));
+                            }
+                            buf.push(c);
+                        }
                     }
                 }
+                buf.push_str("\x1b[39m");
             }
 
             buf.push_str("\x1b[K");
