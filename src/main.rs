@@ -396,7 +396,9 @@ fn editor_update_syntax(row: &mut Row) {
             EditorHighlight::Normal
         };
 
-        if c.is_digit(10) && (prev_sep || prev_highlight == EditorHighlight::Number) {
+        if c.is_digit(10) && (prev_sep || prev_highlight == EditorHighlight::Number)
+            || (c == '.' && prev_highlight == EditorHighlight::Number)
+        {
             row.highlight.push(EditorHighlight::Number);
             prev_sep = false;
 
