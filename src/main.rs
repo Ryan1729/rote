@@ -121,6 +121,7 @@ enum Page {
 enum EditorHighlight {
     Normal,
     Number,
+    Match,
 }
 
 /*** data ***/
@@ -387,6 +388,7 @@ fn editor_update_syntax(row: &mut Row) {
 fn editor_syntax_to_color(highlight: EditorHighlight) -> i32 {
     match highlight {
         EditorHighlight::Number => 31,
+        EditorHighlight::Match => 34,
         EditorHighlight::Normal => 37,
     }
 }
@@ -693,7 +695,7 @@ fn editor_find_callback(query: &str, key: EditorKey) {
                 current = 0;
             }
 
-            let row = &editor_config.rows[current as usize];
+            let row = &mut editor_config.rows[current as usize];
             if let Some(index) = row.render.find(query) {
                 unsafe {
                     LAST_MATCH = current;
@@ -701,6 +703,10 @@ fn editor_find_callback(query: &str, key: EditorKey) {
                 editor_config.cy = current as u32;
                 editor_config.cx = editor_row_rx_to_cx(row, index as u32);
                 editor_config.row_offset = editor_config.num_rows;
+                for i in index..index + query.len() {
+                    row.highlight[i] = EditorHighlight::Match;
+                }
+
                 break;
             }
         }
