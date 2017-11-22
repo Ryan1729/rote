@@ -481,6 +481,11 @@ fn editor_select_syntax_highlight() {
                         || (!is_ext && filename.contains(file_match))
                     {
                         editor_config.syntax = Some(s.clone());
+
+                        for row in editor_config.rows.iter_mut() {
+                            editor_update_syntax(row);
+                        }
+
                         return;
                     }
                     i += 1;
