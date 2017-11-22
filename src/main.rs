@@ -133,6 +133,7 @@ const HL_HIGHLIGHT_NUMBERS: u32 = 1 << 0;
 
 /*** data ***/
 
+#[derive(Clone)]
 struct EditorSyntax {
     file_type: &'static str,
     file_match: [Option<&'static str>; 8],
@@ -468,6 +469,30 @@ fn editor_syntax_to_color(highlight: EditorHighlight) -> i32 {
     }
 }
 
+fn editor_select_syntax_highlight() {
+    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+        editor_config.syntax = None;
+        if let Some(ref filename) = editor_config.filename {
+            for s in HLDB.iter() {
+                let mut i = 0;
+                while let Some(ref file_match) = s.file_match[i] {
+                    let is_ext = file_match.starts_with('.');
+                    if (is_ext && filename.ends_with(file_match))
+                        || (!is_ext && filename.contains(file_match))
+                    {
+                        editor_config.syntax = Some(s.clone());
+                        return;
+                    }
+                    i += 1;
+                    if i >= file_match.len() {
+                        return;
+                    }
+                }
+            }
+        }
+    }
+}
+
 /*** row operations ***/
 
 fn editor_row_cx_to_rx(row: &Row, cx: u32) -> u32 {
@@ -673,6 +698,8 @@ fn editor_open<P: AsRef<Path>>(filename: P) {
     if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
         editor_config.filename = Some(format!("{}", filename.as_ref().display()));
 
+        editor_select_syntax_highlight();
+
         if let Ok(file) = File::open(filename) {
             for res in BufReader::new(file).lines() {
                 match res {
@@ -698,6 +725,7 @@ fn editor_save() {
     if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
         if editor_config.filename.is_none() {
             editor_config.filename = editor_prompt!("Save as: {}");
+            editor_select_syntax_highlight();
         }
 
         if let Some(filename) = editor_config.filename.as_ref() {
