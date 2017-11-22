@@ -634,7 +634,19 @@ fn editor_find_callback(query: &str, key: EditorKey) {
 }
 
 fn editor_find() {
-    editor_prompt!("Search: {} (ESC to cancel)", Some(&editor_find_callback));
+    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+        let saved_cx = editor_config.cx;
+        let saved_cy = editor_config.cy;
+        let saved_col_offset = editor_config.col_offset;
+        let saved_row_offset = editor_config.row_offset;
+
+        if editor_prompt!("Search: {} (ESC to cancel)", Some(&editor_find_callback)).is_none() {
+            editor_config.cx = saved_cx;
+            editor_config.cy = saved_cy;
+            editor_config.col_offset = saved_col_offset;
+            editor_config.row_offset = saved_row_offset;
+        }
+    }
 }
 
 /*** output ***/
