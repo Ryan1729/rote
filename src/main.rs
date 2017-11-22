@@ -129,7 +129,15 @@ enum EditorHighlight {
     Match,
 }
 
+const HL_HIGHLIGHT_NUMBERS: u32 = 1 << 0;
+
 /*** data ***/
+
+struct EditorSyntax {
+    file_type: &'static str,
+    file_match: [Option<&'static str>; 8],
+    flags: u32,
+}
 
 struct Row {
     row: String,
@@ -151,6 +159,7 @@ struct EditorConfig {
     filename: Option<String>,
     status_msg: String,
     status_msg_time: Instant,
+    syntax: Option<EditorSyntax>,
     orig_termios: termios,
 }
 
@@ -170,6 +179,7 @@ impl Default for EditorConfig {
             filename: Default::default(),
             status_msg: Default::default(),
             status_msg_time: Instant::now(),
+            syntax: Default::default(),
             orig_termios: unsafe { std::mem::zeroed() },
         }
     }
@@ -178,6 +188,26 @@ impl Default for EditorConfig {
 // This is a reasonably nice way to have a "uninitialized/zeroed" global,
 // given what is stable in Rust 1.21.0
 static mut EDITOR_CONFIG: Option<EditorConfig> = None;
+
+/*** filetypes ***/
+
+const HLDB: [EditorSyntax; 1] = [
+    EditorSyntax {
+        file_type: "c",
+        file_match: [
+            Some(".c"),
+            Some(".h"),
+            Some(".cpp"),
+            None,
+            None,
+            None,
+            None,
+            None,
+        ],
+        flags: HL_HIGHLIGHT_NUMBERS,
+    },
+];
+
 
 /*** terminal ***/
 
@@ -895,7 +925,15 @@ fn editor_draw_status_bar(buf: &mut String) {
                 ""
             }
         );
-        let r_status = format!("{}/{}", editor_config.cy + 1, editor_config.num_rows);
+        let r_status = format!(
+            "{} | {}/{}",
+            match editor_config.syntax {
+                Some(ref syntax) => syntax.file_type,
+                None => "no ft",
+            },
+            editor_config.cy + 1,
+            editor_config.num_rows
+        );
 
         buf.push_str(&status);
 
