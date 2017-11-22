@@ -122,7 +122,7 @@ enum Page {
     Down,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 enum EditorHighlight {
     Normal,
     Number,
@@ -374,6 +374,10 @@ fn get_window_size() -> Option<(u32, u32)> {
 
 /*** syntax highlighting ***/
 
+fn is_separator(c: char) -> bool {
+    c.is_whitespace() || c == '\0' || ",.()+-/*=~%<>[];".contains(c)
+}
+
 fn editor_update_syntax(row: &mut Row) {
     row.highlight.clear();
     let extra_needed = row.render.len().saturating_sub(row.highlight.capacity());
@@ -381,12 +385,27 @@ fn editor_update_syntax(row: &mut Row) {
         row.highlight.reserve(extra_needed);
     }
 
-    for c in row.render.chars() {
-        row.highlight.push(if c.is_digit(10) {
-            EditorHighlight::Number
+    let mut prev_sep = true;
+
+    let mut char_indices = row.render.char_indices();
+
+    while let Some((i, c)) = char_indices.next() {
+        let prev_highlight = if i > 0 {
+            row.highlight[i - 1]
         } else {
             EditorHighlight::Normal
-        });
+        };
+
+        if c.is_digit(10) && (prev_sep || prev_highlight == EditorHighlight::Number) {
+            row.highlight.push(EditorHighlight::Number);
+            prev_sep = false;
+
+            continue;
+        } else {
+            row.highlight.push(EditorHighlight::Normal);
+        }
+
+        prev_sep = is_separator(c);
     }
 }
 
