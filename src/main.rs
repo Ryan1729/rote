@@ -1047,21 +1047,33 @@ fn editor_draw_rows(buf: &mut String) {
                     if i >= len {
                         break;
                     }
-                    match current_row.highlight[i] {
-                        EditorHighlight::Normal => {
-                            if current_colour.is_some() {
-                                buf.push_str("\x1b[39m");
-                                current_colour = None;
+
+                    if c.is_control() {
+                        let symbol = if c as u32 <= 26 {
+                            (b'@' + c as u8) as char
+                        } else {
+                            '?'
+                        };
+                        buf.push_str("\x1b[7m");
+                        buf.push(symbol);
+                        buf.push_str("\x1b[m");
+                    } else {
+                        match current_row.highlight[i] {
+                            EditorHighlight::Normal => {
+                                if current_colour.is_some() {
+                                    buf.push_str("\x1b[39m");
+                                    current_colour = None;
+                                }
+                                buf.push(c);
                             }
-                            buf.push(c);
-                        }
-                        _ => {
-                            let colour = editor_syntax_to_color(current_row.highlight[i]);
-                            if Some(colour) != current_colour {
-                                current_colour = Some(colour);
-                                buf.push_str(&format!("\x1b[{}m", colour));
+                            _ => {
+                                let colour = editor_syntax_to_color(current_row.highlight[i]);
+                                if Some(colour) != current_colour {
+                                    current_colour = Some(colour);
+                                    buf.push_str(&format!("\x1b[{}m", colour));
+                                }
+                                buf.push(c);
                             }
-                            buf.push(c);
                         }
                     }
                 }
