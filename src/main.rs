@@ -125,11 +125,13 @@ enum Page {
 #[derive(Clone, Copy, PartialEq)]
 enum EditorHighlight {
     Normal,
+    String,
     Number,
     Match,
 }
 
 const HL_HIGHLIGHT_NUMBERS: u32 = 1 << 0;
+const HL_HIGHLIGHT_STRINGS: u32 = 1 << 1;
 
 /*** data ***/
 
@@ -205,7 +207,7 @@ const HLDB: [EditorSyntax; 1] = [
             None,
             None,
         ],
-        flags: HL_HIGHLIGHT_NUMBERS,
+        flags: HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
     },
 ];
 
@@ -425,6 +427,7 @@ fn editor_update_syntax(row: &mut Row) {
         }
 
         let mut prev_sep = true;
+        let mut in_string = None;
 
         let mut char_indices = row.render.char_indices();
 
@@ -435,12 +438,28 @@ fn editor_update_syntax(row: &mut Row) {
                 EditorHighlight::Normal
             };
 
-            if editor_config
-                .syntax
-                .as_ref()
-                .map(|s| s.flags & HL_HIGHLIGHT_NUMBERS != 0)
-                .unwrap_or(false)
-            {
+            let flags = editor_config.syntax.as_ref().map(|s| s.flags).unwrap_or(0);
+
+            if flags & HL_HIGHLIGHT_STRINGS != 0 {
+                if let Some(delim) = in_string {
+                    row.highlight.push(EditorHighlight::String);
+                    if c == delim {
+                        in_string = None;
+                    }
+
+                    prev_sep = true;
+                    continue;
+                } else {
+                    if c == '"' || c == '\'' {
+                        in_string = Some(c);
+                        row.highlight.push(EditorHighlight::String);
+
+                        continue;
+                    }
+                }
+            }
+
+            if flags & HL_HIGHLIGHT_NUMBERS != 0 {
                 if c.is_digit(10) && (prev_sep || prev_highlight == EditorHighlight::Number)
                     || (c == '.' && prev_highlight == EditorHighlight::Number)
                 {
@@ -463,6 +482,7 @@ fn editor_update_syntax(row: &mut Row) {
 
 fn editor_syntax_to_color(highlight: EditorHighlight) -> i32 {
     match highlight {
+        EditorHighlight::String => 35,
         EditorHighlight::Number => 31,
         EditorHighlight::Match => 34,
         EditorHighlight::Normal => 37,
