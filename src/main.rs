@@ -126,6 +126,8 @@ enum Page {
 enum EditorHighlight {
     Normal,
     Comment,
+    Keyword1,
+    Keyword2,
     String,
     Number,
     Match,
@@ -140,6 +142,10 @@ const HL_HIGHLIGHT_STRINGS: u32 = 1 << 1;
 struct EditorSyntax {
     file_type: &'static str,
     file_match: [Option<&'static str>; 8],
+    keywords1: [Option<&'static str>; 32],
+    keywords2: [Option<&'static str>; 32],
+    keywords3: [Option<&'static str>; 32],
+    keywords4: [Option<&'static str>; 32],
     singleline_comment_start: &'static str,
     flags: u32,
 }
@@ -211,6 +217,43 @@ const HLDB: [EditorSyntax; 1] = [
         ],
         singleline_comment_start: "//",
         flags: HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
+        keywords1: [
+            Some("switch"),
+            Some("if"),
+            Some("while"),
+            Some("for"),
+            Some("break"),
+            Some("continue"),
+            Some("return"),
+            Some("else"),
+            Some("struct"),
+            Some("union"),
+            Some("typedef"),
+            Some("static"),
+            Some("enum"),
+            Some("class"),
+            Some("case"),
+            Some("int|"),
+            Some("long|"),
+            Some("double|"),
+            Some("float|"),
+            Some("char|"),
+            Some("unsigned|"),
+            Some("signed|"),
+            Some("void|"),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        ],
+        keywords2: [None; 32],
+        keywords3: [None; 32],
+        keywords4: [None; 32],
     },
 ];
 
@@ -428,7 +471,7 @@ fn editor_update_syntax(row: &mut Row) {
 
             let mut char_indices = row.render.char_indices();
 
-            while let Some((i, c)) = char_indices.next() {
+            'char_indices: while let Some((i, c)) = char_indices.next() {
                 let prev_highlight = if i > 0 {
                     row.highlight[i - 1]
                 } else {
@@ -475,11 +518,48 @@ fn editor_update_syntax(row: &mut Row) {
                         row.highlight.push(EditorHighlight::Number);
                         prev_sep = false;
                         continue;
-                    } else {
-                        row.highlight.push(EditorHighlight::Normal);
                     }
                 }
 
+                if prev_sep {
+                    let mut keywords = syntax
+                        .keywords1
+                        .iter()
+                        .chain(syntax.keywords2.iter())
+                        .chain(syntax.keywords3.iter())
+                        .chain(syntax.keywords4.iter());
+                    while let Some(&Some(ref keyword)) = keywords.next() {
+                        let mut k_len = keyword.len();
+                        let is_kw2 = keyword.ends_with('|');
+                        if is_kw2 {
+                            k_len -= 1;
+                        }
+                        let one_past_keyword = i + k_len;
+                        if (&row.render[i..]).starts_with(&keyword[..k_len])
+                            && row.render[one_past_keyword..one_past_keyword + 1]
+                                .chars()
+                                .next()
+                                .map(is_separator)
+                                .unwrap_or(false)
+                        {
+                            for j in i..one_past_keyword {
+                                row.highlight.push(if is_kw2 {
+                                    EditorHighlight::Keyword2
+                                } else {
+                                    EditorHighlight::Keyword1
+                                });
+                                if j < one_past_keyword - 1 {
+                                    char_indices.next();
+                                }
+                            }
+
+                            prev_sep = false;
+                            continue 'char_indices;
+                        }
+                    }
+                }
+
+                row.highlight.push(EditorHighlight::Normal);
                 prev_sep = is_separator(c);
             }
         } else {
@@ -497,6 +577,8 @@ fn editor_update_syntax(row: &mut Row) {
 fn editor_syntax_to_color(highlight: EditorHighlight) -> i32 {
     match highlight {
         EditorHighlight::Comment => 36,
+        EditorHighlight::Keyword1 => 33,
+        EditorHighlight::Keyword2 => 32,
         EditorHighlight::String => 35,
         EditorHighlight::Number => 31,
         EditorHighlight::Match => 34,
