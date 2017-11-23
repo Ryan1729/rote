@@ -14,6 +14,7 @@ use std::fs::File;
 use std::path::Path;
 
 /*** defines ***/
+
 const KILO_VERSION: &'static str = "0.0.1";
 const KILO_TAB_STOP: usize = 8;
 const KILO_QUIT_TIMES: u32 = 3;
@@ -25,22 +26,22 @@ macro_rules! CTRL_KEY {
 
 const CTRL_H: u8 = CTRL_KEY!(b'h');
 
-macro_rules! editor_set_status_message {
+macro_rules! set_status_message {
     ($($arg:tt)*) => {
-        if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
-            editor_config.status_msg.clear();
+        if let Some(state) = unsafe { STATE.as_mut() } {
+            state.status_msg.clear();
             std::fmt::write(
-                &mut editor_config.status_msg,
+                &mut state.status_msg,
                 format_args!($($arg)*)
             ).unwrap_or_default();
-            editor_config.status_msg_time = Instant::now();
+            state.status_msg_time = Instant::now();
         }
     }
 }
 
 //returns An Option which may contain a prompted for string
-macro_rules! editor_prompt {
-    ($format_str: expr) => {editor_prompt!($format_str, None)};
+macro_rules! prompt {
+    ($format_str: expr) => {prompt!($format_str, None)};
     ($format_str: expr, $callback: expr) => {{
       let mut buf = String::new();
       let mut display_buf = String::new();
@@ -49,10 +50,10 @@ macro_rules! editor_prompt {
       let callback : Option<&Fn(&str, EditorKey)> = $callback;
 
       loop {
-            editor_set_status_message!($format_str, buf);
-            editor_refresh_screen(&mut display_buf);
+            set_status_message!($format_str, buf);
+            refresh_screen(&mut display_buf);
 
-            let key = editor_read_key();
+            let key = read_key();
             match key {
 
                 Byte(BACKSPACE) | Delete | Byte(CTRL_H) => {
@@ -60,7 +61,7 @@ macro_rules! editor_prompt {
                 }
 
                 Byte(b'\x1b') => {
-                    editor_set_status_message!("");
+                    set_status_message!("");
                     if let Some(cb) = callback {
                         cb(&mut buf, key);
                     }
@@ -68,7 +69,7 @@ macro_rules! editor_prompt {
                 }
                 Byte(b'\r') => {
                     if buf.len() != 0 {
-                      editor_set_status_message!("");
+                      set_status_message!("");
                       if let Some(cb) = callback {
                           cb(&mut buf, key);
                       }
@@ -161,38 +162,34 @@ struct Row {
     highlight_open_comment: bool,
 }
 
-struct EditorConfig {
+#[derive(Default)]
+struct EditBuffer {
     cx: u32,
     cy: u32,
     rx: u32,
     row_offset: u32,
     col_offset: u32,
-    screen_rows: u32,
-    screen_cols: u32,
-    num_rows: u32,
     rows: Vec<Row>,
     dirty: bool,
     filename: Option<String>,
+}
+
+struct EditorState {
+    edit_buffer: EditBuffer,
+    screen_rows: u32,
+    screen_cols: u32,
     status_msg: String,
     status_msg_time: Instant,
     syntax: Option<EditorSyntax>,
     orig_termios: termios,
 }
 
-impl Default for EditorConfig {
-    fn default() -> EditorConfig {
-        EditorConfig {
-            cx: Default::default(),
-            cy: Default::default(),
-            rx: Default::default(),
-            row_offset: Default::default(),
-            col_offset: Default::default(),
+impl Default for EditorState {
+    fn default() -> EditorState {
+        EditorState {
+            edit_buffer: Default::default(),
             screen_rows: Default::default(),
             screen_cols: Default::default(),
-            num_rows: Default::default(),
-            rows: Default::default(),
-            dirty: false,
-            filename: Default::default(),
             status_msg: Default::default(),
             status_msg_time: Instant::now(),
             syntax: Default::default(),
@@ -202,8 +199,8 @@ impl Default for EditorConfig {
 }
 
 // This is a reasonably nice way to have a "uninitialized/zeroed" global,
-// given what is stable in Rust 1.21.0
-static mut EDITOR_CONFIG: Option<EditorConfig> = None;
+// given what is stable in Rust 1.21.0+
+static mut STATE: Option<EditorState> = None;
 
 /*** filetypes ***/
 
@@ -281,12 +278,12 @@ fn die(s: &str) {
 }
 
 fn disable_raw_mode() {
-    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+    if let Some(state) = unsafe { STATE.as_mut() } {
         unsafe {
             if tcsetattr(
                 io::stdin().as_raw_fd(),
                 TCSAFLUSH,
-                &mut editor_config.orig_termios as *mut termios,
+                &mut state.orig_termios as *mut termios,
             ) == -1
             {
                 die("tcsetattr");
@@ -297,16 +294,12 @@ fn disable_raw_mode() {
 
 fn enable_raw_mode() {
     unsafe {
-        if let Some(editor_config) = EDITOR_CONFIG.as_mut() {
-            if tcgetattr(
-                STDIN_FILENO,
-                &mut editor_config.orig_termios as *mut termios,
-            ) == -1
-            {
+        if let Some(state) = STATE.as_mut() {
+            if tcgetattr(STDIN_FILENO, &mut state.orig_termios as *mut termios) == -1 {
                 die("tcgetattr");
             }
 
-            let mut raw = editor_config.orig_termios;
+            let mut raw = state.orig_termios;
 
             raw.c_iflag &= !(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
             raw.c_oflag &= !(OPOST);
@@ -324,7 +317,7 @@ fn enable_raw_mode() {
     }
 }
 
-fn editor_read_key() -> EditorKey {
+fn read_key() -> EditorKey {
     let mut buffer = [0; 1];
     let mut stdin = io::stdin();
     stdin
@@ -464,19 +457,19 @@ fn is_separator(c: char) -> bool {
     c.is_whitespace() || c == '\0' || ",.()+-/*=~%<>[];".contains(c)
 }
 
-fn editor_update_syntax(row: &mut Row) {
+fn update_syntax(row: &mut Row) {
     row.highlight.clear();
     let extra_needed = row.render.len().saturating_sub(row.highlight.capacity());
     if extra_needed != 0 {
         row.highlight.reserve(extra_needed);
     }
 
-    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
-        if let Some(ref syntax) = editor_config.syntax {
+    if let Some(state) = unsafe { STATE.as_mut() } {
+        if let Some(ref syntax) = state.syntax {
             let mut prev_sep = true;
             let mut in_string = None;
             let mut in_comment = row.index > 0
-                && editor_config.rows[(row.index - 1) as usize].highlight_open_comment;
+                && state.edit_buffer.rows[(row.index - 1) as usize].highlight_open_comment;
 
             let mut char_indices = row.render.char_indices();
 
@@ -609,8 +602,8 @@ fn editor_update_syntax(row: &mut Row) {
 
             let changed = row.highlight_open_comment != in_comment;
             row.highlight_open_comment = in_comment;
-            if changed && row.index + 1 < editor_config.num_rows {
-                editor_update_syntax(&mut editor_config.rows[(row.index + 1) as usize]);
+            if changed && row.index + 1 < state.edit_buffer.rows.len() as u32 {
+                update_syntax(&mut state.edit_buffer.rows[(row.index + 1) as usize]);
             }
         } else {
             for _ in 0..row.render.len() {
@@ -624,7 +617,7 @@ fn editor_update_syntax(row: &mut Row) {
     }
 }
 
-fn editor_syntax_to_color(highlight: EditorHighlight) -> i32 {
+fn syntax_to_color(highlight: EditorHighlight) -> i32 {
     match highlight {
         EditorHighlight::Comment | EditorHighlight::MultilineComment => 36,
         EditorHighlight::Keyword1 => 33,
@@ -636,10 +629,10 @@ fn editor_syntax_to_color(highlight: EditorHighlight) -> i32 {
     }
 }
 
-fn editor_select_syntax_highlight() {
-    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
-        editor_config.syntax = None;
-        if let Some(ref filename) = editor_config.filename {
+fn select_syntax_highlight() {
+    if let Some(state) = unsafe { STATE.as_mut() } {
+        state.syntax = None;
+        if let Some(ref filename) = state.edit_buffer.filename {
             for s in HLDB.iter() {
                 let mut i = 0;
                 while let Some(ref file_match) = s.file_match[i] {
@@ -647,10 +640,10 @@ fn editor_select_syntax_highlight() {
                     if (is_ext && filename.ends_with(file_match))
                         || (!is_ext && filename.contains(file_match))
                     {
-                        editor_config.syntax = Some(s.clone());
+                        state.syntax = Some(s.clone());
 
-                        for row in editor_config.rows.iter_mut() {
-                            editor_update_syntax(row);
+                        for row in state.edit_buffer.rows.iter_mut() {
+                            update_syntax(row);
                         }
 
                         return;
@@ -667,7 +660,7 @@ fn editor_select_syntax_highlight() {
 
 /*** row operations ***/
 
-fn editor_row_cx_to_rx(row: &Row, cx: u32) -> u32 {
+fn row_cx_to_rx(row: &Row, cx: u32) -> u32 {
     let mut rx = 0;
 
     for c in row.row.chars().take(cx as usize) {
@@ -680,7 +673,7 @@ fn editor_row_cx_to_rx(row: &Row, cx: u32) -> u32 {
     rx as u32
 }
 
-fn editor_row_rx_to_cx(row: &Row, rx: u32) -> u32 {
+fn row_rx_to_cx(row: &Row, rx: u32) -> u32 {
     let rx_usize = rx as usize;
     let mut cur_rx = 0;
 
@@ -696,7 +689,7 @@ fn editor_row_rx_to_cx(row: &Row, rx: u32) -> u32 {
     return row.row.len() as u32;
 }
 
-fn editor_update_row(row: &mut Row) {
+fn update_row(row: &mut Row) {
     let mut tabs = 0;
 
     for c in row.row.chars() {
@@ -719,12 +712,12 @@ fn editor_update_row(row: &mut Row) {
         }
     }
 
-    editor_update_syntax(row);
+    update_syntax(row);
 }
 
-fn editor_insert_row(at: u32, s: String) {
-    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
-        if at > editor_config.num_rows {
+fn insert_row(at: u32, s: String) {
+    if let Some(state) = unsafe { STATE.as_mut() } {
+        if at > state.edit_buffer.rows.len() as u32 {
             return;
         }
 
@@ -737,139 +730,140 @@ fn editor_insert_row(at: u32, s: String) {
             highlight: Vec::with_capacity(s_capacity),
             highlight_open_comment: false,
         };
-        editor_update_row(&mut row);
-        editor_config.rows.insert(at as usize, row);
+        update_row(&mut row);
+        state.edit_buffer.rows.insert(at as usize, row);
 
-        for i in (at + 1) as usize..editor_config.rows.len() {
-            editor_config.rows[i as usize].index += 1;
+        for i in (at + 1) as usize..state.edit_buffer.rows.len() {
+            state.edit_buffer.rows[i as usize].index += 1;
         }
 
-        editor_config.num_rows += 1;
-        editor_config.dirty = true;
+        state.edit_buffer.dirty = true;
     }
 }
 
-fn editor_del_row(at: u32) {
-    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
-        if at >= editor_config.num_rows {
+fn del_row(at: u32) {
+    if let Some(state) = unsafe { STATE.as_mut() } {
+        if at >= state.edit_buffer.rows.len() as u32 {
             return;
         }
 
-        editor_config.rows.remove(at as usize);
+        state.edit_buffer.rows.remove(at as usize);
 
-        for i in at as usize..editor_config.rows.len() {
-            editor_config.rows[i as usize].index -= 1;
+        for i in at as usize..state.edit_buffer.rows.len() {
+            state.edit_buffer.rows[i as usize].index -= 1;
         }
 
-        editor_config.num_rows -= 1;
-        editor_config.dirty = true;
+        state.edit_buffer.dirty = true;
     }
 }
 
-fn editor_row_insert_char(row: &mut Row, at: u32, c: char) {
+fn row_insert_char(row: &mut Row, at: u32, c: char) {
     //we allow at == len so we can add c to the end.
     let mut i = at as usize;
     if i > row.row.len() {
         i = row.row.len();
     }
     row.row.insert(i, c);
-    editor_update_row(row);
-    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
-        editor_config.dirty = true;
+    update_row(row);
+    if let Some(state) = unsafe { STATE.as_mut() } {
+        state.edit_buffer.dirty = true;
     }
 }
 
-fn editor_row_append_string(row: &mut Row, s: &str) {
-    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+fn row_append_string(row: &mut Row, s: &str) {
+    if let Some(state) = unsafe { STATE.as_mut() } {
         row.row.push_str(s);
-        editor_update_row(row);
-        editor_config.dirty = true;
+        update_row(row);
+        state.edit_buffer.dirty = true;
     }
 }
 
-fn editor_row_del_char(row: &mut Row, at: u32) {
+fn row_del_char(row: &mut Row, at: u32) {
     let i = at as usize;
     if i >= row.row.len() {
         return;
     }
-    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+    if let Some(state) = unsafe { STATE.as_mut() } {
         row.row.remove(i);
-        editor_update_row(row);
-        editor_config.dirty = true;
+        update_row(row);
+        state.edit_buffer.dirty = true;
     }
 }
 
 /*** editor operations ***/
 
-fn editor_insert_char(c: char) {
-    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
-        if editor_config.cy == editor_config.num_rows {
-            editor_insert_row(editor_config.num_rows, String::new());
+fn insert_char(c: char) {
+    if let Some(state) = unsafe { STATE.as_mut() } {
+        if state.edit_buffer.cy == state.edit_buffer.rows.len() as u32 {
+            insert_row(state.edit_buffer.rows.len() as u32, String::new());
         }
-        editor_row_insert_char(
-            &mut editor_config.rows[editor_config.cy as usize],
-            editor_config.cx,
+        row_insert_char(
+            &mut state.edit_buffer.rows[state.edit_buffer.cy as usize],
+            state.edit_buffer.cx,
             c,
         );
-        editor_config.cx += 1;
+        state.edit_buffer.cx += 1;
     }
 }
 
-fn editor_insert_newline() {
-    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
-        if editor_config.cx == 0 {
-            editor_insert_row(editor_config.cy, String::new());
+fn insert_newline() {
+    if let Some(state) = unsafe { STATE.as_mut() } {
+        if state.edit_buffer.cx == 0 {
+            insert_row(state.edit_buffer.cy, String::new());
         } else {
-            let row = &mut editor_config.rows[editor_config.cy as usize];
-            editor_insert_row(
-                editor_config.cy + 1,
-                row.row.split_off(editor_config.cx as usize),
+            let row = &mut state.edit_buffer.rows[state.edit_buffer.cy as usize];
+            insert_row(
+                state.edit_buffer.cy + 1,
+                row.row.split_off(state.edit_buffer.cx as usize),
             );
-            editor_update_row(row);
+            update_row(row);
         }
-        editor_config.cy += 1;
-        editor_config.cx = 0;
+        state.edit_buffer.cy += 1;
+        state.edit_buffer.cx = 0;
     }
 }
 
-fn editor_del_char() {
-    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
-        if editor_config.cy == editor_config.num_rows {
+fn del_char() {
+    if let Some(state) = unsafe { STATE.as_mut() } {
+        if state.edit_buffer.cy == state.edit_buffer.rows.len() as u32 {
             return;
         };
-        if editor_config.cx == 0 && editor_config.cy == 0 {
+        if state.edit_buffer.cx == 0 && state.edit_buffer.cy == 0 {
             return;
         };
 
-        if editor_config.cx > 0 {
-            editor_row_del_char(
-                &mut editor_config.rows[editor_config.cy as usize],
-                editor_config.cx - 1,
+        if state.edit_buffer.cx > 0 {
+            row_del_char(
+                &mut state.edit_buffer.rows[state.edit_buffer.cy as usize],
+                state.edit_buffer.cx - 1,
             );
-            editor_config.cx -= 1;
+            state.edit_buffer.cx -= 1;
         } else {
             {
-                let (before, after) = editor_config.rows.split_at_mut(editor_config.cy as usize);
+                let (before, after) = state
+                    .edit_buffer
+                    .rows
+                    .split_at_mut(state.edit_buffer.cy as usize);
                 match (before.last_mut(), after.first_mut()) {
                     (Some(previous_row), Some(row)) => {
-                        editor_config.cx = previous_row.row.len() as u32;
-                        editor_row_append_string(previous_row, &row.row);
+                        state.edit_buffer.cx = previous_row.row.len() as u32;
+                        row_append_string(previous_row, &row.row);
                     }
-                    _ => die("editor_del_char"),
+                    _ => die("del_char"),
                 }
             }
-            editor_del_row(editor_config.cy);
-            editor_config.cy -= 1;
+            del_row(state.edit_buffer.cy);
+            state.edit_buffer.cy -= 1;
         }
     }
 }
 
 /*** file i/o ***/
 
-fn editor_rows_to_string() -> String {
+fn rows_to_string() -> String {
     let mut buf = String::new();
-    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
-        for row in editor_config.rows.iter() {
+    if let Some(state) = unsafe { STATE.as_mut() } {
+        for row in state.edit_buffer.rows.iter() {
             buf.push_str(&row.row);
             buf.push('\n');
         }
@@ -877,11 +871,11 @@ fn editor_rows_to_string() -> String {
     buf
 }
 
-fn editor_open<P: AsRef<Path>>(filename: P) {
-    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
-        editor_config.filename = Some(format!("{}", filename.as_ref().display()));
+fn open<P: AsRef<Path>>(filename: P) {
+    if let Some(state) = unsafe { STATE.as_mut() } {
+        state.edit_buffer.filename = Some(format!("{}", filename.as_ref().display()));
 
-        editor_select_syntax_highlight();
+        select_syntax_highlight();
 
         if let Ok(file) = File::open(filename) {
             for res in BufReader::new(file).lines() {
@@ -890,7 +884,7 @@ fn editor_open<P: AsRef<Path>>(filename: P) {
                         while line.ends_with(|c| c == '\n' || c == '\r') {
                             line.pop();
                         }
-                        editor_insert_row(editor_config.num_rows, line);
+                        insert_row(state.edit_buffer.rows.len() as u32, line);
                     }
                     Err(e) => {
                         die(&e.to_string());
@@ -898,23 +892,23 @@ fn editor_open<P: AsRef<Path>>(filename: P) {
                 }
             }
         } else {
-            die("editor_open");
+            die("open");
         }
-        editor_config.dirty = false;
+        state.edit_buffer.dirty = false;
     }
 }
 
-fn editor_save() {
-    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
-        if editor_config.filename.is_none() {
-            editor_config.filename = editor_prompt!("Save as: {}");
-            editor_select_syntax_highlight();
+fn save() {
+    if let Some(state) = unsafe { STATE.as_mut() } {
+        if state.edit_buffer.filename.is_none() {
+            state.edit_buffer.filename = prompt!("Save as: {}");
+            select_syntax_highlight();
         }
 
-        if let Some(filename) = editor_config.filename.as_ref() {
+        if let Some(filename) = state.edit_buffer.filename.as_ref() {
             use std::fs::OpenOptions;
 
-            let s = editor_rows_to_string();
+            let s = rows_to_string();
             let data = s.as_bytes();
             let len = data.len();
             match OpenOptions::new()
@@ -924,22 +918,22 @@ fn editor_save() {
                 .open(filename)
             {
                 Ok(mut file) => if let Ok(()) = file.write_all(data) {
-                    editor_config.dirty = false;
-                    editor_set_status_message!("{} bytes written to disk", len);
+                    state.edit_buffer.dirty = false;
+                    set_status_message!("{} bytes written to disk", len);
                 },
                 Err(err) => {
-                    editor_set_status_message!("Can't save! I/O error: {}", err);
+                    set_status_message!("Can't save! I/O error: {}", err);
                 }
             }
         } else {
-            editor_set_status_message!("Save aborted");
+            set_status_message!("Save aborted");
         }
     }
 }
 
 /*** find ***/
 
-fn editor_find_callback(query: &str, key: EditorKey) {
+fn find_callback(query: &str, key: EditorKey) {
     static mut LAST_MATCH: i32 = -1;
     static mut FORWARD: bool = true;
 
@@ -948,8 +942,8 @@ fn editor_find_callback(query: &str, key: EditorKey) {
 
     unsafe {
         if let Some(ref highlight) = SAVED_HIGHLIGHT {
-            if let Some(editor_config) = EDITOR_CONFIG.as_mut() {
-                editor_config.rows[SAVED_HIGHLIGHT_LINE as usize]
+            if let Some(state) = STATE.as_mut() {
+                state.edit_buffer.rows[SAVED_HIGHLIGHT_LINE as usize]
                     .highlight
                     .copy_from_slice(highlight);
             }
@@ -980,29 +974,30 @@ fn editor_find_callback(query: &str, key: EditorKey) {
         },
     }
 
-    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+    if let Some(state) = unsafe { STATE.as_mut() } {
         unsafe {
             if LAST_MATCH == -1 {
                 FORWARD = true;
             }
         }
         let mut current: i32 = unsafe { LAST_MATCH };
-        for _ in 0..editor_config.num_rows {
+        let row_count = state.edit_buffer.rows.len() as u32;
+        for _ in 0..row_count {
             current += if unsafe { FORWARD } { 1 } else { -1 };
             if current == -1 {
-                current = (editor_config.num_rows as i32) - 1;
-            } else if current == editor_config.num_rows as _ {
+                current = (row_count as i32) - 1;
+            } else if current == row_count as _ {
                 current = 0;
             }
 
-            let row = &mut editor_config.rows[current as usize];
+            let row = &mut state.edit_buffer.rows[current as usize];
             if let Some(index) = row.render.find(query) {
                 unsafe {
                     LAST_MATCH = current;
                 }
-                editor_config.cy = current as u32;
-                editor_config.cx = editor_row_rx_to_cx(row, index as u32);
-                editor_config.row_offset = editor_config.num_rows;
+                state.edit_buffer.cy = current as u32;
+                state.edit_buffer.cx = row_rx_to_cx(row, index as u32);
+                state.edit_buffer.row_offset = row_count;
 
                 unsafe {
                     SAVED_HIGHLIGHT_LINE = current as u32;
@@ -1018,61 +1013,57 @@ fn editor_find_callback(query: &str, key: EditorKey) {
     }
 }
 
-fn editor_find() {
-    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
-        let saved_cx = editor_config.cx;
-        let saved_cy = editor_config.cy;
-        let saved_col_offset = editor_config.col_offset;
-        let saved_row_offset = editor_config.row_offset;
+fn find() {
+    if let Some(state) = unsafe { STATE.as_mut() } {
+        let saved_cx = state.edit_buffer.cx;
+        let saved_cy = state.edit_buffer.cy;
+        let saved_col_offset = state.edit_buffer.col_offset;
+        let saved_row_offset = state.edit_buffer.row_offset;
 
-        if editor_prompt!(
-            "Search: {} (Use ESC/Arrows/Enter)",
-            Some(&editor_find_callback)
-        ).is_none()
-        {
-            editor_config.cx = saved_cx;
-            editor_config.cy = saved_cy;
-            editor_config.col_offset = saved_col_offset;
-            editor_config.row_offset = saved_row_offset;
+        if prompt!("Search: {} (Use ESC/Arrows/Enter)", Some(&find_callback)).is_none() {
+            state.edit_buffer.cx = saved_cx;
+            state.edit_buffer.cy = saved_cy;
+            state.edit_buffer.col_offset = saved_col_offset;
+            state.edit_buffer.row_offset = saved_row_offset;
         }
     }
 }
 
 /*** output ***/
 
-fn editor_scroll() {
-    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
-        editor_config.rx = 0;
-        if editor_config.cy < editor_config.num_rows {
-            editor_config.rx = editor_row_cx_to_rx(
-                &editor_config.rows[editor_config.cy as usize],
-                editor_config.cx,
+fn scroll() {
+    if let Some(state) = unsafe { STATE.as_mut() } {
+        state.edit_buffer.rx = 0;
+        if state.edit_buffer.cy < state.edit_buffer.rows.len() as u32 {
+            state.edit_buffer.rx = row_cx_to_rx(
+                &state.edit_buffer.rows[state.edit_buffer.cy as usize],
+                state.edit_buffer.cx,
             )
         }
 
-        if editor_config.cy < editor_config.row_offset {
-            editor_config.row_offset = editor_config.cy;
+        if state.edit_buffer.cy < state.edit_buffer.row_offset {
+            state.edit_buffer.row_offset = state.edit_buffer.cy;
         }
-        if editor_config.cy >= editor_config.row_offset + editor_config.screen_rows {
-            editor_config.row_offset = editor_config.cy - editor_config.screen_rows + 1;
+        if state.edit_buffer.cy >= state.edit_buffer.row_offset + state.screen_rows {
+            state.edit_buffer.row_offset = state.edit_buffer.cy - state.screen_rows + 1;
         }
-        if editor_config.rx < editor_config.col_offset {
-            editor_config.col_offset = editor_config.rx;
+        if state.edit_buffer.rx < state.edit_buffer.col_offset {
+            state.edit_buffer.col_offset = state.edit_buffer.rx;
         }
-        if editor_config.rx >= editor_config.col_offset + editor_config.screen_cols {
-            editor_config.col_offset = editor_config.rx - editor_config.screen_cols + 1;
+        if state.edit_buffer.rx >= state.edit_buffer.col_offset + state.screen_cols {
+            state.edit_buffer.col_offset = state.edit_buffer.rx - state.screen_cols + 1;
         }
     }
 }
 
-fn editor_draw_rows(buf: &mut String) {
-    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
-        for y in 0..editor_config.screen_rows {
-            let file_index = y + editor_config.row_offset;
-            if file_index >= editor_config.num_rows {
-                if editor_config.num_rows == 0 && y == editor_config.screen_rows / 3 {
+fn draw_rows(buf: &mut String) {
+    if let Some(state) = unsafe { STATE.as_mut() } {
+        for y in 0..state.screen_rows {
+            let file_index = y + state.edit_buffer.row_offset;
+            if file_index >= state.edit_buffer.rows.len() as u32 {
+                if state.edit_buffer.rows.len() == 0 && y == state.screen_rows / 3 {
                     let mut welcome = format!("Kilo editor -- version {}", KILO_VERSION);
-                    let mut padding = (editor_config.screen_cols as usize - welcome.len()) / 2;
+                    let mut padding = (state.screen_cols as usize - welcome.len()) / 2;
 
                     if padding > 0 {
                         buf.push('~');
@@ -1082,19 +1073,19 @@ fn editor_draw_rows(buf: &mut String) {
                         buf.push(' ');
                     }
 
-                    welcome.truncate(editor_config.screen_cols as _);
+                    welcome.truncate(state.screen_cols as _);
                     buf.push_str(&welcome);
                 } else {
                     buf.push('~');
                 }
             } else {
-                let current_row = &editor_config.rows[file_index as usize];
+                let current_row = &state.edit_buffer.rows[file_index as usize];
                 let mut len = std::cmp::min(
                     current_row
                         .render
                         .len()
-                        .saturating_sub(editor_config.col_offset as _),
-                    editor_config.screen_cols as usize,
+                        .saturating_sub(state.edit_buffer.col_offset as _),
+                    state.screen_cols as usize,
                 );
 
 
@@ -1102,7 +1093,7 @@ fn editor_draw_rows(buf: &mut String) {
                 for (i, c) in current_row
                     .render
                     .chars()
-                    .skip(editor_config.col_offset as _)
+                    .skip(state.edit_buffer.col_offset as _)
                     .enumerate()
                 {
                     if i >= len {
@@ -1131,7 +1122,7 @@ fn editor_draw_rows(buf: &mut String) {
                                 buf.push(c);
                             }
                             _ => {
-                                let colour = editor_syntax_to_color(current_row.highlight[i]);
+                                let colour = syntax_to_color(current_row.highlight[i]);
                                 if Some(colour) != current_colour {
                                     current_colour = Some(colour);
                                     buf.push_str(&format!("\x1b[{}m", colour));
@@ -1151,11 +1142,11 @@ fn editor_draw_rows(buf: &mut String) {
     }
 }
 
-fn editor_draw_status_bar(buf: &mut String) {
-    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+fn draw_status_bar(buf: &mut String) {
+    if let Some(state) = unsafe { STATE.as_mut() } {
         buf.push_str("\x1b[7m");
 
-        let name = match &editor_config.filename {
+        let name = match &state.edit_buffer.filename {
             &Some(ref f_n) => f_n,
             &None => "[No Name]",
         };
@@ -1163,8 +1154,8 @@ fn editor_draw_status_bar(buf: &mut String) {
         let status = format!(
             "{:.20} - {} lines {}",
             name,
-            editor_config.num_rows,
-            if editor_config.dirty {
+            state.edit_buffer.rows.len(),
+            if state.edit_buffer.dirty {
                 "(modified)"
             } else {
                 ""
@@ -1172,17 +1163,17 @@ fn editor_draw_status_bar(buf: &mut String) {
         );
         let r_status = format!(
             "{} | {}/{}",
-            match editor_config.syntax {
+            match state.syntax {
                 Some(ref syntax) => syntax.file_type,
                 None => "no ft",
             },
-            editor_config.cy + 1,
-            editor_config.num_rows
+            state.edit_buffer.cy + 1,
+            state.edit_buffer.rows.len()
         );
 
         buf.push_str(&status);
 
-        let screen_cols = editor_config.screen_cols as usize;
+        let screen_cols = state.screen_cols as usize;
         let mut len = std::cmp::min(status.len(), screen_cols);
         let rlen = r_status.len();
         while len < screen_cols {
@@ -1199,39 +1190,36 @@ fn editor_draw_status_bar(buf: &mut String) {
     }
 }
 
-fn editor_draw_message_bar(buf: &mut String) {
+fn draw_message_bar(buf: &mut String) {
     buf.push_str("\x1b[K");
 
-    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
-        let msglen = std::cmp::min(
-            editor_config.status_msg.len(),
-            editor_config.screen_cols as usize,
-        );
+    if let Some(state) = unsafe { STATE.as_mut() } {
+        let msglen = std::cmp::min(state.status_msg.len(), state.screen_cols as usize);
 
         if msglen > 0
-            && Instant::now().duration_since(editor_config.status_msg_time) < Duration::from_secs(5)
+            && Instant::now().duration_since(state.status_msg_time) < Duration::from_secs(5)
         {
-            buf.push_str(&editor_config.status_msg[..msglen]);
+            buf.push_str(&state.status_msg[..msglen]);
         }
     }
 }
 
-fn editor_refresh_screen(buf: &mut String) {
-    editor_scroll();
+fn refresh_screen(buf: &mut String) {
+    scroll();
     buf.clear();
 
     buf.push_str("\x1b[?25l");
     buf.push_str("\x1b[H");
 
-    editor_draw_rows(buf);
-    editor_draw_status_bar(buf);
-    editor_draw_message_bar(buf);
+    draw_rows(buf);
+    draw_status_bar(buf);
+    draw_message_bar(buf);
 
-    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+    if let Some(state) = unsafe { STATE.as_mut() } {
         buf.push_str(&format!(
             "\x1b[{};{}H",
-            (editor_config.cy - editor_config.row_offset) + 1,
-            (editor_config.rx - editor_config.col_offset) + 1
+            (state.edit_buffer.cy - state.edit_buffer.row_offset) + 1,
+            (state.edit_buffer.rx - state.edit_buffer.col_offset) + 1
         ));
     }
 
@@ -1244,63 +1232,71 @@ fn editor_refresh_screen(buf: &mut String) {
 
 /*** input ***/
 
-fn editor_move_cursor(arrow: Arrow) {
-    if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
-        let row_len = if editor_config.cy < editor_config.num_rows {
-            Some(editor_config.rows[editor_config.cy as usize].row.len())
+fn move_cursor(arrow: Arrow) {
+    if let Some(state) = unsafe { STATE.as_mut() } {
+        let row_len = if state.edit_buffer.cy < state.edit_buffer.rows.len() as u32 {
+            Some(
+                state.edit_buffer.rows[state.edit_buffer.cy as usize]
+                    .row
+                    .len(),
+            )
         } else {
             None
         };
 
         match arrow {
-            Arrow::Left => if editor_config.cx != 0 {
-                editor_config.cx -= 1;
-            } else if editor_config.cy > 0 {
-                editor_config.cy -= 1;
-                editor_config.cx = editor_config.rows[editor_config.cy as usize].row.len() as u32;
+            Arrow::Left => if state.edit_buffer.cx != 0 {
+                state.edit_buffer.cx -= 1;
+            } else if state.edit_buffer.cy > 0 {
+                state.edit_buffer.cy -= 1;
+                state.edit_buffer.cx = state.edit_buffer.rows[state.edit_buffer.cy as usize]
+                    .row
+                    .len() as u32;
             },
             Arrow::Right => match row_len {
-                Some(len) if (editor_config.cx as usize) < len => {
-                    editor_config.cx += 1;
+                Some(len) if (state.edit_buffer.cx as usize) < len => {
+                    state.edit_buffer.cx += 1;
                 }
-                Some(len) if (editor_config.cx as usize) == len => {
-                    editor_config.cy += 1;
-                    editor_config.cx = 0;
+                Some(len) if (state.edit_buffer.cx as usize) == len => {
+                    state.edit_buffer.cy += 1;
+                    state.edit_buffer.cx = 0;
                 }
                 _ => {}
             },
             Arrow::Up => {
-                editor_config.cy = editor_config.cy.saturating_sub(1);
+                state.edit_buffer.cy = state.edit_buffer.cy.saturating_sub(1);
             }
-            Arrow::Down => if editor_config.cy < editor_config.num_rows {
-                editor_config.cy += 1;
+            Arrow::Down => if state.edit_buffer.cy < state.edit_buffer.rows.len() as u32 {
+                state.edit_buffer.cy += 1;
             },
         }
 
 
-        let new_row_len = if editor_config.cy < editor_config.num_rows {
-            editor_config.rows[editor_config.cy as usize].row.len() as u32
+        let new_row_len = if state.edit_buffer.cy < state.edit_buffer.rows.len() as u32 {
+            state.edit_buffer.rows[state.edit_buffer.cy as usize]
+                .row
+                .len() as u32
         } else {
             0
         };
-        if editor_config.cx > new_row_len {
-            editor_config.cx = new_row_len;
+        if state.edit_buffer.cx > new_row_len {
+            state.edit_buffer.cx = new_row_len;
         }
     }
 }
 
-fn editor_process_keypress() {
+fn process_keypress() {
     static mut QUIT_TIMES: u32 = KILO_QUIT_TIMES;
-    let key = editor_read_key();
+    let key = read_key();
 
     match key {
-        Byte(b'\r') => editor_insert_newline(),
+        Byte(b'\r') => insert_newline(),
         Byte(c0) if c0 == CTRL_KEY!(b'q') => {
-            if unsafe { EDITOR_CONFIG.as_mut() }
-                .map(|e| e.dirty)
+            if unsafe { STATE.as_mut() }
+                .map(|st| st.edit_buffer.dirty)
                 .unwrap_or(true) && unsafe { QUIT_TIMES > 0 }
             {
-                editor_set_status_message!(
+                set_status_message!(
                     "WARNING!!! File has unsaved changes. Press Ctrl-Q {} more times to quit.",
                     unsafe { QUIT_TIMES }
                 );
@@ -1320,37 +1316,39 @@ fn editor_process_keypress() {
             std::process::exit(0);
         }
         Byte(c0) if c0 == CTRL_KEY!(b's') => {
-            editor_save();
+            save();
         }
-        Home => if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
-            editor_config.cx = 0;
+        Home => if let Some(state) = unsafe { STATE.as_mut() } {
+            state.edit_buffer.cx = 0;
         },
-        End => if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
-            if editor_config.cy < editor_config.num_rows {
-                editor_config.cx = editor_config.rows[editor_config.cy as usize].row.len() as u32;
+        End => if let Some(state) = unsafe { STATE.as_mut() } {
+            if state.edit_buffer.cy < state.edit_buffer.rows.len() as u32 {
+                state.edit_buffer.cx = state.edit_buffer.rows[state.edit_buffer.cy as usize]
+                    .row
+                    .len() as u32;
             }
         },
         Byte(c0) if c0 == CTRL_KEY!(b'f') => {
-            editor_find();
+            find();
         }
         Byte(BACKSPACE) | Delete | Byte(CTRL_H) => {
             match key {
                 Delete => {
-                    editor_move_cursor(Arrow::Right);
+                    move_cursor(Arrow::Right);
                 }
                 _ => {}
             }
-            editor_del_char();
+            del_char();
         }
-        Page(page) => if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
+        Page(page) => if let Some(state) = unsafe { STATE.as_mut() } {
             match page {
                 Page::Up => {
-                    editor_config.cy = editor_config.row_offset;
+                    state.edit_buffer.cy = state.edit_buffer.row_offset;
                 }
                 Page::Down => {
-                    editor_config.cy = editor_config.row_offset + editor_config.screen_rows - 1;
-                    if editor_config.cy > editor_config.num_rows {
-                        editor_config.cy = editor_config.num_rows;
+                    state.edit_buffer.cy = state.edit_buffer.row_offset + state.screen_rows - 1;
+                    if state.edit_buffer.cy > state.edit_buffer.rows.len() as u32 {
+                        state.edit_buffer.cy = state.edit_buffer.rows.len() as u32;
                     }
                 }
             };
@@ -1361,19 +1359,19 @@ fn editor_process_keypress() {
                 Page::Down => Arrow::Down,
             };
 
-            for _ in 0..editor_config.screen_rows {
-                editor_move_cursor(arrow);
+            for _ in 0..state.screen_rows {
+                move_cursor(arrow);
             }
         },
         Arrow(arrow) => {
-            editor_move_cursor(arrow);
+            move_cursor(arrow);
         }
         Byte(c0) if c0 == CTRL_KEY!(b'l') || c0 == b'\x1b' => {}
         Byte(c0) if c0 == 0 => {
             return;
         }
         Byte(c0) => {
-            editor_insert_char(c0 as char);
+            insert_char(c0 as char);
         }
     }
     unsafe {
@@ -1384,17 +1382,17 @@ fn editor_process_keypress() {
 /*** init ***/
 
 fn init_editor() {
-    let mut editor_config: EditorConfig = Default::default();
+    let mut state: EditorState = Default::default();
     match get_window_size() {
         None => die("get_window_size"),
         Some((rows, cols)) => {
             //leave room for the status bar
-            editor_config.screen_rows = rows - 2;
-            editor_config.screen_cols = cols;
+            state.screen_rows = rows - 2;
+            state.screen_cols = cols;
         }
     }
     unsafe {
-        EDITOR_CONFIG = Some(editor_config);
+        STATE = Some(state);
     }
 }
 
@@ -1405,16 +1403,16 @@ fn main() {
     //skip binary name
     args.next();
     if let Some(filename) = args.next() {
-        editor_open(filename);
+        open(filename);
     }
     enable_raw_mode();
 
-    editor_set_status_message!("HELP: Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find");
+    set_status_message!("HELP: Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find");
 
     let mut buf = String::new();
 
     loop {
-        editor_refresh_screen(&mut buf);
-        editor_process_keypress();
+        refresh_screen(&mut buf);
+        process_keypress();
     }
 }
