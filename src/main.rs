@@ -126,6 +126,7 @@ enum Page {
 enum EditorHighlight {
     Normal,
     Comment,
+    MultilineComment,
     Keyword1,
     Keyword2,
     String,
@@ -142,12 +143,14 @@ const HL_HIGHLIGHT_STRINGS: u32 = 1 << 1;
 struct EditorSyntax {
     file_type: &'static str,
     file_match: [Option<&'static str>; 8],
+    singleline_comment_start: &'static str,
+    multiline_comment_start: &'static str,
+    multiline_comment_end: &'static str,
+    flags: u32,
     keywords1: [Option<&'static str>; 32],
     keywords2: [Option<&'static str>; 32],
     keywords3: [Option<&'static str>; 32],
     keywords4: [Option<&'static str>; 32],
-    singleline_comment_start: &'static str,
-    flags: u32,
 }
 
 struct Row {
@@ -216,6 +219,8 @@ const HLDB: [EditorSyntax; 1] = [
             None,
         ],
         singleline_comment_start: "//",
+        multiline_comment_start: "/*",
+        multiline_comment_end: "*/",
         flags: HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
         keywords1: [
             Some("switch"),
@@ -468,6 +473,7 @@ fn editor_update_syntax(row: &mut Row) {
         if let Some(ref syntax) = editor_config.syntax {
             let mut prev_sep = true;
             let mut in_string = None;
+            let mut in_comment = false;
 
             let mut char_indices = row.render.char_indices();
 
@@ -484,6 +490,41 @@ fn editor_update_syntax(row: &mut Row) {
                             row.highlight.push(EditorHighlight::Comment);
                         }
                         break;
+                    }
+                }
+
+                if syntax.multiline_comment_start.len() > 0
+                    && syntax.multiline_comment_end.len() > 0
+                    && in_string.is_none()
+                {
+                    if in_comment {
+                        if (&row.render[i..]).starts_with(syntax.multiline_comment_end) {
+                            let one_past_comment_end = i + syntax.multiline_comment_end.len();
+                            for j in i..one_past_comment_end {
+                                row.highlight.push(EditorHighlight::MultilineComment);
+                                if j < one_past_comment_end - 2 {
+                                    char_indices.next();
+                                }
+                            }
+
+                            in_comment = false;
+                            prev_sep = true;
+                        } else {
+                            row.highlight.push(EditorHighlight::MultilineComment);
+                        }
+                        continue;
+                    } else if (&row.render[i..]).starts_with(syntax.multiline_comment_start) {
+                        let one_past_comment_start = i + syntax.multiline_comment_start.len();
+                        for j in i..one_past_comment_start {
+                            row.highlight.push(EditorHighlight::MultilineComment);
+                            if j < one_past_comment_start - 1 {
+                                char_indices.next();
+                            }
+                        }
+
+
+                        in_comment = true;
+                        continue;
                     }
                 }
 
@@ -576,7 +617,7 @@ fn editor_update_syntax(row: &mut Row) {
 
 fn editor_syntax_to_color(highlight: EditorHighlight) -> i32 {
     match highlight {
-        EditorHighlight::Comment => 36,
+        EditorHighlight::Comment | EditorHighlight::MultilineComment => 36,
         EditorHighlight::Keyword1 => 33,
         EditorHighlight::Keyword2 => 32,
         EditorHighlight::String => 35,
