@@ -443,6 +443,11 @@ fn editor_update_syntax(row: &mut Row) {
             if flags & HL_HIGHLIGHT_STRINGS != 0 {
                 if let Some(delim) = in_string {
                     row.highlight.push(EditorHighlight::String);
+                    if c == '\\' && i + 1 < row.render.len() {
+                        row.highlight.push(EditorHighlight::String);
+                        char_indices.next();
+                    }
+
                     if c == delim {
                         in_string = None;
                     }
