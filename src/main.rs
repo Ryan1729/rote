@@ -154,9 +154,11 @@ struct EditorSyntax {
 }
 
 struct Row {
+    index: u32,
     row: String,
     render: String,
     highlight: Vec<EditorHighlight>,
+    highlight_open_comment: bool,
 }
 
 struct EditorConfig {
@@ -473,7 +475,8 @@ fn editor_update_syntax(row: &mut Row) {
         if let Some(ref syntax) = editor_config.syntax {
             let mut prev_sep = true;
             let mut in_string = None;
-            let mut in_comment = false;
+            let mut in_comment = row.index > 0
+                && editor_config.rows[(row.index - 1) as usize].highlight_open_comment;
 
             let mut char_indices = row.render.char_indices();
 
@@ -484,7 +487,7 @@ fn editor_update_syntax(row: &mut Row) {
                     EditorHighlight::Normal
                 };
 
-                if syntax.singleline_comment_start.len() > 0 && in_string.is_none() {
+                if syntax.singleline_comment_start.len() > 0 && in_string.is_none() && !in_comment {
                     if row.render[i..].starts_with(syntax.singleline_comment_start) {
                         for _ in i..row.render.len() {
                             row.highlight.push(EditorHighlight::Comment);
@@ -602,6 +605,12 @@ fn editor_update_syntax(row: &mut Row) {
 
                 row.highlight.push(EditorHighlight::Normal);
                 prev_sep = is_separator(c);
+            }
+
+            let changed = row.highlight_open_comment != in_comment;
+            row.highlight_open_comment = in_comment;
+            if changed && row.index + 1 < editor_config.num_rows {
+                editor_update_syntax(&mut editor_config.rows[(row.index + 1) as usize]);
             }
         } else {
             for _ in 0..row.render.len() {
@@ -722,12 +731,19 @@ fn editor_insert_row(at: u32, s: String) {
         let s_capacity = s.capacity();
 
         let mut row = Row {
+            index: at,
             row: s,
             render: String::with_capacity(s_capacity),
             highlight: Vec::with_capacity(s_capacity),
+            highlight_open_comment: false,
         };
         editor_update_row(&mut row);
         editor_config.rows.insert(at as usize, row);
+
+        for i in (at + 1) as usize..editor_config.rows.len() {
+            editor_config.rows[i as usize].index += 1;
+        }
+
         editor_config.num_rows += 1;
         editor_config.dirty = true;
     }
@@ -740,6 +756,10 @@ fn editor_del_row(at: u32) {
         }
 
         editor_config.rows.remove(at as usize);
+
+        for i in at as usize..editor_config.rows.len() {
+            editor_config.rows[i as usize].index -= 1;
+        }
 
         editor_config.num_rows -= 1;
         editor_config.dirty = true;
