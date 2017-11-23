@@ -125,6 +125,7 @@ enum Page {
 #[derive(Clone, Copy, PartialEq)]
 enum EditorHighlight {
     Normal,
+    Comment,
     String,
     Number,
     Match,
@@ -139,6 +140,7 @@ const HL_HIGHLIGHT_STRINGS: u32 = 1 << 1;
 struct EditorSyntax {
     file_type: &'static str,
     file_match: [Option<&'static str>; 8],
+    singleline_comment_start: &'static str,
     flags: u32,
 }
 
@@ -207,6 +209,7 @@ const HLDB: [EditorSyntax; 1] = [
             None,
             None,
         ],
+        singleline_comment_start: "//",
         flags: HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
     },
 ];
@@ -419,64 +422,70 @@ fn editor_update_syntax(row: &mut Row) {
     }
 
     if let Some(editor_config) = unsafe { EDITOR_CONFIG.as_mut() } {
-        if editor_config.syntax.is_none() {
+        if let Some(ref syntax) = editor_config.syntax {
+            let mut prev_sep = true;
+            let mut in_string = None;
+
+            let mut char_indices = row.render.char_indices();
+
+            while let Some((i, c)) = char_indices.next() {
+                let prev_highlight = if i > 0 {
+                    row.highlight[i - 1]
+                } else {
+                    EditorHighlight::Normal
+                };
+
+                if syntax.singleline_comment_start.len() > 0 && in_string.is_none() {
+                    if row.render[i..].starts_with(syntax.singleline_comment_start) {
+                        for _ in i..row.render.len() {
+                            row.highlight.push(EditorHighlight::Comment);
+                        }
+                        break;
+                    }
+                }
+
+                if syntax.flags & HL_HIGHLIGHT_STRINGS != 0 {
+                    if let Some(delim) = in_string {
+                        row.highlight.push(EditorHighlight::String);
+                        if c == '\\' && i + 1 < row.render.len() {
+                            row.highlight.push(EditorHighlight::String);
+                            char_indices.next();
+                        }
+
+                        if c == delim {
+                            in_string = None;
+                        }
+
+                        prev_sep = true;
+                        continue;
+                    } else {
+                        if c == '"' || c == '\'' {
+                            in_string = Some(c);
+                            row.highlight.push(EditorHighlight::String);
+
+                            continue;
+                        }
+                    }
+                }
+
+                if syntax.flags & HL_HIGHLIGHT_NUMBERS != 0 {
+                    if c.is_digit(10) && (prev_sep || prev_highlight == EditorHighlight::Number)
+                        || (c == '.' && prev_highlight == EditorHighlight::Number)
+                    {
+                        row.highlight.push(EditorHighlight::Number);
+                        prev_sep = false;
+                        continue;
+                    } else {
+                        row.highlight.push(EditorHighlight::Normal);
+                    }
+                }
+
+                prev_sep = is_separator(c);
+            }
+        } else {
             for _ in 0..row.render.len() {
                 row.highlight.push(EditorHighlight::Normal);
             }
-            return;
-        }
-
-        let mut prev_sep = true;
-        let mut in_string = None;
-
-        let mut char_indices = row.render.char_indices();
-
-        while let Some((i, c)) = char_indices.next() {
-            let prev_highlight = if i > 0 {
-                row.highlight[i - 1]
-            } else {
-                EditorHighlight::Normal
-            };
-
-            let flags = editor_config.syntax.as_ref().map(|s| s.flags).unwrap_or(0);
-
-            if flags & HL_HIGHLIGHT_STRINGS != 0 {
-                if let Some(delim) = in_string {
-                    row.highlight.push(EditorHighlight::String);
-                    if c == '\\' && i + 1 < row.render.len() {
-                        row.highlight.push(EditorHighlight::String);
-                        char_indices.next();
-                    }
-
-                    if c == delim {
-                        in_string = None;
-                    }
-
-                    prev_sep = true;
-                    continue;
-                } else {
-                    if c == '"' || c == '\'' {
-                        in_string = Some(c);
-                        row.highlight.push(EditorHighlight::String);
-
-                        continue;
-                    }
-                }
-            }
-
-            if flags & HL_HIGHLIGHT_NUMBERS != 0 {
-                if c.is_digit(10) && (prev_sep || prev_highlight == EditorHighlight::Number)
-                    || (c == '.' && prev_highlight == EditorHighlight::Number)
-                {
-                    row.highlight.push(EditorHighlight::Number);
-                    prev_sep = false;
-                    continue;
-                } else {
-                    row.highlight.push(EditorHighlight::Normal);
-                }
-            }
-
-            prev_sep = is_separator(c);
         }
     } else {
         for _ in 0..row.render.len() {
@@ -487,6 +496,7 @@ fn editor_update_syntax(row: &mut Row) {
 
 fn editor_syntax_to_color(highlight: EditorHighlight) -> i32 {
     match highlight {
+        EditorHighlight::Comment => 36,
         EditorHighlight::String => 35,
         EditorHighlight::Number => 31,
         EditorHighlight::Match => 34,
