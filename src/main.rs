@@ -1057,6 +1057,9 @@ fn editor_draw_rows(buf: &mut String) {
                         buf.push_str("\x1b[7m");
                         buf.push(symbol);
                         buf.push_str("\x1b[m");
+                        if let Some(colour) = current_colour {
+                            buf.push_str(&format!("\x1b[{}m", colour));
+                        }
                     } else {
                         match current_row.highlight[i] {
                             EditorHighlight::Normal => {
