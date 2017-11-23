@@ -3,7 +3,6 @@
 
 
 ## Plan
-* Follow along with https://viewsourcecode.org/snaptoken/kilo/
 * implment my shortlist of useful keyboard shortcuts
 * generally make it a usable terminal editor
   - list of previously opened files
