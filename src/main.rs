@@ -98,7 +98,7 @@ macro_rules! prompt {
 }
 
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 enum EditorKey {
     Byte(u8),
     Arrow(Arrow),
@@ -109,7 +109,26 @@ enum EditorKey {
 }
 use EditorKey::*;
 
-#[derive(Clone, Copy)]
+impl Default for EditorKey {
+    fn default() -> EditorKey {
+        Byte(0)
+    }
+}
+
+#[derive(Clone, Debug)]
+enum Section {
+    Character((u32, u32)), //TODO represent range across lines
+}
+use Section::*;
+
+#[derive(Clone, Debug)]
+enum Edit {
+    Insert(Section, String),
+    Remove(Section, String),
+}
+use Edit::*;
+
+#[derive(Clone, Copy, Debug)]
 enum Arrow {
     Left,
     Right,
@@ -117,13 +136,13 @@ enum Arrow {
     Down,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 enum Page {
     Up,
     Down,
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 enum EditorHighlight {
     Normal,
     Comment,
@@ -154,6 +173,7 @@ struct EditorSyntax {
     keywords4: [Option<&'static str>; 32],
 }
 
+#[derive(Clone, Debug, PartialEq)]
 struct Row {
     index: u32,
     row: String,
@@ -162,8 +182,32 @@ struct Row {
     highlight_open_comment: bool,
 }
 
-#[derive(Default)]
-struct EditBuffer {
+impl Row {
+    fn new(at: u32, s: String) -> Self {
+        let s_capacity = s.capacity();
+
+        let mut row = Row {
+            index: at,
+            row: s,
+            render: String::with_capacity(s_capacity),
+            highlight: Vec::with_capacity(s_capacity),
+            highlight_open_comment: false,
+        };
+
+        update_row(&mut row);
+
+        row
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+struct History {
+    edits: Vec<Edit>,
+    current: usize,
+}
+
+#[derive(Clone, Debug, Default)]
+struct EditBufferState {
     cx: u32,
     cy: u32,
     rx: u32,
@@ -172,6 +216,12 @@ struct EditBuffer {
     rows: Vec<Row>,
     dirty: bool,
     filename: Option<String>,
+}
+
+#[derive(Clone, Debug, Default)]
+struct EditBuffer {
+    state: EditBufferState,
+    history: History,
 }
 
 struct EditorState {
@@ -469,7 +519,7 @@ fn update_syntax(row: &mut Row) {
             let mut prev_sep = true;
             let mut in_string = None;
             let mut in_comment = row.index > 0
-                && state.edit_buffer.rows[(row.index - 1) as usize].highlight_open_comment;
+                && state.edit_buffer.state.rows[(row.index - 1) as usize].highlight_open_comment;
 
             let mut char_indices = row.render.char_indices();
 
@@ -602,8 +652,8 @@ fn update_syntax(row: &mut Row) {
 
             let changed = row.highlight_open_comment != in_comment;
             row.highlight_open_comment = in_comment;
-            if changed && row.index + 1 < state.edit_buffer.rows.len() as u32 {
-                update_syntax(&mut state.edit_buffer.rows[(row.index + 1) as usize]);
+            if changed && row.index + 1 < state.edit_buffer.state.rows.len() as u32 {
+                update_syntax(&mut state.edit_buffer.state.rows[(row.index + 1) as usize]);
             }
         } else {
             for _ in 0..row.render.len() {
@@ -632,7 +682,7 @@ fn syntax_to_color(highlight: EditorHighlight) -> i32 {
 fn select_syntax_highlight() {
     if let Some(state) = unsafe { STATE.as_mut() } {
         state.syntax = None;
-        if let Some(ref filename) = state.edit_buffer.filename {
+        if let Some(ref filename) = state.edit_buffer.state.filename {
             for s in HLDB.iter() {
                 let mut i = 0;
                 while let Some(ref file_match) = s.file_match[i] {
@@ -642,7 +692,7 @@ fn select_syntax_highlight() {
                     {
                         state.syntax = Some(s.clone());
 
-                        for row in state.edit_buffer.rows.iter_mut() {
+                        for row in state.edit_buffer.state.rows.iter_mut() {
                             update_syntax(row);
                         }
 
@@ -717,43 +767,37 @@ fn update_row(row: &mut Row) {
 
 fn insert_row(at: u32, s: String) {
     if let Some(state) = unsafe { STATE.as_mut() } {
-        if at > state.edit_buffer.rows.len() as u32 {
+        if at > state.edit_buffer.state.rows.len() as u32 {
             return;
         }
 
-        let s_capacity = s.capacity();
+        state
+            .edit_buffer
+            .state
+            .rows
+            .insert(at as usize, Row::new(at, s));
 
-        let mut row = Row {
-            index: at,
-            row: s,
-            render: String::with_capacity(s_capacity),
-            highlight: Vec::with_capacity(s_capacity),
-            highlight_open_comment: false,
-        };
-        update_row(&mut row);
-        state.edit_buffer.rows.insert(at as usize, row);
-
-        for i in (at + 1) as usize..state.edit_buffer.rows.len() {
-            state.edit_buffer.rows[i as usize].index += 1;
+        for i in (at + 1) as usize..state.edit_buffer.state.rows.len() {
+            state.edit_buffer.state.rows[i as usize].index += 1;
         }
 
-        state.edit_buffer.dirty = true;
+        state.edit_buffer.state.dirty = true;
     }
 }
 
 fn del_row(at: u32) {
     if let Some(state) = unsafe { STATE.as_mut() } {
-        if at >= state.edit_buffer.rows.len() as u32 {
+        if at >= state.edit_buffer.state.rows.len() as u32 {
             return;
         }
 
-        state.edit_buffer.rows.remove(at as usize);
+        state.edit_buffer.state.rows.remove(at as usize);
 
-        for i in at as usize..state.edit_buffer.rows.len() {
-            state.edit_buffer.rows[i as usize].index -= 1;
+        for i in at as usize..state.edit_buffer.state.rows.len() {
+            state.edit_buffer.state.rows[i as usize].index -= 1;
         }
 
-        state.edit_buffer.dirty = true;
+        state.edit_buffer.state.dirty = true;
     }
 }
 
@@ -766,7 +810,7 @@ fn row_insert_char(row: &mut Row, at: u32, c: char) {
     row.row.insert(i, c);
     update_row(row);
     if let Some(state) = unsafe { STATE.as_mut() } {
-        state.edit_buffer.dirty = true;
+        state.edit_buffer.state.dirty = true;
     }
 }
 
@@ -774,7 +818,7 @@ fn row_append_string(row: &mut Row, s: &str) {
     if let Some(state) = unsafe { STATE.as_mut() } {
         row.row.push_str(s);
         update_row(row);
-        state.edit_buffer.dirty = true;
+        state.edit_buffer.state.dirty = true;
     }
 }
 
@@ -786,75 +830,66 @@ fn row_del_char(row: &mut Row, at: u32) {
     if let Some(state) = unsafe { STATE.as_mut() } {
         row.row.remove(i);
         update_row(row);
-        state.edit_buffer.dirty = true;
+        state.edit_buffer.state.dirty = true;
     }
 }
 
 /*** editor operations ***/
 
-fn insert_char(c: char) {
-    if let Some(state) = unsafe { STATE.as_mut() } {
-        if state.edit_buffer.cy == state.edit_buffer.rows.len() as u32 {
-            insert_row(state.edit_buffer.rows.len() as u32, String::new());
-        }
-        row_insert_char(
-            &mut state.edit_buffer.rows[state.edit_buffer.cy as usize],
-            state.edit_buffer.cx,
-            c,
-        );
-        state.edit_buffer.cx += 1;
-    }
+fn insert_char(state: &mut EditBufferState, (cx, cy): (u32, u32), c: char) {
+    state.cx = cx;
+    state.cy = cy;
+    insert_char_at_cursor(state, c)
 }
 
-fn insert_newline() {
-    if let Some(state) = unsafe { STATE.as_mut() } {
-        if state.edit_buffer.cx == 0 {
-            insert_row(state.edit_buffer.cy, String::new());
-        } else {
-            let row = &mut state.edit_buffer.rows[state.edit_buffer.cy as usize];
-            insert_row(
-                state.edit_buffer.cy + 1,
-                row.row.split_off(state.edit_buffer.cx as usize),
-            );
-            update_row(row);
-        }
-        state.edit_buffer.cy += 1;
-        state.edit_buffer.cx = 0;
+fn insert_char_at_cursor(state: &mut EditBufferState, c: char) {
+    if state.cy == state.rows.len() as u32 {
+        insert_row(state.rows.len() as u32, String::new());
     }
+    row_insert_char(&mut state.rows[state.cy as usize], state.cx, c);
+    state.cx += 1;
 }
 
-fn del_char() {
-    if let Some(state) = unsafe { STATE.as_mut() } {
-        if state.edit_buffer.cy == state.edit_buffer.rows.len() as u32 {
-            return;
-        };
-        if state.edit_buffer.cx == 0 && state.edit_buffer.cy == 0 {
-            return;
-        };
+fn insert_newline(state: &mut EditBufferState, (cx, cy): (u32, u32)) {
+    state.cx = cx;
+    state.cy = cy;
+    if state.cx == 0 {
+        insert_row(state.cy, String::new());
+    } else {
+        let row = &mut state.rows[state.cy as usize];
+        insert_row(state.cy + 1, row.row.split_off(state.cx as usize));
+        update_row(row);
+    }
+    state.cy += 1;
+    state.cx = 0;
+}
 
-        if state.edit_buffer.cx > 0 {
-            row_del_char(
-                &mut state.edit_buffer.rows[state.edit_buffer.cy as usize],
-                state.edit_buffer.cx - 1,
-            );
-            state.edit_buffer.cx -= 1;
-        } else {
-            {
-                let (before, after) = state
-                    .edit_buffer
-                    .rows
-                    .split_at_mut(state.edit_buffer.cy as usize);
-                match (before.last_mut(), after.first_mut()) {
-                    (Some(previous_row), Some(row)) => {
-                        state.edit_buffer.cx = previous_row.row.len() as u32;
-                        row_append_string(previous_row, &row.row);
-                    }
-                    _ => die("del_char"),
+fn del_char(state: &mut EditBufferState, (cx, cy): (u32, u32)) {
+    state.cx = cx;
+    state.cy = cy;
+    if state.cy == state.rows.len() as u32 {
+        return;
+    };
+    if state.cx == 0 && state.cy == 0 {
+        return;
+    };
+
+    if state.cx > 0 {
+        row_del_char(&mut state.rows[state.cy as usize], state.cx - 1);
+        state.cx -= 1;
+    } else {
+        {
+            let (before, after) = state.rows.split_at_mut(state.cy as usize);
+            match (before.last_mut(), after.first_mut()) {
+                (Some(previous_row), Some(row)) => {
+                    state.cx = previous_row.row.len() as u32;
+                    row_append_string(previous_row, &row.row);
                 }
+                _ => die("del_char"),
             }
-            del_row(state.edit_buffer.cy);
-            state.edit_buffer.cy -= 1;
         }
+        del_row(state.cy);
+        state.cy -= 1;
     }
 }
 
@@ -863,7 +898,7 @@ fn del_char() {
 fn rows_to_string() -> String {
     let mut buf = String::new();
     if let Some(state) = unsafe { STATE.as_mut() } {
-        for row in state.edit_buffer.rows.iter() {
+        for row in state.edit_buffer.state.rows.iter() {
             buf.push_str(&row.row);
             buf.push('\n');
         }
@@ -873,7 +908,7 @@ fn rows_to_string() -> String {
 
 fn open<P: AsRef<Path>>(filename: P) {
     if let Some(state) = unsafe { STATE.as_mut() } {
-        state.edit_buffer.filename = Some(format!("{}", filename.as_ref().display()));
+        state.edit_buffer.state.filename = Some(format!("{}", filename.as_ref().display()));
 
         select_syntax_highlight();
 
@@ -884,7 +919,7 @@ fn open<P: AsRef<Path>>(filename: P) {
                         while line.ends_with(|c| c == '\n' || c == '\r') {
                             line.pop();
                         }
-                        insert_row(state.edit_buffer.rows.len() as u32, line);
+                        insert_row(state.edit_buffer.state.rows.len() as u32, line);
                     }
                     Err(e) => {
                         die(&e.to_string());
@@ -894,18 +929,18 @@ fn open<P: AsRef<Path>>(filename: P) {
         } else {
             die("open");
         }
-        state.edit_buffer.dirty = false;
+        state.edit_buffer.state.dirty = false;
     }
 }
 
 fn save() {
     if let Some(state) = unsafe { STATE.as_mut() } {
-        if state.edit_buffer.filename.is_none() {
-            state.edit_buffer.filename = prompt!("Save as: {}");
+        if state.edit_buffer.state.filename.is_none() {
+            state.edit_buffer.state.filename = prompt!("Save as: {}");
             select_syntax_highlight();
         }
 
-        if let Some(filename) = state.edit_buffer.filename.as_ref() {
+        if let Some(filename) = state.edit_buffer.state.filename.as_ref() {
             use std::fs::OpenOptions;
 
             let s = rows_to_string();
@@ -918,7 +953,7 @@ fn save() {
                 .open(filename)
             {
                 Ok(mut file) => if let Ok(()) = file.write_all(data) {
-                    state.edit_buffer.dirty = false;
+                    state.edit_buffer.state.dirty = false;
                     set_status_message!("{} bytes written to disk", len);
                 },
                 Err(err) => {
@@ -943,7 +978,7 @@ fn find_callback(query: &str, key: EditorKey) {
     unsafe {
         if let Some(ref highlight) = SAVED_HIGHLIGHT {
             if let Some(state) = STATE.as_mut() {
-                state.edit_buffer.rows[SAVED_HIGHLIGHT_LINE as usize]
+                state.edit_buffer.state.rows[SAVED_HIGHLIGHT_LINE as usize]
                     .highlight
                     .copy_from_slice(highlight);
             }
@@ -981,7 +1016,7 @@ fn find_callback(query: &str, key: EditorKey) {
             }
         }
         let mut current: i32 = unsafe { LAST_MATCH };
-        let row_count = state.edit_buffer.rows.len() as u32;
+        let row_count = state.edit_buffer.state.rows.len() as u32;
         for _ in 0..row_count {
             current += if unsafe { FORWARD } { 1 } else { -1 };
             if current == -1 {
@@ -990,14 +1025,14 @@ fn find_callback(query: &str, key: EditorKey) {
                 current = 0;
             }
 
-            let row = &mut state.edit_buffer.rows[current as usize];
+            let row = &mut state.edit_buffer.state.rows[current as usize];
             if let Some(index) = row.render.find(query) {
                 unsafe {
                     LAST_MATCH = current;
                 }
-                state.edit_buffer.cy = current as u32;
-                state.edit_buffer.cx = row_rx_to_cx(row, index as u32);
-                state.edit_buffer.row_offset = row_count;
+                state.edit_buffer.state.cy = current as u32;
+                state.edit_buffer.state.cx = row_rx_to_cx(row, index as u32);
+                state.edit_buffer.state.row_offset = row_count;
 
                 unsafe {
                     SAVED_HIGHLIGHT_LINE = current as u32;
@@ -1015,16 +1050,16 @@ fn find_callback(query: &str, key: EditorKey) {
 
 fn find() {
     if let Some(state) = unsafe { STATE.as_mut() } {
-        let saved_cx = state.edit_buffer.cx;
-        let saved_cy = state.edit_buffer.cy;
-        let saved_col_offset = state.edit_buffer.col_offset;
-        let saved_row_offset = state.edit_buffer.row_offset;
+        let saved_cx = state.edit_buffer.state.cx;
+        let saved_cy = state.edit_buffer.state.cy;
+        let saved_col_offset = state.edit_buffer.state.col_offset;
+        let saved_row_offset = state.edit_buffer.state.row_offset;
 
         if prompt!("Search: {} (Use ESC/Arrows/Enter)", Some(&find_callback)).is_none() {
-            state.edit_buffer.cx = saved_cx;
-            state.edit_buffer.cy = saved_cy;
-            state.edit_buffer.col_offset = saved_col_offset;
-            state.edit_buffer.row_offset = saved_row_offset;
+            state.edit_buffer.state.cx = saved_cx;
+            state.edit_buffer.state.cy = saved_cy;
+            state.edit_buffer.state.col_offset = saved_col_offset;
+            state.edit_buffer.state.row_offset = saved_row_offset;
         }
     }
 }
@@ -1033,25 +1068,25 @@ fn find() {
 
 fn scroll() {
     if let Some(state) = unsafe { STATE.as_mut() } {
-        state.edit_buffer.rx = 0;
-        if state.edit_buffer.cy < state.edit_buffer.rows.len() as u32 {
-            state.edit_buffer.rx = row_cx_to_rx(
-                &state.edit_buffer.rows[state.edit_buffer.cy as usize],
-                state.edit_buffer.cx,
+        state.edit_buffer.state.rx = 0;
+        if state.edit_buffer.state.cy < state.edit_buffer.state.rows.len() as u32 {
+            state.edit_buffer.state.rx = row_cx_to_rx(
+                &state.edit_buffer.state.rows[state.edit_buffer.state.cy as usize],
+                state.edit_buffer.state.cx,
             )
         }
 
-        if state.edit_buffer.cy < state.edit_buffer.row_offset {
-            state.edit_buffer.row_offset = state.edit_buffer.cy;
+        if state.edit_buffer.state.cy < state.edit_buffer.state.row_offset {
+            state.edit_buffer.state.row_offset = state.edit_buffer.state.cy;
         }
-        if state.edit_buffer.cy >= state.edit_buffer.row_offset + state.screen_rows {
-            state.edit_buffer.row_offset = state.edit_buffer.cy - state.screen_rows + 1;
+        if state.edit_buffer.state.cy >= state.edit_buffer.state.row_offset + state.screen_rows {
+            state.edit_buffer.state.row_offset = state.edit_buffer.state.cy - state.screen_rows + 1;
         }
-        if state.edit_buffer.rx < state.edit_buffer.col_offset {
-            state.edit_buffer.col_offset = state.edit_buffer.rx;
+        if state.edit_buffer.state.rx < state.edit_buffer.state.col_offset {
+            state.edit_buffer.state.col_offset = state.edit_buffer.state.rx;
         }
-        if state.edit_buffer.rx >= state.edit_buffer.col_offset + state.screen_cols {
-            state.edit_buffer.col_offset = state.edit_buffer.rx - state.screen_cols + 1;
+        if state.edit_buffer.state.rx >= state.edit_buffer.state.col_offset + state.screen_cols {
+            state.edit_buffer.state.col_offset = state.edit_buffer.state.rx - state.screen_cols + 1;
         }
     }
 }
@@ -1059,9 +1094,9 @@ fn scroll() {
 fn draw_rows(buf: &mut String) {
     if let Some(state) = unsafe { STATE.as_mut() } {
         for y in 0..state.screen_rows {
-            let file_index = y + state.edit_buffer.row_offset;
-            if file_index >= state.edit_buffer.rows.len() as u32 {
-                if state.edit_buffer.rows.len() == 0 && y == state.screen_rows / 3 {
+            let file_index = y + state.edit_buffer.state.row_offset;
+            if file_index >= state.edit_buffer.state.rows.len() as u32 {
+                if state.edit_buffer.state.rows.len() == 0 && y == state.screen_rows / 3 {
                     let mut welcome = format!("Kilo editor -- version {}", KILO_VERSION);
                     let mut padding = (state.screen_cols as usize - welcome.len()) / 2;
 
@@ -1079,12 +1114,12 @@ fn draw_rows(buf: &mut String) {
                     buf.push('~');
                 }
             } else {
-                let current_row = &state.edit_buffer.rows[file_index as usize];
+                let current_row = &state.edit_buffer.state.rows[file_index as usize];
                 let mut len = std::cmp::min(
                     current_row
                         .render
                         .len()
-                        .saturating_sub(state.edit_buffer.col_offset as _),
+                        .saturating_sub(state.edit_buffer.state.col_offset as _),
                     state.screen_cols as usize,
                 );
 
@@ -1093,7 +1128,7 @@ fn draw_rows(buf: &mut String) {
                 for (i, c) in current_row
                     .render
                     .chars()
-                    .skip(state.edit_buffer.col_offset as _)
+                    .skip(state.edit_buffer.state.col_offset as _)
                     .enumerate()
                 {
                     if i >= len {
@@ -1146,7 +1181,7 @@ fn draw_status_bar(buf: &mut String) {
     if let Some(state) = unsafe { STATE.as_mut() } {
         buf.push_str("\x1b[7m");
 
-        let name = match &state.edit_buffer.filename {
+        let name = match &state.edit_buffer.state.filename {
             &Some(ref f_n) => f_n,
             &None => "[No Name]",
         };
@@ -1154,8 +1189,8 @@ fn draw_status_bar(buf: &mut String) {
         let status = format!(
             "{:.20} - {} lines {}",
             name,
-            state.edit_buffer.rows.len(),
-            if state.edit_buffer.dirty {
+            state.edit_buffer.state.rows.len(),
+            if state.edit_buffer.state.dirty {
                 "(modified)"
             } else {
                 ""
@@ -1167,8 +1202,8 @@ fn draw_status_bar(buf: &mut String) {
                 Some(ref syntax) => syntax.file_type,
                 None => "no ft",
             },
-            state.edit_buffer.cy + 1,
-            state.edit_buffer.rows.len()
+            state.edit_buffer.state.cy + 1,
+            state.edit_buffer.state.rows.len()
         );
 
         buf.push_str(&status);
@@ -1218,8 +1253,8 @@ fn refresh_screen(buf: &mut String) {
     if let Some(state) = unsafe { STATE.as_mut() } {
         buf.push_str(&format!(
             "\x1b[{};{}H",
-            (state.edit_buffer.cy - state.edit_buffer.row_offset) + 1,
-            (state.edit_buffer.rx - state.edit_buffer.col_offset) + 1
+            (state.edit_buffer.state.cy - state.edit_buffer.state.row_offset) + 1,
+            (state.edit_buffer.state.rx - state.edit_buffer.state.col_offset) + 1
         ));
     }
 
@@ -1232,56 +1267,46 @@ fn refresh_screen(buf: &mut String) {
 
 /*** input ***/
 
-fn move_cursor(arrow: Arrow) {
-    if let Some(state) = unsafe { STATE.as_mut() } {
-        let row_len = if state.edit_buffer.cy < state.edit_buffer.rows.len() as u32 {
-            Some(
-                state.edit_buffer.rows[state.edit_buffer.cy as usize]
-                    .row
-                    .len(),
-            )
-        } else {
-            None
-        };
+fn move_cursor(state: &mut EditBufferState, arrow: Arrow) {
+    let row_len = if state.cy < state.rows.len() as u32 {
+        Some(state.rows[state.cy as usize].row.len())
+    } else {
+        None
+    };
 
-        match arrow {
-            Arrow::Left => if state.edit_buffer.cx != 0 {
-                state.edit_buffer.cx -= 1;
-            } else if state.edit_buffer.cy > 0 {
-                state.edit_buffer.cy -= 1;
-                state.edit_buffer.cx = state.edit_buffer.rows[state.edit_buffer.cy as usize]
-                    .row
-                    .len() as u32;
-            },
-            Arrow::Right => match row_len {
-                Some(len) if (state.edit_buffer.cx as usize) < len => {
-                    state.edit_buffer.cx += 1;
-                }
-                Some(len) if (state.edit_buffer.cx as usize) == len => {
-                    state.edit_buffer.cy += 1;
-                    state.edit_buffer.cx = 0;
-                }
-                _ => {}
-            },
-            Arrow::Up => {
-                state.edit_buffer.cy = state.edit_buffer.cy.saturating_sub(1);
+    match arrow {
+        Arrow::Left => if state.cx != 0 {
+            state.cx -= 1;
+        } else if state.cy > 0 {
+            state.cy -= 1;
+            state.cx = state.rows[state.cy as usize].row.len() as u32;
+        },
+        Arrow::Right => match row_len {
+            Some(len) if (state.cx as usize) < len => {
+                state.cx += 1;
             }
-            Arrow::Down => if state.edit_buffer.cy < state.edit_buffer.rows.len() as u32 {
-                state.edit_buffer.cy += 1;
-            },
+            Some(len) if (state.cx as usize) == len => {
+                state.cy += 1;
+                state.cx = 0;
+            }
+            _ => {}
+        },
+        Arrow::Up => {
+            state.cy = state.cy.saturating_sub(1);
         }
+        Arrow::Down => if state.cy < state.rows.len() as u32 {
+            state.cy += 1;
+        },
+    }
 
 
-        let new_row_len = if state.edit_buffer.cy < state.edit_buffer.rows.len() as u32 {
-            state.edit_buffer.rows[state.edit_buffer.cy as usize]
-                .row
-                .len() as u32
-        } else {
-            0
-        };
-        if state.edit_buffer.cx > new_row_len {
-            state.edit_buffer.cx = new_row_len;
-        }
+    let new_row_len = if state.cy < state.rows.len() as u32 {
+        state.rows[state.cy as usize].row.len() as u32
+    } else {
+        0
+    };
+    if state.cx > new_row_len {
+        state.cx = new_row_len;
     }
 }
 
@@ -1289,11 +1314,18 @@ fn process_keypress() {
     static mut QUIT_TIMES: u32 = KILO_QUIT_TIMES;
     let key = read_key();
 
+    let mut possible_edit = None;
+
     match key {
-        Byte(b'\r') => insert_newline(),
+        Byte(b'\r') => if let Some(state) = unsafe { STATE.as_mut() } {
+            possible_edit = Some(Insert(
+                Character((state.edit_buffer.state.cx, state.edit_buffer.state.cy)),
+                "\r".to_owned(),
+            ));
+        },
         Byte(c0) if c0 == CTRL_KEY!(b'q') => {
             if unsafe { STATE.as_mut() }
-                .map(|st| st.edit_buffer.dirty)
+                .map(|st| st.edit_buffer.state.dirty)
                 .unwrap_or(true) && unsafe { QUIT_TIMES > 0 }
             {
                 set_status_message!(
@@ -1319,11 +1351,12 @@ fn process_keypress() {
             save();
         }
         Home => if let Some(state) = unsafe { STATE.as_mut() } {
-            state.edit_buffer.cx = 0;
+            state.edit_buffer.state.cx = 0;
         },
         End => if let Some(state) = unsafe { STATE.as_mut() } {
-            if state.edit_buffer.cy < state.edit_buffer.rows.len() as u32 {
-                state.edit_buffer.cx = state.edit_buffer.rows[state.edit_buffer.cy as usize]
+            if state.edit_buffer.state.cy < state.edit_buffer.state.rows.len() as u32 {
+                state.edit_buffer.state.cx = state.edit_buffer.state.rows
+                    [state.edit_buffer.state.cy as usize]
                     .row
                     .len() as u32;
             }
@@ -1331,24 +1364,36 @@ fn process_keypress() {
         Byte(c0) if c0 == CTRL_KEY!(b'f') => {
             find();
         }
-        Byte(BACKSPACE) | Delete | Byte(CTRL_H) => {
+        Byte(BACKSPACE) | Delete | Byte(CTRL_H) => if let Some(state) = unsafe { STATE.as_mut() } {
             match key {
                 Delete => {
-                    move_cursor(Arrow::Right);
+                    move_cursor(&mut state.edit_buffer.state, Arrow::Right);
                 }
                 _ => {}
             }
-            del_char();
-        }
+
+            let cx = state.edit_buffer.state.cx as usize;
+            let current_char_str = if cx > 0 {
+                &state.edit_buffer.state.rows[state.edit_buffer.state.cy as usize].row[cx - 1..cx]
+            } else {
+                "\n"
+            };
+
+            possible_edit = Some(Remove(
+                Character((state.edit_buffer.state.cx, state.edit_buffer.state.cy)),
+                current_char_str.to_owned(),
+            ));
+        },
         Page(page) => if let Some(state) = unsafe { STATE.as_mut() } {
             match page {
                 Page::Up => {
-                    state.edit_buffer.cy = state.edit_buffer.row_offset;
+                    state.edit_buffer.state.cy = state.edit_buffer.state.row_offset;
                 }
                 Page::Down => {
-                    state.edit_buffer.cy = state.edit_buffer.row_offset + state.screen_rows - 1;
-                    if state.edit_buffer.cy > state.edit_buffer.rows.len() as u32 {
-                        state.edit_buffer.cy = state.edit_buffer.rows.len() as u32;
+                    state.edit_buffer.state.cy =
+                        state.edit_buffer.state.row_offset + state.screen_rows - 1;
+                    if state.edit_buffer.state.cy > state.edit_buffer.state.rows.len() as u32 {
+                        state.edit_buffer.state.cy = state.edit_buffer.state.rows.len() as u32;
                     }
                 }
             };
@@ -1360,24 +1405,202 @@ fn process_keypress() {
             };
 
             for _ in 0..state.screen_rows {
-                move_cursor(arrow);
+                move_cursor(&mut state.edit_buffer.state, arrow);
             }
         },
-        Arrow(arrow) => {
-            move_cursor(arrow);
-        }
+        Arrow(arrow) => if let Some(state) = unsafe { STATE.as_mut() } {
+            move_cursor(&mut state.edit_buffer.state, arrow);
+        },
         Byte(c0) if c0 == CTRL_KEY!(b'l') || c0 == b'\x1b' => {}
         Byte(c0) if c0 == 0 => {
             return;
         }
-        Byte(c0) => {
-            insert_char(c0 as char);
+        Byte(c0) => if let Some(state) = unsafe { STATE.as_mut() } {
+            insert_char_at_cursor(&mut state.edit_buffer.state, c0 as char);
+        },
+    }
+
+    if let Some(edit) = possible_edit {
+        if let Some(state) = unsafe { STATE.as_mut() } {
+            perform_edit(&mut state.edit_buffer.state, &edit);
         }
     }
+
     unsafe {
         QUIT_TIMES = KILO_QUIT_TIMES;
     }
 }
+
+fn perform_edit(state: &mut EditBufferState, edit: &Edit) {
+    match edit {
+        &Insert(Character(coord), ref s) => for c in s.chars() {
+            if c == '\r' {
+                insert_newline(state, coord);
+            } else {
+                insert_char(state, coord, c);
+            }
+        },
+        &Remove(Character(coord), ref s) => for _ in 0..s.len() {
+            del_char(state, coord)
+        },
+    }
+}
+
+fn unperform_edit(state: &mut EditBufferState, edit: &Edit) {
+    unimplemented!()
+}
+
+#[derive(PartialEq)]
+enum EditOutcome {
+    Changed,
+    Unchanged,
+}
+use EditOutcome::*;
+
+fn latest(edit_buffer: &mut EditBuffer) -> EditOutcome {
+    let mut changed = false;
+    while let Changed = redo(edit_buffer) {
+        changed = true;
+    }
+
+    if changed {
+        Changed
+    } else {
+        Unchanged
+    }
+}
+
+fn redo(edit_buffer: &mut EditBuffer) -> EditOutcome {
+    if let Some(edit) = edit_buffer
+        .history
+        .edits
+        .get(edit_buffer.history.current + 1)
+    {
+        perform_edit(&mut edit_buffer.state, edit);
+
+        edit_buffer.history.current += 1;
+
+        Changed
+    } else {
+        Unchanged
+    }
+}
+
+fn undo(edit_buffer: &mut EditBuffer) -> EditOutcome {
+    if let Some(edit) = edit_buffer.history.edits.get(edit_buffer.history.current) {
+        unperform_edit(&mut edit_buffer.state, edit);
+
+        edit_buffer.history.current -= 1;
+
+        Changed
+    } else {
+        Unchanged
+    }
+}
+
+
+#[cfg(test)]
+#[macro_use]
+extern crate quickcheck;
+
+#[cfg(test)]
+mod edit_actions {
+    use ::*;
+    use quickcheck::Arbitrary;
+
+    macro_rules! a {
+        ($gen:expr) => {
+            Arbitrary::arbitrary($gen)
+        }
+    }
+
+    fn edit_buffer_isomorphism(e_b1: &EditBufferState, e_b2: &EditBufferState) -> bool {
+        e_b1.filename == e_b2.filename && e_b1.cx == e_b2.cx && e_b1.cy == e_b2.cy
+            && e_b1.rx == e_b2.rx && e_b1.row_offset == e_b2.row_offset
+            && e_b1.col_offset == e_b2.col_offset && e_b1.rows == e_b2.rows
+            && e_b1.dirty == e_b2.dirty
+    }
+
+    impl Arbitrary for EditBuffer {
+        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+            EditBuffer {
+                state: a!(g),
+                history: a!(g),
+            }
+        }
+    }
+
+    impl Arbitrary for Row {
+        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+            Row::new(a!(g), a!(g))
+        }
+    }
+
+    impl Arbitrary for History {
+        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+            History {
+                edits: a!(g),
+                current: a!(g),
+            }
+        }
+    }
+
+    impl Arbitrary for EditBufferState {
+        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+            EditBufferState {
+                cx: g.gen(),
+                cy: g.gen(),
+                rx: g.gen(),
+                row_offset: g.gen(),
+                col_offset: g.gen(),
+                rows: a!(g),
+                dirty: g.gen(),
+                filename: a!(g),
+            }
+        }
+    }
+
+    impl Arbitrary for Section {
+        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+            Character((g.gen(), g.gen()))
+        }
+    }
+
+    impl Arbitrary for Edit {
+        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+            match g.gen_range(0, 2) {
+                1 => Insert(Section::arbitrary(g), String::arbitrary(g)),
+                _ => Remove(Section::arbitrary(g), String::arbitrary(g)),
+            }
+        }
+    }
+
+    quickcheck! {
+        fn undo_redo(edit_buffer_: EditBuffer, edits: Vec<Edit>) -> bool {
+            let mut edit_buffer = edit_buffer_.clone();
+
+            for edit in edits.iter() {
+                perform_edit(&mut edit_buffer.state, edit);
+            }
+
+            latest(&mut edit_buffer);
+
+            if edit_buffer_isomorphism(&edit_buffer.state, &edit_buffer_.state) {
+                return true;
+            }
+
+            while let Changed = undo(&mut edit_buffer) {
+                if edit_buffer_isomorphism(&edit_buffer.state, &edit_buffer_.state) {
+                    return true;
+                }
+            }
+
+            false
+        }
+    }
+
+}
+
 
 /*** init ***/
 
