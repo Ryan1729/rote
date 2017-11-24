@@ -218,6 +218,20 @@ struct EditBufferState {
     filename: Option<String>,
 }
 
+impl EditBufferState {
+    fn contains(&self, section: &Section) -> bool {
+        match *section {
+            Character((cx, cy)) => {
+                //one past the last character/row is a valid position
+                let cy_usize = cy as usize;
+
+                (cy_usize < self.rows.len() as _ && (cx as usize) <= self.rows[cy_usize].row.len())
+                    || (cy_usize == self.rows.len() && cx == 0)
+            }
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 struct EditBuffer {
     state: EditBufferState,
@@ -532,7 +546,7 @@ fn update_syntax(row: &mut Row) {
 
                 if syntax.singleline_comment_start.len() > 0 && in_string.is_none() && !in_comment {
                     if row.render[i..].starts_with(syntax.singleline_comment_start) {
-                        for _ in i..row.render.len() {
+                        for _ in 0..row.render[i..].len() {
                             row.highlight.push(EditorHighlight::Comment);
                         }
                         break;
@@ -545,10 +559,10 @@ fn update_syntax(row: &mut Row) {
                 {
                     if in_comment {
                         if (&row.render[i..]).starts_with(syntax.multiline_comment_end) {
-                            let one_past_comment_end = i + syntax.multiline_comment_end.len();
-                            for j in i..one_past_comment_end {
+                            let one_past_comment_end = syntax.multiline_comment_end.len();
+                            for j in 0..one_past_comment_end {
                                 row.highlight.push(EditorHighlight::MultilineComment);
-                                if j < one_past_comment_end - 2 {
+                                if j < one_past_comment_end - 1 {
                                     char_indices.next();
                                 }
                             }
@@ -560,8 +574,8 @@ fn update_syntax(row: &mut Row) {
                         }
                         continue;
                     } else if (&row.render[i..]).starts_with(syntax.multiline_comment_start) {
-                        let one_past_comment_start = i + syntax.multiline_comment_start.len();
-                        for j in i..one_past_comment_start {
+                        let one_past_comment_start = syntax.multiline_comment_start.len();
+                        for j in 0..one_past_comment_start {
                             row.highlight.push(EditorHighlight::MultilineComment);
                             if j < one_past_comment_start - 1 {
                                 char_indices.next();
@@ -616,26 +630,30 @@ fn update_syntax(row: &mut Row) {
                         .chain(syntax.keywords3.iter())
                         .chain(syntax.keywords4.iter());
                     while let Some(&Some(ref keyword)) = keywords.next() {
-                        let mut k_len = keyword.len();
+                        let mut k_len = keyword.as_bytes().len();
                         let is_kw2 = keyword.ends_with('|');
                         if is_kw2 {
                             k_len -= 1;
                         }
                         let one_past_keyword = i + k_len;
                         if (&row.render[i..]).starts_with(&keyword[..k_len])
-                            && row.render[one_past_keyword..one_past_keyword + 1]
+                            && row.render[one_past_keyword..]
                                 .chars()
                                 .next()
                                 .map(is_separator)
                                 .unwrap_or(false)
                         {
-                            for j in i..one_past_keyword {
+                            let mut k_char_len = keyword.len();
+                            if is_kw2 {
+                                k_char_len -= 1;
+                            }
+                            for j in 0..k_char_len {
                                 row.highlight.push(if is_kw2 {
                                     EditorHighlight::Keyword2
                                 } else {
                                     EditorHighlight::Keyword1
                                 });
-                                if j < one_past_keyword - 1 {
+                                if j < k_char_len - 1 {
                                     char_indices.next();
                                 }
                             }
@@ -765,24 +783,18 @@ fn update_row(row: &mut Row) {
     update_syntax(row);
 }
 
-fn insert_row(at: u32, s: String) {
-    if let Some(state) = unsafe { STATE.as_mut() } {
-        if at > state.edit_buffer.state.rows.len() as u32 {
-            return;
-        }
-
-        state
-            .edit_buffer
-            .state
-            .rows
-            .insert(at as usize, Row::new(at, s));
-
-        for i in (at + 1) as usize..state.edit_buffer.state.rows.len() {
-            state.edit_buffer.state.rows[i as usize].index += 1;
-        }
-
-        state.edit_buffer.state.dirty = true;
+fn insert_row(state: &mut EditBufferState, at: u32, s: String) {
+    if at > state.rows.len() as u32 {
+        return;
     }
+
+    state.rows.insert(at as usize, Row::new(at, s));
+
+    for i in (at + 1) as usize..state.rows.len() {
+        state.rows[i as usize].index += 1;
+    }
+
+    state.dirty = true;
 }
 
 fn del_row(at: u32) {
@@ -844,7 +856,8 @@ fn insert_char(state: &mut EditBufferState, (cx, cy): (u32, u32), c: char) {
 
 fn insert_char_at_cursor(state: &mut EditBufferState, c: char) {
     if state.cy == state.rows.len() as u32 {
-        insert_row(state.rows.len() as u32, String::new());
+        let at = state.rows.len() as u32;
+        insert_row(state, at, String::new());
     }
     row_insert_char(&mut state.rows[state.cy as usize], state.cx, c);
     state.cx += 1;
@@ -854,11 +867,20 @@ fn insert_newline(state: &mut EditBufferState, (cx, cy): (u32, u32)) {
     state.cx = cx;
     state.cy = cy;
     if state.cx == 0 {
-        insert_row(state.cy, String::new());
+        insert_row(state, cy, String::new());
     } else {
-        let row = &mut state.rows[state.cy as usize];
-        insert_row(state.cy + 1, row.row.split_off(state.cx as usize));
-        update_row(row);
+        let new_row = {
+            let row = &mut state.rows[cy as usize];
+
+            if let Some((byte_index, _)) = row.row.char_indices().nth(cx as usize) {
+                row.row.split_off(byte_index)
+            } else {
+                String::new()
+            }
+        };
+
+        insert_row(state, cy + 1, new_row);
+        update_row(&mut state.rows[cy as usize]);
     }
     state.cy += 1;
     state.cx = 0;
@@ -919,7 +941,8 @@ fn open<P: AsRef<Path>>(filename: P) {
                         while line.ends_with(|c| c == '\n' || c == '\r') {
                             line.pop();
                         }
-                        insert_row(state.edit_buffer.state.rows.len() as u32, line);
+                        let at = state.edit_buffer.state.rows.len() as u32;
+                        insert_row(&mut state.edit_buffer.state, at, line);
                     }
                     Err(e) => {
                         die(&e.to_string());
@@ -1372,11 +1395,12 @@ fn process_keypress() {
                 _ => {}
             }
 
+            let row = &state.edit_buffer.state.rows[state.edit_buffer.state.cy as usize].row;
             let cx = state.edit_buffer.state.cx as usize;
-            let current_char_str = if cx > 0 {
-                &state.edit_buffer.state.rows[state.edit_buffer.state.cy as usize].row[cx - 1..cx]
+            let current_char_str = if let Some(c) = row.chars().nth(cx) {
+                c.to_string()
             } else {
-                "\n"
+                '\n'.to_string()
             };
 
             possible_edit = Some(Remove(
@@ -1432,17 +1456,22 @@ fn process_keypress() {
 }
 
 fn perform_edit(state: &mut EditBufferState, edit: &Edit) {
-    match edit {
-        &Insert(Character(coord), ref s) => for c in s.chars() {
-            if c == '\r' {
-                insert_newline(state, coord);
-            } else {
-                insert_char(state, coord, c);
-            }
+    match *edit {
+        Insert(ref section, ref s) if state.contains(section) => match *section {
+            Character(coord) => for c in s.chars() {
+                if c == '\r' {
+                    insert_newline(state, coord);
+                } else {
+                    insert_char(state, coord, c);
+                }
+            },
         },
-        &Remove(Character(coord), ref s) => for _ in 0..s.len() {
-            del_char(state, coord)
+        Remove(ref section, ref s) if state.contains(section) => match *section {
+            Character(coord) => for _ in 0..s.len() {
+                del_char(state, coord)
+            },
         },
+        Remove(_, _) | Insert(_, _) => {}
     }
 }
 
