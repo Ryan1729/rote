@@ -200,7 +200,7 @@ impl Row {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 struct History {
     edits: Vec<Edit>,
     current: Option<u32>,
@@ -1434,6 +1434,7 @@ fn process_keypress() {
                 _ => {}
             }
 
+
             if let Some(row) = state
                 .edit_buffer
                 .state
@@ -2121,13 +2122,14 @@ mod edit_actions {
     }
 
     #[test]
-    fn line_addition_by_coord_on_single_row_no_history() {
+    fn cannot_make_row_without_newline() {
+        let blank_history: History = Default::default();
         let mut edit_buffer = {
             let mut e: EditBuffer = Default::default();
 
             perform_edit(&mut e, &Insert(Character((0, 0)), "\r".to_string()));
 
-            e.history = Default::default();
+            e.history = blank_history.clone();
 
             e
         };
@@ -2144,8 +2146,9 @@ mod edit_actions {
                 .into_iter()
                 .map(|r| r.row)
                 .collect::<Vec<_>>(),
-            vec!["".to_string(), "A".to_string()]
-        )
+            vec!["".to_string()]
+        );
+        assert_eq!(edit_buffer.history, blank_history);
     }
     #[test]
     fn undo_line_addition_by_coord() {
