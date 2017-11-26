@@ -9,3 +9,4 @@ libc = "0.2.33"
 
 [dev-dependencies]
 quickcheck = "0.4"
+rand = "0.3"

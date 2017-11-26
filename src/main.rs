@@ -115,13 +115,13 @@ impl Default for EditorKey {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 enum Section {
     Character((u32, u32)), //TODO represent range across lines
 }
 use Section::*;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 enum Edit {
     Insert(Section, String),
     Remove(Section, String),
@@ -203,7 +203,43 @@ impl Row {
 #[derive(Clone, Debug, Default)]
 struct History {
     edits: Vec<Edit>,
-    current: usize,
+    current: Option<u32>,
+}
+
+impl History {
+    fn inc_current(&mut self) {
+        match self.current {
+            None => {
+                self.current = Some(0);
+            }
+            Some(i) => {
+                self.current = Some(i + 1);
+            }
+        }
+    }
+    fn dec_current(&mut self) {
+        match self.current {
+            None => {}
+            Some(i) => if i == 0 {
+                self.current = None;
+            } else {
+                self.current = Some(i - 1);
+            },
+        }
+    }
+    fn get_next(&self) -> Option<Edit> {
+        let index = match self.current {
+            None => 0,
+            Some(i) => i + 1,
+        };
+
+        self.edits.get(index as usize).map(Clone::clone)
+    }
+    fn get_current(&self) -> Option<Edit> {
+        self.current
+            .and_then(|i| self.edits.get(i as usize))
+            .map(Clone::clone)
+    }
 }
 
 #[derive(Clone, Debug, Default)]
@@ -816,11 +852,13 @@ fn del_row(at: u32) {
 fn row_insert_char(row: &mut Row, at: u32, c: char) {
     //we allow at == len so we can add c to the end.
     let mut i = at as usize;
-    if i > row.row.len() {
-        i = row.row.len();
+    if i > row.row.as_bytes().len() {
+        i = row.row.as_bytes().len();
     }
     row.row.insert(i, c);
+
     update_row(row);
+
     if let Some(state) = unsafe { STATE.as_mut() } {
         state.edit_buffer.state.dirty = true;
     }
@@ -839,9 +877,9 @@ fn row_del_char(row: &mut Row, at: u32) {
     if i >= row.row.len() {
         return;
     }
+    row.row.remove(i);
+    update_row(row);
     if let Some(state) = unsafe { STATE.as_mut() } {
-        row.row.remove(i);
-        update_row(row);
         state.edit_buffer.state.dirty = true;
     }
 }
@@ -859,6 +897,7 @@ fn insert_char_at_cursor(state: &mut EditBufferState, c: char) {
         let at = state.rows.len() as u32;
         insert_row(state, at, String::new());
     }
+
     row_insert_char(&mut state.rows[state.cy as usize], state.cx, c);
     state.cx += 1;
 }
@@ -872,8 +911,8 @@ fn insert_newline(state: &mut EditBufferState, (cx, cy): (u32, u32)) {
         let new_row = {
             let row = &mut state.rows[cy as usize];
 
-            if let Some((byte_index, _)) = row.row.char_indices().nth(cx as usize) {
-                row.row.split_off(byte_index)
+            if let Some(byte_x) = cx_to_byte_x(&row.row, cx) {
+                row.row.split_off(byte_x)
             } else {
                 String::new()
             }
@@ -1395,18 +1434,24 @@ fn process_keypress() {
                 _ => {}
             }
 
-            let row = &state.edit_buffer.state.rows[state.edit_buffer.state.cy as usize].row;
-            let cx = state.edit_buffer.state.cx as usize;
-            let current_char_str = if let Some(c) = row.chars().nth(cx) {
-                c.to_string()
-            } else {
-                '\n'.to_string()
-            };
+            if let Some(row) = state
+                .edit_buffer
+                .state
+                .rows
+                .get(state.edit_buffer.state.cy as usize)
+            {
+                let cx = state.edit_buffer.state.cx as usize;
+                let current_char_str = if let Some(c) = row.row.chars().nth(cx) {
+                    c.to_string()
+                } else {
+                    '\n'.to_string()
+                };
 
-            possible_edit = Some(Remove(
-                Character((state.edit_buffer.state.cx, state.edit_buffer.state.cy)),
-                current_char_str.to_owned(),
-            ));
+                possible_edit = Some(Remove(
+                    Character((state.edit_buffer.state.cx, state.edit_buffer.state.cy)),
+                    current_char_str.to_owned(),
+                ));
+            }
         },
         Page(page) => if let Some(state) = unsafe { STATE.as_mut() } {
             match page {
@@ -1446,7 +1491,7 @@ fn process_keypress() {
 
     if let Some(edit) = possible_edit {
         if let Some(state) = unsafe { STATE.as_mut() } {
-            perform_edit(&mut state.edit_buffer.state, &edit);
+            perform_edit(&mut state.edit_buffer, &edit);
         }
     }
 
@@ -1455,31 +1500,127 @@ fn process_keypress() {
     }
 }
 
-fn perform_edit(state: &mut EditBufferState, edit: &Edit) {
+fn cx_to_byte_x(s: &String, cx: u32) -> Option<usize> {
+    s.char_indices().nth(cx as usize).map(|(i, _)| i)
+}
+
+fn perform_edit(edit_buffer: &mut EditBuffer, edit: &Edit) -> EditOutcome {
+    let outcome = no_history_perform_edit(&mut edit_buffer.state, edit);
+
+    if let Changed = outcome {
+        if edit_buffer
+            .history
+            .get_next()
+            .map(|e| edit != &e)
+            .unwrap_or(true)
+        {
+            //Here's the bit where we throw away history...
+            //It would be cool to be able to keep it...
+            if let Some(i) = edit_buffer.history.current {
+                edit_buffer.history.edits.truncate(1 + i as usize);
+            }
+            edit_buffer.history.edits.push(edit.clone());
+        }
+
+        edit_buffer.history.inc_current();
+    }
+
+    outcome
+}
+
+fn unperform_edit(edit_buffer: &mut EditBuffer, edit: &Edit) -> EditOutcome {
+    let outcome = no_history_unperform_edit(&mut edit_buffer.state, edit);
+    if let Changed = outcome {
+        edit_buffer.history.dec_current();
+    }
+    outcome
+}
+
+fn no_history_perform_edit(state: &mut EditBufferState, edit: &Edit) -> EditOutcome {
     match *edit {
         Insert(ref section, ref s) if state.contains(section) => match *section {
-            Character(coord) => for c in s.chars() {
-                if c == '\r' {
-                    insert_newline(state, coord);
-                } else {
-                    insert_char(state, coord, c);
+            Character(coord) => {
+                for c in s.chars().rev() {
+                    if c == '\r' {
+                        insert_newline(state, coord);
+                    } else {
+                        insert_char(state, coord, c);
+                    }
                 }
-            },
+                return Changed;
+            }
         },
         Remove(ref section, ref s) if state.contains(section) => match *section {
-            Character(coord) => for _ in 0..s.len() {
-                del_char(state, coord)
-            },
+            Character((cx, cy)) => {
+                let mut should_delete = false;
+                {
+                    let row = &state.rows[cy as usize].row;
+                    if let Some(byte_x) = cx_to_byte_x(row, cx) {
+                        if row[byte_x..].starts_with(s) {
+                            should_delete = true;
+                        }
+                    } else {
+                        state.cx = row.len() as u32;
+                    }
+                }
+
+                if should_delete {
+                    for _ in 0..s.len() {
+                        del_char(state, (cx + 1, cy))
+                    }
+                    return Changed;
+                }
+            }
         },
         Remove(_, _) | Insert(_, _) => {}
     }
+
+    Unchanged
 }
 
-fn unperform_edit(state: &mut EditBufferState, edit: &Edit) {
-    unimplemented!()
+fn no_history_unperform_edit(state: &mut EditBufferState, edit: &Edit) -> EditOutcome {
+    match *edit {
+        Remove(ref section, ref s) if state.contains(section) => match *section {
+            Character(coord) => {
+                for c in s.chars().rev() {
+                    if c == '\r' {
+                        insert_newline(state, coord);
+                    } else {
+                        insert_char(state, coord, c);
+                    }
+                }
+                return Changed;
+            }
+        },
+        Insert(ref section, ref s) if state.contains(section) => match *section {
+            Character((cx, cy)) => {
+                let mut should_delete = false;
+                {
+                    let row = &state.rows[cy as usize].row;
+                    if let Some(byte_x) = cx_to_byte_x(row, cx) {
+                        if row[byte_x..].starts_with(s) {
+                            should_delete = true;
+                        }
+                    } else {
+                        state.cx = row.len() as u32;
+                    }
+                }
+
+                if should_delete {
+                    for _ in 0..s.len() {
+                        del_char(state, (cx + 1, cy))
+                    }
+                    return Changed;
+                }
+            }
+        },
+        Remove(_, _) | Insert(_, _) => {}
+    }
+
+    Unchanged
 }
 
-#[derive(PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 enum EditOutcome {
     Changed,
     Unchanged,
@@ -1500,14 +1641,10 @@ fn latest(edit_buffer: &mut EditBuffer) -> EditOutcome {
 }
 
 fn redo(edit_buffer: &mut EditBuffer) -> EditOutcome {
-    if let Some(edit) = edit_buffer
-        .history
-        .edits
-        .get(edit_buffer.history.current + 1)
-    {
-        perform_edit(&mut edit_buffer.state, edit);
+    if let Some(edit) = edit_buffer.history.get_next() {
+        perform_edit(edit_buffer, &edit);
 
-        edit_buffer.history.current += 1;
+        edit_buffer.history.inc_current();
 
         Changed
     } else {
@@ -1516,10 +1653,10 @@ fn redo(edit_buffer: &mut EditBuffer) -> EditOutcome {
 }
 
 fn undo(edit_buffer: &mut EditBuffer) -> EditOutcome {
-    if let Some(edit) = edit_buffer.history.edits.get(edit_buffer.history.current) {
-        unperform_edit(&mut edit_buffer.state, edit);
+    if let Some(edit) = edit_buffer.history.get_current() {
+        unperform_edit(edit_buffer, &edit);
 
-        edit_buffer.history.current -= 1;
+        edit_buffer.history.dec_current();
 
         Changed
     } else {
@@ -1533,9 +1670,37 @@ fn undo(edit_buffer: &mut EditBuffer) -> EditOutcome {
 extern crate quickcheck;
 
 #[cfg(test)]
+extern crate rand;
+
+#[cfg(test)]
 mod edit_actions {
     use ::*;
-    use quickcheck::Arbitrary;
+    use quickcheck::{Arbitrary, Gen, StdGen};
+    use std::ops::Deref;
+
+    #[derive(Clone, Debug)]
+    //quickcheck Arbitrary adaptor that forces the size to be 1
+    pub struct One<T>(pub T);
+
+    impl<T> Deref for One<T> {
+        type Target = T;
+        fn deref(&self) -> &T {
+            &self.0
+        }
+    }
+
+    impl<T> Arbitrary for One<T>
+    where
+        T: Arbitrary,
+    {
+        fn arbitrary<G: Gen>(g: &mut G) -> Self {
+            One(T::arbitrary(&mut StdGen::new(g, 1)))
+        }
+
+        fn shrink(&self) -> Box<Iterator<Item = Self>> {
+            Box::new((**self).shrink().map(One))
+        }
+    }
 
     macro_rules! a {
         ($gen:expr) => {
@@ -1550,6 +1715,30 @@ mod edit_actions {
             && e_b1.dirty == e_b2.dirty
     }
 
+    fn edit_buffer_weak_isomorphism(e_b1: &EditBufferState, e_b2: &EditBufferState) -> bool {
+        e_b1.filename == e_b2.filename && e_b1.rows == e_b2.rows
+    }
+
+    fn must_edit_buffer_isomorphism(e_b1: &EditBufferState, e_b2: &EditBufferState) -> bool {
+        assert_eq!(e_b1.filename, e_b2.filename);
+        assert_eq!(e_b1.cx, e_b2.cx);
+        assert_eq!(e_b1.cy, e_b2.cy);
+        assert_eq!(e_b1.rx, e_b2.rx);
+        assert_eq!(e_b1.row_offset, e_b2.row_offset);
+        assert_eq!(e_b1.col_offset, e_b2.col_offset);
+        assert_eq!(e_b1.rows, e_b2.rows);
+        assert_eq!(e_b1.dirty, e_b2.dirty);
+
+        true
+    }
+
+    fn must_edit_buffer_weak_isomorphism(e_b1: &EditBufferState, e_b2: &EditBufferState) -> bool {
+        assert_eq!(e_b1.filename, e_b2.filename);
+        assert_eq!(e_b1.rows, e_b2.rows);
+
+        true
+    }
+
     impl Arbitrary for EditBuffer {
         fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
             EditBuffer {
@@ -1557,41 +1746,120 @@ mod edit_actions {
                 history: a!(g),
             }
         }
+
+        fn shrink(&self) -> Box<Iterator<Item = Self>> {
+            struct EShrink {
+                e: EditBuffer,
+            }
+
+            impl Iterator for EShrink {
+                type Item = EditBuffer;
+
+                fn next(&mut self) -> Option<EditBuffer> {
+                    if self.e.history.edits.len() == 0 {
+                        None
+                    } else {
+                        if let Some(edits) = self.e.history.edits.shrink().next() {
+                            let mut copy = self.e.clone();
+                            copy.history.edits = edits;
+                            Some(copy)
+                        } else {
+                            None
+                        }
+                    }
+                }
+            }
+
+            Box::new(EShrink { e: self.clone() })
+        }
     }
 
     impl Arbitrary for Row {
         fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
-            Row::new(a!(g), a!(g))
+            Row::new(0, a!(g))
+        }
+
+        fn shrink(&self) -> Box<Iterator<Item = Self>> {
+            quickcheck::single_shrinker(self.clone())
         }
     }
 
     impl Arbitrary for History {
         fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
-            History {
-                edits: a!(g),
-                current: a!(g),
-            }
+            let edits: Vec<_> = a!(g);
+
+            let current = if g.gen() {
+                None
+            } else {
+                Some(g.gen_range(0, edits.len()) as u32)
+            };
+            println!("generated {:?}", edits);
+            println!("current {:?}", current);
+            History { edits, current }
         }
     }
 
     impl Arbitrary for EditBufferState {
         fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+            let row_count: u32 = 1;
+            // {
+            //     let s = g.size();
+            //     g.gen_range(0, s as u32)
+            // };
+
+            let mut rows = Vec::new();
+            for i in 0..row_count {
+                let mut s: String = a!(g);
+                while s.len() > 5 {
+                    s.pop();
+                }
+                rows.push(Row::new(i, s));
+            }
+
             EditBufferState {
                 cx: g.gen(),
                 cy: g.gen(),
                 rx: g.gen(),
                 row_offset: g.gen(),
                 col_offset: g.gen(),
-                rows: a!(g),
+                rows,
                 dirty: g.gen(),
                 filename: a!(g),
             }
+        }
+
+        fn shrink(&self) -> Box<Iterator<Item = Self>> {
+            // Box::new(Shrinker::new())
+            struct EShrink {
+                e: EditBufferState,
+            }
+
+            impl Iterator for EShrink {
+                type Item = EditBufferState;
+
+                fn next(&mut self) -> Option<EditBufferState> {
+                    if self.e.rows.len() == 0 {
+                        None
+                    } else {
+                        if let Some(rows) = self.e.rows.shrink().next() {
+                            let mut copy = self.e.clone();
+                            copy.rows = rows;
+                            Some(copy)
+                        } else {
+                            None
+                        }
+                    }
+                }
+            }
+
+            Box::new(EShrink { e: self.clone() })
         }
     }
 
     impl Arbitrary for Section {
         fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
-            Character((g.gen(), g.gen()))
+            let size = g.size() as u32;
+            Character((g.gen_range(0, size), g.gen_range(0, size)))
         }
     }
 
@@ -1605,28 +1873,320 @@ mod edit_actions {
     }
 
     quickcheck! {
-        fn undo_redo(edit_buffer_: EditBuffer, edits: Vec<Edit>) -> bool {
+        fn single_char_undo_redo(edit_buffer_: EditBuffer, edits: Vec<One<Edit>>) -> bool {
             let mut edit_buffer = edit_buffer_.clone();
 
             for edit in edits.iter() {
-                perform_edit(&mut edit_buffer.state, edit);
+                perform_edit(&mut edit_buffer, edit);
             }
 
             latest(&mut edit_buffer);
 
-            if edit_buffer_isomorphism(&edit_buffer.state, &edit_buffer_.state) {
+            if edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state) {
                 return true;
             }
 
             while let Changed = undo(&mut edit_buffer) {
-                if edit_buffer_isomorphism(&edit_buffer.state, &edit_buffer_.state) {
+                if edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state) {
                     return true;
                 }
             }
 
+            must_edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state);
+            must_edit_buffer_isomorphism(&edit_buffer.state, &edit_buffer_.state);
+
+            false
+        }
+
+        fn undo_redo(edit_buffer_: EditBuffer, edits: Vec<Edit>) -> bool {
+
+
+
+            let mut edit_buffer = edit_buffer_.clone();
+
+            for edit in edits.iter() {
+                perform_edit(&mut edit_buffer, edit);
+            }
+
+            latest(&mut edit_buffer);
+
+            if edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state) {
+                return true;
+            }
+
+            while let Changed = undo(&mut edit_buffer) {
+                if edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state) {
+                    return true;
+                }
+            }
+
+            must_edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state);
+            must_edit_buffer_isomorphism(&edit_buffer.state, &edit_buffer_.state);
+
             false
         }
     }
+
+    #[test]
+    fn insert_ascii() {
+        let mut edit_buffer: EditBuffer = Default::default();
+
+        perform_edit(
+            &mut edit_buffer,
+            &Insert(Character((0, 0)), 'A'.to_string()),
+        );
+
+        if let Some(row) = edit_buffer.state.rows.first() {
+            assert_eq!(row.row, 'A'.to_string())
+        } else {
+            panic!("No row!")
+        }
+    }
+
+    #[test]
+    fn insert_unicode() {
+        let mut edit_buffer: EditBuffer = Default::default();
+
+        perform_edit(
+            &mut edit_buffer,
+            &Insert(Character((0, 0)), '\u{203B}'.to_string()),
+        );
+
+        if let Some(row) = edit_buffer.state.rows.first() {
+            assert_eq!(row.row, '\u{203B}'.to_string())
+        } else {
+            panic!("No row!")
+        }
+    }
+
+    #[test]
+    fn insert_multiple_unicode() {
+        let mut edit_buffer: EditBuffer = Default::default();
+
+        let multiple = "\"⁉ᗆ쥔￼";
+
+        perform_edit(
+            &mut edit_buffer,
+            &Insert(Character((0, 0)), multiple.to_string()),
+        );
+
+        if let Some(row) = edit_buffer.state.rows.first() {
+            assert_eq!(row.row, multiple.to_string())
+        } else {
+            panic!("No row!")
+        }
+    }
+
+    #[test]
+    fn non_matching_remove() {
+        let mut edit_buffer: EditBuffer = Default::default();
+
+        perform_edit(
+            &mut edit_buffer,
+            &Insert(Character((0, 0)), "Hello".to_string()),
+        );
+        perform_edit(
+            &mut edit_buffer,
+            &Remove(Character((0, 0)), " World!".to_string()),
+        );
+
+        if let Some(row) = edit_buffer.state.rows.first() {
+            assert_eq!(row.row, "Hello".to_string())
+        } else {
+            panic!("No row!")
+        }
+    }
+
+    #[test]
+    fn add_linebreak_at_start() {
+        let mut edit_buffer: EditBuffer = Default::default();
+
+        perform_edit(
+            &mut edit_buffer,
+            &Insert(Character((0, 0)), "Hello".to_string()),
+        );
+        perform_edit(
+            &mut edit_buffer,
+            &Insert(Character((0, 0)), "\r".to_string()),
+        );
+
+        assert_eq!(
+            edit_buffer
+                .state
+                .rows
+                .into_iter()
+                .map(|r| r.row)
+                .collect::<Vec<_>>(),
+            vec!["".to_string(), "Hello".to_string()]
+        )
+    }
+
+    #[test]
+    fn paste_string_containing_linebreak_at_start() {
+        let mut edit_buffer: EditBuffer = Default::default();
+
+        perform_edit(
+            &mut edit_buffer,
+            &Insert(Character((0, 0)), "World".to_string()),
+        );
+        perform_edit(
+            &mut edit_buffer,
+            &Insert(Character((0, 0)), "Hello\r".to_string()),
+        );
+
+        assert_eq!(
+            edit_buffer
+                .state
+                .rows
+                .into_iter()
+                .map(|r| r.row)
+                .collect::<Vec<_>>(),
+            vec!["Hello".to_string(), "World".to_string()]
+        )
+    }
+
+    #[test]
+    fn remove_from_bad_location() {
+        let mut edit_buffer: EditBuffer = Default::default();
+
+        perform_edit(
+            &mut edit_buffer,
+            &Insert(Character((0, 7)), "Hello".to_string()),
+        );
+
+        assert_eq!(edit_buffer.state.rows.len(), 0)
+    }
+
+    #[test]
+    fn undo_removal() {
+        let mut edit_buffer: EditBuffer = Default::default();
+
+        perform_edit(
+            &mut edit_buffer,
+            &Insert(Character((0, 0)), "Hello".to_string()),
+        );
+
+        perform_edit(
+            &mut edit_buffer,
+            &Remove(Character((0, 0)), "Hell".to_string()),
+        );
+
+        assert_eq!(
+            edit_buffer
+                .state
+                .rows
+                .iter()
+                .map(|r| r.row.clone())
+                .collect::<Vec<_>>(),
+            vec!["o".to_string()]
+        );
+
+        undo(&mut edit_buffer);
+
+        assert_eq!(
+            edit_buffer
+                .state
+                .rows
+                .into_iter()
+                .map(|r| r.row)
+                .collect::<Vec<_>>(),
+            vec!["Hello".to_string()]
+        );
+    }
+
+    #[test]
+    fn undo_line_addition() {
+        let mut edit_buffer: EditBuffer = Default::default();
+
+        perform_edit(
+            &mut edit_buffer,
+            &Insert(Character((0, 0)), "Hello".to_string()),
+        );
+        perform_edit(
+            &mut edit_buffer,
+            &Insert(Character((0, 0)), "\n".to_string()),
+        );
+
+        undo(&mut edit_buffer);
+
+        assert_eq!(
+            edit_buffer
+                .state
+                .rows
+                .into_iter()
+                .map(|r| r.row)
+                .collect::<Vec<_>>(),
+            vec!["Hello".to_string()]
+        )
+    }
+
+    #[test]
+    fn line_addition_by_coord_on_single_row_no_history() {
+        let mut edit_buffer = {
+            let mut e: EditBuffer = Default::default();
+
+            perform_edit(&mut e, &Insert(Character((0, 0)), "\r".to_string()));
+
+            e.history = Default::default();
+
+            e
+        };
+
+        perform_edit(
+            &mut edit_buffer,
+            &Insert(Character((0, 1)), "A".to_string()),
+        );
+
+        assert_eq!(
+            edit_buffer
+                .state
+                .rows
+                .into_iter()
+                .map(|r| r.row)
+                .collect::<Vec<_>>(),
+            vec!["".to_string(), "A".to_string()]
+        )
+    }
+    #[test]
+    fn undo_line_addition_by_coord() {
+        let edit_buffer_ = {
+            let mut e: EditBuffer = Default::default();
+
+            perform_edit(&mut e, &Insert(Character((0, 0)), "\r".to_string()));
+
+            e.history = Default::default();
+
+            e
+        };
+        let mut edit_buffer = edit_buffer_.clone();
+
+        println!("pre edit {:?}\n\n", edit_buffer);
+
+        perform_edit(
+            &mut edit_buffer,
+            &Insert(Character((0, 1)), "A".to_string()),
+        );
+        println!("post edit {:?}\n\n", edit_buffer);
+        latest(&mut edit_buffer);
+        println!("post latest {:?}\n\n", edit_buffer);
+
+        if edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state) {
+            return;
+        }
+
+        while let Changed = undo(&mut edit_buffer) {
+            if edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state) {
+                return;
+            }
+        }
+        println!("post undo {:?}\n\n", edit_buffer);
+        must_edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state);
+        must_edit_buffer_isomorphism(&edit_buffer.state, &edit_buffer_.state);
+
+        assert!(false)
+    }
+
+
 
 }
 
