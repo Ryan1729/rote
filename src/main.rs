@@ -254,15 +254,29 @@ struct EditBufferState {
     filename: Option<String>,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+enum SectionType {
+    NormalRow,
+    OnePastLastRow,
+    Invalid,
+}
+use SectionType::*;
+
 impl EditBufferState {
-    fn contains(&self, section: &Section) -> bool {
+    fn section_type(&self, section: &Section) -> SectionType {
         match *section {
             Character((cx, cy)) => {
-                //one past the last character/row is a valid position
                 let cy_usize = cy as usize;
 
-                (cy_usize < self.rows.len() as _ && (cx as usize) <= self.rows[cy_usize].row.len())
-                    || (cy_usize == self.rows.len() && cx == 0)
+                //one past the last character if each row is a valid position
+                if cy_usize < self.rows.len() as _ && (cx as usize) <= self.rows[cy_usize].row.len()
+                {
+                    NormalRow
+                } else if cy_usize == self.rows.len() && cx == 0 {
+                    OnePastLastRow
+                } else {
+                    Invalid
+                }
             }
         }
     }
@@ -286,8 +300,12 @@ struct EditorState {
 
 impl Default for EditorState {
     fn default() -> EditorState {
+        let mut edit_buffer: EditBuffer = Default::default();
+        //When the user opens a new file, we're pretty sure thay'll want at least one line.
+        edit_buffer.state.rows.push(Row::new(0, String::new()));
+
         EditorState {
-            edit_buffer: Default::default(),
+            edit_buffer,
             screen_rows: Default::default(),
             screen_cols: Default::default(),
             status_msg: Default::default(),
@@ -1442,7 +1460,13 @@ fn process_keypress() {
                 .get(state.edit_buffer.state.cy as usize)
             {
                 let cx = state.edit_buffer.state.cx as usize;
-                let current_char_str = if let Some(c) = row.row.chars().nth(cx) {
+                let current_char = if cx > 0 {
+                    row.row.chars().nth(cx - 1)
+                } else {
+                    None
+                };
+
+                let current_char_str = if let Some(c) = current_char {
                     c.to_string()
                 } else {
                     '\n'.to_string()
@@ -1505,6 +1529,14 @@ fn cx_to_byte_x(s: &String, cx: u32) -> Option<usize> {
     s.char_indices().nth(cx as usize).map(|(i, _)| i)
 }
 
+fn cx_to_prior_byte_x(s: &String, cx: u32) -> Option<usize> {
+    if cx != 0 {
+        s.char_indices().nth(cx as usize - 1).map(|(i, _)| i)
+    } else {
+        None
+    }
+}
+
 fn perform_edit(edit_buffer: &mut EditBuffer, edit: &Edit) -> EditOutcome {
     let outcome = no_history_perform_edit(&mut edit_buffer.state, edit);
 
@@ -1537,88 +1569,86 @@ fn unperform_edit(edit_buffer: &mut EditBuffer, edit: &Edit) -> EditOutcome {
     outcome
 }
 
-fn no_history_perform_edit(state: &mut EditBufferState, edit: &Edit) -> EditOutcome {
-    match *edit {
-        Insert(ref section, ref s) if state.contains(section) => match *section {
-            Character(coord) => {
-                for c in s.chars().rev() {
-                    if c == '\r' {
-                        insert_newline(state, coord);
-                    } else {
-                        insert_char(state, coord, c);
-                    }
-                }
-                return Changed;
+fn perform_insert(state: &mut EditBufferState, section: &Section, s: &str) -> EditOutcome {
+    match *section {
+        Character(coord) => {
+            if s.len() == 0 {
+                return Unchanged;
             }
-        },
-        Remove(ref section, ref s) if state.contains(section) => match *section {
-            Character((cx, cy)) => {
-                let mut should_delete = false;
-                {
-                    let row = &state.rows[cy as usize].row;
-                    if let Some(byte_x) = cx_to_byte_x(row, cx) {
+
+            let mut chars = s.chars().rev().peekable();
+            while let Some(c) = chars.next() {
+                if c == '\r' {
+                    insert_newline(state, coord);
+                    if chars.peek() == Some(&'\n') {
+                        chars.next();
+                    }
+                } else if c == '\n' {
+                    insert_newline(state, coord);
+                } else {
+                    insert_char(state, coord, c);
+                }
+            }
+            Changed
+        }
+    }
+}
+
+fn perform_remove(state: &mut EditBufferState, section: &Section, s: &str) -> EditOutcome {
+    match *section {
+        Character((cx, cy)) => {
+            let mut should_delete = false;
+            {
+                if let Some(row) = state.rows.get(cy as usize).map(|row| &row.row) {
+                    if let Some(byte_x) = cx_to_prior_byte_x(row, cx) {
                         if row[byte_x..].starts_with(s) {
                             should_delete = true;
                         }
+                    } else if cx == 0 && (s == "\n" || s == "\r") {
+                        should_delete = true;
                     } else {
                         state.cx = row.len() as u32;
                     }
                 }
-
-                if should_delete {
-                    for _ in 0..s.len() {
-                        del_char(state, (cx + 1, cy))
-                    }
-                    return Changed;
-                }
             }
-        },
-        Remove(_, _) | Insert(_, _) => {}
-    }
 
-    Unchanged
+            if should_delete {
+                for _ in 0..s.len() {
+                    del_char(state, (cx, cy))
+                }
+                Changed
+            } else {
+                Unchanged
+            }
+        }
+    }
+}
+
+fn no_history_perform_edit(state: &mut EditBufferState, edit: &Edit) -> EditOutcome {
+    match *edit {
+        Insert(ref section, ref s) if NormalRow == state.section_type(section) => {
+            perform_insert(state, section, s)
+        }
+        Insert(ref section, ref s) if OnePastLastRow == state.section_type(section) => {
+            perform_insert(state, section, s)
+        }
+        Remove(ref section, ref s) if NormalRow == state.section_type(section) => {
+            perform_remove(state, section, s)
+        }
+        Remove(_, _) | Insert(_, _) => Unchanged,
+    }
 }
 
 fn no_history_unperform_edit(state: &mut EditBufferState, edit: &Edit) -> EditOutcome {
     match *edit {
-        Remove(ref section, ref s) if state.contains(section) => match *section {
-            Character(coord) => {
-                for c in s.chars().rev() {
-                    if c == '\r' {
-                        insert_newline(state, coord);
-                    } else {
-                        insert_char(state, coord, c);
-                    }
-                }
-                return Changed;
-            }
-        },
-        Insert(ref section, ref s) if state.contains(section) => match *section {
-            Character((cx, cy)) => {
-                let mut should_delete = false;
-                {
-                    let row = &state.rows[cy as usize].row;
-                    if let Some(byte_x) = cx_to_byte_x(row, cx) {
-                        if row[byte_x..].starts_with(s) {
-                            should_delete = true;
-                        }
-                    } else {
-                        state.cx = row.len() as u32;
-                    }
-                }
-
-                if should_delete {
-                    for _ in 0..s.len() {
-                        del_char(state, (cx + 1, cy))
-                    }
-                    return Changed;
-                }
-            }
-        },
-        Remove(_, _) | Insert(_, _) => {}
+        Remove(ref section, ref s) if NormalRow == state.section_type(section) => {
+            perform_insert(state, section, s)
+        }
+        Insert(ref section, ref s) if NormalRow == state.section_type(section) => {
+            perform_remove(state, section, s)
+        }
+        Remove(_, _) | Insert(_, _) => Unchanged,
     }
-
-    Unchanged
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
