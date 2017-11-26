@@ -173,7 +173,7 @@ struct EditorSyntax {
     keywords4: [Option<&'static str>; 32],
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 struct Row {
     index: u32,
     row: String,
@@ -242,7 +242,7 @@ impl History {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 struct EditBufferState {
     cx: u32,
     cy: u32,
@@ -252,6 +252,22 @@ struct EditBufferState {
     rows: Vec<Row>,
     dirty: bool,
     filename: Option<String>,
+}
+
+impl Default for EditBufferState {
+    fn default() -> EditBufferState {
+        EditBufferState {
+            cx: Default::default(),
+            cy: Default::default(),
+            rx: Default::default(),
+            row_offset: Default::default(),
+            col_offset: Default::default(),
+            //When the user opens a new file, we're pretty sure thay'll want at least one line.
+            rows: vec![Default::default()],
+            dirty: Default::default(),
+            filename: Default::default(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -300,12 +316,8 @@ struct EditorState {
 
 impl Default for EditorState {
     fn default() -> EditorState {
-        let mut edit_buffer: EditBuffer = Default::default();
-        //When the user opens a new file, we're pretty sure thay'll want at least one line.
-        edit_buffer.state.rows.push(Row::new(0, String::new()));
-
         EditorState {
-            edit_buffer,
+            edit_buffer: Default::default(),
             screen_rows: Default::default(),
             screen_cols: Default::default(),
             status_msg: Default::default(),
@@ -851,20 +863,19 @@ fn insert_row(state: &mut EditBufferState, at: u32, s: String) {
     state.dirty = true;
 }
 
-fn del_row(at: u32) {
-    if let Some(state) = unsafe { STATE.as_mut() } {
-        if at >= state.edit_buffer.state.rows.len() as u32 {
-            return;
-        }
-
-        state.edit_buffer.state.rows.remove(at as usize);
-
-        for i in at as usize..state.edit_buffer.state.rows.len() {
-            state.edit_buffer.state.rows[i as usize].index -= 1;
-        }
-
-        state.edit_buffer.state.dirty = true;
+fn del_row(state: &mut EditBufferState) {
+    let cy = state.cy as usize;
+    if cy >= state.rows.len() {
+        return;
     }
+
+    state.rows.remove(cy);
+
+    for i in cy..state.rows.len() {
+        state.rows[i as usize].index -= 1;
+    }
+
+    state.dirty = true;
 }
 
 fn row_insert_char(row: &mut Row, at: u32, c: char) {
@@ -883,9 +894,9 @@ fn row_insert_char(row: &mut Row, at: u32, c: char) {
 }
 
 fn row_append_string(row: &mut Row, s: &str) {
+    row.row.push_str(s);
+    update_row(row);
     if let Some(state) = unsafe { STATE.as_mut() } {
-        row.row.push_str(s);
-        update_row(row);
         state.edit_buffer.state.dirty = true;
     }
 }
@@ -967,7 +978,7 @@ fn del_char(state: &mut EditBufferState, (cx, cy): (u32, u32)) {
                 _ => die("del_char"),
             }
         }
-        del_row(state.cy);
+        del_row(state);
         state.cy -= 1;
     }
 }
@@ -1630,7 +1641,11 @@ fn no_history_perform_edit(state: &mut EditBufferState, edit: &Edit) -> EditOutc
             perform_insert(state, section, s)
         }
         Insert(ref section, ref s) if OnePastLastRow == state.section_type(section) => {
-            perform_insert(state, section, s)
+            if s.ends_with('\r') || s.ends_with('\n') {
+                perform_insert(state, section, s)
+            } else {
+                Unchanged
+            }
         }
         Remove(ref section, ref s) if NormalRow == state.section_type(section) => {
             perform_remove(state, section, s)
@@ -1641,12 +1656,29 @@ fn no_history_perform_edit(state: &mut EditBufferState, edit: &Edit) -> EditOutc
 
 fn no_history_unperform_edit(state: &mut EditBufferState, edit: &Edit) -> EditOutcome {
     match *edit {
-        Remove(ref section, ref s) if NormalRow == state.section_type(section) => {
-            perform_insert(state, section, s)
+        Insert(ref section, ref s) if NormalRow == state.section_type(section) => match section {
+            &Character((_, cy)) => if s.ends_with('\r') || s.ends_with('\n') {
+                perform_remove(state, &Character((0, cy + 1)), s)
+            } else {
+                perform_remove(state, section, s)
+            },
+        },
+        Insert(ref section, ref s) if OnePastLastRow == state.section_type(section) => {
+            match section {
+                &Character((_, cy)) => if s.ends_with('\r') || s.ends_with('\n') {
+                    perform_remove(state, &Character((0, cy + 1)), s)
+                } else {
+                    Unchanged
+                },
+            }
         }
-        Insert(ref section, ref s) if NormalRow == state.section_type(section) => {
-            perform_remove(state, section, s)
-        }
+        Remove(ref section, ref s) if NormalRow == state.section_type(section) => match section {
+            &Character((cx, cy)) => if cx > 0 {
+                perform_insert(state, &Character((cx - 1, cy)), s)
+            } else {
+                Unchanged
+            },
+        },
         Remove(_, _) | Insert(_, _) => Unchanged,
     }
 }
@@ -1673,7 +1705,7 @@ fn latest(edit_buffer: &mut EditBuffer) -> EditOutcome {
 
 fn redo(edit_buffer: &mut EditBuffer) -> EditOutcome {
     if let Some(edit) = edit_buffer.history.get_next() {
-        perform_edit(edit_buffer, &edit);
+        no_history_perform_edit(&mut edit_buffer.state, &edit);
 
         edit_buffer.history.inc_current();
 
@@ -1685,7 +1717,7 @@ fn redo(edit_buffer: &mut EditBuffer) -> EditOutcome {
 
 fn undo(edit_buffer: &mut EditBuffer) -> EditOutcome {
     if let Some(edit) = edit_buffer.history.get_current() {
-        unperform_edit(edit_buffer, &edit);
+        no_history_unperform_edit(&mut edit_buffer.state, &edit);
 
         edit_buffer.history.dec_current();
 
@@ -1824,8 +1856,7 @@ mod edit_actions {
             } else {
                 Some(g.gen_range(0, edits.len()) as u32)
             };
-            println!("generated {:?}", edits);
-            println!("current {:?}", current);
+
             History { edits, current }
         }
     }
@@ -1930,9 +1961,6 @@ mod edit_actions {
         }
 
         fn undo_redo(edit_buffer_: EditBuffer, edits: Vec<Edit>) -> bool {
-
-
-
             let mut edit_buffer = edit_buffer_.clone();
 
             for edit in edits.iter() {
@@ -1957,7 +1985,11 @@ mod edit_actions {
             false
         }
     }
+}
 
+#[cfg(test)]
+mod edit_actions_unit {
+    use ::*;
     #[test]
     fn insert_ascii() {
         let mut edit_buffer: EditBuffer = Default::default();
@@ -2036,6 +2068,7 @@ mod edit_actions {
             &mut edit_buffer,
             &Insert(Character((0, 0)), "Hello".to_string()),
         );
+
         perform_edit(
             &mut edit_buffer,
             &Insert(Character((0, 0)), "\r".to_string()),
@@ -2085,7 +2118,15 @@ mod edit_actions {
             &Insert(Character((0, 7)), "Hello".to_string()),
         );
 
-        assert_eq!(edit_buffer.state.rows.len(), 0)
+        assert_eq!(
+            edit_buffer
+                .state
+                .rows
+                .into_iter()
+                .map(|r| r.row)
+                .collect::<Vec<_>>(),
+            vec!["".to_string()]
+        )
     }
 
     #[test]
@@ -2099,7 +2140,7 @@ mod edit_actions {
 
         perform_edit(
             &mut edit_buffer,
-            &Remove(Character((0, 0)), "Hell".to_string()),
+            &Remove(Character((1, 0)), "Hell".to_string()),
         );
 
         assert_eq!(
@@ -2135,7 +2176,59 @@ mod edit_actions {
         );
         perform_edit(
             &mut edit_buffer,
+            &Insert(Character((3, 0)), "\n".to_string()),
+        );
+
+        undo(&mut edit_buffer);
+
+        assert_eq!(
+            edit_buffer
+                .state
+                .rows
+                .into_iter()
+                .map(|r| r.row)
+                .collect::<Vec<_>>(),
+            vec!["Hello".to_string()]
+        )
+    }
+
+    #[test]
+    fn undo_line_addition_at_beginning() {
+        let mut edit_buffer: EditBuffer = Default::default();
+
+        perform_edit(
+            &mut edit_buffer,
+            &Insert(Character((0, 0)), "Hello".to_string()),
+        );
+        perform_edit(
+            &mut edit_buffer,
             &Insert(Character((0, 0)), "\n".to_string()),
+        );
+
+        undo(&mut edit_buffer);
+
+        assert_eq!(
+            edit_buffer
+                .state
+                .rows
+                .into_iter()
+                .map(|r| r.row)
+                .collect::<Vec<_>>(),
+            vec!["Hello".to_string()]
+        )
+    }
+
+    #[test]
+    fn undo_line_addition_at_end() {
+        let mut edit_buffer: EditBuffer = Default::default();
+
+        perform_edit(
+            &mut edit_buffer,
+            &Insert(Character((0, 0)), "Hello".to_string()),
+        );
+        perform_edit(
+            &mut edit_buffer,
+            &Insert(Character((5, 0)), "\n".to_string()),
         );
 
         undo(&mut edit_buffer);
@@ -2154,15 +2247,7 @@ mod edit_actions {
     #[test]
     fn cannot_make_row_without_newline() {
         let blank_history: History = Default::default();
-        let mut edit_buffer = {
-            let mut e: EditBuffer = Default::default();
-
-            perform_edit(&mut e, &Insert(Character((0, 0)), "\r".to_string()));
-
-            e.history = blank_history.clone();
-
-            e
-        };
+        let mut edit_buffer = Default::default();
 
         perform_edit(
             &mut edit_buffer,
@@ -2179,44 +2264,6 @@ mod edit_actions {
             vec!["".to_string()]
         );
         assert_eq!(edit_buffer.history, blank_history);
-    }
-    #[test]
-    fn undo_line_addition_by_coord() {
-        let edit_buffer_ = {
-            let mut e: EditBuffer = Default::default();
-
-            perform_edit(&mut e, &Insert(Character((0, 0)), "\r".to_string()));
-
-            e.history = Default::default();
-
-            e
-        };
-        let mut edit_buffer = edit_buffer_.clone();
-
-        println!("pre edit {:?}\n\n", edit_buffer);
-
-        perform_edit(
-            &mut edit_buffer,
-            &Insert(Character((0, 1)), "A".to_string()),
-        );
-        println!("post edit {:?}\n\n", edit_buffer);
-        latest(&mut edit_buffer);
-        println!("post latest {:?}\n\n", edit_buffer);
-
-        if edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state) {
-            return;
-        }
-
-        while let Changed = undo(&mut edit_buffer) {
-            if edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state) {
-                return;
-            }
-        }
-        println!("post undo {:?}\n\n", edit_buffer);
-        must_edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state);
-        must_edit_buffer_isomorphism(&edit_buffer.state, &edit_buffer_.state);
-
-        assert!(false)
     }
 
 
