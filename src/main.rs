@@ -243,7 +243,7 @@ impl History {
 }
 
 #[derive(Clone, Debug)]
-struct EditBufferState {
+pub struct EditBufferState {
     cx: u32,
     cy: u32,
     rx: u32,
@@ -1736,8 +1736,47 @@ extern crate quickcheck;
 extern crate rand;
 
 #[cfg(test)]
+mod test_helpers {
+    use super::*;
+    pub fn edit_buffer_isomorphism(e_b1: &EditBufferState, e_b2: &EditBufferState) -> bool {
+        e_b1.filename == e_b2.filename && e_b1.cx == e_b2.cx && e_b1.cy == e_b2.cy
+            && e_b1.rx == e_b2.rx && e_b1.row_offset == e_b2.row_offset
+            && e_b1.col_offset == e_b2.col_offset && e_b1.rows == e_b2.rows
+            && e_b1.dirty == e_b2.dirty
+    }
+
+    pub fn edit_buffer_weak_isomorphism(e_b1: &EditBufferState, e_b2: &EditBufferState) -> bool {
+        e_b1.filename == e_b2.filename && e_b1.rows == e_b2.rows
+    }
+
+    pub fn must_edit_buffer_isomorphism(e_b1: &EditBufferState, e_b2: &EditBufferState) -> bool {
+        assert_eq!(e_b1.filename, e_b2.filename);
+        assert_eq!(e_b1.cx, e_b2.cx);
+        assert_eq!(e_b1.cy, e_b2.cy);
+        assert_eq!(e_b1.rx, e_b2.rx);
+        assert_eq!(e_b1.row_offset, e_b2.row_offset);
+        assert_eq!(e_b1.col_offset, e_b2.col_offset);
+        assert_eq!(e_b1.rows, e_b2.rows);
+        assert_eq!(e_b1.dirty, e_b2.dirty);
+
+        true
+    }
+
+    pub fn must_edit_buffer_weak_isomorphism(
+        e_b1: &EditBufferState,
+        e_b2: &EditBufferState,
+    ) -> bool {
+        assert_eq!(e_b1.filename, e_b2.filename);
+        assert_eq!(e_b1.rows, e_b2.rows);
+
+        true
+    }
+}
+#[cfg(test)]
 mod edit_actions {
-    use ::*;
+    use super::*;
+    use super::test_helpers::{edit_buffer_isomorphism, edit_buffer_weak_isomorphism,
+                              must_edit_buffer_isomorphism, must_edit_buffer_weak_isomorphism};
     use quickcheck::{Arbitrary, Gen, StdGen};
     use std::ops::Deref;
 
@@ -1769,37 +1808,6 @@ mod edit_actions {
         ($gen:expr) => {
             Arbitrary::arbitrary($gen)
         }
-    }
-
-    fn edit_buffer_isomorphism(e_b1: &EditBufferState, e_b2: &EditBufferState) -> bool {
-        e_b1.filename == e_b2.filename && e_b1.cx == e_b2.cx && e_b1.cy == e_b2.cy
-            && e_b1.rx == e_b2.rx && e_b1.row_offset == e_b2.row_offset
-            && e_b1.col_offset == e_b2.col_offset && e_b1.rows == e_b2.rows
-            && e_b1.dirty == e_b2.dirty
-    }
-
-    fn edit_buffer_weak_isomorphism(e_b1: &EditBufferState, e_b2: &EditBufferState) -> bool {
-        e_b1.filename == e_b2.filename && e_b1.rows == e_b2.rows
-    }
-
-    fn must_edit_buffer_isomorphism(e_b1: &EditBufferState, e_b2: &EditBufferState) -> bool {
-        assert_eq!(e_b1.filename, e_b2.filename);
-        assert_eq!(e_b1.cx, e_b2.cx);
-        assert_eq!(e_b1.cy, e_b2.cy);
-        assert_eq!(e_b1.rx, e_b2.rx);
-        assert_eq!(e_b1.row_offset, e_b2.row_offset);
-        assert_eq!(e_b1.col_offset, e_b2.col_offset);
-        assert_eq!(e_b1.rows, e_b2.rows);
-        assert_eq!(e_b1.dirty, e_b2.dirty);
-
-        true
-    }
-
-    fn must_edit_buffer_weak_isomorphism(e_b1: &EditBufferState, e_b2: &EditBufferState) -> bool {
-        assert_eq!(e_b1.filename, e_b2.filename);
-        assert_eq!(e_b1.rows, e_b2.rows);
-
-        true
     }
 
     impl Arbitrary for EditBuffer {
@@ -1989,7 +1997,48 @@ mod edit_actions {
 
 #[cfg(test)]
 mod edit_actions_unit {
-    use ::*;
+    use super::*;
+    use super::test_helpers::{edit_buffer_isomorphism, edit_buffer_weak_isomorphism,
+                              must_edit_buffer_isomorphism, must_edit_buffer_weak_isomorphism};
+
+    #[test]
+    fn troublesome_unicode() {
+        let mut edit_buffer_: EditBuffer = Default::default();
+
+        perform_edit(
+            &mut edit_buffer_,
+            &Insert(Character((0, 0)), "/˓^".to_string()),
+        );
+
+        let mut edit_buffer = edit_buffer_.clone();
+
+        let edits = [
+            Insert(Character((2, 0)), "/˓^".to_string()),
+            Remove(Character((1, 0)), "/˓^".to_string()),
+        ];
+
+        for edit in edits.iter() {
+            perform_edit(&mut edit_buffer, edit);
+        }
+
+        latest(&mut edit_buffer);
+
+        if edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state) {
+            return;
+        }
+
+        while let Changed = undo(&mut edit_buffer) {
+            if edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state) {
+                return;
+            }
+        }
+
+        must_edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state);
+        must_edit_buffer_isomorphism(&edit_buffer.state, &edit_buffer_.state);
+
+        assert!(false)
+    }
+
     #[test]
     fn insert_ascii() {
         let mut edit_buffer: EditBuffer = Default::default();
@@ -2058,6 +2107,45 @@ mod edit_actions_unit {
         } else {
             panic!("No row!")
         }
+    }
+
+    #[test]
+    fn undo_non_matching_remove() {
+        let mut edit_buffer_: EditBuffer = Default::default();
+
+        perform_edit(
+            &mut edit_buffer_,
+            &Insert(Character((0, 0)), "123".to_string()),
+        );
+
+        let mut edit_buffer = edit_buffer_.clone();
+
+        let edits = [Remove(Character((1, 0)), "123".to_string())];
+
+        for edit in edits.iter() {
+            perform_edit(&mut edit_buffer, edit);
+        }
+
+        latest(&mut edit_buffer);
+
+        if edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state) {
+            return;
+        }
+
+        while let Changed = undo(&mut edit_buffer) {
+            if edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state) {
+                return;
+            }
+        }
+
+        assert_eq!(
+            edit_buffer.history.edits,
+            vec![Insert(Character((0, 0)), "123".to_string())]
+        );
+        must_edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state);
+        must_edit_buffer_isomorphism(&edit_buffer.state, &edit_buffer_.state);
+
+        assert!(false)
     }
 
     #[test]
