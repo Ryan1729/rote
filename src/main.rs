@@ -24,6 +24,14 @@ macro_rules! CTRL_KEY {
     ($k :expr) => (($k) & 0b0001_1111)
 }
 
+macro_rules! p {
+    ($expr: expr) => {
+        if cfg!(debug_assertions) || cfg!(test) {
+            println!("{:?}\n\n", $expr);
+        }
+    }
+}
+
 const CTRL_H: u8 = CTRL_KEY!(b'h');
 
 macro_rules! set_status_message {
@@ -709,7 +717,7 @@ fn update_syntax(row: &mut Row) {
                                 .map(is_separator)
                                 .unwrap_or(false)
                         {
-                            let mut k_char_len = keyword.len();
+                            let mut k_char_len = char_len(keyword);
                             if is_kw2 {
                                 k_char_len -= 1;
                             }
@@ -878,18 +886,15 @@ fn del_row(state: &mut EditBufferState) {
     state.dirty = true;
 }
 
-fn row_insert_char(row: &mut Row, at: u32, c: char) {
-    //we allow at == len so we can add c to the end.
-    let mut i = at as usize;
-    if i > row.row.as_bytes().len() {
-        i = row.row.as_bytes().len();
-    }
-    row.row.insert(i, c);
+fn row_insert_char(row: &mut Row, cx: u32, c: char) {
+    if let Some(i) = cx_to_byte_x(&row.row, cx) {
+        row.row.insert(i, c);
 
-    update_row(row);
+        update_row(row);
 
-    if let Some(state) = unsafe { STATE.as_mut() } {
-        state.edit_buffer.state.dirty = true;
+        if let Some(state) = unsafe { STATE.as_mut() } {
+            state.edit_buffer.state.dirty = true;
+        }
     }
 }
 
@@ -901,15 +906,14 @@ fn row_append_string(row: &mut Row, s: &str) {
     }
 }
 
-fn row_del_char(row: &mut Row, at: u32) {
-    let i = at as usize;
-    if i >= row.row.len() {
-        return;
-    }
-    row.row.remove(i);
-    update_row(row);
-    if let Some(state) = unsafe { STATE.as_mut() } {
-        state.edit_buffer.state.dirty = true;
+fn row_del_char(row: &mut Row, cx: u32) {
+    p!((&row, cx));
+    if let Some(i) = cx_to_byte_x(&row.row, cx) {
+        row.row.remove(i);
+        update_row(row);
+        if let Some(state) = unsafe { STATE.as_mut() } {
+            state.edit_buffer.state.dirty = true;
+        }
     }
 }
 
@@ -1537,7 +1541,15 @@ fn process_keypress() {
 }
 
 fn cx_to_byte_x(s: &String, cx: u32) -> Option<usize> {
-    s.char_indices().nth(cx as usize).map(|(i, _)| i)
+    let cx_usize = cx as usize;
+    let char_len = char_len(s);
+    if cx_usize == char_len {
+        Some(s.len())
+    } else if cx_usize < char_len {
+        s.char_indices().nth(cx as usize).map(|(i, _)| i)
+    } else {
+        None
+    }
 }
 
 fn cx_to_prior_byte_x(s: &String, cx: u32) -> Option<usize> {
@@ -1546,6 +1558,10 @@ fn cx_to_prior_byte_x(s: &String, cx: u32) -> Option<usize> {
     } else {
         None
     }
+}
+
+fn char_len(s: &str) -> usize {
+    s.chars().count()
 }
 
 fn perform_edit(edit_buffer: &mut EditBuffer, edit: &Edit) -> EditOutcome {
@@ -1597,6 +1613,7 @@ fn perform_insert(state: &mut EditBufferState, section: &Section, s: &str) -> Ed
                 } else if c == '\n' {
                     insert_newline(state, coord);
                 } else {
+                    p!(c);
                     insert_char(state, coord, c);
                 }
             }
@@ -1609,9 +1626,12 @@ fn perform_remove(state: &mut EditBufferState, section: &Section, s: &str) -> Ed
     match *section {
         Character((cx, cy)) => {
             let mut should_delete = false;
+            p!(should_delete);
             {
                 if let Some(row) = state.rows.get(cy as usize).map(|row| &row.row) {
+                    p!(cx);
                     if let Some(byte_x) = cx_to_prior_byte_x(row, cx) {
+                        p!((byte_x, row, &row[byte_x..]));
                         if row[byte_x..].starts_with(s) {
                             should_delete = true;
                         }
@@ -1624,7 +1644,8 @@ fn perform_remove(state: &mut EditBufferState, section: &Section, s: &str) -> Ed
             }
 
             if should_delete {
-                for _ in 0..s.len() {
+                p!((should_delete, s, char_len(s)));
+                for _ in 0..char_len(s) {
                     del_char(state, (cx, cy))
                 }
                 Changed
@@ -1638,6 +1659,7 @@ fn perform_remove(state: &mut EditBufferState, section: &Section, s: &str) -> Ed
 fn no_history_perform_edit(state: &mut EditBufferState, edit: &Edit) -> EditOutcome {
     match *edit {
         Insert(ref section, ref s) if NormalRow == state.section_type(section) => {
+            p!("NormalRow");
             perform_insert(state, section, s)
         }
         Insert(ref section, ref s) if OnePastLastRow == state.section_type(section) => {
@@ -1655,15 +1677,19 @@ fn no_history_perform_edit(state: &mut EditBufferState, edit: &Edit) -> EditOutc
 }
 
 fn no_history_unperform_edit(state: &mut EditBufferState, edit: &Edit) -> EditOutcome {
+    p!("no_history_unperform_edit");
+    p!(state);
+    p!(edit);
     match *edit {
         Insert(ref section, ref s) if NormalRow == state.section_type(section) => match section {
-            &Character((_, cy)) => if s.ends_with('\r') || s.ends_with('\n') {
+            &Character((cx, cy)) => if s.ends_with('\r') || s.ends_with('\n') {
                 perform_remove(state, &Character((0, cy + 1)), s)
             } else {
-                perform_remove(state, section, s)
+                perform_remove(state, &Character((cx + 1, cy)), s)
             },
         },
         Insert(ref section, ref s) if OnePastLastRow == state.section_type(section) => {
+            p!("OnePastLastRow");
             match section {
                 &Character((_, cy)) => if s.ends_with('\r') || s.ends_with('\n') {
                     perform_remove(state, &Character((0, cy + 1)), s)
@@ -1771,6 +1797,8 @@ mod test_helpers {
 
         true
     }
+
+
 }
 #[cfg(test)]
 mod edit_actions {
@@ -2012,14 +2040,10 @@ mod edit_actions_unit {
 
         let mut edit_buffer = edit_buffer_.clone();
 
-        let edits = [
-            Insert(Character((2, 0)), "/˓^".to_string()),
-            Remove(Character((1, 0)), "/˓^".to_string()),
-        ];
-
-        for edit in edits.iter() {
-            perform_edit(&mut edit_buffer, edit);
-        }
+        perform_edit(
+            &mut edit_buffer,
+            &Insert(Character((2, 0)), "/˓^".to_string()),
+        );
 
         latest(&mut edit_buffer);
 
@@ -2119,15 +2143,14 @@ mod edit_actions_unit {
         );
 
         let mut edit_buffer = edit_buffer_.clone();
-
-        let edits = [Remove(Character((1, 0)), "123".to_string())];
-
-        for edit in edits.iter() {
-            perform_edit(&mut edit_buffer, edit);
-        }
-
+        p!(edit_buffer);
+        perform_edit(
+            &mut edit_buffer,
+            &Remove(Character((1, 0)), "123".to_string()),
+        );
+        p!("pre latest");
         latest(&mut edit_buffer);
-
+        p!("post latest");
         if edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state) {
             return;
         }
