@@ -597,7 +597,8 @@ fn is_separator(c: char) -> bool {
 
 fn update_syntax(row: &mut Row) {
     row.highlight.clear();
-    let extra_needed = row.render.len().saturating_sub(row.highlight.capacity());
+    let render_char_len = char_len(&row.render);
+    let extra_needed = render_char_len.saturating_sub(row.highlight.capacity());
     if extra_needed != 0 {
         row.highlight.reserve(extra_needed);
     }
@@ -748,12 +749,12 @@ fn update_syntax(row: &mut Row) {
                 update_syntax(&mut state.edit_buffer.state.rows[(row.index + 1) as usize]);
             }
         } else {
-            for _ in 0..row.render.len() {
+            for _ in 0..render_char_len {
                 row.highlight.push(EditorHighlight::Normal);
             }
         }
     } else {
-        for _ in 0..row.render.len() {
+        for _ in 0..render_char_len {
             row.highlight.push(EditorHighlight::Normal);
         }
     }
@@ -1880,7 +1881,7 @@ mod edit_actions {
         fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
             let edits: Vec<_> = a!(g);
 
-            let current = if g.gen() {
+            let current = if g.gen() || edits.len() == 0 {
                 None
             } else {
                 Some(g.gen_range(0, edits.len()) as u32)
@@ -1892,11 +1893,14 @@ mod edit_actions {
 
     impl Arbitrary for EditBufferState {
         fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
-            let row_count: u32 = 1;
-            // {
-            //     let s = g.size();
-            //     g.gen_range(0, s as u32)
-            // };
+            let row_count: u32 = {
+                let s = g.size();
+                if s == 0 {
+                    0
+                } else {
+                    g.gen_range(0, s as u32)
+                }
+            };
 
             let mut rows = Vec::new();
             for i in 0..row_count {
@@ -1990,6 +1994,7 @@ mod edit_actions {
         }
 
         fn undo_redo(edit_buffer_: EditBuffer, edits: Vec<Edit>) -> bool {
+            p!(("edit_buffer_:", &edit_buffer_, "edits", &edits));
             let mut edit_buffer = edit_buffer_.clone();
 
             for edit in edits.iter() {
