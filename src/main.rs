@@ -215,7 +215,21 @@ struct History {
 }
 
 impl History {
+    //this is kind of a cop-out to make property-based testing work better,
+    //but I don't expect this to be any kind of bottleneck. If this causes
+    //I don't know, branch prediction issues or something, then we can
+    //change it.
+    fn correct_current(&mut self) {
+        if let Some(i) = self.current {
+            let len = self.edits.len() as u32;
+            if i >= len {
+                self.current = if len == 0 { None } else { Some(len - 1) };
+            }
+        }
+    }
+
     fn inc_current(&mut self) {
+        self.correct_current();
         match self.current {
             None => {
                 self.current = Some(0);
@@ -226,6 +240,7 @@ impl History {
         }
     }
     fn dec_current(&mut self) {
+        self.correct_current();
         match self.current {
             None => {}
             Some(i) => if i == 0 {
@@ -235,7 +250,8 @@ impl History {
             },
         }
     }
-    fn get_next(&self) -> Option<Edit> {
+    fn get_next(&mut self) -> Option<Edit> {
+        self.correct_current();
         let index = match self.current {
             None => 0,
             Some(i) => i + 1,
@@ -243,7 +259,8 @@ impl History {
 
         self.edits.get(index as usize).map(Clone::clone)
     }
-    fn get_current(&self) -> Option<Edit> {
+    fn get_current(&mut self) -> Option<Edit> {
+        self.correct_current();
         self.current
             .and_then(|i| self.edits.get(i as usize))
             .map(Clone::clone)
@@ -1612,19 +1629,70 @@ fn perform_insert(state: &mut EditBufferState, section: &Section, s: &str) -> Ed
     }
 }
 
+fn is_newline(c: char) -> bool {
+    c == '\n' || c == '\r'
+}
+
+fn rows_match(rows: &Vec<Row>, cy: u32, s: &str) -> bool {
+    let cy_usize = cy as usize;
+    if cy_usize < rows.len() {
+        let mut iter = rows[cy_usize..].iter().zip(s.split(is_newline)).peekable();
+        while let Some((row, sub_s)) = iter.next() {
+            if iter.peek().is_some() {
+                if !(row.row == sub_s) {
+                    return false;
+                }
+            } else {
+                if !row.row.starts_with(sub_s) {
+                    return false;
+                }
+            }
+        }
+
+        true
+    } else {
+        false
+    }
+}
+
 fn perform_remove(state: &mut EditBufferState, section: &Section, s: &str) -> EditOutcome {
     match *section {
         Character((cx, cy)) => {
             let mut should_delete = false;
 
             {
-                if let Some(row) = state.rows.get(cy as usize).map(|row| &row.row) {
-                    if (s == "\n" || s == "\r") && cx == char_len(row) as u32 {
+                if s.starts_with('\n') || s.starts_with('\r') {
+                    let at_end = if let Some(row) = state.rows.get(cy as usize).map(|row| &row.row)
+                    {
+                        cx == char_len(row) as u32
+                    } else {
+                        false
+                    };
+
+                    if at_end && rows_match(&state.rows, cy + 1, &s[1..]) {
                         should_delete = true;
-                    } else if let Some(byte_x) = cx_to_byte_x(row, cx) {
-                        if row[byte_x..].starts_with(s) {
-                            should_delete = true;
-                        }
+                    }
+                } else if let Some(row) = state.rows.get(cy as usize).map(|row| &row.row) {
+                    p!(("perform_remove", &row));
+                    p!(("s", s, s.len()));
+                    if let Some(byte_x) = cx_to_byte_x(row, cx) {
+                        let row_remains = &row[byte_x..];
+                        p!((row_remains, byte_x));
+                        if let Some(i) = s.find(is_newline) {
+                            if row_remains.starts_with(&s[..i]) {
+                                if s.len() <= row_remains.len()
+                                    //this indexing into s assumes that a newline is a single byte.
+                                    || rows_match(&state.rows, cy + 1, &s[i + 1 ..])
+                                {
+                                    p!(true);
+                                    should_delete = true;
+                                }
+                            }
+                        } else {
+                            if row_remains.starts_with(s) {
+                                should_delete = true;
+                            }
+                        };
                     } else {
                         state.cx = row.len() as u32;
                     }
@@ -1665,6 +1733,7 @@ fn no_history_perform_edit(state: &mut EditBufferState, edit: &Edit) -> EditOutc
 fn no_history_unperform_edit(state: &mut EditBufferState, edit: &Edit) -> EditOutcome {
     match *edit {
         Insert(ref section, ref s) if NormalRow == state.section_type(section) => {
+            p!("NormalRow");
             perform_remove(state, section, s)
         }
         Insert(ref section, ref s) if OnePastLastRow == state.section_type(section) => {
@@ -1717,6 +1786,7 @@ fn redo(edit_buffer: &mut EditBuffer) -> EditOutcome {
 
 fn undo(edit_buffer: &mut EditBuffer) -> EditOutcome {
     if let Some(edit) = edit_buffer.history.get_current() {
+        p!(edit);
         no_history_unperform_edit(&mut edit_buffer.state, &edit);
 
         edit_buffer.history.dec_current();
@@ -1775,9 +1845,8 @@ mod test_helpers {
 
         true
     }
-
-
 }
+
 #[cfg(test)]
 mod edit_actions {
     use super::*;
@@ -1873,8 +1942,19 @@ mod edit_actions {
             if let Some(cur) = current {
                 assert!((cur as usize) < edits.len());
             }
-            // println!("\n\n{:?}\n\n", current);
+
             History { edits, current }
+        }
+
+        fn shrink(&self) -> Box<Iterator<Item = Self>> {
+            Box::new(self.edits.shrink().map(|new_edits| {
+                let current = Some(new_edits.len() as u32 / 2);
+
+                History {
+                    edits: new_edits,
+                    current,
+                }
+            }))
         }
     }
 
@@ -1920,19 +2000,35 @@ mod edit_actions {
                 type Item = EditBufferState;
 
                 fn next(&mut self) -> Option<EditBufferState> {
+                    if let Some(filename) = self.e.filename.shrink().next() {
+                        self.e.filename = filename;
+                    }
+
+                    if let Some(cx) = self.e.cx.shrink().next() {
+                        self.e.cx = cx;
+                    }
+
+                    if let Some(cy) = self.e.cy.shrink().next() {
+                        self.e.cy = cy;
+                    }
+
+                    if let Some(rx) = self.e.rx.shrink().next() {
+                        self.e.rx = rx;
+                    }
+
+                    if let Some(row_offset) = self.e.row_offset.shrink().next() {
+                        self.e.row_offset = row_offset;
+                    }
+
+                    if let Some(col_offset) = self.e.col_offset.shrink().next() {
+                        self.e.col_offset = col_offset;
+                    }
+
                     if self.e.rows.len() == 0 {
                         None
                     } else {
                         self.e.rows.pop();
                         Some(self.e.clone())
-                        // if let Some(rows) = self.e.rows.shrink().next() {
-                        //     println!("\n\nnew_rows: {:?}\n\n", rows);
-                        //
-                        //     self.e.rows = rows;
-                        //     Some(self.e.clone())
-                        // } else {
-                        //     None
-                        // }
                     }
                 }
             }
@@ -1945,6 +2041,12 @@ mod edit_actions {
         fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
             let size = g.size() as u32;
             Character((g.gen_range(0, size), g.gen_range(0, size)))
+        }
+
+        fn shrink(&self) -> Box<Iterator<Item = Self>> {
+            match *self {
+                Character(coord) => Box::new(coord.shrink().map(Character)),
+            }
         }
     }
 
@@ -2031,8 +2133,164 @@ mod edit_actions {
 #[cfg(test)]
 mod edit_actions_unit {
     use super::*;
+    use super::EditorHighlight::*;
     use super::test_helpers::{edit_buffer_isomorphism, edit_buffer_weak_isomorphism,
                               must_edit_buffer_isomorphism, must_edit_buffer_weak_isomorphism};
+
+
+    #[test]
+    fn undo_initial_newline_paste() {
+        let mut edit_buffer_: EditBuffer = Default::default();
+
+        perform_edit(
+            &mut edit_buffer_,
+            &Insert(Character((0, 0)), "4".to_string()),
+        );
+
+        edit_buffer_.history = History {
+            edits: vec![Insert(Character((1, 0)), "\n2".to_string())],
+            current: None,
+        };
+
+        let mut edit_buffer = edit_buffer_.clone();
+
+        latest(&mut edit_buffer);
+        p!(edit_buffer);
+        if edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state) {
+            return;
+        }
+
+        while let Changed = undo(&mut edit_buffer) {
+            if edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state) {
+                return;
+            }
+        }
+
+        must_edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state);
+        must_edit_buffer_isomorphism(&edit_buffer.state, &edit_buffer_.state);
+
+        assert!(false)
+    }
+
+    #[test]
+    fn undo_final_newline_paste() {
+        let mut edit_buffer_: EditBuffer = Default::default();
+
+        perform_edit(
+            &mut edit_buffer_,
+            &Insert(Character((0, 0)), "2".to_string()),
+        );
+
+        let mut edit_buffer = edit_buffer_.clone();
+
+        perform_edit(
+            &mut edit_buffer,
+            &Insert(Character((0, 0)), "4\n".to_string()),
+        );
+
+        latest(&mut edit_buffer);
+
+        if edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state) {
+            return;
+        }
+
+        while let Changed = undo(&mut edit_buffer) {
+            if edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state) {
+                return;
+            }
+        }
+
+        must_edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state);
+        must_edit_buffer_isomorphism(&edit_buffer.state, &edit_buffer_.state);
+
+        assert!(false)
+    }
+
+    #[test]
+    fn undo_internal_newline_paste() {
+        let mut edit_buffer_: EditBuffer = Default::default();
+
+        perform_edit(
+            &mut edit_buffer_,
+            &Insert(Character((0, 0)), "3".to_string()),
+        );
+
+        let mut edit_buffer = edit_buffer_.clone();
+
+        perform_edit(
+            &mut edit_buffer,
+            &Insert(Character((0, 0)), "1\n2\n".to_string()),
+        );
+
+        latest(&mut edit_buffer);
+
+        if edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state) {
+            return;
+        }
+
+        while let Changed = undo(&mut edit_buffer) {
+            if edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state) {
+                return;
+            }
+        }
+
+        must_edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state);
+        must_edit_buffer_isomorphism(&edit_buffer.state, &edit_buffer_.state);
+
+        assert!(false)
+    }
+
+    #[test]
+    fn handle_invalid_current_index() {
+        let mut edit_buffer_ = EditBuffer {
+            state: EditBufferState {
+                cx: 0,
+                cy: 0,
+                rx: 0,
+                row_offset: 0,
+                col_offset: 0,
+                rows: vec![
+                    Row {
+                        index: 0,
+                        row: "^]8".to_string(),
+                        render: "^]8".to_string(),
+                        highlight: vec![Normal, Normal, Normal],
+                        highlight_open_comment: false,
+                    },
+                ],
+                dirty: true,
+                filename: None,
+            },
+            history: History {
+                edits: vec![],
+                current: Some(19),
+            },
+        };
+
+        let mut edit_buffer = edit_buffer_.clone();
+
+        perform_edit(
+            &mut edit_buffer,
+            &Insert(Character((0, 0)), "\u{0}".to_string()),
+        );
+
+        latest(&mut edit_buffer);
+
+        if edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state) {
+            return;
+        }
+
+        while let Changed = undo(&mut edit_buffer) {
+            if edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state) {
+                return;
+            }
+        }
+
+        must_edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state);
+        must_edit_buffer_isomorphism(&edit_buffer.state, &edit_buffer_.state);
+
+        assert!(false)
+    }
 
     #[test]
     fn troublesome_unicode() {
