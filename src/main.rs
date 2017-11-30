@@ -11,6 +11,7 @@ use std::ffi::CString;
 use std::time::{Duration, Instant};
 use std::io::{BufRead, BufReader};
 use std::fs::File;
+use std::fmt;
 use std::path::Path;
 
 /*** defines ***/
@@ -176,7 +177,7 @@ const HL_HIGHLIGHT_STRINGS: u32 = 1 << 1;
 
 /*** data ***/
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct EditorSyntax {
     file_type: &'static str,
     file_match: [Option<&'static str>; 8],
@@ -381,6 +382,29 @@ impl Default for EditorState {
             syntax: Default::default(),
             orig_termios: unsafe { std::mem::zeroed() },
         }
+    }
+}
+
+impl fmt::Debug for EditorState {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "EditorState {{
+            edit_buffer: {:?},
+            screen_rows: {:?},
+            screen_cols: {:?},
+            status_msg: {:?},
+            status_msg_time: {:?},
+            syntax: {:?},
+            orig_termios: <termios>,
+        }}",
+            self.edit_buffer,
+            self.screen_rows,
+            self.screen_cols,
+            self.status_msg,
+            self.status_msg_time,
+            self.syntax,
+        )
     }
 }
 
@@ -1465,6 +1489,10 @@ fn process_keypress() {
                 "\r".to_owned(),
             ));
         },
+        //on my keyboard/terminal emulator this results from ctrl-5
+        Byte(29) => if let Some(state) = unsafe { STATE.as_mut() } {
+            panic!("{:?}", state);
+        },
         Byte(c0) if c0 == CTRL_KEY!(b'q') => {
             if unsafe { STATE.as_mut() }
                 .map(|st| st.edit_buffer.state.dirty)
@@ -1505,6 +1533,14 @@ fn process_keypress() {
         },
         Byte(c0) if c0 == CTRL_KEY!(b'f') => {
             find();
+        }
+        Byte(c0) if c0 == CTRL_KEY!(b'z') => if let Some(state) = unsafe { STATE.as_mut() } {
+            undo(&mut state.edit_buffer);
+        },
+        Byte(c0) if c0 == CTRL_KEY!(b'y') || c0 == CTRL_KEY!(b'Z') => {
+            if let Some(state) = unsafe { STATE.as_mut() } {
+                redo(&mut state.edit_buffer);
+            }
         }
         Byte(BACKSPACE) | Delete | Byte(CTRL_H) => if let Some(state) = unsafe { STATE.as_mut() } {
             match key {
@@ -1568,7 +1604,10 @@ fn process_keypress() {
             return;
         }
         Byte(c0) => if let Some(state) = unsafe { STATE.as_mut() } {
-            insert_char_at_cursor(&mut state.edit_buffer.state, c0 as char);
+            possible_edit = Some(Insert(
+                Character((state.edit_buffer.state.cx, state.edit_buffer.state.cy)),
+                (c0 as char).to_string(),
+            ))
         },
     }
 
@@ -1763,17 +1802,24 @@ enum EditOutcome {
 }
 use EditOutcome::*;
 
-fn latest(edit_buffer: &mut EditBuffer) -> EditOutcome {
-    let mut changed = false;
-    while let Changed = redo(edit_buffer) {
-        changed = true;
+fn oldest(edit_buffer: &mut EditBuffer) -> EditOutcome {
+    let mut outcome = Unchanged;
+
+    while let Changed = undo(edit_buffer) {
+        outcome = Changed;
     }
 
-    if changed {
-        Changed
-    } else {
-        Unchanged
+    outcome
+}
+
+fn latest(edit_buffer: &mut EditBuffer) -> EditOutcome {
+    let mut outcome = Unchanged;
+
+    while let Changed = redo(edit_buffer) {
+        outcome = Changed;
     }
+
+    outcome
 }
 
 fn redo(edit_buffer: &mut EditBuffer) -> EditOutcome {
@@ -2126,6 +2172,34 @@ mod edit_actions {
             }
 
             while let Changed = undo(&mut edit_buffer) {
+                if edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state) {
+                    return true;
+                }
+            }
+
+            must_edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state);
+            must_edit_buffer_isomorphism(&edit_buffer.state, &edit_buffer_.state);
+
+
+
+            false
+        }
+
+        fn redo_undo(edit_buffer_: EditBuffer, edits: Vec<Edit>) -> bool {
+
+            let mut edit_buffer = edit_buffer_.clone();
+
+            for edit in edits.iter() {
+                perform_edit(&mut edit_buffer, edit);
+            }
+
+            oldest(&mut edit_buffer);
+
+            if edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state) {
+                return true;
+            }
+
+            while let Changed = redo(&mut edit_buffer) {
                 if edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state) {
                     return true;
                 }
