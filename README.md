@@ -14,3 +14,6 @@
   - explain that adding different versions of the same library will need a restart because of POSIX
   - allow a single plugin file to perform multiple things. Users should be able to everything they
     want with one plugin file. For good or for ill that allows a plugin that runs scripts to exist.
+* make it windows compatible
+  - remove `std::os::unix::io::AsRawFd` if still present
+  - by default convert `\\r\\n` to `\\n` on file load and back on file save, allow overridng 
