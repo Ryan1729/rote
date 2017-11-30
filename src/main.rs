@@ -1508,8 +1508,8 @@ fn process_keypress() {
         }
         Byte(BACKSPACE) | Delete | Byte(CTRL_H) => if let Some(state) = unsafe { STATE.as_mut() } {
             match key {
-                Delete => {
-                    move_cursor(&mut state.edit_buffer.state, Arrow::Right);
+                Byte(BACKSPACE) | Byte(CTRL_H) => {
+                    move_cursor(&mut state.edit_buffer.state, Arrow::Left);
                 }
                 _ => {}
             }
@@ -1522,11 +1522,7 @@ fn process_keypress() {
                 .get(state.edit_buffer.state.cy as usize)
             {
                 let cx = state.edit_buffer.state.cx as usize;
-                let current_char = if cx > 0 {
-                    row.row.chars().nth(cx - 1)
-                } else {
-                    None
-                };
+                let current_char = row.row.chars().nth(cx);
 
                 let current_char_str = if let Some(c) = current_char {
                     c.to_string()
@@ -2152,6 +2148,34 @@ mod edit_actions_unit {
     use super::test_helpers::{edit_buffer_isomorphism, edit_buffer_weak_isomorphism,
                               must_edit_buffer_isomorphism, must_edit_buffer_weak_isomorphism};
 
+
+    #[test]
+    fn remove_at_end() {
+        let mut edit_buffer = Default::default();
+
+        perform_edit(
+            &mut edit_buffer,
+            &Insert(Character((0, 0)), "\n".to_string()),
+        );
+        perform_edit(
+            &mut edit_buffer,
+            &Insert(Character((0, 1)), "qweqwe".to_string()),
+        );
+        perform_edit(
+            &mut edit_buffer,
+            &Remove(Character((5, 1)), "e".to_string()),
+        );
+
+        assert_eq!(
+            edit_buffer
+                .state
+                .rows
+                .into_iter()
+                .map(|r| r.row)
+                .collect::<Vec<_>>(),
+            vec!["".to_string(), "qweqw".to_string()]
+        );
+    }
 
     #[test]
     fn valid_between_two_invalid() {
