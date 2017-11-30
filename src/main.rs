@@ -16,9 +16,9 @@ use std::path::Path;
 
 /*** defines ***/
 
-const KILO_VERSION: &'static str = "0.0.1";
-const KILO_TAB_STOP: usize = 8;
-const KILO_QUIT_TIMES: u32 = 3;
+const ROTE_VERSION: &'static str = env!("CARGO_PKG_VERSION");
+const ROTE_TAB_STOP: usize = 4;
+const ROTE_QUIT_TIMES: u32 = 3;
 const BACKSPACE: u8 = 127;
 
 macro_rules! CTRL_KEY {
@@ -880,7 +880,7 @@ fn row_cx_to_rx(row: &Row, cx: u32) -> u32 {
 
     for c in row.row.chars().take(cx as usize) {
         if c == '\t' {
-            rx += (KILO_TAB_STOP - 1) - (rx % KILO_TAB_STOP);
+            rx += (ROTE_TAB_STOP - 1) - (rx % ROTE_TAB_STOP);
         }
         rx += 1;
     }
@@ -894,7 +894,7 @@ fn row_rx_to_cx(row: &Row, rx: u32) -> u32 {
 
     for (cx, c) in row.row.char_indices() {
         if c == '\t' {
-            cur_rx += (KILO_TAB_STOP - 1) - (cur_rx % KILO_TAB_STOP);
+            cur_rx += (ROTE_TAB_STOP - 1) - (cur_rx % ROTE_TAB_STOP);
         }
         cur_rx += 1;
         if cur_rx > rx_usize {
@@ -913,13 +913,13 @@ fn update_row(row: &mut Row) {
         }
     }
 
-    row.render = String::with_capacity(row.row.len() + tabs * (KILO_TAB_STOP - 1));
+    row.render = String::with_capacity(row.row.len() + tabs * (ROTE_TAB_STOP - 1));
 
     for c in row.row.chars() {
         if c == '\t' {
             tabs += 1;
             row.render.push(' ');
-            while row.render.len() % KILO_TAB_STOP != 0 {
+            while row.render.len() % ROTE_TAB_STOP != 0 {
                 row.render.push(' ');
             }
         } else {
@@ -1262,8 +1262,17 @@ fn draw_rows(buf: &mut String) {
         for y in 0..state.screen_rows {
             let file_index = y + state.edit_buffer.state.row_offset;
             if file_index >= state.edit_buffer.state.rows.len() as u32 {
-                if state.edit_buffer.state.rows.len() == 0 && y == state.screen_rows / 3 {
-                    let mut welcome = format!("Kilo editor -- version {}", KILO_VERSION);
+                if y == state.screen_rows / 3 && state.edit_buffer.state.rows.len() <= 1
+                    && state
+                        .edit_buffer
+                        .state
+                        .rows
+                        .first()
+                        .map(|r| r.row.len() == 0)
+                        .unwrap_or(false)
+                {
+                    let mut welcome =
+                        format!("Rote : Ryan's Own Text Editor -- version {}", ROTE_VERSION);
                     let mut padding = (state.screen_cols as usize - welcome.len()) / 2;
 
                     if padding > 0 {
@@ -1477,7 +1486,7 @@ fn move_cursor(state: &mut EditBufferState, arrow: Arrow) {
 }
 
 fn process_keypress() {
-    static mut QUIT_TIMES: u32 = KILO_QUIT_TIMES;
+    static mut QUIT_TIMES: u32 = ROTE_QUIT_TIMES;
     let key = read_key();
 
     let mut possible_edit = None;
@@ -1618,7 +1627,7 @@ fn process_keypress() {
     }
 
     unsafe {
-        QUIT_TIMES = KILO_QUIT_TIMES;
+        QUIT_TIMES = ROTE_QUIT_TIMES;
     }
 }
 
