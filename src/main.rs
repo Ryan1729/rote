@@ -120,6 +120,8 @@ macro_rules! prompt {
 enum EditorKey {
     Byte(u8),
     Arrow(Arrow),
+    CtrlArrow(Arrow),
+    ShiftArrow(Arrow),
     Page(Page),
     Delete,
     Home,
@@ -545,7 +547,7 @@ fn read_key() -> EditorKey {
     let c = buffer[0];
 
     if c == b'\x1b' {
-        let mut seq = [0; 3];
+        let mut seq = [0; 5];
 
         if stdin.read_exact(&mut seq[0..1]).is_err() {
             return Byte(b'\x1b');
@@ -566,6 +568,42 @@ fn read_key() -> EditorKey {
                             b'6' => return Page(Page::Down),
                             b'1' | b'7' => return Home,
                             b'4' | b'8' => return End,
+                            _ => {}
+                        }
+                    } else if seq[2] == b';' {
+                        match c {
+                            b'1' => {
+                                if stdin.read_exact(&mut seq[3..5]).is_err() {
+                                    return Byte(b'\x1b');
+                                }
+                                match (seq[3], seq[4]) {
+                                    (b'5', b'A') => {
+                                        return CtrlArrow(Arrow::Up);
+                                    }
+                                    (b'5', b'B') => {
+                                        return CtrlArrow(Arrow::Down);
+                                    }
+                                    (b'5', b'C') => {
+                                        return CtrlArrow(Arrow::Right);
+                                    }
+                                    (b'5', b'D') => {
+                                        return CtrlArrow(Arrow::Left);
+                                    }
+                                    (b'2', b'A') => {
+                                        return ShiftArrow(Arrow::Up);
+                                    }
+                                    (b'2', b'B') => {
+                                        return ShiftArrow(Arrow::Down);
+                                    }
+                                    (b'2', b'C') => {
+                                        return ShiftArrow(Arrow::Right);
+                                    }
+                                    (b'2', b'D') => {
+                                        return ShiftArrow(Arrow::Left);
+                                    }
+                                    _ => {}
+                                }
+                            }
                             _ => {}
                         }
                     }
@@ -1443,12 +1481,6 @@ fn refresh_screen(buf: &mut String) {
 /*** input ***/
 
 fn move_cursor(state: &mut EditBufferState, arrow: Arrow) {
-    let row_len = if state.cy < state.rows.len() as u32 {
-        Some(state.rows[state.cy as usize].row.len())
-    } else {
-        None
-    };
-
     match arrow {
         Arrow::Left => if state.cx != 0 {
             state.cx -= 1;
@@ -1456,16 +1488,24 @@ fn move_cursor(state: &mut EditBufferState, arrow: Arrow) {
             state.cy -= 1;
             state.cx = state.rows[state.cy as usize].row.len() as u32;
         },
-        Arrow::Right => match row_len {
-            Some(len) if (state.cx as usize) < len => {
-                state.cx += 1;
+        Arrow::Right => {
+            let row_len = if state.cy < state.rows.len() as u32 {
+                Some(state.rows[state.cy as usize].row.len())
+            } else {
+                None
+            };
+
+            match row_len {
+                Some(len) if (state.cx as usize) < len => {
+                    state.cx += 1;
+                }
+                Some(len) if (state.cx as usize) == len => {
+                    state.cy += 1;
+                    state.cx = 0;
+                }
+                _ => {}
             }
-            Some(len) if (state.cx as usize) == len => {
-                state.cy += 1;
-                state.cx = 0;
-            }
-            _ => {}
-        },
+        }
         Arrow::Up => {
             state.cy = state.cy.saturating_sub(1);
         }
@@ -1482,6 +1522,106 @@ fn move_cursor(state: &mut EditBufferState, arrow: Arrow) {
     };
     if state.cx > new_row_len {
         state.cx = new_row_len;
+    }
+}
+
+fn jump_cursor(state: &mut EditBufferState, arrow: Arrow) {
+    match arrow {
+        Arrow::Left => {
+            let mut seen_non_separator = false;
+
+            loop {
+                match get_previous_char(state) {
+                    Some(c) if is_separator(c) => if seen_non_separator {
+                        break;
+                    } else {
+                        move_cursor(state, arrow);
+                    },
+                    Some(_) => {
+                        seen_non_separator = true;
+                        move_cursor(state, arrow);
+                    }
+                    None => {
+                        break;
+                    }
+                }
+            }
+        }
+        Arrow::Right => {
+            let mut seen_non_separator = false;
+            loop {
+                match get_current_char(state) {
+                    Some(c) if is_separator(c) => if seen_non_separator {
+                        break;
+                    } else {
+                        move_cursor(state, arrow);
+                    },
+                    Some(_) => {
+                        seen_non_separator = true;
+                        move_cursor(state, arrow);
+                    }
+                    None => {
+                        break;
+                    }
+                }
+            }
+        }
+        _ => {
+            move_cursor(state, arrow);
+        }
+    }
+}
+
+fn get_previous_char(state: &EditBufferState) -> Option<char> {
+    get_previous_character_containing_cx_cy(state).and_then(|(cx, cy)| {
+        state.rows[cy as usize].row.chars().nth(cx as usize)
+    })
+}
+fn get_previous_character_containing_cx_cy(state: &EditBufferState) -> Option<(u32, u32)> {
+    if state.cx != 0 {
+        Some((state.cx - 1, state.cy))
+    } else if state.cy > 0 {
+        let mut cy = state.cy - 1;
+        loop {
+            let len = state.rows[cy as usize].row.len() as u32;
+            if len > 0 {
+                return Some((len - 1, cy));
+            } else if cy == 0 {
+                return None;
+            }
+            cy -= 1;
+        }
+    } else {
+        None
+    }
+}
+
+fn get_current_char(state: &EditBufferState) -> Option<char> {
+    let char_on_this_line = state.rows[state.cy as usize]
+        .row
+        .chars()
+        .nth(state.cx as usize);
+
+    if char_on_this_line.is_some() {
+        char_on_this_line
+    } else {
+        get_next_character_containing_cx_cy(state).and_then(|(cx, cy)| {
+            state.rows[cy as usize].row.chars().nth(cx as usize)
+        })
+    }
+}
+
+fn get_next_character_containing_cx_cy(state: &EditBufferState) -> Option<(u32, u32)> {
+    let mut cy = state.cy + 1;
+    loop {
+        if let Some(row) = state.rows.get(cy as usize) {
+            if row.row.len() > 0 {
+                return Some((0, cy));
+            }
+        } else {
+            return None;
+        }
+        cy += 1;
     }
 }
 
@@ -1606,6 +1746,12 @@ fn process_keypress() {
             }
         },
         Arrow(arrow) => if let Some(state) = unsafe { STATE.as_mut() } {
+            move_cursor(&mut state.edit_buffer.state, arrow);
+        },
+        CtrlArrow(arrow) => if let Some(state) = unsafe { STATE.as_mut() } {
+            jump_cursor(&mut state.edit_buffer.state, arrow);
+        },
+        ShiftArrow(arrow) => if let Some(state) = unsafe { STATE.as_mut() } {
             move_cursor(&mut state.edit_buffer.state, arrow);
         },
         Byte(c0) if c0 == CTRL_KEY!(b'l') || c0 == b'\x1b' => {}
