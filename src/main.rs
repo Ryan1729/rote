@@ -37,7 +37,31 @@ macro_rules! p {
 
             let s = format!("{:?}", tuple);
 
+            p!(s)
+        }
+    }
+}
 
+macro_rules! c {
+    ($expr: expr) => {
+        if cfg!(debug_assertions) || cfg!(test) {
+            if let Some(state) = unsafe { STATE.as_mut() } {
+                let s = format!("{:?}\n\n", $expr);
+
+                for line in s.lines() {
+                    let at = state.console_state.rows.len() as u32;
+                    insert_row(&mut state.console_state, at, line.to_owned());
+                }
+            }
+        }
+    };
+    ($($element:expr),+) => {
+        if cfg!(debug_assertions) || cfg!(test) {
+            let tuple = ($($element,)+);
+
+            let s = format!("{:?}", tuple);
+
+            c!(s)
         }
     }
 }
@@ -59,21 +83,21 @@ macro_rules! set_status_message {
 
 //returns An Option which may contain a prompted for string
 macro_rules! prompt {
-    ($format_str: expr) => {prompt!($format_str, None)};
-    ($format_str: expr, $callback: expr) => {{
+    ($state:expr, $format_str: expr) => {prompt!($state, $format_str, None)};
+    ($state:expr, $format_str: expr, $callback: expr) => {{
       let mut buf = String::new();
       let mut display_buf = String::new();
       let mut result = None;
 
-      let callback : Option<&Fn(&str, EditorKey)> = $callback;
+      let callback : Option<&Fn(&mut EditBufferState, &str, EditorKey)> = $callback;
 
       loop {
             set_status_message!($format_str, buf);
-            refresh_screen(&mut display_buf);
+            refresh_screen($state, &mut display_buf);
 
             let key = read_key();
-            match key {
 
+            match key {
                 Byte(BACKSPACE) | Delete | Byte(CTRL_H) => {
                     buf.pop();
                 }
@@ -81,7 +105,7 @@ macro_rules! prompt {
                 Byte(b'\x1b') => {
                     set_status_message!("");
                     if let Some(cb) = callback {
-                        cb(&mut buf, key);
+                        cb($state, &mut buf, key);
                     }
                     break;
                 }
@@ -89,7 +113,7 @@ macro_rules! prompt {
                     if buf.len() != 0 {
                       set_status_message!("");
                       if let Some(cb) = callback {
-                          cb(&mut buf, key);
+                          cb($state, &mut buf, key);
                       }
                       result = Some(buf);
                       break;
@@ -105,7 +129,7 @@ macro_rules! prompt {
                 Byte(0) => {}
                 _ => {
                     if let Some(cb) = callback {
-                        cb(&mut buf, key);
+                        cb($state, &mut buf, key);
                     }
                 }
             }
@@ -365,10 +389,12 @@ struct EditBuffer {
 
 struct EditorState {
     edit_buffer: EditBuffer,
-    screen_rows: u32,
     screen_cols: u32,
+    screen_rows: u32,
     status_msg: String,
     status_msg_time: Instant,
+    console_state: EditBufferState,
+    show_console: bool,
     syntax: Option<EditorSyntax>,
     orig_termios: termios,
 }
@@ -381,6 +407,8 @@ impl Default for EditorState {
             screen_cols: Default::default(),
             status_msg: Default::default(),
             status_msg_time: Instant::now(),
+            console_state: Default::default(),
+            show_console: false,
             syntax: Default::default(),
             orig_termios: unsafe { std::mem::zeroed() },
         }
@@ -397,6 +425,8 @@ impl fmt::Debug for EditorState {
             screen_cols: {:?},
             status_msg: {:?},
             status_msg_time: {:?},
+            console_state: {:?},
+            show_console: {:?},
             syntax: {:?},
             orig_termios: <termios>,
         }}",
@@ -405,6 +435,8 @@ impl fmt::Debug for EditorState {
             self.screen_cols,
             self.status_msg,
             self.status_msg_time,
+            self.console_state,
+            self.show_console,
             self.syntax,
         )
     }
@@ -1140,7 +1172,7 @@ fn open<P: AsRef<Path>>(filename: P) {
 fn save() {
     if let Some(state) = unsafe { STATE.as_mut() } {
         if state.edit_buffer.state.filename.is_none() {
-            state.edit_buffer.state.filename = prompt!("Save as: {}");
+            state.edit_buffer.state.filename = prompt!(&mut state.edit_buffer.state, "Save as: {}");
             select_syntax_highlight();
         }
 
@@ -1172,7 +1204,7 @@ fn save() {
 
 /*** find ***/
 
-fn find_callback(query: &str, key: EditorKey) {
+fn find_callback(buffer_state: &mut EditBufferState, query: &str, key: EditorKey) {
     static mut LAST_MATCH: i32 = -1;
     static mut FORWARD: bool = true;
 
@@ -1181,11 +1213,10 @@ fn find_callback(query: &str, key: EditorKey) {
 
     unsafe {
         if let Some(ref highlight) = SAVED_HIGHLIGHT {
-            if let Some(state) = STATE.as_mut() {
-                state.edit_buffer.state.rows[SAVED_HIGHLIGHT_LINE as usize]
-                    .highlight
-                    .copy_from_slice(highlight);
-            }
+            buffer_state.rows[SAVED_HIGHLIGHT_LINE as usize]
+                .highlight
+                .copy_from_slice(highlight);
+
             SAVED_HIGHLIGHT = None;
         }
     }
@@ -1213,180 +1244,182 @@ fn find_callback(query: &str, key: EditorKey) {
         },
     }
 
-    if let Some(state) = unsafe { STATE.as_mut() } {
-        unsafe {
-            if LAST_MATCH == -1 {
-                FORWARD = true;
-            }
+    unsafe {
+        if LAST_MATCH == -1 {
+            FORWARD = true;
         }
-        let mut current: i32 = unsafe { LAST_MATCH };
-        let row_count = state.edit_buffer.state.rows.len() as u32;
-        for _ in 0..row_count {
-            current += if unsafe { FORWARD } { 1 } else { -1 };
-            if current == -1 {
-                current = (row_count as i32) - 1;
-            } else if current == row_count as _ {
-                current = 0;
+    }
+
+    let mut current: i32 = unsafe { LAST_MATCH };
+    let row_count = buffer_state.rows.len() as u32;
+    for _ in 0..row_count {
+        current += if unsafe { FORWARD } { 1 } else { -1 };
+        if current == -1 {
+            current = (row_count as i32) - 1;
+        } else if current == row_count as _ {
+            current = 0;
+        }
+
+        let row = &mut buffer_state.rows[current as usize];
+        if let Some(index) = row.render.find(query) {
+            unsafe {
+                LAST_MATCH = current;
+            }
+            buffer_state.cy = current as u32;
+            buffer_state.cx = row_rx_to_cx(row, index as u32);
+            buffer_state.row_offset = row_count;
+
+            unsafe {
+                SAVED_HIGHLIGHT_LINE = current as u32;
+                SAVED_HIGHLIGHT = Some(row.highlight.clone());
+            }
+            for i in index..index + query.len() {
+                row.highlight[i] = EditorHighlight::Match;
             }
 
-            let row = &mut state.edit_buffer.state.rows[current as usize];
-            if let Some(index) = row.render.find(query) {
-                unsafe {
-                    LAST_MATCH = current;
-                }
-                state.edit_buffer.state.cy = current as u32;
-                state.edit_buffer.state.cx = row_rx_to_cx(row, index as u32);
-                state.edit_buffer.state.row_offset = row_count;
-
-                unsafe {
-                    SAVED_HIGHLIGHT_LINE = current as u32;
-                    SAVED_HIGHLIGHT = Some(row.highlight.clone());
-                }
-                for i in index..index + query.len() {
-                    row.highlight[i] = EditorHighlight::Match;
-                }
-
-                break;
-            }
+            break;
         }
     }
 }
 
-fn find() {
-    if let Some(state) = unsafe { STATE.as_mut() } {
-        let saved_cx = state.edit_buffer.state.cx;
-        let saved_cy = state.edit_buffer.state.cy;
-        let saved_col_offset = state.edit_buffer.state.col_offset;
-        let saved_row_offset = state.edit_buffer.state.row_offset;
+fn find(state: &mut EditBufferState) {
+    let saved_cx = state.cx;
+    let saved_cy = state.cy;
+    let saved_col_offset = state.col_offset;
+    let saved_row_offset = state.row_offset;
 
-        if prompt!("Search: {} (Use ESC/Arrows/Enter)", Some(&find_callback)).is_none() {
-            state.edit_buffer.state.cx = saved_cx;
-            state.edit_buffer.state.cy = saved_cy;
-            state.edit_buffer.state.col_offset = saved_col_offset;
-            state.edit_buffer.state.row_offset = saved_row_offset;
-        }
+    if prompt!(
+        state,
+        "Search: {} (Use ESC/Arrows/Enter)",
+        Some(&find_callback)
+    ).is_none()
+    {
+        state.cx = saved_cx;
+        state.cy = saved_cy;
+        state.col_offset = saved_col_offset;
+        state.row_offset = saved_row_offset;
     }
 }
 
 /*** output ***/
 
-fn scroll() {
+fn scroll(buffer_state: &mut EditBufferState) {
     if let Some(state) = unsafe { STATE.as_mut() } {
-        state.edit_buffer.state.rx = 0;
-        if state.edit_buffer.state.cy < state.edit_buffer.state.rows.len() as u32 {
-            state.edit_buffer.state.rx = row_cx_to_rx(
-                &state.edit_buffer.state.rows[state.edit_buffer.state.cy as usize],
-                state.edit_buffer.state.cx,
+        buffer_state.rx = 0;
+        if buffer_state.cy < buffer_state.rows.len() as u32 {
+            buffer_state.rx = row_cx_to_rx(
+                &buffer_state.rows[buffer_state.cy as usize],
+                buffer_state.cx,
             )
         }
 
-        if state.edit_buffer.state.cy < state.edit_buffer.state.row_offset {
-            state.edit_buffer.state.row_offset = state.edit_buffer.state.cy;
+        if buffer_state.cy < buffer_state.row_offset {
+            buffer_state.row_offset = buffer_state.cy;
         }
-        if state.edit_buffer.state.cy >= state.edit_buffer.state.row_offset + state.screen_rows {
-            state.edit_buffer.state.row_offset = state.edit_buffer.state.cy - state.screen_rows + 1;
+        if buffer_state.cy >= buffer_state.row_offset + state.screen_rows {
+            buffer_state.row_offset = buffer_state.cy - state.screen_rows + 1;
         }
-        if state.edit_buffer.state.rx < state.edit_buffer.state.col_offset {
-            state.edit_buffer.state.col_offset = state.edit_buffer.state.rx;
+        if buffer_state.rx < buffer_state.col_offset {
+            buffer_state.col_offset = buffer_state.rx;
         }
-        if state.edit_buffer.state.rx >= state.edit_buffer.state.col_offset + state.screen_cols {
-            state.edit_buffer.state.col_offset = state.edit_buffer.state.rx - state.screen_cols + 1;
+        if buffer_state.rx >= buffer_state.col_offset + state.screen_cols {
+            buffer_state.col_offset = buffer_state.rx - state.screen_cols + 1;
         }
     }
 }
 
-fn draw_rows(buf: &mut String) {
-    if let Some(state) = unsafe { STATE.as_mut() } {
-        for y in 0..state.screen_rows {
-            let file_index = y + state.edit_buffer.state.row_offset;
-            if file_index >= state.edit_buffer.state.rows.len() as u32 {
-                if y == state.screen_rows / 3 && state.edit_buffer.state.rows.len() <= 1
-                    && state
-                        .edit_buffer
-                        .state
-                        .rows
-                        .first()
-                        .map(|r| r.row.len() == 0)
-                        .unwrap_or(false)
-                {
-                    let mut welcome =
-                        format!("Rote : Ryan's Own Text Editor -- version {}", ROTE_VERSION);
-                    let mut padding = (state.screen_cols as usize - welcome.len()) / 2;
+fn draw_rows(
+    (screen_cols, screen_rows): (u32, u32),
+    buffer_state: &EditBufferState,
+    buf: &mut String,
+) {
+    for y in 0..screen_rows {
+        let file_index = y + buffer_state.row_offset;
+        if file_index >= buffer_state.rows.len() as u32 {
+            if y == screen_rows / 3 && buffer_state.rows.len() <= 1
+                && buffer_state
+                    .rows
+                    .first()
+                    .map(|r| r.row.len() == 0)
+                    .unwrap_or(false)
+            {
+                let mut welcome =
+                    format!("Rote : Ryan's Own Text Editor -- version {}", ROTE_VERSION);
+                let mut padding = (screen_cols as usize - welcome.len()) / 2;
 
-                    if padding > 0 {
-                        buf.push('~');
-                        padding -= 1;
-                    }
-                    for _ in 0..padding {
-                        buf.push(' ');
-                    }
-
-                    welcome.truncate(state.screen_cols as _);
-                    buf.push_str(&welcome);
-                } else {
+                if padding > 0 {
                     buf.push('~');
+                    padding -= 1;
                 }
+                for _ in 0..padding {
+                    buf.push(' ');
+                }
+
+                welcome.truncate(screen_cols as _);
+                buf.push_str(&welcome);
             } else {
-                let current_row = &state.edit_buffer.state.rows[file_index as usize];
-                let mut len = std::cmp::min(
-                    current_row
-                        .render
-                        .len()
-                        .saturating_sub(state.edit_buffer.state.col_offset as _),
-                    state.screen_cols as usize,
-                );
-
-
-                let mut current_colour = None;
-                for (i, c) in current_row
+                buf.push('~');
+            }
+        } else {
+            let current_row = &buffer_state.rows[file_index as usize];
+            let mut len = std::cmp::min(
+                current_row
                     .render
-                    .chars()
-                    .skip(state.edit_buffer.state.col_offset as _)
-                    .enumerate()
-                {
-                    if i >= len {
-                        break;
-                    }
+                    .len()
+                    .saturating_sub(buffer_state.col_offset as _),
+                screen_cols as usize,
+            );
 
-                    if c.is_control() {
-                        let symbol = if c as u32 <= 26 {
-                            (b'@' + c as u8) as char
-                        } else {
-                            '?'
-                        };
-                        buf.push_str("\x1b[7m");
-                        buf.push(symbol);
-                        buf.push_str("\x1b[m");
-                        if let Some(colour) = current_colour {
-                            buf.push_str(&format!("\x1b[{}m", colour));
-                        }
+
+            let mut current_colour = None;
+            for (i, c) in current_row
+                .render
+                .chars()
+                .skip(buffer_state.col_offset as _)
+                .enumerate()
+            {
+                if i >= len {
+                    break;
+                }
+
+                if c.is_control() {
+                    let symbol = if c as u32 <= 26 {
+                        (b'@' + c as u8) as char
                     } else {
-                        match current_row.highlight[i] {
-                            EditorHighlight::Normal => {
-                                if current_colour.is_some() {
-                                    buf.push_str("\x1b[39m");
-                                    current_colour = None;
-                                }
-                                buf.push(c);
+                        '?'
+                    };
+                    buf.push_str("\x1b[7m");
+                    buf.push(symbol);
+                    buf.push_str("\x1b[m");
+                    if let Some(colour) = current_colour {
+                        buf.push_str(&format!("\x1b[{}m", colour));
+                    }
+                } else {
+                    match current_row.highlight[i] {
+                        EditorHighlight::Normal => {
+                            if current_colour.is_some() {
+                                buf.push_str("\x1b[39m");
+                                current_colour = None;
                             }
-                            _ => {
-                                let colour = syntax_to_color(current_row.highlight[i]);
-                                if Some(colour) != current_colour {
-                                    current_colour = Some(colour);
-                                    buf.push_str(&format!("\x1b[{}m", colour));
-                                }
-                                buf.push(c);
+                            buf.push(c);
+                        }
+                        _ => {
+                            let colour = syntax_to_color(current_row.highlight[i]);
+                            if Some(colour) != current_colour {
+                                current_colour = Some(colour);
+                                buf.push_str(&format!("\x1b[{}m", colour));
                             }
+                            buf.push(c);
                         }
                     }
                 }
-                buf.push_str("\x1b[39m");
             }
-
-            buf.push_str("\x1b[K");
-
-            buf.push_str("\r\n");
+            buf.push_str("\x1b[39m");
         }
+
+        buf.push_str("\x1b[K");
+
+        buf.push_str("\r\n");
     }
 }
 
@@ -1452,30 +1485,34 @@ fn draw_message_bar(buf: &mut String) {
     }
 }
 
-fn refresh_screen(buf: &mut String) {
-    scroll();
+fn refresh_screen(buffer_state: &mut EditBufferState, buf: &mut String) {
+    scroll(buffer_state);
     buf.clear();
 
     buf.push_str("\x1b[?25l");
     buf.push_str("\x1b[H");
 
-    draw_rows(buf);
+    if let Some(state) = unsafe { STATE.as_mut() } {
+        draw_rows((state.screen_cols, state.screen_rows), &buffer_state, buf);
+    }
     draw_status_bar(buf);
     draw_message_bar(buf);
 
-    if let Some(state) = unsafe { STATE.as_mut() } {
-        buf.push_str(&format!(
-            "\x1b[{};{}H",
-            (state.edit_buffer.state.cy - state.edit_buffer.state.row_offset) + 1,
-            (state.edit_buffer.state.rx - state.edit_buffer.state.col_offset) + 1
-        ));
-    }
+    draw_cursor(&buffer_state, buf);
 
     buf.push_str("\x1b[?25h");
 
     let mut stdout = io::stdout();
     stdout.write(buf.as_bytes()).unwrap_or_default();
     stdout.flush().unwrap_or_default();
+}
+
+fn draw_cursor(buffer_state: &EditBufferState, buf: &mut String) {
+    buf.push_str(&format!(
+        "\x1b[{};{}H",
+        (buffer_state.cy - buffer_state.row_offset) + 1,
+        (buffer_state.rx - buffer_state.col_offset) + 1
+    ));
 }
 
 /*** input ***/
@@ -1625,7 +1662,8 @@ fn get_next_character_containing_cx_cy(state: &EditBufferState) -> Option<(u32, 
     }
 }
 
-fn process_keypress() {
+//handle normal editor operations
+fn process_editor_keypress() {
     static mut QUIT_TIMES: u32 = ROTE_QUIT_TIMES;
     let key = read_key();
 
@@ -1640,7 +1678,7 @@ fn process_keypress() {
         },
         //on my keyboard/terminal emulator this results from ctrl-5
         Byte(29) => if let Some(state) = unsafe { STATE.as_mut() } {
-            panic!("{:?}", state);
+            state.show_console = !state.show_console;
         },
         Byte(c0) if c0 == CTRL_KEY!(b'q') => {
             if unsafe { STATE.as_mut() }
@@ -1680,9 +1718,9 @@ fn process_keypress() {
                     .len() as u32;
             }
         },
-        Byte(c0) if c0 == CTRL_KEY!(b'f') => {
-            find();
-        }
+        Byte(c0) if c0 == CTRL_KEY!(b'f') => if let Some(state) = unsafe { STATE.as_mut() } {
+            find(&mut state.edit_buffer.state);
+        },
         Byte(c0) if c0 == CTRL_KEY!(b'z') => if let Some(state) = unsafe { STATE.as_mut() } {
             undo(&mut state.edit_buffer);
         },
@@ -1752,6 +1790,7 @@ fn process_keypress() {
             jump_cursor(&mut state.edit_buffer.state, arrow);
         },
         ShiftArrow(arrow) => if let Some(state) = unsafe { STATE.as_mut() } {
+            c!(arrow);
             move_cursor(&mut state.edit_buffer.state, arrow);
         },
         Byte(c0) if c0 == CTRL_KEY!(b'l') || c0 == b'\x1b' => {}
@@ -1774,6 +1813,70 @@ fn process_keypress() {
 
     unsafe {
         QUIT_TIMES = ROTE_QUIT_TIMES;
+    }
+}
+
+//handle  operations for the editor's console
+fn process_console_keypress() {
+    let key = read_key();
+
+    match key {
+        //on my keyboard/terminal emulator this results from ctrl-5
+        Byte(29) => if let Some(state) = unsafe { STATE.as_mut() } {
+            state.show_console = !state.show_console;
+        },
+        Home => if let Some(state) = unsafe { STATE.as_mut() } {
+            state.console_state.cx = 0;
+        },
+        End => if let Some(state) = unsafe { STATE.as_mut() } {
+            if state.console_state.cy < state.console_state.rows.len() as u32 {
+                state.console_state.cx = state.console_state.rows[state.console_state.cy as usize]
+                    .row
+                    .len() as u32;
+            }
+        },
+        Byte(c0) if c0 == CTRL_KEY!(b'f') => if let Some(state) = unsafe { STATE.as_mut() } {
+            find(&mut state.console_state);
+        },
+        Page(page) => if let Some(state) = unsafe { STATE.as_mut() } {
+            match page {
+                Page::Up => {
+                    state.console_state.cy = state.console_state.row_offset;
+                }
+                Page::Down => {
+                    state.console_state.cy = state.console_state.row_offset + state.screen_rows - 1;
+                    if state.console_state.cy > state.console_state.rows.len() as u32 {
+                        state.console_state.cy = state.console_state.rows.len() as u32;
+                    }
+                }
+            };
+
+
+            let arrow = match page {
+                Page::Up => Arrow::Up,
+                Page::Down => Arrow::Down,
+            };
+
+            for _ in 0..state.screen_rows {
+                move_cursor(&mut state.console_state, arrow);
+            }
+        },
+        Arrow(arrow) => if let Some(state) = unsafe { STATE.as_mut() } {
+            move_cursor(&mut state.console_state, arrow);
+        },
+        CtrlArrow(arrow) => if let Some(state) = unsafe { STATE.as_mut() } {
+            jump_cursor(&mut state.console_state, arrow);
+        },
+        ShiftArrow(arrow) => if let Some(state) = unsafe { STATE.as_mut() } {
+            move_cursor(&mut state.console_state, arrow);
+        },
+        Byte(c0) if c0 == CTRL_KEY!(b'l') => {}
+        Byte(c0) if c0 == 0 => {
+            return;
+        }
+        _ => if let Some(state) = unsafe { STATE.as_mut() } {
+            state.show_console = false;
+        },
     }
 }
 
@@ -3466,7 +3569,17 @@ fn main() {
     let mut buf = String::new();
 
     loop {
-        refresh_screen(&mut buf);
-        process_keypress();
+        if let Some(state) = unsafe { STATE.as_mut() } {
+            if state.show_console {
+                refresh_screen(&mut state.console_state, &mut buf);
+                process_console_keypress();
+            } else {
+                refresh_screen(&mut state.edit_buffer.state, &mut buf);
+                process_editor_keypress();
+            }
+        } else {
+            //allow quitting if we have no edit_buffers
+            process_editor_keypress();
+        }
     }
 }
