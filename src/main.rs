@@ -159,18 +159,129 @@ impl Default for EditorKey {
     }
 }
 
+mod selection {
+    use ::*;
+    //The reason this is in a module and the reason `_new_only` exists is to enforce
+    //using `new` to construct `Selection`s, maintaining the fact that earlier.
+    #[derive(Copy, Clone, Debug, PartialEq)]
+    pub struct Selection {
+        pub earlier: (u32, u32),
+        pub later: (u32, u32),
+        _new_only: (),
+    }
+
+    impl Selection {
+        pub fn new((cx1, cy1): (u32, u32), (cx2, cy2): (u32, u32)) -> Self {
+            let earlier;
+            let later;
+            if cy1 < cy2 || (cy1 == cy2 && cx1 < cx2) {
+                earlier = (cx1, cy1);
+                later = (cx2, cy2);
+            } else {
+                earlier = (cx2, cy2);
+                later = (cx1, cy1);
+            }
+
+            Selection {
+                earlier,
+                later,
+                _new_only: (),
+            }
+        }
+        pub fn edges(&self) -> ((u32, u32), (u32, u32)) {
+            (self.earlier, self.later)
+        }
+        pub fn get_selected_string(&self, rows: &Vec<Row>) -> Option<String> {
+            let mut s = String::new();
+            let mut cx = self.earlier.0;
+            //we want to distinguish empty selfs, from invalid selfs.
+            let mut added_any = false;
+            for cy in self.earlier.1..self.later.1 {
+                let row = &rows[cy as usize].row;
+
+                let end_cx = if cy >= self.later.1 {
+                    self.later.0
+                } else {
+                    row.len() as u32
+                };
+
+                match (cx_to_byte_x(row, cx), cx_to_byte_x(row, end_cx)) {
+                    (Some(start), Some(end)) => {
+                        if start != end {
+                            s.push_str(&row[start..end]);
+                        }
+
+                        added_any = true;
+                    }
+                    _ => {}
+                }
+            }
+            if added_any {
+                Some(s)
+            } else {
+                None
+            }
+        }
+    }
+}
+
+use selection::Selection;
+
 #[derive(Clone, Debug, PartialEq)]
 enum Section {
-    Character((u32, u32)), //TODO represent range across lines
+    Character((u32, u32)),
+    Selection(Selection),
 }
 use Section::*;
 
 #[derive(Clone, Debug, PartialEq)]
 enum Edit {
-    Insert(Section, String),
-    Remove(Section, String),
+    Insert(Section, (String, String)),
+    Remove(Section, (String, String)),
 }
-use Edit::*;
+use Edit::{Insert, Remove};
+
+impl Edit {
+    fn new_insert(state: &EditBufferState, future_string: String) -> Self {
+        match state.selection {
+            Some(selection) => {
+                let past_string = if selection.earlier.1 == selection.later.1 {
+                    let row = &state.rows[selection.earlier.1 as usize].row;
+                    if selection.earlier.0 == selection.later.0 {
+                        match row.chars().nth(selection.earlier.0 as usize) {
+                            Some(c) => c.to_string(),
+                            None => String::new(),
+                        }
+                    } else {
+                        match (
+                            cx_to_byte_x(row, selection.earlier.0),
+                            cx_to_byte_x(row, selection.later.0),
+                        ) {
+                            (Some(start), Some(end)) => row[start..end].to_owned(),
+                            _ => String::new(),
+                        }
+                    }
+                } else {
+                    selection
+                        .get_selected_string(&state.rows)
+                        .unwrap_or_else(|| String::new())
+                };
+
+                Insert(Selection(selection), (past_string, future_string))
+            }
+            None => Insert(
+                Character((state.cx, state.cy)),
+                (String::new(), future_string),
+            ),
+        }
+    }
+    fn new_remove(state: &EditBufferState, s: String) -> Self {
+        match state.selection {
+            Some(selection) => Remove(Selection(selection), (s, String::new())),
+            None => Remove(Character((state.cx, state.cy)), (s, String::new())),
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug)]
 enum Arrow {
@@ -352,6 +463,7 @@ pub struct EditBufferState {
     col_offset: u32,
     rows: Vec<Row>,
     filename: Option<String>,
+    selection: Option<Selection>,
 }
 
 impl Default for EditBufferState {
@@ -365,6 +477,7 @@ impl Default for EditBufferState {
             //When the user opens a new file, we're pretty sure thay'll want at least one line.
             rows: vec![Default::default()],
             filename: Default::default(),
+            selection: Default::default(),
         }
     }
 }
@@ -390,6 +503,13 @@ impl EditBufferState {
                     Invalid
                 }
             }
+            Selection(selection) => if selection.get_selected_string(&self.rows).is_some() {
+                //Should there be a multi-row `SectionType`?
+                //Only if we need to react differently than NormalRow
+                NormalRow
+            } else {
+                Invalid
+            },
         }
     }
 }
@@ -1864,10 +1984,7 @@ fn process_editor_keypress() {
 
     match key {
         Byte(b'\r') => if let Some(state) = unsafe { STATE.as_mut() } {
-            possible_edit = Some(Insert(
-                Character((state.edit_buffer.state.cx, state.edit_buffer.state.cy)),
-                "\r".to_owned(),
-            ));
+            possible_edit = Some(Edit::new_insert(&state.edit_buffer.state, "\r".to_owned()));
         },
         //on my keyboard/terminal emulator this results from ctrl-5
         Byte(29) => if let Some(state) = unsafe { STATE.as_mut() } {
@@ -1946,10 +2063,7 @@ fn process_editor_keypress() {
                     '\n'.to_string()
                 };
 
-                possible_edit = Some(Remove(
-                    Character((state.edit_buffer.state.cx, state.edit_buffer.state.cy)),
-                    current_char_str.to_owned(),
-                ));
+                possible_edit = Some(Edit::new_remove(&state.edit_buffer.state, current_char_str));
             }
         },
         Page(page) => if let Some(state) = unsafe { STATE.as_mut() } {
@@ -1990,10 +2104,10 @@ fn process_editor_keypress() {
             return;
         }
         Byte(c0) => if let Some(state) = unsafe { STATE.as_mut() } {
-            possible_edit = Some(Insert(
-                Character((state.edit_buffer.state.cx, state.edit_buffer.state.cy)),
+            possible_edit = Some(Edit::new_insert(
+                &state.edit_buffer.state,
                 (c0 as char).to_string(),
-            ))
+            ));
         },
     }
 
@@ -2122,24 +2236,45 @@ fn unperform_edit(edit_buffer: &mut EditBuffer, edit: &Edit) -> EditOutcome {
     outcome
 }
 
-fn perform_insert(state: &mut EditBufferState, section: &Section, s: &str) -> EditOutcome {
+fn perform_insert(
+    state: &mut EditBufferState,
+    section: &Section,
+    (past_str, future_str): (&str, &str),
+) -> EditOutcome {
     match *section {
         Character(coord) => {
-            if s.len() == 0 {
+            if future_str.len() == 0 {
                 return Unchanged;
             }
 
-            let mut chars = s.chars().rev();
-            while let Some(c) = chars.next() {
-                if is_newline(c) {
-                    insert_newline(state, coord);
-                } else {
-                    insert_char(state, coord, c);
-                }
+            insert_string(state, coord, future_str)
+        }
+        Selection(selection::Selection { earlier, later, .. }) => {
+            let outcome = if past_str.len() == 0 {
+                Changed
+            } else {
+                remove_string(state, earlier, past_str)
+            };
+
+            if let Changed = outcome {
+                insert_string(state, earlier, future_str)
+            } else {
+                Unchanged
             }
-            Changed
         }
     }
+}
+
+fn insert_string(state: &mut EditBufferState, coord: (u32, u32), s: &str) -> EditOutcome {
+    let mut chars = s.chars().rev();
+    while let Some(c) = chars.next() {
+        if is_newline(c) {
+            insert_newline(state, coord);
+        } else {
+            insert_char(state, coord, c);
+        }
+    }
+    Changed
 }
 
 fn is_newline(c: char) -> bool {
@@ -2168,52 +2303,26 @@ fn rows_match(rows: &Vec<Row>, cy: u32, s: &str) -> bool {
     }
 }
 
-fn perform_remove(state: &mut EditBufferState, section: &Section, s: &str) -> EditOutcome {
+fn perform_remove(
+    state: &mut EditBufferState,
+    section: &Section,
+    (past_str, future_str): (&str, &str),
+) -> EditOutcome {
+    if future_str.len() == 0 {
+        return Unchanged;
+    }
+
     match *section {
-        Character((cx, cy)) => {
-            let mut should_delete = false;
-
-            {
-                if s.starts_with('\n') || s.starts_with('\r') {
-                    let at_end = if let Some(row) = state.rows.get(cy as usize).map(|row| &row.row)
-                    {
-                        cx == char_len(row) as u32
-                    } else {
-                        false
-                    };
-
-                    if at_end && rows_match(&state.rows, cy + 1, &s[1..]) {
-                        should_delete = true;
-                    }
-                } else if let Some(row) = state.rows.get(cy as usize).map(|row| &row.row) {
-                    if let Some(byte_x) = cx_to_byte_x(row, cx) {
-                        let row_remains = &row[byte_x..];
-
-                        if let Some(i) = s.find(is_newline) {
-                            if row_remains.starts_with(&s[..i]) {
-                                if s.len() <= row_remains.len()
-                                    //this indexing into s assumes that a newline is a single byte.
-                                    || rows_match(&state.rows, cy + 1, &s[i + 1 ..])
-                                {
-                                    should_delete = true;
-                                }
-                            }
-                        } else {
-                            if row_remains.starts_with(s) {
-                                should_delete = true;
-                            }
-                        };
-                    } else {
-                        state.cx = row.len() as u32;
-                    }
-                }
-            }
-
-            if should_delete {
-                for _ in 0..char_len(s) {
-                    del_char(state, (cx, cy))
-                }
+        Character(coord) => remove_string(state, coord, future_str),
+        Selection(selection::Selection { earlier, later, .. }) => {
+            let outcome = if past_str.len() == 0 {
                 Changed
+            } else {
+                insert_string(state, earlier, past_str)
+            };
+
+            if let Changed = outcome {
+                remove_string(state, earlier, future_str)
             } else {
                 Unchanged
             }
@@ -2221,13 +2330,65 @@ fn perform_remove(state: &mut EditBufferState, section: &Section, s: &str) -> Ed
     }
 }
 
+fn remove_string(state: &mut EditBufferState, (cx, cy): (u32, u32), s: &str) -> EditOutcome {
+    let mut should_delete = false;
+
+    {
+        if s.starts_with('\n') || s.starts_with('\r') {
+            let at_end = if let Some(row) = state.rows.get(cy as usize).map(|row| &row.row) {
+                cx == char_len(row) as u32
+            } else {
+                false
+            };
+
+            if at_end && rows_match(&state.rows, cy + 1, &s[1..]) {
+                should_delete = true;
+            }
+        } else if let Some(row) = state.rows.get(cy as usize).map(|row| &row.row) {
+            if let Some(byte_x) = cx_to_byte_x(row, cx) {
+                let row_remains = &row[byte_x..];
+
+                if let Some(i) = s.find(is_newline) {
+                    if row_remains.starts_with(&s[..i]) {
+                        if s.len() <= row_remains.len()
+                            //this indexing into s assumes that a newline is a single byte.
+                            || rows_match(&state.rows, cy + 1, &s[i + 1 ..])
+                        {
+                            should_delete = true;
+                        }
+                    }
+                } else {
+                    if row_remains.starts_with(s) {
+                        should_delete = true;
+                    }
+                };
+            } else {
+                state.cx = row.len() as u32;
+            }
+        }
+    }
+
+    if should_delete {
+        for _ in 0..char_len(s) {
+            del_char(state, (cx, cy))
+        }
+        Changed
+    } else {
+        Unchanged
+    }
+}
+
 fn no_history_perform_edit(state: &mut EditBufferState, edit: &Edit) -> EditOutcome {
     match *edit {
-        Insert(ref section, ref s) if NormalRow == state.section_type(section) => {
-            perform_insert(state, section, s)
+        Insert(ref section, (ref past_s, ref future_s))
+            if NormalRow == state.section_type(section) =>
+        {
+            perform_insert(state, section, (past_s, future_s))
         }
-        Remove(ref section, ref s) if NormalRow == state.section_type(section) => {
-            perform_remove(state, section, s)
+        Remove(ref section, (ref past_s, ref future_s))
+            if NormalRow == state.section_type(section) =>
+        {
+            perform_remove(state, section, (past_s, future_s))
         }
         Remove(_, _) | Insert(_, _) => Unchanged,
     }
@@ -2235,11 +2396,15 @@ fn no_history_perform_edit(state: &mut EditBufferState, edit: &Edit) -> EditOutc
 
 fn no_history_unperform_edit(state: &mut EditBufferState, edit: &Edit) -> EditOutcome {
     match *edit {
-        Insert(ref section, ref s) if NormalRow == state.section_type(section) => {
-            perform_remove(state, section, s)
+        Insert(ref section, (ref past_s, ref future_s))
+            if NormalRow == state.section_type(section) =>
+        {
+            perform_insert(state, section, (future_s, past_s))
         }
-        Remove(ref section, ref s) if NormalRow == state.section_type(section) => {
-            perform_insert(state, section, s)
+        Remove(ref section, (ref past_s, ref future_s))
+            if NormalRow == state.section_type(section) =>
+        {
+            perform_insert(state, section, (&String::new(), past_s))
         }
         Remove(_, _) | Insert(_, _) => Unchanged,
     }
@@ -2381,7 +2546,6 @@ mod edit_actions {
         }
 
         fn shrink(&self) -> Box<Iterator<Item = Self>> {
-            p!("shrink: Box::new((**self).shrink().map(One))");
             Box::new((**self).shrink().map(One))
         }
     }
@@ -2394,7 +2558,6 @@ mod edit_actions {
 
     impl Arbitrary for EditBuffer {
         fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
-            p!("Arbitrary for EditBuffer");
             let history: History = a!(g);
             let saved_history_position = if g.gen() || history.edits.len() == 0 {
                 None
@@ -2409,8 +2572,6 @@ mod edit_actions {
         }
 
         fn shrink(&self) -> Box<Iterator<Item = Self>> {
-            p!("shrink: EditBuffer");
-
             Box::new(
                 (
                     self.state.to_owned(),
@@ -2430,19 +2591,16 @@ mod edit_actions {
 
     impl Arbitrary for Row {
         fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
-            p!("Arbitrary for Row");
             Row::new(0, a!(g))
         }
 
         fn shrink(&self) -> Box<Iterator<Item = Self>> {
-            p!("shrink: quickcheck::single_shrinker(self.clone())");
             quickcheck::single_shrinker(self.clone())
         }
     }
 
     impl Arbitrary for History {
         fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
-            p!("Arbitrary for History");
             let edits: Vec<_> = a!(g);
 
             let current = if g.gen() || edits.len() == 0 {
@@ -2458,7 +2616,6 @@ mod edit_actions {
         }
 
         fn shrink(&self) -> Box<Iterator<Item = Self>> {
-            p!("shrink: let len = self.edits.len();");
             Box::new(self.edits.shrink().map(|new_edits| {
                 let current = if new_edits.len() == 0 {
                     None
@@ -2476,7 +2633,6 @@ mod edit_actions {
 
     impl Arbitrary for EditBufferState {
         fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
-            p!("Arbitrary for EditBufferState");
             let row_count: u32 = 1;
             // {
             //     let s = g.size();
@@ -2508,7 +2664,6 @@ mod edit_actions {
         }
 
         fn shrink(&self) -> Box<Iterator<Item = Self>> {
-            p!("shrink: struct EShrink {");
             struct EShrink {
                 e: EditBufferState,
             }
