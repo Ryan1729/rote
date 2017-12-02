@@ -1,6 +1,6 @@
 [package]
 name = "rote"
-version = "0.1.3"
+version = "0.1.4"
 authors = ["Ryan1729 <Ryan1729@gmail.com>"]
 license = "MIT"
 
