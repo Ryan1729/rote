@@ -93,7 +93,7 @@ macro_rules! prompt {
 
       loop {
             set_status_message!($format_str, buf);
-            refresh_screen($state, &mut display_buf);
+            refresh_screen($state, &mut display_buf, Default::default());
 
             let key = read_key();
 
@@ -330,6 +330,19 @@ impl History {
     }
 }
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+enum Cleanliness {
+    Clean,
+    Dirty,
+}
+use Cleanliness::*;
+
+impl Default for Cleanliness {
+    fn default() -> Cleanliness {
+        Clean
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct EditBufferState {
     cx: u32,
@@ -338,7 +351,6 @@ pub struct EditBufferState {
     row_offset: u32,
     col_offset: u32,
     rows: Vec<Row>,
-    dirty: bool,
     filename: Option<String>,
 }
 
@@ -352,7 +364,6 @@ impl Default for EditBufferState {
             col_offset: Default::default(),
             //When the user opens a new file, we're pretty sure thay'll want at least one line.
             rows: vec![Default::default()],
-            dirty: Default::default(),
             filename: Default::default(),
         }
     }
@@ -387,6 +398,17 @@ impl EditBufferState {
 struct EditBuffer {
     state: EditBufferState,
     history: History,
+    saved_history_position: Option<u32>,
+}
+
+impl EditBuffer {
+    fn cleanliness(&self) -> Cleanliness {
+        if self.history.current == self.saved_history_position {
+            Clean
+        } else {
+            Dirty
+        }
+    }
 }
 
 struct EditorState {
@@ -1142,8 +1164,6 @@ fn insert_row(state: &mut EditBufferState, at: u32, s: String) {
     for i in (at + 1) as usize..state.rows.len() {
         state.rows[i as usize].index += 1;
     }
-
-    state.dirty = true;
 }
 
 fn del_row(state: &mut EditBufferState, cy: u32) {
@@ -1157,8 +1177,6 @@ fn del_row(state: &mut EditBufferState, cy: u32) {
     for i in cy_usize..state.rows.len() {
         state.rows[i].index -= 1;
     }
-
-    state.dirty = true;
 }
 
 fn row_insert_char(row: &mut Row, cx: u32, c: char) {
@@ -1166,28 +1184,18 @@ fn row_insert_char(row: &mut Row, cx: u32, c: char) {
         row.row.insert(i, c);
 
         update_row(row);
-
-        if let Some(state) = unsafe { STATE.as_mut() } {
-            state.edit_buffer.state.dirty = true;
-        }
     }
 }
 
 fn row_append_string(row: &mut Row, s: &str) {
     row.row.push_str(s);
     update_row(row);
-    if let Some(state) = unsafe { STATE.as_mut() } {
-        state.edit_buffer.state.dirty = true;
-    }
 }
 
 fn row_del_char(row: &mut Row, cx: u32) {
     if let Some(i) = cx_to_byte_x(&row.row, cx) {
         row.row.remove(i);
         update_row(row);
-        if let Some(state) = unsafe { STATE.as_mut() } {
-            state.edit_buffer.state.dirty = true;
-        }
     }
 }
 
@@ -1297,7 +1305,6 @@ fn open<P: AsRef<Path>>(filename: P) {
         } else {
             die("open");
         }
-        state.edit_buffer.state.dirty = false;
     }
 }
 
@@ -1321,7 +1328,7 @@ fn save() {
                 .open(filename)
             {
                 Ok(mut file) => if let Ok(()) = file.write_all(data) {
-                    state.edit_buffer.state.dirty = false;
+                    state.edit_buffer.saved_history_position = state.edit_buffer.history.current;
                     set_status_message!("{} bytes written to disk", len);
                 },
                 Err(err) => {
@@ -1555,11 +1562,11 @@ fn draw_rows(
     }
 }
 
-fn draw_status_bar(buf: &mut String) {
+fn draw_status_bar(buffer_state: &mut EditBufferState, buf: &mut String, cleanliness: Cleanliness) {
     if let Some(state) = unsafe { STATE.as_mut() } {
         buf.push_str("\x1b[7m");
 
-        let name = match &state.edit_buffer.state.filename {
+        let name = match &buffer_state.filename {
             &Some(ref f_n) => f_n,
             &None => "[No Name]",
         };
@@ -1567,8 +1574,8 @@ fn draw_status_bar(buf: &mut String) {
         let status = format!(
             "{:.20} - {} lines {}",
             name,
-            state.edit_buffer.state.rows.len(),
-            if state.edit_buffer.state.dirty {
+            buffer_state.rows.len(),
+            if Dirty == cleanliness {
                 "(modified)"
             } else {
                 ""
@@ -1580,8 +1587,8 @@ fn draw_status_bar(buf: &mut String) {
                 Some(ref syntax) => syntax.file_type,
                 None => "no ft",
             },
-            state.edit_buffer.state.cy + 1,
-            state.edit_buffer.state.rows.len()
+            buffer_state.cy + 1,
+            buffer_state.rows.len()
         );
 
         buf.push_str(&status);
@@ -1617,7 +1624,7 @@ fn draw_message_bar(buf: &mut String) {
     }
 }
 
-fn refresh_screen(buffer_state: &mut EditBufferState, buf: &mut String) {
+fn refresh_screen(buffer_state: &mut EditBufferState, buf: &mut String, cleanliness: Cleanliness) {
     scroll(buffer_state);
     buf.clear();
 
@@ -1627,7 +1634,7 @@ fn refresh_screen(buffer_state: &mut EditBufferState, buf: &mut String) {
     if let Some(state) = unsafe { STATE.as_mut() } {
         draw_rows((state.screen_cols, state.screen_rows), &buffer_state, buf);
     }
-    draw_status_bar(buf);
+    draw_status_bar(buffer_state, buf, cleanliness);
     draw_message_bar(buf);
 
     draw_cursor(&buffer_state, buf);
@@ -1868,7 +1875,7 @@ fn process_editor_keypress() {
         },
         Byte(c0) if c0 == CTRL_KEY!(b'q') => {
             if unsafe { STATE.as_mut() }
-                .map(|st| st.edit_buffer.state.dirty)
+                .map(|st| st.edit_buffer.cleanliness() == Dirty)
                 .unwrap_or(true) && unsafe { QUIT_TIMES > 0 }
             {
                 set_status_message!(
@@ -2311,7 +2318,7 @@ mod test_helpers {
     pub fn edit_buffer_isomorphism(e_b1: &EditBufferState, e_b2: &EditBufferState) -> bool {
         edit_buffer_weak_isomorphism(e_b1, e_b2) && e_b1.cx == e_b2.cx && e_b1.cy == e_b2.cy
             && e_b1.rx == e_b2.rx && e_b1.row_offset == e_b2.row_offset
-            && e_b1.col_offset == e_b2.col_offset && e_b1.dirty == e_b2.dirty
+            && e_b1.col_offset == e_b2.col_offset
     }
 
     pub fn edit_buffer_weak_isomorphism(e_b1: &EditBufferState, e_b2: &EditBufferState) -> bool {
@@ -2328,7 +2335,6 @@ mod test_helpers {
         assert_eq!(e_b1.row_offset, e_b2.row_offset);
         assert_eq!(e_b1.col_offset, e_b2.col_offset);
         assert_eq!(e_b1.rows, e_b2.rows);
-        assert_eq!(e_b1.dirty, e_b2.dirty);
 
         true
     }
@@ -2389,9 +2395,16 @@ mod edit_actions {
     impl Arbitrary for EditBuffer {
         fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
             p!("Arbitrary for EditBuffer");
+            let history: History = a!(g);
+            let saved_history_position = if g.gen() || history.edits.len() == 0 {
+                None
+            } else {
+                Some(g.gen_range(0, history.edits.len()) as u32)
+            };
             EditBuffer {
                 state: a!(g),
-                history: a!(g),
+                history,
+                saved_history_position,
             }
         }
 
@@ -2399,9 +2412,18 @@ mod edit_actions {
             p!("shrink: EditBuffer");
 
             Box::new(
-                (self.state.to_owned(), self.history.to_owned())
-                    .shrink()
-                    .map(|(state, history)| EditBuffer { state, history }),
+                (
+                    self.state.to_owned(),
+                    self.history.to_owned(),
+                    self.saved_history_position,
+                ).shrink()
+                    .map(|(state, history, saved_history_position)| {
+                        EditBuffer {
+                            state,
+                            history,
+                            saved_history_position,
+                        }
+                    }),
             )
         }
     }
@@ -2481,7 +2503,6 @@ mod edit_actions {
                 row_offset: g.gen(),
                 col_offset: g.gen(),
                 rows,
-                dirty: g.gen(),
                 filename: a!(g),
             }
         }
@@ -2712,7 +2733,7 @@ mod edit_actions_unit {
                         highlight_open_comment: false,
                     },
                 ],
-                dirty: false,
+
                 filename: None,
             },
             history: History {
@@ -2723,6 +2744,7 @@ mod edit_actions_unit {
                 ],
                 current: Some(0),
             },
+            saved_history_position: None,
         };
 
         let mut edit_buffer = edit_buffer_.clone();
@@ -2763,13 +2785,14 @@ mod edit_actions_unit {
                         highlight_open_comment: false,
                     },
                 ],
-                dirty: false,
+
                 filename: None,
             },
             history: History {
                 edits: vec![Remove(Character((0, 0)), "".to_string())],
                 current: None,
             },
+            saved_history_position: None,
         };
 
         let mut edit_buffer = edit_buffer_.clone();
@@ -2876,13 +2899,14 @@ mod edit_actions_unit {
                         highlight_open_comment: false,
                     },
                 ],
-                dirty: false,
+
                 filename: None,
             },
             history: History {
                 edits: vec![Insert(Character((2, 0)), "\n".to_string())],
                 current: None,
             },
+            saved_history_position: None,
         };
 
         let mut edit_buffer = edit_buffer_.clone();
@@ -3026,13 +3050,14 @@ mod edit_actions_unit {
                         highlight_open_comment: false,
                     },
                 ],
-                dirty: true,
+
                 filename: None,
             },
             history: History {
                 edits: vec![],
                 current: Some(19),
             },
+            saved_history_position: None,
         };
 
         let mut edit_buffer = edit_buffer_.clone();
@@ -3682,13 +3707,14 @@ mod edit_actions_unit {
                         highlight_open_comment: false,
                     },
                 ],
-                dirty: true,
+
                 filename: None,
             },
             history: History {
                 edits: vec![],
                 current: None,
             },
+            saved_history_position: None,
         };
 
         let mut edit_buffer = edit_buffer_.clone();
@@ -3756,10 +3782,11 @@ fn main() {
     loop {
         if let Some(state) = unsafe { STATE.as_mut() } {
             if state.show_console {
-                refresh_screen(&mut state.console_state, &mut buf);
+                refresh_screen(&mut state.console_state, &mut buf, Default::default());
                 process_console_keypress();
             } else {
-                refresh_screen(&mut state.edit_buffer.state, &mut buf);
+                let cleanliness = state.edit_buffer.cleanliness();
+                refresh_screen(&mut state.edit_buffer.state, &mut buf, cleanliness);
                 process_editor_keypress();
             }
         } else {
