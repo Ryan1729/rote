@@ -200,6 +200,8 @@ enum EditorHighlight {
 
 const HL_HIGHLIGHT_NUMBERS: u32 = 1 << 0;
 const HL_HIGHLIGHT_STRINGS: u32 = 1 << 1;
+//only dows anything if `HL_HIGHLIGHT_STRINGS` is set.
+const HL_HIGHLIGHT_SINGLE_QUOTE_PREFIX: u32 = 1 << 2;
 
 /*** data ***/
 
@@ -448,7 +450,7 @@ static mut STATE: Option<EditorState> = None;
 
 /*** filetypes ***/
 
-const HLDB: [EditorSyntax; 1] = [
+const HLDB: [EditorSyntax; 2] = [
     EditorSyntax {
         file_type: "c",
         file_match: [
@@ -501,6 +503,117 @@ const HLDB: [EditorSyntax; 1] = [
         ],
         keywords2: [None; 32],
         keywords3: [None; 32],
+        keywords4: [None; 32],
+    },
+    EditorSyntax {
+        file_type: "rust",
+        file_match: [Some(".rs"), None, None, None, None, None, None, None],
+        singleline_comment_start: "//",
+        multiline_comment_start: "/*",
+        multiline_comment_end: "*/",
+        flags: HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS | HL_HIGHLIGHT_SINGLE_QUOTE_PREFIX,
+        keywords1: [
+            Some("_"),
+            Some("abstract"),
+            Some("alignof"),
+            Some("as"),
+            Some("become"),
+            Some("box"),
+            Some("break"),
+            Some("const"),
+            Some("continue"),
+            Some("crate"),
+            Some("do"),
+            Some("else"),
+            Some("enum"),
+            Some("extern"),
+            Some("false|"),
+            Some("final"),
+            Some("fn"),
+            Some("for"),
+            Some("if"),
+            Some("impl"),
+            Some("in"),
+            Some("let"),
+            Some("loop"),
+            Some("macro"),
+            Some("match"),
+            Some("mod"),
+            Some("move"),
+            Some("mut"),
+            Some("offsetof"),
+            Some("override"),
+            Some("priv"),
+            Some("proc"),
+        ],
+        keywords2: [
+            Some("pub"),
+            Some("pure"),
+            Some("ref"),
+            Some("return"),
+            Some("Self"),
+            Some("self"),
+            Some("sizeof"),
+            Some("static"),
+            Some("struct"),
+            Some("super"),
+            Some("trait"),
+            Some("true|"),
+            Some("type"),
+            Some("typeof"),
+            Some("unsafe"),
+            Some("unsized"),
+            Some("use"),
+            Some("virtual"),
+            Some("where"),
+            Some("while"),
+            Some("yield"),
+            Some("bool|"),
+            Some("char|"),
+            Some("str|"),
+            Some("i8|"),
+            Some("i16|"),
+            Some("i32|"),
+            Some("i64|"),
+            Some("u8|"),
+            Some("u16|"),
+            Some("u32|"),
+            Some("u64|"),
+        ],
+        keywords3: [
+            Some("isize|"),
+            Some("usize|"),
+            Some("f32|"),
+            Some("f64|"),
+            Some("Option|"),
+            Some("Result|"),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        ],
         keywords4: [None; 32],
     },
 ];
@@ -755,11 +868,10 @@ fn update_syntax(row: &mut Row) {
             let mut char_indices = row.render.char_indices();
 
             'char_indices: while let Some((i, c)) = char_indices.next() {
-                let prev_highlight = if i > 0 {
-                    row.highlight[i - 1]
-                } else {
-                    EditorHighlight::Normal
-                };
+                let prev_highlight = row.highlight
+                    .last()
+                    .map(|&h| h)
+                    .unwrap_or(EditorHighlight::Normal);
 
                 if syntax.singleline_comment_start.len() > 0 && in_string.is_none() && !in_comment {
                     if row.render[i..].starts_with(syntax.singleline_comment_start) {
@@ -823,6 +935,26 @@ fn update_syntax(row: &mut Row) {
                         if c == '"' || c == '\'' {
                             in_string = Some(c);
                             row.highlight.push(EditorHighlight::String);
+
+                            if c == '\'' && syntax.flags & HL_HIGHLIGHT_SINGLE_QUOTE_PREFIX != 0 {
+                                let mut loop_count: u8 = 0;
+
+                                for ch in row.render[i + 1..].chars() {
+                                    loop_count += 1;
+                                    //Assuming that an escape means we are in a char literal
+                                    //works almost all the time and is much simpler, so we'll
+                                    //do that for now.
+                                    if ch == '\'' || ch == '\\' {
+                                        continue 'char_indices;
+                                    } else if loop_count > 1 {
+                                        //We're fairly sure we're not in a character literal.
+                                        break;
+                                    }
+                                }
+                                in_string = None;
+                                //if we're in a quote prefix, we still want keyword highlighting
+                                prev_sep = true;
+                            }
 
                             continue;
                         }
@@ -935,7 +1067,7 @@ fn select_syntax_highlight() {
                     }
                     i += 1;
                     if i >= file_match.len() {
-                        return;
+                        break;
                     }
                 }
             }
@@ -1844,7 +1976,6 @@ fn process_editor_keypress() {
             jump_cursor(&mut state.edit_buffer.state, arrow);
         },
         ShiftArrow(arrow) => if let Some(state) = unsafe { STATE.as_mut() } {
-            c!(arrow);
             move_cursor(&mut state.edit_buffer.state, arrow);
         },
         Byte(c0) if c0 == CTRL_KEY!(b'l') || c0 == b'\x1b' => {}
