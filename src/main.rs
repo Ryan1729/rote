@@ -1586,6 +1586,7 @@ fn jump_cursor(state: &mut EditBufferState, arrow: Arrow) {
         }
         Arrow::Right => {
             let mut seen_non_separator = false;
+
             loop {
                 match get_current_char(state) {
                     Some(c) if is_separator(c) => if seen_non_separator {
@@ -1603,8 +1604,45 @@ fn jump_cursor(state: &mut EditBufferState, arrow: Arrow) {
                 }
             }
         }
-        _ => {
-            move_cursor(state, arrow);
+        Arrow::Up => {
+            let mut seen_empty_line = false;
+
+            loop {
+                match get_previous_line_len(state) {
+                    Some(0) => {
+                        seen_empty_line = true;
+                        move_cursor(state, arrow);
+                    }
+                    Some(_) => if seen_empty_line {
+                        break;
+                    } else {
+                        move_cursor(state, arrow);
+                    },
+                    None => {
+                        break;
+                    }
+                }
+            }
+        }
+        Arrow::Down => {
+            let mut seen_empty_line = false;
+
+            loop {
+                match get_next_line_len(state) {
+                    Some(0) => {
+                        seen_empty_line = true;
+                        move_cursor(state, arrow);
+                    }
+                    Some(_) => if seen_empty_line {
+                        break;
+                    } else {
+                        move_cursor(state, arrow);
+                    },
+                    None => {
+                        break;
+                    }
+                }
+            }
         }
     }
 }
@@ -1638,7 +1676,6 @@ fn get_current_char(state: &EditBufferState) -> Option<char> {
         .row
         .chars()
         .nth(state.cx as usize);
-
     if char_on_this_line.is_some() {
         char_on_this_line
     } else {
@@ -1646,6 +1683,23 @@ fn get_current_char(state: &EditBufferState) -> Option<char> {
             state.rows[cy as usize].row.chars().nth(cx as usize)
         })
     }
+}
+
+fn get_previous_line_len(state: &EditBufferState) -> Option<u32> {
+    if state.cy != 0 {
+        state
+            .rows
+            .get(state.cy as usize - 1)
+            .map(|row| row.row.len() as u32)
+    } else {
+        None
+    }
+}
+fn get_next_line_len(state: &EditBufferState) -> Option<u32> {
+    state
+        .rows
+        .get(state.cy as usize + 1)
+        .map(|row| row.row.len() as u32)
 }
 
 fn get_next_character_containing_cx_cy(state: &EditBufferState) -> Option<(u32, u32)> {
