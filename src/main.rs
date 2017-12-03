@@ -1615,10 +1615,6 @@ fn draw_rows(
             }
         } else {
             let current_row = &buffer_state.rows[file_index as usize];
-            let mut len = std::cmp::min(
-                char_len(&current_row.render).saturating_sub(buffer_state.col_offset as _),
-                screen_cols as usize,
-            );
 
             let (in_selection_start_row, in_selection_end_row) =
                 if let Some(sel) = buffer_state.selection {
@@ -1634,10 +1630,6 @@ fn draw_rows(
                 .skip(buffer_state.col_offset as _)
                 .enumerate()
             {
-                if ci >= len {
-                    break;
-                }
-
                 if in_selection_start_row {
                     let at_selection_start = if let Some(sel) = buffer_state.selection {
                         sel.earlier.0 == ci as u32
@@ -1699,6 +1691,11 @@ fn draw_rows(
                     }
                 }
             }
+
+            if in_selection_end_row {
+                in_selection = false;
+            }
+
             buf.push_str("\x1b[39m");
         }
 
