@@ -188,32 +188,43 @@ mod selection {
                 _new_only: (),
             }
         }
-        pub fn edges(&self) -> ((u32, u32), (u32, u32)) {
-            (self.earlier, self.later)
+        pub fn new_empty(coord: (u32, u32)) -> Self {
+            Selection::new(coord, coord)
         }
         pub fn get_selected_string(&self, rows: &Vec<Row>) -> Option<String> {
             let mut s = String::new();
             let mut cx = self.earlier.0;
             //we want to distinguish empty selfs, from invalid selfs.
             let mut added_any = false;
-            for cy in self.earlier.1..self.later.1 {
-                let row = &rows[cy as usize].row;
+            if self.earlier == self.later {
+                if let Some(row) = rows.get(self.earlier.1 as usize) {
+                    let char_len = char_len(&row.row) as u32;
+                    added_any = self.earlier.0 <= char_len;
+                }
+            } else {
+                for cy in self.earlier.1..self.later.1 {
+                    if let Some(row) = rows.get(cy as usize).map(|row| &row.row) {
+                        let end_cx = if cy >= self.later.1 {
+                            self.later.0
+                        } else {
+                            row.len() as u32
+                        };
 
-                let end_cx = if cy >= self.later.1 {
-                    self.later.0
-                } else {
-                    row.len() as u32
-                };
+                        match (cx_to_byte_x(row, cx), cx_to_byte_x(row, end_cx)) {
+                            (Some(start), Some(end)) => {
+                                if start != end {
+                                    s.push_str(&row[start..end]);
+                                }
 
-                match (cx_to_byte_x(row, cx), cx_to_byte_x(row, end_cx)) {
-                    (Some(start), Some(end)) => {
-                        if start != end {
-                            s.push_str(&row[start..end]);
+                                added_any = true;
+                            }
+                            _ => {}
                         }
 
-                        added_any = true;
+                        cx = 0;
+                    } else {
+                        return None;
                     }
-                    _ => {}
                 }
             }
             if added_any {
@@ -228,57 +239,42 @@ mod selection {
 use selection::Selection;
 
 #[derive(Clone, Debug, PartialEq)]
-enum Section {
-    Character((u32, u32)),
-    Selection(Selection),
+struct Edit {
+    selection: Selection,
+    past: String,
+    future: String,
 }
-use Section::*;
-
-#[derive(Clone, Debug, PartialEq)]
-enum Edit {
-    Insert(Section, (String, String)),
-    Remove(Section, (String, String)),
-}
-use Edit::{Insert, Remove};
 
 impl Edit {
-    fn new_insert(state: &EditBufferState, future_string: String) -> Self {
-        match state.selection {
-            Some(selection) => {
-                let past_string = if selection.earlier.1 == selection.later.1 {
-                    let row = &state.rows[selection.earlier.1 as usize].row;
-                    if selection.earlier.0 == selection.later.0 {
-                        match row.chars().nth(selection.earlier.0 as usize) {
-                            Some(c) => c.to_string(),
-                            None => String::new(),
-                        }
-                    } else {
-                        match (
-                            cx_to_byte_x(row, selection.earlier.0),
-                            cx_to_byte_x(row, selection.later.0),
-                        ) {
-                            (Some(start), Some(end)) => row[start..end].to_owned(),
-                            _ => String::new(),
-                        }
-                    }
-                } else {
-                    selection
-                        .get_selected_string(&state.rows)
-                        .unwrap_or_else(|| String::new())
-                };
+    fn new(state: &EditBufferState, future: String) -> Self {
+        let selection = state.get_selection();
 
-                Insert(Selection(selection), (past_string, future_string))
+        let past: String = if selection.earlier.1 == selection.later.1 {
+            let row = &state.rows[selection.earlier.1 as usize].row;
+            if selection.earlier.0 == selection.later.0 {
+                match row.chars().nth(selection.earlier.0 as usize) {
+                    Some(c) => c.to_string(),
+                    None => String::new(),
+                }
+            } else {
+                match (
+                    cx_to_byte_x(row, selection.earlier.0),
+                    cx_to_byte_x(row, selection.later.0),
+                ) {
+                    (Some(start), Some(end)) => row[start..end].to_owned(),
+                    _ => String::new(),
+                }
             }
-            None => Insert(
-                Character((state.cx, state.cy)),
-                (String::new(), future_string),
-            ),
-        }
-    }
-    fn new_remove(state: &EditBufferState, s: String) -> Self {
-        match state.selection {
-            Some(selection) => Remove(Selection(selection), (s, String::new())),
-            None => Remove(Character((state.cx, state.cy)), (s, String::new())),
+        } else {
+            selection
+                .get_selected_string(&state.rows)
+                .unwrap_or_else(|| String::new())
+        };
+
+        Edit {
+            selection,
+            past,
+            future,
         }
     }
 }
@@ -331,7 +327,7 @@ struct EditorSyntax {
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
-struct Row {
+pub struct Row {
     index: u32,
     row: String,
     render: String,
@@ -466,6 +462,15 @@ pub struct EditBufferState {
     selection: Option<Selection>,
 }
 
+impl EditBufferState {
+    fn get_selection(&self) -> selection::Selection {
+        match self.selection {
+            Some(selection) => selection,
+            None => Selection::new((self.cx, self.cy), (self.cx, self.cy)),
+        }
+    }
+}
+
 impl Default for EditBufferState {
     fn default() -> EditBufferState {
         EditBufferState {
@@ -483,33 +488,20 @@ impl Default for EditBufferState {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-enum SectionType {
-    NormalRow,
+enum SelectionType {
+    Valid,
     Invalid,
 }
-use SectionType::*;
+use SelectionType::*;
 
 impl EditBufferState {
-    fn section_type(&self, section: &Section) -> SectionType {
-        match *section {
-            Character((cx, cy)) => {
-                let cy_usize = cy as usize;
-                //one past the last character if each row is a valid position
-                if cy_usize < self.rows.len() as _
-                    && (cx as usize) <= char_len(&self.rows[cy_usize].row)
-                {
-                    NormalRow
-                } else {
-                    Invalid
-                }
-            }
-            Selection(selection) => if selection.get_selected_string(&self.rows).is_some() {
-                //Should there be a multi-row `SectionType`?
-                //Only if we need to react differently than NormalRow
-                NormalRow
-            } else {
-                Invalid
-            },
+    fn selection_type(&self, selection: &selection::Selection) -> SelectionType {
+        if selection.get_selected_string(&self.rows).is_some() {
+            //Should there be a multi-row `SectionType`?
+            //Only if we need to react differently than Valid
+            Valid
+        } else {
+            Invalid
         }
     }
 }
@@ -1984,7 +1976,7 @@ fn process_editor_keypress() {
 
     match key {
         Byte(b'\r') => if let Some(state) = unsafe { STATE.as_mut() } {
-            possible_edit = Some(Edit::new_insert(&state.edit_buffer.state, "\r".to_owned()));
+            possible_edit = Some(Edit::new(&state.edit_buffer.state, "\r".to_owned()));
         },
         //on my keyboard/terminal emulator this results from ctrl-5
         Byte(29) => if let Some(state) = unsafe { STATE.as_mut() } {
@@ -2063,7 +2055,11 @@ fn process_editor_keypress() {
                     '\n'.to_string()
                 };
 
-                possible_edit = Some(Edit::new_remove(&state.edit_buffer.state, current_char_str));
+                possible_edit = Some(Edit {
+                    selection: state.edit_buffer.state.get_selection(),
+                    past: current_char_str,
+                    future: String::new(),
+                });
             }
         },
         Page(page) => if let Some(state) = unsafe { STATE.as_mut() } {
@@ -2104,7 +2100,7 @@ fn process_editor_keypress() {
             return;
         }
         Byte(c0) => if let Some(state) = unsafe { STATE.as_mut() } {
-            possible_edit = Some(Edit::new_insert(
+            possible_edit = Some(Edit::new(
                 &state.edit_buffer.state,
                 (c0 as char).to_string(),
             ));
@@ -2204,7 +2200,6 @@ fn char_len(s: &str) -> usize {
 
 fn perform_edit(edit_buffer: &mut EditBuffer, edit: &Edit) -> EditOutcome {
     let outcome = no_history_perform_edit(&mut edit_buffer.state, edit);
-    p!("perform_edit", outcome);
     if let Changed = outcome {
         if edit_buffer
             .history
@@ -2238,30 +2233,19 @@ fn unperform_edit(edit_buffer: &mut EditBuffer, edit: &Edit) -> EditOutcome {
 
 fn perform_insert(
     state: &mut EditBufferState,
-    section: &Section,
+    &selection::Selection { earlier, later, .. }: &selection::Selection,
     (past_str, future_str): (&str, &str),
 ) -> EditOutcome {
-    match *section {
-        Character(coord) => {
-            if future_str.len() == 0 {
-                return Unchanged;
-            }
+    let outcome = if past_str.len() == 0 {
+        Changed
+    } else {
+        remove_string(state, earlier, past_str)
+    };
 
-            insert_string(state, coord, future_str)
-        }
-        Selection(selection::Selection { earlier, later, .. }) => {
-            let outcome = if past_str.len() == 0 {
-                Changed
-            } else {
-                remove_string(state, earlier, past_str)
-            };
-
-            if let Changed = outcome {
-                insert_string(state, earlier, future_str)
-            } else {
-                Unchanged
-            }
-        }
+    if let Changed = outcome {
+        insert_string(state, earlier, future_str)
+    } else {
+        Unchanged
     }
 }
 
@@ -2300,33 +2284,6 @@ fn rows_match(rows: &Vec<Row>, cy: u32, s: &str) -> bool {
         true
     } else {
         false
-    }
-}
-
-fn perform_remove(
-    state: &mut EditBufferState,
-    section: &Section,
-    (past_str, future_str): (&str, &str),
-) -> EditOutcome {
-    if future_str.len() == 0 {
-        return Unchanged;
-    }
-
-    match *section {
-        Character(coord) => remove_string(state, coord, future_str),
-        Selection(selection::Selection { earlier, later, .. }) => {
-            let outcome = if past_str.len() == 0 {
-                Changed
-            } else {
-                insert_string(state, earlier, past_str)
-            };
-
-            if let Changed = outcome {
-                remove_string(state, earlier, future_str)
-            } else {
-                Unchanged
-            }
-        }
     }
 }
 
@@ -2379,35 +2336,18 @@ fn remove_string(state: &mut EditBufferState, (cx, cy): (u32, u32), s: &str) -> 
 }
 
 fn no_history_perform_edit(state: &mut EditBufferState, edit: &Edit) -> EditOutcome {
-    match *edit {
-        Insert(ref section, (ref past_s, ref future_s))
-            if NormalRow == state.section_type(section) =>
-        {
-            perform_insert(state, section, (past_s, future_s))
-        }
-        Remove(ref section, (ref past_s, ref future_s))
-            if NormalRow == state.section_type(section) =>
-        {
-            perform_remove(state, section, (past_s, future_s))
-        }
-        Remove(_, _) | Insert(_, _) => Unchanged,
+    if Valid == state.selection_type(&edit.selection) {
+        perform_insert(state, &edit.selection, (&edit.past, &edit.future))
+    } else {
+        Unchanged
     }
 }
 
 fn no_history_unperform_edit(state: &mut EditBufferState, edit: &Edit) -> EditOutcome {
-    p!(edit);
-    match *edit {
-        Insert(ref section, (ref past_s, ref future_s))
-            if NormalRow == state.section_type(section) =>
-        {
-            perform_insert(state, section, (future_s, past_s))
-        }
-        Remove(ref section, (ref past_s, ref future_s))
-            if NormalRow == state.section_type(section) =>
-        {
-            perform_insert(state, section, (&String::new(), past_s))
-        }
-        Remove(_, _) | Insert(_, _) => Unchanged,
+    if Valid == state.selection_type(&edit.selection) {
+        perform_insert(state, &edit.selection, (&edit.future, &edit.past))
+    } else {
+        Unchanged
     }
 }
 
@@ -2457,7 +2397,7 @@ fn redo(edit_buffer: &mut EditBuffer) -> EditOutcome {
 fn undo(edit_buffer: &mut EditBuffer) -> EditOutcome {
     if let Some(edit) = edit_buffer.history.get_current() {
         let outcome = no_history_unperform_edit(&mut edit_buffer.state, &edit);
-        p!("undo", outcome);
+
         if let Changed = outcome {
             edit_buffer.history.dec_current();
         } else {
@@ -2659,14 +2599,29 @@ mod edit_actions {
             //     }
             // };
 
+            let row_length = 5;
+
             let mut rows = Vec::new();
             for i in 0..row_count {
                 let mut s: String = a!(g);
-                while s.len() > 5 {
+                while s.len() > row_length {
                     s.pop();
                 }
                 rows.push(Row::new(i, s));
             }
+
+            let rows_length = rows.len() as u32;
+
+            let selection = Some(Selection::new(
+                (
+                    g.gen_range(0, row_length as u32),
+                    g.gen_range(0, rows_length),
+                ),
+                (
+                    g.gen_range(0, row_length as u32),
+                    g.gen_range(0, rows_length),
+                ),
+            ));
 
             EditBufferState {
                 cx: g.gen(),
@@ -2676,7 +2631,7 @@ mod edit_actions {
                 col_offset: g.gen(),
                 rows,
                 filename: a!(g),
-                selection: a!(g),
+                selection,
             }
         }
 
@@ -2726,58 +2681,27 @@ mod edit_actions {
         }
     }
 
-    impl Arbitrary for Section {
-        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
-            let size = (g.size() as u32) / 4;
-            if g.gen() {
-                if size == 0 {
-                    Character((0, 0))
-                } else {
-                    Character((g.gen_range(0, size), g.gen_range(0, size)))
-                }
-            } else {
-                Selection(Selection::new(
-                    (g.gen_range(0, size), g.gen_range(0, size)),
-                    (g.gen_range(0, size), g.gen_range(0, size)),
-                ))
-            }
-        }
-
-        fn shrink(&self) -> Box<Iterator<Item = Self>> {
-            match *self {
-                Character(coord) => Box::new(coord.shrink().map(Character)),
-                Selection(selection) => Box::new(selection.shrink().map(Selection)),
-            }
-        }
-    }
-
     impl Arbitrary for Edit {
         fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
-            match g.gen_range(0, 2) {
-                1 => Insert(
-                    Section::arbitrary(g),
-                    (String::arbitrary(g), String::arbitrary(g)),
-                ),
-                _ => Remove(
-                    Section::arbitrary(g),
-                    (String::arbitrary(g), String::arbitrary(g)),
-                ),
+            Edit {
+                selection: a!(g),
+                past: a!(g),
+                future: a!(g),
             }
         }
 
         fn shrink(&self) -> Box<Iterator<Item = Self>> {
-            match *self {
-                Insert(ref section, ref string) => Box::new(
-                    (section.to_owned(), string.to_owned())
-                        .shrink()
-                        .map(|(se, st)| Insert(se.clone(), st.clone())),
-                ),
-                Remove(ref section, ref string) => Box::new(
-                    (section.to_owned(), string.to_owned())
-                        .shrink()
-                        .map(|(se, st)| Remove(se.clone(), st.clone())),
-                ),
-            }
+            Box::new(
+                (self.selection, self.past.to_owned(), self.future.to_owned())
+                    .shrink()
+                    .map(|(selection, past, future)| {
+                        Edit {
+                            selection,
+                            past,
+                            future,
+                        }
+                    }),
+            )
         }
     }
 
@@ -2875,20 +2799,90 @@ mod edit_actions_unit {
 
 
     #[test]
+    fn test_index_overrun() {
+        let mut edit_buffer_ = EditBuffer {
+            state: EditBufferState {
+                cx: 909008773,
+                cy: 3607610137,
+                rx: 2909560752,
+                row_offset: 2946809625,
+                col_offset: 2659313325,
+                rows: vec![
+                    Row {
+                        index: 0,
+                        row: "\u{94}Z7".to_string(),
+                        render: "\u{94}Z7".to_string(),
+                        highlight: vec![Normal, Normal, Normal],
+                        highlight_open_comment: false,
+                    },
+                ],
+                filename: None,
+                selection: None,
+            },
+            history: History {
+                edits: vec![],
+                current: None,
+            },
+            saved_history_position: None,
+        };
+
+        let mut edit_buffer = edit_buffer_.clone();
+
+        perform_edit(
+            &mut edit_buffer,
+            &Edit {
+                selection: Selection::new((0, 0), (0, 2)),
+                past: String::new(),
+                future: String::new(),
+            },
+        );
+
+
+        latest(&mut edit_buffer);
+
+        if edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state) {
+            return;
+        }
+
+        while let Changed = undo(&mut edit_buffer) {
+            if edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state) {
+                return;
+            }
+        }
+
+        must_edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state);
+        must_edit_buffer_isomorphism(&edit_buffer.state, &edit_buffer_.state);
+
+        assert!(false)
+    }
+
+    #[test]
     fn remove_at_end() {
         let mut edit_buffer = Default::default();
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 0)), (String::new(), "\n".to_string())),
+            &Edit {
+                selection: Selection::new_empty((0, 0)),
+                past: String::new(),
+                future: "\n".to_string(),
+            },
         );
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 1)), (String::new(), "qweqwe".to_string())),
+            &Edit {
+                selection: Selection::new_empty((0, 1)),
+                past: String::new(),
+                future: "qweqwe".to_string(),
+            },
         );
         perform_edit(
             &mut edit_buffer,
-            &Remove(Character((5, 1)), (String::new(), "e".to_string())),
+            &Edit {
+                selection: Selection::new_empty((5, 1)),
+                past: "e".to_string(),
+                future: String::new(),
+            },
         );
 
         assert_eq!(
@@ -2904,7 +2898,7 @@ mod edit_actions_unit {
 
     #[test]
     fn valid_between_two_invalid() {
-        let mut edit_buffer_ = EditBuffer {
+        let edit_buffer_ = EditBuffer {
             state: EditBufferState {
                 cx: 0,
                 cy: 0,
@@ -2924,9 +2918,21 @@ mod edit_actions_unit {
             },
             history: History {
                 edits: vec![
-                    Remove(Character((0, 0)), (String::new(), "B".to_string())),
-                    Insert(Character((0, 0)), (String::new(), "A".to_string())),
-                    Remove(Character((0, 0)), (String::new(), "B".to_string())),
+                    Edit {
+                        selection: Selection::new_empty((0, 0)),
+                        past: String::new(),
+                        future: "B".to_string(),
+                    },
+                    Edit {
+                        selection: Selection::new_empty((0, 0)),
+                        past: String::new(),
+                        future: "A".to_string(),
+                    },
+                    Edit {
+                        selection: Selection::new_empty((0, 0)),
+                        past: String::new(),
+                        future: "B".to_string(),
+                    },
                 ],
                 current: Some(0),
             },
@@ -2955,7 +2961,7 @@ mod edit_actions_unit {
 
     #[test]
     fn weird_history() {
-        let mut edit_buffer_ = EditBuffer {
+        let edit_buffer_ = EditBuffer {
             state: EditBufferState {
                 cx: 0,
                 cy: 0,
@@ -2975,7 +2981,13 @@ mod edit_actions_unit {
                 ..Default::default()
             },
             history: History {
-                edits: vec![Remove(Character((0, 0)), (String::new(), String::new()))],
+                edits: vec![
+                    Edit {
+                        selection: Selection::new_empty((0, 0)),
+                        past: String::new(),
+                        future: String::new(),
+                    },
+                ],
                 current: None,
             },
             saved_history_position: None,
@@ -2985,7 +2997,11 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((1, 0)), (String::new(), "2".to_string())),
+            &Edit {
+                selection: Selection::new_empty((1, 0)),
+                past: String::new(),
+                future: "2".to_string(),
+            },
         );
 
         latest(&mut edit_buffer);
@@ -3010,13 +3026,17 @@ mod edit_actions_unit {
 
     #[test]
     fn newline_carriage_return_then_undo() {
-        let mut edit_buffer_: EditBuffer = Default::default();
+        let edit_buffer_: EditBuffer = Default::default();
 
         let mut edit_buffer = edit_buffer_.clone();
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 0)), (String::new(), "\n\r".to_string())),
+            &Edit {
+                selection: Selection::new_empty((0, 0)),
+                past: String::new(),
+                future: "\n\r".to_string(),
+            },
         );
 
         latest(&mut edit_buffer);
@@ -3039,13 +3059,17 @@ mod edit_actions_unit {
 
     #[test]
     fn carriage_return_newline_then_undo() {
-        let mut edit_buffer_: EditBuffer = Default::default();
+        let edit_buffer_: EditBuffer = Default::default();
 
         let mut edit_buffer = edit_buffer_.clone();
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 0)), (String::new(), "\r\n".to_string())),
+            &Edit {
+                selection: Selection::new_empty((0, 0)),
+                past: String::new(),
+                future: "\r\n".to_string(),
+            },
         );
 
         latest(&mut edit_buffer);
@@ -3069,7 +3093,7 @@ mod edit_actions_unit {
 
     #[test]
     fn c_index_byte_index_confusion() {
-        let mut edit_buffer_ = EditBuffer {
+        let edit_buffer_ = EditBuffer {
             state: EditBufferState {
                 cx: 0,
                 cy: 0,
@@ -3088,7 +3112,13 @@ mod edit_actions_unit {
                 ..Default::default()
             },
             history: History {
-                edits: vec![Insert(Character((2, 0)), (String::new(), "\n".to_string()))],
+                edits: vec![
+                    Edit {
+                        selection: Selection::new_empty((2, 0)),
+                        past: String::new(),
+                        future: "\n".to_string(),
+                    },
+                ],
                 current: None,
             },
             saved_history_position: None,
@@ -3097,6 +3127,16 @@ mod edit_actions_unit {
         let mut edit_buffer = edit_buffer_.clone();
 
         latest(&mut edit_buffer);
+
+        assert_eq!(
+            edit_buffer
+                .state
+                .rows
+                .iter()
+                .map(|r| &r.row)
+                .collect::<Vec<_>>(),
+            vec!["˓"]
+        );
 
         if edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state) {
             return;
@@ -3121,12 +3161,20 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer_,
-            &Insert(Character((0, 0)), (String::new(), "4".to_string())),
+            &Edit {
+                selection: Selection::new_empty((0, 0)),
+                past: String::new(),
+                future: "4".to_string(),
+            },
         );
 
         edit_buffer_.history = History {
             edits: vec![
-                Insert(Character((1, 0)), (String::new(), "\n2".to_string())),
+                Edit {
+                    selection: Selection::new_empty((1, 0)),
+                    past: String::new(),
+                    future: "\n2".to_string(),
+                },
             ],
             current: None,
         };
@@ -3157,14 +3205,22 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer_,
-            &Insert(Character((0, 0)), (String::new(), "2".to_string())),
+            &Edit {
+                selection: Selection::new_empty((0, 0)),
+                past: String::new(),
+                future: "2".to_string(),
+            },
         );
 
         let mut edit_buffer = edit_buffer_.clone();
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 0)), (String::new(), "4\n".to_string())),
+            &Edit {
+                selection: Selection::new_empty((0, 0)),
+                past: String::new(),
+                future: "4\n".to_string(),
+            },
         );
 
         latest(&mut edit_buffer);
@@ -3191,14 +3247,22 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer_,
-            &Insert(Character((0, 0)), (String::new(), "3".to_string())),
+            &Edit {
+                selection: Selection::new_empty((0, 0)),
+                past: String::new(),
+                future: "3".to_string(),
+            },
         );
 
         let mut edit_buffer = edit_buffer_.clone();
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 0)), (String::new(), "1\n2\n".to_string())),
+            &Edit {
+                selection: Selection::new_empty((0, 0)),
+                past: String::new(),
+                future: "1\n2\n".to_string(),
+            },
         );
 
         latest(&mut edit_buffer);
@@ -3221,7 +3285,7 @@ mod edit_actions_unit {
 
     #[test]
     fn handle_invalid_current_index() {
-        let mut edit_buffer_ = EditBuffer {
+        let edit_buffer_ = EditBuffer {
             state: EditBufferState {
                 cx: 0,
                 cy: 0,
@@ -3250,7 +3314,11 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 0)), (String::new(), "\u{0}".to_string())),
+            &Edit {
+                selection: Selection::new_empty((0, 0)),
+                past: String::new(),
+                future: "\u{0}".to_string(),
+            },
         );
 
         latest(&mut edit_buffer);
@@ -3277,14 +3345,22 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer_,
-            &Insert(Character((0, 0)), (String::new(), "/˓^".to_string())),
+            &Edit {
+                selection: Selection::new_empty((0, 0)),
+                past: String::new(),
+                future: "/˓^".to_string(),
+            },
         );
 
         let mut edit_buffer = edit_buffer_.clone();
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((2, 0)), (String::new(), "/˓^".to_string())),
+            &Edit {
+                selection: Selection::new_empty((2, 0)),
+                past: String::new(),
+                future: "/˓^".to_string(),
+            },
         );
 
         latest(&mut edit_buffer);
@@ -3310,10 +3386,11 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(
-                Character((0, 0)),
-                (String::new(), "Hello\nWorld".to_string()),
-            ),
+            &Edit {
+                selection: Selection::new_empty((0, 0)),
+                past: String::new(),
+                future: "Hello\nWorld".to_string(),
+            },
         );
 
         edit_buffer
@@ -3340,7 +3417,11 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Remove(Character((0, 0)), (String::new(), "Hello".to_string())),
+            &Edit {
+                selection: Selection::new_empty((0, 0)),
+                past: "Hello".to_string(),
+                future: String::new(),
+            },
         );
 
         assert_eq!(
@@ -3360,7 +3441,11 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Remove(Character((1, 0)), (String::new(), "ello".to_string())),
+            &Edit {
+                selection: Selection::new_empty((1, 0)),
+                past: "ello".to_string(),
+                future: String::new(),
+            },
         );
 
         assert_eq!(
@@ -3380,7 +3465,11 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Remove(Character((4, 0)), (String::new(), "o".to_string())),
+            &Edit {
+                selection: Selection::new_empty((4, 0)),
+                past: "o".to_string(),
+                future: String::new(),
+            },
         );
 
         assert_eq!(
@@ -3400,7 +3489,11 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Remove(Character((5, 0)), (String::new(), "\n".to_string())),
+            &Edit {
+                selection: Selection::new_empty((5, 0)),
+                past: "\n".to_string(),
+                future: String::new(),
+            },
         );
 
         assert_eq!(
@@ -3421,7 +3514,11 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Remove(Character((0, 0)), (String::new(), "\n".to_string())),
+            &Edit {
+                selection: Selection::new_empty((0, 0)),
+                past: "\n".to_string(),
+                future: String::new(),
+            },
         );
 
         assert_eq!(edit_buffer.history.edits, edit_buffer_.history.edits);
@@ -3435,7 +3532,11 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 0)), (String::new(), 'A'.to_string())),
+            &Edit {
+                selection: Selection::new_empty((0, 0)),
+                past: String::new(),
+                future: 'A'.to_string(),
+            },
         );
 
         if let Some(row) = edit_buffer.state.rows.first() {
@@ -3451,7 +3552,11 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 0)), (String::new(), '\u{203B}'.to_string())),
+            &Edit {
+                selection: Selection::new_empty((0, 0)),
+                past: String::new(),
+                future: '\u{203B}'.to_string(),
+            },
         );
 
         if let Some(row) = edit_buffer.state.rows.first() {
@@ -3469,7 +3574,11 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 0)), (String::new(), multiple.to_string())),
+            &Edit {
+                selection: Selection::new_empty((0, 0)),
+                past: String::new(),
+                future: multiple.to_string(),
+            },
         );
 
         if let Some(row) = edit_buffer.state.rows.first() {
@@ -3485,11 +3594,19 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 0)), (String::new(), "Hello".to_string())),
+            &Edit {
+                selection: Selection::new_empty((0, 0)),
+                past: String::new(),
+                future: "Hello".to_string(),
+            },
         );
         perform_edit(
             &mut edit_buffer,
-            &Remove(Character((0, 0)), (String::new(), " World!".to_string())),
+            &Edit {
+                selection: Selection::new_empty((0, 0)),
+                past: " World!".to_string(),
+                future: String::new(),
+            },
         );
 
         if let Some(row) = edit_buffer.state.rows.first() {
@@ -3505,14 +3622,22 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer_,
-            &Insert(Character((0, 0)), (String::new(), "123".to_string())),
+            &Edit {
+                selection: Selection::new_empty((0, 0)),
+                past: String::new(),
+                future: "123".to_string(),
+            },
         );
 
         let mut edit_buffer = edit_buffer_.clone();
 
         perform_edit(
             &mut edit_buffer,
-            &Remove(Character((2, 0)), (String::new(), "123".to_string())),
+            &Edit {
+                selection: Selection::new_empty((2, 0)),
+                past: "123".to_string(),
+                future: String::new(),
+            },
         );
 
         latest(&mut edit_buffer);
@@ -3530,7 +3655,11 @@ mod edit_actions_unit {
         assert_eq!(
             edit_buffer.history.edits,
             vec![
-                Insert(Character((0, 0)), (String::new(), "123".to_string())),
+                Edit {
+                    selection: Selection::new_empty((0, 0)),
+                    past: String::new(),
+                    future: "123".to_string(),
+                },
             ]
         );
         must_edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state);
@@ -3545,14 +3674,22 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer_,
-            &Insert(Character((0, 0)), (String::new(), "123".to_string())),
+            &Edit {
+                selection: Selection::new_empty((0, 0)),
+                past: String::new(),
+                future: "123".to_string(),
+            },
         );
 
         let mut edit_buffer = edit_buffer_.clone();
 
         perform_edit(
             &mut edit_buffer,
-            &Remove(Character((1, 0)), (String::new(), "123".to_string())),
+            &Edit {
+                selection: Selection::new_empty((1, 0)),
+                past: "123".to_string(),
+                future: String::new(),
+            },
         );
 
         latest(&mut edit_buffer);
@@ -3570,7 +3707,11 @@ mod edit_actions_unit {
         assert_eq!(
             edit_buffer.history.edits,
             vec![
-                Insert(Character((0, 0)), (String::new(), "123".to_string())),
+                Edit {
+                    selection: Selection::new_empty((0, 0)),
+                    past: String::new(),
+                    future: "123".to_string(),
+                },
             ]
         );
         must_edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state);
@@ -3584,13 +3725,21 @@ mod edit_actions_unit {
         let mut edit_buffer_: EditBuffer = Default::default();
         perform_edit(
             &mut edit_buffer_,
-            &Insert(Character((0, 0)), (String::new(), "123".to_string())),
+            &Edit {
+                selection: Selection::new_empty((0, 0)),
+                past: String::new(),
+                future: "123".to_string(),
+            },
         );
 
         assert_eq!(
             edit_buffer_.history.edits,
             vec![
-                Insert(Character((0, 0)), (String::new(), "123".to_string())),
+                Edit {
+                    selection: Selection::new_empty((0, 0)),
+                    past: String::new(),
+                    future: "123".to_string(),
+                },
             ]
         );
 
@@ -3598,7 +3747,11 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Remove(Character((0, 0)), (String::new(), "123".to_string())),
+            &Edit {
+                selection: Selection::new_empty((0, 0)),
+                past: "123".to_string(),
+                future: String::new(),
+            },
         );
 
         assert_eq!(
@@ -3622,8 +3775,16 @@ mod edit_actions_unit {
             assert_eq!(
                 edit_buffer.history.edits,
                 vec![
-                    Insert(Character((0, 0)), (String::new(), "123".to_string())),
-                    Remove(Character((0, 0)), (String::new(), "123".to_string())),
+                    Edit {
+                        selection: Selection::new_empty((0, 0)),
+                        past: String::new(),
+                        future: "123".to_string(),
+                    },
+                    Edit {
+                        selection: Selection::new_empty((0, 0)),
+                        past: "123".to_string(),
+                        future: String::new(),
+                    },
                 ]
             );
 
@@ -3635,8 +3796,16 @@ mod edit_actions_unit {
         assert_eq!(
             edit_buffer.history.edits,
             vec![
-                Insert(Character((0, 0)), (String::new(), "123".to_string())),
-                Remove(Character((0, 0)), (String::new(), "123".to_string())),
+                Edit {
+                    selection: Selection::new_empty((0, 0)),
+                    past: String::new(),
+                    future: "123".to_string(),
+                },
+                Edit {
+                    selection: Selection::new_empty((0, 0)),
+                    past: "123".to_string(),
+                    future: String::new(),
+                },
             ]
         );
         must_edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state);
@@ -3651,12 +3820,20 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 0)), (String::new(), "Hello".to_string())),
+            &Edit {
+                selection: Selection::new_empty((0, 0)),
+                past: String::new(),
+                future: "Hello".to_string(),
+            },
         );
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 0)), (String::new(), "\r".to_string())),
+            &Edit {
+                selection: Selection::new_empty((0, 0)),
+                past: String::new(),
+                future: "\r".to_string(),
+            },
         );
 
         assert_eq!(
@@ -3676,11 +3853,19 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 0)), (String::new(), "World".to_string())),
+            &Edit {
+                selection: Selection::new_empty((0, 0)),
+                past: String::new(),
+                future: "World".to_string(),
+            },
         );
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 0)), (String::new(), "Hello\r".to_string())),
+            &Edit {
+                selection: Selection::new_empty((0, 0)),
+                past: String::new(),
+                future: "Hello\r".to_string(),
+            },
         );
 
         assert_eq!(
@@ -3700,7 +3885,11 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 7)), (String::new(), "Hello".to_string())),
+            &Edit {
+                selection: Selection::new_empty((0, 7)),
+                past: "Hello".to_string(),
+                future: String::new(),
+            },
         );
 
         assert_eq!(
@@ -3720,17 +3909,29 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 0)), (String::new(), "Hello".to_string())),
+            &Edit {
+                selection: Selection::new_empty((0, 0)),
+                past: String::new(),
+                future: "Hello".to_string(),
+            },
         );
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((5, 0)), (String::new(), "\nWorld".to_string())),
+            &Edit {
+                selection: Selection::new_empty((5, 0)),
+                past: String::new(),
+                future: "\nWorld".to_string(),
+            },
         );
 
         perform_edit(
             &mut edit_buffer,
-            &Remove(Character((0, 1)), (String::new(), "Worl".to_string())),
+            &Edit {
+                selection: Selection::new_empty((0, 1)),
+                past: "Worl".to_string(),
+                future: String::new(),
+            },
         );
 
         assert_eq!(
@@ -3763,12 +3964,20 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 0)), (String::new(), "Hello".to_string())),
+            &Edit {
+                selection: Selection::new_empty((0, 0)),
+                past: String::new(),
+                future: "Hello".to_string(),
+            },
         );
 
         perform_edit(
             &mut edit_buffer,
-            &Remove(Character((0, 0)), (String::new(), "Hell".to_string())),
+            &Edit {
+                selection: Selection::new_empty((0, 0)),
+                past: "Hell".to_string(),
+                future: String::new(),
+            },
         );
 
         assert_eq!(
@@ -3782,7 +3991,6 @@ mod edit_actions_unit {
         );
 
         undo(&mut edit_buffer);
-
 
         assert_eq!(
             edit_buffer
@@ -3801,11 +4009,19 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 0)), (String::new(), "Hello".to_string())),
+            &Edit {
+                selection: Selection::new_empty((0, 0)),
+                past: String::new(),
+                future: "Hello".to_string(),
+            },
         );
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((3, 0)), (String::new(), "\n".to_string())),
+            &Edit {
+                selection: Selection::new_empty((3, 0)),
+                past: String::new(),
+                future: "\n".to_string(),
+            },
         );
 
         undo(&mut edit_buffer);
@@ -3827,11 +4043,19 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 0)), (String::new(), "Hello".to_string())),
+            &Edit {
+                selection: Selection::new_empty((0, 0)),
+                past: String::new(),
+                future: "Hello".to_string(),
+            },
         );
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 0)), (String::new(), "\n".to_string())),
+            &Edit {
+                selection: Selection::new_empty((0, 0)),
+                past: String::new(),
+                future: "\n".to_string(),
+            },
         );
 
         undo(&mut edit_buffer);
@@ -3853,11 +4077,19 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 0)), (String::new(), "Hello".to_string())),
+            &Edit {
+                selection: Selection::new_empty((0, 0)),
+                past: String::new(),
+                future: "Hello".to_string(),
+            },
         );
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((5, 0)), (String::new(), "\n".to_string())),
+            &Edit {
+                selection: Selection::new_empty((5, 0)),
+                past: String::new(),
+                future: "\n".to_string(),
+            },
         );
 
         undo(&mut edit_buffer);
@@ -3881,7 +4113,11 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 1)), (String::new(), "A".to_string())),
+            &Edit {
+                selection: Selection::new_empty((0, 1)),
+                past: String::new(),
+                future: "A".to_string(),
+            },
         );
 
         assert_eq!(
@@ -3898,7 +4134,7 @@ mod edit_actions_unit {
 
     #[test]
     fn cannot_make_row_past_last_row() {
-        let mut edit_buffer_ = EditBuffer {
+        let edit_buffer_ = EditBuffer {
             state: EditBufferState {
                 cx: 0,
                 cy: 0,
@@ -3927,7 +4163,11 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 1)), (String::new(), "\n".to_string())),
+            &Edit {
+                selection: Selection::new_empty((0, 1)),
+                past: String::new(),
+                future: "\n".to_string(),
+            },
         );
 
         latest(&mut edit_buffer);
