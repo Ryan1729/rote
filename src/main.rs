@@ -2204,7 +2204,7 @@ fn char_len(s: &str) -> usize {
 
 fn perform_edit(edit_buffer: &mut EditBuffer, edit: &Edit) -> EditOutcome {
     let outcome = no_history_perform_edit(&mut edit_buffer.state, edit);
-
+    p!("perform_edit", outcome);
     if let Changed = outcome {
         if edit_buffer
             .history
@@ -2395,6 +2395,7 @@ fn no_history_perform_edit(state: &mut EditBufferState, edit: &Edit) -> EditOutc
 }
 
 fn no_history_unperform_edit(state: &mut EditBufferState, edit: &Edit) -> EditOutcome {
+    p!(edit);
     match *edit {
         Insert(ref section, (ref past_s, ref future_s))
             if NormalRow == state.section_type(section) =>
@@ -2456,7 +2457,7 @@ fn redo(edit_buffer: &mut EditBuffer) -> EditOutcome {
 fn undo(edit_buffer: &mut EditBuffer) -> EditOutcome {
     if let Some(edit) = edit_buffer.history.get_current() {
         let outcome = no_history_unperform_edit(&mut edit_buffer.state, &edit);
-
+        p!("undo", outcome);
         if let Changed = outcome {
             edit_buffer.history.dec_current();
         } else {
@@ -2520,6 +2521,7 @@ mod test_helpers {
 
 #[cfg(test)]
 mod edit_actions {
+    use std::string::String;
     use super::*;
     use super::test_helpers::{edit_buffer_isomorphism, edit_buffer_weak_isomorphism,
                               must_edit_buffer_isomorphism, must_edit_buffer_weak_isomorphism};
@@ -2585,6 +2587,20 @@ mod edit_actions {
                             saved_history_position,
                         }
                     }),
+            )
+        }
+    }
+
+    impl Arbitrary for Selection {
+        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
+            Selection::new(a!(g), a!(g))
+        }
+
+        fn shrink(&self) -> Box<Iterator<Item = Self>> {
+            Box::new(
+                (self.earlier, self.later)
+                    .shrink()
+                    .map(|(e, l)| Selection::new(e, l)),
             )
         }
     }
@@ -2660,6 +2676,7 @@ mod edit_actions {
                 col_offset: g.gen(),
                 rows,
                 filename: a!(g),
+                selection: a!(g),
             }
         }
 
@@ -2712,16 +2729,24 @@ mod edit_actions {
     impl Arbitrary for Section {
         fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
             let size = (g.size() as u32) / 4;
-            if size == 0 {
-                Character((0, 0))
+            if g.gen() {
+                if size == 0 {
+                    Character((0, 0))
+                } else {
+                    Character((g.gen_range(0, size), g.gen_range(0, size)))
+                }
             } else {
-                Character((g.gen_range(0, size), g.gen_range(0, size)))
+                Selection(Selection::new(
+                    (g.gen_range(0, size), g.gen_range(0, size)),
+                    (g.gen_range(0, size), g.gen_range(0, size)),
+                ))
             }
         }
 
         fn shrink(&self) -> Box<Iterator<Item = Self>> {
             match *self {
                 Character(coord) => Box::new(coord.shrink().map(Character)),
+                Selection(selection) => Box::new(selection.shrink().map(Selection)),
             }
         }
     }
@@ -2729,8 +2754,14 @@ mod edit_actions {
     impl Arbitrary for Edit {
         fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
             match g.gen_range(0, 2) {
-                1 => Insert(Section::arbitrary(g), String::arbitrary(g)),
-                _ => Remove(Section::arbitrary(g), String::arbitrary(g)),
+                1 => Insert(
+                    Section::arbitrary(g),
+                    (String::arbitrary(g), String::arbitrary(g)),
+                ),
+                _ => Remove(
+                    Section::arbitrary(g),
+                    (String::arbitrary(g), String::arbitrary(g)),
+                ),
             }
         }
 
@@ -2836,6 +2867,7 @@ mod edit_actions {
 
 #[cfg(test)]
 mod edit_actions_unit {
+    use std::string::String;
     use super::*;
     use super::EditorHighlight::*;
     use super::test_helpers::{edit_buffer_isomorphism, edit_buffer_weak_isomorphism,
@@ -2848,15 +2880,15 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 0)), "\n".to_string()),
+            &Insert(Character((0, 0)), (String::new(), "\n".to_string())),
         );
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 1)), "qweqwe".to_string()),
+            &Insert(Character((0, 1)), (String::new(), "qweqwe".to_string())),
         );
         perform_edit(
             &mut edit_buffer,
-            &Remove(Character((5, 1)), "e".to_string()),
+            &Remove(Character((5, 1)), (String::new(), "e".to_string())),
         );
 
         assert_eq!(
@@ -2888,14 +2920,13 @@ mod edit_actions_unit {
                         highlight_open_comment: false,
                     },
                 ],
-
-                filename: None,
+                ..Default::default()
             },
             history: History {
                 edits: vec![
-                    Remove(Character((0, 0)), "B".to_string()),
-                    Insert(Character((0, 0)), "A".to_string()),
-                    Remove(Character((0, 0)), "B".to_string()),
+                    Remove(Character((0, 0)), (String::new(), "B".to_string())),
+                    Insert(Character((0, 0)), (String::new(), "A".to_string())),
+                    Remove(Character((0, 0)), (String::new(), "B".to_string())),
                 ],
                 current: Some(0),
             },
@@ -2941,10 +2972,10 @@ mod edit_actions_unit {
                     },
                 ],
 
-                filename: None,
+                ..Default::default()
             },
             history: History {
-                edits: vec![Remove(Character((0, 0)), "".to_string())],
+                edits: vec![Remove(Character((0, 0)), (String::new(), String::new()))],
                 current: None,
             },
             saved_history_position: None,
@@ -2954,7 +2985,7 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((1, 0)), "2".to_string()),
+            &Insert(Character((1, 0)), (String::new(), "2".to_string())),
         );
 
         latest(&mut edit_buffer);
@@ -2985,7 +3016,7 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 0)), "\n\r".to_string()),
+            &Insert(Character((0, 0)), (String::new(), "\n\r".to_string())),
         );
 
         latest(&mut edit_buffer);
@@ -3014,7 +3045,7 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 0)), "\r\n".to_string()),
+            &Insert(Character((0, 0)), (String::new(), "\r\n".to_string())),
         );
 
         latest(&mut edit_buffer);
@@ -3054,11 +3085,10 @@ mod edit_actions_unit {
                         highlight_open_comment: false,
                     },
                 ],
-
-                filename: None,
+                ..Default::default()
             },
             history: History {
-                edits: vec![Insert(Character((2, 0)), "\n".to_string())],
+                edits: vec![Insert(Character((2, 0)), (String::new(), "\n".to_string()))],
                 current: None,
             },
             saved_history_position: None,
@@ -3091,11 +3121,13 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer_,
-            &Insert(Character((0, 0)), "4".to_string()),
+            &Insert(Character((0, 0)), (String::new(), "4".to_string())),
         );
 
         edit_buffer_.history = History {
-            edits: vec![Insert(Character((1, 0)), "\n2".to_string())],
+            edits: vec![
+                Insert(Character((1, 0)), (String::new(), "\n2".to_string())),
+            ],
             current: None,
         };
 
@@ -3125,14 +3157,14 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer_,
-            &Insert(Character((0, 0)), "2".to_string()),
+            &Insert(Character((0, 0)), (String::new(), "2".to_string())),
         );
 
         let mut edit_buffer = edit_buffer_.clone();
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 0)), "4\n".to_string()),
+            &Insert(Character((0, 0)), (String::new(), "4\n".to_string())),
         );
 
         latest(&mut edit_buffer);
@@ -3159,14 +3191,14 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer_,
-            &Insert(Character((0, 0)), "3".to_string()),
+            &Insert(Character((0, 0)), (String::new(), "3".to_string())),
         );
 
         let mut edit_buffer = edit_buffer_.clone();
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 0)), "1\n2\n".to_string()),
+            &Insert(Character((0, 0)), (String::new(), "1\n2\n".to_string())),
         );
 
         latest(&mut edit_buffer);
@@ -3205,8 +3237,7 @@ mod edit_actions_unit {
                         highlight_open_comment: false,
                     },
                 ],
-
-                filename: None,
+                ..Default::default()
             },
             history: History {
                 edits: vec![],
@@ -3219,7 +3250,7 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 0)), "\u{0}".to_string()),
+            &Insert(Character((0, 0)), (String::new(), "\u{0}".to_string())),
         );
 
         latest(&mut edit_buffer);
@@ -3246,14 +3277,14 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer_,
-            &Insert(Character((0, 0)), "/˓^".to_string()),
+            &Insert(Character((0, 0)), (String::new(), "/˓^".to_string())),
         );
 
         let mut edit_buffer = edit_buffer_.clone();
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((2, 0)), "/˓^".to_string()),
+            &Insert(Character((2, 0)), (String::new(), "/˓^".to_string())),
         );
 
         latest(&mut edit_buffer);
@@ -3279,7 +3310,10 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 0)), "Hello\nWorld".to_string()),
+            &Insert(
+                Character((0, 0)),
+                (String::new(), "Hello\nWorld".to_string()),
+            ),
         );
 
         edit_buffer
@@ -3306,7 +3340,7 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Remove(Character((0, 0)), "Hello".to_string()),
+            &Remove(Character((0, 0)), (String::new(), "Hello".to_string())),
         );
 
         assert_eq!(
@@ -3326,7 +3360,7 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Remove(Character((1, 0)), "ello".to_string()),
+            &Remove(Character((1, 0)), (String::new(), "ello".to_string())),
         );
 
         assert_eq!(
@@ -3346,7 +3380,7 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Remove(Character((4, 0)), "o".to_string()),
+            &Remove(Character((4, 0)), (String::new(), "o".to_string())),
         );
 
         assert_eq!(
@@ -3366,7 +3400,7 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Remove(Character((5, 0)), "\n".to_string()),
+            &Remove(Character((5, 0)), (String::new(), "\n".to_string())),
         );
 
         assert_eq!(
@@ -3387,7 +3421,7 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Remove(Character((0, 0)), "\n".to_string()),
+            &Remove(Character((0, 0)), (String::new(), "\n".to_string())),
         );
 
         assert_eq!(edit_buffer.history.edits, edit_buffer_.history.edits);
@@ -3401,7 +3435,7 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 0)), 'A'.to_string()),
+            &Insert(Character((0, 0)), (String::new(), 'A'.to_string())),
         );
 
         if let Some(row) = edit_buffer.state.rows.first() {
@@ -3417,7 +3451,7 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 0)), '\u{203B}'.to_string()),
+            &Insert(Character((0, 0)), (String::new(), '\u{203B}'.to_string())),
         );
 
         if let Some(row) = edit_buffer.state.rows.first() {
@@ -3435,7 +3469,7 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 0)), multiple.to_string()),
+            &Insert(Character((0, 0)), (String::new(), multiple.to_string())),
         );
 
         if let Some(row) = edit_buffer.state.rows.first() {
@@ -3451,11 +3485,11 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 0)), "Hello".to_string()),
+            &Insert(Character((0, 0)), (String::new(), "Hello".to_string())),
         );
         perform_edit(
             &mut edit_buffer,
-            &Remove(Character((0, 0)), " World!".to_string()),
+            &Remove(Character((0, 0)), (String::new(), " World!".to_string())),
         );
 
         if let Some(row) = edit_buffer.state.rows.first() {
@@ -3471,14 +3505,14 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer_,
-            &Insert(Character((0, 0)), "123".to_string()),
+            &Insert(Character((0, 0)), (String::new(), "123".to_string())),
         );
 
         let mut edit_buffer = edit_buffer_.clone();
 
         perform_edit(
             &mut edit_buffer,
-            &Remove(Character((2, 0)), "123".to_string()),
+            &Remove(Character((2, 0)), (String::new(), "123".to_string())),
         );
 
         latest(&mut edit_buffer);
@@ -3495,7 +3529,9 @@ mod edit_actions_unit {
 
         assert_eq!(
             edit_buffer.history.edits,
-            vec![Insert(Character((0, 0)), "123".to_string())]
+            vec![
+                Insert(Character((0, 0)), (String::new(), "123".to_string())),
+            ]
         );
         must_edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state);
         must_edit_buffer_isomorphism(&edit_buffer.state, &edit_buffer_.state);
@@ -3509,14 +3545,14 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer_,
-            &Insert(Character((0, 0)), "123".to_string()),
+            &Insert(Character((0, 0)), (String::new(), "123".to_string())),
         );
 
         let mut edit_buffer = edit_buffer_.clone();
 
         perform_edit(
             &mut edit_buffer,
-            &Remove(Character((1, 0)), "123".to_string()),
+            &Remove(Character((1, 0)), (String::new(), "123".to_string())),
         );
 
         latest(&mut edit_buffer);
@@ -3533,7 +3569,9 @@ mod edit_actions_unit {
 
         assert_eq!(
             edit_buffer.history.edits,
-            vec![Insert(Character((0, 0)), "123".to_string())]
+            vec![
+                Insert(Character((0, 0)), (String::new(), "123".to_string())),
+            ]
         );
         must_edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state);
         must_edit_buffer_isomorphism(&edit_buffer.state, &edit_buffer_.state);
@@ -3544,17 +3582,23 @@ mod edit_actions_unit {
     #[test]
     fn undo_matching_remove() {
         let mut edit_buffer_: EditBuffer = Default::default();
-
         perform_edit(
             &mut edit_buffer_,
-            &Insert(Character((0, 0)), "123".to_string()),
+            &Insert(Character((0, 0)), (String::new(), "123".to_string())),
+        );
+
+        assert_eq!(
+            edit_buffer_.history.edits,
+            vec![
+                Insert(Character((0, 0)), (String::new(), "123".to_string())),
+            ]
         );
 
         let mut edit_buffer = edit_buffer_.clone();
 
         perform_edit(
             &mut edit_buffer,
-            &Remove(Character((0, 0)), "123".to_string()),
+            &Remove(Character((0, 0)), (String::new(), "123".to_string())),
         );
 
         assert_eq!(
@@ -3575,6 +3619,14 @@ mod edit_actions_unit {
         }
 
         while let Changed = undo(&mut edit_buffer) {
+            assert_eq!(
+                edit_buffer.history.edits,
+                vec![
+                    Insert(Character((0, 0)), (String::new(), "123".to_string())),
+                    Remove(Character((0, 0)), (String::new(), "123".to_string())),
+                ]
+            );
+
             if edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state) {
                 return;
             }
@@ -3583,8 +3635,8 @@ mod edit_actions_unit {
         assert_eq!(
             edit_buffer.history.edits,
             vec![
-                Insert(Character((0, 0)), "123".to_string()),
-                Remove(Character((0, 0)), "123".to_string()),
+                Insert(Character((0, 0)), (String::new(), "123".to_string())),
+                Remove(Character((0, 0)), (String::new(), "123".to_string())),
             ]
         );
         must_edit_buffer_weak_isomorphism(&edit_buffer.state, &edit_buffer_.state);
@@ -3599,12 +3651,12 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 0)), "Hello".to_string()),
+            &Insert(Character((0, 0)), (String::new(), "Hello".to_string())),
         );
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 0)), "\r".to_string()),
+            &Insert(Character((0, 0)), (String::new(), "\r".to_string())),
         );
 
         assert_eq!(
@@ -3624,11 +3676,11 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 0)), "World".to_string()),
+            &Insert(Character((0, 0)), (String::new(), "World".to_string())),
         );
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 0)), "Hello\r".to_string()),
+            &Insert(Character((0, 0)), (String::new(), "Hello\r".to_string())),
         );
 
         assert_eq!(
@@ -3648,7 +3700,7 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 7)), "Hello".to_string()),
+            &Insert(Character((0, 7)), (String::new(), "Hello".to_string())),
         );
 
         assert_eq!(
@@ -3668,17 +3720,17 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 0)), "Hello".to_string()),
+            &Insert(Character((0, 0)), (String::new(), "Hello".to_string())),
         );
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((5, 0)), "\nWorld".to_string()),
+            &Insert(Character((5, 0)), (String::new(), "\nWorld".to_string())),
         );
 
         perform_edit(
             &mut edit_buffer,
-            &Remove(Character((0, 1)), "Worl".to_string()),
+            &Remove(Character((0, 1)), (String::new(), "Worl".to_string())),
         );
 
         assert_eq!(
@@ -3711,12 +3763,12 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 0)), "Hello".to_string()),
+            &Insert(Character((0, 0)), (String::new(), "Hello".to_string())),
         );
 
         perform_edit(
             &mut edit_buffer,
-            &Remove(Character((0, 0)), "Hell".to_string()),
+            &Remove(Character((0, 0)), (String::new(), "Hell".to_string())),
         );
 
         assert_eq!(
@@ -3749,11 +3801,11 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 0)), "Hello".to_string()),
+            &Insert(Character((0, 0)), (String::new(), "Hello".to_string())),
         );
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((3, 0)), "\n".to_string()),
+            &Insert(Character((3, 0)), (String::new(), "\n".to_string())),
         );
 
         undo(&mut edit_buffer);
@@ -3775,11 +3827,11 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 0)), "Hello".to_string()),
+            &Insert(Character((0, 0)), (String::new(), "Hello".to_string())),
         );
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 0)), "\n".to_string()),
+            &Insert(Character((0, 0)), (String::new(), "\n".to_string())),
         );
 
         undo(&mut edit_buffer);
@@ -3801,11 +3853,11 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 0)), "Hello".to_string()),
+            &Insert(Character((0, 0)), (String::new(), "Hello".to_string())),
         );
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((5, 0)), "\n".to_string()),
+            &Insert(Character((5, 0)), (String::new(), "\n".to_string())),
         );
 
         undo(&mut edit_buffer);
@@ -3829,7 +3881,7 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 1)), "A".to_string()),
+            &Insert(Character((0, 1)), (String::new(), "A".to_string())),
         );
 
         assert_eq!(
@@ -3862,8 +3914,7 @@ mod edit_actions_unit {
                         highlight_open_comment: false,
                     },
                 ],
-
-                filename: None,
+                ..Default::default()
             },
             history: History {
                 edits: vec![],
@@ -3876,7 +3927,7 @@ mod edit_actions_unit {
 
         perform_edit(
             &mut edit_buffer,
-            &Insert(Character((0, 1)), "\n".to_string()),
+            &Insert(Character((0, 1)), (String::new(), "\n".to_string())),
         );
 
         latest(&mut edit_buffer);
