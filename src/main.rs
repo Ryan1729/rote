@@ -1584,6 +1584,8 @@ fn draw_rows(
     buffer_state: &EditBufferState,
     buf: &mut String,
 ) {
+    let mut in_selection = false;
+
     for y in 0..screen_rows {
         let file_index = y + buffer_state.row_offset;
         if file_index >= buffer_state.rows.len() as u32 {
@@ -1614,23 +1616,41 @@ fn draw_rows(
         } else {
             let current_row = &buffer_state.rows[file_index as usize];
             let mut len = std::cmp::min(
-                current_row
-                    .render
-                    .len()
-                    .saturating_sub(buffer_state.col_offset as _),
+                char_len(&current_row.render).saturating_sub(buffer_state.col_offset as _),
                 screen_cols as usize,
             );
 
+            let (in_selection_start_row, in_selection_end_row) =
+                if let Some(sel) = buffer_state.selection {
+                    (sel.earlier.1 == file_index, sel.later.1 == file_index)
+                } else {
+                    (false, false)
+                };
 
             let mut current_colour = None;
-            for (i, c) in current_row
+            for (ci, c) in current_row
                 .render
                 .chars()
                 .skip(buffer_state.col_offset as _)
                 .enumerate()
             {
-                if i >= len {
+                if ci >= len {
                     break;
+                }
+
+                if in_selection_start_row {
+                    let at_selection_start = if let Some(sel) = buffer_state.selection {
+                        sel.earlier.0 == ci as u32
+                    } else {
+                        false
+                    };
+                    if at_selection_start {
+                        in_selection = true;
+                    }
+                }
+
+                if in_selection {
+                    buf.push_str("\x1b[7m");
                 }
 
                 if c.is_control() {
@@ -1646,7 +1666,7 @@ fn draw_rows(
                         buf.push_str(&format!("\x1b[{}m", colour));
                     }
                 } else {
-                    match current_row.highlight[i] {
+                    match current_row.highlight[ci] {
                         EditorHighlight::Normal => {
                             if current_colour.is_some() {
                                 buf.push_str("\x1b[39m");
@@ -1655,13 +1675,27 @@ fn draw_rows(
                             buf.push(c);
                         }
                         _ => {
-                            let colour = syntax_to_color(current_row.highlight[i]);
+                            let colour = syntax_to_color(current_row.highlight[ci]);
                             if Some(colour) != current_colour {
                                 current_colour = Some(colour);
                                 buf.push_str(&format!("\x1b[{}m", colour));
                             }
                             buf.push(c);
                         }
+                    }
+                }
+
+                if in_selection {
+                    buf.push_str("\x1b[m");
+                }
+                if in_selection_end_row {
+                    let at_selection_end = if let Some(sel) = buffer_state.selection {
+                        sel.later.0 == ci as u32
+                    } else {
+                        false
+                    };
+                    if at_selection_end {
+                        in_selection = false;
                     }
                 }
             }
@@ -1811,6 +1845,8 @@ fn move_cursor(state: &mut EditBufferState, arrow: Arrow) {
     if state.cx > new_row_len {
         state.cx = new_row_len;
     }
+
+    state.selection = None;
 }
 
 fn jump_cursor(state: &mut EditBufferState, arrow: Arrow) {
@@ -1895,6 +1931,36 @@ fn jump_cursor(state: &mut EditBufferState, arrow: Arrow) {
                 }
             }
         }
+    }
+}
+
+fn add_to_selection(state: &mut EditBufferState, arrow: Arrow) {
+    let selection = state.selection;
+    let cx = state.cx;
+    let cy = state.cy;
+
+    move_cursor(state, arrow);
+
+    state.selection = match selection {
+        Some(sel) => if state.cy < sel.earlier.1 || state.cx < sel.earlier.0 {
+            Some(Selection::new((state.cx, state.cy), sel.later))
+        } else if state.cy > sel.earlier.1 || state.cx > sel.earlier.0 {
+            Some(Selection::new(sel.earlier, (state.cx, state.cy)))
+        } else {
+            None
+        },
+        None => {
+            let (old, new) = ((cx, cy), (state.cx, state.cy));
+            if old == new {
+                None
+            } else {
+                Some(Selection::new(old, new))
+            }
+        }
+    };
+
+    if let Some(sel) = state.selection {
+        c!(sel);
     }
 }
 
@@ -2093,7 +2159,7 @@ fn process_editor_keypress() {
             jump_cursor(&mut state.edit_buffer.state, arrow);
         },
         ShiftArrow(arrow) => if let Some(state) = unsafe { STATE.as_mut() } {
-            move_cursor(&mut state.edit_buffer.state, arrow);
+            add_to_selection(&mut state.edit_buffer.state, arrow);
         },
         Byte(c0) if c0 == CTRL_KEY!(b'l') || c0 == b'\x1b' => {}
         Byte(c0) if c0 == 0 => {
