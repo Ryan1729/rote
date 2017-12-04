@@ -216,7 +216,14 @@ mod selection {
                     }
                 }
             } else {
-                for cy in self.earlier.1..self.later.1 {
+                let mut not_first_line = false;
+                for cy in self.earlier.1..(self.later.1 + 1) {
+                    c!("cy", cy);
+                    if not_first_line {
+                        s.push('\n');
+                        added_any = true;
+                    }
+
                     if let Some(row) = rows.get(cy as usize).map(|row| &row.row) {
                         let end_cx = if cy >= self.later.1 {
                             self.later.0
@@ -239,6 +246,8 @@ mod selection {
                     } else {
                         return None;
                     }
+
+                    not_first_line = true;
                 }
             }
             if added_any {
@@ -2100,6 +2109,7 @@ fn process_editor_keypress() {
             }
         }
         Byte(BACKSPACE) | Delete | Byte(CTRL_H) => if let Some(state) = unsafe { STATE.as_mut() } {
+            let old_selection = state.edit_buffer.state.selection;
             match key {
                 Byte(BACKSPACE) | Byte(CTRL_H) => {
                     move_cursor(&mut state.edit_buffer.state, Arrow::Left);
@@ -2107,27 +2117,33 @@ fn process_editor_keypress() {
                 _ => {}
             }
 
+            if old_selection.is_some() {
+                state.edit_buffer.state.selection = old_selection;
+                possible_edit = Some(Edit::new(&state.edit_buffer.state, String::new()));
+                c!("is_some", &possible_edit);
+            } else {
+                c!("was_none");
+                if let Some(row) = state
+                    .edit_buffer
+                    .state
+                    .rows
+                    .get(state.edit_buffer.state.cy as usize)
+                {
+                    let cx = state.edit_buffer.state.cx as usize;
+                    let current_char = row.row.chars().nth(cx);
 
-            if let Some(row) = state
-                .edit_buffer
-                .state
-                .rows
-                .get(state.edit_buffer.state.cy as usize)
-            {
-                let cx = state.edit_buffer.state.cx as usize;
-                let current_char = row.row.chars().nth(cx);
+                    let current_char_str = if let Some(c) = current_char {
+                        c.to_string()
+                    } else {
+                        '\n'.to_string()
+                    };
 
-                let current_char_str = if let Some(c) = current_char {
-                    c.to_string()
-                } else {
-                    '\n'.to_string()
-                };
-
-                possible_edit = Some(Edit {
-                    selection: state.edit_buffer.state.get_selection(),
-                    past: current_char_str,
-                    future: String::new(),
-                });
+                    possible_edit = Some(Edit {
+                        selection: state.edit_buffer.state.get_selection(),
+                        past: current_char_str,
+                        future: String::new(),
+                    });
+                }
             }
         },
         Page(page) => if let Some(state) = unsafe { STATE.as_mut() } {
@@ -3479,6 +3495,54 @@ mod edit_actions_unit {
                 .map(|r| r.row)
                 .collect::<Vec<_>>(),
             vec!["Hello".to_string(), "World".to_string()]
+        );
+    }
+
+    #[test]
+    fn remove_multiple_selected_lines() {
+        let mut edit_buffer = get_hello_world();
+
+        perform_edit(
+            &mut edit_buffer,
+            &Edit {
+                selection: Selection::new((1, 0), (2, 1)),
+                past: "ello\nWo".to_string(),
+                future: String::new(),
+            },
+        );
+
+        assert_eq!(
+            edit_buffer
+                .state
+                .rows
+                .into_iter()
+                .map(|r| r.row)
+                .collect::<Vec<_>>(),
+            vec!["Hrld".to_string()]
+        );
+    }
+
+    #[test]
+    fn remove_multiple_selected_lines_and_insert() {
+        let mut edit_buffer = get_hello_world();
+
+        perform_edit(
+            &mut edit_buffer,
+            &Edit {
+                selection: Selection::new((1, 0), (2, 1)),
+                past: "ello\nWo".to_string(),
+                future: "u".to_string(),
+            },
+        );
+
+        assert_eq!(
+            edit_buffer
+                .state
+                .rows
+                .into_iter()
+                .map(|r| r.row)
+                .collect::<Vec<_>>(),
+            vec!["Hurld".to_string()]
         );
     }
 
