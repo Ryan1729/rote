@@ -279,7 +279,7 @@ impl Edit {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Arrow {
     Left,
     Right,
@@ -1614,6 +1614,9 @@ fn draw_rows(
                 buf.push('~');
             }
         } else {
+            // if y < 5 {
+            //     c!(in_selection);
+            // }
             let current_row = &buffer_state.rows[file_index as usize];
 
             let (in_selection_start_row, in_selection_end_row) =
@@ -1622,6 +1625,16 @@ fn draw_rows(
                 } else {
                     (false, false)
                 };
+
+            if (in_selection_start_row || in_selection) && current_row.render.len() == 0 {
+                in_selection == true;
+
+                buf.push_str("\x1b[7m");
+                for _ in 0..screen_cols {
+                    buf.push(' ');
+                }
+                buf.push_str("\x1b[m");
+            }
 
             let mut current_colour = None;
             for (ci, c) in current_row
@@ -1659,22 +1672,19 @@ fn draw_rows(
                     }
                 } else {
                     match current_row.highlight[ci] {
-                        EditorHighlight::Normal => {
-                            if current_colour.is_some() {
-                                buf.push_str("\x1b[39m");
-                                current_colour = None;
-                            }
-                            buf.push(c);
-                        }
+                        EditorHighlight::Normal => if current_colour.is_some() {
+                            buf.push_str("\x1b[39m");
+                            current_colour = None;
+                        },
                         _ => {
                             let colour = syntax_to_color(current_row.highlight[ci]);
                             if Some(colour) != current_colour {
                                 current_colour = Some(colour);
                                 buf.push_str(&format!("\x1b[{}m", colour));
                             }
-                            buf.push(c);
                         }
                     }
+                    buf.push(c);
                 }
 
                 if in_selection {
@@ -1939,16 +1949,25 @@ fn add_to_selection(state: &mut EditBufferState, arrow: Arrow) {
     move_cursor(state, arrow);
 
     state.selection = match selection {
-        Some(sel) => if state.cy < sel.earlier.1 || state.cx < sel.earlier.0 {
-            Some(Selection::new((state.cx, state.cy), sel.later))
-        } else if state.cy > sel.earlier.1 || state.cx > sel.earlier.0 {
-            Some(Selection::new(sel.earlier, (state.cx, state.cy)))
+        Some(sel) => if (cx, cy) == sel.earlier {
+            if state.cy <= sel.earlier.1 || state.cx <= sel.earlier.0 {
+                Some(Selection::new((state.cx, state.cy), sel.later))
+            } else {
+                c!("None 1");
+                None
+            }
         } else {
-            None
+            if state.cy > sel.earlier.1 || state.cx > sel.earlier.0 {
+                Some(Selection::new(sel.earlier, (state.cx, state.cy)))
+            } else {
+                c!("None 2");
+                None
+            }
         },
         None => {
             let (old, new) = ((cx, cy), (state.cx, state.cy));
             if old == new {
+                c!("None 3");
                 None
             } else {
                 Some(Selection::new(old, new))
