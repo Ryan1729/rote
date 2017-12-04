@@ -218,7 +218,6 @@ mod selection {
             } else {
                 let mut not_first_line = false;
                 for cy in self.earlier.1..(self.later.1 + 1) {
-                    c!("cy", cy);
                     if not_first_line {
                         s.push('\n');
                         added_any = true;
@@ -1002,7 +1001,13 @@ fn update_syntax(row: &mut Row) {
             let mut prev_sep = true;
             let mut in_string = None;
             let mut in_comment = row.index > 0
-                && state.edit_buffer.state.rows[(row.index - 1) as usize].highlight_open_comment;
+                && state
+                    .edit_buffer
+                    .state
+                    .rows
+                    .get((row.index - 1) as usize)
+                    .map(|r| r.highlight_open_comment)
+                    .unwrap_or(false);
 
             let mut char_indices = row.render.char_indices();
 
@@ -1620,6 +1625,10 @@ fn draw_rows(
             }
         } else {
             let current_row = &buffer_state.rows[file_index as usize];
+            let right_edge = std::cmp::min(
+                char_len(&current_row.render).saturating_sub(buffer_state.col_offset as _),
+                screen_cols as usize,
+            ) + buffer_state.col_offset as usize;
 
             let (in_selection_start_row, in_selection_end_row) =
                 if let Some(sel) = buffer_state.selection {
@@ -1641,10 +1650,16 @@ fn draw_rows(
             let mut current_colour = None;
             for (ci, c) in current_row
                 .render
-                .chars()
+                .char_indices()
                 .skip(buffer_state.col_offset as _)
-                .enumerate()
             {
+                if buffer_state.col_offset > 0 {
+                    c!(ci);
+                }
+                if ci >= right_edge {
+                    break;
+                }
+
                 if in_selection_start_row {
                     let at_selection_start = if let Some(sel) = buffer_state.selection {
                         sel.earlier.0 == ci as u32
@@ -2120,9 +2135,7 @@ fn process_editor_keypress() {
             if old_selection.is_some() {
                 state.edit_buffer.state.selection = old_selection;
                 possible_edit = Some(Edit::new(&state.edit_buffer.state, String::new()));
-                c!("is_some", &possible_edit);
             } else {
-                c!("was_none");
                 if let Some(row) = state
                     .edit_buffer
                     .state
@@ -2192,7 +2205,6 @@ fn process_editor_keypress() {
     }
 
     if let Some(edit) = possible_edit {
-        c!(edit);
         if let Some(state) = unsafe { STATE.as_mut() } {
             perform_edit(&mut state.edit_buffer, &edit);
         }
