@@ -201,6 +201,20 @@ mod selection {
                     let char_len = char_len(&row.row) as u32;
                     added_any = self.earlier.0 <= char_len;
                 }
+            } else if self.earlier.1 == self.later.1 {
+                let (cx, cy) = self.earlier;
+                if let Some(row) = rows.get(cy as usize).map(|row| &row.row) {
+                    match (cx_to_byte_x(row, cx), cx_to_byte_x(row, self.later.0)) {
+                        (Some(start), Some(end)) => {
+                            if start != end {
+                                s.push_str(&row[start..end]);
+                            }
+
+                            added_any = true;
+                        }
+                        _ => {}
+                    }
+                }
             } else {
                 for cy in self.earlier.1..self.later.1 {
                     if let Some(row) = rows.get(cy as usize).map(|row| &row.row) {
@@ -249,27 +263,9 @@ impl Edit {
     fn new(state: &EditBufferState, future: String) -> Self {
         let selection = state.get_selection();
 
-        let past: String = if selection.earlier.1 == selection.later.1 {
-            let row = &state.rows[selection.earlier.1 as usize].row;
-            if selection.earlier.0 == selection.later.0 {
-                match row.chars().nth(selection.earlier.0 as usize) {
-                    Some(c) => c.to_string(),
-                    None => String::new(),
-                }
-            } else {
-                match (
-                    cx_to_byte_x(row, selection.earlier.0),
-                    cx_to_byte_x(row, selection.later.0),
-                ) {
-                    (Some(start), Some(end)) => row[start..end].to_owned(),
-                    _ => String::new(),
-                }
-            }
-        } else {
-            selection
-                .get_selected_string(&state.rows)
-                .unwrap_or_else(|| String::new())
-        };
+        let past: String = selection
+            .get_selected_string(&state.rows)
+            .unwrap_or_else(|| String::new());
 
         Edit {
             selection,
@@ -1614,9 +1610,6 @@ fn draw_rows(
                 buf.push('~');
             }
         } else {
-            // if y < 5 {
-            //     c!(in_selection);
-            // }
             let current_row = &buffer_state.rows[file_index as usize];
 
             let (in_selection_start_row, in_selection_end_row) =
@@ -1953,31 +1946,24 @@ fn add_to_selection(state: &mut EditBufferState, arrow: Arrow) {
             if state.cy <= sel.earlier.1 || state.cx <= sel.earlier.0 {
                 Some(Selection::new((state.cx, state.cy), sel.later))
             } else {
-                c!("None 1");
                 None
             }
         } else {
             if state.cy > sel.earlier.1 || state.cx > sel.earlier.0 {
                 Some(Selection::new(sel.earlier, (state.cx, state.cy)))
             } else {
-                c!("None 2");
                 None
             }
         },
         None => {
             let (old, new) = ((cx, cy), (state.cx, state.cy));
             if old == new {
-                c!("None 3");
                 None
             } else {
                 Some(Selection::new(old, new))
             }
         }
     };
-
-    if let Some(sel) = state.selection {
-        c!(sel);
-    }
 }
 
 fn get_previous_char(state: &EditBufferState) -> Option<char> {
@@ -2190,6 +2176,7 @@ fn process_editor_keypress() {
     }
 
     if let Some(edit) = possible_edit {
+        c!(edit);
         if let Some(state) = unsafe { STATE.as_mut() } {
             perform_edit(&mut state.edit_buffer, &edit);
         }
@@ -2300,6 +2287,8 @@ fn perform_edit(edit_buffer: &mut EditBuffer, edit: &Edit) -> EditOutcome {
         } else {
             edit_buffer.history.inc_current();
         }
+
+        edit_buffer.state.selection = None;
     }
 
     outcome
