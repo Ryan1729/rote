@@ -149,7 +149,9 @@ enum EditorKey {
     Page(Page),
     Delete,
     Home,
+    ShiftHome,
     End,
+    ShiftEnd,
 }
 use EditorKey::*;
 
@@ -889,6 +891,11 @@ fn read_key() -> EditorKey {
                             }
                             _ => {}
                         }
+                    } else if seq[2] == b'J' {
+                        match c {
+                            b'2' => return ShiftHome,
+                            _ => {}
+                        }
                     }
                 }
                 b'A' => {
@@ -908,6 +915,9 @@ fn read_key() -> EditorKey {
                 }
                 b'F' => {
                     return End;
+                }
+                b'K' => {
+                    return ShiftEnd;
                 }
                 _ => {}
             }
@@ -2104,12 +2114,53 @@ fn process_editor_keypress() {
         Home => if let Some(state) = unsafe { STATE.as_mut() } {
             state.edit_buffer.state.cx = 0;
         },
+        ShiftHome => if let Some(state) = unsafe { STATE.as_mut() } {
+            let (cx, cy) = (state.edit_buffer.state.cx, state.edit_buffer.state.cy);
+            match state.edit_buffer.state.selection {
+                Some(selection::Selection { earlier, later, .. }) if (cx, cy) == later => {
+                    state.edit_buffer.state.cx = 0;
+                    state.edit_buffer.state.selection = Some(Selection::new(
+                        earlier,
+                        (state.edit_buffer.state.cx, state.edit_buffer.state.cy),
+                    ));
+                }
+                Some(_) => {
+                    state.edit_buffer.state.cx = 0;
+                    add_to_selection(&mut state.edit_buffer.state, Arrow::Left);
+                }
+                None => {
+                    state.edit_buffer.state.cx = 0;
+                    state.edit_buffer.state.selection = Some(Selection::new(
+                        (cx, cy),
+                        (state.edit_buffer.state.cx, state.edit_buffer.state.cy),
+                    ));
+                }
+            }
+        },
         End => if let Some(state) = unsafe { STATE.as_mut() } {
-            if state.edit_buffer.state.cy < state.edit_buffer.state.rows.len() as u32 {
-                state.edit_buffer.state.cx = state.edit_buffer.state.rows
-                    [state.edit_buffer.state.cy as usize]
-                    .row
-                    .len() as u32;
+            move_to_end(state);
+        },
+        ShiftEnd => if let Some(state) = unsafe { STATE.as_mut() } {
+            let (cx, cy) = (state.edit_buffer.state.cx, state.edit_buffer.state.cy);
+            match state.edit_buffer.state.selection {
+                Some(selection::Selection { earlier, later, .. }) if (cx, cy) == earlier => {
+                    move_to_end(state);
+                    state.edit_buffer.state.selection = Some(Selection::new(
+                        later,
+                        (state.edit_buffer.state.cx, state.edit_buffer.state.cy),
+                    ));
+                }
+                Some(_) => {
+                    move_to_end(state);
+                    add_to_selection(&mut state.edit_buffer.state, Arrow::Right);
+                }
+                None => {
+                    move_to_end(state);
+                    state.edit_buffer.state.selection = Some(Selection::new(
+                        (cx, cy),
+                        (state.edit_buffer.state.cx, state.edit_buffer.state.cy),
+                    ));
+                }
             }
         },
         Byte(c0) if c0 == CTRL_KEY!(b'f') => if let Some(state) = unsafe { STATE.as_mut() } {
@@ -2212,6 +2263,15 @@ fn process_editor_keypress() {
 
     unsafe {
         QUIT_TIMES = ROTE_QUIT_TIMES;
+    }
+}
+
+fn move_to_end(state: &mut EditorState) {
+    if state.edit_buffer.state.cy < state.edit_buffer.state.rows.len() as u32 {
+        state.edit_buffer.state.cx = state.edit_buffer.state.rows
+            [state.edit_buffer.state.cy as usize]
+            .row
+            .len() as u32;
     }
 }
 
