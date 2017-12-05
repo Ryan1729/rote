@@ -13,6 +13,7 @@ use std::io::{BufRead, BufReader};
 use std::fs::File;
 use std::fmt;
 use std::path::Path;
+use std::cmp::{min, Ord, Ordering};
 
 /*** defines ***/
 
@@ -165,7 +166,7 @@ mod selection {
     use ::*;
     //The reason this is in a module and the reason `_new_only` exists is to enforce
     //using `new` to construct `Selection`s, maintaining the fact that earlier.
-    #[derive(Copy, Clone, Debug, PartialEq)]
+    #[derive(Copy, Clone, Debug, PartialEq, Eq)]
     pub struct Selection {
         pub earlier: (u32, u32),
         pub later: (u32, u32),
@@ -255,6 +256,62 @@ mod selection {
                 Some(s)
             } else {
                 None
+            }
+        }
+    }
+
+    impl Ord for Selection {
+        fn cmp(&self, other: &Selection) -> Ordering {
+            self.earlier.1.cmp(&other.earlier.1).then_with(|| {
+                self.earlier.0.cmp(&other.earlier.0).then_with(|| {
+                    self.later
+                        .1
+                        .cmp(&other.later.1)
+                        .then_with(|| self.later.0.cmp(&other.later.0))
+                })
+            })
+        }
+    }
+
+    impl PartialOrd for Selection {
+        fn partial_cmp(&self, other: &Selection) -> Option<Ordering> {
+            Some(self.cmp(other))
+        }
+    }
+
+    //The reason this is in a module and the reason `selewctions` is private is to enforce
+    //using `insert` to add new selections so that there will never be overlapping selections,
+    //since they will all be  merged inside `insert`.
+    #[derive(Clone, Debug)]
+    pub struct Selections {
+        selections: Vec<Selection>,
+    }
+
+    impl Selections {
+        pub fn insert(&mut self, sel: Selection) {
+            self.selections.push(sel);
+            self.selections.sort();
+
+            let mut to_remove = Vec::new();
+
+            for i in 0..self.selections.len() {
+                if i + 1 == self.selections.len() {
+                    break;
+                }
+
+                let current = self.selections[i];
+                let next = &mut self.selections[i + 1];
+
+                if current.later.1 > next.earlier.1
+                    || (current.later.1 == next.earlier.1 && current.later.0 > next.earlier.0)
+                {
+                    *next = Selection::new(current.earlier, next.later);
+                    to_remove.push(i);
+                }
+            }
+
+            for &i in to_remove.iter().rev() {
+                self.selections.remove(i);
             }
         }
     }
@@ -1635,7 +1692,7 @@ fn draw_rows(
             }
         } else {
             let current_row = &buffer_state.rows[file_index as usize];
-            let right_edge = std::cmp::min(
+            let right_edge = min(
                 char_len(&current_row.render).saturating_sub(buffer_state.col_offset as _),
                 screen_cols as usize,
             ) + buffer_state.col_offset as usize;
@@ -1774,7 +1831,7 @@ fn draw_status_bar(buffer_state: &mut EditBufferState, buf: &mut String, cleanli
         buf.push_str(&status);
 
         let screen_cols = state.screen_cols as usize;
-        let mut len = std::cmp::min(status.len(), screen_cols);
+        let mut len = min(status.len(), screen_cols);
         let rlen = r_status.len();
         while len < screen_cols {
             if screen_cols - len == rlen {
@@ -1794,7 +1851,7 @@ fn draw_message_bar(buf: &mut String) {
     buf.push_str("\x1b[K");
 
     if let Some(state) = unsafe { STATE.as_mut() } {
-        let msglen = std::cmp::min(state.status_msg.len(), state.screen_cols as usize);
+        let msglen = min(state.status_msg.len(), state.screen_cols as usize);
 
         if msglen > 0
             && Instant::now().duration_since(state.status_msg_time) < Duration::from_secs(5)
