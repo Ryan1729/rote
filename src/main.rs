@@ -754,8 +754,10 @@ mod selection {
             let mut result = Vec::with_capacity(self.selections.len() * 2);
 
             for sel in self.selections.iter() {
-                result.push(sel.earlier);
-                result.push(sel.later);
+                if !sel.is_empty() {
+                    result.push(sel.earlier);
+                    result.push(sel.later);
+                }
             }
 
             result
@@ -2193,6 +2195,11 @@ fn draw_rows(
 ) {
     let mut in_selection = false;
     let mut transitions = buffer_state.get_selection_transitions();
+    transitions.reverse();
+
+    if buffer_state.filename.is_some() && transitions.len() != 0 {
+        c!(transitions);
+    }
 
     for y in 0..screen_rows {
         let file_index = y + buffer_state.row_offset;
@@ -2230,6 +2237,10 @@ fn draw_rows(
 
             let mut in_transition_row = is_in_this_row(&transitions, file_index);
 
+            if buffer_state.filename.is_some() && transitions.len() != 0 {
+                c!(y, in_transition_row);
+            }
+
             let mut current_transition: (u32, u32) = (0, 0);
             if in_transition_row {
                 current_transition = transitions.pop().unwrap_or((0, 0));
@@ -2241,19 +2252,23 @@ fn draw_rows(
                 .char_indices()
                 .skip(buffer_state.col_offset as _)
             {
-                if buffer_state.col_offset > 0 {
-                    c!(ci);
-                }
                 if ci >= right_edge {
                     break;
                 }
 
                 if in_transition_row {
+                    if buffer_state.filename.is_some() && transitions.len() != 0 {
+                        c!("==?", current_transition.0, ci as u32);
+                    }
                     if current_transition.0 == ci as u32 {
                         in_selection = !in_selection;
+                        c!("toggle to", in_selection, (ci, y));
                         if is_in_this_row(&transitions, file_index) {
                             current_transition = transitions.pop().unwrap_or((0, 0));
                         } else {
+                            if buffer_state.filename.is_some() && transitions.len() != 0 {
+                                c!("set to false");
+                            }
                             in_transition_row = false;
                         }
                     }
@@ -2294,6 +2309,29 @@ fn draw_rows(
 
                 if in_selection {
                     buf.push_str("\x1b[m");
+                }
+            }
+
+            if in_transition_row {
+                if buffer_state.filename.is_some() && transitions.len() != 0 {
+                    c!(
+                        "",
+                        "==?",
+                        current_transition.0,
+                        current_row.render.len() as u32
+                    );
+                }
+                if current_transition.0 == current_row.render.len() as u32 {
+                    in_selection = !in_selection;
+                    c!("", "toggle to", in_selection, (current_row.render.len(), y));
+                    if is_in_this_row(&transitions, file_index) {
+                        current_transition = transitions.pop().unwrap_or((0, 0));
+                    } else {
+                        if buffer_state.filename.is_some() && transitions.len() != 0 {
+                            c!("", "set to false");
+                        }
+                        in_transition_row = false;
+                    }
                 }
             }
 
