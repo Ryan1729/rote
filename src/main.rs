@@ -212,6 +212,16 @@ mod selection {
         pub fn new_empty(coord: (u32, u32)) -> Self {
             Selection::new(coord, coord, CursorSide::Late)
         }
+        pub fn get_next_char_string(&self, rows: &Vec<Row>) -> String {
+            let mut s = String::new();
+            let (cx, cy) = self.later;
+
+            if let Some(c) = rows[cy as usize].row.chars().nth(cx as usize) {
+                s.push(c);
+            }
+
+            s
+        }
         pub fn get_selected_string(&self, rows: &Vec<Row>) -> Option<String> {
             let mut s = String::new();
             let mut cx = self.earlier.0;
@@ -549,6 +559,12 @@ mod selection {
         pub fn insert(&mut self, sel: Selection) {
             self.selections.push(sel);
             self.compact();
+        }
+        pub fn get_next_char_strings(&self, rows: &Vec<Row>) -> Vec<String> {
+            self.selections
+                .iter()
+                .map(|sel| sel.get_next_char_string(rows))
+                .collect()
         }
         pub fn get_selected_strings(&self, rows: &Vec<Row>) -> Vec<String> {
             self.selections
@@ -2553,7 +2569,23 @@ fn process_editor_keypress() {
                 _ => {}
             }
 
-            possible_edit = Some(Edit::new(&state.edit_buffer.state, String::new()));
+            let past = state
+                .edit_buffer
+                .state
+                .selections
+                .get_next_char_strings(&state.edit_buffer.state.rows);
+
+
+            let mut future = Vec::with_capacity(past.len());
+            for _ in 0..past.len() {
+                future.push(String::new());
+            }
+
+            possible_edit = Some(Edit {
+                selections: state.edit_buffer.state.selections.clone(),
+                past,
+                future,
+            });
         },
         Page(page) => if let Some(state) = unsafe { STATE.as_mut() } {
             page_up_or_down(&mut state.edit_buffer.state, state.screen_rows, page);
