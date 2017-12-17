@@ -33,3 +33,7 @@ If we only shrink the list at powers of two then we can copy the top half over t
 and just set the apropriate bit to zero to fix all the parent pointers. Note that some nodes
 of the old tree may not be connected to the root. These orphaned nodes should be ignored.
 (should we mark them as orphaned? The tree needs to be traversed when performing an undo redo anyway, but marking orphans could eleiminate an important amount of traversals)
+
+## Non-semantic folding
+Someitmes the structure of the code doesn't allow folding away the part you want to fold away.
+What if you could place marks at arbitrary locations and fold everything between them?

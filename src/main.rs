@@ -14,6 +14,7 @@ use std::fs::File;
 use std::fmt;
 use std::path::Path;
 use std::cmp::{min, Ord, Ordering};
+use std::ops::Index;
 
 /*** defines ***/
 
@@ -162,37 +163,54 @@ impl Default for EditorKey {
     }
 }
 
+fn split_at_ends_mut<T>(slice: &mut [T], index: usize) -> Option<(&mut T, &mut T)> {
+    let (before, after) = slice.split_at_mut(index);
+
+    match (before.last_mut(), after.first_mut()) {
+        (Some(before_end), Some(after_end)) => Some((before_end, after_end)),
+        _ => None,
+    }
+}
+
 mod selection {
     use ::*;
+
     //The reason this is in a module and the reason `_new_only` exists is to enforce
-    //using `new` to construct `Selection`s, maintaining the fact that earlier.
-    #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+    //using `new` to construct `Selection`s, maintaining the fact that earlier is before
+    //later.
+    #[derive(Clone, Debug, Default, PartialEq, Eq)]
     pub struct Selection {
         pub earlier: (u32, u32),
         pub later: (u32, u32),
+        pub cursor_side: CursorSide,
         _new_only: (),
     }
 
     impl Selection {
-        pub fn new((cx1, cy1): (u32, u32), (cx2, cy2): (u32, u32)) -> Self {
+        pub fn new(
+            (edge_x1, edge_y1): (u32, u32),
+            (edge_x2, edge_y2): (u32, u32),
+            cursor_side: CursorSide,
+        ) -> Self {
             let earlier;
             let later;
-            if cy1 < cy2 || (cy1 == cy2 && cx1 < cx2) {
-                earlier = (cx1, cy1);
-                later = (cx2, cy2);
+            if edge_y1 < edge_y2 || (edge_y1 == edge_y2 && edge_x1 < edge_x2) {
+                earlier = (edge_x1, edge_y1);
+                later = (edge_x2, edge_y2);
             } else {
-                earlier = (cx2, cy2);
-                later = (cx1, cy1);
+                earlier = (edge_x2, edge_y2);
+                later = (edge_x1, edge_y1);
             }
 
             Selection {
                 earlier,
                 later,
+                cursor_side,
                 _new_only: (),
             }
         }
         pub fn new_empty(coord: (u32, u32)) -> Self {
-            Selection::new(coord, coord)
+            Selection::new(coord, coord, CursorSide::Late)
         }
         pub fn get_selected_string(&self, rows: &Vec<Row>) -> Option<String> {
             let mut s = String::new();
@@ -258,6 +276,206 @@ mod selection {
                 None
             }
         }
+        pub fn get_edge(&self) -> (u32, u32) {
+            match self.cursor_side {
+                CursorSide::Early => self.earlier,
+                CursorSide::Late => self.later,
+            }
+        }
+        pub fn is_empty(&self) -> bool {
+            self.earlier == self.later
+        }
+        pub fn set_pos(&mut self, coord: (u32, u32)) {
+            self.earlier = coord;
+            self.later = coord;
+        }
+
+        pub fn extend_left(&mut self, rows: &Vec<Row>) {
+            if self.is_empty() {
+                self.cursor_side = CursorSide::Early;
+            }
+            if self.earlier.0 != 0 {
+                self.earlier.0 -= 1;
+            } else if self.earlier.1 > 0 {
+                let cy = self.earlier.1 - 1;
+                let cx = rows[cy as usize].row.len() as u32;
+                self.earlier = (cx, cy);
+            } else {
+                //at the top left already!
+            }
+        }
+        pub fn extend_right(&mut self, rows: &Vec<Row>) {
+            if self.is_empty() {
+                self.cursor_side = CursorSide::Early;
+            }
+
+            let row_len = if self.earlier.1 < rows.len() as u32 {
+                Some(rows[self.earlier.1 as usize].row.len())
+            } else {
+                None
+            };
+
+            match row_len {
+                Some(len) if (self.later.0 as usize) < len => {
+                    self.later.0 += 1;
+                }
+                Some(len) if (self.earlier.0 as usize) == len => {
+                    self.later = (0, self.later.1 + 1);
+                }
+                _ => {}
+            }
+        }
+        pub fn extend_up(&mut self, rows: &Vec<Row>) {
+            let cy = self.earlier.1.saturating_sub(1);
+
+            let new_row_len = if cy < rows.len() as u32 {
+                rows[cy as usize].row.len() as u32
+            } else {
+                0
+            };
+
+            self.earlier = (min(self.earlier.0, new_row_len), cy);
+        }
+        pub fn extend_down(&mut self, rows: &Vec<Row>) {
+            if self.later.1 < rows.len() as u32 {
+                let cy = self.earlier.1.saturating_add(1);
+
+                let new_row_len = if cy < rows.len() as u32 {
+                    rows[cy as usize].row.len() as u32
+                } else {
+                    0
+                };
+
+                self.later = (min(self.later.0, new_row_len), cy);
+            }
+        }
+
+        pub fn move_left(&mut self, rows: &Vec<Row>) {
+            if self.is_empty() {
+                if self.earlier.0 != 0 {
+                    let pos = (self.earlier.0 - 1, self.earlier.1);
+                    self.set_pos(pos);
+                } else if self.earlier.1 > 0 {
+                    let cy = self.earlier.1 - 1;
+                    let cx = rows[cy as usize].row.len() as u32;
+                    self.set_pos((cx, cy));
+                } else {
+                    //at the top left already!
+                }
+            } else {
+                *self = Selection::new(self.earlier, self.earlier, CursorSide::Early);
+            }
+        }
+        pub fn move_right(&mut self, rows: &Vec<Row>) {
+            if self.is_empty() {
+                let row_len = if self.earlier.1 < rows.len() as u32 {
+                    Some(rows[self.earlier.1 as usize].row.len())
+                } else {
+                    None
+                };
+
+                match row_len {
+                    Some(len) if (self.earlier.0 as usize) < len => {
+                        let pos = (self.earlier.0 + 1, self.earlier.1);
+                        self.set_pos(pos);
+                    }
+                    Some(len) if (self.earlier.0 as usize) == len => {
+                        let pos = (0, self.earlier.1 + 1);
+                        self.set_pos(pos);
+                    }
+                    _ => {}
+                }
+            } else {
+                *self = Selection::new(self.later, self.later, CursorSide::Late);
+            }
+        }
+        pub fn move_up(&mut self, rows: &Vec<Row>) {
+            let cy = self.earlier.1.saturating_sub(1);
+
+            let new_row_len = if cy < rows.len() as u32 {
+                rows[cy as usize].row.len() as u32
+            } else {
+                0
+            };
+
+            let pos = (min(self.earlier.0, new_row_len), cy);
+            self.set_pos(pos);
+        }
+        pub fn move_down(&mut self, rows: &Vec<Row>) {
+            if self.later.1 < rows.len() as u32 {
+                let cy = self.earlier.1.saturating_add(1);
+
+                let new_row_len = if cy < rows.len() as u32 {
+                    rows[cy as usize].row.len() as u32
+                } else {
+                    0
+                };
+
+                let pos = (min(self.earlier.0, new_row_len), cy);
+                self.set_pos(pos);
+            }
+        }
+
+        fn get_previous_char(&self, rows: &Vec<Row>) -> Option<char> {
+            self.get_previous_character_containing_cx_cy(rows)
+                .and_then(|(cx, cy)| rows[cy as usize].row.chars().nth(cx as usize))
+        }
+        fn get_previous_character_containing_cx_cy(&self, rows: &Vec<Row>) -> Option<(u32, u32)> {
+            if self.earlier.0 != 0 {
+                Some((self.earlier.0 - 1, self.earlier.1))
+            } else if self.earlier.1 > 0 {
+                let mut cy = self.earlier.1 - 1;
+                loop {
+                    let len = rows[cy as usize].row.len() as u32;
+                    if len > 0 {
+                        return Some((len - 1, cy));
+                    } else if cy == 0 {
+                        return None;
+                    }
+                    cy -= 1;
+                }
+            } else {
+                None
+            }
+        }
+
+        pub fn get_current_char(&self, rows: &Vec<Row>) -> Option<char> {
+            let char_on_this_line = rows[self.later.1 as usize]
+                .row
+                .chars()
+                .nth(self.later.0 as usize);
+            if char_on_this_line.is_some() {
+                char_on_this_line
+            } else {
+                self.get_next_character_containing_cx_cy(rows)
+                    .and_then(|(cx, cy)| rows[cy as usize].row.chars().nth(cx as usize))
+            }
+        }
+        fn get_next_character_containing_cx_cy(&self, rows: &Vec<Row>) -> Option<(u32, u32)> {
+            let mut cy = self.later.1 + 1;
+            loop {
+                if let Some(row) = rows.get(cy as usize) {
+                    if row.row.len() > 0 {
+                        return Some((0, cy));
+                    }
+                } else {
+                    return None;
+                }
+                cy += 1;
+            }
+        }
+        pub fn get_previous_line_len(&self, rows: &Vec<Row>) -> Option<u32> {
+            if self.earlier.1 != 0 {
+                rows.get(self.earlier.1 as usize - 1)
+                    .map(|row| row.row.len() as u32)
+            } else {
+                None
+            }
+        }
+        pub fn get_next_line_len(&self, rows: &Vec<Row>) -> Option<u32> {
+            rows.get(self.later.1 as usize + 1)
+                .map(|row| row.row.len() as u32)
+        }
     }
 
     impl Ord for Selection {
@@ -279,17 +497,271 @@ mod selection {
         }
     }
 
-    //The reason this is in a module and the reason `selewctions` is private is to enforce
-    //using `insert` to add new selections so that there will never be overlapping selections,
-    //since they will all be  merged inside `insert`.
-    #[derive(Clone, Debug)]
-    pub struct Selections {
-        selections: Vec<Selection>,
+    #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+    pub enum CursorSide {
+        Early,
+        Late,
     }
 
+    impl Default for CursorSide {
+        fn default() -> Self {
+            CursorSide::Early
+        }
+    }
+
+    //The reason this is in a module and the reason `selewctions` is private is to enforce
+    //using `insert` to add new selections so that there will never be overlapping selections,
+    //since they will all be merged by calls to `compact`. Also this allows maintaining at least one
+    //selection at all times
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct Selections {
+        selections: Vec<Selection>,
+        main_index: usize,
+    }
+
+
     impl Selections {
+        pub fn set_cx(&mut self, cx: u32) {
+            let cy = self.get_main_selection().get_edge().1;
+            self.set_cx_cy((cx, cy));
+        }
+        pub fn set_cy(&mut self, cy: u32) {
+            let cx = self.get_main_selection().get_edge().0;
+            self.set_cx_cy((cx, cy));
+        }
+        pub fn set_cx_cy(&mut self, coords: (u32, u32)) {
+            self.selections[self.main_index] = Selection::new_empty(coords);
+        }
+
+        pub fn get_main_selection(&self) -> &Selection {
+            &self.selections[self.main_index]
+        }
+        pub fn clear_to_main(&mut self) {
+            let main_selection = self.selections.swap_remove(self.main_index);
+            self.selections.clear();
+
+            self.selections.push(main_selection);
+            self.main_index = 0;
+        }
+        pub fn len(&self) -> usize {
+            self.selections.len()
+        }
         pub fn insert(&mut self, sel: Selection) {
             self.selections.push(sel);
+            self.compact();
+        }
+        pub fn get_selected_strings(&self, rows: &Vec<Row>) -> Vec<String> {
+            self.selections
+                .iter()
+                .filter_map(|sel| sel.get_selected_string(rows))
+                .collect()
+        }
+        pub fn new(sel: Selection) -> Self {
+            Selections {
+                selections: vec![sel],
+                main_index: 0,
+            }
+        }
+
+        pub fn move_to_home(&mut self) {
+            for sel in self.selections.iter_mut() {
+                let line_home = (0, sel.earlier.1);
+
+                *sel = Selection::new(line_home, line_home, CursorSide::Late);
+            }
+
+            self.compact();
+        }
+        pub fn select_to_home(&mut self) {
+            for sel in self.selections.iter_mut() {
+                let line_home = (0, sel.earlier.1);
+
+                match sel.cursor_side {
+                    CursorSide::Early => {
+                        *sel = Selection::new(line_home, sel.later, CursorSide::Early);
+                    }
+                    CursorSide::Late => {
+                        *sel = Selection::new(line_home, sel.earlier, CursorSide::Early);
+                    }
+                }
+            }
+
+            self.compact();
+        }
+
+        pub fn move_to_end(&mut self, rows: &Vec<Row>) {
+            for sel in self.selections.iter_mut() {
+                let mut line_end = get_line_end(sel.later, rows);
+
+                *sel = Selection::new(line_end, line_end, CursorSide::Late);
+            }
+
+            self.compact();
+        }
+        pub fn select_to_end(&mut self, rows: &Vec<Row>) {
+            for sel in self.selections.iter_mut() {
+                let mut line_end = get_line_end(sel.later, rows);
+
+                match sel.cursor_side {
+                    CursorSide::Early => {
+                        *sel = Selection::new(sel.later, line_end, CursorSide::Late);
+                    }
+                    CursorSide::Late => {
+                        *sel = Selection::new(sel.earlier, line_end, CursorSide::Late);
+                    }
+                }
+            }
+
+            self.compact();
+        }
+
+        pub fn move_cursor(&mut self, rows: &Vec<Row>, arrow: Arrow) {
+            match arrow {
+                Arrow::Left => for sel in self.selections.iter_mut() {
+                    sel.move_left(rows);
+                },
+                Arrow::Right => for sel in self.selections.iter_mut() {
+                    sel.move_right(rows);
+                },
+                Arrow::Up => for sel in self.selections.iter_mut() {
+                    sel.move_up(rows);
+                },
+                Arrow::Down => for sel in self.selections.iter_mut() {
+                    sel.move_down(rows);
+                },
+            }
+
+            self.compact();
+        }
+
+        pub fn jump_cursor(&mut self, rows: &Vec<Row>, arrow: Arrow) {
+            match arrow {
+                Arrow::Left => for sel in self.selections.iter_mut() {
+                    let mut seen_non_separator = false;
+
+                    loop {
+                        match sel.get_previous_char(rows) {
+                            Some(c) if is_separator(c) => if seen_non_separator {
+                                break;
+                            } else {
+                                sel.move_left(rows);
+                            },
+                            Some(_) => {
+                                seen_non_separator = true;
+                                sel.move_left(rows);
+                            }
+                            None => {
+                                break;
+                            }
+                        }
+                    }
+                },
+                Arrow::Right => for sel in self.selections.iter_mut() {
+                    let mut seen_non_separator = false;
+
+                    loop {
+                        match sel.get_current_char(rows) {
+                            Some(c) if is_separator(c) => if seen_non_separator {
+                                break;
+                            } else {
+                                sel.move_right(rows);
+                            },
+                            Some(_) => {
+                                seen_non_separator = true;
+                                sel.move_right(rows);
+                            }
+                            None => {
+                                break;
+                            }
+                        }
+                    }
+                },
+                Arrow::Up => for sel in self.selections.iter_mut() {
+                    let mut seen_empty_line = false;
+
+                    loop {
+                        match sel.get_previous_line_len(rows) {
+                            Some(0) => {
+                                seen_empty_line = true;
+                                sel.move_up(rows);
+                            }
+                            Some(_) => if seen_empty_line {
+                                break;
+                            } else {
+                                sel.move_up(rows);
+                            },
+                            None => {
+                                break;
+                            }
+                        }
+                    }
+                },
+                Arrow::Down => for sel in self.selections.iter_mut() {
+                    let mut seen_empty_line = false;
+
+                    loop {
+                        match sel.get_next_line_len(rows) {
+                            Some(0) => {
+                                seen_empty_line = true;
+                                sel.move_down(rows);
+                            }
+                            Some(_) => if seen_empty_line {
+                                break;
+                            } else {
+                                sel.move_down(rows);
+                            },
+                            None => {
+                                break;
+                            }
+                        }
+                    }
+                },
+            }
+
+            self.compact();
+        }
+
+        pub fn extend_selection(&mut self, rows: &Vec<Row>, arrow: Arrow) {
+            match arrow {
+                Arrow::Left => for sel in self.selections.iter_mut() {
+                    sel.extend_left(rows);
+                },
+                Arrow::Right => for sel in self.selections.iter_mut() {
+                    sel.extend_right(rows);
+                },
+                Arrow::Up => for sel in self.selections.iter_mut() {
+                    sel.extend_up(rows);
+                },
+                Arrow::Down => for sel in self.selections.iter_mut() {
+                    sel.extend_down(rows);
+                },
+            }
+
+            self.compact();
+        }
+
+        pub fn get_cursor_positions(&self) -> Vec<(u32, u32)> {
+            self.selections
+                .iter()
+                .map(|sel| match sel.cursor_side {
+                    CursorSide::Early => sel.earlier,
+                    CursorSide::Late => sel.later,
+                })
+                .collect()
+        }
+
+        pub fn get_selection_transitions(&self) -> Vec<(u32, u32)> {
+            let mut result = Vec::with_capacity(self.selections.len() * 2);
+
+            for sel in self.selections.iter() {
+                result.push(sel.earlier);
+                result.push(sel.later);
+            }
+
+            result
+        }
+
+        fn compact(&mut self) {
             self.selections.sort();
 
             let mut to_remove = Vec::new();
@@ -299,14 +771,14 @@ mod selection {
                     break;
                 }
 
-                let current = self.selections[i];
-                let next = &mut self.selections[i + 1];
-
-                if current.later.1 > next.earlier.1
-                    || (current.later.1 == next.earlier.1 && current.later.0 > next.earlier.0)
-                {
-                    *next = Selection::new(current.earlier, next.later);
-                    to_remove.push(i);
+                match split_at_ends_mut(&mut self.selections, i + 1) {
+                    Some((current, next)) => if current.later.1 > next.earlier.1
+                        || (current.later.1 == next.earlier.1 && current.later.0 > next.earlier.0)
+                    {
+                        *next = Selection::new(current.earlier, next.later, next.cursor_side);
+                        to_remove.push(i);
+                    },
+                    None => {}
                 }
             }
 
@@ -315,30 +787,65 @@ mod selection {
             }
         }
     }
+
+    impl Index<usize> for Selections {
+        type Output = Selection;
+
+        fn index(&self, i: usize) -> &Selection {
+            &self.selections[i]
+        }
+    }
+
+    impl Default for Selections {
+        fn default() -> Self {
+            let selections = vec![Default::default()];
+
+            Selections {
+                selections,
+                main_index: 0,
+            }
+        }
+    }
+
+
+    fn get_line_end(coord_on_line: (u32, u32), rows: &Vec<Row>) -> (u32, u32) {
+        let mut line_end = coord_on_line;
+        let cy = line_end.1 as usize;
+        if cy < rows.len() {
+            line_end.0 = rows[cy].row.len() as u32;
+        }
+        line_end
+    }
 }
 
-use selection::Selection;
+use selection::{Selection, Selections};
 
 #[derive(Clone, Debug, PartialEq)]
 struct Edit {
-    selection: Selection,
-    past: String,
-    future: String,
+    selections: Selections,
+    past: Vec<String>,
+    future: Vec<String>,
 }
 
 impl Edit {
     fn new(state: &EditBufferState, future: String) -> Self {
-        let selection = state.get_selection();
+        let selections = state.selections.clone();
 
-        let past: String = selection
-            .get_selected_string(&state.rows)
-            .unwrap_or_else(|| String::new());
+        let past = selections.get_selected_strings(&state.rows);
+        let future = vec![future; past.len()];
 
         Edit {
-            selection,
+            selections,
             past,
             future,
         }
+    }
+
+    fn len(&self) -> usize {
+        min(
+            self.selections.len(),
+            min(self.past.len(), self.future.len()),
+        )
     }
 }
 
@@ -515,37 +1022,66 @@ impl Default for Cleanliness {
 
 #[derive(Clone, Debug)]
 pub struct EditBufferState {
-    cx: u32,
-    cy: u32,
     rx: u32,
     row_offset: u32,
     col_offset: u32,
     rows: Vec<Row>,
     filename: Option<String>,
-    selection: Option<Selection>,
+    selections: Selections,
 }
 
 impl EditBufferState {
-    fn get_selection(&self) -> selection::Selection {
-        match self.selection {
-            Some(selection) => selection,
-            None => Selection::new((self.cx, self.cy), (self.cx, self.cy)),
-        }
+    fn get_cx(&self) -> u32 {
+        self.get_cx_cy().0
+    }
+    fn get_cy(&self) -> u32 {
+        self.get_cx_cy().1
+    }
+    fn get_cx_cy(&self) -> (u32, u32) {
+        self.selections.get_main_selection().get_edge()
+    }
+
+    fn set_cx(&mut self, cx: u32) {
+        self.selections.set_cx(cx)
+    }
+    fn set_cy(&mut self, cy: u32) {
+        self.selections.set_cy(cy)
+    }
+    fn set_cx_cy(&mut self, coords: (u32, u32)) {
+        self.selections.set_cx_cy(coords)
+    }
+
+    fn get_main_selection(&self) -> &selection::Selection {
+        self.selections.get_main_selection()
+    }
+
+    fn move_cursor(&mut self, arrow: Arrow) {
+        self.selections.move_cursor(&self.rows, arrow);
+    }
+
+    fn jump_cursor(&mut self, arrow: Arrow) {
+        self.selections.jump_cursor(&self.rows, arrow);
+    }
+
+    fn extend_selection(&mut self, arrow: Arrow) {
+        self.selections.extend_selection(&self.rows, arrow);
+    }
+
+    fn get_selection_transitions(&self) -> Vec<(u32, u32)> {
+        self.selections.get_selection_transitions()
     }
 }
 
 impl Default for EditBufferState {
     fn default() -> EditBufferState {
         EditBufferState {
-            cx: Default::default(),
-            cy: Default::default(),
             rx: Default::default(),
             row_offset: Default::default(),
             col_offset: Default::default(),
             //When the user opens a new file, we're pretty sure thay'll want at least one line.
             rows: vec![Default::default()],
             filename: Default::default(),
-            selection: Default::default(),
+            selections: Default::default(),
         }
     }
 }
@@ -1391,25 +1927,24 @@ fn row_del_char(row: &mut Row, cx: u32) {
 /*** editor operations ***/
 
 fn insert_char(state: &mut EditBufferState, (cx, cy): (u32, u32), c: char) {
-    state.cx = cx;
-    state.cy = cy;
+    state.set_cx_cy((cx, cy));
     insert_char_at_cursor(state, c)
 }
 
 fn insert_char_at_cursor(state: &mut EditBufferState, c: char) {
-    if state.cy == state.rows.len() as u32 {
+    let (cx, cy) = state.get_cx_cy();
+    if cy == state.rows.len() as u32 {
         let at = state.rows.len() as u32;
         insert_row(state, at, String::new());
     }
 
-    row_insert_char(&mut state.rows[state.cy as usize], state.cx, c);
-    state.cx += 1;
+    row_insert_char(&mut state.rows[cy as usize], cx, c);
+    state.set_cx(cx + 1);
 }
 
 fn insert_newline(state: &mut EditBufferState, (cx, cy): (u32, u32)) {
-    state.cx = cx;
-    state.cy = cy;
-    if state.cx == 0 {
+    state.set_cx_cy((cx, cy));
+    if cx == 0 {
         insert_row(state, cy, String::new());
     } else {
         let new_row = {
@@ -1425,32 +1960,25 @@ fn insert_newline(state: &mut EditBufferState, (cx, cy): (u32, u32)) {
         insert_row(state, cy + 1, new_row);
         update_row(&mut state.rows[cy as usize]);
     }
-    state.cy += 1;
-    state.cx = 0;
+    state.set_cx_cy((0, cy + 1));
 }
 
 fn del_char(state: &mut EditBufferState, (cx, cy): (u32, u32)) {
-    state.cx = cx;
-    state.cy = cy;
-    if state.cy == state.rows.len() as u32 {
+    state.set_cx_cy((cx, cy));
+    if cy == state.rows.len() as u32 {
         return;
     };
 
-    let char_len = char_len(&state.rows[state.cy as usize].row) as u32;
-    if state.cx < char_len {
-        row_del_char(&mut state.rows[state.cy as usize], state.cx);
+    let char_len = char_len(&state.rows[cy as usize].row) as u32;
+    if cx < char_len {
+        row_del_char(&mut state.rows[cy as usize], cx);
     } else {
-        {
-            let (before, after) = state.rows.split_at_mut(state.cy as usize + 1);
-
-            match (before.last_mut(), after.first_mut()) {
-                (Some(previous_row), Some(row)) => {
-                    state.cx = char_len;
-                    row_append_string(previous_row, &row.row);
-                }
-                // _ => die("del_char"),
-                (a, b) => panic!("del_char {:?}", (a, b)),
+        match split_at_ends_mut(&mut state.rows, cy as usize + 1) {
+            Some((previous_row, row)) => {
+                state.selections.set_cx(char_len);
+                row_append_string(previous_row, &row.row);
             }
+            None => die("del_char"),
         }
 
         del_row(state, cy + 1);
@@ -1593,8 +2121,10 @@ fn find_callback(buffer_state: &mut EditBufferState, query: &str, key: EditorKey
             unsafe {
                 LAST_MATCH = current;
             }
-            buffer_state.cy = current as u32;
-            buffer_state.cx = row_rx_to_cx(row, index as u32);
+
+            buffer_state
+                .selections
+                .set_cx_cy((row_rx_to_cx(row, index as u32), current as u32));
             buffer_state.row_offset = row_count;
 
             unsafe {
@@ -1611,8 +2141,7 @@ fn find_callback(buffer_state: &mut EditBufferState, query: &str, key: EditorKey
 }
 
 fn find(state: &mut EditBufferState) {
-    let saved_cx = state.cx;
-    let saved_cy = state.cy;
+    let (saved_cx, saved_cy) = state.get_cx_cy();
     let saved_col_offset = state.col_offset;
     let saved_row_offset = state.row_offset;
 
@@ -1622,8 +2151,7 @@ fn find(state: &mut EditBufferState) {
         Some(&find_callback)
     ).is_none()
     {
-        state.cx = saved_cx;
-        state.cy = saved_cy;
+        state.set_cx_cy((saved_cx, saved_cy));
         state.col_offset = saved_col_offset;
         state.row_offset = saved_row_offset;
     }
@@ -1634,18 +2162,16 @@ fn find(state: &mut EditBufferState) {
 fn scroll(buffer_state: &mut EditBufferState) {
     if let Some(state) = unsafe { STATE.as_mut() } {
         buffer_state.rx = 0;
-        if buffer_state.cy < buffer_state.rows.len() as u32 {
-            buffer_state.rx = row_cx_to_rx(
-                &buffer_state.rows[buffer_state.cy as usize],
-                buffer_state.cx,
-            )
+        let (cx, cy) = buffer_state.get_cx_cy();
+        if cy < buffer_state.rows.len() as u32 {
+            buffer_state.rx = row_cx_to_rx(&buffer_state.rows[cy as usize], cx)
         }
 
-        if buffer_state.cy < buffer_state.row_offset {
-            buffer_state.row_offset = buffer_state.cy;
+        if cy < buffer_state.row_offset {
+            buffer_state.row_offset = cy;
         }
-        if buffer_state.cy >= buffer_state.row_offset + state.screen_rows {
-            buffer_state.row_offset = buffer_state.cy - state.screen_rows + 1;
+        if cy >= buffer_state.row_offset + state.screen_rows {
+            buffer_state.row_offset = cy - state.screen_rows + 1;
         }
         if buffer_state.rx < buffer_state.col_offset {
             buffer_state.col_offset = buffer_state.rx;
@@ -1656,12 +2182,17 @@ fn scroll(buffer_state: &mut EditBufferState) {
     }
 }
 
+fn is_in_this_row(transitions: &Vec<(u32, u32)>, cy: u32) -> bool {
+    transitions.last().map(|t| t.1 == cy).unwrap_or(false)
+}
+
 fn draw_rows(
     (screen_cols, screen_rows): (u32, u32),
     buffer_state: &EditBufferState,
     buf: &mut String,
 ) {
     let mut in_selection = false;
+    let mut transitions = buffer_state.get_selection_transitions();
 
     for y in 0..screen_rows {
         let file_index = y + buffer_state.row_offset;
@@ -1697,21 +2228,11 @@ fn draw_rows(
                 screen_cols as usize,
             ) + buffer_state.col_offset as usize;
 
-            let (in_selection_start_row, in_selection_end_row) =
-                if let Some(sel) = buffer_state.selection {
-                    (sel.earlier.1 == file_index, sel.later.1 == file_index)
-                } else {
-                    (false, false)
-                };
+            let mut in_transition_row = is_in_this_row(&transitions, file_index);
 
-            if (in_selection_start_row || in_selection) && current_row.render.len() == 0 {
-                in_selection == true;
-
-                buf.push_str("\x1b[7m");
-                for _ in 0..screen_cols {
-                    buf.push(' ');
-                }
-                buf.push_str("\x1b[m");
+            let mut current_transition: (u32, u32) = (0, 0);
+            if in_transition_row {
+                current_transition = transitions.pop().unwrap_or((0, 0));
             }
 
             let mut current_colour = None;
@@ -1727,14 +2248,14 @@ fn draw_rows(
                     break;
                 }
 
-                if in_selection_start_row {
-                    let at_selection_start = if let Some(sel) = buffer_state.selection {
-                        sel.earlier.0 == ci as u32
-                    } else {
-                        false
-                    };
-                    if at_selection_start {
-                        in_selection = true;
+                if in_transition_row {
+                    if current_transition.0 == ci as u32 {
+                        in_selection = !in_selection;
+                        if is_in_this_row(&transitions, file_index) {
+                            current_transition = transitions.pop().unwrap_or((0, 0));
+                        } else {
+                            in_transition_row = false;
+                        }
                     }
                 }
 
@@ -1774,20 +2295,6 @@ fn draw_rows(
                 if in_selection {
                     buf.push_str("\x1b[m");
                 }
-                if in_selection_end_row {
-                    let at_selection_end = if let Some(sel) = buffer_state.selection {
-                        sel.later.0 == ci as u32
-                    } else {
-                        false
-                    };
-                    if at_selection_end {
-                        in_selection = false;
-                    }
-                }
-            }
-
-            if in_selection_end_row {
-                in_selection = false;
             }
 
             buf.push_str("\x1b[39m");
@@ -1824,7 +2331,7 @@ fn draw_status_bar(buffer_state: &mut EditBufferState, buf: &mut String, cleanli
                 Some(ref syntax) => syntax.file_type,
                 None => "no ft",
             },
-            buffer_state.cy + 1,
+            buffer_state.get_cy() + 1,
             buffer_state.rows.len()
         );
 
@@ -1874,7 +2381,7 @@ fn refresh_screen(buffer_state: &mut EditBufferState, buf: &mut String, cleanlin
     draw_status_bar(buffer_state, buf, cleanliness);
     draw_message_bar(buf);
 
-    draw_cursor(&buffer_state, buf);
+    draw_cursors(&buffer_state, buf);
 
     buf.push_str("\x1b[?25h");
 
@@ -1883,246 +2390,47 @@ fn refresh_screen(buffer_state: &mut EditBufferState, buf: &mut String, cleanlin
     stdout.flush().unwrap_or_default();
 }
 
-fn draw_cursor(buffer_state: &EditBufferState, buf: &mut String) {
-    buf.push_str(&format!(
-        "\x1b[{};{}H",
-        (buffer_state.cy - buffer_state.row_offset) + 1,
-        (buffer_state.rx - buffer_state.col_offset) + 1
-    ));
+fn draw_cursors(buffer_state: &EditBufferState, buf: &mut String) {
+    for &(cx, cy) in buffer_state.selections.get_cursor_positions().iter() {
+        if let Some(ref row) = buffer_state.rows.get(cy as usize) {
+            buf.push_str(&format!(
+                "\x1b[{};{}H",
+                (cy - buffer_state.row_offset) + 1,
+                (row_cx_to_rx(row, cx) - buffer_state.col_offset) + 1
+            ));
+        }
+    }
 }
 
 /*** input ***/
+fn move_to_end(state: &mut EditBufferState) {
+    let cy = state.get_cy() as usize;
+    if cy < state.rows.len() {
+        let cx = state.rows[cy].row.len() as u32;
 
-fn move_cursor(state: &mut EditBufferState, arrow: Arrow) {
-    match arrow {
-        Arrow::Left => if state.cx != 0 {
-            state.cx -= 1;
-        } else if state.cy > 0 {
-            state.cy -= 1;
-            state.cx = state.rows[state.cy as usize].row.len() as u32;
-        },
-        Arrow::Right => {
-            let row_len = if state.cy < state.rows.len() as u32 {
-                Some(state.rows[state.cy as usize].row.len())
-            } else {
-                None
-            };
-
-            match row_len {
-                Some(len) if (state.cx as usize) < len => {
-                    state.cx += 1;
-                }
-                Some(len) if (state.cx as usize) == len => {
-                    state.cy += 1;
-                    state.cx = 0;
-                }
-                _ => {}
-            }
-        }
-        Arrow::Up => {
-            state.cy = state.cy.saturating_sub(1);
-        }
-        Arrow::Down => if state.cy < state.rows.len() as u32 {
-            state.cy += 1;
-        },
-    }
-
-
-    let new_row_len = if state.cy < state.rows.len() as u32 {
-        state.rows[state.cy as usize].row.len() as u32
-    } else {
-        0
-    };
-    if state.cx > new_row_len {
-        state.cx = new_row_len;
-    }
-
-    state.selection = None;
-}
-
-fn jump_cursor(state: &mut EditBufferState, arrow: Arrow) {
-    match arrow {
-        Arrow::Left => {
-            let mut seen_non_separator = false;
-
-            loop {
-                match get_previous_char(state) {
-                    Some(c) if is_separator(c) => if seen_non_separator {
-                        break;
-                    } else {
-                        move_cursor(state, arrow);
-                    },
-                    Some(_) => {
-                        seen_non_separator = true;
-                        move_cursor(state, arrow);
-                    }
-                    None => {
-                        break;
-                    }
-                }
-            }
-        }
-        Arrow::Right => {
-            let mut seen_non_separator = false;
-
-            loop {
-                match get_current_char(state) {
-                    Some(c) if is_separator(c) => if seen_non_separator {
-                        break;
-                    } else {
-                        move_cursor(state, arrow);
-                    },
-                    Some(_) => {
-                        seen_non_separator = true;
-                        move_cursor(state, arrow);
-                    }
-                    None => {
-                        break;
-                    }
-                }
-            }
-        }
-        Arrow::Up => {
-            let mut seen_empty_line = false;
-
-            loop {
-                match get_previous_line_len(state) {
-                    Some(0) => {
-                        seen_empty_line = true;
-                        move_cursor(state, arrow);
-                    }
-                    Some(_) => if seen_empty_line {
-                        break;
-                    } else {
-                        move_cursor(state, arrow);
-                    },
-                    None => {
-                        break;
-                    }
-                }
-            }
-        }
-        Arrow::Down => {
-            let mut seen_empty_line = false;
-
-            loop {
-                match get_next_line_len(state) {
-                    Some(0) => {
-                        seen_empty_line = true;
-                        move_cursor(state, arrow);
-                    }
-                    Some(_) => if seen_empty_line {
-                        break;
-                    } else {
-                        move_cursor(state, arrow);
-                    },
-                    None => {
-                        break;
-                    }
-                }
-            }
-        }
+        state.set_cx(cx);
     }
 }
 
-fn add_to_selection(state: &mut EditBufferState, arrow: Arrow) {
-    let selection = state.selection;
-    let cx = state.cx;
-    let cy = state.cy;
+fn page_up_or_down(state: &mut EditBufferState, screen_rows: u32, page: Page) {
+    let cy = match page {
+        Page::Up => state.row_offset,
+        Page::Down => {
+            let new_cy = (state.row_offset + screen_rows).saturating_sub(1);
 
-    move_cursor(state, arrow);
-
-    state.selection = match selection {
-        Some(sel) => if (cx, cy) == sel.earlier {
-            if state.cy <= sel.earlier.1 || state.cx <= sel.earlier.0 {
-                Some(Selection::new((state.cx, state.cy), sel.later))
-            } else {
-                None
-            }
-        } else {
-            if state.cy > sel.earlier.1 || state.cx > sel.earlier.0 {
-                Some(Selection::new(sel.earlier, (state.cx, state.cy)))
-            } else {
-                None
-            }
-        },
-        None => {
-            let (old, new) = ((cx, cy), (state.cx, state.cy));
-            if old == new {
-                None
-            } else {
-                Some(Selection::new(old, new))
-            }
+            min(new_cy, state.rows.len() as u32)
         }
     };
-}
 
-fn get_previous_char(state: &EditBufferState) -> Option<char> {
-    get_previous_character_containing_cx_cy(state).and_then(|(cx, cy)| {
-        state.rows[cy as usize].row.chars().nth(cx as usize)
-    })
-}
-fn get_previous_character_containing_cx_cy(state: &EditBufferState) -> Option<(u32, u32)> {
-    if state.cx != 0 {
-        Some((state.cx - 1, state.cy))
-    } else if state.cy > 0 {
-        let mut cy = state.cy - 1;
-        loop {
-            let len = state.rows[cy as usize].row.len() as u32;
-            if len > 0 {
-                return Some((len - 1, cy));
-            } else if cy == 0 {
-                return None;
-            }
-            cy -= 1;
-        }
-    } else {
-        None
-    }
-}
+    state.set_cy(cy);
 
-fn get_current_char(state: &EditBufferState) -> Option<char> {
-    let char_on_this_line = state.rows[state.cy as usize]
-        .row
-        .chars()
-        .nth(state.cx as usize);
-    if char_on_this_line.is_some() {
-        char_on_this_line
-    } else {
-        get_next_character_containing_cx_cy(state).and_then(|(cx, cy)| {
-            state.rows[cy as usize].row.chars().nth(cx as usize)
-        })
-    }
-}
+    let arrow = match page {
+        Page::Up => Arrow::Up,
+        Page::Down => Arrow::Down,
+    };
 
-fn get_previous_line_len(state: &EditBufferState) -> Option<u32> {
-    if state.cy != 0 {
-        state
-            .rows
-            .get(state.cy as usize - 1)
-            .map(|row| row.row.len() as u32)
-    } else {
-        None
-    }
-}
-fn get_next_line_len(state: &EditBufferState) -> Option<u32> {
-    state
-        .rows
-        .get(state.cy as usize + 1)
-        .map(|row| row.row.len() as u32)
-}
-
-fn get_next_character_containing_cx_cy(state: &EditBufferState) -> Option<(u32, u32)> {
-    let mut cy = state.cy + 1;
-    loop {
-        if let Some(row) = state.rows.get(cy as usize) {
-            if row.row.len() > 0 {
-                return Some((0, cy));
-            }
-        } else {
-            return None;
-        }
-        cy += 1;
+    for _ in 0..screen_rows {
+        state.move_cursor(arrow);
     }
 }
 
@@ -2169,56 +2477,24 @@ fn process_editor_keypress() {
             save();
         }
         Home => if let Some(state) = unsafe { STATE.as_mut() } {
-            state.edit_buffer.state.cx = 0;
+            state.edit_buffer.state.selections.move_to_home();
         },
         ShiftHome => if let Some(state) = unsafe { STATE.as_mut() } {
-            let (cx, cy) = (state.edit_buffer.state.cx, state.edit_buffer.state.cy);
-            match state.edit_buffer.state.selection {
-                Some(selection::Selection { earlier, later, .. }) if (cx, cy) == later => {
-                    state.edit_buffer.state.cx = 0;
-                    state.edit_buffer.state.selection = Some(Selection::new(
-                        earlier,
-                        (state.edit_buffer.state.cx, state.edit_buffer.state.cy),
-                    ));
-                }
-                Some(_) => {
-                    state.edit_buffer.state.cx = 0;
-                    add_to_selection(&mut state.edit_buffer.state, Arrow::Left);
-                }
-                None => {
-                    state.edit_buffer.state.cx = 0;
-                    state.edit_buffer.state.selection = Some(Selection::new(
-                        (cx, cy),
-                        (state.edit_buffer.state.cx, state.edit_buffer.state.cy),
-                    ));
-                }
-            }
+            state.edit_buffer.state.selections.select_to_home();
         },
         End => if let Some(state) = unsafe { STATE.as_mut() } {
-            move_to_end(state);
+            state
+                .edit_buffer
+                .state
+                .selections
+                .move_to_end(&state.edit_buffer.state.rows);
         },
         ShiftEnd => if let Some(state) = unsafe { STATE.as_mut() } {
-            let (cx, cy) = (state.edit_buffer.state.cx, state.edit_buffer.state.cy);
-            match state.edit_buffer.state.selection {
-                Some(selection::Selection { earlier, later, .. }) if (cx, cy) == earlier => {
-                    move_to_end(state);
-                    state.edit_buffer.state.selection = Some(Selection::new(
-                        later,
-                        (state.edit_buffer.state.cx, state.edit_buffer.state.cy),
-                    ));
-                }
-                Some(_) => {
-                    move_to_end(state);
-                    add_to_selection(&mut state.edit_buffer.state, Arrow::Right);
-                }
-                None => {
-                    move_to_end(state);
-                    state.edit_buffer.state.selection = Some(Selection::new(
-                        (cx, cy),
-                        (state.edit_buffer.state.cx, state.edit_buffer.state.cy),
-                    ));
-                }
-            }
+            state
+                .edit_buffer
+                .state
+                .selections
+                .select_to_end(&state.edit_buffer.state.rows);
         },
         Byte(c0) if c0 == CTRL_KEY!(b'f') => if let Some(state) = unsafe { STATE.as_mut() } {
             find(&mut state.edit_buffer.state);
@@ -2232,73 +2508,26 @@ fn process_editor_keypress() {
             }
         }
         Byte(BACKSPACE) | Delete | Byte(CTRL_H) => if let Some(state) = unsafe { STATE.as_mut() } {
-            let old_selection = state.edit_buffer.state.selection;
             match key {
                 Byte(BACKSPACE) | Byte(CTRL_H) => {
-                    move_cursor(&mut state.edit_buffer.state, Arrow::Left);
+                    EditBufferState::move_cursor(&mut state.edit_buffer.state, Arrow::Left);
                 }
                 _ => {}
             }
 
-            if old_selection.is_some() {
-                state.edit_buffer.state.selection = old_selection;
-                possible_edit = Some(Edit::new(&state.edit_buffer.state, String::new()));
-            } else {
-                if let Some(row) = state
-                    .edit_buffer
-                    .state
-                    .rows
-                    .get(state.edit_buffer.state.cy as usize)
-                {
-                    let cx = state.edit_buffer.state.cx as usize;
-                    let current_char = row.row.chars().nth(cx);
-
-                    let current_char_str = if let Some(c) = current_char {
-                        c.to_string()
-                    } else {
-                        '\n'.to_string()
-                    };
-
-                    possible_edit = Some(Edit {
-                        selection: state.edit_buffer.state.get_selection(),
-                        past: current_char_str,
-                        future: String::new(),
-                    });
-                }
-            }
+            possible_edit = Some(Edit::new(&state.edit_buffer.state, String::new()));
         },
         Page(page) => if let Some(state) = unsafe { STATE.as_mut() } {
-            match page {
-                Page::Up => {
-                    state.edit_buffer.state.cy = state.edit_buffer.state.row_offset;
-                }
-                Page::Down => {
-                    state.edit_buffer.state.cy =
-                        state.edit_buffer.state.row_offset + state.screen_rows - 1;
-                    if state.edit_buffer.state.cy > state.edit_buffer.state.rows.len() as u32 {
-                        state.edit_buffer.state.cy = state.edit_buffer.state.rows.len() as u32;
-                    }
-                }
-            };
-
-
-            let arrow = match page {
-                Page::Up => Arrow::Up,
-                Page::Down => Arrow::Down,
-            };
-
-            for _ in 0..state.screen_rows {
-                move_cursor(&mut state.edit_buffer.state, arrow);
-            }
+            page_up_or_down(&mut state.edit_buffer.state, state.screen_rows, page);
         },
         Arrow(arrow) => if let Some(state) = unsafe { STATE.as_mut() } {
-            move_cursor(&mut state.edit_buffer.state, arrow);
+            state.edit_buffer.state.move_cursor(arrow);
         },
         CtrlArrow(arrow) => if let Some(state) = unsafe { STATE.as_mut() } {
-            jump_cursor(&mut state.edit_buffer.state, arrow);
+            state.edit_buffer.state.jump_cursor(arrow);
         },
         ShiftArrow(arrow) => if let Some(state) = unsafe { STATE.as_mut() } {
-            add_to_selection(&mut state.edit_buffer.state, arrow);
+            state.edit_buffer.state.extend_selection(arrow);
         },
         Byte(c0) if c0 == CTRL_KEY!(b'l') || c0 == b'\x1b' => {}
         Byte(c0) if c0 == 0 => {
@@ -2323,16 +2552,7 @@ fn process_editor_keypress() {
     }
 }
 
-fn move_to_end(state: &mut EditorState) {
-    if state.edit_buffer.state.cy < state.edit_buffer.state.rows.len() as u32 {
-        state.edit_buffer.state.cx = state.edit_buffer.state.rows
-            [state.edit_buffer.state.cy as usize]
-            .row
-            .len() as u32;
-    }
-}
-
-//handle  operations for the editor's console
+//handle operations for the editor's console
 fn process_console_keypress() {
     let key = read_key();
 
@@ -2342,49 +2562,25 @@ fn process_console_keypress() {
             state.show_console = !state.show_console;
         },
         Home => if let Some(state) = unsafe { STATE.as_mut() } {
-            state.console_state.cx = 0;
+            state.console_state.set_cx(0);
         },
         End => if let Some(state) = unsafe { STATE.as_mut() } {
-            if state.console_state.cy < state.console_state.rows.len() as u32 {
-                state.console_state.cx = state.console_state.rows[state.console_state.cy as usize]
-                    .row
-                    .len() as u32;
-            }
+            move_to_end(&mut state.console_state);
         },
         Byte(c0) if c0 == CTRL_KEY!(b'f') => if let Some(state) = unsafe { STATE.as_mut() } {
             find(&mut state.console_state);
         },
         Page(page) => if let Some(state) = unsafe { STATE.as_mut() } {
-            match page {
-                Page::Up => {
-                    state.console_state.cy = state.console_state.row_offset;
-                }
-                Page::Down => {
-                    state.console_state.cy = state.console_state.row_offset + state.screen_rows - 1;
-                    if state.console_state.cy > state.console_state.rows.len() as u32 {
-                        state.console_state.cy = state.console_state.rows.len() as u32;
-                    }
-                }
-            };
-
-
-            let arrow = match page {
-                Page::Up => Arrow::Up,
-                Page::Down => Arrow::Down,
-            };
-
-            for _ in 0..state.screen_rows {
-                move_cursor(&mut state.console_state, arrow);
-            }
+            page_up_or_down(&mut state.console_state, state.screen_rows, page);
         },
         Arrow(arrow) => if let Some(state) = unsafe { STATE.as_mut() } {
-            move_cursor(&mut state.console_state, arrow);
+            state.console_state.move_cursor(arrow);
         },
         CtrlArrow(arrow) => if let Some(state) = unsafe { STATE.as_mut() } {
-            jump_cursor(&mut state.console_state, arrow);
+            state.console_state.jump_cursor(arrow);
         },
         ShiftArrow(arrow) => if let Some(state) = unsafe { STATE.as_mut() } {
-            move_cursor(&mut state.console_state, arrow);
+            state.console_state.move_cursor(arrow);
         },
         Byte(c0) if c0 == CTRL_KEY!(b'l') => {}
         Byte(c0) if c0 == 0 => {
@@ -2433,7 +2629,7 @@ fn perform_edit(edit_buffer: &mut EditBuffer, edit: &Edit) -> EditOutcome {
             edit_buffer.history.inc_current();
         }
 
-        edit_buffer.state.selection = None;
+        edit_buffer.state.selections.clear_to_main();
     }
 
     outcome
@@ -2536,7 +2732,7 @@ fn remove_string(state: &mut EditBufferState, (cx, cy): (u32, u32), s: &str) -> 
                     }
                 };
             } else {
-                state.cx = row.len() as u32;
+                state.selections.set_cx(row.len() as u32);
             }
         }
     }
@@ -2552,19 +2748,39 @@ fn remove_string(state: &mut EditBufferState, (cx, cy): (u32, u32), s: &str) -> 
 }
 
 fn no_history_perform_edit(state: &mut EditBufferState, edit: &Edit) -> EditOutcome {
-    if Valid == state.selection_type(&edit.selection) {
-        perform_insert(state, &edit.selection, (&edit.past, &edit.future))
-    } else {
-        Unchanged
+    let mut outcome = Unchanged;
+
+    for i in 0..edit.len() {
+        let selection = &edit.selections[i];
+        let past = &edit.past[i];
+        let future = &edit.future[i];
+        if Valid == state.selection_type(selection) {
+            let current_outcome = perform_insert(state, selection, (past, future));
+            if outcome == Unchanged {
+                outcome = current_outcome;
+            }
+        }
     }
+
+    outcome
 }
 
 fn no_history_unperform_edit(state: &mut EditBufferState, edit: &Edit) -> EditOutcome {
-    if Valid == state.selection_type(&edit.selection) {
-        perform_insert(state, &edit.selection, (&edit.future, &edit.past))
-    } else {
-        Unchanged
+    let mut outcome = Unchanged;
+
+    for i in 0..edit.len() {
+        let selection = &edit.selections[i];
+        let past = &edit.past[i];
+        let future = &edit.future[i];
+        if Valid == state.selection_type(selection) {
+            let current_outcome = perform_insert(state, selection, (future, past));
+            if outcome == Unchanged {
+                outcome = current_outcome;
+            }
+        }
     }
+
+    outcome
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
