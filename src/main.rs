@@ -300,6 +300,84 @@ mod selection {
             self.later = coord;
         }
 
+        pub fn contract_left(&mut self, rows: &Vec<Row>) {
+            if self.later.0 != 0 {
+                self.later.0 -= 1;
+            } else if self.later.1 > 0 {
+                let cy = self.later.1 - 1;
+                let cx = rows[cy as usize].row.len() as u32;
+                self.later = (cx, cy);
+            } else {
+                //at the top left already!
+            }
+            if self.is_empty() {
+                self.cursor_side = CursorSide::Early;
+            }
+        }
+        pub fn contract_right(&mut self, rows: &Vec<Row>) {
+            let row_len = if self.earlier.1 < rows.len() as u32 {
+                Some(rows[self.earlier.1 as usize].row.len())
+            } else {
+                None
+            };
+
+            match row_len {
+                Some(len) if (self.earlier.0 as usize) < len => {
+                    self.earlier.0 += 1;
+                }
+                Some(len) if (self.earlier.0 as usize) == len => {
+                    self.earlier = (0, self.earlier.1 + 1);
+                }
+                _ => {}
+            }
+
+            if self.is_empty() {
+                self.cursor_side = CursorSide::Late;
+            }
+        }
+        pub fn contract_up(&mut self, rows: &Vec<Row>) {
+            let cy = self.later.1.saturating_sub(1);
+
+            let new_row_len = if cy < rows.len() as u32 {
+                rows[cy as usize].row.len() as u32
+            } else {
+                0
+            };
+
+            let old_earlier = self.earlier;
+
+            let moved_part = (min(self.later.0, new_row_len), cy);
+
+            if moved_part.1 <= old_earlier.1 && moved_part.0 < old_earlier.0 {
+                self.earlier = moved_part;
+                self.later = old_earlier;
+            } else {
+                self.later = moved_part;
+            }
+        }
+        pub fn contract_down(&mut self, rows: &Vec<Row>) {
+            if self.earlier.1 < rows.len() as u32 {
+                let cy = self.earlier.1.saturating_add(1);
+
+                let new_row_len = if cy < rows.len() as u32 {
+                    rows[cy as usize].row.len() as u32
+                } else {
+                    0
+                };
+
+                let old_later = self.later;
+
+                let moved_part = (min(self.earlier.0, new_row_len), cy);
+
+                if moved_part.1 <= old_later.1 && moved_part.0 < old_later.0 {
+                    self.later = moved_part;
+                    self.earlier = old_later;
+                } else {
+                    self.earlier = moved_part;
+                }
+            }
+        }
+
         pub fn extend_left(&mut self, rows: &Vec<Row>) {
             if self.is_empty() {
                 self.cursor_side = CursorSide::Early;
@@ -316,11 +394,11 @@ mod selection {
         }
         pub fn extend_right(&mut self, rows: &Vec<Row>) {
             if self.is_empty() {
-                self.cursor_side = CursorSide::Early;
+                self.cursor_side = CursorSide::Late;
             }
 
-            let row_len = if self.earlier.1 < rows.len() as u32 {
-                Some(rows[self.earlier.1 as usize].row.len())
+            let row_len = if self.later.1 < rows.len() as u32 {
+                Some(rows[self.later.1 as usize].row.len())
             } else {
                 None
             };
@@ -329,7 +407,7 @@ mod selection {
                 Some(len) if (self.later.0 as usize) < len => {
                     self.later.0 += 1;
                 }
-                Some(len) if (self.earlier.0 as usize) == len => {
+                Some(len) if (self.later.0 as usize) == len => {
                     self.later = (0, self.later.1 + 1);
                 }
                 _ => {}
@@ -348,7 +426,7 @@ mod selection {
         }
         pub fn extend_down(&mut self, rows: &Vec<Row>) {
             if self.later.1 < rows.len() as u32 {
-                let cy = self.earlier.1.saturating_add(1);
+                let cy = self.later.1.saturating_add(1);
 
                 let new_row_len = if cy < rows.len() as u32 {
                     rows[cy as usize].row.len() as u32
@@ -737,19 +815,47 @@ mod selection {
             self.compact();
         }
 
-        pub fn extend_selection(&mut self, rows: &Vec<Row>, arrow: Arrow) {
+        pub fn adjust_selection(&mut self, rows: &Vec<Row>, arrow: Arrow) {
             match arrow {
                 Arrow::Left => for sel in self.selections.iter_mut() {
-                    sel.extend_left(rows);
+                    match (sel.is_empty(), sel.cursor_side) {
+                        (true, _) | (false, CursorSide::Early) => {
+                            sel.extend_left(rows);
+                        }
+                        (false, CursorSide::Late) => {
+                            sel.contract_left(rows);
+                        }
+                    }
                 },
                 Arrow::Right => for sel in self.selections.iter_mut() {
-                    sel.extend_right(rows);
+                    match (sel.is_empty(), sel.cursor_side) {
+                        (true, _) | (false, CursorSide::Late) => {
+                            sel.extend_right(rows);
+                        }
+                        (false, CursorSide::Early) => {
+                            sel.contract_right(rows);
+                        }
+                    }
                 },
                 Arrow::Up => for sel in self.selections.iter_mut() {
-                    sel.extend_up(rows);
+                    match (sel.is_empty(), sel.cursor_side) {
+                        (true, _) | (false, CursorSide::Early) => {
+                            sel.extend_up(rows);
+                        }
+                        (false, CursorSide::Late) => {
+                            sel.contract_up(rows);
+                        }
+                    }
                 },
                 Arrow::Down => for sel in self.selections.iter_mut() {
-                    sel.extend_down(rows);
+                    match (sel.is_empty(), sel.cursor_side) {
+                        (true, _) | (false, CursorSide::Late) => {
+                            sel.extend_down(rows);
+                        }
+                        (false, CursorSide::Early) => {
+                            sel.contract_down(rows);
+                        }
+                    }
                 },
             }
 
@@ -1081,8 +1187,8 @@ impl EditBufferState {
         self.selections.jump_cursor(&self.rows, arrow);
     }
 
-    fn extend_selection(&mut self, arrow: Arrow) {
-        self.selections.extend_selection(&self.rows, arrow);
+    fn adjust_selection(&mut self, arrow: Arrow) {
+        self.selections.adjust_selection(&self.rows, arrow);
     }
 
     fn get_selection_transitions(&self) -> Vec<(u32, u32)> {
@@ -2597,7 +2703,7 @@ fn process_editor_keypress() {
             state.edit_buffer.state.jump_cursor(arrow);
         },
         ShiftArrow(arrow) => if let Some(state) = unsafe { STATE.as_mut() } {
-            state.edit_buffer.state.extend_selection(arrow);
+            state.edit_buffer.state.adjust_selection(arrow);
         },
         Byte(c0) if c0 == CTRL_KEY!(b'l') || c0 == b'\x1b' => {}
         Byte(c0) if c0 == 0 => {
