@@ -2347,7 +2347,7 @@ fn scroll(buffer_state: &mut EditBufferState) {
 fn is_in_this_row(transitions: &Vec<(u32, u32)>, cy: u32) -> bool {
     transitions.last().map(|t| t.1 == cy).unwrap_or(false)
 }
-
+//TODO a selection of [(1,7), (0,8)] has been observed to cause selection display bugs
 fn draw_rows(
     (screen_cols, screen_rows): (u32, u32),
     buffer_state: &EditBufferState,
