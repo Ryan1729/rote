@@ -23,6 +23,7 @@ Double-click on a word to highlight it within the whole file
 Dark theme
 Ctrl-d selects the current word, and then subsequent presses select the next word *in addition* so I can edit them all at once. (implies multiple cursors)
 Ctrl-e comments and uncomments selected code
+A way to adjust a single cursor without disturbing other cursors, similar to https://atom.io/packages/multi-cursor-plus but exact duplication is not needed
 Rustfmt can be made to work with it. (triggering things on save)
 F1 to delete the current line
 Word completion. If not code aware ten at least every word that is in the currently opened files

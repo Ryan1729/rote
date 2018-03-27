@@ -5,9 +5,9 @@
 use glutin::{Api, ContextTrait, GlProfile, GlRequest};
 use glyph_brush::{rusttype::Font, *};
 
-use platform_types::{d, BufferView, Cmd, Input, Sizes, UpdateAndRender, View};
+use platform_types::{BufferView, Input, Sizes, UpdateAndRender};
 
-pub fn run(update_and_render: UpdateAndRender) -> gl::Res<()> {
+pub fn run(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
     if cfg!(target_os = "linux") {
         use std::env;
         // winit wayland is currently still wip
@@ -44,7 +44,7 @@ pub fn run(update_and_render: UpdateAndRender) -> gl::Res<()> {
 
     let mut glyph_brush = GlyphBrushBuilder::using_font(font.clone()).build();
 
-    let mut gl_state = gl::init(&glyph_brush, |symbol| window.get_proc_address(symbol) as _)?;
+    let mut gl_state = gl_layer::init(&glyph_brush, |symbol| window.get_proc_address(symbol) as _)?;
 
     let mut loop_helper = spin_sleep::LoopHelper::builder().build_with_target_rate(250.0);
     let mut running = true;
@@ -61,7 +61,7 @@ pub fn run(update_and_render: UpdateAndRender) -> gl::Res<()> {
             let em_space_char = '\u{2003}';
             let h_metrics = font.glyph(em_space_char).scaled(scale).h_metrics();
 
-            h_metrics.left_side_bearing + h_metrics.advance_width
+            h_metrics.advance_width
         },
         line_h: {
             let v_metrics = font.v_metrics(scale);
@@ -84,6 +84,7 @@ pub fn run(update_and_render: UpdateAndRender) -> gl::Res<()> {
                     };
                 }
 
+                use platform_types::Move;
                 match event {
                     WindowEvent::CloseRequested => running = false,
                     WindowEvent::Resized(size) => {
@@ -97,7 +98,7 @@ pub fn run(update_and_render: UpdateAndRender) -> gl::Res<()> {
                                 char_w: None,
                                 line_h: None,
                             }));
-                            gl::set_dimensions(dimensions.width as _, dimensions.height as _);
+                            gl_layer::set_dimensions(dimensions.width as _, dimensions.height as _);
                         }
                     }
                     WindowEvent::KeyboardInput {
@@ -112,6 +113,12 @@ pub fn run(update_and_render: UpdateAndRender) -> gl::Res<()> {
                     } => match keypress {
                         VirtualKeyCode::Key0 => {
                             call_u_and_r!(Input::ResetScroll);
+                        }
+                        VirtualKeyCode::Home => {
+                            call_u_and_r!(Input::MoveAllCursors(Move::ToBufferStart));
+                        }
+                        VirtualKeyCode::End => {
+                            call_u_and_r!(Input::MoveAllCursors(Move::ToBufferEnd));
                         }
                         _ => (),
                     },
@@ -128,6 +135,24 @@ pub fn run(update_and_render: UpdateAndRender) -> gl::Res<()> {
                         VirtualKeyCode::Escape => running = false,
                         VirtualKeyCode::Back => {
                             call_u_and_r!(Input::Delete);
+                        }
+                        VirtualKeyCode::Up => {
+                            call_u_and_r!(Input::MoveAllCursors(Move::Up));
+                        }
+                        VirtualKeyCode::Down => {
+                            call_u_and_r!(Input::MoveAllCursors(Move::Down));
+                        }
+                        VirtualKeyCode::Left => {
+                            call_u_and_r!(Input::MoveAllCursors(Move::Left));
+                        }
+                        VirtualKeyCode::Right => {
+                            call_u_and_r!(Input::MoveAllCursors(Move::Right));
+                        }
+                        VirtualKeyCode::Home => {
+                            call_u_and_r!(Input::MoveAllCursors(Move::ToLineStart));
+                        }
+                        VirtualKeyCode::End => {
+                            call_u_and_r!(Input::MoveAllCursors(Move::ToLineEnd));
                         }
                         _ => (),
                     },
@@ -161,7 +186,7 @@ pub fn run(update_and_render: UpdateAndRender) -> gl::Res<()> {
             color,
             ref chars,
             screen_position,
-        } in view.buffers.iter()
+        } in &view.buffers
         {
             use platform_types::BufferViewKind;
 
@@ -179,10 +204,10 @@ pub fn run(update_and_render: UpdateAndRender) -> gl::Res<()> {
             });
         }
 
-        let width = dimensions.width as f32;
+        let width = dimensions.width as u32;
         let height = dimensions.height as f32;
 
-        gl::render(&mut gl_state, &mut glyph_brush, width as _, height as _)?;
+        gl_layer::render(&mut gl_state, &mut glyph_brush, width as _, height as _)?;
 
         window.swap_buffers()?;
 
@@ -192,5 +217,5 @@ pub fn run(update_and_render: UpdateAndRender) -> gl::Res<()> {
         loop_helper.loop_sleep();
     }
 
-    gl::cleanup(gl_state)
+    gl_layer::cleanup(gl_state)
 }

@@ -9,6 +9,7 @@ path = "./src/editor.rs"
 
 [dependencies]
 vec1 = "1.3.0"
+unicode-segmentation = "1.2.1"
 
 [dependencies.platform_types]
 path = "../platform_types"

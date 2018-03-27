@@ -5,25 +5,51 @@ macro_rules! d {
     };
     (for $name:ident is $code:expr) => {
         impl Default for $name {
-            fn default() -> $name {
+            fn default() -> Self {
                 $code
             }
         }
     };
 }
 
+#[macro_export]
+macro_rules! dg {
+    ($thing:expr) => {
+        if cfg!(debug_assertions) {
+            dbg!($thing)
+        } else {
+            $thing
+        }
+    };
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum Move {
+    Up,
+    Down,
+    Left,
+    Right,
+    ToLineStart,
+    ToLineEnd,
+    ToBufferStart,
+    ToBufferEnd,
+}
+
+#[derive(Clone, Copy, Debug)]
 pub enum Input {
-    NoInput,
+    None,
     Insert(char),
     Delete,
     ResetScroll,
     ScrollVertically(f32),
     ScrollHorizontally(f32),
     SetSizes(Sizes),
+    MoveAllCursors(Move),
 }
 
-d!(for Input is Input::NoInput);
+d!(for Input is Input::None);
 
+#[derive(Clone, Copy, Debug)]
 pub struct Sizes {
     pub screen_w: Option<f32>,
     pub screen_h: Option<f32>,

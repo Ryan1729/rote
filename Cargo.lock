@@ -253,14 +253,6 @@ dependencies = [
 
 [[package]]
 name = "gl"
-version = "0.1.0"
-dependencies = [
- "gl 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "glyph_brush 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "gl"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
@@ -275,6 +267,14 @@ dependencies = [
  "khronos_api 3.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "xml-rs 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "gl_layer"
+version = "0.1.0"
+dependencies = [
+ "gl 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "glyph_brush 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -532,7 +532,7 @@ dependencies = [
 name = "opengl"
 version = "0.0.1"
 dependencies = [
- "gl 0.1.0",
+ "gl_layer 0.1.0",
  "glutin 0.20.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "glyph_brush 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "glyph_brush_layout 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -771,7 +771,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "rote"
-version = "0.2.6"
+version = "0.2.7"
 dependencies = [
  "editor 0.1.0",
  "lazy_static 1.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
