@@ -13,6 +13,7 @@ struct Buffer {
 }
 
 impl Buffer {
+    #[perf_viz::record]
     fn insert(&mut self, ch: char) {
         for cursor in &mut self.cursors {
             self.gap_buffer.insert(ch, &cursor.position);
@@ -20,6 +21,7 @@ impl Buffer {
         }
     }
 
+    #[perf_viz::record]
     fn delete(&mut self) {
         for cursor in &mut self.cursors {
             self.gap_buffer.delete(&cursor.position);
@@ -27,12 +29,14 @@ impl Buffer {
         }
     }
 
+    #[perf_viz::record]
     fn move_all_cursors(&mut self, r#move: Move) {
         for i in 0..self.cursors.len() {
             self.move_cursor(i, r#move)
         }
     }
 
+    #[perf_viz::record]
     fn move_cursor(&mut self, index: usize, r#move: Move) {
         if let Some(cursor) = self.cursors.get_mut(index) {
             match r#move {
@@ -48,14 +52,17 @@ impl Buffer {
         }
     }
 
+    #[perf_viz::record]
     fn grapheme_before(&self, c: &Cursor) -> Option<&str> {
         self.gap_buffer.grapheme_before(c)
     }
 
+    #[perf_viz::record]
     fn grapheme_after(&self, c: &Cursor) -> Option<&str> {
         self.gap_buffer.grapheme_after(c)
     }
 
+    #[perf_viz::record]
     fn in_bounds<P: Borrow<Position>>(&self, p: P) -> bool {
         self.gap_buffer.in_bounds(p)
     }
@@ -241,9 +248,11 @@ pub struct State {
 }
 
 impl State {
+    #[perf_viz::record]
     fn current_buffer(&self) -> Option<&Buffer> {
         self.buffers.get(self.current_burrer_index)
     }
+    #[perf_viz::record]
     fn current_buffer_mut(&mut self) -> Option<&mut Buffer> {
         self.buffers.get_mut(self.current_burrer_index)
     }
@@ -253,6 +262,15 @@ pub fn new() -> State {
     d!()
 }
 
+macro_rules! set_if_present {
+    ($source:ident => $target:ident.$field:ident) => {
+        if let Some($field) = $source.$field {
+            $target.$field = $field;
+        }
+    };
+}
+
+#[perf_viz::record]
 pub fn update_and_render(state: &mut State, input: Input) -> (View, Cmd) {
     use platform_types::BufferViewKind;
     if cfg!(debug_assertions) {
@@ -290,17 +308,10 @@ pub fn update_and_render(state: &mut State, input: Input) -> (View, Cmd) {
             state.scroll_y = 0.0;
         }
         Input::SetSizes(sizes) => {
-            macro_rules! set_if_present {
-                ($field:ident) => {
-                    if let Some($field) = sizes.$field {
-                        state.$field = $field;
-                    }
-                };
-            }
-            set_if_present!(screen_w);
-            set_if_present!(screen_h);
-            set_if_present!(char_w);
-            set_if_present!(line_h);
+            set_if_present!(sizes => state.screen_w);
+            set_if_present!(sizes => state.screen_h);
+            set_if_present!(sizes => state.char_w);
+            set_if_present!(sizes => state.line_h);
         }
         Input::SetMousePos((mouse_x, mouse_y)) => {
             state.mouse_x = mouse_x;

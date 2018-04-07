@@ -1,6 +1,6 @@
 [package]
 name = "rote"
-version = "0.2.14"
+version = "0.2.15"
 authors = ["Ryan1729 <Ryan1729@gmail.com>"]
 license = "MIT and Apache 2.0"
 edition = "2018"
@@ -31,6 +31,7 @@ rand = "0.3"
 default = []
 invariant-checking = []
 flame-chart = ["perf_viz/flame-chart"]
+flame-graph = ["perf_viz/flame-graph"]
 
 [workspace]
 

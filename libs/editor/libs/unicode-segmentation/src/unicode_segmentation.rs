@@ -1,12 +1,10 @@
 /// This file is derived from multiple files from https://github.com/unicode-rs/unicode-segmentation/tree/35a90f43319d87c8fc871d2b18cde9156f5834aa
 /// The code is licensed under the Apache 2.0 license, and/or the MIT Licencse as described in the
 /// license files included in this crate. This file has been modified from its original form.
+use grapheme::GraphemeCat;
 
-use tables::grapheme::GraphemeCat;
-
-mod tables {
 pub mod grapheme {
-    use std::result::Result::{Ok, Err};
+    use std::result::Result::{Err, Ok};
 
     pub use self::GraphemeCat::*;
 
@@ -33,26 +31,28 @@ pub mod grapheme {
         GC_ZWJ,
     }
 
-    fn bsearch_range_value_table(c: char, r: &'static [(char, char, GraphemeCat)]) -> GraphemeCat {
-        use std::cmp::Ordering::{Equal, Less, Greater};
-        match r.binary_search_by(|&(lo, hi, _)| {
-            if lo <= c && c <= hi { Equal }
-            else if hi < c { Less }
-            else { Greater }
+    #[perf_viz::record]
+    pub fn grapheme_category(c: char) -> GraphemeCat {
+        use std::cmp::Ordering::{Equal, Greater, Less};
+        match GRAPHEME_CAT_TABLE.binary_search_by(|&(lo, hi, _)| {
+            if lo <= c && c <= hi {
+                Equal
+            } else if hi < c {
+                Less
+            } else {
+                Greater
+            }
         }) {
             Ok(idx) => {
-                let (_, _, cat) = r[idx];
+                let (_, _, cat) = GRAPHEME_CAT_TABLE[idx];
                 cat
             }
-            Err(_) => GC_Any
+            Err(_) => GC_Any,
         }
     }
 
-    pub fn grapheme_category(c: char) -> GraphemeCat {
-        bsearch_range_value_table(c, grapheme_cat_table)
-    }
-
-    const grapheme_cat_table: &'static [(char, char, GraphemeCat)] = &[
+    #[rustfmt::skip]
+    const GRAPHEME_CAT_TABLE: &'static [(char, char, GraphemeCat)] = &[
         ('\u{0}', '\u{9}', GC_Control), ('\u{a}', '\u{a}', GC_LF), ('\u{b}', '\u{c}', GC_Control),
         ('\u{d}', '\u{d}', GC_CR), ('\u{e}', '\u{1f}', GC_Control), ('\u{7f}', '\u{9f}',
         GC_Control), ('\u{ad}', '\u{ad}', GC_Control), ('\u{300}', '\u{36f}', GC_Extend),
@@ -582,7 +582,7 @@ pub mod grapheme {
         '\u{e01ef}', GC_Extend), ('\u{e01f0}', '\u{e0fff}', GC_Control)
     ];
 
-}}
+}
 
 #[derive(Clone)]
 pub struct GraphemeIndices<'a> {
@@ -595,7 +595,9 @@ impl<'a> Iterator for GraphemeIndices<'a> {
 
     #[inline]
     fn next(&mut self) -> Option<(usize, &'a str)> {
-        self.iter.next().map(|s| (s.as_ptr() as usize - self.start_offset, s))
+        self.iter
+            .next()
+            .map(|s| (s.as_ptr() as usize - self.start_offset, s))
     }
 
     #[inline]
@@ -645,7 +647,10 @@ pub fn new_graphemes<'b>(s: &'b str) -> Graphemes<'b> {
 
 #[inline]
 pub fn new_grapheme_indices<'b>(s: &'b str) -> GraphemeIndices<'b> {
-    GraphemeIndices { start_offset: s.as_ptr() as usize, iter: new_graphemes(s) }
+    GraphemeIndices {
+        start_offset: s.as_ptr() as usize,
+        iter: new_graphemes(s),
+    }
 }
 
 // maybe unify with PairResult?
@@ -694,45 +699,44 @@ pub struct GraphemeCursor {
 // An enum describing the result from lookup of a pair of categories.
 #[derive(PartialEq, Eq)]
 enum PairResult {
-    NotBreak,  // definitely not a break
-    Break,  // definitely a break
-    Extended,  // a break iff not in extended mode
-    Regional,  // a break if preceded by an even number of RIS
-    Emoji,  // a break if preceded by emoji base and (Extend)*
+    NotBreak, // definitely not a break
+    Break,    // definitely a break
+    Regional, // a break if preceded by an even number of RIS
+    Emoji,    // a break if preceded by emoji base and (Extend)*
 }
 
 fn check_pair(before: GraphemeCat, after: GraphemeCat) -> PairResult {
-    use tables::grapheme::GraphemeCat::*;
     use self::PairResult::*;
+    use grapheme::GraphemeCat::*;
     match (before, after) {
-        (GC_CR, GC_LF) => NotBreak,  // GB3
-        (GC_Control, _) => Break,  // GB4
-        (GC_CR, _) => Break,  // GB4
-        (GC_LF, _) => Break,  // GB4
-        (_, GC_Control) => Break,  // GB5
-        (_, GC_CR) => Break,  // GB5
-        (_, GC_LF) => Break,  // GB5
-        (GC_L, GC_L) => NotBreak,  // GB6
-        (GC_L, GC_V) => NotBreak,  // GB6
-        (GC_L, GC_LV) => NotBreak,  // GB6
-        (GC_L, GC_LVT) => NotBreak,  // GB6
-        (GC_LV, GC_V) => NotBreak,  // GB7
-        (GC_LV, GC_T) => NotBreak,  // GB7
-        (GC_V, GC_V) => NotBreak,  // GB7
-        (GC_V, GC_T) => NotBreak,  // GB7
-        (GC_LVT, GC_T) => NotBreak,  // GB8
-        (GC_T, GC_T) => NotBreak,  // GB8
-        (_, GC_Extend) => NotBreak, // GB9
-        (_, GC_ZWJ) => NotBreak,  // GB9
-        (_, GC_SpacingMark) => Extended,  // GB9a
-        (GC_Prepend, _) => Extended,  // GB9b
-        (GC_E_Base, GC_E_Modifier) => NotBreak,  // GB10
-        (GC_E_Base_GAZ, GC_E_Modifier) => NotBreak,  // GB10
-        (GC_Extend, GC_E_Modifier) => Emoji,  // GB10
-        (GC_ZWJ, GC_Glue_After_Zwj) => NotBreak,  // GB11
-        (GC_ZWJ, GC_E_Base_GAZ) => NotBreak,  // GB11
-        (GC_Regional_Indicator, GC_Regional_Indicator) => Regional,  // GB12, GB13
-        (_, _) => Break,  // GB999
+        (GC_CR, GC_LF) => NotBreak,                                 // GB3
+        (GC_Control, _) => Break,                                   // GB4
+        (GC_CR, _) => Break,                                        // GB4
+        (GC_LF, _) => Break,                                        // GB4
+        (_, GC_Control) => Break,                                   // GB5
+        (_, GC_CR) => Break,                                        // GB5
+        (_, GC_LF) => Break,                                        // GB5
+        (GC_L, GC_L) => NotBreak,                                   // GB6
+        (GC_L, GC_V) => NotBreak,                                   // GB6
+        (GC_L, GC_LV) => NotBreak,                                  // GB6
+        (GC_L, GC_LVT) => NotBreak,                                 // GB6
+        (GC_LV, GC_V) => NotBreak,                                  // GB7
+        (GC_LV, GC_T) => NotBreak,                                  // GB7
+        (GC_V, GC_V) => NotBreak,                                   // GB7
+        (GC_V, GC_T) => NotBreak,                                   // GB7
+        (GC_LVT, GC_T) => NotBreak,                                 // GB8
+        (GC_T, GC_T) => NotBreak,                                   // GB8
+        (_, GC_Extend) => NotBreak,                                 // GB9
+        (_, GC_ZWJ) => NotBreak,                                    // GB9
+        (_, GC_SpacingMark) => NotBreak,                            // GB9a
+        (GC_Prepend, _) => NotBreak,                                // GB9b
+        (GC_E_Base, GC_E_Modifier) => NotBreak,                     // GB10
+        (GC_E_Base_GAZ, GC_E_Modifier) => NotBreak,                 // GB10
+        (GC_Extend, GC_E_Modifier) => Emoji,                        // GB10
+        (GC_ZWJ, GC_Glue_After_Zwj) => NotBreak,                    // GB11
+        (GC_ZWJ, GC_E_Base_GAZ) => NotBreak,                        // GB11
+        (GC_Regional_Indicator, GC_Regional_Indicator) => Regional, // GB12, GB13
+        (_, _) => Break,                                            // GB999
     }
 }
 
@@ -747,7 +751,7 @@ macro_rules! decide {
     ($self:expr, $is_break:expr, return) => {{
         decide!($self, $is_break);
         $is_break
-    }}
+    }};
 }
 
 impl GraphemeCursor {
@@ -764,8 +768,9 @@ impl GraphemeCursor {
         }
     }
 
+    #[perf_viz::record]
     fn handle_regional(&mut self, chunk: &str) {
-        use tables::grapheme as gr;
+        use grapheme as gr;
         let mut ris_count = self.ris_count.unwrap_or(0);
         for ch in chunk.chars().rev() {
             if gr::grapheme_category(ch) != gr::GC_Regional_Indicator {
@@ -779,8 +784,9 @@ impl GraphemeCursor {
         decide!(self, (ris_count % 2) == 0);
     }
 
+    #[perf_viz::record]
     fn handle_emoji(&mut self, chunk: &str) {
-        use tables::grapheme as gr;
+        use grapheme as gr;
         for ch in chunk.chars().rev() {
             match gr::grapheme_category(ch) {
                 gr::GC_Extend => (),
@@ -797,13 +803,14 @@ impl GraphemeCursor {
         decide!(self, true);
     }
 
+    #[perf_viz::record]
     pub fn is_boundary(&mut self, chunk: &str) -> bool {
-        use tables::grapheme as gr;
+        use grapheme as gr;
         if self.state == GraphemeState::Break {
-            return true
+            return true;
         }
         if self.state == GraphemeState::NotBreak {
-            return false
+            return false;
         }
         let offset_in_chunk = self.offset;
         if self.cat_after.is_none() {
@@ -811,11 +818,10 @@ impl GraphemeCursor {
             self.cat_after = Some(gr::grapheme_category(ch));
         }
         if self.offset == 0 {
-            let mut need_pre_context = true;
             match self.cat_after.unwrap() {
                 gr::GC_Regional_Indicator => self.state = GraphemeState::Regional,
                 gr::GC_E_Modifier => self.state = GraphemeState::Emoji,
-                _ => need_pre_context = self.cat_before.is_none(),
+                _ => {}
             }
         }
         if self.cat_before.is_none() {
@@ -825,9 +831,6 @@ impl GraphemeCursor {
         match check_pair(self.cat_before.unwrap(), self.cat_after.unwrap()) {
             PairResult::NotBreak => return decide!(self, false, return),
             PairResult::Break => return decide!(self, true, return),
-            PairResult::Extended => {
-                return decide!(self, false, return);
-            }
             PairResult::Regional => {
                 if let Some(ris_count) = self.ris_count {
                     return decide!(self, (ris_count % 2) == 0, return);
@@ -847,8 +850,9 @@ impl GraphemeCursor {
         }
     }
 
+    #[perf_viz::record]
     pub fn next_boundary(&mut self, chunk: &str) -> usize {
-        use tables::grapheme as gr;
+        use grapheme as gr;
         let mut iter = chunk[self.offset..].chars();
         let mut ch = iter.next().unwrap();
         loop {

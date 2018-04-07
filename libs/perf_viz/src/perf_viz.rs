@@ -12,7 +12,7 @@ pub use perf_viz_proc_macro::record;
 /// necessary. Or the root crate would need a dependency on at least one crate. But this way
 /// everything related to performance visualization is in this crate besides the annotations.
 
-#[cfg(feature = "flame-chart")]
+#[cfg(any(feature = "flame-chart", feature = "flame-graph"))]
 pub fn flame_start_guard<S: Into<std::borrow::Cow<'static, str>>>(s: S) -> flame::SpanGuard {
     flame::start_guard(s)
 }
@@ -25,6 +25,71 @@ pub fn flame_output() {
     let mut file = std::fs::File::create(path).unwrap();
     flame::dump_html(&mut file).unwrap();
 
+    describe_output(path)
+}
+
+// from https://github.com/TyOverby/flame/issues/33#issuecomment-352312506
+#[cfg(feature = "flame-graph")]
+fn merge_spans(spans: &mut Vec<flame::Span>) {
+    if spans.is_empty() {
+        return;
+    }
+
+    // Sort so spans to be merged are adjacent and spans with the most children are
+    // merged into to minimise allocations.
+    spans.sort_unstable_by(|s1, s2| {
+        let a = (&s1.name, s1.depth, usize::max_value() - s1.children.len());
+        let b = (&s2.name, s2.depth, usize::max_value() - s2.children.len());
+        a.cmp(&b)
+    });
+
+    // Copy children and sum delta from spans to be merged
+    let mut merge_targets = vec![0];
+    {
+        let mut spans_iter = spans.iter_mut().enumerate();
+        let (_, mut current) = spans_iter.next().unwrap();
+        for (i, span) in spans_iter {
+            if current.name == span.name && current.depth == span.depth {
+                current.delta += span.delta;
+                let mut children = std::mem::replace(&mut span.children, Vec::new());
+                current.children.extend(children.into_iter());
+            } else {
+                current = span;
+                merge_targets.push(i);
+            }
+        }
+    }
+
+    // Move merged spans to the front of the spans vector
+    for (target_i, &current_i) in merge_targets.iter().enumerate() {
+        spans.swap(target_i, current_i);
+    }
+
+    // Remove duplicate spans
+    spans.truncate(merge_targets.len());
+
+    // Merge children of the newly collapsed spans
+    for span in spans {
+        merge_spans(&mut span.children);
+    }
+}
+
+#[cfg(feature = "flame-graph")]
+pub fn flame_output() {
+    println!("Writing out flame graph");
+
+    let mut spans = flame::threads().into_iter().next().unwrap().spans;
+    merge_spans(&mut spans);
+
+    let path: &std::path::Path = "flame-graph.html".as_ref();
+    let mut file = std::fs::File::create(path).unwrap();
+    flame::dump_html_custom(&mut file, &spans).unwrap();
+
+    describe_output(path)
+}
+
+#[cfg(any(feature = "flame-chart", feature = "flame-graph"))]
+fn describe_output(path: &std::path::Path) {
     println!(
         "Wrote to \"{}\". ({}kb)",
         path.to_string_lossy(),
@@ -32,7 +97,7 @@ pub fn flame_output() {
     );
 }
 
-#[cfg(feature = "flame-chart")]
+#[cfg(any(feature = "flame-chart", feature = "flame-graph"))]
 #[macro_export]
 macro_rules! output {
     () => {
@@ -40,10 +105,10 @@ macro_rules! output {
     };
 }
 
-#[cfg(not(feature = "flame-chart"))]
+#[cfg(not(any(feature = "flame-chart", feature = "flame-graph")))]
 #[macro_export]
 macro_rules! output {
     () => {
-        println!("#[cfg(not(feature = \"flame-chart\"))]");
+        println!("No perf_viz features enabled.");
     };
 }
