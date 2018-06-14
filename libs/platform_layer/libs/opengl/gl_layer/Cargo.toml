@@ -4,8 +4,18 @@ version = "0.1.0"
 authors = ["Ryan1729 <Ryan1729@gmail.com>"]
 edition = "2018"
 
+[lib]
+path = "./src/gl_layer.rs"
+
 [dependencies]
 glyph_brush = { path = "../glyph-brush" }
 gl = "0.11"
 perf_viz = { path = "../../../../perf_viz" }
 macros = { path = "../../../../macros" }
+
+[features]
+# See comment in "time-render" check in gl_layer.rs for the reason why
+# "time-render" is on by default.
+default = ["time-render"]
+invariant-checking = []
+time-render = []

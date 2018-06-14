@@ -9,6 +9,9 @@ path = "./src/editor.rs"
 
 [dependencies]
 
+[dependencies.if_changed]
+path = "../if_changed"
+
 [dependencies.perf_viz]
 path = "../perf_viz"
 [dependencies.perf_viz_proc_macro]
@@ -25,3 +28,10 @@ path = "libs/editor_types"
 
 [dependencies.text_buffer]
 path = "libs/text_buffer"
+
+[dev-dependencies]
+criterion = "0.2"
+
+[[bench]]
+name = "user_input"
+harness = false

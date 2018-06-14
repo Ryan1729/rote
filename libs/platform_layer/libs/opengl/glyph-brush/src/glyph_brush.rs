@@ -6,6 +6,7 @@ pub use self::builder::*;
 use super::*;
 use full_rusttype::gpu_cache::{Cache, CachedBy};
 use log::error;
+use macros::d;
 use std::{
     borrow::Cow,
     fmt,
@@ -106,9 +107,20 @@ impl<'font, V: Clone + 'static, H: BuildHasher> GlyphCruncher<'font> for GlyphBr
     }
 }
 
-pub struct StatusLineInfo<V: Clone + 'static> {
+#[derive(Clone, Default, Debug)]
+pub struct HighlightRange {
+    pub pixel_coords: PixelCoords,
+    pub bounds: Bounds,
+    pub color: Color,
+    pub z: f32,
+}
+
+pub struct AdditionalRects<V: Clone + 'static> {
     pub transform_status_line: fn(&mut V),
+    pub extract_tex_coords: fn(&V) -> TexCoords,
     pub status_line_position: (f32, f32),
+    pub status_scale: Scale,
+    pub highlight_ranges: Vec<HighlightRange>,
 }
 
 impl<'font, V: Clone + 'static, H: BuildHasher> GlyphBrush<'font, V, H> {
@@ -125,15 +137,20 @@ impl<'font, V: Clone + 'static, H: BuildHasher> GlyphBrush<'font, V, H> {
         G: GlyphPositioner,
         S: Into<Cow<'a, VariedSection<'a>>>,
     {
+        perf_viz::record_guard!("queue_custom_layout");
         let section = section.into();
         if cfg!(debug_assertions) {
             for text in &section.text {
                 assert!(self.fonts.len() > text.font_id.0, "Invalid font id");
             }
         }
+        perf_viz::start_record!("cache_glyphs");
         let section_hash = self.cache_glyphs(&section, custom_layout);
+        perf_viz::end_record!("cache_glyphs");
+        perf_viz::start_record!("add to cache");
         self.section_buffer.push(section_hash);
         self.keep_in_cache.insert(section_hash);
+        perf_viz::end_record!("add to cache");
     }
 
     /// Queues a section/layout to be processed by the next call of
@@ -174,6 +191,7 @@ impl<'font, V: Clone + 'static, H: BuildHasher> GlyphBrush<'font, V, H> {
         self.frame_seq_id_sections.push(section_hash);
 
         if self.cache_glyph_positioning {
+            perf_viz::record_guard!("if self.cache_glyph_positioning");
             if !self.calculate_glyph_cache.contains_key(&section_hash.full) {
                 let geometry = SectionGeometry::from(section);
 
@@ -218,6 +236,7 @@ impl<'font, V: Clone + 'static, H: BuildHasher> GlyphBrush<'font, V, H> {
                 );
             }
         } else {
+            perf_viz::record_guard!("if not self.cache_glyph_positioning");
             let geometry = SectionGeometry::from(section);
             self.calculate_glyph_cache.insert(
                 section_hash.full,
@@ -251,7 +270,7 @@ impl<'font, V: Clone + 'static, H: BuildHasher> GlyphBrush<'font, V, H> {
         (screen_w, screen_h): (u32, u32),
         update_texture: F1,
         to_vertex: F2,
-        status_line_info: Option<StatusLineInfo<V>>,
+        additional_rects: Option<AdditionalRects<V>>,
     ) -> Result<BrushAction<V>, BrushError>
     where
         F1: FnMut(Rect<u32>, &[u8]),
@@ -274,23 +293,26 @@ impl<'font, V: Clone + 'static, H: BuildHasher> GlyphBrush<'font, V, H> {
             // be retained in the texture cache avoiding cache thrashing if they are rendered
             // in a 2-draw per frame style.
 
-            // This status line stuff was hacked in here to fix a perf issue arising from
+            // This additional rects stuff was hacked in here to fix a perf issue arising from
             // the previous method that used multiple instances of the character
-            let status_line_hash = status_line_info.map(
-                |StatusLineInfo {
+            let rect_hash = additional_rects.map(
+                |AdditionalRects {
                      transform_status_line,
+                     extract_tex_coords,
                      status_line_position,
+                     status_scale,
+                     highlight_ranges,
                  }| {
                     let section = Section {
                         // The status line will be a rectangle with the height of this glyph
                         //stretched horzontally across the screen.
                         text: "█",
-                        scale: Scale::uniform(11.0),
+                        scale: status_scale,
                         screen_position: status_line_position,
                         bounds: (std::f32::INFINITY, std::f32::INFINITY),
                         color: [7.0 / 256.0, 7.0 / 256.0, 7.0 / 256.0, 1.0],
                         layout: Layout::default_single_line(),
-                        z: 0.25,
+                        z: 0.1875,
                         ..Section::default()
                     }
                     .into();
@@ -299,7 +321,12 @@ impl<'font, V: Clone + 'static, H: BuildHasher> GlyphBrush<'font, V, H> {
                     self.section_buffer.push(section_hash);
                     self.keep_in_cache.insert(section_hash);
 
-                    (transform_status_line, section_hash)
+                    (
+                        transform_status_line,
+                        extract_tex_coords,
+                        section_hash,
+                        highlight_ranges,
+                    )
                 },
             );
 
@@ -380,18 +407,55 @@ impl<'font, V: Clone + 'static, H: BuildHasher> GlyphBrush<'font, V, H> {
 
                 // This status line stuff was hacked in here to fix a perf issue arising from
                 // the previous method that used multiple instances of the character
-                if let Some((transform_status_line, status_line_hash)) = status_line_hash {
-                    let glyphed = self
-                        .calculate_glyph_cache
-                        .get_mut(&status_line_hash)
-                        .unwrap();
-                    println!("pre ensure_vertices {:?}", glyphed.positioned.glyphs);
-                    glyphed.ensure_vertices_dbg(&self.texture_cache, screen_dims, to_vertex);
+                if let Some((
+                    transform_status_line,
+                    extract_tex_coords,
+                    rect_hash,
+                    highlight_ranges,
+                )) = rect_hash
+                {
+                    let glyphed = self.calculate_glyph_cache.get_mut(&rect_hash).unwrap();
+                    glyphed.ensure_vertices(&self.texture_cache, screen_dims, to_vertex);
                     if let Some(mut vertex) = glyphed.vertices.pop() {
-                        println!("Some(mut vertex)");
+                        let tex_coords = {
+                            let mut tex_coords = extract_tex_coords(&vertex);
+
+                            // Hacky way to prevent sampling outside of the texture.
+                            let x_apron = (tex_coords.max.x - tex_coords.min.x) * 0.25;
+                            let y_apron = (tex_coords.max.y - tex_coords.min.y) * 0.25;
+                            tex_coords.min.x += x_apron;
+                            tex_coords.min.y += y_apron;
+                            tex_coords.max.x -= x_apron;
+                            tex_coords.max.y -= y_apron;
+
+                            tex_coords
+                        };
+
                         transform_status_line(&mut vertex);
 
                         verts.push(vertex);
+
+                        let highlight_base = GlyphVertex {
+                            tex_coords,
+                            screen_dimensions: screen_dims,
+                            ..d!()
+                        };
+                        for range in highlight_ranges {
+                            let HighlightRange {
+                                pixel_coords,
+                                bounds,
+                                color,
+                                z,
+                            } = range;
+                            verts.push(to_vertex(GlyphVertex {
+                                tex_coords,
+                                pixel_coords,
+                                bounds,
+                                color,
+                                z,
+                                ..highlight_base
+                            }));
+                        }
                     }
                 }
 
@@ -508,6 +572,10 @@ struct LastDrawInfo {
     text_state: u64,
 }
 
+pub type TexCoords = Rect<f32>;
+pub type PixelCoords = Rect<i32>;
+pub type Bounds = Rect<f32>;
+
 // glyph: &PositionedGlyph,
 // color: Color,
 // font_id: FontId,
@@ -517,11 +585,11 @@ struct LastDrawInfo {
 // (screen_width, screen_height): (f32, f32),
 
 /// Data used to generate vertex information for a single glyph
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct GlyphVertex {
-    pub tex_coords: Rect<f32>,
-    pub pixel_coords: Rect<i32>,
-    pub bounds: Rect<f32>,
+    pub tex_coords: TexCoords,
+    pub pixel_coords: PixelCoords,
+    pub bounds: Bounds,
     pub screen_dimensions: (f32, f32),
     pub color: Color,
     pub z: f32,
@@ -665,7 +733,6 @@ impl<'font, V: Clone + 'static> Glyphed<'font, V> {
         F: Fn(GlyphVertex) -> V,
     {
         if !self.vertices.is_empty() {
-            println!("ensure_vertices return");
             return;
         }
 
@@ -679,57 +746,6 @@ impl<'font, V: Clone + 'static> Glyphed<'font, V> {
         self.vertices
             .extend(glyphs.iter().filter_map(|(glyph, color, font_id)| {
                 match texture_cache.rect_for(font_id.0, glyph) {
-                    Err(err) => {
-                        error!("Cache miss?: {:?}, {:?}: {}", font_id, glyph, err);
-                        None
-                    }
-                    Ok(None) => None,
-                    Ok(Some((tex_coords, pixel_coords))) => {
-                        if pixel_coords.min.x as f32 > bounds.max.x
-                            || pixel_coords.min.y as f32 > bounds.max.y
-                            || bounds.min.x > pixel_coords.max.x as f32
-                            || bounds.min.y > pixel_coords.max.y as f32
-                        {
-                            // glyph is totally outside the bounds
-                            None
-                        } else {
-                            Some(to_vertex(GlyphVertex {
-                                tex_coords,
-                                pixel_coords,
-                                bounds,
-                                screen_dimensions,
-                                color: *color,
-                                z,
-                            }))
-                        }
-                    }
-                }
-            }));
-    }
-
-    fn ensure_vertices_dbg<F>(
-        &mut self,
-        texture_cache: &Cache<'font>,
-        screen_dimensions: (f32, f32),
-        to_vertex: F,
-    ) where
-        F: Fn(GlyphVertex) -> V,
-    {
-        if !self.vertices.is_empty() {
-            println!("ensure_vertices return");
-            return;
-        }
-
-        let GlyphedSection {
-            bounds,
-            z,
-            ref glyphs,
-        } = self.positioned;
-
-        self.vertices.reserve(glyphs.len());
-        self.vertices
-            .extend(glyphs.iter().filter_map(|(glyph, color, font_id)| {
-                match dbg!(texture_cache.rect_for(font_id.0, glyph)) {
                     Err(err) => {
                         error!("Cache miss?: {:?}, {:?}: {}", font_id, glyph, err);
                         None

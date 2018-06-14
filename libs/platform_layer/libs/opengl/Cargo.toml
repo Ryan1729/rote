@@ -11,6 +11,8 @@ path = "./src/opengl.rs"
 
 [dependencies]
 platform_types = { path = "../../../platform_types" }
+macros = { path = "../../../macros" }
+if_changed = { path = "../../../if_changed" }
 perf_viz = { path = "../../../perf_viz" }
 perf_viz_proc_macro = { path = "../../../perf_viz/libs/perf_viz_proc_macro" }
 gl_layer = { path = "gl_layer" }
@@ -22,9 +24,18 @@ full_rusttype = { version = "0.7.5", features = ["gpu_cache"], package = "rustty
 hashbrown = "0.2"
 twox-hash = "1"
 lazy_static = "1"
-glutin = "0.20"
+glutin = "0.21"
 spin_sleep = "0.3"
 
 [features]
 default = []
 invariant-checking = []
+time-render = ["gl_layer/time-render"]
+
+[dev-dependencies]
+criterion = "0.2"
+editor = { path = "../../../editor" }
+
+[[bench]]
+name = "rendering"
+harness = false

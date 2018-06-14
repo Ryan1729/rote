@@ -37,6 +37,7 @@ pub enum Input {
     SetSizes(Sizes),
     SetMousePos(ScreenSpaceXY),
     MoveAllCursors(Move),
+    ExtendSelectionForAllCursors(Move),
     ReplaceCursors(ScreenSpaceXY),
 }
 
@@ -89,10 +90,9 @@ pub fn position_to_screen_space(
 
 d!(for Input : Input::None);
 
-/// The nth space between utf8 characters, not including the gap. So in the string "aöc" there are
+/// The nth space between utf8 characters. So in the string "aöc" there are
 /// four possibe `CharOffset`s. (Note that "ö" is two characters: "o\u{308}".)
 /// Here they are represented as vertical bars: "|a|ö|c|"
-/// Whatever the state of the gap is, that is how `CharOffset`s are meant to be interpreted.
 #[derive(Clone, Copy, Debug, Default, Hash)]
 pub struct CharOffset(pub usize);
 
@@ -105,6 +105,34 @@ integer_newtype! {
 }
 
 fmt_display! {for CharOffset : CharOffset(offset) in "{}", offset}
+
+/// A `CharOffset` that is counting from the start of the buffer
+#[derive(Clone, Copy, Debug, Default, Hash)]
+pub struct AbsoluteCharOffset(pub usize);
+
+usize_newtype! {
+    AbsoluteCharOffset
+}
+
+integer_newtype! {
+    AbsoluteCharOffset
+}
+
+fmt_display! {for AbsoluteCharOffset : AbsoluteCharOffset(offset) in "{}(abs.)", offset}
+
+impl std::ops::Add<CharOffset> for AbsoluteCharOffset {
+    type Output = AbsoluteCharOffset;
+
+    fn add(self, other: CharOffset) -> AbsoluteCharOffset {
+        AbsoluteCharOffset(self.0 + other.0)
+    }
+}
+
+impl From<AbsoluteCharOffset> for CharOffset {
+    fn from(index: AbsoluteCharOffset) -> CharOffset {
+        CharOffset(index.0)
+    }
+}
 
 /// `offset` indicates a location before or after characters, not at the charaters.
 #[derive(Copy, Clone, Default, Eq, Hash)]
@@ -177,7 +205,7 @@ impl PartialEq for Position {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct View {
     pub buffers: Vec<BufferView>,
 }
@@ -189,6 +217,28 @@ pub enum BufferViewKind {
     Cursor,
 }
 
+d!(for BufferViewKind: BufferViewKind::Cursor);
+
+#[derive(Debug)]
+pub struct Highlight {
+    min: Position,
+    max: Position,
+}
+
+impl Highlight {
+    pub fn new((p1, p2): (Position, Position)) -> Self {
+        Highlight {
+            min: std::cmp::min(p1, p2),
+            max: std::cmp::max(p1, p2),
+        }
+    }
+
+    pub fn get(&self) -> (Position, Position) {
+        (self.min, self.max)
+    }
+}
+
+#[derive(Default, Debug)]
 pub struct BufferView {
     pub kind: BufferViewKind,
     pub screen_position: (f32, f32),
@@ -196,8 +246,10 @@ pub struct BufferView {
     pub color: [f32; 4],
     //TODO make this a &str or a char iterator
     pub chars: String,
+    pub highlights: Vec<Highlight>,
 }
 
+#[derive(Debug, Clone, Copy)]
 pub enum Cmd {
     NoCmd, //The plan is to communicate things like saving to the platform layer with this
 }
@@ -211,7 +263,8 @@ pub type UpdateAndRender = fn(Input) -> UpdateAndRenderOutput;
 pub struct Sizes {
     pub screen_w: Option<f32>,
     pub screen_h: Option<f32>,
-    pub char_dim: Option<CharDim>,
+    pub text_char_dim: Option<CharDim>,
+    pub status_char_dim: Option<CharDim>,
 }
 
 #[macro_export]
@@ -219,12 +272,14 @@ macro_rules! Sizes {
     {
         screen_w: $screen_w:expr,
         screen_h: $screen_h:expr,
-        char_dim: $char_dim:expr $(,)?
+        text_char_dim: $text_char_dim:expr,
+        status_char_dim: $status_char_dim:expr $(,)?
     } => (
         Sizes {
             screen_w: $screen_w.into(),
             screen_h: $screen_h.into(),
-            char_dim: $char_dim.into(),
+            text_char_dim: $text_char_dim.into(),
+            status_char_dim: $status_char_dim.into(),
         }
     );
 }

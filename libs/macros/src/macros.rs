@@ -142,8 +142,14 @@ macro_rules! d {
     () => {
         Default::default()
     };
-    (for $name:ty : $code:expr) => {
-        impl Default for $name {
+    //the generics monstrosity originated at https://stackoverflow.com/a/52135598
+    (
+        $(
+            <$($generic_name:ident $(: $generic_trait_1:ident $(+ $generic_trait_n:ident)* )? ),+>
+        )?
+        for $name:ty : $code:expr) => {
+        impl $(< $($generic_name $(: $generic_trait_1 $(+ $generic_trait_n)* )* ),* >)?
+        Default for $name {
             fn default() -> Self {
                 $code
             }

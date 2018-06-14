@@ -1,11 +1,10 @@
-use macros::{fmt_display, integer_newtype, usize_newtype};
+use macros::{d, fmt_display, integer_newtype, usize_newtype};
 use platform_types::{CharOffset, Move, Position};
 use std::borrow::{Borrow, BorrowMut};
 use std::ops::{Add, Sub};
 pub use vec1::Vec1;
 
-/// In index into thebuffer's underlying bytes. Indexes into the gap are possible but usually
-/// (always?) undesired.
+/// An index into the buffer's underlying bytes.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ByteIndex(pub usize);
 
@@ -42,22 +41,35 @@ impl From<ByteIndex> for ByteLength {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct Cursor {
     pub position: Position,
     pub sticky_offset: CharOffset,
+    pub highlight_position: Option<Position>,
 }
 
-fmt_display! {for Cursor : Cursor { position, sticky_offset, } in "{}({})", position, sticky_offset}
+fmt_display! {
+    for Cursor : Cursor {
+            position,
+            sticky_offset,
+            highlight_position
+        } in "{}({}){}",
+        position,
+        sticky_offset,
+        highlight_position.map(|h| format!("h:{}", h)).unwrap_or_default()
+}
 
 impl Cursor {
     pub fn new(position: Position) -> Self {
         Cursor {
             position,
             sticky_offset: position.offset,
+            highlight_position: None,
         }
     }
 }
+
+d!(for Cursor: Cursor::new(d!()));
 
 impl Borrow<Position> for Cursor {
     fn borrow(&self) -> &Position {
@@ -75,9 +87,21 @@ pub trait MultiCursorBuffer: Borrow<Vec1<Cursor>> + BorrowMut<Vec1<Cursor>> {
 
     fn delete(&mut self);
 
-    fn move_all_cursors(&mut self, r#move: Move);
+    fn move_all_cursors(&mut self, r#move: Move) {
+        for i in 0..self.cursors().len() {
+            self.move_cursor(i, r#move)
+        }
+    }
 
     fn move_cursor(&mut self, index: usize, r#move: Move);
+
+    fn extend_selection_for_all_cursors(&mut self, r#move: Move) {
+        for i in 0..self.cursors().len() {
+            self.extend_selection(i, r#move)
+        }
+    }
+
+    fn extend_selection(&mut self, index: usize, r#move: Move);
 
     fn in_bounds<P: Borrow<Position>>(&self, position: P) -> bool {
         self.find_index(position) != None

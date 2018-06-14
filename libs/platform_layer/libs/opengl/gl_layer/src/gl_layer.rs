@@ -1,10 +1,12 @@
 // This file was split off of a file that was part of https://github.com/alexheretic/glyph-brush
 use gl::types::*;
+use glyph_brush::rusttype::Scale;
 use glyph_brush::*;
-use macros::invariants_checked;
+use macros::{d, invariants_checked};
 use std::{ffi::CString, mem, ptr, str};
 
 pub const EDIT_Z: f32 = 0.5;
+pub const HIGHLIGHT_Z: f32 = 0.4375;
 pub const CURSOR_Z: f32 = 0.375;
 pub const STATUS_BACKGROUND_Z: f32 = 0.25;
 pub const STATUS_Z: f32 = 0.125;
@@ -31,12 +33,22 @@ pub type Res<T> = Result<T, Box<std::error::Error>>;
 ///     override_alpha
 /// ]
 /// ```
-type Vertex = [GLfloat; 14];
+pub type Vertex = [GLfloat; 14];
 
 fn transform_status_line(vertex: &mut Vertex) {
     let max_x = &mut vertex[3];
     *max_x = std::f32::MAX;
     vertex[13] = 1.0;
+}
+
+fn extract_tex_coords(vertex: &Vertex) -> TexCoords {
+    let mut output: TexCoords = d!();
+    // To compenate for y flipping in to_vertex
+    output.min.x = vertex[5];
+    output.max.y = vertex[6];
+    output.max.x = vertex[7];
+    output.min.y = vertex[8];
+    output
 }
 
 #[inline]
@@ -103,10 +115,12 @@ fn to_vertex(
         z,
         gl_rect.max.x,
         gl_rect.min.y,
+        // this isn't `mix.x, min.y, max.x, max.y` in order to flip the y axis
         tex_coords.min.x,
         tex_coords.max.y,
         tex_coords.max.x,
         tex_coords.min.y,
+        //
         color[0],
         color[1],
         color[2],
@@ -238,6 +252,13 @@ pub fn set_dimensions(width: i32, height: i32) {
     }
 }
 
+#[derive(Clone)]
+pub struct RenderExtras {
+    pub status_line_position: Option<(f32, f32)>,
+    pub status_scale: Scale,
+    pub highlight_ranges: Vec<HighlightRange>,
+}
+
 #[perf_viz::record]
 pub fn render(
     State {
@@ -248,8 +269,31 @@ pub fn render(
     glyph_brush: &mut GlyphBrush<Vertex>,
     width: u32,
     height: u32,
-    status_line_position: Option<(f32, f32)>,
+    RenderExtras {
+        status_line_position,
+        status_scale,
+        highlight_ranges,
+    }: RenderExtras,
 ) -> Res<()> {
+    let query_ids = [0; 1];
+    if cfg!(feature = "time-render") {
+        // Adding and then retreving this query for how long the gl rendering took,
+        // "implicitly flushes the GL pipeline" according to this docs page:
+        // https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/glBeginQuery.xhtml
+        // Without something flushing the queue, as of this writing, the frames do not
+        // appear to render as quickly. That is, after user input the updated frame does
+        // shows up after a noticably longer delay. Oddly enough, `glFinish` produces the
+        // same speed up, and but it takes longer than this query does, (around a ms or so)
+        // at least on my current machine + driver setup. Here's a question abotut this:
+        // https://gamedev.stackexchange.com/q/172737
+        // For the time being, I'm making this feature enabled by default since it is
+        // currently faster, but thi may well not be true any more on a future machine/driver
+        // so  it seems worth it to keep it a feature.
+        unsafe {
+            gl::GenQueries(1, query_ids.as_ptr() as _);
+            gl::BeginQuery(gl::TIME_ELAPSED, query_ids[0])
+        }
+    }
     let dimensions = (width, height);
     let mut brush_action;
     loop {
@@ -274,9 +318,12 @@ pub fn render(
                 perf_viz::end_record!("|rect, tex_data|");
             },
             to_vertex,
-            status_line_position.map(|status_line_position| StatusLineInfo {
+            status_line_position.map(|status_line_position| AdditionalRects {
                 transform_status_line,
+                extract_tex_coords,
                 status_line_position,
+                status_scale,
+                highlight_ranges: highlight_ranges.clone(),
             }),
         );
         perf_viz::end_record!("process_queued");
@@ -336,6 +383,20 @@ pub fn render(
         perf_viz::record_guard!("DrawArraysInstanced");
         gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
         gl::DrawArraysInstanced(gl::TRIANGLE_STRIP, 0, 4, *vertex_count as _);
+    }
+
+    //See comment in above "time-render" check.
+    if cfg!(feature = "time-render") {
+        let mut time_elapsed = 0;
+        unsafe {
+            gl::EndQuery(gl::TIME_ELAPSED);
+            gl::GetQueryObjectiv(query_ids[0], gl::QUERY_RESULT, &mut time_elapsed);
+            gl::DeleteQueries(1, query_ids.as_ptr() as _);
+        }
+    } else {
+        unsafe {
+            gl::Finish();
+        }
     }
 
     Ok(())

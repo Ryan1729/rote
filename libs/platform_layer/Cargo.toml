@@ -9,3 +9,9 @@ license = "Apache-2.0"
 [dependencies]
 opengl = { path = "./libs/opengl" }
 platform_types = { path = "../platform_types" }
+macros = { path = "../macros" }
+
+[features]
+default = []
+invariant-checking = []
+time-render = ["opengl/time-render"]

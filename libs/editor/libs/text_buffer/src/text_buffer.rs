@@ -1,7 +1,7 @@
 use editor_types::{ByteIndex, Cursor, MultiCursorBuffer, Vec1};
 use macros::{borrow, borrow_mut, d};
 use panic_safe_rope::Rope;
-use platform_types::{CharOffset, Move, Position};
+use platform_types::{AbsoluteCharOffset, CharOffset, Move, Position};
 use std::borrow::Borrow;
 
 #[derive(Default)]
@@ -10,27 +10,62 @@ pub struct TextBuffer {
     cursors: Vec1<Cursor>,
 }
 
+impl From<String> for TextBuffer {
+    fn from(s: String) -> Self {
+        let mut output: Self = d!();
+
+        output.rope = Rope::from(s);
+
+        output
+    }
+}
+
+impl From<&str> for TextBuffer {
+    fn from(s: &str) -> Self {
+        let mut output: Self = d!();
+
+        output.rope = Rope::from(s);
+
+        output
+    }
+}
+
 borrow!(<Vec1<Cursor>> for TextBuffer : s in &s.cursors);
 borrow_mut!(<Vec1<Cursor>> for TextBuffer : s in &mut s.cursors);
+
+fn offset_pair(
+    rope: &Rope,
+    cursor: &Cursor,
+) -> (Option<AbsoluteCharOffset>, Option<AbsoluteCharOffset>) {
+    (
+        pos_to_char_offset(rope, &cursor.position),
+        cursor
+            .highlight_position
+            .and_then(|p| pos_to_char_offset(rope, &p)),
+    )
+}
 
 impl MultiCursorBuffer for TextBuffer {
     #[perf_viz::record]
     fn insert(&mut self, ch: char) {
         for cursor in &mut self.cursors {
-            if let Some(CharOffset(o)) = pos_to_char_offset(&self.rope, &cursor.position) {
-                self.rope.insert_char(o, ch);
-                move_right(&self.rope, cursor);
-            }
-        }
-    }
+            match offset_pair(&self.rope, cursor) {
+                (Some(AbsoluteCharOffset(o)), highlight)
+                    if highlight.is_none() || Some(AbsoluteCharOffset(o)) == highlight =>
+                {
+                    self.rope.insert_char(o, ch);
+                    move_right(&self.rope, cursor);
+                }
+                (Some(o1), Some(o2)) => {
+                    let min = std::cmp::min(o1, o2);
+                    let max = std::cmp::max(o1, o2);
 
-    #[perf_viz::record]
-    fn delete(&mut self) {
-        for cursor in &mut self.cursors {
-            match pos_to_char_offset(&self.rope, &cursor.position) {
-                Some(CharOffset(o)) if o > 0 => {
-                    self.rope.remove((o - 1)..o);
-                    move_left(&self.rope, cursor);
+                    self.rope.remove(min.0..max.0);
+                    cursor.position = char_offset_to_pos(&self.rope, &min).unwrap_or_default();
+                    cursor.highlight_position = None;
+
+                    self.rope.insert_char(min.0, ch);
+                    move_right(&self.rope, cursor);
                 }
                 _ => {}
             }
@@ -38,25 +73,51 @@ impl MultiCursorBuffer for TextBuffer {
     }
 
     #[perf_viz::record]
-    fn move_all_cursors(&mut self, r#move: Move) {
-        for i in 0..self.cursors.len() {
-            self.move_cursor(i, r#move)
+    fn delete(&mut self) {
+        for cursor in &mut self.cursors {
+            match offset_pair(&self.rope, cursor) {
+                (Some(AbsoluteCharOffset(o)), None) if o > 0 => {
+                    self.rope.remove((o - 1)..o);
+                    move_left(&self.rope, cursor);
+                }
+                (Some(o1), Some(o2)) if o1 > 0 || o2 > 0 => {
+                    let min = std::cmp::min(o1, o2);
+                    let max = std::cmp::max(o1, o2);
+
+                    self.rope.remove(dbg!(min.0..max.0));
+                    cursor.position = char_offset_to_pos(&self.rope, &min).unwrap_or_default();
+                    cursor.highlight_position = None;
+                }
+                _ => {}
+            }
         }
     }
 
     #[perf_viz::record]
     fn move_cursor(&mut self, index: usize, r#move: Move) {
         if let Some(cursor) = self.cursors.get_mut(index) {
-            match r#move {
-                Move::Up => move_up(&self.rope, cursor),
-                Move::Down => move_down(&self.rope, cursor),
-                Move::Left => move_left(&self.rope, cursor),
-                Move::Right => move_right(&self.rope, cursor),
-                Move::ToLineStart => move_to_line_start(&self.rope, cursor),
-                Move::ToLineEnd => move_to_line_end(&self.rope, cursor),
-                Move::ToBufferStart => move_to_rope_start(&self.rope, cursor),
-                Move::ToBufferEnd => move_to_rope_end(&self.rope, cursor),
+            if let Some(p) = cursor.highlight_position {
+                let decreasing = match r#move {
+                    Move::Up | Move::Left | Move::ToLineStart | Move::ToBufferStart => true,
+                    Move::Down | Move::Right | Move::ToLineEnd | Move::ToBufferEnd => false,
+                };
+                cursor.highlight_position = None;
+                if (decreasing && p <= cursor.position) || (!decreasing && p >= cursor.position) {
+                    cursor.position = p;
+                }
+                return;
             }
+
+            move_cursor_directly(&self.rope, cursor, r#move);
+        }
+    }
+
+    #[perf_viz::record]
+    fn extend_selection(&mut self, index: usize, r#move: Move) {
+        if let Some(cursor) = self.cursors.get_mut(index) {
+            set_selection_to_here_if_not_set(cursor);
+
+            move_cursor_directly(&self.rope, cursor, r#move);
         }
     }
 
@@ -68,13 +129,17 @@ impl MultiCursorBuffer for TextBuffer {
     #[perf_viz::record]
     fn nearest_valid_position_on_same_line<P: Borrow<Position>>(&self, p: P) -> Option<Position> {
         let p = p.borrow();
-        let line = self.rope.lines().nth(p.line)?;
-
-        Some(Position {
-            offset: std::cmp::min(p.offset, CharOffset(line.len_chars())),
-            ..*p
-        })
+        nearest_valid_position_on_same_line(&self.rope, p)
     }
+}
+
+fn nearest_valid_position_on_same_line(rope: &Rope, p: &Position) -> Option<Position> {
+    let line = rope.lines().nth(p.line)?;
+
+    Some(Position {
+        offset: std::cmp::min(p.offset, CharOffset(line.len_chars())),
+        ..*p
+    })
 }
 
 fn in_bounds<P: Borrow<Position>>(rope: &Rope, position: P) -> bool {
@@ -83,7 +148,7 @@ fn in_bounds<P: Borrow<Position>>(rope: &Rope, position: P) -> bool {
 
 fn find_index<P: Borrow<Position>>(rope: &Rope, p: P) -> Option<ByteIndex> {
     pos_to_char_offset(rope, p.borrow())
-        .and_then(|CharOffset(o)| rope.char_to_byte(o).map(ByteIndex))
+        .and_then(|AbsoluteCharOffset(o)| rope.char_to_byte(o).map(ByteIndex))
 }
 
 fn nth_line_count(rope: &Rope, n: usize) -> Option<CharOffset> {
@@ -98,13 +163,47 @@ fn last_line_index_and_count(rope: &Rope) -> Option<(usize, CharOffset)> {
 }
 
 #[perf_viz::record]
-fn pos_to_char_offset(rope: &Rope, position: &Position) -> Option<CharOffset> {
-    Some(CharOffset(rope.line_to_char(position.line)?) + position.offset)
+fn pos_to_char_offset(rope: &Rope, position: &Position) -> Option<AbsoluteCharOffset> {
+    Some(AbsoluteCharOffset(rope.line_to_char(position.line)?) + position.offset)
+}
+
+#[perf_viz::record]
+fn char_offset_to_pos(
+    rope: &Rope,
+    AbsoluteCharOffset(offset): &AbsoluteCharOffset,
+) -> Option<Position> {
+    let offset = *offset;
+    if rope.len_chars() == offset {
+        Some(rope.len_lines() - 1)
+    } else {
+        dbg!(rope.char_to_line(offset))
+    }
+    .and_then(|line_index| {
+        let start_of_line = dbg!(rope.line_to_char(line_index))?;
+
+        offset.checked_sub(start_of_line).map(|o| Position {
+            line: line_index,
+            offset: CharOffset(o),
+        })
+    })
 }
 
 enum Moved {
     No,
     Yes,
+}
+
+fn move_cursor_directly(rope: &Rope, cursor: &mut Cursor, r#move: Move) {
+    match r#move {
+        Move::Up => move_up(rope, cursor),
+        Move::Down => move_down(rope, cursor),
+        Move::Left => move_left(rope, cursor),
+        Move::Right => move_right(rope, cursor),
+        Move::ToLineStart => move_to_line_start(rope, cursor),
+        Move::ToLineEnd => move_to_line_end(rope, cursor),
+        Move::ToBufferStart => move_to_rope_start(rope, cursor),
+        Move::ToBufferEnd => move_to_rope_end(rope, cursor),
+    }
 }
 
 #[perf_viz::record]
@@ -212,6 +311,12 @@ fn move_to_rope_end(rope: &Rope, cursor: &mut Cursor) {
     }
 }
 
+fn set_selection_to_here_if_not_set(cursor: &mut Cursor) {
+    if cursor.highlight_position.is_none() {
+        cursor.highlight_position = Some(cursor.position);
+    }
+}
+
 impl<'rope> TextBuffer {
     pub fn chars(&'rope self) -> impl Iterator<Item = char> + 'rope {
         self.rope.chars()
@@ -260,3 +365,6 @@ where
 
     new
 }
+
+#[cfg(test)]
+mod tests;

@@ -1,5 +1,6 @@
 use std::ops;
 
+use macros::d;
 /// A point in 2-dimensional space, with each dimension of type `N`.
 ///
 /// Legal operations on points are addition and subtraction by vectors, and
@@ -18,6 +19,14 @@ use std::ops;
 pub struct Point<N> {
     pub x: N,
     pub y: N,
+}
+
+d!(<N: Default> for Point<N> : Point {x: d!(), y: d!()});
+
+impl<N> From<(N, N)> for Point<N> {
+    fn from((x, y): (N, N)) -> Self {
+        Point { x, y }
+    }
 }
 
 /// A vector in 2-dimensional space, with each dimension of type `N`.
@@ -157,6 +166,9 @@ pub struct Rect<N> {
     pub min: Point<N>,
     pub max: Point<N>,
 }
+
+d!(<N: Default> for Rect<N> : Rect {min: d!(), max: d!()});
+
 impl<N: ops::Sub<Output = N> + Copy> Rect<N> {
     pub fn width(&self) -> N {
         self.max.x - self.min.x
