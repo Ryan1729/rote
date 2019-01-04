@@ -787,7 +787,7 @@ fn get_first_non_white_space_offset_in_range<R: std::ops::RangeBounds<CharOffset
     None
 }
 
-fn copy_string(rope: &Rope, range: AbsoluteCharOffsetRange) -> String {
+pub fn copy_string(rope: &Rope, range: AbsoluteCharOffsetRange) -> String {
     rope.slice(range.range())
         .map(|slice| {
             let s: String = slice.into();

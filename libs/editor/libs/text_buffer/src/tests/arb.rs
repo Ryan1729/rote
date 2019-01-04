@@ -1,6 +1,8 @@
 // This module is inside `tests`
 use super::*;
 
+use std::collections::HashMap;
+
 // TODO move all `arb` fns in here
 
 prop_compose! {
@@ -323,21 +325,73 @@ pub enum TestEdit {
     TabOut,
 }
 
+pub type Counts = HashMap<char, u16>;
+
+pub fn get_counts(buffer: &TextBuffer) -> Counts {
+    let mut output = HashMap::with_capacity(buffer.len());
+
+    for c in buffer.chars() {
+        let count = output.entry(c).or_insert(0);
+        *count += 1;
+    }
+
+    output
+}
+
+pub fn increment_char(counts: &mut Counts, c: char) {
+    let count = counts.entry(c).or_insert(0);
+    *count += 1;
+}
+
+pub fn decrement_char(counts: &mut Counts, c: char) {
+    let count = counts.entry(c).or_insert(0);
+    if *count > 0 {
+        *count -= 1;
+    }
+}
+
+pub fn increment_string(counts: &mut Counts, s: &str) {
+    for c in s.chars() {
+        increment_char(counts, c);
+    }
+}
+
+pub fn decrement_string(counts: &mut Counts, s: &str) {
+    for c in s.chars() {
+        decrement_char(counts, c);
+    }
+}
+
+pub fn increment_strings(counts: &mut Counts, strs: &Vec<String>) {
+    for s in strs.iter() {
+        increment_string(counts, s);
+    }
+}
+
+pub fn decrement_strings(counts: &mut Counts, strs: &Vec<String>) {
+    for s in strs.iter() {
+        decrement_string(counts, s);
+    }
+}
+
 impl TestEdit {
     pub fn apply(buffer: &mut TextBuffer, edit: TestEdit) {
+        Self::apply_ref(buffer, &edit);
+    }
+    pub fn apply_ref(buffer: &mut TextBuffer, edit: &TestEdit) {
         use TestEdit::*;
         match edit {
-            Insert(c) => buffer.insert(c),
-            InsertString(s) => buffer.insert_string(s),
+            Insert(c) => buffer.insert(*c),
+            InsertString(s) => buffer.insert_string(s.to_owned()),
             Delete => buffer.delete(),
-            MoveAllCursors(r#move) => buffer.move_all_cursors(r#move),
-            ExtendSelectionForAllCursors(r#move) => buffer.extend_selection_for_all_cursors(r#move),
-            MoveCursors(index, r#move) => buffer.move_cursor(index, r#move),
-            ExtendSelection(index, r#move) => buffer.extend_selection(index, r#move),
-            SetCursor(position, replace_or_add) => buffer.set_cursor(position, replace_or_add),
+            MoveAllCursors(r#move) => buffer.move_all_cursors(*r#move),
+            ExtendSelectionForAllCursors(r#move) => buffer.extend_selection_for_all_cursors(*r#move),
+            MoveCursors(index, r#move) => buffer.move_cursor(*index, *r#move),
+            ExtendSelection(index, r#move) => buffer.extend_selection(*index, *r#move),
+            SetCursor(position, replace_or_add) => buffer.set_cursor(position, *replace_or_add),
             DragCursors(position) => buffer.drag_cursors(position),
             SelectCharTypeGrouping(position, replace_or_add) => {
-                buffer.select_char_type_grouping(position, replace_or_add)
+                buffer.select_char_type_grouping(position, *replace_or_add)
             }
             Cut => {
                 buffer.cut_selections();
@@ -346,6 +400,68 @@ impl TestEdit {
             TabIn => buffer.tab_in(),
             TabOut => buffer.tab_out(),
         }
+    }
+
+    pub fn apply_with_counts(buffer: &mut TextBuffer, counts: &mut Counts, edit: &TestEdit) {
+        use TestEdit::*;
+        match edit {
+            Insert(c) => {
+                decrement_strings(counts, &buffer.copy_selections());
+                for _ in 0..buffer.borrow_cursors_vec().len() {
+                    increment_char(counts, *c);
+                }
+            },
+            InsertString(s) => {
+                decrement_strings(counts, &buffer.copy_selections());
+                for _ in 0..buffer.borrow_cursors_vec().len() {
+                    increment_string(counts, s);
+                }
+            },
+            Delete => {
+                let selections = buffer.copy_selections();
+                if selections.len() == 0 {
+                    for cur in buffer.borrow_cursors_vec().clone() {
+                        let offsets = offset_pair(&buffer.rope, &cur);
+                        match offsets {
+                            (Some(o), None) if o > 0 => {
+                                let delete_offset_range = AbsoluteCharOffsetRange::new(o - 1, o);
+                                let s = edit::copy_string(&buffer.rope, delete_offset_range);
+                                decrement_string(counts, &s);
+      
+                            }
+                            _ => {},
+                        }        
+                    }
+                } else {
+                    decrement_strings(counts, &selections);
+                }
+            },
+            Cut => {
+                decrement_strings(counts, &buffer.copy_selections());
+            },
+            MoveAllCursors(_) | ExtendSelectionForAllCursors(_) | MoveCursors(_, _)
+            | ExtendSelection(_, _) | SetCursor(_, _) | DragCursors(_)
+            | SelectCharTypeGrouping(_, _) => {},
+            InsertNumbersAtCursors => {
+                decrement_strings(counts, &buffer.copy_selections());
+                for i in 0..buffer.borrow_cursors_vec().len() {
+                    increment_string(counts, &i.to_string());
+                }
+            },
+            TabIn => {
+                //TODO do something better than this tautology
+                let mut clone = deep_clone(&buffer);
+                clone.tab_in();
+                *counts = get_counts(&clone);
+            },
+            TabOut => {
+                //TODO do something better than this tautology
+                let mut clone = deep_clone(&buffer);
+                clone.tab_out();
+                *counts = get_counts(&clone);
+            },
+        }
+        Self::apply_ref(buffer, edit);
     }
 
     pub fn is_recordable(&self) -> bool {
@@ -444,5 +560,12 @@ prop_compose! {
             es in Just(edits)
          ) -> (Vec<TestEdit>, usize) {
         (es, i)
+    }
+}
+
+prop_compose! {
+    pub fn text_buffer_and_test_edits(max_len: usize, spec: TestEditSpec)
+        (buffer in text_buffer_with_valid_cursors(), edits in test_edits(max_len, spec))         -> (TextBuffer, Vec<TestEdit>) {
+        (buffer, edits)
     }
 }

@@ -875,4 +875,3 @@ fn undoes_pastes_properly_in_this_case() {
 
     assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
 }
-

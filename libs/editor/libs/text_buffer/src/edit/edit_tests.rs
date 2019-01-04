@@ -7,6 +7,8 @@ use crate::tests::{
 use editor_types::{cur, vec1, Cursor};
 use platform_types::CursorState;
 
+use arb::get_counts;
+
 use pretty_assertions::assert_eq;
 use proptest::prelude::*;
 use proptest::{option, prop_compose, proptest};
@@ -897,6 +899,75 @@ fn get_insert_edit_produces_the_expected_edit_on_this_multi_cursor_cr_lf_example
     };
 
     assert_eq!(edit, expected);
+}
+
+fn does_not_lose_characters_on<TestEdits: Borrow<[TestEdit]>>(
+    initial_buffer: TextBuffer,
+    edits: TestEdits,
+) {
+    let mut counts = get_counts(&initial_buffer);
+    let mut buffer = deep_clone(&initial_buffer);
+
+    for edit in edits.borrow().iter() {
+        TestEdit::apply_with_counts(&mut buffer, &mut counts, edit);
+    }
+
+    counts.retain(|_, v| *v != 0);
+
+    assert_eq!(get_counts(&buffer), counts);
+}
+
+proptest! {
+    #[test]
+    fn does_not_lose_characters((buffer, edits) in arb::text_buffer_and_test_edits(SOME_AMOUNT, TestEditSpec::All)) {
+        does_not_lose_characters_on(buffer, edits);
+    }
+
+    #[test]
+    fn does_not_lose_characters_on_inserts((buffer, edits) in arb::text_buffer_and_test_edits(SOME_AMOUNT, TestEditSpec::Insert)) {
+        does_not_lose_characters_on(buffer, edits);
+    }
+
+    #[test]
+    fn does_not_lose_characters_on_non_control_inserts((buffer, edits) in arb::text_buffer_and_test_edits(SOME_AMOUNT, TestEditSpec::RegexInsert("\\PC"))) {
+        does_not_lose_characters_on(buffer, edits);
+    }
+
+    #[test]
+    fn does_not_lose_characters_on_non_cr_inserts((buffer, edits) in arb::text_buffer_and_test_edits(SOME_AMOUNT, TestEditSpec::RegexInsert("[^\r]"))) {
+        does_not_lose_characters_on(buffer, edits);
+    }
+}
+
+#[test]
+fn does_not_lose_characters_in_this_generated_case() {
+    use TestEdit::*;
+    does_not_lose_characters_on(
+        t_b!(""),
+        [InsertString("\u{b}".to_string()), DragCursors(pos!{l 0 o 0}), TabIn]
+    );
+}
+
+#[test]
+fn does_not_lose_characters_in_this_reduced_generated_case() {
+    use TestEdit::*;
+
+    let mut buffer = t_b!("");
+    let mut counts = get_counts(&buffer);
+
+    
+    dbg!(get_counts(&buffer), &counts);
+    TestEdit::apply_with_counts(&mut buffer, &mut counts, &InsertString("\n".to_string()));
+    dbg!(get_counts(&buffer), &counts);
+    TestEdit::apply_with_counts(&mut buffer, &mut counts, &DragCursors(pos!{l 0 o 0}));
+    dbg!(&buffer);
+    dbg!(get_counts(&buffer), &counts);
+    TestEdit::apply_with_counts(&mut buffer, &mut counts, &TabIn);
+    dbg!(get_counts(&buffer), &counts);
+
+    counts.retain(|_, v| *v != 0);
+
+    assert_eq!(get_counts(&buffer), counts);
 }
 
 mod edit_arb;

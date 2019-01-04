@@ -201,6 +201,10 @@ pub struct TextBuffer {
 }
 
 impl TextBuffer {
+    pub fn len(&self) -> usize {
+        self.borrow_rope().chars().count()
+    }
+
     pub fn borrow_rope(&self) -> &Rope {
         &self.rope
     }

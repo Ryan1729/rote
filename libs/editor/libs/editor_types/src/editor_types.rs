@@ -13,8 +13,9 @@ d!(for SetPositionAction: SetPositionAction::ClearHighlight);
 
 #[derive(Clone)]
 pub struct Cursor {
-    // These are private so we can make sure whether to clear highlight is considered on each
-    // mutation of `position. And we can use a state we don't otherwise want,
+    // These are private so we can make sure whether to clear highlight or not 
+    // is considered on each mutation of `position. And we can use a state we 
+    // don't otherwise want,
     // `highlight_position == Some(position)` to represent a state we do:
     // `highlight_position == None`.
     position: Position,

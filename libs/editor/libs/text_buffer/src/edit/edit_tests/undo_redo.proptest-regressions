@@ -8,3 +8,5 @@ cc 3320980613ca51ab0fcdeed1d9de41ea9618de648b5fc6b4c50dbb8d82e9ffab # shrinks to
 cc 105a3760895bb8ba27e5b5a63121e74037c0dce1eec21ef1d76ee0ad5eb0ce48 # shrinks to (edits, index) = ([InsertString("\u{b}"), Cut, DragCursors(pos!{l 1 o 0})], 0)
 cc 49756a9b2bc642559e8be1a2dcd66831edd676d4b10806f0961d7b14691991ad # shrinks to (edits, index) = ([MoveAllCursors(Up), InsertNumbersAtCursors], 0)
 cc dd7df1675f72d92ab1a4fae8da22f9490207b73b32daca878bb46494e775dff8 # shrinks to (edits, index) = ([InsertNumbersAtCursors, MoveAllCursors(ToPreviousLikelyEditLocation)], 0)
+cc e1be2b6c946b4d2f3411fc66b300bcaba0ef76c5293fe1912578f21b2661d199 # shrinks to (buffer, edits) = (TextBuffer { rope: [], cursors: Cursors { cursors: Vec1([cur!{l 0 o 0}]) }, history: [], history_index: 0 }, [InsertNumbersAtCursors, ExtendSelectionForAllCursors(ToBufferStart), InsertNumbersAtCursors])
+cc 859e1577f734c59e235e322f99990a9155fc576ac651aa9f0558b0ecb2f99b85 # shrinks to (buffer, edits) = (TextBuffer { rope: [], cursors: Cursors { cursors: Vec1([cur!{l 0 o 0}]) }, history: [], history_index: 0 }, [InsertString("\u{b}"), DragCursors(pos!{l 0 o 0}), TabIn])

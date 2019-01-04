@@ -5,6 +5,10 @@
         * So I guess to find a repro case, we'll have to do some editing that we don't actually care about the results of?
         * How about "sort these random words"? If we pick one word that starts with each letter, then missing lines should be easy to find.
 
+* try to show cursors on all cursor moves
+    * This came up because I was expecting Home and End to make sure the cursors are visible.
+    * is there any reason not to do this for every cursor movement?
+
 * select search field on ctrl-f
     * allows easy deletion of previous thing
     * maybe just replace with selection automatically?
