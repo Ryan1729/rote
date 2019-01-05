@@ -937,6 +937,16 @@ proptest! {
     fn does_not_lose_characters_on_non_cr_inserts((buffer, edits) in arb::text_buffer_and_test_edits(SOME_AMOUNT, TestEditSpec::RegexInsert("[^\r]"))) {
         does_not_lose_characters_on(buffer, edits);
     }
+
+    #[test]
+    fn does_not_lose_characters_on_set_cursor_heavy((buffer, edits) in arb::text_buffer_and_test_edits(SOME_AMOUNT, TestEditSpec::SetCursorHeavy)) {
+        does_not_lose_characters_on(buffer, edits);
+    }
+
+    #[test]
+    fn does_not_lose_characters_on_tab_in_out_heavy((buffer, edits) in arb::text_buffer_and_test_edits(SOME_AMOUNT, TestEditSpec::TabInOutHeavy)) {
+        does_not_lose_characters_on(buffer, edits);
+    }
 }
 
 #[test]
@@ -968,6 +978,15 @@ fn does_not_lose_characters_in_this_reduced_generated_case() {
     counts.retain(|_, v| *v != 0);
 
     assert_eq!(get_counts(&buffer), counts);
+}
+
+#[test]
+fn does_not_lose_characters_in_minimal_tab_in_case() {
+    use TestEdit::*;
+    does_not_lose_characters_on(
+        t_b!(""),
+        [TabIn]
+    );
 }
 
 mod edit_arb;

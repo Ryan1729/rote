@@ -462,6 +462,21 @@ proptest! {
     fn undo_redo_works_on_non_cr_inserts((edits, index) in arb::test_edits_and_index(SOME_AMOUNT, TestEditSpec::RegexInsert("[^\r]"))) {
         undo_redo_works_on_these_edits_and_index(edits, index);
     }
+
+    #[test]
+    fn undo_redo_works_on_set_cursor_heavy_edits((edits, index) in arb::test_edits_and_index(SOME_AMOUNT, TestEditSpec::SetCursorHeavy)) {
+        undo_redo_works_on_these_edits_and_index(edits, index);
+    }
+
+    #[test]
+    fn undo_redo_works_on_tab_in_out_heavy_edits_regarding_ropes((edits, index) in arb::test_edits_and_index(SOME_AMOUNT, TestEditSpec::TabInOutHeavy)) {
+        undo_redo_works_on_these_edits_and_index_regarding_ropes(edits, index);
+    }
+
+    #[test]
+    fn undo_redo_works_on_tab_in_out_heavy_edits_regarding_ropes((edits, index) in arb::test_edits_and_index(SOME_AMOUNT, TestEditSpec::TabInOutHeavy)) {
+        undo_redo_works_on_these_edits_and_index_regarding_ropes(edits, index);
+    }
 }
 
 #[test]

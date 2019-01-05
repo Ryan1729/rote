@@ -325,7 +325,9 @@ pub enum TestEdit {
     TabOut,
 }
 
-pub type Counts = HashMap<char, u16>;
+pub type CountNumber = usize;
+
+pub type Counts = HashMap<char, CountNumber>;
 
 pub fn get_counts(buffer: &TextBuffer) -> Counts {
     let mut output = HashMap::with_capacity(buffer.len());
@@ -338,16 +340,22 @@ pub fn get_counts(buffer: &TextBuffer) -> Counts {
     output
 }
 
-pub fn increment_char(counts: &mut Counts, c: char) {
+pub fn increment_char_by(counts: &mut Counts, c: char, amount: CountNumber) {
     let count = counts.entry(c).or_insert(0);
-    *count += 1;
+    *count += amount;
+}
+
+pub fn decrement_char_by(counts: &mut Counts, c: char, amount: CountNumber) {
+    let count = counts.entry(c).or_insert(0);
+    *count = (*count).saturating_sub(amount);
+}
+
+pub fn increment_char(counts: &mut Counts, c: char) {
+    increment_char_by(counts, c, 1);
 }
 
 pub fn decrement_char(counts: &mut Counts, c: char) {
-    let count = counts.entry(c).or_insert(0);
-    if *count > 0 {
-        *count -= 1;
-    }
+    decrement_char_by(counts, c, 1);
 }
 
 pub fn increment_string(counts: &mut Counts, s: &str) {
@@ -449,16 +457,49 @@ impl TestEdit {
                 }
             },
             TabIn => {
-                //TODO do something better than this tautology
-                let mut clone = deep_clone(&buffer);
-                clone.tab_in();
-                *counts = get_counts(&clone);
+                let mut selections = buffer.copy_selections();
+                if selections.len() == 0 {
+                    for _ in 0..buffer.borrow_cursors_vec().len() {
+                        selections.push(d!());
+                    }
+                }
+
+                for selection in selections {
+                    let line_count: CountNumber = r!(selection).len_lines().0;
+    
+                    increment_char_by(
+                        counts, 
+                        edit::TAB_STR_CHAR,
+                        dbg!(line_count * edit::TAB_STR_CHAR_COUNT)
+                    );
+                }
             },
             TabOut => {
                 //TODO do something better than this tautology
                 let mut clone = deep_clone(&buffer);
                 clone.tab_out();
-                *counts = get_counts(&clone);
+                let clone_counts = get_counts(&clone);
+
+                // We don't want any non-whitespace characters to be changed
+                let key_set: std::collections::HashSet<&char> = 
+                    clone_counts.keys()
+                    .chain(counts.keys())
+                    .collect();
+                for key in key_set {
+                    assert!(
+                        key.is_whitespace()
+                        || match (clone_counts.get(key), counts.get(key)) {
+                            (Some(0), None)|(None, Some(0)) => true,
+                            (clone_count, count) => clone_count == count
+                        },
+                        "key.is_whitespace(): {:?}\n clone_counts.get(key): {:?}\n counts.get(key): {:?}",
+                        key.is_whitespace(),
+                        clone_counts.get(key),
+                        counts.get(key)
+                    );
+                }
+
+                *counts = clone_counts;
             },
         }
         Self::apply_ref(buffer, edit);
@@ -533,20 +574,32 @@ pub fn test_edit_set_cursor_heavy() -> impl Strategy<Value = TestEdit> {
     ]
 }
 
+pub fn test_edit_tab_in_out_heavy() -> impl Strategy<Value = TestEdit> {
+    use TestEdit::*;
+    prop_oneof![
+        9 => Just(TabIn),
+        9 => Just(TabOut),
+        1 => test_edit()
+    ]
+}
+
 pub enum TestEditSpec {
     All,
     Insert,
     RegexInsert(Regex),
     SetCursorHeavy,
+    TabInOutHeavy,
 }
 
 pub fn test_edits(max_len: usize, spec: TestEditSpec) -> impl Strategy<Value = Vec<TestEdit>> {
+    use TestEditSpec::*;
     collection::vec(
         match spec {
-            TestEditSpec::All => test_edit().boxed(),
-            TestEditSpec::Insert => test_edit_insert().boxed(),
-            TestEditSpec::RegexInsert(regex) => test_edit_regex_insert(regex).boxed(),
-            TestEditSpec::SetCursorHeavy => test_edit_set_cursor_heavy().boxed(),
+            All => test_edit().boxed(),
+            Insert => test_edit_insert().boxed(),
+            RegexInsert(regex) => test_edit_regex_insert(regex).boxed(),
+            SetCursorHeavy => test_edit_set_cursor_heavy().boxed(),
+            TabInOutHeavy => test_edit_tab_in_out_heavy().boxed(),
         },
         0..max_len,
     )
