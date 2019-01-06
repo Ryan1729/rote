@@ -257,12 +257,16 @@ pub fn text_buffer_with_valid_cursors() -> impl Strategy<Value = TextBuffer> {
         (
             {
                 let rope = rope.clone();
-                let (max_line, max_offset) = rope
+                let (max_line, max_offset) = if rope.len_lines() > 0 {
+                    rope
                     .lines()
                     .enumerate()
-                    .fold((0, CharOffset(0)), |(_, acc_offset), (i, line)| {
+                    .fold((0, CharOffset(0xFFFF_FFFF)), |(_, acc_offset), (i, line)| {
                         (i, std::cmp::min(line.len_chars(), acc_offset))
-                    });
+                    })
+                } else {
+                    (0, CharOffset(0))
+                };
 
                 vec1(
                     cursor(LineIndex(max_line), max_offset),
@@ -579,7 +583,43 @@ pub fn test_edit_tab_in_out_heavy() -> impl Strategy<Value = TestEdit> {
     prop_oneof![
         9 => Just(TabIn),
         9 => Just(TabOut),
+        5 => test_edit_selection_changes(), // Make sure there can be selections
         1 => test_edit()
+    ]
+}
+
+pub fn test_edit_delete_and_tab_in_out_heavy() -> impl Strategy<Value = TestEdit> {
+    use TestEdit::*;
+    prop_oneof![
+        9 => Just(TabIn),
+        9 => Just(TabOut),
+        9 => Just(Delete),
+        5 => test_edit_selection_changes(), // Make sure there can be selections
+        1 => test_edit()
+    ]
+}
+
+// Generates only cursor movement and selection edits. Intended for use as a part of larger
+pub fn test_edit_selection_changes() -> impl Strategy<Value = TestEdit> {
+    use TestEdit::*;
+    prop_oneof![
+        arb_move().prop_map(ExtendSelectionForAllCursors),
+        // Moving a cursor that isn't there should just be a no-op
+        (0..MORE_THAN_SOME_AMOUNT, arb_move()).prop_map(|(i, m)| MoveCursors(i, m)),
+        (0..MORE_THAN_SOME_AMOUNT, arb_move()).prop_map(|(i, m)| ExtendSelection(i, m)),
+        // The user can attempt to move the cursor to invalid positions,
+        // and their cursor may get snapped to a valid position producing an actual movement.
+        (
+            arb_pos(MORE_THAN_SOME_AMOUNT, MORE_THAN_SOME_AMOUNT),
+            replace_or_add()
+        )
+            .prop_map(|(p, r)| SetCursor(p, r)),
+        arb_pos(MORE_THAN_SOME_AMOUNT, MORE_THAN_SOME_AMOUNT).prop_map(DragCursors),
+        (
+            arb_pos(MORE_THAN_SOME_AMOUNT, MORE_THAN_SOME_AMOUNT),
+            replace_or_add()
+        )
+            .prop_map(|(p, r)| SelectCharTypeGrouping(p, r)),
     ]
 }
 
@@ -589,6 +629,8 @@ pub enum TestEditSpec {
     RegexInsert(Regex),
     SetCursorHeavy,
     TabInOutHeavy,
+    DeleteAndTabInOutHeavy,
+    SelectionChanges,
 }
 
 pub fn test_edits(max_len: usize, spec: TestEditSpec) -> impl Strategy<Value = Vec<TestEdit>> {
@@ -600,6 +642,8 @@ pub fn test_edits(max_len: usize, spec: TestEditSpec) -> impl Strategy<Value = V
             RegexInsert(regex) => test_edit_regex_insert(regex).boxed(),
             SetCursorHeavy => test_edit_set_cursor_heavy().boxed(),
             TabInOutHeavy => test_edit_tab_in_out_heavy().boxed(),
+            DeleteAndTabInOutHeavy => test_edit_delete_and_tab_in_out_heavy().boxed(),
+            SelectionChanges => test_edit_selection_changes().boxed(),
         },
         0..max_len,
     )
@@ -622,3 +666,74 @@ prop_compose! {
         (buffer, edits)
     }
 }
+
+pub fn test_edit_select_something_vec() -> impl Strategy<Value = Vec<TestEdit>> {
+    use TestEdit::*;
+    (any::<u8>(), any::<u8>()).prop_map(|(kind, amount)| {
+        macro_rules! header {
+            ($($tokens:tt)*) => {
+                vec![
+                    SetCursor(pos!{l (amount as usize >> 4), o (amount as usize & 0b1111)}, ReplaceOrAdd::Add),
+                    $($tokens)*
+                ]
+            }
+        }
+        match kind & 0b11 {
+            0 => {
+                header![
+                    ExtendSelectionForAllCursors(Move::Up),
+                    ExtendSelectionForAllCursors(Move::Left),
+                ]
+            }
+            1 => {
+                header![
+                    ExtendSelectionForAllCursors(Move::Up),
+                    ExtendSelectionForAllCursors(Move::Right),
+                ]
+            }
+            2 => {
+                header![
+                    ExtendSelectionForAllCursors(Move::Down),
+                    ExtendSelectionForAllCursors(Move::Left),
+                ]
+            }
+            _ => {
+                header![
+                    ExtendSelectionForAllCursors(Move::Down),
+                    ExtendSelectionForAllCursors(Move::Right),
+                ]
+            }
+        }
+    })
+}
+
+pub fn test_edit_delete_then_tab_out_vec() -> impl Strategy<Value = Vec<TestEdit>> {
+    use TestEdit::*;
+    (test_edit_select_something_vec(), test_edit_select_something_vec()).prop_map(|(del_select, tab_select)| {
+        let mut output = Vec::with_capacity(8);
+
+        for e in del_select {
+            output.push(e);
+        }
+        output.push(Delete);
+        for e in tab_select {
+            output.push(e);
+        }
+        output.push(TabIn);
+
+        output
+    })
+}
+
+prop_compose! {
+    pub fn test_edit_delete_then_tab_out_vec_and_index()
+        (edits in test_edit_delete_then_tab_out_vec())
+        (
+            i in if edits.len() == 0 { 0..1 } else { 0..edits.len() },
+            es in Just(edits)
+         ) -> (Vec<TestEdit>, usize) {
+        (es, i)
+    }
+}
+
+

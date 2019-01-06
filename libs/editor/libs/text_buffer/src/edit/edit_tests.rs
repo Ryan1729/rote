@@ -947,6 +947,16 @@ proptest! {
     fn does_not_lose_characters_on_tab_in_out_heavy((buffer, edits) in arb::text_buffer_and_test_edits(SOME_AMOUNT, TestEditSpec::TabInOutHeavy)) {
         does_not_lose_characters_on(buffer, edits);
     }
+
+    #[test]
+    fn does_not_lose_characters_on_delete_and_tab_in_out_heavy((buffer, edits) in arb::text_buffer_and_test_edits(SOME_AMOUNT, TestEditSpec::DeleteAndTabInOutHeavy)) {
+        does_not_lose_characters_on(buffer, edits);
+    }
+
+    #[test]
+    fn does_not_lose_characters_on_delete_then_tab_out(buffer in arb::text_buffer_with_valid_cursors(), edits in arb::test_edit_delete_then_tab_out_vec()) {
+        does_not_lose_characters_on(buffer, edits);
+    }
 }
 
 #[test]

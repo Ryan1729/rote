@@ -275,10 +275,15 @@ fn undo_redo_works_on_these_edits_and_index_regarding_ropes<TestEdits: Borrow<[T
     edits: TestEdits,
     index: usize,
 ) {
-    let edits = edits.borrow();
+    undo_redo_works_on_these_edits_and_index_regarding_ropes_with_this_buffer(edits, index, d!())
+}
 
-    //TODO generate initial buffer?
-    let initial_buffer: TextBuffer = d!();
+fn undo_redo_works_on_these_edits_and_index_regarding_ropes_with_this_buffer<TestEdits: Borrow<[TestEdit]>>(
+    edits: TestEdits,
+    index: usize,
+    initial_buffer: TextBuffer
+) {
+    let edits = edits.borrow();
     let mut buffer: TextBuffer = deep_clone(&initial_buffer);
 
     let mut expected_buffer_at_index: Option<TextBuffer> = None;
@@ -474,8 +479,16 @@ proptest! {
     }
 
     #[test]
-    fn undo_redo_works_on_tab_in_out_heavy_edits_regarding_ropes((edits, index) in arb::test_edits_and_index(SOME_AMOUNT, TestEditSpec::TabInOutHeavy)) {
+    fn undo_redo_works_on_delete_and_tab_in_out_heavy_edits_regarding_ropes((edits, index) in arb::test_edits_and_index(SOME_AMOUNT, TestEditSpec::DeleteAndTabInOutHeavy)) {
         undo_redo_works_on_these_edits_and_index_regarding_ropes(edits, index);
+    }
+
+    #[test]
+    fn undo_redo_works_on_delete_then_tab_in_edits_regarding_ropes(
+        (edits, index) in arb::test_edit_delete_then_tab_out_vec_and_index(),
+        buffer in text_buffer_with_valid_cursors()
+    ) {
+        undo_redo_works_on_these_edits_and_index_regarding_ropes_with_this_buffer(edits, index, buffer);
     }
 }
 
