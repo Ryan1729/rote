@@ -927,19 +927,22 @@ fn final_non_newline_offset_for_rope_line_(line: RopeLine) -> CharOffset {
             len -= 1;
             return_if_0!();
         }
-    } else if
-    // The rope library we are using treats these as line breaks, so we do too.
-    // See also https://www.unicode.org/reports/tr14/tr14-32.html
-    (last >= '\u{a}' && last <= '\r')
-        || last == '\u{0085}'
-        || last == '\u{2028}'
-        || last == '\u{2029}'
+    } else if is_linebreak_char(last)
     {
         len -= 1;
         return_if_0!();
     }
 
     len
+}
+
+pub fn is_linebreak_char(c: char) -> bool {
+    // The rope library we are using treats these as line breaks, so we do too.
+    // See also https://www.unicode.org/reports/tr14/tr14-32.html
+    (c >= '\u{a}' && c <= '\r')
+        || c == '\u{0085}'
+        || c == '\u{2028}'
+        || c == '\u{2029}'
 }
 
 #[perf_viz::record]

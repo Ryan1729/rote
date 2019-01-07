@@ -430,22 +430,21 @@ impl TestEdit {
                 }
             },
             Delete => {
-                let selections = buffer.copy_selections();
-                if selections.len() == 0 {
-                    for cur in buffer.borrow_cursors_vec().clone() {
-                        let offsets = offset_pair(&buffer.rope, &cur);
-                        match offsets {
-                            (Some(o), None) if o > 0 => {
-                                let delete_offset_range = AbsoluteCharOffsetRange::new(o - 1, o);
-                                let s = edit::copy_string(&buffer.rope, delete_offset_range);
-                                decrement_string(counts, &s);
-      
-                            }
-                            _ => {},
-                        }        
-                    }
-                } else {
-                    decrement_strings(counts, &selections);
+                for cur in buffer.borrow_cursors_vec().clone() {
+                    let offsets = offset_pair(&buffer.rope, &cur);
+                    match offsets {
+                        (Some(o), None) if o > 0 => {
+                            let delete_offset_range = AbsoluteCharOffsetRange::new(o - 1, o);
+                            let s = edit::copy_string(&buffer.rope, delete_offset_range);
+                            decrement_string(counts, &s);
+                        }
+                        (Some(o1), Some(o2)) if o1 > 0 || o2 > 0 => {
+                            let delete_offset_range = AbsoluteCharOffsetRange::new(o1, o2);
+                            let s = edit::copy_string(&buffer.rope, delete_offset_range);
+                            decrement_string(counts, &s);
+                        }
+                        _ => {},
+                    }        
                 }
             },
             Cut => {
@@ -462,6 +461,7 @@ impl TestEdit {
             },
             TabIn => {
                 let mut selections = buffer.copy_selections();
+
                 if selections.len() == 0 {
                     for _ in 0..buffer.borrow_cursors_vec().len() {
                         selections.push(d!());
@@ -469,13 +469,28 @@ impl TestEdit {
                 }
 
                 for selection in selections {
-                    let line_count: CountNumber = r!(selection).len_lines().0;
+                    let r = r!(selection);
+                    let line_count: CountNumber = r.len_lines().0;
     
                     increment_char_by(
                         counts, 
                         edit::TAB_STR_CHAR,
                         dbg!(line_count * edit::TAB_STR_CHAR_COUNT)
                     );
+
+                    dbg!(&r);
+                    for c in r.chars() {
+                        if c != edit::TAB_STR_CHAR && !is_linebreak_char(c) && c.is_whitespace() {
+                            increment_char(
+                                counts, 
+                                edit::TAB_STR_CHAR
+                            );
+                            decrement_char(
+                                counts, 
+                                c
+                            )
+                        }
+                    }
                 }
             },
             TabOut => {

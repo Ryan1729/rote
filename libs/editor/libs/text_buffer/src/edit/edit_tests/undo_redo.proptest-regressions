@@ -12,3 +12,4 @@ cc e1be2b6c946b4d2f3411fc66b300bcaba0ef76c5293fe1912578f21b2661d199 # shrinks to
 cc 859e1577f734c59e235e322f99990a9155fc576ac651aa9f0558b0ecb2f99b85 # shrinks to (buffer, edits) = (TextBuffer { rope: [], cursors: Cursors { cursors: Vec1([cur!{l 0 o 0}]) }, history: [], history_index: 0 }, [InsertString("\u{b}"), DragCursors(pos!{l 0 o 0}), TabIn])
 cc f6593e337973dcec80d52f433a83933917b82df9e3930b127de7b0f392ce8cf9 # shrinks to (edits, index) = ([TabIn, ExtendSelectionForAllCursors(ToPreviousLikelyEditLocation)], 0)
 cc 8183826a35f90dc75b251841abdfb2775fc8e0bc27bd82360db9c8c046770bd4 # shrinks to (edits, index) = ([TabIn, ExtendSelectionForAllCursors(ToBufferStart), TabIn], 0)
+cc cb9e27a79441a9961170db170647891178a749f5253efe5ed523d4980ebfe306 # shrinks to (edits, index) = ([Insert('\u{0}'), MoveAllCursors(Left)], 0)

@@ -405,7 +405,7 @@ pub fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit
                 edits.1.delta += delete_delta;
                 edits.1.special_handling = special_handling;
 
-                edits
+                dbg!(edits)
             }
             _ => d!(),
         },
@@ -484,10 +484,10 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
                 let special_handling = get_special_handling(&original_rope, cursor, char_count);
 
                 (
-                    RangeEdits {
+                    dbg!(RangeEdits {
                         insert_range: Some(RangeEdit { chars, range }),
                         delete_range: Some(delete_edit),
-                    },
+                    }),
                     CursorPlacementSpec {
                         offset: delete_offset,
                         delta: char_count as isize + delete_delta,

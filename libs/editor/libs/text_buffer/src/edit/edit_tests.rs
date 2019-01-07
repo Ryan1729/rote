@@ -999,5 +999,102 @@ fn does_not_lose_characters_in_minimal_tab_in_case() {
     );
 }
 
+#[test]
+fn does_not_lose_characters_in_this_tab_in_case() {
+    use TestEdit::*;
+    use ReplaceOrAdd::*;
+    let mut buffer = t_b!("\u{a0}");
+
+    let mut cursor = cur!{l 0 o 1 h l 0 o 0};
+    cursor.sticky_offset = CharOffset(0);
+
+    buffer.set_cursor(cursor, Replace);
+    does_not_lose_characters_on(
+        buffer,
+        [TabIn]
+    );
+}
+
+#[test]
+fn does_not_lose_characters_in_this_reduced_tab_in_case() {
+    use TestEdit::*;
+    use ReplaceOrAdd::*;
+    let mut buffer = t_b!("\u{a0}");
+
+    let mut cursor = cur!{l 0 o 1 h l 0 o 0};
+    cursor.sticky_offset = CharOffset(0);
+
+    buffer.set_cursor(cursor, Replace);
+    let mut counts = get_counts(&buffer);
+
+    TestEdit::apply_with_counts(&mut buffer, &mut counts, &TabIn);
+
+    counts.retain(|_, v| *v != 0);
+
+    assert_eq!(get_counts(&buffer), counts);
+}
+
+
+#[test]
+fn does_not_lose_characters_in_this_delete_then_tab_in_case() {
+    use TestEdit::*;
+    use ReplaceOrAdd::*;
+    use Move::*;
+    let mut buffer = t_b!("\u{a0}");
+
+    let mut cursor = cur!{l 0 o 1 h l 0 o 0};
+    cursor.sticky_offset = CharOffset(0);
+
+    buffer.set_cursor(cursor, Replace);
+    does_not_lose_characters_on(
+        buffer,
+        [
+            SetCursor(pos!{l 0 o 0}, Add),
+            ExtendSelectionForAllCursors(Up),
+            ExtendSelectionForAllCursors(Left),
+            Delete, 
+            SetCursor(pos!{l 0 o 2}, Add),
+            ExtendSelectionForAllCursors(Up),
+            ExtendSelectionForAllCursors(Left),
+            TabIn
+        ]
+    );
+}
+
+#[test]
+fn does_not_lose_characters_in_this_set_cursor_heavy_case() {
+    use TestEdit::*;
+    use ReplaceOrAdd::*;
+    let mut buffer = t_b!("a ");
+    buffer.set_cursor(cur!{l 0 o 0 h l 0 o 1}, Replace);
+    does_not_lose_characters_on(
+        buffer,
+        [SetCursor(pos!{l 0 o 2}, Add), Delete]
+    );
+}
+
+#[test]
+fn does_not_lose_characters_in_this_tab_out_then_in_case() {
+    use TestEdit::*;
+    use ReplaceOrAdd::*;
+    let mut buffer = t_b!("!\u{2000}");
+
+    let mut cursor = cur!{l 0 o 1 h l 0 o 0};
+    cursor.sticky_offset = CharOffset(0);
+
+    buffer.set_cursor(cursor, Replace);
+
+    let mut counts = get_counts(&buffer);
+
+    dbg!(&counts);
+    TestEdit::apply_with_counts(&mut buffer, &mut counts, &TabOut);
+    dbg!(&counts);
+    TestEdit::apply_with_counts(&mut buffer, &mut counts, &TabIn);
+    dbg!(&counts);
+    counts.retain(|_, v| *v != 0);
+
+    assert_eq!(get_counts(&buffer), counts);
+}
+
 mod edit_arb;
 mod undo_redo;
