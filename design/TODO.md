@@ -4,6 +4,8 @@
     * the remaining bugs only seem to show up when doing longer sequences of editing tasks. 
         * So I guess to find a repro case, we'll have to do some editing that we don't actually care about the results of?
         * How about "sort these random words"? If we pick one word that starts with each letter, then missing lines should be easy to find.
+            * This din't seem to work
+        * 
 
 * try to show cursors on all cursor moves
     * This came up because I was expecting Home and End to make sure the cursors are visible.
@@ -20,8 +22,6 @@
 
 * fix frame drop when scrolling that became apparent when increasing the scroll multiplier
     * very apparent in debug mode
-
-* Do some compile-time profiling so I can see what is taking so long to compile and either pull that into a crate (meaning it is compiled less often) or change it in some way to make it compile faster
 
 * Ctrl-E to toggle single line comments
   * could probably reuse tab insertion/deletion code.
@@ -62,6 +62,8 @@
 * draw an underline below matching braces, parens, brackets when a cursor is next to them.
   * draw a different thing (dotted line?) if there is no matching brace found.
   * jump to matching brace?
+
+* Do some compile-time profiling so I can see what is taking so long to compile and either pull that into a crate (meaning it is compiled less often) or change it in some way to make it compile faster
 
 * Ctrl-shift-f to open a within current project folder search
   * implies some way to know what the project is. Options:

@@ -469,8 +469,8 @@ proptest! {
     }
 
     #[test]
-    fn undo_redo_works_on_set_cursor_heavy_edits((edits, index) in arb::test_edits_and_index(SOME_AMOUNT, TestEditSpec::SetCursorHeavy)) {
-        undo_redo_works_on_these_edits_and_index(edits, index);
+    fn undo_redo_works_on_set_cursor_heavy_edits_regarding_ropes((edits, index) in arb::test_edits_and_index(SOME_AMOUNT, TestEditSpec::SetCursorHeavy)) {
+        undo_redo_works_on_these_edits_and_index_regarding_ropes(edits, index);
     }
 
     #[test]
@@ -509,6 +509,20 @@ fn undo_redo_works_on_this_set_of_edits() {
             TestEdit::Insert('\u{b}'),
             TestEdit::Insert('a'),
             TestEdit::Insert('\n'),
+        ],
+        0,
+    );
+}
+
+// Historical note: As of this writing, this is an example of a test which, without the 
+// rope only loosening, fails.
+#[test]
+fn works_on_this_set_of_edits_including_cursor_movement_regarding_ropes() {
+    use TestEdit::*;
+    undo_redo_works_on_these_edits_and_index_regarding_ropes(
+        vec![
+            Insert('a'),
+            MoveAllCursors(Move::Left),
         ],
         0,
     );

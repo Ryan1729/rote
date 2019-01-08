@@ -277,7 +277,7 @@ pub fn get_delete_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit
 /// one, and which does nothing otherwise.
 pub fn get_cut_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
     get_edit(original_rope, original_cursors, |cursor, rope, _| {
-        let offsets = offset_pair(original_rope, cursor);
+        let offsets = offset_pair(original_rope, dbg!(cursor));
 
         match offsets {
             (Some(o1), Some(o2)) if o1 > 0 || o2 > 0 => {
@@ -419,29 +419,26 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
         |cursor, rope, _| match offset_pair(original_rope, cursor) {
             (Some(o1), offset2) => {
                 let o2 = offset2.unwrap_or(o1);
+                let selected_range = AbsoluteCharOffsetRange::new(o1, o2);
                 let line_indicies = some_or!(
-                    line_indicies_touched_by(rope, AbsoluteCharOffsetRange::new(o1, o2)),
+                    line_indicies_touched_by(rope, selected_range),
                     return d!()
                 );
-
-                let last_line_indicies_index = line_indicies.len() - 1;
-                let range = {
+                
+                // a range extending the selected range to the edges of the relevant lines.
+                let leading_line_edge_range = {
                     let first_line_index = line_indicies[0];
-                    let last_line_index = line_indicies[last_line_indicies_index];
 
                     AbsoluteCharOffsetRange::new(
                         some_or!(rope.line_to_char(first_line_index), return d!()),
-                        some_or!(
-                            rope.line(last_line_index).and_then(|line| rope
-                                .line_to_char(last_line_index)
-                                .map(|o| o + final_non_newline_offset_for_rope_line(line).0)),
-                            return d!()
-                        ),
+                        selected_range.max(),
                     )
                 };
 
-                let mut chars = String::with_capacity(range.max().0 - range.min().0);
+                let mut chars = String::with_capacity(leading_line_edge_range.max().0 - leading_line_edge_range.min().0);
                 let mut char_delete_count = 0;
+
+                let last_line_indicies_index = line_indicies.len() - 1;
 
                 for (i, index) in line_indicies.into_iter().enumerate() {
                     let line = some_or!(rope.line(index), continue);
@@ -457,9 +454,9 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
                     );
                     char_delete_count += delete_count.0;
 
-                    let should_include_newlline = i != last_line_indicies_index;
+                    let should_include_newline = i != last_line_indicies_index;
 
-                    let slice_end = if should_include_newlline {
+                    let slice_end = if should_include_newline {
                         line.len_chars()
                     } else {
                         relative_line_end
@@ -471,23 +468,24 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
                     ));
                 }
 
-                let (delete_edit, delete_offset, delete_delta) = delete_within_range(rope, range);
+                let (mut delete_edit, delete_offset, delete_delta) = dbg!(delete_within_range(rope, leading_line_edge_range));
 
-                let range = some_or!(
+                delete_edit.range = some_or!(
                     delete_edit.range.checked_sub_from_max(char_delete_count),
                     return d!()
                 );
+                dbg!(&delete_edit, &chars);
 
                 let char_count = chars.chars().count();
-                rope.insert(range.min(), &chars);
+                rope.insert(delete_edit.range.min(), &chars);
 
                 let special_handling = get_special_handling(&original_rope, cursor, char_count);
 
                 (
-                    dbg!(RangeEdits {
-                        insert_range: Some(RangeEdit { chars, range }),
+                    RangeEdits {
+                        insert_range: Some(RangeEdit { chars, range: delete_edit.range }),
                         delete_range: Some(delete_edit),
-                    }),
+                    },
                     CursorPlacementSpec {
                         offset: delete_offset,
                         delta: char_count as isize + delete_delta,

@@ -1096,5 +1096,43 @@ fn does_not_lose_characters_in_this_tab_out_then_in_case() {
     assert_eq!(get_counts(&buffer), counts);
 }
 
+#[test]
+fn get_cut_edit_returns_an_edit_with_the_right_selection_in_this_tab_out_case() {
+    use TestEdit::*;
+    use ReplaceOrAdd::*;
+    let mut buffer = t_b!("!\u{2000}");
+
+    let mut cursor = cur!{l 0 o 1 h l 0 o 0};
+    cursor.sticky_offset = CharOffset(0);
+
+    buffer.set_cursor(cursor, Replace);
+
+    TestEdit::apply(&mut buffer, TabOut);
+
+    let cut_edit = get_cut_edit(&buffer.rope, &buffer.cursors);
+
+    assert_eq!(cut_edit.selected(), vec!["!"]);
+}
+
+#[test]
+fn get_tab_out_edit_returns_an_edit_with_the_right_selection_in_this_case() {
+    use TestEdit::*;
+    use ReplaceOrAdd::*;
+    let mut buffer = t_b!("!\u{2000}");
+
+    let mut cursor = cur!{l 0 o 1 h l 0 o 0};
+    cursor.sticky_offset = CharOffset(0);
+
+    buffer.set_cursor(cursor, Replace);
+
+    let edit = get_tab_out_edit(&buffer.rope, &buffer.cursors);
+
+    assert_eq!(edit.selected(), vec!["!"]);
+
+    buffer.apply_edit(edit, ApplyKind::Playback);
+
+    assert_eq!(buffer.rope, r!("!\u{2000}"));
+}
+
 mod edit_arb;
 mod undo_redo;

@@ -13,3 +13,5 @@ cc 859e1577f734c59e235e322f99990a9155fc576ac651aa9f0558b0ecb2f99b85 # shrinks to
 cc f6593e337973dcec80d52f433a83933917b82df9e3930b127de7b0f392ce8cf9 # shrinks to (edits, index) = ([TabIn, ExtendSelectionForAllCursors(ToPreviousLikelyEditLocation)], 0)
 cc 8183826a35f90dc75b251841abdfb2775fc8e0bc27bd82360db9c8c046770bd4 # shrinks to (edits, index) = ([TabIn, ExtendSelectionForAllCursors(ToBufferStart), TabIn], 0)
 cc cb9e27a79441a9961170db170647891178a749f5253efe5ed523d4980ebfe306 # shrinks to (edits, index) = ([Insert('\u{0}'), MoveAllCursors(Left)], 0)
+cc 9addccd39605c108f7022db78c9ab2e5e7628f04779b2ce3723a95a811112a3c # shrinks to (edits, index) = ([TabIn, TabOut], 0)
+cc 5110b371cdaf7c11ede2e325e9e71cc375bf9d1cbc80a4bb1e61ff7470bdb96c # shrinks to (edits, index) = ([TabIn, Delete, TabOut], 0)
