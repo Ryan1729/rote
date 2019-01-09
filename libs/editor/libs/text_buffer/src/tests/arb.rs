@@ -285,6 +285,25 @@ pub fn text_buffer_with_valid_cursors() -> impl Strategy<Value = TextBuffer> {
     })
 }
 
+pub fn text_buffer_with_no_selection() -> impl Strategy<Value = TextBuffer> {
+    text_buffer_with_valid_cursors().prop_map(|mut buffer| {
+        use ReplaceOrAdd::*;
+
+        let mut is_first = true;
+
+        for cur in buffer.borrow_cursors().clone().iter() {
+            buffer.set_cursor(cur.get_position(), if is_first {
+                is_first = false;
+                Replace
+            } else {
+                Add
+            });
+        }
+
+        buffer
+    })
+}
+
 pub fn text_buffer_with_valid_cursors_and_no_0_to_9_chars(
     max_len: usize,
 ) -> impl Strategy<Value = TextBuffer> {

@@ -537,6 +537,156 @@ fn undo_redo_works_on_this_set_of_edits_with_a_cut_regarding_ropes() {
 }
 
 #[test]
+fn undo_redo_works_on_this_set_of_edits_with_a_cut_and_a_tab_out_regarding_ropes() {
+    use TestEdit::*;
+    undo_redo_works_on_these_edits_and_index_regarding_ropes(
+        vec![Insert('A'), Cut, Insert('¡'), TabOut],
+        0,
+    );
+}
+
+#[test]
+fn undo_redo_works_on_this_reduced_set_of_edits_with_a_cut_and_a_tab_out_regarding_ropes() {
+    use TestEdit::*;
+    let initial_buffer = d!();
+    let mut buffer: TextBuffer = deep_clone(&initial_buffer);
+
+    TestEdit::apply(&mut buffer, Insert('A'));
+
+    let expected_buffer_at_index = deep_clone(&buffer);
+
+    TestEdit::apply(&mut buffer, Cut);
+    TestEdit::apply(&mut buffer, Insert('¡'));
+    TestEdit::apply(&mut buffer, TabOut);
+
+    let final_buffer = deep_clone(&buffer);
+
+    let len = buffer.history.len();
+
+    for _ in 0..dbg!(dbg!(len - 1)) {
+        dbg!(&buffer);
+        buffer.undo();
+    }
+
+    assert_text_buffer_rope_eq!(buffer, expected_buffer_at_index);
+
+    for _ in 0..len {
+        buffer.redo();
+    }
+
+    dbg!();
+    assert_text_buffer_rope_eq!(buffer, final_buffer);
+
+    // Redo with no redos left should be a no-op
+    for _ in 0..10 {
+        dbg!();
+        buffer.redo();
+    }
+
+    dbg!();
+    assert_text_buffer_rope_eq!(buffer, final_buffer);
+
+    for _ in 0..len {
+        dbg!();
+        dbg!(&mut buffer).undo();
+    }
+
+    dbg!();
+    assert_text_buffer_rope_eq!(buffer, initial_buffer);
+
+    // undo with no undos left should be a no-op
+    for _ in 0..10 {
+        dbg!();
+        buffer.undo();
+    }
+
+    dbg!();
+    assert_text_buffer_rope_eq!(buffer, initial_buffer);
+}
+
+#[test]
+fn undo_redo_works_on_this_set_of_edits_with_a_movement_and_a_tab_out_regarding_ropes() {
+    use TestEdit::*;
+    undo_redo_works_on_these_edits_and_index_regarding_ropes(
+        vec![Insert('A'), MoveAllCursors(Move::ToLineStart), Insert('¡'), TabOut],
+        0,
+    );
+}
+
+#[test]
+fn undo_redo_works_on_this_reduced_set_of_edits_with_a_movement_and_a_tab_out_regarding_ropes() {
+    use TestEdit::*;
+    let initial_buffer = d!();
+    let mut buffer: TextBuffer = deep_clone(&initial_buffer);
+
+    TestEdit::apply(&mut buffer, Insert('A'));
+
+    // precondition
+    assert_text_buffer_rope_eq!(buffer, t_b!("A"));
+
+    let expected_buffer_at_index = deep_clone(&buffer);
+
+    TestEdit::apply(&mut buffer, MoveAllCursors(Move::ToLineStart));
+
+    // precondition
+    assert_text_buffer_rope_eq!(buffer, t_b!("A"));
+
+    TestEdit::apply(&mut buffer, Insert('¡'));
+
+    // precondition
+    assert_text_buffer_rope_eq!(buffer, t_b!("¡A"));
+
+    TestEdit::apply(&mut buffer, TabOut);
+
+    // precondition
+    assert_text_buffer_rope_eq!(buffer, t_b!("¡A"));
+
+    let final_buffer = deep_clone(&buffer);
+
+    let len = buffer.history.len();
+
+    for _ in 0..dbg!(dbg!(len - 1)) {
+        dbg!(&buffer);
+        buffer.undo();
+    }
+
+    assert_text_buffer_rope_eq!(buffer, expected_buffer_at_index);
+
+    for _ in 0..len {
+        buffer.redo();
+    }
+
+    dbg!();
+    assert_text_buffer_rope_eq!(buffer, final_buffer);
+
+    // Redo with no redos left should be a no-op
+    for _ in 0..10 {
+        dbg!();
+        buffer.redo();
+    }
+
+    dbg!();
+    assert_text_buffer_rope_eq!(buffer, final_buffer);
+
+    for _ in 0..len {
+        dbg!();
+        dbg!(&mut buffer).undo();
+    }
+
+    dbg!();
+    assert_text_buffer_rope_eq!(buffer, initial_buffer);
+
+    // undo with no undos left should be a no-op
+    for _ in 0..10 {
+        dbg!();
+        buffer.undo();
+    }
+
+    dbg!();
+    assert_text_buffer_rope_eq!(buffer, initial_buffer);
+}
+
+#[test]
 fn undo_redo_works_in_this_reduced_scenario() {
     let initial_buffer: TextBuffer = d!();
     let mut buffer: TextBuffer = deep_clone(&initial_buffer);

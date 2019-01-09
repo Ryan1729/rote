@@ -15,3 +15,5 @@ cc 8183826a35f90dc75b251841abdfb2775fc8e0bc27bd82360db9c8c046770bd4 # shrinks to
 cc cb9e27a79441a9961170db170647891178a749f5253efe5ed523d4980ebfe306 # shrinks to (edits, index) = ([Insert('\u{0}'), MoveAllCursors(Left)], 0)
 cc 9addccd39605c108f7022db78c9ab2e5e7628f04779b2ce3723a95a811112a3c # shrinks to (edits, index) = ([TabIn, TabOut], 0)
 cc 5110b371cdaf7c11ede2e325e9e71cc375bf9d1cbc80a4bb1e61ff7470bdb96c # shrinks to (edits, index) = ([TabIn, Delete, TabOut], 0)
+cc 9f8b5201dcbeb9277a42b7e6443324f5c732b2b43ac1ce3599fc3669689337bd # shrinks to (edits, index) = ([TabIn, MoveAllCursors(ToBufferStart), TabIn, TabOut], 0)
+cc d5a5ff3c79e58fab18047fd13a23faedd3d962a75b2fd0b3cc3950d3a1736512 # shrinks to (edits, index) = ([Insert('A'), Cut, Insert('¡'), TabOut], 0)

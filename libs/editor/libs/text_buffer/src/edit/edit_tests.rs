@@ -1116,22 +1116,121 @@ fn get_cut_edit_returns_an_edit_with_the_right_selection_in_this_tab_out_case() 
 
 #[test]
 fn get_tab_out_edit_returns_an_edit_with_the_right_selection_in_this_case() {
-    use TestEdit::*;
     use ReplaceOrAdd::*;
     let mut buffer = t_b!("!\u{2000}");
 
     let mut cursor = cur!{l 0 o 1 h l 0 o 0};
     cursor.sticky_offset = CharOffset(0);
-
     buffer.set_cursor(cursor, Replace);
 
     let edit = get_tab_out_edit(&buffer.rope, &buffer.cursors);
 
     assert_eq!(edit.selected(), vec!["!"]);
 
-    buffer.apply_edit(edit, ApplyKind::Playback);
+    buffer.apply_edit(dbg!(edit), ApplyKind::Playback);
 
     assert_eq!(buffer.rope, r!("!\u{2000}"));
+}
+
+proptest!{
+    #[test]
+    fn get_cut_edit_does_not_affect_a_lone_cursor_if_there_is_no_selection(buffer in arb::text_buffer_with_no_selection()) {
+        let expected = buffer.cursors.clone();
+
+        let edit = get_cut_edit(&buffer.rope, &buffer.cursors);
+
+        assert_eq!(&edit.cursors.new, &expected);
+        assert_eq!(edit.cursors.new, edit.cursors.old);
+    }
+}
+
+#[test]
+fn get_cut_edit_does_not_affect_a_lone_cursor_if_there_is_no_selection_in_this_simple_case() {
+    use ReplaceOrAdd::*;
+    let mut buffer = t_b!(" ");
+
+    buffer.set_cursor(cur!{l 0 o 1}, Replace);
+
+    let expected = buffer.cursors.clone();
+
+    let edit = get_cut_edit(&buffer.rope, &buffer.cursors);
+
+    assert_eq!(&edit.cursors.new, &expected);
+    assert_eq!(edit.cursors.new, edit.cursors.old);
+}
+
+proptest!{
+    #[test]
+    fn tab_out_does_not_change_the_count_of_non_whitespace_chars(mut buffer in arb::text_buffer_with_valid_cursors()) {
+        let old_counts = get_counts(&buffer);
+
+        TestEdit::apply(&mut buffer, TestEdit::TabOut);
+
+        let new_counts = get_counts(&buffer);
+
+        for key in old_counts.keys() {
+            if key.is_whitespace() {
+                continue
+            }
+
+            let old = old_counts.get(key).unwrap_or(&0);
+            let new = new_counts.get(key).unwrap_or(&0);
+
+            assert_eq!(new, old, "key: '{}' ({})", key, key.escape_unicode());
+        }
+    }
+}
+
+#[test]
+fn tab_out_does_not_change_the_count_of_non_whitespace_chars_in_this_case() {
+    use ReplaceOrAdd::*;
+    let mut buffer = t_b!("!");
+
+    let mut cursor = cur!{l 0 o 1};
+    cursor.sticky_offset = CharOffset(0);
+    buffer.set_cursor(cursor, Replace);
+
+    let old_counts = get_counts(&buffer);
+
+    TestEdit::apply(&mut buffer, TestEdit::TabOut);
+
+    let new_counts = get_counts(&buffer);
+
+    for key in old_counts.keys() {
+        if key.is_whitespace() {
+            continue
+        }
+
+        let old = old_counts.get(key).unwrap_or(&0);
+        let new = new_counts.get(key).unwrap_or(&0);
+
+        assert_eq!(new, old, "key: '{}' ({})", key, key.escape_unicode());
+    }
+}
+
+#[test]
+fn tab_out_does_not_change_the_count_of_non_whitespace_chars_in_this_unicode_case() {
+    use ReplaceOrAdd::*;
+    let mut buffer = t_b!("\u{2028}�");
+
+    buffer.set_cursor(cur!{l 0 o 0 h l 1 o 0}, Replace);
+
+    let old_counts = get_counts(&buffer);
+
+    TestEdit::apply(&mut buffer, TestEdit::TabOut);
+
+    let new_counts = get_counts(&buffer);
+
+    for key in old_counts.keys() {
+        if key.is_whitespace() {
+            continue
+        }
+
+        let old = old_counts.get(key).unwrap_or(&0);
+        let new = new_counts.get(key).unwrap_or(&0);
+
+        assert_eq!(new, old, "key: '{}' ({})", key, key.escape_unicode());
+    }
 }
 
 mod edit_arb;

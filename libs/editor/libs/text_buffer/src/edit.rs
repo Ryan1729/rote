@@ -277,9 +277,9 @@ pub fn get_delete_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit
 /// one, and which does nothing otherwise.
 pub fn get_cut_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
     get_edit(original_rope, original_cursors, |cursor, rope, _| {
-        let offsets = offset_pair(original_rope, dbg!(cursor));
+        let offsets = offset_pair(original_rope, cursor);
 
-        match offsets {
+        match dbg!(offsets) {
             (Some(o1), Some(o2)) if o1 > 0 || o2 > 0 => {
                 let (range_edit, delete_offset, delete_delta) = delete_highlighted(rope, o1, o2);
                 (
@@ -290,6 +290,15 @@ pub fn get_cut_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
                     CursorPlacementSpec {
                         offset: delete_offset,
                         delta: delete_delta,
+                        ..d!()
+                    },
+                )
+            }
+            (Some(o), None) => {
+                (
+                    d!(),
+                    CursorPlacementSpec {
+                        offset: o,
                         ..d!()
                     },
                 )
@@ -424,14 +433,16 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
                     line_indicies_touched_by(rope, selected_range),
                     return d!()
                 );
+                let selected_max = selected_range.max();
                 
-                // a range extending the selected range to the edges of the relevant lines.
+                
+                // a range extending the selected range to the leading edges of the relevant lines.
                 let leading_line_edge_range = {
                     let first_line_index = line_indicies[0];
 
                     AbsoluteCharOffsetRange::new(
                         some_or!(rope.line_to_char(first_line_index), return d!()),
-                        selected_range.max(),
+                        selected_max,
                     )
                 };
 
@@ -439,11 +450,18 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
                 let mut char_delete_count = 0;
 
                 let last_line_indicies_index = line_indicies.len() - 1;
+                let selected_relative_max = selected_max - leading_line_edge_range.min();
 
                 for (i, index) in line_indicies.into_iter().enumerate() {
                     let line = some_or!(rope.line(index), continue);
 
-                    let relative_line_end = final_non_newline_offset_for_rope_line(line);
+                    let should_include_entire_end_of_line = dbg!(i != last_line_indicies_index);
+
+                    let (relative_line_end, slice_end) = if should_include_entire_end_of_line { 
+                        (final_non_newline_offset_for_rope_line(line), line.len_chars())
+                    } else {
+                        (selected_relative_max, selected_relative_max)
+                    };
 
                     let first_non_white_space_offset: Option<CharOffset> =
                         get_first_non_white_space_offset_in_range(line, d!()..=relative_line_end);
@@ -453,14 +471,6 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
                         CharOffset(TAB_STR_CHAR_COUNT),
                     );
                     char_delete_count += delete_count.0;
-
-                    let should_include_newline = i != last_line_indicies_index;
-
-                    let slice_end = if should_include_newline {
-                        line.len_chars()
-                    } else {
-                        relative_line_end
-                    };
 
                     chars.push_str(some_or!(
                         line.slice(delete_count..slice_end).and_then(|l| l.as_str()),
