@@ -429,12 +429,11 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
             (Some(o1), offset2) => {
                 let o2 = offset2.unwrap_or(o1);
                 let selected_range = AbsoluteCharOffsetRange::new(o1, o2);
-                let line_indicies = some_or!(
+                let line_indicies = dbg!(some_or!(
                     line_indicies_touched_by(rope, selected_range),
                     return d!()
-                );
+                ));
                 let selected_max = selected_range.max();
-                
                 
                 // a range extending the selected range to the leading edges of the relevant lines.
                 let leading_line_edge_range = {
@@ -450,21 +449,27 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
                 let mut char_delete_count = 0;
 
                 let last_line_indicies_index = line_indicies.len() - 1;
-                let selected_relative_max = selected_max - leading_line_edge_range.min();
 
                 for (i, index) in line_indicies.into_iter().enumerate() {
                     let line = some_or!(rope.line(index), continue);
 
                     let should_include_entire_end_of_line = dbg!(i != last_line_indicies_index);
 
-                    let (relative_line_end, slice_end) = if should_include_entire_end_of_line { 
+                    let (relative_line_end, slice_end) = if should_include_entire_end_of_line {
                         (final_non_newline_offset_for_rope_line(line), line.len_chars())
                     } else {
-                        (selected_relative_max, selected_relative_max)
+                        let first_char_of_line: AbsoluteCharOffset = some_or!(
+                            rope.line_to_char(index),
+                            continue
+                        );
+                        let end_of_selection_on_line: CharOffset = selected_max - first_char_of_line;
+                        dbg!(end_of_selection_on_line, end_of_selection_on_line)
                     };
 
                     let first_non_white_space_offset: Option<CharOffset> =
                         get_first_non_white_space_offset_in_range(line, d!()..=relative_line_end);
+
+                    dbg!(&first_non_white_space_offset, relative_line_end);
 
                     let delete_count = min(
                         first_non_white_space_offset.unwrap_or(relative_line_end),
@@ -472,18 +477,20 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
                     );
                     char_delete_count += delete_count.0;
 
+                    dbg!(delete_count, slice_end);
                     chars.push_str(some_or!(
                         line.slice(delete_count..slice_end).and_then(|l| l.as_str()),
                         continue
                     ));
                 }
 
-                let (mut delete_edit, delete_offset, delete_delta) = dbg!(delete_within_range(rope, leading_line_edge_range));
+                let (delete_edit, delete_offset, delete_delta) = dbg!(delete_within_range(rope, leading_line_edge_range));
 
-                delete_edit.range = some_or!(
+                let insert_edit_range = some_or!(
                     delete_edit.range.checked_sub_from_max(char_delete_count),
                     return d!()
                 );
+
                 dbg!(&delete_edit, &chars);
 
                 let char_count = chars.chars().count();
@@ -493,7 +500,7 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
 
                 (
                     RangeEdits {
-                        insert_range: Some(RangeEdit { chars, range: delete_edit.range }),
+                        insert_range: Some(RangeEdit { chars, range: insert_edit_range }),
                         delete_range: Some(delete_edit),
                     },
                     CursorPlacementSpec {
@@ -633,6 +640,13 @@ mod absolute_char_offset_range {
             let max = std::cmp::max(o1, o2);
 
             AbsoluteCharOffsetRange { min, max }
+        }
+
+        pub fn new_usize(o1: usize, o2: usize) -> Self {
+            AbsoluteCharOffsetRange::new(
+                AbsoluteCharOffset(o1),
+                AbsoluteCharOffset(o2)
+            )
         }
 
         pub fn range(&self) -> std::ops::Range<AbsoluteCharOffset> {

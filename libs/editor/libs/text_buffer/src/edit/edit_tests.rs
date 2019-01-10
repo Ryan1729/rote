@@ -494,6 +494,109 @@ fn tab_out_acts_as_expected_on_this_example_based_on_the_above_generated_test() 
     assert_eq!(&buffer.rope.to_string(), "\n   \n\n");
 }
 
+#[test]
+fn tab_out_acts_as_expected_on_this_simplified_example_based_on_the_above_generated_test() {
+    let mut buffer = t_b!("       \n    ");
+   
+    buffer.set_cursors_from_vec1(vec1![cur! {l 1 o 4 h l 0 o 4}]);
+
+    TestEdit::apply(&mut buffer, TestEdit::TabOut);
+
+    assert_eq!(&buffer.rope.to_string(), "   \n");
+}
+
+#[test]
+fn tab_out_acts_as_expected_on_this_further_simplified_example_based_on_the_above_generated_test() {
+    let mut buffer = t_b!("\n    ");
+
+    buffer.set_cursors_from_vec1(vec1![cur! {l 1 o 4 h l 0 o 0}]);
+
+    TestEdit::apply(&mut buffer, TestEdit::TabOut);
+
+    assert_eq!(&buffer.rope.to_string(), "\n");
+}
+
+fn get_expected_tab_out_edit() -> Edit {
+    Edit {
+        range_edits: vec1![
+            RangeEdits {
+                insert_range: Some(
+                    RangeEdit {
+                        chars: "\n".to_owned(),
+                        range: AbsoluteCharOffsetRange::new_usize(0, 1),
+                    },
+                ),
+                delete_range: Some(
+                    RangeEdit {
+                        chars: "\n    ".to_owned(),
+                        range: AbsoluteCharOffsetRange::new_usize(0, 5),
+                    },
+                ),
+            },
+        ],
+        cursors: Change {
+            old: Cursors {
+                cursors: vec1![
+                    cur!{l 1 o 4 h l 0 o 0}
+                ],
+            },
+            new: Cursors {
+                cursors: vec1![
+                    cur!{l 1 o 0 h l 0 o 0},
+                ],
+            },
+        },
+    }
+}
+
+#[test]
+fn get_tab_out_edit_returns_the_expected_tab_edit_on_this_further_simplified_example_based_on_the_above_generated_test() {
+    let mut buffer = t_b!("\n    ");
+
+    buffer.set_cursors_from_vec1(vec1![cur! {l 1 o 4 h l 0 o 0}]);
+
+    let edit = get_tab_out_edit(&buffer.rope, &buffer.cursors);
+
+    assert_eq!(edit, get_expected_tab_out_edit());
+}
+
+#[test]
+fn changing_the_range_on_this_tab_out_edit_fixes_the_problem_from_this_further_simplified_example_based_on_the_above_generated_test() {
+    let mut buffer = t_b!("\n    ");
+
+    buffer.set_cursors_from_vec1(vec1![cur! {l 1 o 4 h l 0 o 0}]);
+
+    let mut edit = get_tab_out_edit(&buffer.rope, &buffer.cursors);
+
+    let range_edit = &mut edit.range_edits[0];
+    
+    if let Some(d_r) = range_edit.delete_range.as_mut() {
+        d_r.range = AbsoluteCharOffsetRange::new(
+            AbsoluteCharOffset(0),
+            AbsoluteCharOffset(5)
+        );
+    } else {
+        assert!(false);
+    };
+
+    buffer.apply_edit(edit, ApplyKind::Playback);
+
+    assert_eq!(&buffer.rope.to_string(), "\n");
+}
+
+#[test]
+fn applying_this_tab_out_edit_has_the_expected_effect() {
+    let mut buffer = t_b!("\n    ");
+
+    buffer.set_cursors_from_vec1(vec1![cur! {l 1 o 4 h l 0 o 0}]);
+
+    let edit = get_expected_tab_out_edit();
+
+    buffer.apply_edit(edit, ApplyKind::Playback);
+
+    assert_eq!(&buffer.rope.to_string(), "\n");
+}
+
 fn get_2_spaces_then_a_single_newline_and_particular_cursors() -> TextBuffer {
     let mut buffer = t_b!("  \n");
     // The reson these cursors are interesting is that they result in an offset pair of
@@ -538,7 +641,7 @@ fn tab_out_results_in_2_spaces_then_a_single_newline_in_this_case() {
 }
 
 #[test]
-fn tab_out_then_tab_in_is_as_expected_on_this_example() {
+fn tab_out_then_tab_in_is_as_expected_on_three_spaces() {
     //                     three spaces    vvv
     let initial_buffer: TextBuffer = t_b!("   ");
     //                     four spaces      vvvv
@@ -552,7 +655,7 @@ fn tab_out_then_tab_in_is_as_expected_on_this_example() {
 }
 
 #[test]
-fn tab_out_then_tab_in_is_as_expected_on_this_smaller_example() {
+fn tab_out_is_as_expected_on_three_spaces() {
     //                     three spaces    vvv
     let initial_buffer: TextBuffer = t_b!("   ");
     let mut buffer = deep_clone(&initial_buffer);
@@ -1216,10 +1319,12 @@ fn tab_out_does_not_change_the_count_of_non_whitespace_chars_in_this_unicode_cas
     buffer.set_cursor(cur!{l 0 o 0 h l 1 o 0}, Replace);
 
     let old_counts = get_counts(&buffer);
+    dbg!(&old_counts);
 
     TestEdit::apply(&mut buffer, TestEdit::TabOut);
 
     let new_counts = get_counts(&buffer);
+    dbg!(&new_counts);
 
     for key in old_counts.keys() {
         if key.is_whitespace() {
@@ -1232,6 +1337,47 @@ fn tab_out_does_not_change_the_count_of_non_whitespace_chars_in_this_unicode_cas
         assert_eq!(new, old, "key: '{}' ({})", key, key.escape_unicode());
     }
 }
+
+#[test]
+fn get_tab_out_edit_returns_the_right_chars_in_this_unicode_case() {
+    use ReplaceOrAdd::*;
+    let mut buffer = t_b!("\u{2028}�");
+
+    buffer.set_cursor(cur!{l 0 o 0 h l 1 o 0}, Replace);
+
+    let edit = edit::get_tab_out_edit(&buffer.rope, &buffer.cursors);
+
+    assert_eq!(edit.range_edits.len(), 1);
+
+    let range_edit = edit.range_edits.first().clone();
+
+    // tab out here should not cause any changes to the chars
+    assert_eq!(
+        range_edit.insert_range.unwrap().chars,
+        range_edit.delete_range.unwrap().chars
+    );
+}
+
+#[test]
+fn get_tab_out_edit_returns_the_right_chars_in_this_ascii_case() {
+    use ReplaceOrAdd::*;
+    let mut buffer = t_b!("\nA");
+
+    buffer.set_cursor(cur!{l 0 o 0 h l 1 o 0}, Replace);
+
+    let edit = edit::get_tab_out_edit(&buffer.rope, &buffer.cursors);
+
+    assert_eq!(edit.range_edits.len(), 1);
+
+    let range_edit = edit.range_edits.first().clone();
+
+    // tab out here should not cause any changes to the chars
+    assert_eq!(
+        range_edit.insert_range.unwrap().chars,
+        range_edit.delete_range.unwrap().chars
+    );
+}
+
 
 mod edit_arb;
 mod undo_redo;
