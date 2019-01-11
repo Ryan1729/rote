@@ -501,7 +501,7 @@ impl TestEdit {
                     for c in r.chars() {
                         if c != edit::TAB_STR_CHAR && !is_linebreak_char(c) && c.is_whitespace() {
                             increment_char(
-                                counts, 
+                                counts,
                                 edit::TAB_STR_CHAR
                             );
                             decrement_char(

@@ -350,10 +350,12 @@ pub fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit
                         range.max() - line_start
                     };
 
+                    let highlight_range = dbg!(highlight_start_for_line..=highlight_end_for_line);
+
                     let first_highlighted_non_white_space_offset: Option<CharOffset> =
                         get_first_non_white_space_offset_in_range(
                             line,
-                            highlight_start_for_line..=highlight_end_for_line,
+                            highlight_range.clone(),
                         );
 
                     let start = highlight_start_for_line.0;
@@ -362,7 +364,9 @@ pub fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit
                             .unwrap_or(CharOffset(usize::max_value())),
                         highlight_end_for_line,
                     );
+
                     let end = previous_offset.0 + TAB_STR_CHAR_COUNT;
+                    dbg!(start, end);
                     for _ in start..end {
                         chars.push(TAB_STR_CHAR);
                     }
@@ -406,7 +410,7 @@ pub fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit
                     cursor,
                     min,
                     chars,
-                    range.max().0 - min.0, //TODO: why isn't this just `char_count`?
+                    char_count,
                 );
 
                 edits.0.delete_range = Some(range_edit);
@@ -498,7 +502,7 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
 
                 let special_handling = get_special_handling(&original_rope, cursor, char_count);
 
-                (
+                dbg!(
                     RangeEdits {
                         insert_range: Some(RangeEdit { chars, range: insert_edit_range }),
                         delete_range: Some(delete_edit),
@@ -771,10 +775,10 @@ fn line_indicies_touched_by(
     Some(output)
 }
 
-fn get_first_non_white_space_offset_in_range<R: std::ops::RangeBounds<CharOffset>>(
-    line: RopeLine,
+fn get_line_char_iterator<'line, R: std::ops::RangeBounds<CharOffset>>(
+    line: RopeLine<'line>,
     range: R,
-) -> Option<CharOffset> {
+) -> impl Iterator<Item = (CharOffset, char)> + 'line {
     use std::ops::Bound::*;
 
     let skip = match range.start_bound() {
@@ -785,28 +789,49 @@ fn get_first_non_white_space_offset_in_range<R: std::ops::RangeBounds<CharOffset
 
     let take = match range.end_bound() {
         Included(CharOffset(o)) => *o,
-        Excluded(CharOffset(o)) => (*o).checked_sub(1)?,
+        Excluded(CharOffset(o)) => (*o).saturating_sub(1),
         Unbounded => usize::max_value(),
     } - skip;
+    
     let final_offset = final_non_newline_offset_for_rope_line(line);
 
-    for (i, c) in line
+    line
         .chars()
         .enumerate()
         .map(|(i, c)| (CharOffset(i), c))
         .skip(skip)
         .take(std::cmp::min(take, final_offset.0))
-    {
+}
+
+fn get_first_non_white_space_offset_in_range<R: std::ops::RangeBounds<CharOffset>>(
+    line: RopeLine,
+    range: R,
+) -> Option<CharOffset> {
+    for (i, c) in get_line_char_iterator(line, range) {
         if !c.is_whitespace() {
             return Some(i);
-        }
-
-        if i + 1 > final_offset {
-            break;
         }
     }
 
     None
+}
+
+fn get_last_leading_white_space_offset_in_range<R: std::ops::RangeBounds<CharOffset>>(
+    line: RopeLine,
+    range: R,
+) -> Option<CharOffset> {
+    let mut last_index = None;
+
+    for (i, c) in get_line_char_iterator(line, range) {
+        dbg!(i, c);
+        if !c.is_whitespace() {
+            return last_index;
+        }
+
+        last_index = Some(i);
+    }
+
+    last_index
 }
 
 pub fn copy_string(rope: &Rope, range: AbsoluteCharOffsetRange) -> String {

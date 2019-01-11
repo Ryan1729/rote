@@ -484,14 +484,20 @@ fn tab_in_acts_as_expected_on_this_example_based_on_the_above_generated_test() {
 }
 
 #[test]
-fn tab_out_acts_as_expected_on_this_example_based_on_the_above_generated_test() {
-    let mut buffer = t_b!("    \n       \n    \n    ");
-    // These cursors are close enough, but not exactly what we would expect from the above.
-    buffer.set_cursors_from_vec1(vec1![cur! {l 3 o 4}, cur! {l 2 o 4 h l 0 o 4}]);
+fn tab_in_acts_as_expected_on_this_simplified_example_based_on_the_above_generated_test() {
+    let mut buffer = t_b!("\n   \n");
+    buffer.set_cursors_from_vec1(vec1![cur! {l 2 o 0 h l 0 o 0}]);
 
-    TestEdit::apply(&mut buffer, TestEdit::TabOut);
+    TestEdit::apply(&mut buffer, TestEdit::TabIn);
 
-    assert_eq!(&buffer.rope.to_string(), "\n   \n\n");
+    assert_eq!(&buffer.rope.to_string(), "    \n       \n    ");
+    assert_eq!(
+        buffer.cursors,
+        Cursors::new(
+            &buffer.rope,
+            vec1![cur! {l 2 o 4 h l 0 o 4}]
+        )
+    );
 }
 
 #[test]
@@ -643,9 +649,12 @@ fn tab_out_results_in_2_spaces_then_a_single_newline_in_this_case() {
 #[test]
 fn tab_out_then_tab_in_is_as_expected_on_three_spaces() {
     //                     three spaces    vvv
-    let initial_buffer: TextBuffer = t_b!("   ");
+    let mut initial_buffer: TextBuffer = t_b!("   ");
+    initial_buffer.set_cursors_from_vec1(vec1![cur!{l 0 o 3}]);
     //                     four spaces      vvvv
-    let expected_buffer: TextBuffer = t_b!("    ");
+    let mut expected_buffer: TextBuffer = t_b!("    ");
+    expected_buffer.set_cursors_from_vec1(vec1![cur!{l 0 o 4}]);
+
     let mut buffer = deep_clone(&initial_buffer);
 
     TestEdit::apply(&mut buffer, TestEdit::TabOut);
@@ -657,7 +666,8 @@ fn tab_out_then_tab_in_is_as_expected_on_three_spaces() {
 #[test]
 fn tab_out_is_as_expected_on_three_spaces() {
     //                     three spaces    vvv
-    let initial_buffer: TextBuffer = t_b!("   ");
+    let mut initial_buffer: TextBuffer = t_b!("   ");
+    initial_buffer.set_cursors_from_vec1(vec1![cur!{l 0 o 3}]);
     let mut buffer = deep_clone(&initial_buffer);
 
     TestEdit::apply(&mut buffer, TestEdit::TabOut);
@@ -1161,6 +1171,134 @@ fn does_not_lose_characters_in_this_delete_then_tab_in_case() {
             ExtendSelectionForAllCursors(Left),
             TabIn
         ]
+    );
+}
+
+#[test]
+fn does_not_lose_characters_in_this_two_space_then_zero_delete_then_tab_in_case() {
+    use TestEdit::*;
+    use ReplaceOrAdd::*;
+    use Move::*;
+    let buffer = t_b!("  0");
+
+    does_not_lose_characters_on(
+        buffer,
+        [
+            SetCursor(pos!{l 0 o 0}, Add), 
+            ExtendSelectionForAllCursors(Up), 
+            ExtendSelectionForAllCursors(Left), 
+            Delete, 
+            SetCursor(pos!{l 0 o 2}, Add), 
+            ExtendSelectionForAllCursors(Up), 
+            ExtendSelectionForAllCursors(Left),
+            TabIn
+        ]
+    );
+}
+
+#[test]
+fn does_not_lose_characters_in_this_reduced_two_space_then_zero_delete_then_tab_in_case() {
+    use TestEdit::*;
+    use ReplaceOrAdd::*;
+    use Move::*;
+    let initial_buffer = t_b!("  0");
+
+    let mut counts = get_counts(&initial_buffer);
+    let mut buffer = deep_clone(&initial_buffer);
+
+    let edits = [
+            SetCursor(pos!{l 0 o 0}, Add),
+            SetCursor(pos!{l 0 o 2}, Add),
+            ExtendSelectionForAllCursors(Left),
+            TabIn
+        ];
+
+    for edit in edits.iter() {
+        TestEdit::apply_with_counts(&mut buffer, &mut counts, edit);
+    }
+
+    counts.retain(|_, v| *v != 0);
+
+    assert_eq!(get_counts(&buffer), counts);
+}
+
+#[test]
+fn tab_in_does_what_is_expected_with_this_selection() {
+    use ReplaceOrAdd::*;
+    let mut buffer = t_b!(" 0");
+    buffer.set_cursor(cur!{l 0 o 1 h l 0 o 0}, Replace);
+
+    let edit = dbg!(get_tab_in_edit(&buffer.rope, &buffer.cursors));
+
+    buffer.apply_edit(edit, ApplyKind::Playback);
+
+    let mut expected_buffer = t_b!("     0");
+    expected_buffer.set_cursor(cur!{l 0 o 5 h l 0 o 4}, Replace);
+
+    assert_text_buffer_eq_ignoring_history!(buffer, expected_buffer);
+}
+
+fn get_expected_tab_in_edit() -> Edit {
+    Edit {
+        range_edits: 
+            vec1![
+                RangeEdits {
+                    insert_range: Some(
+                        RangeEdit {
+                            chars: "     ".to_owned(),
+                            range: AbsoluteCharOffsetRange::new_usize(0, 5),
+                        },
+                    ),
+                    delete_range: Some(
+                        RangeEdit {
+                            chars: " ".to_owned(),
+                            range: AbsoluteCharOffsetRange::new_usize(0, 1),
+                        },
+                    ),
+                },
+            ],
+        cursors: Change {
+            old: Cursors {
+                cursors: 
+                    vec1![
+                        cur!{l 0 o 1 h l 0 o 0},
+                    ],
+            },
+            new: Cursors {
+                cursors: 
+                    vec1![
+                        cur!{l 0 o 5 h l 0 o 4},
+                    ],
+            },
+        },
+    }
+}
+
+#[test]
+fn this_tab_in_edit_does_what_is_expected_with_this_selection() {
+    use ReplaceOrAdd::*;
+    let mut buffer = t_b!(" 0");
+    buffer.set_cursor(cur!{l 0 o 1 h l 0 o 0}, Replace);
+
+    let edit = get_expected_tab_in_edit();
+
+    buffer.apply_edit(edit, ApplyKind::Playback);
+
+    let mut expected_buffer = t_b!("     0");
+    expected_buffer.set_cursor(cur!{l 0 o 5 h l 0 o 4}, Replace);
+
+    assert_text_buffer_eq_ignoring_history!(buffer, expected_buffer);
+}
+
+#[test]
+fn get_tab_in_edit_produces_the_expected_edit_with_this_selection() {
+    use ReplaceOrAdd::*;
+    let mut buffer = t_b!(" 0");
+    buffer.set_cursor(cur!{l 0 o 1 h l 0 o 0}, Replace);
+
+    assert_eq!(
+        get_tab_in_edit(&buffer.rope, &buffer.cursors),
+        get_expected_tab_in_edit()
     );
 }
 
