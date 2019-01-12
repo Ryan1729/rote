@@ -279,7 +279,7 @@ pub fn get_cut_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
     get_edit(original_rope, original_cursors, |cursor, rope, _| {
         let offsets = offset_pair(original_rope, cursor);
 
-        match dbg!(offsets) {
+        match offsets {
             (Some(o1), Some(o2)) if o1 > 0 || o2 > 0 => {
                 let (range_edit, delete_offset, delete_delta) = delete_highlighted(rope, o1, o2);
                 (

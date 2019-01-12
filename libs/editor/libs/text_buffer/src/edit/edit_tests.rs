@@ -1373,6 +1373,64 @@ fn get_tab_out_edit_returns_an_edit_with_the_right_selection_in_this_case() {
     assert_eq!(buffer.rope, r!("!\u{2000}"));
 }
 
+#[test]
+fn does_not_lose_characters_in_this_two_wide_selection_tab_in_case() {
+    use TestEdit::*;
+    use ReplaceOrAdd::*;
+    let mut buffer = t_b!("!\u{2000}");
+
+    let mut cursor = cur!{l 0 o 2 h l 0 o 0};
+    cursor.sticky_offset = d!();
+    buffer.set_cursor(cursor, Replace);
+
+    let mut counts = get_counts(&buffer);
+
+    dbg!(&counts);
+    TestEdit::apply_with_counts(&mut buffer, &mut counts, &TabIn);
+    dbg!(&counts);
+
+    counts.retain(|_, v| *v != 0);
+
+    assert_eq!(get_counts(&buffer), counts);
+}
+
+#[test]
+fn does_not_lose_characters_in_this_two_tab_in_case() {
+    use TestEdit::*;
+    use ReplaceOrAdd::*;
+    let mut buffer = t_b!("A");
+
+    buffer.set_cursor(cur!{l 0 o 0 h l 0 o 1}, Replace);
+
+    let mut counts = get_counts(&buffer);
+
+    dbg!(&counts);
+    TestEdit::apply_with_counts(&mut buffer, &mut counts, &TabIn);
+    dbg!(&counts);
+    TestEdit::apply_with_counts(&mut buffer, &mut counts, &SetCursor(pos!{l 0 o 0}, Add));
+    dbg!(&counts);
+    TestEdit::apply_with_counts(&mut buffer, &mut counts, &TabIn);
+    dbg!(&counts);
+    counts.retain(|_, v| *v != 0);
+
+    assert_eq!(get_counts(&buffer), counts);
+}
+
+#[test]
+fn copy_selections_returns_what_is_expected_in_this_two_tab_in_case() {
+    use TestEdit::*;
+    use ReplaceOrAdd::*;
+    let mut buffer = t_b!("A");
+
+    buffer.set_cursor(cur!{l 0 o 0 h l 0 o 1}, Replace);
+
+    TestEdit::apply(&mut buffer, TabIn);
+    TestEdit::apply(&mut buffer, SetCursor(pos!{l 0 o 0}, Add));
+    TestEdit::apply(&mut buffer, TabIn);
+
+    assert_eq!(buffer.copy_selections(), vec!["A"]);
+}
+
 proptest!{
     #[test]
     fn get_cut_edit_does_not_affect_a_lone_cursor_if_there_is_no_selection(buffer in arb::text_buffer_with_no_selection()) {

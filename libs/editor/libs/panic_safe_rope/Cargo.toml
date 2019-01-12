@@ -19,6 +19,9 @@ path = "../../../platform_types"
 [dependencies.macros]
 path = "../../../macros"
 
+[dev-dependencies]
+proptest = "0.9.3"
+
 [features]
 default = []
 invariant-checking = ["check_or_no_panic/invariant-checking"]

@@ -1369,6 +1369,7 @@ dependencies = [
  "check_or_no_panic 0.1.0",
  "macros 0.1.0",
  "platform_types 0.1.0",
+ "proptest 0.9.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "ropey 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 

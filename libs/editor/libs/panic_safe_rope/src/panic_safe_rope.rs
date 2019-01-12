@@ -320,6 +320,14 @@ impl Rope {
         })
     }
 
+    /// Equivalent to `slice(..0)` except it always returns a `RopeSlice`
+    #[inline]
+    pub fn empty_slice(&self) -> RopeSlice {
+        RopeSlice {
+            rope_slice: self.rope.slice(..0),
+        }
+    }
+
     /// Equivalent to `slice(..)` except it always returns a `RopeSlice`
     #[inline]
     pub fn full_slice(&self) -> RopeSlice {
@@ -500,3 +508,6 @@ impl std::cmp::PartialOrd<Rope> for Rope {
         Some(self.cmp(other))
     }
 }
+
+#[cfg(test)]
+mod tests;

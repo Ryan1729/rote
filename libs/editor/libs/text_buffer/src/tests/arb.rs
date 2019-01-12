@@ -479,17 +479,20 @@ impl TestEdit {
                 }
             },
             TabIn => {
-                let mut selections = buffer.copy_selections();
-
-                if selections.len() == 0 {
-                    for _ in 0..buffer.borrow_cursors_vec().len() {
-                        selections.push(d!());
-                    }
-                }
+                let selections: Vec<_> = buffer.borrow_cursors_vec()
+                    .iter()
+                    .map(|cur| 
+                        match offset_pair(&buffer.rope, &cur) {
+                            (Some(o1), Some(o2)) => {
+                                let range = AbsoluteCharOffsetRange::new(o1, o2);
+                                buffer.rope.slice(range.min()..range.max())
+                            }
+                            _ => None,
+                        }.unwrap_or_else(|| buffer.rope.empty_slice())
+                    ).collect();
 
                 for selection in selections {
-                    let r = r!(selection);
-                    let line_count: CountNumber = r.len_lines().0;
+                    let line_count: CountNumber = selection.len_lines().0;
     
                     increment_char_by(
                         counts, 
@@ -497,8 +500,7 @@ impl TestEdit {
                         dbg!(line_count * edit::TAB_STR_CHAR_COUNT)
                     );
 
-                    dbg!(&r);
-                    for c in r.chars() {
+                    for c in selection.chars() {
                         if c != edit::TAB_STR_CHAR && !is_linebreak_char(c) && c.is_whitespace() {
                             increment_char(
                                 counts,
@@ -508,6 +510,8 @@ impl TestEdit {
                                 counts, 
                                 c
                             )
+                        } else {
+                            break
                         }
                     }
                 }
