@@ -1575,5 +1575,6 @@ fn get_tab_out_edit_returns_the_right_chars_in_this_ascii_case() {
 }
 
 
+mod included_files;
 mod edit_arb;
 mod undo_redo;
