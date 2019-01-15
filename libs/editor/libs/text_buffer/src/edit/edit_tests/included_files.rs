@@ -78,13 +78,16 @@ fn does_not_lose_a_line_in_this_further_reduced_manually_found_case() {
     use ReplaceOrAdd::*;
     let mut buffer = t_b!(include_str!("./test-text-0-reduced-1.txt"));
 
-    buffer.set_cursor(cur!{l 92 o 0 h l 109 o 2}, Replace);
+    buffer.set_cursor(cur!{l 86 o 0 h l 104 o 2}, Replace);
+
+    dbg!(&buffer.rope);
 
     TestEdit::apply(&mut buffer, Delete);
-    TestEdit::apply(&mut buffer, Delete);
-    TestEdit::apply(&mut buffer, Delete);
-    TestEdit::apply(&mut buffer, Delete);
-    TestEdit::apply(&mut buffer, Delete);
+
+    println!();
+    println!();
+    println!();
+    dbg!(&buffer.rope);
 
     let expected_line_suffix = "assert_eq!(u.old, e.new);";
 
@@ -96,7 +99,7 @@ fn does_not_lose_a_line_in_this_further_reduced_manually_found_case() {
 
     let line_count = buffer.rope.len_lines();
 
-    buffer.set_cursor(cur!{l 92 o 0 h l 93 o 37}, Replace);
+    buffer.set_cursor(cur!{l 87 o 0 h l 88 o 37}, Replace);
 
     TestEdit::apply(&mut buffer, TabOut);
 
