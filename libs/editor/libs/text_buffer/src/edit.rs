@@ -482,8 +482,9 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
                     char_delete_count += delete_count.0;
 
                     dbg!(delete_count, slice_end);
+                    line.slice(delete_count..(slice_end - 1)).and_then(|l| dbg!(l.as_str()));
                     chars.push_str(some_or!(
-                        line.slice(delete_count..slice_end).and_then(|l| l.as_str()),
+                        line.slice(delete_count..slice_end).and_then(|l| dbg!(l.as_str())),
                         continue
                     ));
                 }
@@ -814,24 +815,6 @@ fn get_first_non_white_space_offset_in_range<R: std::ops::RangeBounds<CharOffset
     }
 
     None
-}
-
-fn get_last_leading_white_space_offset_in_range<R: std::ops::RangeBounds<CharOffset>>(
-    line: RopeLine,
-    range: R,
-) -> Option<CharOffset> {
-    let mut last_index = None;
-
-    for (i, c) in get_line_char_iterator(line, range) {
-        dbg!(i, c);
-        if !c.is_whitespace() {
-            return last_index;
-        }
-
-        last_index = Some(i);
-    }
-
-    last_index
 }
 
 pub fn copy_string(rope: &Rope, range: AbsoluteCharOffsetRange) -> String {
