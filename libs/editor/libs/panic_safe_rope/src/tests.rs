@@ -19,3 +19,5 @@ proptest!{
         assert_eq!(slice.len_chars().0, r.len_chars().0);
     }
 }
+
+mod included_files;

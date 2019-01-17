@@ -93,6 +93,9 @@ pub trait RopeSliceTrait<'rope> {
 
     fn chunks(&self) -> Chunks<'rope>;
 
+    // Returns the sliced chars as a cintiguoug string if possible. This allows optimizations in those cases.
+    // Note that a valid implemention of this method can always return `None`, so it should not be relied upon
+    // to ever return a `&str`
     fn as_str(&self) -> Option<&'rope str>;
 }
 

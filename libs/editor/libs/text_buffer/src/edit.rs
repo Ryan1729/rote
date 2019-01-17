@@ -482,11 +482,10 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
                     char_delete_count += delete_count.0;
 
                     dbg!(delete_count, slice_end);
-                    line.slice(delete_count..(slice_end - 1)).and_then(|l| dbg!(l.as_str()));
-                    chars.push_str(some_or!(
-                        line.slice(delete_count..slice_end).and_then(|l| dbg!(l.as_str())),
-                        continue
-                    ));
+
+                    for c in some_or!(line.slice(delete_count..slice_end), continue).chars() {
+                        chars.push(c);
+                    }
                 }
 
                 let (delete_edit, delete_offset, delete_delta) = dbg!(delete_within_range(rope, leading_line_edge_range));
