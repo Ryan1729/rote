@@ -1661,7 +1661,6 @@ pub struct GoToPositionInfo {
 
 pub fn get_go_to_position_info(
     FontInfo {
-        status_char_dim,
         find_replace_char_dim,
         tab_char_dim,
         ..
@@ -1757,7 +1756,6 @@ pub fn get_current_buffer_rect(
 /// This function determines whether the mouse cursor should use the text selection icon ot not.
 pub fn should_show_text_cursor(
     xy: ScreenSpaceXY,
-    current_buffer_id: BufferId,
     mode: MenuMode,
     font_info: FontInfo,
     wh: ScreenSpaceWH,

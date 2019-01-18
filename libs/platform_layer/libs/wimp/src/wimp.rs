@@ -69,13 +69,6 @@ use clipboard_layer::{get_clipboard, Clipboard, ClipboardProvider};
 
 #[perf_viz::record]
 pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
-    run_inner(update_and_render)
-}
-
-// This extra fn is a workaround for the record attribute causing a "procedural macros cannot
-// expand to macro definitions" error otherwise.According to issue #54727, this is because there
-// is some worry that all the macro hygiene edge cases may not be handled.
-fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
     const EVENTS_PER_FRAME: usize = 16;
 
     if cfg!(target_os = "linux") {
@@ -1114,7 +1107,6 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                                 } => {
                                     let cursor_icon = if wimp_render::should_show_text_cursor(
                                         ui.mouse_pos,
-                                        view.current_buffer_id,
                                         view.menu.get_mode(),
                                         font_info,
                                         screen_wh!(),

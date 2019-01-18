@@ -666,13 +666,6 @@ macro_rules! set_if_present {
 
 //#[check_or_no_panic::check_or_no_panic]
 pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutput {
-    update_and_render_inner(state, input)
-}
-
-// This extra fn is a workaround for the record attribute causing a "procedural macros cannot
-// expand to macro definitions" error otherwise.According to issue #54727, this is because there
-// is some worry that all the macro hygiene edge cases may not be handled.
-fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOutput {
     macro_rules! buffer_call {
         ($buffer: ident . $($method_call:tt)*) => {
             buffer_call!($buffer {$buffer.$($method_call)*})

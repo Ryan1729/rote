@@ -1,12 +1,5 @@
 ## TODO
 
-* look harder for undo weirdness.
-    * the remaining bugs only seem to show up when doing longer sequences of editing tasks. 
-        * So I guess to find a repro case, we'll have to do some editing that we don't actually care about the results of?
-        * How about "sort these random words"? If we pick one word that starts with each letter, then missing lines should be easy to find.
-            * This din't seem to work
-        * 
-
 * try to show cursors on all cursor moves
     * This came up because I was expecting Home and End to make sure the cursors are visible.
     * is there any reason not to do this for every cursor movement?
