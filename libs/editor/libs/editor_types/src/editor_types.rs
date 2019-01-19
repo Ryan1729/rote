@@ -77,6 +77,9 @@ impl Cursor {
 
 #[macro_export]
 macro_rules! cur {
+    ($pos: expr) => {
+        Cursor::new($pos)
+    };
     (l $line:literal o $offset:literal) => {
         Cursor::new(pos! {l $line o $offset})
     };

@@ -32,8 +32,12 @@ path = "libs/editor_types"
 [dependencies.text_buffer]
 path = "libs/text_buffer"
 
+[dependencies.paths]
+path = "libs/paths"
+
 [dev-dependencies]
 criterion = "0.2"
+proptest = "0.9"
 
 [features]
 default = []

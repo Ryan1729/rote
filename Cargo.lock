@@ -564,9 +564,11 @@ dependencies = [
  "editor_types 0.1.0",
  "if_changed 0.1.0",
  "macros 0.1.0",
+ "paths 0.1.0",
  "perf_viz 0.1.0",
  "perf_viz_proc_macro 0.1.0",
  "platform_types 0.1.0",
+ "proptest 0.9.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "text_buffer 0.1.0",
 ]
 
@@ -1444,6 +1446,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "paths"
+version = "0.1.0"
+
+[[package]]
 name = "percent-encoding"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1851,7 +1857,7 @@ dependencies = [
 
 [[package]]
 name = "rote"
-version = "0.2.58"
+version = "0.2.59"
 dependencies = [
  "check_or_no_panic 0.1.0",
  "editor 0.1.0",
