@@ -1,5 +1,5 @@
 use super::*;
-use proptest::{prop_compose, proptest};
+use proptest::{prop_compose, proptest, num::f32};
 
 prop_compose! {
     fn arb_pos(max_line: usize, max_offset: usize)
@@ -181,24 +181,25 @@ pub struct ScrollableScreen {
     pub wh: ScreenSpaceWH,
 }
 
-/* We can revive these tests if the tested functions need to change further
+fmt_display!(for ScrollableScreen : ScrollableScreen {scroll, wh}
+      in "ScrollableScreen {{ scroll:{}, wh: {} }}", scroll, wh
+);
+
+// returns true if the given TextBoxSpaceXY is visible on the
+// given screen, assuming the text box origin is at (0,0) and
+// the text box fills the screen.
 // Turns out that we only need this in the tests anymore!
 fn xy_is_visible(
     ScrollableScreen {
         scroll,
         wh: ScreenSpaceWH { w, h },
     }: &ScrollableScreen,
-    text: TextBoxSpaceXY,
+    text: TextSpaceXY,
 ) -> bool {
-    let ScreenSpaceXY { x, y } = text_box_to_screen(text, *scroll);
+    let text_box = text_to_text_box(text, *scroll);
+    let ScreenSpaceXY { x, y } = text_box_to_screen(text_box, d!());
     x >= 0.0 && x < *w && y >= 0.0 && y < *h
 }
-
-
-
-fmt_display!(for ScrollableScreen : ScrollableScreen {scroll, wh}
-      in "ScrollableScreen {{ scroll:{}, wh: {} }}", scroll, wh
- );
 
 macro_rules! xy_is_visible_assert {
     (not $screen: expr, $xy: expr) => {{
@@ -222,6 +223,148 @@ macro_rules! xy_is_visible_assert {
     }};
 }
 
+fn attempt_to_make_xy_visible_works_in_this_scenario(
+    screen: &mut ScrollableScreen,
+    char_dim: CharDim,
+    xy: TextSpaceXY,
+) -> VisibilityAttemptResult {
+    let wh = screen.wh;
+    // Assume the text box fills the screen
+    let text_box = tbxywh!(0.0, 0.0, wh.w, wh.h);
+    let attempt = attempt_to_make_xy_visible(&mut screen.scroll, text_box, char_dim.into(), xy);
+
+    if dbg!(attempt) == VisibilityAttemptResult::Succeeded {
+        dbg!(&screen);
+        xy_is_visible_assert!(&screen, xy);
+    }
+
+    attempt
+}
+
+proptest! {
+    #[test]
+    fn attempt_to_make_xy_visible_works(
+        mut screen in arb::scrollable_screen(f32::ANY),
+        char_dim in arb::char_dim(f32::ANY),
+        xy in arb::text_xy(f32::POSITIVE | f32::ZERO),
+    ) {
+        attempt_to_make_xy_visible_works_in_this_scenario(&mut screen, char_dim, xy);
+    }
+}
+
+proptest! {
+    #[test]
+    fn attempt_to_make_xy_visible_works_with_more_realistic_values(
+        mut screen in arb::scrollable_screen(arb::usual()),
+        xy in arb::text_xy(f32::POSITIVE | f32::ZERO),
+    ) {
+        let char_dim = CharDim {
+            w: 4.0,
+            h: 8.0,
+        };
+        attempt_to_make_xy_visible_works_in_this_scenario(&mut screen, char_dim, xy);
+    }
+}
+
+#[test]
+fn attempt_to_make_xy_visible_works_on_this_generated_example() {
+    let mut screen = ScrollableScreen {
+        scroll: ScrollXY { x: 0.0, y: 0.0 },
+        wh: ScreenSpaceWH {
+            w: 1927329000.0,
+            h: 1.4144982,
+        },
+    };
+    let char_dim = CharDim {
+        w: 0.000000000026796234,
+        h: 0.0000000000000000003944164,
+    };
+    let xy = text_box_to_text(
+        screen_to_text_box(
+            ScreenSpaceXY {
+                x: 0.0,
+                y: 0.0000000000000000000000000006170001,
+            },
+            d!(),
+        ),
+        d!()
+    );
+
+    attempt_to_make_xy_visible_works_in_this_scenario(&mut screen, char_dim, xy);
+}
+
+#[test]
+fn attempt_to_make_xy_visible_works_on_this_realistic_example() {
+    let mut screen = ScrollableScreen {
+        scroll: ScrollXY { x: 250.0, y: 440.0 },
+        wh: ScreenSpaceWH { w: 800.0, h: 400.0 },
+    };
+    let char_dim = CharDim { w: 4.0, h: 8.0 };
+    let xy = TextSpaceXY { x: 0.0, y: 0.0 };
+
+    xy_is_visible_assert!(not & screen, xy);
+
+    attempt_to_make_xy_visible_works_in_this_scenario(&mut screen, char_dim, xy);
+}
+
+#[test]
+fn attempt_to_make_xy_visible_works_on_this_realistically_sized_example() {
+    let mut screen = ScrollableScreen {
+        scroll: ScrollXY { x: 0.0, y: 0.0 },
+        wh: ScreenSpaceWH {
+            w: 1024.0,
+            h: 576.0,
+        },
+    };
+    let char_dim = CharDim { w: 30.0, h: 60.0 };
+    let xy = TextSpaceXY { x: 60.0, y: 600.0 };
+
+    xy_is_visible_assert!(not & screen, xy);
+
+    attempt_to_make_xy_visible_works_in_this_scenario(&mut screen, char_dim, xy);
+}
+
+#[test]
+// real as in recovered from an actual run of the program
+fn attempt_to_make_xy_visible_works_on_this_vertically_scrolled_realistically_sized_example() {
+    let mut screen = ScrollableScreen {
+        scroll: ScrollXY { x: 0.0, y: 0.0 },
+        wh: ScreenSpaceWH {
+            w: 1024.0,
+            h: 576.0,
+        },
+    };
+    let char_dim = CharDim { w: 30.0, h: 60.0 };
+    let xy = text_box_to_text(
+        screen_to_text_box(
+            ScreenSpaceXY { x: 0.0, y: 600.0 },
+            TextBoxXY { x: 0.0, y: 180.0 },
+        ),
+        screen.scroll
+    );
+
+    xy_is_visible_assert!(not & screen, xy);
+
+    attempt_to_make_xy_visible_works_in_this_scenario(&mut screen, char_dim, xy);
+}
+
+#[test]
+fn attempt_to_make_xy_visible_works_on_this_2020_01_realistically_sized_example() {
+    let mut screen = ScrollableScreen {
+        scroll: ScrollXY { x: 320.0, y: 0.0 },
+        wh: ScreenSpaceWH { w: 1920.0, h: 1080.0 },
+    };
+    let char_dim = CharDim { w: 16.0, h: 32.0 };
+    let xy = TextSpaceXY { x: 0.0, y: 0.0 };
+
+    xy_is_visible_assert!(not & screen, xy);
+
+    let attempt_result = attempt_to_make_xy_visible_works_in_this_scenario(&mut screen, char_dim, xy);
+    assert_eq!(attempt_result, VisibilityAttemptResult::Succeeded);
+    assert!(false);
+}
+
+/* We can revive these tests if the tested functions need to change further
 fn xy_is_visible_works_on_this_passed_in_screen(screen: &ScrollableScreen) {
     // TODO rewrite this with the correct meaning of `scroll` in mind.
 
@@ -450,113 +593,6 @@ fn xy_is_visible_works_on_this_realistic_example() {
             y: 480.0
         }
     );
-}
-
-fn attempt_to_make_xy_visible_works_in_this_scenario(
-    screen: &mut ScrollableScreen,
-    char_dim: CharDim,
-    xy: TextSpaceXY,
-) {
-    let attempt = attempt_to_make_xy_visible(&mut screen.scroll, screen.wh, char_dim.into(), xy);
-
-    if dbg!(attempt) == VisibilityAttemptResult::Succeeded {
-        dbg!(&screen);
-        xy_is_visible_assert!(&screen, xy);
-    }
-}
-
-proptest! {
-    #[test]
-    fn attempt_to_make_xy_visible_works(
-        mut screen in arb::scrollable_screen(f32::ANY),
-        char_dim in arb::char_dim(f32::ANY),
-        xy in arb::text_xy(f32::POSITIVE | f32::ZERO),
-    ) {
-        attempt_to_make_xy_visible_works_in_this_scenario(&mut screen, char_dim, xy);
-    }
-}
-
-proptest! {
-    #[test]
-    fn attempt_to_make_xy_visible_works_with_more_realistic_values(
-        mut screen in arb::scrollable_screen(arb::usual()),
-        xy in arb::text_xy(f32::POSITIVE | f32::ZERO),
-    ) {
-        let char_dim = CharDim {
-            w: 4.0,
-            h: 8.0,
-        };
-        attempt_to_make_xy_visible_works_in_this_scenario(&mut screen, char_dim, xy);
-    }
-}
-
-#[test]
-fn attempt_to_make_xy_visible_works_on_this_generated_example() {
-    let mut screen = ScrollableScreen {
-        scroll: ScrollXY { x: 0.0, y: 0.0 },
-        wh: ScreenSpaceWH {
-            w: 1927329000.0,
-            h: 1.4144982,
-        },
-    };
-    let char_dim = CharDim {
-        w: 0.000000000026796234,
-        h: 0.0000000000000000003944164,
-    };
-    let xy = screen_to_text_box(
-        ScreenSpaceXY {
-            x: 0.0,
-            y: 0.0000000000000000000000000006170001,
-        },
-        d!(),
-    );
-
-    attempt_to_make_xy_visible_works_in_this_scenario(&mut screen, char_dim, xy);
-}
-
-#[test]
-fn attempt_to_make_xy_visible_works_on_this_realistic_example() {
-    let mut screen = ScrollableScreen {
-        scroll: ScrollXY { x: 250.0, y: 440.0 },
-        wh: ScreenSpaceWH { w: 800.0, h: 400.0 },
-    };
-    let char_dim = CharDim { w: 4.0, h: 8.0 };
-    let xy = TextSpaceXY { x: 0.0, y: 0.0 };
-
-    xy_is_visible_assert!(not & screen, xy);
-
-    attempt_to_make_xy_visible_works_in_this_scenario(&mut screen, char_dim, xy);
-}
-
-#[test]
-fn attempt_to_make_xy_visible_works_on_this_realistically_sized_example() {
-    let mut screen = ScrollableScreen {
-        scroll: ScrollXY { x: 0.0, y: 0.0 },
-        wh: ScreenSpaceWH {
-            w: 1024.0,
-            h: 576.0,
-        },
-    };
-    let char_dim = CharDim { w: 30.0, h: 60.0 };
-    let xy = TextSpaceXY { x: 60.0, y: 600.0 };
-
-    xy_is_visible_assert!(not & screen, xy);
-
-    attempt_to_make_xy_visible_works_in_this_scenario(&mut screen, char_dim, xy);
-}
-
-#[test]
-// real as in recovered from an actual run of the program
-fn attempt_to_make_xy_visible_works_on_this_vertically_scrolled_realistically_sized_example() {
-    let char_dim = CharDim { w: 30.0, h: 60.0 };
-    let xy = screen_to_text_box(
-        ScreenSpaceXY { x: 0.0, y: 600.0 },
-        TextBoxXY { x: 0.0, y: 180.0 },
-    );
-
-    xy_is_visible_assert!(not & screen, xy);
-
-    attempt_to_make_xy_visible_works_in_this_scenario(&mut screen, char_dim, xy);
 }
 
 fn screen_space_to_position_then_position_to_screen_space_is_identity_after_one_conversion_for_these(

@@ -1,6 +1,6 @@
 use super::*;
 use platform_types::pos;
-use editor_types::cur;
+use editor_types::{cur, vec1};
 
 use proptest::prelude::{proptest, Strategy};
 
@@ -129,3 +129,134 @@ fn update_and_render_shows_the_cursor_when_pressing_home_in_this_realistic_case(
         CharDim { w: 16.0, h: 32.0 }
     );
 }
+
+#[test]
+fn update_and_render_shows_the_cursor_when_pressing_home_in_this_reduced_realistic_case() {
+    let text = CURSOR_SHOW_TEXT;
+    let buffer_xywh = tbxywh!(0.0, 0.0, 1920.0, 1080.0);
+    let char_dim = CharDim { w: 16.0, h: 32.0 };
+
+    let mut state: State = text.into();
+    state.buffer_xywh = buffer_xywh;
+    state.font_info = FontInfo {
+        text_char_dim: char_dim,
+        status_char_dim: char_dim,
+        tab_char_dim: char_dim,
+        find_replace_char_dim: char_dim,
+    };
+    
+
+    dbg!(get_scrollable_buffer_mut!(state));
+
+    update_and_render(&mut state, Input::MoveAllCursors(Move::ToBufferEnd));
+
+    dbg!(get_scrollable_buffer_mut!(state));
+
+    {
+        let buffer = get_scrollable_buffer_mut!(state).unwrap();
+        assert_eq!(
+            buffer.text_buffer.borrow_cursors_vec()[0], cur!{pos!{l 0, o text.len()}},
+            "*** Cursor Precondition failure! ***"
+        );
+        assert_ne!(buffer.scroll.x, 0.0, "*** Scroll Precondition failure! ***");
+    }
+
+    let buffer = get_scrollable_buffer_mut!(state).unwrap();
+
+    buffer.text_buffer.move_all_cursors(Move::ToBufferStart);
+
+    let result = try_to_show_cursors_on(buffer, buffer_xywh, char_dim);
+    
+    dbg!(result);
+
+    assert_eq!(buffer.scroll.x, 0.0);
+}
+
+#[test]
+fn update_and_render_shows_the_cursor_when_pressing_home_in_this_further_reduced_realistic_case() {
+    let text = CURSOR_SHOW_TEXT;
+    let xywh = tbxywh!(0.0, 0.0, 1920.0, 1080.0);
+    let char_dim = CharDim { w: 16.0, h: 32.0 };    
+
+    let mut buffer = ScrollableBuffer {
+        text_buffer: {
+            let mut t: TextBuffer = text.into();
+            t.set_cursor(
+                cur!{pos!{l 0, o text.len()}},
+                ReplaceOrAdd::Replace
+            );
+            t
+        },
+        scroll: ScrollXY {
+            x: 320.0,
+            y: 0.0,
+        },
+    };
+
+    //
+    // update_and_render inlined
+    buffer.text_buffer.move_all_cursors(Move::ToBufferStart);
+
+    let scroll = &mut buffer.scroll;
+    let cursors = buffer.text_buffer.borrow_cursors_vec();
+
+    // We try first with this smaller xywh to make the cursor appear
+    // in the center more often.
+    let mut small_xywh = xywh.clone();
+    small_xywh.xy.x += small_xywh.wh.w / 4.0;
+    small_xywh.wh.w /= 2.0;
+    small_xywh.xy.y += small_xywh.wh.h / 4.0;
+    small_xywh.wh.h /= 2.0;
+
+    let mut attempt_result;
+    attempt_result = attempt_to_make_sure_at_least_one_cursor_is_visible(
+        scroll,
+        small_xywh,
+        char_dim,
+        cursors,
+    );
+
+    assert_eq!(scroll.x, 0.0);
+
+    dbg!(attempt_result);
+
+    if attempt_result != VisibilityAttemptResult::Succeeded {
+        dbg!();
+        attempt_result = attempt_to_make_sure_at_least_one_cursor_is_visible(
+            scroll,
+            xywh,
+            char_dim,
+            cursors,
+        );
+    }
+    //
+    //
+
+    dbg!(attempt_result);
+
+    assert_eq!(buffer.scroll.x, 0.0);
+}
+
+#[test]
+fn attempt_to_make_sure_at_least_one_cursor_is_visible_reports_correctly_in_this_case() {
+    let mut scroll = ScrollXY {
+            x: 320.0,
+            y: 0.0,
+        };
+
+    let xywh = tbxywh!(480.0, 270.0, 960.0, 540.0);
+
+    let attempt_result = attempt_to_make_sure_at_least_one_cursor_is_visible(
+        &mut scroll,
+        xywh,
+        CharDim { w: 16.0, h: 32.0 },
+        &vec1![cur!{}],
+    );
+
+    if scroll.x == 0.0 {
+        assert_eq!(attempt_result, VisibilityAttemptResult::Succeeded, "false negative");
+    } else {
+        assert_ne!(attempt_result, VisibilityAttemptResult::Succeeded, "false positive");
+    }
+}
+

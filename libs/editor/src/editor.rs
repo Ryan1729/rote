@@ -75,6 +75,45 @@ struct ScrollableBuffer {
     scroll: ScrollXY,
 }
 
+fn try_to_show_cursors_on(
+    buffer: &mut ScrollableBuffer,
+    xywh: TextBoxXYWH,
+    char_dim: CharDim,
+) -> VisibilityAttemptResult {
+    let scroll = &mut buffer.scroll;
+    let cursors = buffer.text_buffer.borrow_cursors_vec();
+
+    // We try first with this smaller xywh to make the cursor appear
+    // in the center more often.
+    let mut small_xywh = xywh.clone();
+    small_xywh.xy.x += small_xywh.wh.w / 4.0;
+    small_xywh.wh.w /= 2.0;
+    small_xywh.xy.y += small_xywh.wh.h / 4.0;
+    small_xywh.wh.h /= 2.0;
+
+    let mut attempt_result;
+    attempt_result = attempt_to_make_sure_at_least_one_cursor_is_visible(
+        scroll,
+        small_xywh,
+        char_dim,
+        cursors,
+    );
+
+    dbg!(attempt_result);
+
+    if attempt_result != VisibilityAttemptResult::Succeeded {
+        dbg!();
+        attempt_result = attempt_to_make_sure_at_least_one_cursor_is_visible(
+            scroll,
+            xywh,
+            char_dim,
+            cursors,
+        );
+    }
+
+    dbg!(attempt_result)
+}
+
 #[derive(Debug, Default)]
 struct EditorBuffer {
     scrollable: ScrollableBuffer,
@@ -393,33 +432,9 @@ impl State {
             GoToPosition => self.go_to_position_xywh,
         };
 
-        let scroll = &mut buffer.scroll;
-        let cursors = buffer.text_buffer.borrow_cursors_vec();
         let char_dim = Self::char_dim_for_buffer_kind(&self.font_info, kind);
 
-        // We try first with this smaller xywh to make the cursor appear
-        // in the center more often.
-        let mut small_xywh = xywh.clone();
-        small_xywh.xy.x += small_xywh.wh.w / 4.0;
-        small_xywh.wh.w /= 2.0;
-        small_xywh.xy.y += small_xywh.wh.h / 4.0;
-        small_xywh.wh.h /= 2.0;
-
-        let mut attempt_result = attempt_to_make_sure_at_least_one_cursor_is_visible(
-            scroll,
-            small_xywh,
-            char_dim,
-            cursors,
-        );
-
-        if attempt_result != VisibilityAttemptResult::Succeeded {
-            attempt_result = attempt_to_make_sure_at_least_one_cursor_is_visible(
-                scroll,
-                xywh,
-                char_dim,
-                cursors,
-            );
-        }
+        let attempt_result = try_to_show_cursors_on(buffer, xywh, char_dim);
 
         match attempt_result {
             VisibilityAttemptResult::Succeeded => Some(()),
@@ -493,6 +508,13 @@ fn attempt_to_make_sure_at_least_one_cursor_is_visible(
     let target_cursor = cursors.last();
 
     let apron: Apron = text_char_dim.into();
+
+    dbg!(
+        &scroll,
+        &xywh,
+        &apron,
+        &position_to_text_space(target_cursor.get_position(), text_char_dim),
+    );
 
     attempt_to_make_xy_visible(
         scroll,

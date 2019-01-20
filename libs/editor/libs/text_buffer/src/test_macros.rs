@@ -14,6 +14,11 @@ macro_rules! t_b {
         let t: TextBuffer = $s.into();
         t
     }};
+    ($s:expr, $cursors: expr) => {{
+        let mut t: TextBuffer = $s.into();
+        t.set_cursors_from_vec1($cursors);
+        t
+    }};
 }
 
 #[macro_export]
