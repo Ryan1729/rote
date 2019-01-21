@@ -1,9 +1,5 @@
 ## TODO
 
-* try to show cursors on all cursor moves
-    * This came up because I was expecting Home and End to make sure the cursors are visible.
-    * is there any reason not to do this for every cursor movement?
-
 * select search field on ctrl-f
     * allows easy deletion of previous thing
     * maybe just replace with selection automatically?
@@ -66,6 +62,9 @@
   * jump to matching brace?
 
 * Do some compile-time profiling so I can see what is taking so long to compile and either pull that into a crate (meaning it is compiled less often) or change it in some way to make it compile faster
+
+* make it such that buffers are not considered edited if their contents matches what is on disk
+    * do we want a hash here?
 
 * PageUp/Down?
     * maybe these could be jump to matching brace?
