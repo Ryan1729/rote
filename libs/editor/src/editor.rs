@@ -86,8 +86,8 @@ fn try_to_show_cursors_on(
     // We try first with this smaller xywh to make the cursor appear
     // in the center more often.
     let mut small_xywh = xywh.clone();
-    small_xywh.xy.x += small_xywh.wh.w / 4.0;
-    small_xywh.wh.w /= 2.0;
+    //small_xywh.xy.x += small_xywh.wh.w / 4.0;
+    //small_xywh.wh.w /= 2.0;
     small_xywh.xy.y += small_xywh.wh.h / 4.0;
     small_xywh.wh.h /= 2.0;
 

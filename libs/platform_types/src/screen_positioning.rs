@@ -153,7 +153,7 @@ impl From<TextBoxXY> for (f32, f32) {
     }
 }
 
-/// All `TextBoxXY` are screen space positions but the recerse is not true.
+/// All `TextBoxXY` are screen space positions but the reverse is not true.
 impl From<TextBoxXY> for ScreenSpaceXY {
     fn from(TextBoxXY { x, y }: TextBoxXY) -> Self {
         ScreenSpaceXY { x, y }
@@ -440,8 +440,8 @@ impl From<CharDim> for Apron {
 pub fn attempt_to_make_xy_visible(
     scroll: &mut ScrollXY,
     TextBoxXYWH {
-        xy,
         wh: ScreenSpaceWH { w, h },
+        ..
     }: TextBoxXYWH,
     apron: Apron,
     text: TextSpaceXY,
@@ -449,7 +449,7 @@ pub fn attempt_to_make_xy_visible(
     use std::num::FpCategory::*;
     use VisibilityAttemptResult::*;
 
-    let ScreenSpaceXY { x, y } = text_box_to_screen(text_to_text_box(text, *scroll), xy);
+    let TextSpaceXY { x, y } = text;
 
     // If these checks ever actually become a bottleneck ,then the easy solution is to just make
     // types that can't represent these cases and enforce them at startup!
@@ -492,7 +492,7 @@ pub fn attempt_to_make_xy_visible(
             }
         }};
     }
-
+    dbg!(x, y, apron.left_w, apron.right_w);
     if x < apron.left_w {
         scroll.x = stay_positive!(text.x - apron.left_w);
     } else if x >= w - apron.right_w {

@@ -1104,6 +1104,63 @@ fn does_not_lose_characters_in_this_reduced_generated_case() {
 }
 
 #[test]
+fn does_not_lose_characters_in_this_extend_selection_case() {
+    use TestEdit::*;
+    does_not_lose_characters_on(
+        t_b!(""),
+        [
+            InsertString("\u{b}\t".to_owned()),
+            ExtendSelectionForAllCursors(Move::ToBufferStart),
+            TabIn
+        ]
+    );
+}
+
+#[test]
+fn does_not_lose_characters_in_this_reduced_extend_selection_case() {
+    use TestEdit::*;
+
+    let mut buffer = t_b!("");
+    let mut counts = get_counts(&buffer);
+
+    
+    dbg!(get_counts(&buffer), &counts);
+    TestEdit::apply_with_counts(&mut buffer, &mut counts, &InsertString("\u{b}\t".to_owned()));
+    dbg!(get_counts(&buffer), &counts);
+    TestEdit::apply_with_counts(&mut buffer, &mut counts, &ExtendSelectionForAllCursors(Move::ToBufferStart));
+    dbg!(&buffer);
+    dbg!(get_counts(&buffer), &counts);
+    TestEdit::apply_with_counts(&mut buffer, &mut counts, &TabIn);
+    dbg!(get_counts(&buffer), &counts);
+
+    counts.retain(|_, v| *v != 0);
+
+    assert_eq!(get_counts(&buffer), counts);
+}
+
+#[test]
+fn does_not_lose_characters_in_this_further_reduced_extend_selection_case() {
+    use TestEdit::*;
+
+    let mut buffer = t_b!("");
+    let mut counts = get_counts(&buffer);
+
+    
+    dbg!(get_counts(&buffer), &counts);
+    TestEdit::apply_with_counts(&mut buffer, &mut counts, &InsertString("\u{b}\t".to_owned()));
+    dbg!(get_counts(&buffer), &counts);
+    TestEdit::apply_with_counts(&mut buffer, &mut counts, &ExtendSelectionForAllCursors(Move::ToBufferStart));
+    dbg!(&buffer);
+    dbg!(get_counts(&buffer), &counts);
+    TestEdit::apply_with_counts(&mut buffer, &mut counts, &TabIn);
+    dbg!(get_counts(&buffer), &counts);
+
+    counts.retain(|_, v| *v != 0);
+
+    assert_eq!(get_counts(&buffer), counts);
+}
+
+#[test]
 fn does_not_lose_characters_in_minimal_tab_in_case() {
     use TestEdit::*;
     does_not_lose_characters_on(

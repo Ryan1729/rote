@@ -75,28 +75,41 @@ macro_rules! max_one {
     }}
 }
 
-proptest!{
-    #[test]
-    fn update_and_render_shows_the_cursor_when_pressing_home(
-        text_w in arb::at_least_one(),
-        text_h in arb::at_least_one(),
-        w in arb::at_least_one(),
-        h in arb::at_least_one(),
-    ) {
-        update_and_render_shows_the_cursor_when_pressing_home_on(
-            CURSOR_SHOW_TEXT,
-            tbxywh!(0.0, 0.0, text_w, text_h),
-            CharDim { w, h }
-        );
-    }
+fn passes_preconditions(text: &str, buffer_xywh: TextBoxXYWH, char_dim: CharDim) -> bool {
+    let mut state: State = text.into();
+    state.buffer_xywh = buffer_xywh;
+    state.font_info = FontInfo {
+        text_char_dim: char_dim,
+        status_char_dim: char_dim,
+        tab_char_dim: char_dim,
+        find_replace_char_dim: char_dim,
+    };
+    
 
-    #[test]
-    fn update_and_render_shows_the_cursor_when_pressing_home_with_restrictions(
-        box_w in arb::at_least_one(),
-        box_h in arb::at_least_one(),
-        w in arb::at_least_one(),
-        h in arb::at_least_one(),
-    ) {
+    dbg!(get_scrollable_buffer_mut!(state));
+
+    update_and_render(&mut state, Input::MoveAllCursors(Move::ToBufferEnd));
+
+    dbg!(get_scrollable_buffer_mut!(state));
+
+    let buffer = get_scrollable_buffer_mut!(state).unwrap();
+
+    buffer.text_buffer.borrow_cursors_vec()[0] == cur!{pos!{l 0, o text.len()}}
+    && buffer.scroll.x != 0.0
+}
+
+#[test]
+fn update_and_render_shows_the_cursor_when_pressing_home() {
+    use proptest::test_runner::{TestRunner, TestCaseError};
+    let mut runner = TestRunner::default();
+
+    runner.run(&(
+        arb::at_least_one(),
+        arb::at_least_one(),
+        arb::at_least_one(),
+        arb::at_least_one(),
+    ), |(box_w, box_h, w, h)| {
+
         let w_max = max_one!(box_w / 2.0);
         let w = if w > w_max {
             w_max
@@ -113,14 +126,33 @@ proptest!{
             h
         };
 
-        update_and_render_shows_the_cursor_when_pressing_home_on(
+        if passes_preconditions(
             CURSOR_SHOW_TEXT,
             tbxywh!(0.0, 0.0, box_w, box_h),
             CharDim { w, h }
-        );
-    }
+        ) {
+            update_and_render_shows_the_cursor_when_pressing_home_on(
+                CURSOR_SHOW_TEXT,
+                tbxywh!(0.0, 0.0, box_w, box_h),
+                CharDim { w, h }
+            );
+            Ok(())
+        } else {
+            Err(TestCaseError::Reject("failed preconditions".into()))
+        }
+    }).unwrap();
 }
 
+//#[test]
+fn update_and_render_shows_the_cursor_when_pressing_home_in_this_generated_case() {
+    update_and_render_shows_the_cursor_when_pressing_home_on(
+        CURSOR_SHOW_TEXT,
+        tbxywh!(0.0, 0.0, 1803164.0, 1694881200000000000000.0),
+        CharDim { w: 1.0, h: 723643300000000000.0 }
+    );
+}
+
+/* this was from before I decided to change how the screen gets auto-scrolled along the x axis.
 #[test]
 fn update_and_render_shows_the_cursor_when_pressing_home_in_this_realistic_case() {
     update_and_render_shows_the_cursor_when_pressing_home_on(
@@ -171,6 +203,7 @@ fn update_and_render_shows_the_cursor_when_pressing_home_in_this_reduced_realist
 
     assert_eq!(buffer.scroll.x, 0.0);
 }
+*/
 
 #[test]
 fn update_and_render_shows_the_cursor_when_pressing_home_in_this_further_reduced_realistic_case() {
@@ -253,10 +286,38 @@ fn attempt_to_make_sure_at_least_one_cursor_is_visible_reports_correctly_in_this
         &vec1![cur!{}],
     );
 
-    if scroll.x == 0.0 {
+    if scroll.x != 320.0 {
         assert_eq!(attempt_result, VisibilityAttemptResult::Succeeded, "false negative");
     } else {
         assert_ne!(attempt_result, VisibilityAttemptResult::Succeeded, "false positive");
     }
+}
+
+#[test]
+fn attempt_to_make_xy_visible_reports_correctly_in_this_case() {
+    let mut scroll = ScrollXY {
+            x: 320.0,
+            y: 0.0,
+        };
+
+    let xywh = tbxywh!(480.0, 270.0, 960.0, 540.0);
+
+    let attempt_result = attempt_to_make_xy_visible(
+        &mut scroll,
+        xywh,
+        CharDim { w: 16.0, h: 32.0 }.into(),
+        TextSpaceXY {
+            x: 0.0,
+            y: 0.0,
+        },
+    );
+
+    if scroll.x != 320.0 {
+        assert_eq!(attempt_result, VisibilityAttemptResult::Succeeded, "false negative x = {}", scroll.x);
+    } else {
+        assert_ne!(attempt_result, VisibilityAttemptResult::Succeeded, "false positive x = {}", scroll.x);
+    }
+
+
 }
 

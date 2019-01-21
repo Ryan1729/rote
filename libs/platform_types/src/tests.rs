@@ -343,7 +343,7 @@ fn attempt_to_make_xy_visible_works_on_this_vertically_scrolled_realistically_si
         screen.scroll
     );
 
-    xy_is_visible_assert!(not & screen, xy);
+    xy_is_visible_assert!(& screen, xy);
 
     attempt_to_make_xy_visible_works_in_this_scenario(&mut screen, char_dim, xy);
 }
@@ -361,7 +361,6 @@ fn attempt_to_make_xy_visible_works_on_this_2020_01_realistically_sized_example(
 
     let attempt_result = attempt_to_make_xy_visible_works_in_this_scenario(&mut screen, char_dim, xy);
     assert_eq!(attempt_result, VisibilityAttemptResult::Succeeded);
-    assert!(false);
 }
 
 /* We can revive these tests if the tested functions need to change further

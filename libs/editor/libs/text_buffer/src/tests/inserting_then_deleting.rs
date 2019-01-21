@@ -119,6 +119,7 @@ fn with_multiple_non_highlight_cursors_works_on_this_splayed_example() {
     assert_text_buffer_eq_ignoring_history!(&buffer, &expecteds[0]);
 }
 
+/* this one takes a long time and has not failed recently
 proptest! {
     #[test]
     fn with_all_but_end_cursors_works(
@@ -128,6 +129,7 @@ proptest! {
         with_multiple_non_highlight_cursors_works_on(buffer, inserts);
     }
 }
+*/
 
 #[test]
 fn with_all_but_end_cursors_works_on_this_generated_example() {

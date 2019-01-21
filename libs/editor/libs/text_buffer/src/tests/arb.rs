@@ -497,21 +497,23 @@ impl TestEdit {
                     increment_char_by(
                         counts, 
                         edit::TAB_STR_CHAR,
-                        dbg!(line_count * edit::TAB_STR_CHAR_COUNT)
+                        line_count * edit::TAB_STR_CHAR_COUNT
                     );
 
-                    for c in selection.chars() {
-                        if c != edit::TAB_STR_CHAR && !is_linebreak_char(c) && c.is_whitespace() {
-                            increment_char(
-                                counts,
-                                edit::TAB_STR_CHAR
-                            );
-                            decrement_char(
-                                counts, 
-                                c
-                            )
-                        } else {
-                            break
+                    for line in selection.lines() {
+                        for c in line.chars() {
+                            if c != edit::TAB_STR_CHAR && !is_linebreak_char(c) && c.is_whitespace() {
+                                increment_char(
+                                    counts,
+                                    edit::TAB_STR_CHAR
+                                );
+                                decrement_char(
+                                    counts, 
+                                    c
+                                )
+                            } else {
+                                break
+                            }
                         }
                     }
                 }
