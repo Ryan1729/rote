@@ -790,7 +790,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                                 call_u_and_r!(Input::ExtendSelectionWithSearch);
                             }
                             VirtualKeyCode::F => {
-                                switch_menu_mode!(MenuMode::FindReplace);
+                                switch_menu_mode!(MenuMode::FindReplace(FindReplaceMode::CurrentFile));
                             }
                             VirtualKeyCode::G => {
                                 switch_menu_mode!(MenuMode::GoToPosition);

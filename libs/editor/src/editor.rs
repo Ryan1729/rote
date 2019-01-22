@@ -99,8 +99,6 @@ fn try_to_show_cursors_on(
         cursors,
     );
 
-    dbg!(attempt_result);
-
     if attempt_result != VisibilityAttemptResult::Succeeded {
         dbg!();
         attempt_result = attempt_to_make_sure_at_least_one_cursor_is_visible(
@@ -266,7 +264,6 @@ pub struct State {
     menu_mode: MenuMode,
     file_switcher: ScrollableBuffer,
     file_switcher_results: FileSwitcherResults,
-    find_replace_mode: FindReplaceMode,
     find: ScrollableBuffer,
     find_xywh: TextBoxXYWH,
     replace: ScrollableBuffer,
@@ -451,11 +448,22 @@ impl State {
             MenuMode::FileSwitcher => {
                 self.set_file_switcher_id(self.current_buffer_id.index);
             }
-            MenuMode::FindReplace => {
+            MenuMode::FindReplace(_) => {
                 self.set_find_id(self.current_buffer_id.index);
             }
             MenuMode::Hidden => {
                 self.set_text_id(self.current_buffer_id.index);
+            }
+        }
+    }
+
+    fn find_replace_mode(&mut self) -> Option<FindReplaceMode> {
+        match self.menu_mode {
+            MenuMode::FindReplace(mode) => {
+                Some(mode)
+            }
+            MenuMode::GoToPosition | MenuMode::FileSwitcher | MenuMode::Hidden => {
+                None
             }
         }
     }
@@ -507,21 +515,17 @@ fn attempt_to_make_sure_at_least_one_cursor_is_visible(
 ) -> VisibilityAttemptResult {
     let target_cursor = cursors.last();
 
-    let apron: Apron = text_char_dim.into();
-
-    dbg!(
-        &scroll,
-        &xywh,
-        &apron,
-        &position_to_text_space(target_cursor.get_position(), text_char_dim),
-    );
-
+    let apron: Apron = text_char_dim.into();
     attempt_to_make_xy_visible(
         scroll,
         xywh,
         apron,
         position_to_text_space(target_cursor.get_position(), text_char_dim),
     )
+}
+
+fn parse_for_go_to_position(input: &str) -> Result<Position, std::num::ParseIntError> {
+   input.parse::<Position>()
 }
 
 macro_rules! set_if_present {
@@ -578,7 +582,11 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
     macro_rules! buffer_view_sync {
         () => {
             match state.menu_mode {
-                MenuMode::Hidden | MenuMode::GoToPosition => {}
+                MenuMode::Hidden | MenuMode::FindReplace(_) => {            
+                    if let Some(target_buffer) = state.buffers.get_mut(state.current_buffer_id.index) {
+                        update_search_results(&state.find.text_buffer, target_buffer);
+                    }
+                }
                 MenuMode::FileSwitcher => {
                     let needle_string: String =
                         state.file_switcher.text_buffer.borrow_rope().into();
@@ -586,11 +594,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                     state.file_switcher_results =
                         paths::find_in(state.opened_paths().iter().map(|p| p.as_path()), needle_str);
                 }
-                MenuMode::FindReplace => {
-                    if let Some(target_buffer) = state.buffers.get_mut(state.current_buffer_id.index) {
-                        update_search_results(&state.find.text_buffer, target_buffer);
-                    }
-                }
+                MenuMode::GoToPosition => {}
             }
             try_to_show_cursors!();
         };
@@ -808,30 +812,68 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                     // first element. In this case, this is desired.
                     index_state.new_index(d!()));
         }
-        SetFindReplaceMode(mode) => {
-            let mut selections = d!();
-            text_buffer_call!(b {
-                selections = b.copy_selections();
-            });
-            state.set_find_id(state.current_buffer_id.index);
-            state.find_replace_mode = mode;
-            text_buffer_call!(b{
-                if selections.len() == 1 {
-                    b.insert_string(selections.swap_remove(0));
-                }
-                b.select_all()
-                // We don't need to make sure a cursor is visible here since the user
-                // will understand where the cursor is.
-            });
-            post_edit_sync!();
-        }
         SetMenuMode(mode) => {
-            state.set_menu_mode(mode);
+            if mode == MenuMode::Hidden {
+                state.set_menu_mode(mode);
+            } else {
+                let mut selections = d!();
+
+                text_buffer_call!(b {
+                    selections = b.copy_selections();
+                });
+
+                let mut selection: Option<String> = if selections.len() == 1 {
+                    Some(selections.swap_remove(0))
+                } else {
+                    Option::None
+                };
+
+                state.set_menu_mode(mode);
+
+                selection = match (selection, mode) {
+                    (Option::None, _) => {Option::None}
+                    (Some(selection), MenuMode::GoToPosition) => {
+                        if dbg!(parse_for_go_to_position(&selection)).is_err() {
+                            Option::None
+                        } else {
+                            Some(selection)
+                        }
+                    }
+                    (s, _) => {s}
+                };
+
+                if let Some(selection) = selection {
+                    text_buffer_call!(b{
+                        // For the small menu buffers I'd rather keep all the history
+                        // even if the history order is confusing, since the text 
+                        // entered is usually small ... kind of like a shell prompt.
+                        const UPPER_LOOP_BOUND: usize = 1024;
+                        // Use a bound like this just in case, since we do actually 
+                        // proiritize a sufficently quick response over a perfect history
+                        for _ in 0..UPPER_LOOP_BOUND {
+                            if b.redo().is_none() {
+                                break;
+                            }
+                        }
+
+                        b.select_all();
+                        b.insert_string(selection);
+                        b.select_all();
+                        // We don't need to make sure a cursor is visible here since the user
+                        // will understand where the cursor is.
+                    });
+                }
+
+                post_edit_sync!();
+            }
         }
         SubmitForm => match state.current_buffer_id.kind {
             BufferIdKind::None | BufferIdKind::Text => {}
-            BufferIdKind::Find => match state.find_replace_mode {
-                FindReplaceMode::CurrentFile => {
+            BufferIdKind::Find => match state.find_replace_mode() {
+                Option::None => {
+                    debug_assert!(false, "state.find_replace_mode() returned None");
+                }
+                Some(FindReplaceMode::CurrentFile) => {
                     let i = state.current_buffer_id.index;
                     if let Some(haystack) = state.buffers.get_mut(i) {
                         let needle = &state.find.text_buffer;
@@ -873,7 +915,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             BufferIdKind::GoToPosition => {
                 text_buffer_call!(b{
                     let input: String = b.into();
-                    if let Ok(position) = input.parse::<Position>() {
+                    if let Ok(position) = parse_for_go_to_position(&input) {
                         if let Some(edit_b) = state.buffers.get_mut(state.current_buffer_id.index) {
                             edit_b.scrollable.text_buffer.set_cursor(position, ReplaceOrAdd::Replace);
                             state.set_menu_mode(MenuMode::Hidden);

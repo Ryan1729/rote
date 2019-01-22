@@ -64,7 +64,6 @@ pub fn render(
         menu_mode,
         ref file_switcher_results,
         ref file_switcher,
-        find_replace_mode,
         ref find,
         ref replace,
         ref go_to_position,
@@ -152,8 +151,8 @@ pub fn render(
 
     view.menu = match menu_mode {
         MenuMode::Hidden => MenuView::None,
-        MenuMode::FindReplace => MenuView::FindReplace(FindReplaceView {
-            mode: find_replace_mode,
+        MenuMode::FindReplace(mode) => MenuView::FindReplace(FindReplaceView {
+            mode,
             find: scrollable_to_buffer_view_data(
                 &find,
                 FIND_REPLACE_AVERAGE_SELECTION_LINES_ESTIMATE,

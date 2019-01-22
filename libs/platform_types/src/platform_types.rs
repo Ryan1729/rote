@@ -54,7 +54,6 @@ pub enum Input {
     OpenOrSelectBuffer(PathBuf),
     CloseBuffer(g_i::Index),
     SetMenuMode(MenuMode),
-    SetFindReplaceMode(FindReplaceMode),
     SubmitForm,
 }
 d!(for Input : Input::None);
@@ -562,7 +561,7 @@ d!(for StatusLineView: StatusLineView {chars: DEFAULT_STATUS_LINE_CHARS.to_owned
 pub enum MenuMode {
     Hidden,
     FileSwitcher,
-    FindReplace,
+    FindReplace(FindReplaceMode),
     GoToPosition,
 }
 d!(for MenuMode: MenuMode::Hidden);
@@ -581,7 +580,7 @@ impl MenuView {
         match self {
             Self::None => MenuMode::Hidden,
             Self::FileSwitcher(_) => MenuMode::FileSwitcher,
-            Self::FindReplace(_) => MenuMode::FindReplace,
+            Self::FindReplace(v) => MenuMode::FindReplace(v.mode),
             Self::GoToPosition(_) => MenuMode::GoToPosition,
         }
     }

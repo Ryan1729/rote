@@ -492,7 +492,7 @@ pub fn attempt_to_make_xy_visible(
             }
         }};
     }
-    dbg!(x, y, apron.left_w, apron.right_w);
+
     if x < apron.left_w {
         scroll.x = stay_positive!(text.x - apron.left_w);
     } else if x >= w - apron.right_w {

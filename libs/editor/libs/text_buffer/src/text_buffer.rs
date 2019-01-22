@@ -1026,6 +1026,7 @@ impl<'rope> TextBuffer {
 }
 
 impl TextBuffer {
+    /// returns a `Some` if there was history to redo.
     pub fn redo(&mut self) -> Option<()> {
         self.history.get(self.history_index).cloned().map(|edit| {
             self.apply_edit(edit, ApplyKind::Playback);
@@ -1033,6 +1034,7 @@ impl TextBuffer {
         })
     }
 
+    /// returns a `Some` if there was history to undo.
     pub fn undo(&mut self) -> Option<()> {
         let new_index = self.history_index.checked_sub(1)?;
         self.history.get(new_index).cloned().map(|edit| {
