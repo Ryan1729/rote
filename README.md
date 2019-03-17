@@ -5,7 +5,7 @@
 I'm starting this project over, this time as a graphical editor from the start instead of a terminal based one.
 
 ## Plan
-* implment my shortlist of useful keyboard shortcuts
+* implement my shortlist of useful keyboard shortcuts
 * generally make it a usable terminal editor
   - list of previously opened files
   - keymap?
