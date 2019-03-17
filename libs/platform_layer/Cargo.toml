@@ -1,0 +1,21 @@
+[package]
+name = "platform_layer"
+version = "0.0.1"
+authors = ["Alex Butler <alexheretic@gmail.com>", "Ryan1729 <Ryan1729@gmail.com>"]
+edition = "2018"
+description = "platform layer for rote based on a glyph_brush example"
+license = "Apache-2.0"
+
+[dependencies]
+glyph_brush = { version = "0.4.1" }
+glyph_brush_layout = { version = "0.1.5" }
+log = "0.4.4"
+ordered-float = "1"
+full_rusttype = { version = "0.7.5", features = ["gpu_cache"], package = "rusttype" }
+hashbrown = "0.1"
+twox-hash = "1"
+env_logger = { version = "0.6", default-features = false }
+lazy_static = "1"
+gl = "0.11"
+glutin = "0.20"
+spin_sleep = "0.3"

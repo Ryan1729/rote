@@ -1,11 +1,13 @@
 [package]
 name = "rote"
-version = "0.1.10"
+version = "0.2.0"
 authors = ["Ryan1729 <Ryan1729@gmail.com>"]
-license = "MIT"
+license = "MIT and Apache 2.0"
 
 [dependencies]
-libc = "0.2.33"
+
+[dependencies.platform_layer]
+path = "./libs/platform_layer"
 
 [dev-dependencies]
 quickcheck = "0.4"
