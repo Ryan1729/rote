@@ -17,3 +17,7 @@ I'm starting this project over, this time as a graphical editor from the start i
   - allow a single plugin file to perform multiple things. Users should be able to everything they
     want with one plugin file. For good or for ill that allows a plugin that runs scripts to exist.
 
+____
+
+Licensed under MIT and Apache 2.0
+The OpenGL platform layer is licensed under Apache 2.0
