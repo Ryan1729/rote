@@ -4,7 +4,7 @@
 
 use gl::types::*;
 use glutin::{Api, ContextTrait, GlProfile, GlRequest};
-use glyph_brush::{rusttype, *};
+use glyph_brush::{rusttype::Font, *};
 use std::{
     env,
     ffi::CString,
@@ -52,8 +52,9 @@ pub fn display() -> Res<()> {
     )?;
     unsafe { window.make_current()? };
 
-    let dejavu: &[u8] = include_bytes!("./fonts/FantasqueSansMono-Regular.ttf");
-    let mut glyph_brush = GlyphBrushBuilder::using_font_bytes(dejavu).build();
+    let font_bytes: &[u8] = include_bytes!("./fonts/FantasqueSansMono-Regular.ttf");
+    let font: Font<'static> = Font::from_bytes(font_bytes)?;
+    let mut glyph_brush = GlyphBrushBuilder::using_font(font.clone()).build();
 
     // Load the OpenGL function pointers
     gl::load_with(|symbol| window.get_proc_address(symbol) as _);
@@ -215,40 +216,33 @@ pub fn display() -> Res<()> {
         });
 
         let width = dimensions.width as f32;
-        let height = dimensions.height as _;
+        let height = dimensions.height as f32;
         let scale =
             rusttype::Scale::uniform((font_size * window.get_hidpi_factor() as f32).round());
+        let line_height = {
+            let v_metrics = font.v_metrics(scale);
+
+            v_metrics.ascent + -v_metrics.descent + v_metrics.line_gap
+        };
+
+        let status_line_y = height - line_height;
 
         glyph_brush.queue(Section {
             text: &text,
             scale,
             screen_position: (0.0, 0.0),
-            bounds: (width / 3.15, height),
-            color: [0.9, 0.3, 0.3, 1.0],
-            ..Section::default()
-        });
-
-        glyph_brush.queue(Section {
-            text: &text,
-            scale,
-            screen_position: (width / 2.0, height / 2.0),
-            bounds: (width / 3.15, height),
-            color: [0.3, 0.9, 0.3, 1.0],
-            layout: Layout::default()
-                .h_align(HorizontalAlign::Center)
-                .v_align(VerticalAlign::Center),
-            ..Section::default()
-        });
-
-        glyph_brush.queue(Section {
-            text: &text,
-            scale,
-            screen_position: (width, height),
-            bounds: (width / 3.15, height),
+            bounds: (width, status_line_y),
             color: [0.3, 0.3, 0.9, 1.0],
-            layout: Layout::default()
-                .h_align(HorizontalAlign::Right)
-                .v_align(VerticalAlign::Bottom),
+            ..Section::default()
+        });
+
+        glyph_brush.queue(Section {
+            text: &text,
+            scale,
+            screen_position: (0.0, status_line_y),
+            bounds: (width, line_height),
+            color: [0.3, 0.9, 0.3, 1.0],
+            layout: Layout::default_single_line(),
             ..Section::default()
         });
 
