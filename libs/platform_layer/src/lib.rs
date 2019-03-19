@@ -1,6 +1,4 @@
-// We might have different platform layer options later, so let's keep this file separate.
+// We might have different platform layer options later, so let's keep this separate.
 pub fn display() {
     opengl::display();
 }
-
-mod opengl;

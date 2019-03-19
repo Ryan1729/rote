@@ -756,7 +756,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "rote"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "platform_layer 0.0.1",
  "quickcheck 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",

@@ -1,0 +1,23 @@
+[package]
+name = "opengl"
+version = "0.0.1"
+authors = ["Ryan1729 <Ryan1729@gmail.com>", "Alex Butler <alexheretic@gmail.com>"]
+edition = "2018"
+description = "platform layer for rote, using opengl, based on a glyph_brush example"
+license = "Apache-2.0"
+
+[lib]
+path = "./src/opengl.rs"
+
+[dependencies]
+gl = { path = "gl" }
+glyph_brush = { version = "0.4.1" }
+glyph_brush_layout = { version = "0.1.5" }
+log = "0.4.4"
+ordered-float = "1"
+full_rusttype = { version = "0.7.5", features = ["gpu_cache"], package = "rusttype" }
+hashbrown = "0.1"
+twox-hash = "1"
+lazy_static = "1"
+glutin = "0.20"
+spin_sleep = "0.3"
