@@ -8,3 +8,4 @@ license = "Apache-2.0"
 
 [dependencies]
 opengl = { path = "./libs/opengl" }
+platform_types = { path = "../platform_types" }

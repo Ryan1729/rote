@@ -3,8 +3,15 @@ name = "rote"
 version = "0.2.3"
 authors = ["Ryan1729 <Ryan1729@gmail.com>"]
 license = "MIT and Apache 2.0"
+edition = "2018"
 
 [dependencies]
+
+[dependencies.editor]
+path = "./libs/editor"
+
+[dependencies.platform_types]
+path = "./libs/platform_types"
 
 [dependencies.platform_layer]
 path = "./libs/platform_layer"

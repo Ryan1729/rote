@@ -5,7 +5,7 @@
 use glutin::{Api, ContextTrait, GlProfile, GlRequest};
 use glyph_brush::{rusttype::Font, *};
 
-pub fn display() -> gl::Res<()> {
+pub fn display(update_and_render: platform_types::UpdateAndRender) -> gl::Res<()> {
     if cfg!(target_os = "linux") {
         use std::env;
         // winit wayland is currently still wip
@@ -58,6 +58,8 @@ pub fn display() -> gl::Res<()> {
         events.poll_events(|event| {
             use glutin::*;
             if let Event::WindowEvent { event, .. } = event {
+                use platform_types::Input;
+                update_and_render(Input::NoInput);
                 match event {
                     WindowEvent::CloseRequested => running = false,
                     WindowEvent::Resized(size) => {
