@@ -772,6 +772,7 @@ name = "rote"
 version = "0.2.3"
 dependencies = [
  "editor 0.1.0",
+ "lazy_static 1.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "platform_layer 0.0.1",
  "platform_types 0.1.0",
  "quickcheck 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",

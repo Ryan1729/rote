@@ -5,7 +5,9 @@
 use glutin::{Api, ContextTrait, GlProfile, GlRequest};
 use glyph_brush::{rusttype::Font, *};
 
-pub fn display(update_and_render: platform_types::UpdateAndRender) -> gl::Res<()> {
+use platform_types::{Cmd, Input, View};
+
+pub fn run(update_and_render: impl Fn(Input) -> (View, Cmd)) -> gl::Res<()> {
     if cfg!(target_os = "linux") {
         use std::env;
         // winit wayland is currently still wip
