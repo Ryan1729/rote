@@ -20,3 +20,7 @@ path = "./libs/platform_layer"
 [dev-dependencies]
 quickcheck = "0.4"
 rand = "0.3"
+
+[features]
+default = []
+invariant-checking = []

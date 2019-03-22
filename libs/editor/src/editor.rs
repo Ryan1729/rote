@@ -5,11 +5,11 @@ pub struct State {
 }
 
 pub const fn new() -> State {
-    State { frame_count: 0 }
+    State { frame_count: !0 }
 }
 
 pub fn update_and_render(state: &mut State, input: Input) -> (View, Cmd) {
-    state.frame_count += 1;
+    state.frame_count -= 1;
 
     (View {}, Cmd::NoCmd)
 }
