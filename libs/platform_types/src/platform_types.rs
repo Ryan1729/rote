@@ -16,6 +16,9 @@ pub enum Input {
     NoInput,
     Insert(char),
     Delete,
+    ResetScroll,
+    ScrollVertically(f32),
+    ScrollHorizontally(f32),
 }
 
 d!(for Input is Input::NoInput);
@@ -25,8 +28,15 @@ pub struct View {
     pub buffers: Vec<BufferView>,
 }
 
+#[derive(Copy, Clone, Debug)]
+pub enum BufferViewKind {
+    Edit,
+    StatusLine
+}
+
 pub struct BufferView {
-    //screen_position: (f32, f32),
+    pub kind: BufferViewKind,
+    pub screen_position: (f32, f32),
     //bounds: (f32, f32),
     //color: [f32; 4],
     pub chars: String,

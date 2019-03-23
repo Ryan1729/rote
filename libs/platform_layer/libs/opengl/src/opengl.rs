@@ -1,11 +1,11 @@
 // This was originally based on example code for https://github.com/alexheretic/glyph-brush
-// To the extent that the code remains as it was (at commit 90e7c7c331e9f991e11de6404b2ca073c0a09e61)
 // the code is licensed under the Apache 2.0 license, as described in the license file in this folder.
+// To the extent that the code remains as it was (at commit 90e7c7c331e9f991e11de6404b2ca073c0a09e61)
 
 use glutin::{Api, ContextTrait, GlProfile, GlRequest};
 use glyph_brush::{rusttype::Font, *};
 
-use platform_types::{d, Cmd, Input, UpdateAndRender, View};
+use platform_types::{d, BufferView, Cmd, Input, UpdateAndRender, View};
 
 pub fn run(update_and_render: UpdateAndRender) -> gl::Res<()> {
     if cfg!(target_os = "linux") {
@@ -51,8 +51,6 @@ pub fn run(update_and_render: UpdateAndRender) -> gl::Res<()> {
         .ok_or("get_inner_size = None")?
         .to_physical(window.get_hidpi_factor());
 
-    let (mut screen_x, mut screen_y) = (0.0, 0.0);
-
     let (mut view, mut cmd) = update_and_render(d!());
 
     while running {
@@ -69,7 +67,6 @@ pub fn run(update_and_render: UpdateAndRender) -> gl::Res<()> {
                     };
                 }
 
-                use platform_types::Input;
                 match event {
                     WindowEvent::CloseRequested => running = false,
                     WindowEvent::Resized(size) => {
@@ -91,8 +88,7 @@ pub fn run(update_and_render: UpdateAndRender) -> gl::Res<()> {
                         ..
                     } => match keypress {
                         VirtualKeyCode::Key0 => {
-                            screen_x = 0.0;
-                            screen_y = 0.0;
+                            call_u_and_r!(Input::ResetScroll);
                         }
                         _ => (),
                     },
@@ -122,14 +118,14 @@ pub fn run(update_and_render: UpdateAndRender) -> gl::Res<()> {
                         modifiers: ModifiersState { shift: false, .. },
                         ..
                     } => {
-                        screen_y -= y * scroll_multiplier;
+                        call_u_and_r!(Input::ScrollVertically(y * scroll_multiplier));
                     }
                     WindowEvent::MouseWheel {
                         delta: MouseScrollDelta::LineDelta(_, y),
                         modifiers: ModifiersState { shift: true, .. },
                         ..
                     } => {
-                        screen_x += y * scroll_multiplier;
+                        call_u_and_r!(Input::ScrollHorizontally(y * scroll_multiplier));
                     }
                     _ => {}
                 }
@@ -148,25 +144,32 @@ pub fn run(update_and_render: UpdateAndRender) -> gl::Res<()> {
 
         let status_line_y = height - line_height;
 
-        if let Some(buffer) = view.buffers.get(0) {
-            glyph_brush.queue(Section {
-                text: &buffer.chars,
-                scale,
-                screen_position: (screen_x, screen_y),
-                bounds: (width, status_line_y - screen_y),
-                color: [0.3, 0.3, 0.9, 1.0],
-                ..Section::default()
-            });
-
-            glyph_brush.queue(Section {
-                text: &buffer.chars,
-                scale,
-                screen_position: (0.0, status_line_y),
-                bounds: (width, line_height),
-                color: [0.3, 0.9, 0.3, 1.0],
-                layout: Layout::default_single_line(),
-                ..Section::default()
-            });
+        for BufferView {
+            kind,
+            ref chars,
+            screen_position,
+        } in view.buffers.iter()
+        {
+            use platform_types::BufferViewKind;
+            match kind {
+                BufferViewKind::Edit => glyph_brush.queue(Section {
+                    text: chars,
+                    scale,
+                    screen_position: *screen_position,
+                    bounds: (width, status_line_y - screen_position.1),
+                    color: [0.3, 0.3, 0.9, 1.0],
+                    ..Section::default()
+                }),
+                BufferViewKind::StatusLine => glyph_brush.queue(Section {
+                    text: chars,
+                    scale,
+                    screen_position: (0.0, status_line_y),
+                    bounds: (width, line_height),
+                    color: [0.3, 0.9, 0.3, 1.0],
+                    layout: Layout::default_single_line(),
+                    ..Section::default()
+                }),
+            };
         }
 
         gl::render(&mut gl_state, &mut glyph_brush, width as _, height as _)?;
