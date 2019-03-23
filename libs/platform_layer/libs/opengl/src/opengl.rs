@@ -5,7 +5,7 @@
 use glutin::{Api, ContextTrait, GlProfile, GlRequest};
 use glyph_brush::{rusttype::Font, *};
 
-use platform_types::{Cmd, Input, UpdateAndRender, View};
+use platform_types::{d, Cmd, Input, UpdateAndRender, View};
 
 pub fn run(update_and_render: UpdateAndRender) -> gl::Res<()> {
     if cfg!(target_os = "linux") {
@@ -41,7 +41,6 @@ pub fn run(update_and_render: UpdateAndRender) -> gl::Res<()> {
 
     let mut gl_state = gl::init(&glyph_brush, |symbol| window.get_proc_address(symbol) as _)?;
 
-    let mut text: String = include_str!("text/lipsum.txt").into();
     let font_size: f32 = 11.0;
     let scroll_multiplier: f32 = 16.0;
 
@@ -54,14 +53,23 @@ pub fn run(update_and_render: UpdateAndRender) -> gl::Res<()> {
 
     let (mut screen_x, mut screen_y) = (0.0, 0.0);
 
+    let (mut view, mut cmd) = update_and_render(d!());
+
     while running {
         loop_helper.loop_start();
 
         events.poll_events(|event| {
             use glutin::*;
             if let Event::WindowEvent { event, .. } = event {
+                macro_rules! call_u_and_r {
+                    ($input:expr) => {
+                        let (v, c) = update_and_render($input);
+                        view = v;
+                        cmd = c;
+                    };
+                }
+
                 use platform_types::Input;
-                update_and_render(Input::NoInput);
                 match event {
                     WindowEvent::CloseRequested => running = false,
                     WindowEvent::Resized(size) => {
@@ -100,13 +108,13 @@ pub fn run(update_and_render: UpdateAndRender) -> gl::Res<()> {
                     } => match keypress {
                         VirtualKeyCode::Escape => running = false,
                         VirtualKeyCode::Back => {
-                            text.pop();
+                            call_u_and_r!(Input::Delete);
                         }
                         _ => (),
                     },
                     WindowEvent::ReceivedCharacter(c) => {
                         if c != '\u{7f}' && c != '\u{8}' {
-                            text.push(c);
+                            call_u_and_r!(Input::Insert(c));
                         }
                     }
                     WindowEvent::MouseWheel {
@@ -140,24 +148,26 @@ pub fn run(update_and_render: UpdateAndRender) -> gl::Res<()> {
 
         let status_line_y = height - line_height;
 
-        glyph_brush.queue(Section {
-            text: &text,
-            scale,
-            screen_position: (screen_x, screen_y),
-            bounds: (width, status_line_y - screen_y),
-            color: [0.3, 0.3, 0.9, 1.0],
-            ..Section::default()
-        });
+        if let Some(buffer) = view.buffers.get(0) {
+            glyph_brush.queue(Section {
+                text: &buffer.chars,
+                scale,
+                screen_position: (screen_x, screen_y),
+                bounds: (width, status_line_y - screen_y),
+                color: [0.3, 0.3, 0.9, 1.0],
+                ..Section::default()
+            });
 
-        glyph_brush.queue(Section {
-            text: &text,
-            scale,
-            screen_position: (0.0, status_line_y),
-            bounds: (width, line_height),
-            color: [0.3, 0.9, 0.3, 1.0],
-            layout: Layout::default_single_line(),
-            ..Section::default()
-        });
+            glyph_brush.queue(Section {
+                text: &buffer.chars,
+                scale,
+                screen_position: (0.0, status_line_y),
+                bounds: (width, line_height),
+                color: [0.3, 0.9, 0.3, 1.0],
+                layout: Layout::default_single_line(),
+                ..Section::default()
+            });
+        }
 
         gl::render(&mut gl_state, &mut glyph_brush, width as _, height as _)?;
 

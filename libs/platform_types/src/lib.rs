@@ -14,13 +14,23 @@ macro_rules! d {
 
 pub enum Input {
     NoInput,
+    Insert(char),
+    Delete,
 }
 
 d!(for Input is Input::NoInput);
 
-pub struct View {}
+#[derive(Default)]
+pub struct View {
+    pub buffers: Vec<BufferView>,
+}
 
-d!(for View is View{});
+pub struct BufferView {
+    //screen_position: (f32, f32),
+    //bounds: (f32, f32),
+    //color: [f32; 4],
+    pub chars: String,
+}
 
 pub enum Cmd {
     NoCmd, //The plan is to communicate things like saving to the platform layer with this

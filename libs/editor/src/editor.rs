@@ -1,15 +1,33 @@
-use platform_types::{Cmd, Input, View};
+use platform_types::{BufferView, Cmd, Input, View};
 
 pub struct State {
-    frame_count: usize,
+    //TODO replace with a Gap Buffer
+    buffer: String,
 }
 
-pub const fn new() -> State {
-    State { frame_count: !0 }
+pub fn new() -> State {
+    State {
+        buffer: include_str!("../../../text/slipsum.txt").into(),
+    }
 }
 
 pub fn update_and_render(state: &mut State, input: Input) -> (View, Cmd) {
-    state.frame_count -= 1;
+    match input {
+        Input::NoInput => {}
+        Input::Insert(c) => {
+            state.buffer.push(c);
+        }
+        Input::Delete => {
+            state.buffer.pop();
+        }
+    }
 
-    (View {}, Cmd::NoCmd)
+    (
+        View {
+            buffers: vec![BufferView {
+                chars: state.buffer.clone(),
+            }],
+        },
+        Cmd::NoCmd,
+    )
 }
