@@ -17,6 +17,7 @@ ctrl-r to replace in current file, optionally with regex.
 ctrl-Shift-r to replace either in all open files or in current project
 ctrl-g Go to line number
 Mouse selection of text
+Double-click on a word to highlight it within the whole file
 
 #### Less Obvious stuff
 Dark theme

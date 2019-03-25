@@ -5,7 +5,7 @@
 use glutin::{Api, ContextTrait, GlProfile, GlRequest};
 use glyph_brush::{rusttype::Font, *};
 
-use platform_types::{d, BufferView, Cmd, Input, UpdateAndRender, View};
+use platform_types::{d, BufferView, Cmd, Input, Sizes, UpdateAndRender, View};
 
 pub fn run(update_and_render: UpdateAndRender) -> gl::Res<()> {
     if cfg!(target_os = "linux") {
@@ -37,12 +37,14 @@ pub fn run(update_and_render: UpdateAndRender) -> gl::Res<()> {
 
     let font_bytes: &[u8] = include_bytes!("./fonts/FantasqueSansMono-Regular.ttf");
     let font: Font<'static> = Font::from_bytes(font_bytes)?;
+    let font_size: f32 = 11.0;
+    let scroll_multiplier: f32 = 16.0;
+
+    let scale = rusttype::Scale::uniform((font_size * window.get_hidpi_factor() as f32).round());
+
     let mut glyph_brush = GlyphBrushBuilder::using_font(font.clone()).build();
 
     let mut gl_state = gl::init(&glyph_brush, |symbol| window.get_proc_address(symbol) as _)?;
-
-    let font_size: f32 = 11.0;
-    let scroll_multiplier: f32 = 16.0;
 
     let mut loop_helper = spin_sleep::LoopHelper::builder().build_with_target_rate(250.0);
     let mut running = true;
@@ -51,7 +53,15 @@ pub fn run(update_and_render: UpdateAndRender) -> gl::Res<()> {
         .ok_or("get_inner_size = None")?
         .to_physical(window.get_hidpi_factor());
 
-    let (mut view, mut cmd) = update_and_render(d!());
+    let (mut view, mut cmd) = update_and_render(Input::SetSizes(Sizes! {
+        screen_w: dimensions.width as f32,
+        screen_h: dimensions.height as f32,
+        line_h: {
+            let v_metrics = font.v_metrics(scale);
+
+            v_metrics.ascent + -v_metrics.descent + v_metrics.line_gap
+        }
+    }));
 
     while running {
         loop_helper.loop_start();
@@ -74,6 +84,11 @@ pub fn run(update_and_render: UpdateAndRender) -> gl::Res<()> {
                         window.resize(size.to_physical(dpi));
                         if let Some(ls) = window.get_inner_size() {
                             dimensions = ls.to_physical(dpi);
+                            call_u_and_r!(Input::SetSizes(Sizes! {
+                                screen_w: dimensions.width as f32,
+                                screen_h: dimensions.height as f32,
+                                line_h: None,
+                            }));
                             gl::set_dimensions(dimensions.width as _, dimensions.height as _);
                         }
                     }
@@ -134,42 +149,29 @@ pub fn run(update_and_render: UpdateAndRender) -> gl::Res<()> {
 
         let width = dimensions.width as f32;
         let height = dimensions.height as f32;
-        let scale =
-            rusttype::Scale::uniform((font_size * window.get_hidpi_factor() as f32).round());
-        let line_height = {
-            let v_metrics = font.v_metrics(scale);
 
-            v_metrics.ascent + -v_metrics.descent + v_metrics.line_gap
-        };
-
-        let status_line_y = height - line_height;
-
-        for BufferView {
+        for &BufferView {
             kind,
+            bounds,
+            color,
             ref chars,
             screen_position,
         } in view.buffers.iter()
         {
             use platform_types::BufferViewKind;
-            match kind {
-                BufferViewKind::Edit => glyph_brush.queue(Section {
-                    text: chars,
-                    scale,
-                    screen_position: *screen_position,
-                    bounds: (width, status_line_y - screen_position.1),
-                    color: [0.3, 0.3, 0.9, 1.0],
-                    ..Section::default()
-                }),
-                BufferViewKind::StatusLine => glyph_brush.queue(Section {
-                    text: chars,
-                    scale,
-                    screen_position: (0.0, status_line_y),
-                    bounds: (width, line_height),
-                    color: [0.3, 0.9, 0.3, 1.0],
-                    layout: Layout::default_single_line(),
-                    ..Section::default()
-                }),
-            };
+
+            glyph_brush.queue(Section {
+                text: chars,
+                scale,
+                screen_position,
+                bounds,
+                color,
+                layout: match kind {
+                    BufferViewKind::Edit => Layout::default_wrap(),
+                    BufferViewKind::StatusLine => Layout::default_single_line(),
+                },
+                ..Section::default()
+            });
         }
 
         gl::render(&mut gl_state, &mut glyph_brush, width as _, height as _)?;
