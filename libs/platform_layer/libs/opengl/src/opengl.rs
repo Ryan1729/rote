@@ -56,6 +56,13 @@ pub fn run(update_and_render: UpdateAndRender) -> gl::Res<()> {
     let (mut view, mut cmd) = update_and_render(Input::SetSizes(Sizes! {
         screen_w: dimensions.width as f32,
         screen_h: dimensions.height as f32,
+        char_w: {
+            // We currently assume the font is monospaced.
+            let em_space_char = '\u{2003}';
+            let h_metrics = font.glyph(em_space_char).scaled(scale).h_metrics();
+
+            h_metrics.left_side_bearing + h_metrics.advance_width
+        },
         line_h: {
             let v_metrics = font.v_metrics(scale);
 
@@ -87,6 +94,7 @@ pub fn run(update_and_render: UpdateAndRender) -> gl::Res<()> {
                             call_u_and_r!(Input::SetSizes(Sizes! {
                                 screen_w: dimensions.width as f32,
                                 screen_h: dimensions.height as f32,
+                                char_w: None,
                                 line_h: None,
                             }));
                             gl::set_dimensions(dimensions.width as _, dimensions.height as _);
@@ -147,9 +155,6 @@ pub fn run(update_and_render: UpdateAndRender) -> gl::Res<()> {
             }
         });
 
-        let width = dimensions.width as f32;
-        let height = dimensions.height as f32;
-
         for &BufferView {
             kind,
             bounds,
@@ -173,6 +178,9 @@ pub fn run(update_and_render: UpdateAndRender) -> gl::Res<()> {
                 ..Section::default()
             });
         }
+
+        let width = dimensions.width as f32;
+        let height = dimensions.height as f32;
 
         gl::render(&mut gl_state, &mut glyph_brush, width as _, height as _)?;
 

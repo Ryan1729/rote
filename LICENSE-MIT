@@ -2,6 +2,13 @@ MIT License
 
 Copyright (c) 2017 Ryan Wiedemann
 
+During the development of this program (rote), the source code located at
+https://github.com/jmacdonald/scribe , which is also released under the MIT
+License, was examined which influenced the design somewhat. To comply with the
+license, here is that project's copyright notice:
+
+Copyright (c) 2015 Jordan MacDonald
+
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
 in the Software without restriction, including without limitation the rights

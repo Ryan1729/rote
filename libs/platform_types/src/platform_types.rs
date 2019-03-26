@@ -27,6 +27,7 @@ d!(for Input is Input::NoInput);
 pub struct Sizes {
     pub screen_w: Option<f32>,
     pub screen_h: Option<f32>,
+    pub char_w: Option<f32>,
     pub line_h: Option<f32>,
 }
 
@@ -35,11 +36,13 @@ macro_rules! Sizes {
     {
         screen_w: $screen_w:expr,
         screen_h: $screen_h:expr,
+        char_w: $char_w:expr,
         line_h: $line_h:expr $(,)?
     } => (
         Sizes {
             screen_w: $screen_w.into(),
             screen_h: $screen_h.into(),
+            char_w: $char_w.into(),
             line_h: $line_h.into(),
         }
     );
@@ -61,6 +64,7 @@ pub struct BufferView {
     pub screen_position: (f32, f32),
     pub bounds: (f32, f32),
     pub color: [f32; 4],
+    //TODO make this a &str or a char iterator
     pub chars: String,
 }
 

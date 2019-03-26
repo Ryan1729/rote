@@ -1,6 +1,6 @@
 [package]
 name = "rote"
-version = "0.2.6"
+version = "0.2.7"
 authors = ["Ryan1729 <Ryan1729@gmail.com>"]
 license = "MIT and Apache 2.0"
 edition = "2018"
@@ -24,3 +24,11 @@ rand = "0.3"
 [features]
 default = []
 invariant-checking = []
+
+[workspace]
+
+members = [
+    "libs/editor",
+    "libs/platform_types",
+    "libs/platform_layer",
+]
