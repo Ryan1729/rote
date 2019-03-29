@@ -1,63 +1,55 @@
+use editor_types::{Cursor, Position};
+use gap_buffer::GapBuffer;
 use platform_types::{d, dg, BufferView, Cmd, Input, Move, View};
 use unicode_segmentation::UnicodeSegmentation;
 use vec1::Vec1;
-use std::borrow::Borrow;
 
-//TODO replace with a real Gap Buffer
-struct GapBuffer {
-    data: String,
+#[derive(Default)]
+struct Buffer {
+    gap_buffer: GapBuffer,
+    cursors: Vec1<Cursor>,
 }
 
-impl GapBuffer {
+impl Buffer {
+    fn new() -> Self {
+        d!()
+    }
+
     fn insert(&mut self, c: char) {
-        self.data.push(c);
+        self.gap_buffer.insert(c);
     }
 
     fn delete(&mut self) {
-        self.data.pop();
+        self.gap_buffer.delete();
     }
 
-    fn in_bounds(&self, position: &Position) -> bool {
-        self.find_offset(position) != None
+    fn move_all_cursors(&mut self, r#move: Move) {
+        for i in 0..self.cursors.len() {
+            self.move_cursor(i, r#move)
+        }
     }
 
-    /// Maps a position to its raw data index This can be affected by multi-`char` graphemes,
-    /// so the result does **not** make sense to be assigned to a `Position`s offset field.
-    //TODO make "GraphemeAwareOffset" newtype? Or maybe we should make the position offset a newtype?
-    fn find_offset<P: Borrow<Position>>(&self, position: P) -> Option<usize> {
-        let pos = position.borrow();
-        let mut line = 0;
-        let mut line_offset = 0;
-
-        for (offset, grapheme) in self.data.grapheme_indices(true) {
-            if line == pos.line && line_offset == pos.offset {
-                return Some(offset);
-            }
-
-            if grapheme == "\n" || grapheme == "\r\n" {
-                line += 1;
-                line_offset = 0;
-            } else {
-                line_offset += 1;
+    fn move_cursor(&mut self, index: usize, r#move: Move) {
+        if let Some(cursor) = self.cursors.get_mut(index) {
+            match r#move {
+                Move::Up => move_up(&self.gap_buffer, cursor),
+                Move::Down => move_down(&self.gap_buffer, cursor),
+                Move::Left => move_left(&self.gap_buffer, cursor),
+                Move::Right => move_right(&self.gap_buffer, cursor),
+                Move::ToLineStart => move_to_line_start(&self.gap_buffer, cursor),
+                Move::ToLineEnd => move_to_line_end(&self.gap_buffer, cursor),
+                Move::ToBufferStart => move_to_buffer_start(&self.gap_buffer, cursor),
+                Move::ToBufferEnd => move_to_buffer_end(&self.gap_buffer, cursor),
             }
         }
-
-        // there's the extra space after the end of the buffer, which *is* a valid insertion point.
-        if line == pos.line && line_offset == pos.offset {
-            return Some(self.data.len());
-        }
-
-        None
-    }
-}
-
-impl<'buffer> GapBuffer {
-    fn lines(&'buffer self) -> impl Iterator<Item = &str> + 'buffer {
-        self.data.lines()
     }
 
-    fn chars(&'buffer self) -> impl Iterator<Item = char> + 'buffer {
-        self.data.chars()
+    fn grapheme_before(&self, c: &Cursor) -> Option<&str> {
+        self.gap_buffer.grapheme_before(c)
+    }
+
+    fn grapheme_after(&self, c: &Cursor) -> Option<&str> {
+        self.gap_buffer.grapheme_after(c)
     }
 }
 
@@ -207,93 +199,6 @@ fn move_to_buffer_end(gap_buffer: &GapBuffer, cursor: &mut Cursor) {
     }
 }
 
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn move_down_bug() {
-        let buffer = GapBuffer {
-            data: include_str!("../../../text/slipsum.txt").into(),
-        };
-
-        let mut cursor = d!();
-
-        for _ in 0..60 {
-            move_right(&buffer, &mut cursor);
-        }
-
-        move_down(&buffer, &mut cursor);
-        move_down(&buffer, &mut cursor);
-        move_down(&buffer, &mut cursor);
-        move_down(&buffer, &mut cursor);
-
-        assert_eq!(cursor.position.line, 4);
-        assert_eq!(cursor.position.offset, 45);
-    }
-}
-
-struct Buffer {
-    gap_buffer: GapBuffer,
-    cursors: Vec1<Cursor>,
-}
-
-impl Buffer {
-    fn new() -> Self {
-        Self {
-            gap_buffer: GapBuffer {
-                data: include_str!("../../../text/slipsum.txt").into(),
-            },
-            cursors: Vec1::new(d!()),
-        }
-    }
-
-    fn insert(&mut self, c: char) {
-        self.gap_buffer.insert(c);
-    }
-
-    fn delete(&mut self) {
-        self.gap_buffer.delete();
-    }
-
-    fn move_all_cursors(&mut self, r#move: Move) {
-        for i in 0..self.cursors.len() {
-            self.move_cursor(i, r#move)
-        }
-    }
-
-    fn move_cursor(&mut self, index: usize, r#move: Move) {
-        if let Some(cursor) = self.cursors.get_mut(index) {
-            match r#move {
-                Move::Up => move_up(&self.gap_buffer, cursor),
-                Move::Down => move_down(&self.gap_buffer, cursor),
-                Move::Left => move_left(&self.gap_buffer, cursor),
-                Move::Right => move_right(&self.gap_buffer, cursor),
-                Move::ToLineStart => move_to_line_start(&self.gap_buffer, cursor),
-                Move::ToLineEnd => move_to_line_end(&self.gap_buffer, cursor),
-                Move::ToBufferStart => move_to_buffer_start(&self.gap_buffer, cursor),
-                Move::ToBufferEnd => move_to_buffer_end(&self.gap_buffer, cursor),
-            }
-        }
-    }
-
-    fn grapheme_before(&self, c: &Cursor) -> Option<&str> {
-        let offset = self.gap_buffer.find_offset(c.position);
-        offset.and_then(|o| {
-            if o == 0 {
-                None
-            } else {
-                self.gap_buffer.data.graphemes(true).nth(o - 1)
-            }
-        })
-    }
-
-    fn grapheme_after(&self, c: &Cursor) -> Option<&str> {
-        let offset = self.gap_buffer.find_offset(c.position);
-        offset.and_then(|o| self.gap_buffer.data.graphemes(true).nth(o))
-    }
-}
-
 impl<'buffer> Buffer {
     fn chars(&'buffer self) -> impl Iterator<Item = char> + 'buffer {
         self.gap_buffer.chars()
@@ -331,28 +236,6 @@ pub fn new() -> State {
         screen_h: 0.0,
         char_w: 0.0,
         line_h: 0.0,
-    }
-}
-
-/// `offset` indicates a location before or after characters, not at the charaters.
-#[derive(Copy, Clone, Debug, Default, PartialEq)]
-pub struct Position {
-    pub line: usize,
-    pub offset: usize,
-}
-
-#[derive(Clone, Debug, Default)]
-pub struct Cursor {
-    pub position: Position,
-    sticky_offset: usize,
-}
-
-impl Cursor {
-    fn new(position: Position) -> Self {
-        Cursor {
-            position,
-            sticky_offset: position.offset,
-        }
     }
 }
 

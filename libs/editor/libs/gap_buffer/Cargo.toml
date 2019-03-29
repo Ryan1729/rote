@@ -1,21 +1,18 @@
 [package]
-name = "editor"
+name = "gap_buffer"
 version = "0.1.0"
 authors = ["Ryan1729 <Ryan1729@gmail.com>"]
 edition = "2018"
 
 [lib]
-path = "./src/editor.rs"
+path = "./src/gap_buffer.rs"
+
 
 [dependencies]
-vec1 = "1.4.0"
 unicode-segmentation = "1.2.1"
 
 [dependencies.platform_types]
-path = "../platform_types"
+path = "../../../platform_types"
 
 [dependencies.editor_types]
-path = "libs/editor_types"
-
-[dependencies.gap_buffer]
-path = "libs/gap_buffer"
+path = "../editor_types"
