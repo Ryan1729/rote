@@ -15,12 +15,18 @@ impl Buffer {
         d!()
     }
 
-    fn insert(&mut self, c: char) {
-        self.gap_buffer.insert(c);
+    fn insert(&mut self, ch: char) {
+        for cursor in &mut self.cursors {
+            self.gap_buffer.insert(ch, &cursor.position);
+            move_right(&self.gap_buffer, cursor);
+        }
     }
 
     fn delete(&mut self) {
-        self.gap_buffer.delete();
+        for cursor in &mut self.cursors {
+            self.gap_buffer.delete(&cursor.position);
+            move_left(&self.gap_buffer, cursor);
+        }
     }
 
     fn move_all_cursors(&mut self, r#move: Move) {
