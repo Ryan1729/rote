@@ -4,6 +4,8 @@
 
 I'm starting this project over, this time as a graphical editor from the start instead of a terminal based one.
 
+![demo gif](/rote-0.2.10.gif?raw=true "Demo gif of a text editor performing a simple editing task")
+
 ## Plan
 * implement my shortlist of useful keyboard shortcuts
 * generally make it a usable terminal editor
