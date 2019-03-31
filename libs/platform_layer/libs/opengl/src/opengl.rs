@@ -70,6 +70,13 @@ pub fn run(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
         }
     }));
 
+    let block_width = {
+        let full_block_char = '█';
+        let h_metrics = font.glyph(full_block_char).scaled(scale).h_metrics();
+
+        h_metrics.advance_width
+    };
+
     while running {
         loop_helper.loop_start();
 
@@ -190,6 +197,25 @@ pub fn run(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
         {
             use platform_types::BufferViewKind;
 
+            // Without a background the edit buffer(s) show through the status line(s)
+            if let BufferViewKind::StatusLine = kind {
+                let width = bounds.0;
+                let count = (width / block_width.floor()) + 1.0;
+
+                let x = screen_position.0;
+                for i in 0..count as u64 {
+                    glyph_brush.queue(Section {
+                        text: "█",
+                        scale,
+                        screen_position: (x + (i as f32 * block_width.floor()), screen_position.1),
+                        bounds,
+                        color: [7.0 / 256.0, 7.0 / 256.0, 7.0 / 256.0, 1.0],
+                        layout: Layout::default_single_line(),
+                        ..Section::default()
+                    });
+                }
+            }
+
             glyph_brush.queue(Section {
                 text: chars,
                 scale,
@@ -198,7 +224,9 @@ pub fn run(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                 color,
                 layout: match kind {
                     BufferViewKind::Edit => Layout::default_wrap(),
-                    BufferViewKind::StatusLine => Layout::default_single_line(),
+                    BufferViewKind::StatusLine | BufferViewKind::Cursor => {
+                        Layout::default_single_line()
+                    }
                 },
                 ..Section::default()
             });

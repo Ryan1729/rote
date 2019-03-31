@@ -152,6 +152,7 @@ pub struct View {
 pub enum BufferViewKind {
     Edit,
     StatusLine,
+    Cursor,
 }
 
 pub struct BufferView {

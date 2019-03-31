@@ -1,6 +1,6 @@
 [package]
 name = "rote"
-version = "0.2.11"
+version = "0.2.12"
 authors = ["Ryan1729 <Ryan1729@gmail.com>"]
 license = "MIT and Apache 2.0"
 edition = "2018"
@@ -13,6 +13,9 @@ path = "./libs/editor"
 
 [dependencies.platform_types]
 path = "./libs/platform_types"
+
+[dependencies.macros]
+path = "./libs/macros"
 
 [dependencies.platform_layer]
 path = "./libs/platform_layer"
@@ -29,6 +32,7 @@ invariant-checking = []
 
 members = [
     "libs/editor",
+    "libs/macros",
     "libs/platform_types",
     "libs/platform_layer",
 ]

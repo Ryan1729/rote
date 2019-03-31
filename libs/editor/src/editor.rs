@@ -308,7 +308,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> (View, Cmd) {
                         BufferView {
                             kind: BufferViewKind::Edit,
                             screen_position: (state.scroll_x, state.scroll_y),
-                            bounds: (std::f32::INFINITY, status_line_y - state.scroll_x),
+                            bounds: (std::f32::INFINITY, std::f32::INFINITY),
                             color: [0.3, 0.3, 0.9, 1.0],
                             chars: buffer.chars().collect::<String>(),
                         },
@@ -340,12 +340,12 @@ pub fn update_and_render(state: &mut State, input: Input) -> (View, Cmd) {
                         // lines seems better than an error box or something like that.
                         #[allow(clippy::cast_precision_loss)]
                         let screen_position = (
-                            position.offset as f32 * state.char_w,
-                            position.line as f32 * state.line_h,
+                            position.offset as f32 * state.char_w + state.scroll_x,
+                            position.line as f32 * state.line_h + state.scroll_y,
                         );
 
                         views.push(BufferView {
-                            kind: BufferViewKind::StatusLine,
+                            kind: BufferViewKind::Cursor,
                             screen_position,
                             bounds: (state.screen_w, state.line_h),
                             color: [0.9, 0.3, 0.3, 1.0],
