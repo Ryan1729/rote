@@ -1,11 +1,10 @@
 [package]
-name = "platform_types"
+name = "macros"
 version = "0.1.0"
 authors = ["Ryan1729 <Ryan1729@gmail.com>"]
 edition = "2018"
 
 [lib]
-path = "./src/platform_types.rs"
+path = "./src/macros.rs"
 
 [dependencies]
-macros = { path = "../macros" }

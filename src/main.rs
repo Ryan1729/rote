@@ -1,4 +1,5 @@
-use platform_types::{d, Cmd, Input, View};
+use macros::d;
+use platform_types::{Cmd, Input, View};
 
 fn update_and_render(input: Input) -> (View, Cmd) {
     use lazy_static::lazy_static;

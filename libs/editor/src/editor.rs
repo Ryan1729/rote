@@ -1,6 +1,7 @@
 use editor_types::{Cursor, Position};
 use gap_buffer::GapBuffer;
-use platform_types::{d, dg, BufferView, Cmd, Input, Move, View};
+use macros::{d, dg};
+use platform_types::{BufferView, Cmd, Input, Move, View};
 use unicode_segmentation::UnicodeSegmentation;
 use vec1::Vec1;
 
@@ -304,36 +305,13 @@ pub fn update_and_render(state: &mut State, input: Input) -> (View, Cmd) {
                     }]
                 },
                 |buffer| {
-                    let mut views = vec![
-                        BufferView {
-                            kind: BufferViewKind::Edit,
-                            screen_position: (state.scroll_x, state.scroll_y),
-                            bounds: (std::f32::INFINITY, std::f32::INFINITY),
-                            color: [0.3, 0.3, 0.9, 1.0],
-                            chars: buffer.chars().collect::<String>(),
-                        },
-                        BufferView {
-                            kind: BufferViewKind::StatusLine,
-                            screen_position: (0.0, status_line_y),
-                            bounds: (state.screen_w, state.line_h),
-                            color: [0.3, 0.9, 0.3, 1.0],
-                            chars: buffer.cursors.iter().fold(
-                                String::with_capacity(state.screen_w as usize),
-                                |mut acc, c| {
-                                    use std::fmt::Write;
-                                    let _cannot_actually_fail = write!(
-                                        acc,
-                                        "{}:{} ({:?}|{:?})",
-                                        c.position.line,
-                                        c.position.offset,
-                                        buffer.grapheme_before(c),
-                                        buffer.grapheme_after(c)
-                                    );
-                                    acc
-                                },
-                            ),
-                        },
-                    ];
+                    let mut views = vec![BufferView {
+                        kind: BufferViewKind::Edit,
+                        screen_position: (state.scroll_x, state.scroll_y),
+                        bounds: (std::f32::INFINITY, std::f32::INFINITY),
+                        color: [0.3, 0.3, 0.9, 1.0],
+                        chars: buffer.chars().collect::<String>(),
+                    }];
 
                     for position in buffer.cursors.iter().map(|c| c.position) {
                         // Weird *graphical-only* stuff given a >2^24 long line and/or >2^24
@@ -352,6 +330,27 @@ pub fn update_and_render(state: &mut State, input: Input) -> (View, Cmd) {
                             chars: "▏".to_string(),
                         });
                     }
+
+                    views.push(BufferView {
+                        kind: BufferViewKind::StatusLine,
+                        screen_position: (0.0, status_line_y),
+                        bounds: (state.screen_w, state.line_h),
+                        color: [0.3, 0.9, 0.3, 1.0],
+                        chars: buffer.cursors.iter().fold(
+                            String::with_capacity(state.screen_w as usize),
+                            |mut acc, c| {
+                                use std::fmt::Write;
+                                let _cannot_actually_fail = write!(
+                                    acc,
+                                    "{} ({:?}|{:?})",
+                                    c,
+                                    buffer.grapheme_before(c),
+                                    buffer.grapheme_after(c),
+                                );
+                                acc
+                            },
+                        ),
+                    });
 
                     views
                 },

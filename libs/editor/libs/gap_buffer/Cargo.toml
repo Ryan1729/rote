@@ -11,8 +11,8 @@ path = "./src/gap_buffer.rs"
 [dependencies]
 unicode-segmentation = "1.2.1"
 
-[dependencies.platform_types]
-path = "../../../platform_types"
+[dependencies.macros]
+path = "../../../macros"
 
 [dependencies.editor_types]
 path = "../editor_types"

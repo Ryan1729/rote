@@ -106,6 +106,11 @@ pub fn run(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                                 line_h: None,
                             }));
                             gl_layer::set_dimensions(dimensions.width as _, dimensions.height as _);
+
+                            //if we don't reset the cache like this then we render a stretched
+                            //version of the text on windoe resize.
+                            let (t_w, t_h) = glyph_brush.texture_dimensions();
+                            glyph_brush.resize_texture(t_w, t_h);
                         }
                     }
                     WindowEvent::KeyboardInput {

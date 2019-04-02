@@ -1,5 +1,5 @@
 use editor_types::{Cursor, Position};
-use platform_types::invariant_assert;
+use macros::invariant_assert;
 use std::borrow::Borrow;
 use unicode_segmentation::UnicodeSegmentation;
 
