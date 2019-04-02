@@ -1,3 +1,4 @@
+use editor_types::CharOffset;
 use editor_types::{Cursor, Position};
 use gap_buffer::GapBuffer;
 use macros::{d, dg};
@@ -103,7 +104,7 @@ fn move_up(gap_buffer: &GapBuffer, cursor: &mut Cursor) {
             cursor,
             Position {
                 line: target_line,
-                offset: target_offset,
+                offset: CharOffset(target_offset),
             },
         );
 
@@ -133,7 +134,7 @@ fn move_down(gap_buffer: &GapBuffer, cursor: &mut Cursor) {
             cursor,
             Position {
                 line: target_line,
-                offset: target_offset,
+                offset: CharOffset(target_offset),
             },
         );
 
@@ -175,7 +176,7 @@ fn move_to_line_start(gap_buffer: &GapBuffer, cursor: &mut Cursor) {
         gap_buffer,
         cursor,
         Position {
-            offset: 0,
+            offset: d!(),
             ..cursor.position
         },
     );
@@ -186,21 +187,24 @@ fn move_to_line_end(gap_buffer: &GapBuffer, cursor: &mut Cursor) {
     if let Some(current_line) = current_line {
         let new_position = Position {
             line,
-            offset: current_line.graphemes(true).count(),
+            offset: CharOffset(current_line.graphemes(true).count()),
         };
         move_to(gap_buffer, cursor, new_position);
     }
 }
 fn move_to_buffer_start(_gap_buffer: &GapBuffer, cursor: &mut Cursor) {
     // The fisrt position is always valid
-    cursor.position = Position { line: 0, offset: 0 };
-    cursor.sticky_offset = 0;
+    cursor.position = Position {
+        line: 0,
+        offset: d!(),
+    };
+    cursor.sticky_offset = d!();
 }
 fn move_to_buffer_end(gap_buffer: &GapBuffer, cursor: &mut Cursor) {
     if let Some((line, line_data)) = gap_buffer.lines().enumerate().last() {
         let new_position = Position {
             line,
-            offset: line_data.graphemes(true).count(),
+            offset: CharOffset(line_data.graphemes(true).count()),
         };
         move_to(gap_buffer, cursor, new_position);
     }
@@ -318,7 +322,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> (View, Cmd) {
                         // lines seems better than an error box or something like that.
                         #[allow(clippy::cast_precision_loss)]
                         let screen_position = (
-                            position.offset as f32 * state.char_w + state.scroll_x,
+                            position.offset.0 as f32 * state.char_w + state.scroll_x,
                             position.line as f32 * state.line_h + state.scroll_y,
                         );
 
@@ -342,10 +346,16 @@ pub fn update_and_render(state: &mut State, input: Input) -> (View, Cmd) {
                                 use std::fmt::Write;
                                 let _cannot_actually_fail = write!(
                                     acc,
-                                    "{} ({:?}|{:?})",
+                                    "{} ({:?}|{:?}) ({:?}|{:?})",
                                     c,
                                     buffer.grapheme_before(c),
                                     buffer.grapheme_after(c),
+                                    buffer.gap_buffer.find_index(c).and_then(|o| if o == 0 {
+                                        None
+                                    } else {
+                                        Some(o - 1)
+                                    }),
+                                    buffer.gap_buffer.find_index(c),
                                 );
                                 acc
                             },

@@ -1,12 +1,15 @@
-use editor_types::{Cursor, Position};
+use editor_types::{ByteIndex, ByteLength, CharOffset, Cursor, Position};
+use macros::d;
 use macros::invariant_assert;
 use std::borrow::Borrow;
 use unicode_segmentation::UnicodeSegmentation;
 
+type Utf8Data = Vec<u8>; // must always be a valid utf8 string
+
 pub struct GapBuffer {
-    data: Vec<u8>, // must always be a valid utf8 string
-    gap_start: usize,
-    gap_length: usize,
+    data: Utf8Data,
+    gap_start: ByteIndex,
+    gap_length: ByteLength,
 }
 
 impl Default for GapBuffer {
@@ -17,13 +20,12 @@ impl Default for GapBuffer {
 
 impl GapBuffer {
     pub fn new(data: String) -> GapBuffer {
+        // If we made a valid buffer then called `insert_str` that would be slow for opening new
+        // files. Here, we avoid copying the string.
         let mut bytes = data.into_bytes();
-        let capacity = bytes.capacity();
-        let gap_start = bytes.len();
-        let gap_length = capacity - gap_start;
-        unsafe {
-            bytes.set_len(capacity);
-        }
+        let gap_start = ByteIndex(bytes.len());
+        let mut gap_length = d!();
+        Self::match_len_to_capacity(&mut bytes, gap_start, &mut gap_length);
 
         GapBuffer {
             data: bytes,
@@ -32,9 +34,39 @@ impl GapBuffer {
         }
     }
 
+    // This is the index that a grapheme would be at if it was one past the last slot we have
+    // allocated.
+    fn capacity(data: &Utf8Data) -> ByteIndex {
+        ByteIndex(data.capacity())
+    }
+
+    // This is the offset that a grapheme would be at if it was one past the last slot that is
+    // filled, that is, which is not part of the gap.
+    fn len_offset(data: &Utf8Data) -> ByteLength {
+        ByteLength(data.len())
+    }
+
+    fn gap_end(&self) -> ByteIndex {
+        ByteIndex(self.gap_start.0 + self.gap_length.0)
+    }
+
     pub fn insert(&mut self, c: char, position: &Position) -> Option<()> {
         let mut stack_bytes = [0; 4];
         self.insert_str(c.encode_utf8(&mut stack_bytes), position)
+    }
+
+    fn match_len_to_capacity(
+        data: &mut Utf8Data,
+        gap_start: ByteIndex,
+        gap_length: &mut ByteLength,
+    ) {
+        // Update the tracked gap size and tell the vector that
+        // we're using all of the new space immediately.
+        let capacity = Self::capacity(data);
+        *gap_length = ByteLength(capacity.0 - gap_start.0);
+        unsafe {
+            data.set_len(capacity.0);
+        }
     }
 
     pub fn insert_str(&mut self, data: &str, position: &Position) -> Option<()> {
@@ -43,28 +75,23 @@ impl GapBuffer {
             // We're about to add space to the end of the buffer, so move the gap
             // there beforehand so that we're essentially just increasing the
             // gap size, and preventing a split/two-segment gap.
-            self.move_gap(self.data.capacity());
+            self.move_gap(Self::capacity(&self.data));
 
             // Re-allocate the gap buffer, increasing its size.
             self.data.reserve(data.len());
 
-            // Update the tracked gap size and tell the vector that
-            // we're using all of the new space immediately.
-            let capacity = self.data.capacity();
-            self.gap_length = capacity - self.gap_start;
-            unsafe {
-                self.data.set_len(capacity);
-            }
+            Self::match_len_to_capacity(&mut self.data, self.gap_start, &mut self.gap_length)
         }
 
-        // You might be tempted to move this to the top of this method so we don't allocate if the
-        // position is invalid, but if we need to allocate then the offset might be invalidated.
-        let offset = self.find_offset(position)?;
+        // You might be tempted to move this early return to the top of this method so we don't
+        // run the lines above which potentially allocate, if the position is invalid. But if we
+        // need to allocate then the index might be invalidated.
+        let index = self.find_index(position)?;
 
-        self.move_gap(offset);
+        self.move_gap(index);
 
         for byte in data.bytes() {
-            self.data[self.gap_start] = byte;
+            self.data[self.gap_start.0] = byte;
             self.gap_start += 1;
             self.gap_length -= 1;
         }
@@ -77,57 +104,71 @@ impl GapBuffer {
     }
 
     pub fn delete_range(&mut self, range: std::ops::RangeInclusive<Position>) {
-        let start_offset = match self.find_offset(range.start()) {
+        let start_index = match self.find_index(range.start()) {
             Some(o) => o,
             None => return,
         };
 
-        self.move_gap(start_offset);
+        self.move_gap(start_index);
 
-        match self.find_offset(range.end()) {
+        self.gap_length = match self.find_index(range.end()) {
             Some(offset) => {
                 // Widen the gap to cover the deleted contents.
-                self.gap_length = offset - self.gap_start;
+                offset - self.gap_start
             }
             None => {
                 // The end of the range doesn't exist; check
                 // if it's on the last line in the file.
                 let start_of_next_line = Position {
                     line: range.end().line + 1,
-                    offset: 0,
+                    offset: d!(),
                 };
 
-                match self.find_offset(&start_of_next_line) {
+                match self.find_index(&start_of_next_line) {
                     Some(offset) => {
                         // There are other lines below this range.
                         // Just remove up until the end of the line.
-                        self.gap_length = offset - self.gap_start;
+                        offset - self.gap_start
                     }
                     None => {
                         // We're on the last line, just get rid of the rest
                         // by extending the gap right to the end of the buffer.
-                        self.gap_length = self.data.len() - self.gap_start;
+                        self.data.len() - self.gap_start
                     }
                 }
             }
-        };
+        }
+        .into();
     }
 
     pub fn in_bounds(&self, position: &Position) -> bool {
-        self.find_offset(position) != None
+        self.find_index(position) != None
     }
 
     /// Maps a position to its raw data index This can be affected by multi-`char` graphemes,
     /// so the result does **not** make sense to be assigned to a `Position`s offset field.
-    //TODO make "GraphemeAwareOffset" newtype? Or maybe we should make the position offset a newtype?
-    pub fn find_offset<P: Borrow<Position>>(&self, position: P) -> Option<usize> {
+    /// Here's an example of where the distiction matters:
+    /// Say someone has typed "ö" into the editor (without the quotes).
+    /// "ö" is two characters: "o\u{308}"
+    /// ```
+    ///     assert_eq!("ö", "o\u{308}");
+    /// ```
+    /// So there should be now way to get a `GraphemeOffset` for the byte index between
+    /// "o" and "\u{308}" from this method, for a given buffer.
+    // TODO should we label these offsets with which buffer they are from? Can PhantomData do that?
+    /// If the cursor is after the "ö" we want the `Position`'s offset to be `1`., not `2` so we
+    /// can delete the "ö" with a single keystroke.
+    pub fn find_index<P: Borrow<Position>>(&self, position: P) -> Option<ByteIndex> {
         let pos = position.borrow();
         let mut line = 0;
         let mut line_offset = 0;
 
-        let first_half = self.get_str(..self.gap_start);
+        let first_half = self.get_str(..self.gap_start.0);
 
-        for (offset, grapheme) in first_half.grapheme_indices(true) {
+        for (offset, grapheme) in first_half
+            .grapheme_indices(true)
+            .map(|(o, g)| (ByteIndex(o), g))
+        {
             // Check to see if we've found the position yet.
             if line == pos.line && line_offset == pos.offset {
                 return Some(offset);
@@ -145,15 +186,18 @@ impl GapBuffer {
         // We didn't find the position *within* the first half, but it could
         // be right after it, which means it's right at the start of the gap.
         if line == pos.line && line_offset == pos.offset {
-            return Some(self.gap_start + self.gap_length);
+            return Some(self.gap_end());
         }
 
         // We haven't reached the position yet, so we'll move on to the other half.
-        let second_half = self.get_str(self.gap_start + self.gap_length..);
-        for (offset, grapheme) in second_half.grapheme_indices(true) {
+        let second_half = self.get_str(self.gap_end().0..);
+        for (offset, grapheme) in second_half
+            .grapheme_indices(true)
+            .map(|(o, g)| (ByteIndex(o), g))
+        {
             // Check to see if we've found the position yet.
             if line == pos.line && line_offset == pos.offset {
-                return Some(self.gap_start + self.gap_length + offset);
+                return Some(self.gap_end() + offset);
             }
 
             // Advance the line and offset characters.
@@ -168,7 +212,62 @@ impl GapBuffer {
         // We didn't find the position *within* the second half, but it could
         // be right after it, which means it's at the end of the buffer.
         if line == pos.line && line_offset == pos.offset {
-            return Some(self.data.len());
+            return Some(ByteIndex(self.data.len()));
+        }
+
+        None
+    }
+
+    /// The character offset of the given position in the entre buffer. The output is suitable for
+    /// passing into `self.graphemes().nth`.
+    pub fn find_absolute_offset<P: Borrow<Position>>(&self, position: P) -> Option<CharOffset> {
+        let pos = position.borrow();
+        let mut line = 0;
+        let mut line_offset = 0;
+        let mut absolute_offset = CharOffset(0);
+
+        let first_half = self.get_str(..self.gap_start.0);
+
+        for grapheme in first_half.graphemes(true) {
+            // Check to see if we've found the position yet.
+            if line == pos.line && line_offset == pos.offset {
+                return Some(absolute_offset);
+            }
+
+            // Advance the line and offset characters.
+            if grapheme == "\n" || grapheme == "\r\n" {
+                line += 1;
+                line_offset = 0;
+            } else {
+                line_offset += 1;
+            }
+
+            absolute_offset += 1;
+        }
+
+        // We haven't reached the position yet, so we'll move on to the other half.
+        let second_half = self.get_str(self.gap_end().0..);
+        for grapheme in second_half.graphemes(true) {
+            // Check to see if we've found the position yet.
+            if line == pos.line && line_offset == pos.offset {
+                return Some(absolute_offset);
+            }
+
+            // Advance the line and offset characters.
+            if grapheme == "\n" || grapheme == "\r\n" {
+                line += 1;
+                line_offset = 0;
+            } else {
+                line_offset += 1;
+            }
+
+            absolute_offset += 1;
+        }
+
+        // We didn't find the position *within* the second half, but it could
+        // be right after it, which means it's at the end of the buffer.
+        if line == pos.line && line_offset == pos.offset {
+            return Some(absolute_offset);
         }
 
         None
@@ -186,8 +285,8 @@ impl GapBuffer {
     }
 
     pub fn grapheme_before(&self, c: &Cursor) -> Option<&str> {
-        let offset = self.find_offset(c.position);
-        offset.and_then(|o| {
+        let offset = self.find_absolute_offset(c);
+        offset.and_then(|CharOffset(o)| {
             if o == 0 {
                 None
             } else {
@@ -197,38 +296,38 @@ impl GapBuffer {
     }
 
     pub fn grapheme_after(&self, c: &Cursor) -> Option<&str> {
-        let offset = self.find_offset(c.position);
-        offset.and_then(|o| self.graphemes().nth(o))
+        let offset = self.find_absolute_offset(c);
+        offset.and_then(|CharOffset(o)| self.graphemes().nth(o))
     }
 
-    fn move_gap(&mut self, offset: usize) {
+    fn move_gap(&mut self, index: ByteIndex) {
         // We don't need to move any data if the buffer is at capacity.
         if self.gap_length == 0 {
-            self.gap_start = offset;
+            self.gap_start = index;
             return;
         }
 
         // TODO can we speed this up with `std::ptr::copy`? Seems like the alignment requirements
         // might make it too complicated. We should also do a benchmark beforehand so we can tell
         // if we would really be speeding things up.
-        if offset < self.gap_start {
+        if index < self.gap_start.0 {
             // Shift the gap to the left one byte at a time.
-            for index in (offset..self.gap_start).rev() {
-                self.data[index + self.gap_length] = self.data[index];
-                self.data[index] = 0;
+            for i in (index.0..self.gap_start.0).rev() {
+                self.data[i + self.gap_length.0] = self.data[i];
+                self.data[i] = 0;
             }
 
-            self.gap_start = offset;
-        } else if offset > self.gap_start {
+            self.gap_start = index;
+        } else if index > self.gap_start.0 {
             // Shift the gap to the right one byte at a time.
-            for index in self.gap_start + self.gap_length..offset {
-                self.data[index - self.gap_length] = self.data[index];
-                self.data[index] = 0;
+            for i in self.gap_end().0..index.0 {
+                self.data[i - self.gap_length.0] = self.data[i];
+                self.data[i] = 0;
             }
 
-            // Because the offset was after the gap, its value included the
+            // Because the index was after the gap, its value included the
             // gap length. We must remove it to determine the starting point.
-            self.gap_start = offset - self.gap_length;
+            self.gap_start = ByteIndex(index.0 - self.gap_length.0);
         }
     }
 }
@@ -243,8 +342,8 @@ macro_rules! chain_halves {
 impl<'buffer> GapBuffer {
     pub fn get_halves(&'buffer self) -> (&'buffer str, &'buffer str) {
         (
-            self.get_str(..self.gap_start),
-            self.get_str(self.gap_start + self.gap_length..),
+            self.get_str(..self.gap_start.0),
+            self.get_str((self.gap_start + self.gap_length).0..),
         )
     }
 
@@ -265,38 +364,51 @@ impl<'buffer> GapBuffer {
     }
 }
 
-fn backward(gap_buffer: &GapBuffer, position: Position) -> Position {
+pub fn backward<P>(gap_buffer: &GapBuffer, position: P) -> Position
+where
+    P: Borrow<Position>,
+{
+    let position = position.borrow();
+
     if position.offset == 0 {
         if position.line == 0 {
-            return position;
+            return *position;
         }
         let line = position.line.saturating_sub(1);
         Position {
             line,
-            offset: gap_buffer
-                .lines()
-                .nth(line)
-                .map(|s| s.graphemes(true).count())
-                .unwrap_or_default(),
+            // TODO write tests to confirm this works correctly
+            offset: CharOffset(
+                gap_buffer
+                    .lines()
+                    .nth(line)
+                    .map(|s| s.graphemes(true).count())
+                    .unwrap_or_default(),
+            ),
         }
     } else {
         Position {
             offset: position.offset - 1,
-            ..position
+            ..*position
         }
     }
 }
 
-fn forward(gap_buffer: &GapBuffer, position: Position) -> Position {
+pub fn forward<P>(gap_buffer: &GapBuffer, position: P) -> Position
+where
+    P: Borrow<Position>,
+{
+    let position = position.borrow();
+
     let mut new = Position {
         offset: position.offset + 1,
-        ..position
+        ..*position
     };
 
     //  we expect the rest of the system to bounds check on positions
     if !gap_buffer.in_bounds(&new) {
         new.line += 1;
-        new.offset = 0;
+        new.offset = d!();
     }
 
     new
