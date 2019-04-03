@@ -11,3 +11,6 @@ path = "./src/editor_types.rs"
 
 [dependencies.macros]
 path = "../../../macros"
+
+[dependencies.platform_types]
+path = "../../../platform_types"

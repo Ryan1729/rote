@@ -1,4 +1,5 @@
-use macros::d;
+use macros::{d, display, number_newtype, usize_newtype};
+use std::ops::{Add, Sub};
 
 #[derive(Clone, Copy, Debug)]
 pub enum Move {
@@ -21,10 +22,38 @@ pub enum Input {
     ScrollVertically(f32),
     ScrollHorizontally(f32),
     SetSizes(Sizes),
+    SetMousePos((f32, f32)),
     MoveAllCursors(Move),
+    ReplaceCursors(Position),
 }
 
 d!(for Input : Input::None);
+
+/// The nth space between utf8 characters, not including the gap. So in the string "aöc" there are
+/// four possibe `CharOffset`s. (Note that "ö" is two characters: "o\u{308}".)
+/// Here they are represented as vertical bars: "|a|ö|c|"
+/// Whatever the state of the gap is, that is how `CharOffset`s are meant to be interpreted.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct CharOffset(pub usize);
+
+usize_newtype! {
+    CharOffset
+}
+
+number_newtype! {
+    CharOffset
+}
+
+display! {for CharOffset : CharOffset(offset) in "{}", offset}
+
+/// `offset` indicates a location before or after characters, not at the charaters.
+#[derive(Copy, Clone, Debug, Default, PartialEq)]
+pub struct Position {
+    pub line: usize,
+    pub offset: CharOffset,
+}
+
+display! {for Position : Position{ line, offset } in "{}:{}", line, offset}
 
 #[derive(Clone, Copy, Debug)]
 pub struct Sizes {

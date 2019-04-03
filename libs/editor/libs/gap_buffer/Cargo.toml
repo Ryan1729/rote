@@ -14,5 +14,8 @@ unicode-segmentation = "1.2.1"
 [dependencies.macros]
 path = "../../../macros"
 
+[dependencies.platform_types]
+path = "../../../platform_types"
+
 [dependencies.editor_types]
 path = "../editor_types"

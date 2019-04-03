@@ -2,10 +2,11 @@
 // the code is licensed under the Apache 2.0 license, as described in the license file in this folder.
 // To the extent that the code remains as it was (at commit 90e7c7c331e9f991e11de6404b2ca073c0a09e61)
 
+use glutin::dpi::LogicalPosition;
 use glutin::{Api, ContextTrait, GlProfile, GlRequest};
 use glyph_brush::{rusttype::Font, *};
 
-use platform_types::{BufferView, Input, Sizes, UpdateAndRender};
+use platform_types::{BufferView, CharOffset, Input, Position, Sizes, UpdateAndRender};
 
 pub fn run(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
     if cfg!(target_os = "linux") {
@@ -53,21 +54,25 @@ pub fn run(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
         .ok_or("get_inner_size = None")?
         .to_physical(window.get_hidpi_factor());
 
+    let char_w = {
+        // We currently assume the font is monospaced.
+        let em_space_char = '\u{2003}';
+        let h_metrics = font.glyph(em_space_char).scaled(scale).h_metrics();
+
+        h_metrics.advance_width
+    };
+
+    let line_h = {
+        let v_metrics = font.v_metrics(scale);
+
+        v_metrics.ascent + -v_metrics.descent + v_metrics.line_gap
+    };
+
     let (mut view, mut cmd) = update_and_render(Input::SetSizes(Sizes! {
         screen_w: dimensions.width as f32,
         screen_h: dimensions.height as f32,
-        char_w: {
-            // We currently assume the font is monospaced.
-            let em_space_char = '\u{2003}';
-            let h_metrics = font.glyph(em_space_char).scaled(scale).h_metrics();
-
-            h_metrics.advance_width
-        },
-        line_h: {
-            let v_metrics = font.v_metrics(scale);
-
-            v_metrics.ascent + -v_metrics.descent + v_metrics.line_gap
-        }
+        char_w: char_w,
+        line_h: line_h
     }));
 
     let block_width = {
@@ -76,6 +81,8 @@ pub fn run(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
 
         h_metrics.advance_width
     };
+
+    let (mut mouse_x, mut mouse_y) = (0.0, 0.0);
 
     while running {
         loop_helper.loop_start();
@@ -178,7 +185,7 @@ pub fn run(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                         modifiers: ModifiersState { shift: false, .. },
                         ..
                     } => {
-                        call_u_and_r!(Input::ScrollVertically(y * scroll_multiplier));
+                        call_u_and_r!(Input::ScrollVertically(-y * scroll_multiplier));
                     }
                     WindowEvent::MouseWheel {
                         delta: MouseScrollDelta::LineDelta(_, y),
@@ -186,6 +193,26 @@ pub fn run(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                         ..
                     } => {
                         call_u_and_r!(Input::ScrollHorizontally(y * scroll_multiplier));
+                    }
+                    WindowEvent::CursorMoved {
+                        position: LogicalPosition { x, y },
+                        ..
+                    } => {
+                        mouse_x = x as f32;
+                        mouse_y = y as f32;
+                        call_u_and_r!(Input::SetMousePos((mouse_x, mouse_y)));
+                    }
+                    WindowEvent::MouseInput {
+                        button: MouseButton::Left,
+                        ..
+                    } => {
+                        // This imade much more conveinient by the monospace assumption!
+                        let position = Position {
+                            //conveniently `(x / 0.0) as usize` is `0` rather than a panic.
+                            offset: CharOffset((mouse_x / char_w) as usize),
+                            line: (mouse_y / line_h) as usize,
+                        };
+                        call_u_and_r!(Input::ReplaceCursors(position));
                     }
                     _ => {}
                 }

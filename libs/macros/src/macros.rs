@@ -1,4 +1,91 @@
 #[macro_export]
+macro_rules! usize_newtype {
+    ($name: ident) => {
+        impl std::ops::Add<usize> for $name {
+            type Output = $name;
+
+            fn add(self, other: usize) -> $name {
+                $name(self.0 + other)
+            }
+        }
+
+        impl std::ops::AddAssign<usize> for $name {
+            fn add_assign(&mut self, other: usize) {
+                *self = self.add(other);
+            }
+        }
+
+        impl std::ops::Sub<usize> for $name {
+            type Output = $name;
+
+            fn sub(self, other: usize) -> $name {
+                //Should this be saturating?
+                $name(self.0 - other)
+            }
+        }
+
+        impl std::ops::SubAssign<usize> for $name {
+            fn sub_assign(&mut self, other: usize) {
+                *self = self.sub(other);
+            }
+        }
+
+        impl std::ops::Sub<$name> for usize {
+            type Output = $name;
+
+            fn sub(self, other: $name) -> $name {
+                //Should this be saturating?
+                $name(self - other.0)
+            }
+        }
+
+        impl PartialOrd<$name> for usize {
+            fn partial_cmp(&self, other: &$name) -> Option<std::cmp::Ordering> {
+                Some(self.cmp(&other.0))
+            }
+        }
+
+        impl PartialEq<$name> for usize {
+            fn eq(&self, other: &$name) -> bool {
+                *self == other.0
+            }
+        }
+
+        impl PartialOrd<usize> for $name {
+            fn partial_cmp(&self, other: &usize) -> Option<std::cmp::Ordering> {
+                Some(self.0.cmp(&other))
+            }
+        }
+
+        impl PartialEq<usize> for $name {
+            fn eq(&self, other: &usize) -> bool {
+                self.0 == *other
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! number_newtype {
+    ($name: ident) => {
+        impl std::ops::Add for $name {
+            type Output = $name;
+
+            fn add(self, other: $name) -> $name {
+                $name(self.0 + other.0)
+            }
+        }
+        impl std::ops::Sub for $name {
+            type Output = $name;
+
+            fn sub(self, other: $name) -> $name {
+                $name(self.0 - other.0)
+            }
+        }
+    };
+}
+
+#[macro_export]
 macro_rules! d {
     () => {
         Default::default()

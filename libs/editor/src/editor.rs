@@ -1,8 +1,8 @@
-use editor_types::CharOffset;
-use editor_types::{Cursor, Position};
+use editor_types::Cursor;
 use gap_buffer::GapBuffer;
 use macros::{d, dg};
-use platform_types::{BufferView, Cmd, Input, Move, View};
+use platform_types::{BufferView, CharOffset, Cmd, Input, Move, Position, View};
+use std::borrow::Borrow;
 use unicode_segmentation::UnicodeSegmentation;
 use vec1::Vec1;
 
@@ -58,6 +58,10 @@ impl Buffer {
 
     fn grapheme_after(&self, c: &Cursor) -> Option<&str> {
         self.gap_buffer.grapheme_after(c)
+    }
+
+    fn in_bounds<P: Borrow<Position>>(&self, p: P) -> bool {
+        self.gap_buffer.in_bounds(p)
     }
 }
 
@@ -216,6 +220,7 @@ impl<'buffer> Buffer {
     }
 }
 
+#[derive(Default)]
 pub struct State {
     buffers: Vec1<Buffer>,
     current_burrer_index: usize,
@@ -223,6 +228,8 @@ pub struct State {
     scroll_y: f32,
     screen_w: f32,
     screen_h: f32,
+    mouse_x: f32,
+    mouse_y: f32,
     ///We are currently assuming the font is monospace!
     char_w: f32,
     line_h: f32,
@@ -238,21 +245,19 @@ impl State {
 }
 
 pub fn new() -> State {
-    State {
-        buffers: Vec1::new(Buffer::new()),
-        current_burrer_index: 0,
-        scroll_x: 0.0,
-        scroll_y: 0.0,
-        screen_w: 0.0,
-        screen_h: 0.0,
-        char_w: 0.0,
-        line_h: 0.0,
-    }
+    d!()
 }
 
 pub fn update_and_render(state: &mut State, input: Input) -> (View, Cmd) {
     use platform_types::BufferViewKind;
-    match dg!(input) {
+    if cfg!(debug_assertions) {
+        if let Input::SetMousePos(_) = input {
+
+        } else {
+            dg!(input);
+        }
+    }
+    match input {
         Input::None => {}
         Input::Insert(c) => {
             if let Some(b) = state.current_buffer_mut() {
@@ -291,6 +296,17 @@ pub fn update_and_render(state: &mut State, input: Input) -> (View, Cmd) {
             set_if_present!(screen_h);
             set_if_present!(char_w);
             set_if_present!(line_h);
+        }
+        Input::SetMousePos((mouse_x, mouse_y)) => {
+            state.mouse_x = mouse_x;
+            state.mouse_y = mouse_y;
+        }
+        Input::ReplaceCursors(position) => {
+            if let Some(b) = state.current_buffer_mut() {
+                if b.in_bounds(position) {
+                    b.cursors = Vec1::new(Cursor::new(position));
+                }
+            }
         }
     }
 
@@ -340,10 +356,18 @@ pub fn update_and_render(state: &mut State, input: Input) -> (View, Cmd) {
                         screen_position: (0.0, status_line_y),
                         bounds: (state.screen_w, state.line_h),
                         color: [0.3, 0.9, 0.3, 1.0],
-                        chars: buffer.cursors.iter().fold(
-                            String::with_capacity(state.screen_w as usize),
-                            |mut acc, c| {
-                                use std::fmt::Write;
+                        chars: {
+                            use std::fmt::Write;
+                            let mut chars = String::with_capacity(state.screen_w as usize);
+
+                            let _cannot_actually_fail = write!(
+                                chars,
+                                "m{:?} c{:?} ",
+                                (state.mouse_x, state.mouse_y),
+                                (state.char_w, state.line_h)
+                            );
+
+                            buffer.cursors.iter().fold(chars, |mut acc, c| {
                                 let _cannot_actually_fail = write!(
                                     acc,
                                     "{} ({:?}|{:?}) ({:?}|{:?})",
@@ -358,8 +382,8 @@ pub fn update_and_render(state: &mut State, input: Input) -> (View, Cmd) {
                                     buffer.gap_buffer.find_index(c),
                                 );
                                 acc
-                            },
-                        ),
+                            })
+                        },
                     });
 
                     views

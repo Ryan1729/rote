@@ -1,6 +1,7 @@
-use editor_types::{ByteIndex, ByteLength, CharOffset, Cursor, Position};
+use editor_types::{ByteIndex, ByteLength, Cursor};
 use macros::d;
 use macros::invariant_assert;
+use platform_types::{CharOffset, Position};
 use std::borrow::Borrow;
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -141,7 +142,7 @@ impl GapBuffer {
         .into();
     }
 
-    pub fn in_bounds(&self, position: &Position) -> bool {
+    pub fn in_bounds<P: Borrow<Position>>(&self, position: P) -> bool {
         self.find_index(position) != None
     }
 
