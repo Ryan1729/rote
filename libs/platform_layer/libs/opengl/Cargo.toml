@@ -11,6 +11,7 @@ path = "./src/opengl.rs"
 
 [dependencies]
 platform_types = { path = "../../../platform_types" }
+perf_viz = { path = "../../../perf_viz" }
 gl_layer = { path = "gl_layer" }
 glyph_brush = { version = "0.4.1" }
 glyph_brush_layout = { version = "0.1.5" }
@@ -22,3 +23,7 @@ twox-hash = "1"
 lazy_static = "1"
 glutin = "0.20"
 spin_sleep = "0.3"
+
+[features]
+default = []
+invariant-checking = []

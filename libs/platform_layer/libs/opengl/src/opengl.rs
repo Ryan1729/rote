@@ -1,7 +1,6 @@
 // This was originally based on example code for https://github.com/alexheretic/glyph-brush
 // the code is licensed under the Apache 2.0 license, as described in the license file in this folder.
 // To the extent that the code remains as it was (at commit 90e7c7c331e9f991e11de6404b2ca073c0a09e61)
-
 use glutin::dpi::LogicalPosition;
 use glutin::{Api, ContextTrait, GlProfile, GlRequest};
 use glyph_brush::{rusttype::Font, *};
@@ -9,6 +8,7 @@ use glyph_brush::{rusttype::Font, *};
 use platform_types::{BufferView, CharOffset, Input, Position, Sizes, UpdateAndRender};
 
 pub fn run(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
+    perf_viz::record_fn!();
     if cfg!(target_os = "linux") {
         use std::env;
         // winit wayland is currently still wip
@@ -276,6 +276,8 @@ pub fn run(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
         }
         loop_helper.loop_sleep();
     }
+
+    perf_viz::output!();
 
     gl_layer::cleanup(gl_state)
 }
