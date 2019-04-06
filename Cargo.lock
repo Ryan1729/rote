@@ -207,6 +207,7 @@ dependencies = [
  "gap_buffer 0.1.0",
  "macros 0.1.0",
  "perf_viz 0.1.0",
+ "perf_viz_proc_macro 0.1.0",
  "platform_types 0.1.0",
  "unicode-segmentation 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "vec1 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -239,6 +240,15 @@ dependencies = [
  "serde_derive 1.0.89 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.39 (registry+https://github.com/rust-lang/crates.io-index)",
  "thread-id 3.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "flamer"
+version = "0.3.0"
+dependencies = [
+ "flame 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "quote 0.6.11 (registry+https://github.com/rust-lang/crates.io-index)",
+ "syn 0.15.30 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -281,8 +291,9 @@ version = "0.1.0"
 dependencies = [
  "editor_types 0.1.0",
  "macros 0.1.0",
+ "perf_viz 0.1.0",
  "platform_types 0.1.0",
- "unicode-segmentation 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "unicode_segmentation 0.1.0",
 ]
 
 [[package]]
@@ -589,6 +600,7 @@ dependencies = [
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "ordered-float 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "perf_viz 0.1.0",
+ "perf_viz_proc_macro 0.1.0",
  "platform_types 0.1.0",
  "rusttype 0.7.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "spin_sleep 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -650,6 +662,15 @@ name = "perf_viz"
 version = "0.1.0"
 dependencies = [
  "flame 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "perf_viz_proc_macro 0.1.0",
+]
+
+[[package]]
+name = "perf_viz_proc_macro"
+version = "0.1.0"
+dependencies = [
+ "flame 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "flamer 0.3.0",
 ]
 
 [[package]]
@@ -1046,6 +1067,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 name = "unicode-xid"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "unicode_segmentation"
+version = "0.1.0"
 
 [[package]]
 name = "utf8-ranges"

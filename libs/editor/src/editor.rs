@@ -66,8 +66,8 @@ enum Moved {
     Yes,
 }
 
+#[perf_viz::record]
 fn move_to(gap_buffer: &GapBuffer, cursor: &mut Cursor, position: Position) -> Moved {
-    perf_viz::record_fn!();
     if gap_buffer.in_bounds(&position) {
         cursor.position = position;
 
@@ -80,8 +80,8 @@ fn move_to(gap_buffer: &GapBuffer, cursor: &mut Cursor, position: Position) -> M
     Moved::No
 }
 
+#[perf_viz::record]
 fn move_up(gap_buffer: &GapBuffer, cursor: &mut Cursor) {
-    perf_viz::record_fn!();
     let pos = cursor.position;
     // Don't bother if we are already at the top.
     if pos.line == 0 {
@@ -117,8 +117,8 @@ fn move_up(gap_buffer: &GapBuffer, cursor: &mut Cursor) {
     }
 }
 
+#[perf_viz::record]
 fn move_down(gap_buffer: &GapBuffer, cursor: &mut Cursor) {
-    perf_viz::record_fn!();
     let target_line = cursor.position.line + 1;
     let new_position = Position {
         line: target_line,
@@ -147,8 +147,8 @@ fn move_down(gap_buffer: &GapBuffer, cursor: &mut Cursor) {
         cursor.sticky_offset = new_position.offset;
     }
 }
+#[perf_viz::record]
 fn move_left(gap_buffer: &GapBuffer, cursor: &mut Cursor) {
-    perf_viz::record_fn!();
     let pos = cursor.position;
     // Don't bother if we are already at the left edge.
     if pos.offset == 0 {
@@ -164,8 +164,8 @@ fn move_left(gap_buffer: &GapBuffer, cursor: &mut Cursor) {
         },
     );
 }
+#[perf_viz::record]
 fn move_right(gap_buffer: &GapBuffer, cursor: &mut Cursor) {
-    perf_viz::record_fn!();
     let pos = cursor.position;
     move_to(
         gap_buffer,
@@ -176,8 +176,8 @@ fn move_right(gap_buffer: &GapBuffer, cursor: &mut Cursor) {
         },
     );
 }
+#[perf_viz::record]
 fn move_to_line_start(gap_buffer: &GapBuffer, cursor: &mut Cursor) {
-    perf_viz::record_fn!();
     move_to(
         gap_buffer,
         cursor,
@@ -187,8 +187,8 @@ fn move_to_line_start(gap_buffer: &GapBuffer, cursor: &mut Cursor) {
         },
     );
 }
+#[perf_viz::record]
 fn move_to_line_end(gap_buffer: &GapBuffer, cursor: &mut Cursor) {
-    perf_viz::record_fn!();
     let line = cursor.position.line;
     let current_line = gap_buffer.lines().nth(line);
     if let Some(current_line) = current_line {
@@ -199,8 +199,8 @@ fn move_to_line_end(gap_buffer: &GapBuffer, cursor: &mut Cursor) {
         move_to(gap_buffer, cursor, new_position);
     }
 }
+#[perf_viz::record]
 fn move_to_buffer_start(_gap_buffer: &GapBuffer, cursor: &mut Cursor) {
-    perf_viz::record_fn!();
     // The fisrt position is always valid
     cursor.position = Position {
         line: 0,
@@ -208,8 +208,8 @@ fn move_to_buffer_start(_gap_buffer: &GapBuffer, cursor: &mut Cursor) {
     };
     cursor.sticky_offset = d!();
 }
+#[perf_viz::record]
 fn move_to_buffer_end(gap_buffer: &GapBuffer, cursor: &mut Cursor) {
-    perf_viz::record_fn!();
     if let Some((line, line_data)) = gap_buffer.lines().enumerate().last() {
         let new_position = Position {
             line,

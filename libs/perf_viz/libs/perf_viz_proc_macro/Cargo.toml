@@ -1,16 +1,17 @@
 [package]
-name = "perf_viz"
+name = "perf_viz_proc_macro"
 version = "0.1.0"
 authors = ["Ryan1729 <Ryan1729@gmail.com>"]
 edition = "2018"
 
 [lib]
-path = "./src/perf_viz.rs"
+path = "./src/perf_viz_proc_macro.rs"
+proc-macro = true
 
 [dependencies]
 flame = { version = "0.2.2", optional = true }
-perf_viz_proc_macro = { path = "libs/perf_viz_proc_macro" }
+flamer = { path = "../flamer", optional = true }
 
 [features]
 default = []
-flame-chart = ["flame", "perf_viz_proc_macro/flame-chart"]
+flame-chart = ["flame", "flamer"]

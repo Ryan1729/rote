@@ -9,13 +9,18 @@ path = "./src/gap_buffer.rs"
 
 
 [dependencies]
-unicode-segmentation = "1.2.1"
 
 [dependencies.macros]
 path = "../../../macros"
+
+[dependencies.perf_viz]
+path = "../../../perf_viz"
 
 [dependencies.platform_types]
 path = "../../../platform_types"
 
 [dependencies.editor_types]
 path = "../editor_types"
+
+[dependencies.unicode_segmentation]
+path = "../unicode-segmentation"

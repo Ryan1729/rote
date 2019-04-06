@@ -12,6 +12,7 @@ path = "./src/opengl.rs"
 [dependencies]
 platform_types = { path = "../../../platform_types" }
 perf_viz = { path = "../../../perf_viz" }
+perf_viz_proc_macro = { path = "../../../perf_viz/libs/perf_viz_proc_macro" }
 gl_layer = { path = "gl_layer" }
 glyph_brush = { version = "0.4.1" }
 glyph_brush_layout = { version = "0.1.5" }

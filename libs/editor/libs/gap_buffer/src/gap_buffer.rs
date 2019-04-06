@@ -142,6 +142,7 @@ impl GapBuffer {
         .into();
     }
 
+    #[perf_viz::record]
     pub fn in_bounds<P: Borrow<Position>>(&self, position: P) -> bool {
         self.find_index(position) != None
     }
@@ -159,6 +160,7 @@ impl GapBuffer {
     // TODO should we label these offsets with which buffer they are from? Can PhantomData do that?
     /// If the cursor is after the "ö" we want the `Position`'s offset to be `1`., not `2` so we
     /// can delete the "ö" with a single keystroke.
+    #[perf_viz::record]
     pub fn find_index<P: Borrow<Position>>(&self, position: P) -> Option<ByteIndex> {
         let pos = position.borrow();
         let mut line = 0;
@@ -167,7 +169,7 @@ impl GapBuffer {
         let first_half = self.get_str(..self.gap_start.0);
 
         for (offset, grapheme) in first_half
-            .grapheme_indices(true)
+            .grapheme_indices()
             .map(|(o, g)| (ByteIndex(o), g))
         {
             // Check to see if we've found the position yet.
@@ -193,7 +195,7 @@ impl GapBuffer {
         // We haven't reached the position yet, so we'll move on to the other half.
         let second_half = self.get_str(self.gap_end().0..);
         for (offset, grapheme) in second_half
-            .grapheme_indices(true)
+            .grapheme_indices()
             .map(|(o, g)| (ByteIndex(o), g))
         {
             // Check to see if we've found the position yet.
@@ -221,6 +223,7 @@ impl GapBuffer {
 
     /// The character offset of the given position in the entre buffer. The output is suitable for
     /// passing into `self.graphemes().nth`.
+    #[perf_viz::record]
     pub fn find_absolute_offset<P: Borrow<Position>>(&self, position: P) -> Option<CharOffset> {
         let pos = position.borrow();
         let mut line = 0;
@@ -229,7 +232,7 @@ impl GapBuffer {
 
         let first_half = self.get_str(..self.gap_start.0);
 
-        for grapheme in first_half.graphemes(true) {
+        for grapheme in first_half.graphemes() {
             // Check to see if we've found the position yet.
             if line == pos.line && line_offset == pos.offset {
                 return Some(absolute_offset);
@@ -248,7 +251,7 @@ impl GapBuffer {
 
         // We haven't reached the position yet, so we'll move on to the other half.
         let second_half = self.get_str(self.gap_end().0..);
-        for grapheme in second_half.graphemes(true) {
+        for grapheme in second_half.graphemes() {
             // Check to see if we've found the position yet.
             if line == pos.line && line_offset == pos.offset {
                 return Some(absolute_offset);
@@ -274,6 +277,7 @@ impl GapBuffer {
         None
     }
 
+    #[perf_viz::record]
     fn get_str<I>(&self, index: I) -> &str
     where
         I: std::slice::SliceIndex<[u8], Output = [u8]>,
@@ -353,11 +357,11 @@ impl<'buffer> GapBuffer {
     }
 
     pub fn graphemes(&'buffer self) -> impl Iterator<Item = &str> + 'buffer {
-        chain_halves!(self=>graphemes(true))
+        chain_halves!(self=>graphemes)
     }
 
     pub fn grapheme_indices(&'buffer self) -> impl Iterator<Item = (usize, &str)> + 'buffer {
-        chain_halves!(self=>grapheme_indices(true))
+        chain_halves!(self=>grapheme_indices)
     }
 
     pub fn chars(&'buffer self) -> impl Iterator<Item = char> + 'buffer {
@@ -383,7 +387,7 @@ where
                 gap_buffer
                     .lines()
                     .nth(line)
-                    .map(|s| s.graphemes(true).count())
+                    .map(|s| s.graphemes().count())
                     .unwrap_or_default(),
             ),
         }

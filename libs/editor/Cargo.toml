@@ -13,6 +13,8 @@ unicode-segmentation = "1.2.1"
 
 [dependencies.perf_viz]
 path = "../perf_viz"
+[dependencies.perf_viz_proc_macro]
+path = "../perf_viz/libs/perf_viz_proc_macro"
 
 [dependencies.platform_types]
 path = "../platform_types"

@@ -7,8 +7,15 @@ use glyph_brush::{rusttype::Font, *};
 
 use platform_types::{BufferView, CharOffset, Input, Position, Sizes, UpdateAndRender};
 
+#[perf_viz::record]
 pub fn run(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
-    perf_viz::record_fn!();
+    run_inner(update_and_render)
+}
+
+// This extra fn is a workaround for the record attribute causing a "procedural macros cannot
+// expand to macro definitions" error otherwise.According to issue #54727, this is because there
+// is some worry that all the macro hygiene edge cases may not be handled.
+fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
     if cfg!(target_os = "linux") {
         use std::env;
         // winit wayland is currently still wip
