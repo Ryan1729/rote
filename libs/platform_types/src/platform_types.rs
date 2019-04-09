@@ -14,6 +14,18 @@ pub enum Move {
 }
 
 #[derive(Clone, Copy, Debug)]
+pub struct ScreenSpaceXY {
+    pub x: f32,
+    pub y: f32,
+}
+
+impl From<ScreenSpaceXY> for (f32, f32) {
+    fn from(ScreenSpaceXY { x, y }: ScreenSpaceXY) -> Self {
+        (x, y)
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
 pub enum Input {
     None,
     Insert(char),
@@ -22,9 +34,56 @@ pub enum Input {
     ScrollVertically(f32),
     ScrollHorizontally(f32),
     SetSizes(Sizes),
-    SetMousePos((f32, f32)),
+    SetMousePos(ScreenSpaceXY),
     MoveAllCursors(Move),
-    ReplaceCursors(Position),
+    ReplaceCursors(ScreenSpaceXY),
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+///We are currently assuming the font is monospace!
+pub struct CharDim {
+    pub w: f32,
+    pub h: f32,
+}
+
+impl From<CharDim> for (f32, f32) {
+    fn from(CharDim { w, h }: CharDim) -> Self {
+        (w, h)
+    }
+}
+
+pub fn screen_space_to_position(
+    ScreenSpaceXY { x, y }: ScreenSpaceXY,
+    CharDim { w, h }: CharDim,
+    (scroll_x, scroll_y): (f32, f32),
+) -> Position {
+    // This is made much more conveinient by the monospace assumption!
+    Position {
+        offset: CharOffset(
+            //conveniently `(x / 0.0) as usize` is `0` rather than a panic.
+            (((x - scroll_x) / w)
+                // The right half of a character should correspond to the position to the right of
+                // the character.
+                + 0.5) as usize,
+        ),
+        line: ((y - scroll_y) / h) as usize,
+    }
+}
+
+pub fn position_to_screen_space(
+    Position { offset, line }: Position,
+    CharDim { w, h }: CharDim,
+    (scroll_x, scroll_y): (f32, f32),
+) -> ScreenSpaceXY {
+    // This is made much more conveinient by the monospace assumption!
+
+    // Weird *graphical-only* stuff given a >2^24 long line and/or >2^24
+    // lines seems better than an error box or something like that.
+    #[allow(clippy::cast_precision_loss)]
+    ScreenSpaceXY {
+        x: offset.0 as f32 * w + scroll_x,
+        y: line as f32 * h + scroll_y,
+    }
 }
 
 d!(for Input : Input::None);
@@ -55,34 +114,10 @@ pub struct Position {
 
 display! {for Position : Position{ line, offset } in "{}:{}", line, offset}
 
-#[derive(Clone, Copy, Debug)]
-pub struct Sizes {
-    pub screen_w: Option<f32>,
-    pub screen_h: Option<f32>,
-    pub char_w: Option<f32>,
-    pub line_h: Option<f32>,
-}
-
-#[macro_export]
-macro_rules! Sizes {
-    {
-        screen_w: $screen_w:expr,
-        screen_h: $screen_h:expr,
-        char_w: $char_w:expr,
-        line_h: $line_h:expr $(,)?
-    } => (
-        Sizes {
-            screen_w: $screen_w.into(),
-            screen_h: $screen_h.into(),
-            char_w: $char_w.into(),
-            line_h: $line_h.into(),
-        }
-    );
-}
-
 #[derive(Default)]
-pub struct View {
+pub struct View<'me> {
     pub buffers: Vec<BufferView>,
+    pub marker: std::marker::PhantomData<&'me ()>,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -107,4 +142,26 @@ pub enum Cmd {
 
 d!(for Cmd : Cmd::NoCmd);
 
-pub type UpdateAndRender = fn(Input) -> (View, Cmd);
+pub type UpdateAndRender<'view> = fn(&mut View<'view>, Input) -> Cmd;
+
+#[derive(Clone, Copy, Debug)]
+pub struct Sizes {
+    pub screen_w: Option<f32>,
+    pub screen_h: Option<f32>,
+    pub char_dim: Option<CharDim>,
+}
+
+#[macro_export]
+macro_rules! Sizes {
+    {
+        screen_w: $screen_w:expr,
+        screen_h: $screen_h:expr,
+        char_dim: $char_dim:expr $(,)?
+    } => (
+        Sizes {
+            screen_w: $screen_w.into(),
+            screen_h: $screen_h.into(),
+            char_dim: $char_dim.into(),
+        }
+    );
+}

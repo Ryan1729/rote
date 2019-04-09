@@ -5,7 +5,9 @@ use glutin::dpi::LogicalPosition;
 use glutin::{Api, ContextTrait, GlProfile, GlRequest};
 use glyph_brush::{rusttype::Font, *};
 
-use platform_types::{BufferView, CharOffset, Input, Position, Sizes, UpdateAndRender};
+use platform_types::{
+    BufferView, CharDim, CharOffset, Input, Position, ScreenSpaceXY, Sizes, UpdateAndRender,
+};
 
 #[perf_viz::record]
 pub fn run(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
@@ -61,26 +63,31 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
         .ok_or("get_inner_size = None")?
         .to_physical(window.get_hidpi_factor());
 
-    let char_w = {
-        // We currently assume the font is monospaced.
-        let em_space_char = '\u{2003}';
-        let h_metrics = font.glyph(em_space_char).scaled(scale).h_metrics();
+    let char_dim = CharDim {
+        w: {
+            // We currently assume the font is monospaced.
+            let em_space_char = '\u{2003}';
+            let h_metrics = font.glyph(em_space_char).scaled(scale).h_metrics();
 
-        h_metrics.advance_width
+            h_metrics.advance_width
+        },
+        h: {
+            let v_metrics = font.v_metrics(scale);
+
+            v_metrics.ascent + -v_metrics.descent + v_metrics.line_gap
+        },
     };
 
-    let line_h = {
-        let v_metrics = font.v_metrics(scale);
+    let mut view = Default::default();
 
-        v_metrics.ascent + -v_metrics.descent + v_metrics.line_gap
-    };
-
-    let (mut view, mut cmd) = update_and_render(Input::SetSizes(Sizes! {
-        screen_w: dimensions.width as f32,
-        screen_h: dimensions.height as f32,
-        char_w: char_w,
-        line_h: line_h
-    }));
+    let mut cmd = update_and_render(
+        &mut view,
+        Input::SetSizes(Sizes! {
+            screen_w: dimensions.width as f32,
+            screen_h: dimensions.height as f32,
+            char_dim: char_dim,
+        }),
+    );
 
     let block_width = {
         let full_block_char = '█';
@@ -99,9 +106,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
             if let Event::WindowEvent { event, .. } = event {
                 macro_rules! call_u_and_r {
                     ($input:expr) => {
-                        let (v, c) = update_and_render($input);
-                        view = v;
-                        cmd = c;
+                        cmd = update_and_render(&mut view, $input);
                     };
                 }
 
@@ -116,8 +121,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                             call_u_and_r!(Input::SetSizes(Sizes! {
                                 screen_w: dimensions.width as f32,
                                 screen_h: dimensions.height as f32,
-                                char_w: None,
-                                line_h: None,
+                                char_dim: None,
                             }));
                             gl_layer::set_dimensions(dimensions.width as _, dimensions.height as _);
 
@@ -182,8 +186,11 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                         }
                         _ => (),
                     },
-                    WindowEvent::ReceivedCharacter(c) => {
+                    WindowEvent::ReceivedCharacter(mut c) => {
                         if c != '\u{7f}' && c != '\u{8}' {
+                            if c == '\r' {
+                                c = '\n';
+                            }
                             call_u_and_r!(Input::Insert(c));
                         }
                     }
@@ -207,19 +214,19 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                     } => {
                         mouse_x = x as f32;
                         mouse_y = y as f32;
-                        call_u_and_r!(Input::SetMousePos((mouse_x, mouse_y)));
+                        call_u_and_r!(Input::SetMousePos(ScreenSpaceXY {
+                            x: mouse_x,
+                            y: mouse_y
+                        }));
                     }
                     WindowEvent::MouseInput {
                         button: MouseButton::Left,
                         ..
                     } => {
-                        // This imade much more conveinient by the monospace assumption!
-                        let position = Position {
-                            //conveniently `(x / 0.0) as usize` is `0` rather than a panic.
-                            offset: CharOffset((mouse_x / char_w) as usize),
-                            line: (mouse_y / line_h) as usize,
-                        };
-                        call_u_and_r!(Input::ReplaceCursors(position));
+                        call_u_and_r!(Input::ReplaceCursors(ScreenSpaceXY {
+                            x: mouse_x,
+                            y: mouse_y
+                        }));
                     }
                     _ => {}
                 }
@@ -232,7 +239,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
             color,
             ref chars,
             screen_position,
-        } in &view.buffers
+        } in view.buffers.iter()
         {
             use platform_types::BufferViewKind;
 

@@ -691,9 +691,6 @@ pub struct GraphemeCursor {
     // is set, then counts the number of RIS between that and `offset`, otherwise
     // is an accurate count relative to the string.
     ris_count: Option<usize>,
-    // Set if a call to `prev_boundary` or `next_boundary` was suspended due
-    // to needing more input.
-    resuming: bool,
 }
 
 // An enum describing the result from lookup of a pair of categories.
@@ -764,7 +761,6 @@ impl GraphemeCursor {
             cat_after: None,
             pre_context_offset: None,
             ris_count: None,
-            resuming: false,
         }
     }
 
@@ -851,42 +847,33 @@ impl GraphemeCursor {
     }
 
     #[perf_viz::record]
-    pub fn next_boundary(&mut self, chunk: &str) -> usize {
+    pub fn next_boundary(&mut self, chunk: &str) -> usize {        
         use grapheme as gr;
         let mut iter = chunk[self.offset..].chars();
         let mut ch = iter.next().unwrap();
         loop {
-            if self.resuming {
-                if self.cat_after.is_none() {
-                    self.cat_after = Some(gr::grapheme_category(ch));
-                }
-            } else {
-                self.offset += ch.len_utf8();
-                self.state = GraphemeState::Unknown;
-                self.cat_before = self.cat_after.take();
-                if self.cat_before.is_none() {
-                    self.cat_before = Some(gr::grapheme_category(ch));
-                }
-                if self.cat_before.unwrap() == GraphemeCat::GC_Regional_Indicator {
-                    self.ris_count = self.ris_count.map(|c| c + 1);
-                } else {
-                    self.ris_count = Some(0);
-                }
-                if let Some(next_ch) = iter.next() {
-                    ch = next_ch;
-                    self.cat_after = Some(gr::grapheme_category(ch));
-                } else if self.offset == self.len {
-                    decide!(self, true);
-                } else {
-                    unreachable!("we were unwrapping before");
-                }
+            self.offset += ch.len_utf8();
+            self.state = GraphemeState::Unknown;
+            self.cat_before = self.cat_after.take();
+            if self.cat_before.is_none() {
+                self.cat_before = Some(gr::grapheme_category(ch));
             }
-            self.resuming = true;
+            if self.cat_before.unwrap() == GraphemeCat::GC_Regional_Indicator {
+                self.ris_count = self.ris_count.map(|c| c + 1);
+            } else {
+                self.ris_count = Some(0);
+            }
+            if let Some(next_ch) = iter.next() {
+                ch = next_ch;
+                self.cat_after = Some(gr::grapheme_category(ch));
+            } else if self.offset == self.len {
+                decide!(self, true);
+            } else {
+                unreachable!("we were unwrapping before");
+            }
             if self.is_boundary(chunk) {
-                self.resuming = false;
                 return self.offset;
             }
-            self.resuming = false;
         }
     }
 }

@@ -1,7 +1,10 @@
 use editor_types::Cursor;
 use gap_buffer::GapBuffer;
 use macros::{d, dg};
-use platform_types::{BufferView, CharOffset, Cmd, Input, Move, Position, View};
+use platform_types::{
+    position_to_screen_space, screen_space_to_position, BufferView, CharDim, CharOffset, Cmd,
+    Input, Move, Position, ScreenSpaceXY, View,
+};
 use std::borrow::Borrow;
 use unicode_segmentation::UnicodeSegmentation;
 use vec1::Vec1;
@@ -52,12 +55,12 @@ impl Buffer {
         }
     }
 
-    #[perf_viz::record]
+    #[allow(dead_code)]
     fn grapheme_before(&self, c: &Cursor) -> Option<&str> {
         self.gap_buffer.grapheme_before(c)
     }
 
-    #[perf_viz::record]
+    #[allow(dead_code)]
     fn grapheme_after(&self, c: &Cursor) -> Option<&str> {
         self.gap_buffer.grapheme_after(c)
     }
@@ -65,6 +68,11 @@ impl Buffer {
     #[perf_viz::record]
     fn in_bounds<P: Borrow<Position>>(&self, p: P) -> bool {
         self.gap_buffer.in_bounds(p)
+    }
+
+    #[perf_viz::record]
+    fn nearest_valid_position_on_same_line<P: Borrow<Position>>(&self, p: P) -> Option<Position> {
+        self.gap_buffer.nearest_valid_position_on_same_line(p)
     }
 }
 
@@ -242,9 +250,7 @@ pub struct State {
     screen_h: f32,
     mouse_x: f32,
     mouse_y: f32,
-    ///We are currently assuming the font is monospace!
-    char_w: f32,
-    line_h: f32,
+    char_dim: CharDim,
 }
 
 impl State {
@@ -262,6 +268,92 @@ pub fn new() -> State {
     d!()
 }
 
+#[perf_viz::record]
+pub fn render_view<'view>(state: &State, view: &mut View<'view>) {
+    use platform_types::BufferViewKind;
+    let status_line_y = state.screen_h - state.char_dim.h;
+    view.buffers.clear();
+
+    match state.current_buffer() {
+        Some(buffer) => {
+            view.buffers.push(BufferView {
+                kind: BufferViewKind::Edit,
+                screen_position: (state.scroll_x, state.scroll_y),
+                bounds: (std::f32::INFINITY, std::f32::INFINITY),
+                color: [0.3, 0.3, 0.9, 1.0],
+                chars: buffer.chars().collect::<String>(),
+            });
+
+            for position in buffer.cursors.iter().map(|c| c.position) {
+                let screen_position = position_to_screen_space(
+                    position,
+                    state.char_dim,
+                    (state.scroll_x, state.scroll_y),
+                )
+                .into();
+
+                view.buffers.push(BufferView {
+                    kind: BufferViewKind::Cursor,
+                    screen_position,
+                    bounds: (state.screen_w, state.char_dim.h),
+                    color: [0.9, 0.3, 0.3, 1.0],
+                    chars: "▏".to_string(),
+                });
+            }
+
+            view.buffers.push(BufferView {
+                kind: BufferViewKind::StatusLine,
+                screen_position: (0.0, status_line_y),
+                bounds: (state.screen_w, state.char_dim.h),
+                color: [0.3, 0.9, 0.3, 1.0],
+                chars: {
+                    use std::fmt::Write;
+                    let mut chars = String::with_capacity(state.screen_w as usize);
+
+                    let _cannot_actually_fail = write!(
+                        chars,
+                        "m{:?} c{:?} ",
+                        (state.mouse_x, state.mouse_y),
+                        (state.char_dim.w, state.char_dim.h)
+                    );
+
+                    chars = buffer.cursors.iter().fold(chars, |mut acc, c| {
+                        let _cannot_actually_fail = write!(
+                            acc,
+                            "{} ({:?}|{:?}) ({:?}|{:?})",
+                            c,
+                            // 0,
+                            // 0,
+                            // 0,
+                            // 0,
+                            buffer.grapheme_before(c),
+                            buffer.grapheme_after(c),
+                            buffer.gap_buffer.find_index(c).and_then(|o| if o == 0 {
+                                None
+                            } else {
+                                Some(o - 1)
+                            }),
+                            buffer.gap_buffer.find_index(c),
+                        );
+                        acc
+                    });
+
+                    chars
+                },
+            });
+        }
+        None => {
+            view.buffers.push(BufferView {
+                kind: BufferViewKind::StatusLine,
+                screen_position: (0.0, status_line_y),
+                bounds: (state.screen_w, state.char_dim.h),
+                color: [0.9, 0.3, 0.3, 1.0],
+                chars: "No buffer selected.".to_owned(),
+            });
+        }
+    };
+}
+
 macro_rules! set_if_present {
     ($source:ident => $target:ident.$field:ident) => {
         if let Some($field) = $source.$field {
@@ -271,8 +363,7 @@ macro_rules! set_if_present {
 }
 
 #[perf_viz::record]
-pub fn update_and_render(state: &mut State, input: Input) -> (View, Cmd) {
-    use platform_types::BufferViewKind;
+pub fn update_and_render<'view>(state: &mut State, view: &mut View<'view>, input: Input) -> Cmd {
     if cfg!(debug_assertions) {
         if let Input::SetMousePos(_) = input {
 
@@ -310,102 +401,26 @@ pub fn update_and_render(state: &mut State, input: Input) -> (View, Cmd) {
         Input::SetSizes(sizes) => {
             set_if_present!(sizes => state.screen_w);
             set_if_present!(sizes => state.screen_h);
-            set_if_present!(sizes => state.char_w);
-            set_if_present!(sizes => state.line_h);
+            set_if_present!(sizes => state.char_dim);
         }
-        Input::SetMousePos((mouse_x, mouse_y)) => {
-            state.mouse_x = mouse_x;
-            state.mouse_y = mouse_y;
+        Input::SetMousePos(ScreenSpaceXY { x, y }) => {
+            state.mouse_x = x;
+            state.mouse_y = y;
         }
-        Input::ReplaceCursors(position) => {
+        Input::ReplaceCursors(xy) => {
+            let position =
+                screen_space_to_position(xy, state.char_dim, (state.scroll_x, state.scroll_y));
             if let Some(b) = state.current_buffer_mut() {
                 if b.in_bounds(position) {
                     b.cursors = Vec1::new(Cursor::new(position));
+                } else if let Some(p) = b.nearest_valid_position_on_same_line(position) {
+                    b.cursors = Vec1::new(Cursor::new(p));
                 }
             }
         }
     }
 
-    let status_line_y = state.screen_h - state.line_h;
+    render_view(state, view);
 
-    (
-        View {
-            buffers: state.current_buffer().map_or_else(
-                || {
-                    vec![BufferView {
-                        kind: BufferViewKind::StatusLine,
-                        screen_position: (0.0, status_line_y),
-                        bounds: (state.screen_w, state.line_h),
-                        color: [0.9, 0.3, 0.3, 1.0],
-                        chars: "No buffer selected.".to_owned(),
-                    }]
-                },
-                |buffer| {
-                    let mut views = vec![BufferView {
-                        kind: BufferViewKind::Edit,
-                        screen_position: (state.scroll_x, state.scroll_y),
-                        bounds: (std::f32::INFINITY, std::f32::INFINITY),
-                        color: [0.3, 0.3, 0.9, 1.0],
-                        chars: buffer.chars().collect::<String>(),
-                    }];
-
-                    for position in buffer.cursors.iter().map(|c| c.position) {
-                        // Weird *graphical-only* stuff given a >2^24 long line and/or >2^24
-                        // lines seems better than an error box or something like that.
-                        #[allow(clippy::cast_precision_loss)]
-                        let screen_position = (
-                            position.offset.0 as f32 * state.char_w + state.scroll_x,
-                            position.line as f32 * state.line_h + state.scroll_y,
-                        );
-
-                        views.push(BufferView {
-                            kind: BufferViewKind::Cursor,
-                            screen_position,
-                            bounds: (state.screen_w, state.line_h),
-                            color: [0.9, 0.3, 0.3, 1.0],
-                            chars: "▏".to_string(),
-                        });
-                    }
-
-                    views.push(BufferView {
-                        kind: BufferViewKind::StatusLine,
-                        screen_position: (0.0, status_line_y),
-                        bounds: (state.screen_w, state.line_h),
-                        color: [0.3, 0.9, 0.3, 1.0],
-                        chars: {
-                            use std::fmt::Write;
-                            let mut chars = String::with_capacity(state.screen_w as usize);
-
-                            let _cannot_actually_fail = write!(
-                                chars,
-                                "m{:?} c{:?} ",
-                                (state.mouse_x, state.mouse_y),
-                                (state.char_w, state.line_h)
-                            );
-
-                            buffer.cursors.iter().fold(chars, |mut acc, c| {
-                                let _cannot_actually_fail = write!(
-                                    acc,
-                                    "{} ({:?}|{:?}) ({:?}|{:?})",
-                                    c,
-                                    buffer.grapheme_before(c),
-                                    buffer.grapheme_after(c),
-                                    buffer.gap_buffer.find_index(c).and_then(|o| if o == 0 {
-                                        None
-                                    } else {
-                                        Some(o - 1)
-                                    }),
-                                    buffer.gap_buffer.find_index(c),
-                                );
-                                acc
-                            })
-                        },
-                    });
-
-                    views
-                },
-            ),
-        },
-        Cmd::NoCmd,
-    )
+    Cmd::NoCmd
 }

@@ -12,6 +12,16 @@ pub use perf_viz_proc_macro::record;
 /// necessary. Or the root crate would need a dependency on at least one crate. But this way
 /// everything related to performance visualization is in this crate besides the annotations.
 
+pub fn start_record<S: Into<std::borrow::Cow<'static, str>>>(_s: S) {
+    #[cfg(any(feature = "flame-chart", feature = "flame-graph"))]
+    flame::start(_s);
+}
+
+pub fn end_record<S: Into<std::borrow::Cow<'static, str>>>(_s: S) {
+    #[cfg(any(feature = "flame-chart", feature = "flame-graph"))]
+    flame::end(_s);
+}
+
 #[cfg(any(feature = "flame-chart", feature = "flame-graph"))]
 pub fn flame_start_guard<S: Into<std::borrow::Cow<'static, str>>>(s: S) -> flame::SpanGuard {
     flame::start_guard(s)
@@ -51,7 +61,7 @@ fn merge_spans(spans: &mut Vec<flame::Span>) {
         for (i, span) in spans_iter {
             if current.name == span.name && current.depth == span.depth {
                 current.delta += span.delta;
-                let mut children = std::mem::replace(&mut span.children, Vec::new());
+                let children = std::mem::replace(&mut span.children, Vec::new());
                 current.children.extend(children.into_iter());
             } else {
                 current = span;

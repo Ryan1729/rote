@@ -41,12 +41,6 @@ impl GapBuffer {
         ByteIndex(data.capacity())
     }
 
-    // This is the offset that a grapheme would be at if it was one past the last slot that is
-    // filled, that is, which is not part of the gap.
-    fn len_offset(data: &Utf8Data) -> ByteLength {
-        ByteLength(data.len())
-    }
-
     fn gap_end(&self) -> ByteIndex {
         ByteIndex(self.gap_start.0 + self.gap_length.0)
     }
@@ -141,6 +135,75 @@ impl GapBuffer {
         }
         .into();
     }
+}
+
+macro_rules! return_valid_position_if_available {
+    ($line:ident, $offset:ident, $pos:ident, $at_line_break:ident) => {
+        if $line == $pos.line {
+            if $offset == $pos.offset {
+                return Some(*$pos);
+            } else if $at_line_break {
+                return Some(Position {
+                    line: $line,
+                    offset: $offset,
+                });
+            }
+        }
+    };
+}
+
+impl GapBuffer {
+    #[perf_viz::record]
+    pub fn nearest_valid_position_on_same_line<P: Borrow<Position>>(
+        &self,
+        position: P,
+    ) -> Option<Position> {
+        let pos = position.borrow();
+        let mut line = 0;
+        let mut offset = CharOffset(0);
+        let mut at_line_break = false;
+
+        let first_half = self.get_str(..self.gap_start.0);
+        for grapheme in first_half.graphemes() {
+            at_line_break = grapheme == "\n" || grapheme == "\r\n";
+
+            return_valid_position_if_available!(line, offset, pos, at_line_break);
+
+            // Advance the line and offset characters.
+            if at_line_break {
+                line += 1;
+                offset = d!();
+            } else {
+                offset += 1;
+            }
+        }
+
+        // We didn't find the position *within* the first half, but it could
+        // be right after it, which means it's right at the start of the gap.
+        return_valid_position_if_available!(line, offset, pos, at_line_break);
+
+        // We haven't reached the position yet, so we'll move on to the other half.
+        let second_half = self.get_str(self.gap_end().0..);
+        for grapheme in second_half.graphemes() {
+            at_line_break = grapheme == "\n" || grapheme == "\r\n";
+
+            return_valid_position_if_available!(line, offset, pos, at_line_break);
+
+            // Advance the line and offset characters.
+            if at_line_break {
+                line += 1;
+                offset = d!();
+            } else {
+                offset += 1;
+            }
+        }
+
+        // We didn't find the position *within* the second half, but it could
+        // be right after it, which means it's at the end of the buffer.
+        return_valid_position_if_available!(line, offset, pos, at_line_break);
+
+        None
+    }
 
     #[perf_viz::record]
     pub fn in_bounds<P: Borrow<Position>>(&self, position: P) -> bool {
@@ -168,13 +231,13 @@ impl GapBuffer {
 
         let first_half = self.get_str(..self.gap_start.0);
 
-        for (offset, grapheme) in first_half
+        for (index, grapheme) in first_half
             .grapheme_indices()
             .map(|(o, g)| (ByteIndex(o), g))
         {
             // Check to see if we've found the position yet.
             if line == pos.line && line_offset == pos.offset {
-                return Some(offset);
+                return Some(index);
             }
 
             // Advance the line and offset characters.
@@ -194,13 +257,13 @@ impl GapBuffer {
 
         // We haven't reached the position yet, so we'll move on to the other half.
         let second_half = self.get_str(self.gap_end().0..);
-        for (offset, grapheme) in second_half
+        for (index, grapheme) in second_half
             .grapheme_indices()
             .map(|(o, g)| (ByteIndex(o), g))
         {
             // Check to see if we've found the position yet.
             if line == pos.line && line_offset == pos.offset {
-                return Some(self.gap_end() + offset);
+                return Some(self.gap_end() + index);
             }
 
             // Advance the line and offset characters.
@@ -289,6 +352,7 @@ impl GapBuffer {
         unsafe { std::str::from_utf8_unchecked(minimize_unsafe) }
     }
 
+    #[allow(dead_code)]
     pub fn grapheme_before(&self, c: &Cursor) -> Option<&str> {
         let offset = self.find_absolute_offset(c);
         offset.and_then(|CharOffset(o)| {
@@ -300,11 +364,13 @@ impl GapBuffer {
         })
     }
 
+    #[allow(dead_code)]
     pub fn grapheme_after(&self, c: &Cursor) -> Option<&str> {
         let offset = self.find_absolute_offset(c);
         offset.and_then(|CharOffset(o)| self.graphemes().nth(o))
     }
 
+    #[perf_viz::record]
     fn move_gap(&mut self, index: ByteIndex) {
         // We don't need to move any data if the buffer is at capacity.
         if self.gap_length == 0 {

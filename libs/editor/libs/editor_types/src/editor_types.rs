@@ -1,7 +1,6 @@
 use macros::{display, number_newtype, usize_newtype};
-use platform_types::{Position, CharOffset};
+use platform_types::{CharOffset, Position};
 use std::borrow::Borrow;
-use std::cmp::Ordering;
 use std::ops::{Add, Sub};
 
 /// In index into thebuffer's underlying bytes. Indexes into the gap are possible but usually
