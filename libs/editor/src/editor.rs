@@ -124,9 +124,8 @@ fn move_up(gap_buffer: &GapBuffer, cursor: &mut Cursor) {
     // Try moving to the same offset on the line below, falling back to its EOL.
     if let Moved::No = move_to(gap_buffer, cursor, new_position) {
         let mut target_offset = 0;
-        let current_line = gap_buffer.lines().nth(target_line);
-        if let Some(line) = current_line {
-            target_offset = line.graphemes(true).count();
+        if let Some(count) = gap_buffer.nth_line_count(target_line) {
+            target_offset = count;
         }
         move_to(
             gap_buffer,
@@ -155,9 +154,9 @@ fn move_down(gap_buffer: &GapBuffer, cursor: &mut Cursor) {
     // Try moving to the same offset on the line below, falling back to its EOL.
     if let Moved::No = move_to(gap_buffer, cursor, new_position) {
         let mut target_offset = 0;
-        let current_line = gap_buffer.lines().nth(target_line);
+        let current_line = gap_buffer.nth_line_count(target_line);
         if let Some(line) = current_line {
-            target_offset = line.graphemes(true).count();
+            target_offset = line;
         }
         move_to(
             gap_buffer,
@@ -217,11 +216,10 @@ fn move_to_line_start(gap_buffer: &GapBuffer, cursor: &mut Cursor) {
 #[perf_viz::record]
 fn move_to_line_end(gap_buffer: &GapBuffer, cursor: &mut Cursor) {
     let line = cursor.position.line;
-    let current_line = gap_buffer.lines().nth(line);
-    if let Some(current_line) = current_line {
+    if let Some(count) = gap_buffer.nth_line_count(line) {
         let new_position = Position {
             line,
-            offset: CharOffset(current_line.graphemes(true).count()),
+            offset: CharOffset(count),
         };
         move_to(gap_buffer, cursor, new_position);
     }
@@ -237,10 +235,10 @@ fn move_to_buffer_start(_gap_buffer: &GapBuffer, cursor: &mut Cursor) {
 }
 #[perf_viz::record]
 fn move_to_buffer_end(gap_buffer: &GapBuffer, cursor: &mut Cursor) {
-    if let Some((line, line_data)) = gap_buffer.lines().enumerate().last() {
+    if let Some((line, count)) = gap_buffer.last_line_index_and_count() {
         let new_position = Position {
             line,
-            offset: CharOffset(line_data.graphemes(true).count()),
+            offset: CharOffset(count),
         };
         move_to(gap_buffer, cursor, new_position);
     }
