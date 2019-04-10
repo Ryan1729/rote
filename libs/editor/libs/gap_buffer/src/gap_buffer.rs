@@ -352,24 +352,6 @@ impl GapBuffer {
         unsafe { std::str::from_utf8_unchecked(minimize_unsafe) }
     }
 
-    #[allow(dead_code)]
-    pub fn grapheme_before(&self, c: &Cursor) -> Option<&str> {
-        let offset = self.find_absolute_offset(c);
-        offset.and_then(|CharOffset(o)| {
-            if o == 0 {
-                None
-            } else {
-                self.graphemes().nth(o - 1)
-            }
-        })
-    }
-
-    #[allow(dead_code)]
-    pub fn grapheme_after(&self, c: &Cursor) -> Option<&str> {
-        let offset = self.find_absolute_offset(c);
-        offset.and_then(|CharOffset(o)| self.graphemes().nth(o))
-    }
-
     #[perf_viz::record]
     fn move_gap(&mut self, index: ByteIndex) {
         // We don't need to move any data if the buffer is at capacity.
@@ -400,6 +382,42 @@ impl GapBuffer {
             // gap length. We must remove it to determine the starting point.
             self.gap_start = ByteIndex(index.0 - self.gap_length.0);
         }
+    }
+}
+
+//
+// Probably only useful for debugging
+//
+#[allow(dead_code)]
+impl GapBuffer {
+    #[perf_viz::record]
+    pub fn grapheme_before(&self, c: &Cursor) -> Option<&str> {
+        let offset = self.find_absolute_offset(c);
+        offset.and_then(|CharOffset(o)| {
+            if o == 0 {
+                None
+            } else {
+                self.graphemes().nth(o - 1)
+            }
+        })
+    }
+
+    #[perf_viz::record]
+    pub fn grapheme_after(&self, c: &Cursor) -> Option<&str> {
+        let offset = self.find_absolute_offset(c);
+        offset.and_then(|CharOffset(o)| self.graphemes().nth(o))
+    }
+
+    #[perf_viz::record]
+    pub fn grapheme_before_gap(&self) -> Option<&str> {
+        let first_half = self.get_str(..self.gap_start.0);
+        first_half.graphemes().next_back()
+    }
+
+    #[perf_viz::record]
+    pub fn grapheme_after_gap(&self) -> Option<&str> {
+        let second_half = self.get_str(self.gap_end().0..);
+        second_half.graphemes().next()
     }
 }
 

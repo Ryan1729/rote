@@ -78,16 +78,11 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
         },
     };
 
-    let mut view = Default::default();
-
-    let mut cmd = update_and_render(
-        &mut view,
-        Input::SetSizes(Sizes! {
-            screen_w: dimensions.width as f32,
-            screen_h: dimensions.height as f32,
-            char_dim: char_dim,
-        }),
-    );
+    let (mut view, mut _cmd) = update_and_render(Input::SetSizes(Sizes! {
+        screen_w: dimensions.width as f32,
+        screen_h: dimensions.height as f32,
+        char_dim: char_dim,
+    }));
 
     let block_width = {
         let full_block_char = '█';
@@ -98,6 +93,19 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
 
     let (mut mouse_x, mut mouse_y) = (0.0, 0.0);
 
+    use std::sync::mpsc::channel;
+
+    // into the editor thread
+    let (in_tx, in_rx) = channel();
+    // out of the editor thread
+    let (out_tx, out_rx) = channel();
+
+    std::thread::spawn(move || {
+        while let Ok(input) = in_rx.recv() {
+            let _hope_it_gets_there = out_tx.send(update_and_render(input));
+        }
+    });
+
     while running {
         loop_helper.loop_start();
 
@@ -106,7 +114,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
             if let Event::WindowEvent { event, .. } = event {
                 macro_rules! call_u_and_r {
                     ($input:expr) => {
-                        cmd = update_and_render(&mut view, $input);
+                        let _hope_it_gets_there = in_tx.send($input);
                     };
                 }
 
@@ -214,10 +222,6 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                     } => {
                         mouse_x = x as f32;
                         mouse_y = y as f32;
-                        call_u_and_r!(Input::SetMousePos(ScreenSpaceXY {
-                            x: mouse_x,
-                            y: mouse_y
-                        }));
                     }
                     WindowEvent::MouseInput {
                         button: MouseButton::Left,
@@ -232,6 +236,14 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                 }
             }
         });
+
+        match out_rx.try_recv() {
+            Ok((v, c)) => {
+                view = v;
+                _cmd = c;
+            }
+            _ => {}
+        };
 
         for &BufferView {
             kind,
@@ -286,7 +298,12 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
         window.swap_buffers()?;
 
         if let Some(rate) = loop_helper.report_rate() {
-            window.set_title(&format!("{} {:.0} FPS", title, rate));
+            window.set_title(&format!(
+                "{} {:.0} FPS {:?}",
+                title,
+                rate,
+                (mouse_x, mouse_y)
+            ));
         }
         loop_helper.loop_sleep();
     }

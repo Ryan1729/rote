@@ -115,9 +115,8 @@ pub struct Position {
 display! {for Position : Position{ line, offset } in "{}:{}", line, offset}
 
 #[derive(Default)]
-pub struct View<'me> {
+pub struct View {
     pub buffers: Vec<BufferView>,
-    pub marker: std::marker::PhantomData<&'me ()>,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -142,7 +141,8 @@ pub enum Cmd {
 
 d!(for Cmd : Cmd::NoCmd);
 
-pub type UpdateAndRender<'view> = fn(&mut View<'view>, Input) -> Cmd;
+pub type UpdateAndRenderOutput = (View, Cmd);
+pub type UpdateAndRender = fn(Input) -> UpdateAndRenderOutput;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Sizes {

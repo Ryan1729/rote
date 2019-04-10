@@ -3,7 +3,7 @@ use gap_buffer::GapBuffer;
 use macros::{d, dg};
 use platform_types::{
     position_to_screen_space, screen_space_to_position, BufferView, CharDim, CharOffset, Cmd,
-    Input, Move, Position, ScreenSpaceXY, View,
+    Input, Move, Position, ScreenSpaceXY, UpdateAndRenderOutput, View,
 };
 use std::borrow::Borrow;
 use unicode_segmentation::UnicodeSegmentation;
@@ -55,6 +55,18 @@ impl Buffer {
         }
     }
 
+    #[perf_viz::record]
+    fn in_bounds<P: Borrow<Position>>(&self, p: P) -> bool {
+        self.gap_buffer.in_bounds(p)
+    }
+
+    #[perf_viz::record]
+    fn nearest_valid_position_on_same_line<P: Borrow<Position>>(&self, p: P) -> Option<Position> {
+        self.gap_buffer.nearest_valid_position_on_same_line(p)
+    }
+}
+
+impl Buffer {
     #[allow(dead_code)]
     fn grapheme_before(&self, c: &Cursor) -> Option<&str> {
         self.gap_buffer.grapheme_before(c)
@@ -65,14 +77,14 @@ impl Buffer {
         self.gap_buffer.grapheme_after(c)
     }
 
-    #[perf_viz::record]
-    fn in_bounds<P: Borrow<Position>>(&self, p: P) -> bool {
-        self.gap_buffer.in_bounds(p)
+    #[allow(dead_code)]
+    fn grapheme_before_gap(&self) -> Option<&str> {
+        self.gap_buffer.grapheme_before_gap()
     }
 
-    #[perf_viz::record]
-    fn nearest_valid_position_on_same_line<P: Borrow<Position>>(&self, p: P) -> Option<Position> {
-        self.gap_buffer.nearest_valid_position_on_same_line(p)
+    #[allow(dead_code)]
+    fn grapheme_after_gap(&self) -> Option<&str> {
+        self.gap_buffer.grapheme_after_gap()
     }
 }
 
@@ -269,7 +281,7 @@ pub fn new() -> State {
 }
 
 #[perf_viz::record]
-pub fn render_view<'view>(state: &State, view: &mut View<'view>) {
+pub fn render_view(state: &State, view: &mut View) {
     use platform_types::BufferViewKind;
     let status_line_y = state.screen_h - state.char_dim.h;
     view.buffers.clear();
@@ -317,17 +329,18 @@ pub fn render_view<'view>(state: &State, view: &mut View<'view>) {
                         (state.char_dim.w, state.char_dim.h)
                     );
 
+                    let _cannot_actually_fail = write!(
+                        chars,
+                        "g({:?}|{:?}) ",
+                        buffer.grapheme_before_gap(),
+                        buffer.grapheme_after_gap()
+                    );
+
                     chars = buffer.cursors.iter().fold(chars, |mut acc, c| {
                         let _cannot_actually_fail = write!(
                             acc,
-                            "{} ({:?}|{:?}) ({:?}|{:?})",
+                            "{} ({:?}|{:?})",
                             c,
-                            // 0,
-                            // 0,
-                            // 0,
-                            // 0,
-                            buffer.grapheme_before(c),
-                            buffer.grapheme_after(c),
                             buffer.gap_buffer.find_index(c).and_then(|o| if o == 0 {
                                 None
                             } else {
@@ -363,7 +376,7 @@ macro_rules! set_if_present {
 }
 
 #[perf_viz::record]
-pub fn update_and_render<'view>(state: &mut State, view: &mut View<'view>, input: Input) -> Cmd {
+pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutput {
     if cfg!(debug_assertions) {
         if let Input::SetMousePos(_) = input {
 
@@ -420,7 +433,9 @@ pub fn update_and_render<'view>(state: &mut State, view: &mut View<'view>, input
         }
     }
 
-    render_view(state, view);
+    let mut view = d!();
 
-    Cmd::NoCmd
+    render_view(state, &mut view);
+
+    (view, Cmd::NoCmd)
 }

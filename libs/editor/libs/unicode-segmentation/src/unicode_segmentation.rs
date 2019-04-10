@@ -635,6 +635,18 @@ impl<'a> Iterator for Graphemes<'a> {
     }
 }
 
+impl<'a> DoubleEndedIterator for Graphemes<'a> {
+    #[inline]
+    fn next_back(&mut self) -> Option<&'a str> {
+        let end = self.cursor_back.offset;
+        if end == self.cursor.offset {
+            return None;
+        }
+        let prev = self.cursor_back.prev_boundary(self.string, 0);
+        Some(&self.string[prev..end])
+    }
+}
+
 #[inline]
 pub fn new_graphemes<'b>(s: &'b str) -> Graphemes<'b> {
     let len = s.len();
@@ -800,7 +812,7 @@ impl GraphemeCursor {
     }
 
     #[perf_viz::record]
-    pub fn is_boundary(&mut self, chunk: &str) -> bool {
+    pub fn is_boundary(&mut self, chunk: &str, chunk_start: usize) -> bool {
         use grapheme as gr;
         if self.state == GraphemeState::Break {
             return true;
@@ -808,12 +820,12 @@ impl GraphemeCursor {
         if self.state == GraphemeState::NotBreak {
             return false;
         }
-        let offset_in_chunk = self.offset;
+        let offset_in_chunk = self.offset - chunk_start;
         if self.cat_after.is_none() {
             let ch = chunk[offset_in_chunk..].chars().next().unwrap();
             self.cat_after = Some(gr::grapheme_category(ch));
         }
-        if self.offset == 0 {
+        if self.offset == chunk_start {
             match self.cat_after.unwrap() {
                 gr::GC_Regional_Indicator => self.state = GraphemeState::Regional,
                 gr::GC_E_Modifier => self.state = GraphemeState::Emoji,
@@ -847,7 +859,7 @@ impl GraphemeCursor {
     }
 
     #[perf_viz::record]
-    pub fn next_boundary(&mut self, chunk: &str) -> usize {        
+    pub fn next_boundary(&mut self, chunk: &str) -> usize {
         use grapheme as gr;
         let mut iter = chunk[self.offset..].chars();
         let mut ch = iter.next().unwrap();
@@ -871,7 +883,38 @@ impl GraphemeCursor {
             } else {
                 unreachable!("we were unwrapping before");
             }
-            if self.is_boundary(chunk) {
+            if self.is_boundary(chunk, 0) {
+                return self.offset;
+            }
+        }
+    }
+
+    #[perf_viz::record]
+    pub fn prev_boundary(&mut self, chunk: &str, chunk_start: usize) -> usize {
+        use grapheme as gr;
+        let mut iter = chunk[..self.offset - chunk_start].chars().rev();
+        let mut ch = iter.next().unwrap();
+        loop {
+            self.offset -= ch.len_utf8();
+            self.cat_after = self.cat_before.take();
+            self.state = GraphemeState::Unknown;
+            if let Some(ris_count) = self.ris_count {
+                self.ris_count = if ris_count > 0 {
+                    Some(ris_count - 1)
+                } else {
+                    None
+                };
+            }
+            if let Some(prev_ch) = iter.next() {
+                ch = prev_ch;
+                self.cat_before = Some(gr::grapheme_category(ch));
+            } else if self.offset == 0 {
+                decide!(self, true);
+            } else {
+                unreachable!("we were unwrapping before");
+            }
+
+            if self.is_boundary(chunk, chunk_start) {
                 return self.offset;
             }
         }
