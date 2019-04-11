@@ -966,4 +966,146 @@ mod tests {
             ]
         );
     }
+
+    //
+    //    NTH LINE COUNT
+    //
+
+    #[test]
+    fn nth_line_count_works_with_single_line_with_gap_at_start() {
+        let mut buffer = init!("1234567890");
+        buffer.move_gap(ByteIndex(0));
+        assert_eq!(buffer.nth_line_count(0), Some(10));
+    }
+    #[test]
+    fn nth_line_count_works_with_single_line_with_gap_in_middle() {
+        let mut buffer = init!("1234567890");
+        buffer.move_gap(ByteIndex(5));
+        assert_eq!(buffer.nth_line_count(0), Some(10));
+    }
+    #[test]
+    fn nth_line_count_works_with_single_line_with_gap_at_end() {
+        let mut buffer = init!("1234567890");
+        buffer.move_gap(ByteIndex(10));
+        assert_eq!(buffer.nth_line_count(0), Some(10));
+    }
+
+    #[test]
+    fn nth_line_count_works_with_two_lines_with_gap_at_start_of_first() {
+        let mut buffer = init!("12345\n67890");
+        buffer.move_gap(ByteIndex(0));
+        assert_eq!(buffer.nth_line_count(0), Some(5));
+        assert_eq!(buffer.nth_line_count(1), Some(5));
+    }
+    #[test]
+    fn nth_line_count_works_with_two_lines_with_gap_in_midde_of_first() {
+        let mut buffer = init!("12345\n67890");
+        buffer.move_gap(ByteIndex(2));
+        assert_eq!(buffer.nth_line_count(0), Some(5));
+        assert_eq!(buffer.nth_line_count(1), Some(5));
+    }
+    #[test]
+    fn nth_line_count_works_with_two_lines_with_gap_at_end_of_first() {
+        let mut buffer = init!("12345\n67890");
+        buffer.move_gap(ByteIndex(5));
+        assert_eq!(buffer.nth_line_count(0), Some(5));
+        assert_eq!(buffer.nth_line_count(1), Some(5));
+    }
+
+    #[test]
+    fn nth_line_count_works_with_two_lines_with_gap_at_start_of_second() {
+        let mut buffer = init!("12345\n67890");
+        buffer.move_gap(ByteIndex(6));
+        assert_eq!(buffer.nth_line_count(0), Some(5));
+        assert_eq!(buffer.nth_line_count(1), Some(5));
+    }
+    #[test]
+    fn nth_line_count_works_with_two_lines_with_gap_in_midde_of_second() {
+        let mut buffer = init!("12345\n67890");
+        buffer.move_gap(ByteIndex(8));
+        assert_eq!(buffer.nth_line_count(0), Some(5));
+        assert_eq!(buffer.nth_line_count(1), Some(5));
+    }
+    #[test]
+    fn nth_line_count_works_with_two_lines_with_gap_at_end_of_second() {
+        let mut buffer = init!("12345\n67890");
+        buffer.move_gap(ByteIndex(11));
+        assert_eq!(buffer.nth_line_count(0), Some(5));
+        assert_eq!(buffer.nth_line_count(1), Some(5));
+    }
+
+    #[test]
+    fn nth_line_count_works_with_three_lines_with_gap_at_start_of_first() {
+        let mut buffer = init!("1234\n567\n890");
+        buffer.move_gap(ByteIndex(0));
+        assert_eq!(buffer.nth_line_count(0), Some(4));
+        assert_eq!(buffer.nth_line_count(1), Some(3));
+        assert_eq!(buffer.nth_line_count(1), Some(3));
+    }
+    #[test]
+    fn nth_line_count_works_with_three_lines_with_gap_in_midde_of_first() {
+        let mut buffer = init!("1234\n567\n890");
+        buffer.move_gap(ByteIndex(2));
+        assert_eq!(buffer.nth_line_count(0), Some(4));
+        assert_eq!(buffer.nth_line_count(1), Some(3));
+        assert_eq!(buffer.nth_line_count(1), Some(3));
+    }
+    #[test]
+    fn nth_line_count_works_with_three_lines_with_gap_at_end_of_first() {
+        let mut buffer = init!("1234\n567\n890");
+        buffer.move_gap(ByteIndex(4));
+        assert_eq!(buffer.nth_line_count(0), Some(4));
+        assert_eq!(buffer.nth_line_count(1), Some(3));
+        assert_eq!(buffer.nth_line_count(1), Some(3));
+    }
+
+    #[test]
+    fn nth_line_count_works_with_three_lines_with_gap_at_start_of_second() {
+        let mut buffer = init!("1234\n567\n890");
+        buffer.move_gap(ByteIndex(5));
+        assert_eq!(buffer.nth_line_count(0), Some(4));
+        assert_eq!(buffer.nth_line_count(1), Some(3));
+        assert_eq!(buffer.nth_line_count(1), Some(3));
+    }
+    #[test]
+    fn nth_line_count_works_with_three_lines_with_gap_in_midde_of_second() {
+        let mut buffer = init!("1234\n567\n890");
+        buffer.move_gap(ByteIndex(6));
+        assert_eq!(buffer.nth_line_count(0), Some(4));
+        assert_eq!(buffer.nth_line_count(1), Some(3));
+        assert_eq!(buffer.nth_line_count(1), Some(3));
+    }
+    #[test]
+    fn nth_line_count_works_with_three_lines_with_gap_at_end_of_second() {
+        let mut buffer = init!("1234\n567\n890");
+        buffer.move_gap(ByteIndex(8));
+        assert_eq!(buffer.nth_line_count(0), Some(4));
+        assert_eq!(buffer.nth_line_count(1), Some(3));
+        assert_eq!(buffer.nth_line_count(1), Some(3));
+    }
+
+    #[test]
+    fn nth_line_count_works_with_three_lines_with_gap_at_start_of_third() {
+        let mut buffer = init!("1234\n567\n890");
+        buffer.move_gap(ByteIndex(9));
+        assert_eq!(buffer.nth_line_count(0), Some(4));
+        assert_eq!(buffer.nth_line_count(1), Some(3));
+        assert_eq!(buffer.nth_line_count(1), Some(3));
+    }
+    #[test]
+    fn nth_line_count_works_with_three_lines_with_gap_in_midde_of_third() {
+        let mut buffer = init!("1234\n567\n890");
+        buffer.move_gap(ByteIndex(10));
+        assert_eq!(buffer.nth_line_count(0), Some(4));
+        assert_eq!(buffer.nth_line_count(1), Some(3));
+        assert_eq!(buffer.nth_line_count(1), Some(3));
+    }
+    #[test]
+    fn nth_line_count_works_with_three_lines_with_gap_at_end_of_third() {
+        let mut buffer = init!("1234\n567\n890");
+        buffer.move_gap(ByteIndex(12));
+        assert_eq!(buffer.nth_line_count(0), Some(4));
+        assert_eq!(buffer.nth_line_count(1), Some(3));
+        assert_eq!(buffer.nth_line_count(1), Some(3));
+    }
 }
