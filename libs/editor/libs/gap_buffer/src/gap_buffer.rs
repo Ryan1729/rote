@@ -465,70 +465,50 @@ impl<'buffer> GapBuffer {
 
 struct GapLines<'buffer> {
     next_of_first: Option<&'buffer str>,
-    first_half: Option<std::str::Lines<'buffer>>,
+    first_half: std::str::Lines<'buffer>,
     second_half: std::str::Lines<'buffer>,
+    gap_is_between_lines: bool,
 }
-
-// enum GapLinesState {
-//     NextOfFirst(&'buffer str),
-// }
 
 impl<'buffer> Iterator for GapLines<'buffer> {
     type Item = GapLine<'buffer>;
 
     // TODO: fast nth
-    // fn nth(mut n: usize) {
+    // fn nth(mut n: usize) -> Option<Self::Item> {
     //
     // }
     fn next(&mut self) -> Option<Self::Item> {
-        None
-        // match self.next_of_first {
-        //     None => {
-        //         let next = self.first_half.next();
-        //         self.next_of_first = self.first_half.next().or_else(||);
-        //         next
-        //     },
-        //     Some(next_of_first) => {
-        //     match self.first_half.next() {
-        //         Some(current) => {
-        //             let next = self.first_half.next();
-        //             if next.is_some() {
-        //                 self.next_of_first = next;
-        //                 Some(current)
-        //             } else {
-        //                 if current.ends_with("\n") {
-        //                     self.second_half = Some(
-        //                         self.buffer
-        //                             .get_str((self.buffer.gap_start + self.buffer.gap_length).0..)
-        //                             .lines(),
-        //                     );
-        //                     Some(current)
-        //                 } else {
-        //                     let mut second_half = self
-        //                         .buffer
-        //                         .get_str((self.buffer.gap_start + self.buffer.gap_length).0..)
-        //                         .lines();
-        //                     match second_half.next() {
-        //                         None => {
-        //                             self.second_half = Some(second_half);
-        //                             Some(current)
-        //                         }
-        //                         Some(after_gap) => {
-        //                             for gc in self.gap_cover {
-        //                                 gc.extend(current.clone().chars());
-        //                             }
-        //                             for gc in self.gap_cover {
-        //                                 gc.extend(after_gap.clone().chars());
-        //                             }
-        //                             self.gap_cover.as_ref().tak
-        //                         }
-        //                     }
-        //                 }
-        //             }
-        //         }
-        //         None => self.second_half.next(),
-        //     }
-        // }
+        macro_rules! handle_gap_edges {
+            ($first:expr) => {
+                if self.gap_is_between_lines {
+                    Some($first).map(GapLine::Connected)
+                } else {
+                    match self.second_half.next() {
+                        Some(from_second) => match ($first, from_second) {
+                            ("", line) | (line, "") => Some(line).map(GapLine::Connected),
+                            (f, s) => Some(GapLine::Gapped(f, s)),
+                        },
+                        None => Some($first).map(GapLine::Connected),
+                    }
+                }
+            };
+        }
+
+        let next = self.next_of_first;
+        self.next_of_first = self.first_half.next();
+
+        match (next, self.next_of_first) {
+            (Some(n), Some(_)) => Some(n).map(GapLine::Connected),
+            (Some(n), None) => handle_gap_edges!(n),
+            (None, Some(nn)) => {
+                self.next_of_first = self.first_half.next();
+                match self.next_of_first {
+                    None => handle_gap_edges!(nn),
+                    Some(_) => Some(nn).map(GapLine::Connected),
+                }
+            }
+            (None, None) => self.second_half.next().map(GapLine::Connected),
+        }
     }
 }
 
@@ -552,54 +532,27 @@ impl<'buffer> GapBuffer {
         let (first_half, second_half) = self.get_halves();
         GapLines {
             next_of_first: None,
-            first_half: Some(first_half.lines()),
+            first_half: first_half.lines(),
             second_half: second_half.lines(),
+            gap_is_between_lines: first_half
+                .chars()
+                .last()
+                .map(|c| c == '\n')
+                // If the gap is at the start then the gap is not inside a line
+                .unwrap_or(true),
         }
     }
 }
 
 impl GapBuffer {
     pub fn nth_line_count(&self, n: usize) -> Option<usize> {
-        let (first_half, second_half) = self.get_halves();
-        let mut first_half_lines = first_half.lines();
-        match first_half_lines.nth(n) {
-            Some(line) => {
-                let count = line.graphemes().count();
-
-                if let Some(_) = first_half_lines.next() {
-                    Some(count)
-                } else if first_half.ends_with("\n") {
-                    Some(count)
-                } else {
-                    Some(
-                        count
-                            + second_half
-                                .lines()
-                                .next()
-                                .map(|l| l.graphemes().count())
-                                .unwrap_or_default(),
-                    )
-                }
+        // TODO fast version of this. (fast `nth` may be enough).
+        self.lines().nth(n).map(|g| match g {
+            GapLine::Gapped(first, second) => {
+                first.graphemes().count() + second.graphemes().count()
             }
-            None => {
-                let left_over = n - first_half.lines().count();
-                if left_over > 1 || first_half.ends_with("\n") {
-                    second_half
-                        .lines()
-                        .nth(left_over)
-                        .map(|l| l.graphemes().count())
-                } else {
-                    match (
-                        first_half.lines().last().map(|l| l.graphemes().count()),
-                        second_half.lines().next().map(|l| l.graphemes().count()),
-                    ) {
-                        (Some(first), Some(second)) => Some(first + second),
-                        (Some(count), None) | (None, Some(count)) => Some(count),
-                        (None, None) => None,
-                    }
-                }
-            }
-        }
+            GapLine::Connected(line) => line.graphemes().count(),
+        })
     }
 
     pub fn last_line_index_and_count(&self) -> Option<(usize, usize)> {
@@ -711,8 +664,8 @@ mod tests {
 
         // should delete '0'
         buffer.delete(Position {
-            offset: CharOffset(0),
-            line: 1,
+            offset: CharOffset(10),
+            line: 0,
         });
 
         p!(buffer);
@@ -806,7 +759,7 @@ mod tests {
         buffer.move_gap(ByteIndex(2));
         assert_eq!(
             buffer.lines().collect::<Vec<_>>(),
-            vec![GapLine::Gapped("123", "45"), GapLine::Connected("67890")]
+            vec![GapLine::Gapped("12", "345"), GapLine::Connected("67890")]
         );
     }
     #[test]
@@ -1040,7 +993,7 @@ mod tests {
         buffer.move_gap(ByteIndex(0));
         assert_eq!(buffer.nth_line_count(0), Some(4));
         assert_eq!(buffer.nth_line_count(1), Some(3));
-        assert_eq!(buffer.nth_line_count(1), Some(3));
+        assert_eq!(buffer.nth_line_count(2), Some(3));
     }
     #[test]
     fn nth_line_count_works_with_three_lines_with_gap_in_midde_of_first() {
@@ -1048,7 +1001,7 @@ mod tests {
         buffer.move_gap(ByteIndex(2));
         assert_eq!(buffer.nth_line_count(0), Some(4));
         assert_eq!(buffer.nth_line_count(1), Some(3));
-        assert_eq!(buffer.nth_line_count(1), Some(3));
+        assert_eq!(buffer.nth_line_count(2), Some(3));
     }
     #[test]
     fn nth_line_count_works_with_three_lines_with_gap_at_end_of_first() {
@@ -1056,7 +1009,7 @@ mod tests {
         buffer.move_gap(ByteIndex(4));
         assert_eq!(buffer.nth_line_count(0), Some(4));
         assert_eq!(buffer.nth_line_count(1), Some(3));
-        assert_eq!(buffer.nth_line_count(1), Some(3));
+        assert_eq!(buffer.nth_line_count(2), Some(3));
     }
 
     #[test]
@@ -1065,7 +1018,7 @@ mod tests {
         buffer.move_gap(ByteIndex(5));
         assert_eq!(buffer.nth_line_count(0), Some(4));
         assert_eq!(buffer.nth_line_count(1), Some(3));
-        assert_eq!(buffer.nth_line_count(1), Some(3));
+        assert_eq!(buffer.nth_line_count(2), Some(3));
     }
     #[test]
     fn nth_line_count_works_with_three_lines_with_gap_in_midde_of_second() {
@@ -1073,7 +1026,7 @@ mod tests {
         buffer.move_gap(ByteIndex(6));
         assert_eq!(buffer.nth_line_count(0), Some(4));
         assert_eq!(buffer.nth_line_count(1), Some(3));
-        assert_eq!(buffer.nth_line_count(1), Some(3));
+        assert_eq!(buffer.nth_line_count(2), Some(3));
     }
     #[test]
     fn nth_line_count_works_with_three_lines_with_gap_at_end_of_second() {
@@ -1081,7 +1034,7 @@ mod tests {
         buffer.move_gap(ByteIndex(8));
         assert_eq!(buffer.nth_line_count(0), Some(4));
         assert_eq!(buffer.nth_line_count(1), Some(3));
-        assert_eq!(buffer.nth_line_count(1), Some(3));
+        assert_eq!(buffer.nth_line_count(2), Some(3));
     }
 
     #[test]
@@ -1090,7 +1043,7 @@ mod tests {
         buffer.move_gap(ByteIndex(9));
         assert_eq!(buffer.nth_line_count(0), Some(4));
         assert_eq!(buffer.nth_line_count(1), Some(3));
-        assert_eq!(buffer.nth_line_count(1), Some(3));
+        assert_eq!(buffer.nth_line_count(2), Some(3));
     }
     #[test]
     fn nth_line_count_works_with_three_lines_with_gap_in_midde_of_third() {
@@ -1098,7 +1051,7 @@ mod tests {
         buffer.move_gap(ByteIndex(10));
         assert_eq!(buffer.nth_line_count(0), Some(4));
         assert_eq!(buffer.nth_line_count(1), Some(3));
-        assert_eq!(buffer.nth_line_count(1), Some(3));
+        assert_eq!(buffer.nth_line_count(2), Some(3));
     }
     #[test]
     fn nth_line_count_works_with_three_lines_with_gap_at_end_of_third() {
@@ -1106,6 +1059,6 @@ mod tests {
         buffer.move_gap(ByteIndex(12));
         assert_eq!(buffer.nth_line_count(0), Some(4));
         assert_eq!(buffer.nth_line_count(1), Some(3));
-        assert_eq!(buffer.nth_line_count(1), Some(3));
+        assert_eq!(buffer.nth_line_count(2), Some(3));
     }
 }
