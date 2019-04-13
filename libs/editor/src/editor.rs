@@ -1,12 +1,11 @@
 use editor_types::Cursor;
-use gap_buffer::GapBuffer;
+use gap_buffer::{backward, forward, GapBuffer};
 use macros::{d, dg};
 use platform_types::{
     position_to_screen_space, screen_space_to_position, BufferView, CharDim, CharOffset, Cmd,
     Input, Move, Position, ScreenSpaceXY, UpdateAndRenderOutput, View,
 };
 use std::borrow::Borrow;
-use unicode_segmentation::UnicodeSegmentation;
 use vec1::Vec1;
 
 #[derive(Default)]
@@ -175,32 +174,11 @@ fn move_down(gap_buffer: &GapBuffer, cursor: &mut Cursor) {
 }
 #[perf_viz::record]
 fn move_left(gap_buffer: &GapBuffer, cursor: &mut Cursor) {
-    let pos = cursor.position;
-    // Don't bother if we are already at the left edge.
-    if pos.offset == 0 {
-        return;
-    }
-
-    move_to(
-        gap_buffer,
-        cursor,
-        Position {
-            offset: pos.offset - 1,
-            ..pos
-        },
-    );
+    move_to(gap_buffer, cursor, backward(gap_buffer, cursor.position));
 }
 #[perf_viz::record]
 fn move_right(gap_buffer: &GapBuffer, cursor: &mut Cursor) {
-    let pos = cursor.position;
-    move_to(
-        gap_buffer,
-        cursor,
-        Position {
-            offset: pos.offset + 1,
-            ..pos
-        },
-    );
+    move_to(gap_buffer, cursor, forward(gap_buffer, cursor.position));
 }
 #[perf_viz::record]
 fn move_to_line_start(gap_buffer: &GapBuffer, cursor: &mut Cursor) {
@@ -384,6 +362,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
     }
     match input {
         Input::None => {}
+        Input::Quit => {}
         Input::Insert(c) => {
             if let Some(b) = state.current_buffer_mut() {
                 b.insert(c);

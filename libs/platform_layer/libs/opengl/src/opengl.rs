@@ -5,9 +5,7 @@ use glutin::dpi::LogicalPosition;
 use glutin::{Api, ContextTrait, GlProfile, GlRequest};
 use glyph_brush::{rusttype::Font, *};
 
-use platform_types::{
-    BufferView, CharDim, CharOffset, Input, Position, ScreenSpaceXY, Sizes, UpdateAndRender,
-};
+use platform_types::{BufferView, CharDim, Input, ScreenSpaceXY, Sizes, UpdateAndRender};
 
 #[perf_viz::record]
 pub fn run(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
@@ -100,11 +98,18 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
     // out of the editor thread
     let (out_tx, out_rx) = channel();
 
-    std::thread::spawn(move || {
-        while let Ok(input) = in_rx.recv() {
-            let _hope_it_gets_there = out_tx.send(update_and_render(input));
-        }
-    });
+    let join_handle = std::thread::Builder::new()
+        .name("editor".to_string())
+        .spawn(move || {
+            while let Ok(input) = in_rx.recv() {
+                let pair = update_and_render(input);
+                let _hope_it_gets_there = out_tx.send(pair);
+                if let Input::Quit = input {
+                    return;
+                }
+            }
+        })
+        .expect("Could not start editor thread!");
 
     while running {
         loop_helper.loop_start();
@@ -170,7 +175,10 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                             },
                         ..
                     } => match keypress {
-                        VirtualKeyCode::Escape => running = false,
+                        VirtualKeyCode::Escape => {
+                            call_u_and_r!(Input::Quit);
+                            running = false;
+                        }
                         VirtualKeyCode::Back => {
                             call_u_and_r!(Input::Delete);
                         }
@@ -237,13 +245,15 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
             }
         });
 
-        match out_rx.try_recv() {
-            Ok((v, c)) => {
-                view = v;
-                _cmd = c;
-            }
-            _ => {}
-        };
+        if running {
+            match out_rx.try_recv() {
+                Ok((v, c)) => {
+                    view = v;
+                    _cmd = c;
+                }
+                _ => {}
+            };
+        }
 
         for &BufferView {
             kind,
@@ -307,6 +317,9 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
         }
         loop_helper.loop_sleep();
     }
+
+    // If we got here, we assume that we've sent a Quit input to the editor thread so it will stop.
+    join_handle.join().expect("Could not join editor tread!");
 
     perf_viz::output!();
 

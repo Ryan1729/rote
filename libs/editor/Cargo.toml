@@ -9,7 +9,6 @@ path = "./src/editor.rs"
 
 [dependencies]
 vec1 = "1.4.0"
-unicode-segmentation = "1.2.1"
 
 [dependencies.perf_viz]
 path = "../perf_viz"

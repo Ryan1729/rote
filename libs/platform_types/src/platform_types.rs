@@ -28,6 +28,7 @@ impl From<ScreenSpaceXY> for (f32, f32) {
 #[derive(Clone, Copy, Debug)]
 pub enum Input {
     None,
+    Quit,
     Insert(char),
     Delete,
     ResetScroll,

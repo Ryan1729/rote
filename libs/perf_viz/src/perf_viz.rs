@@ -86,15 +86,33 @@ fn merge_spans(spans: &mut Vec<flame::Span>) {
 
 #[cfg(feature = "flame-graph")]
 pub fn flame_output() {
-    println!("Writing out flame graph");
+    for (thread_name, mut spans) in flame::threads()
+        .into_iter()
+        .enumerate()
+        .map(|(i, t)| (t.name.unwrap_or_else(|| format!("thread {}", i)), t.spans))
+    {
+        println!("Writing out flame graph for {} thread", thread_name);
+        merge_spans(&mut spans);
 
-    let mut spans = flame::threads().into_iter().next().unwrap().spans;
+        let path_name = format!("flame-graph-{}.html", thread_name);
+        let path: &std::path::Path = path_name.as_ref();
+        let mut file = std::fs::File::create(path).unwrap();
+        flame::dump_html_custom(&mut file, &spans).unwrap();
+        describe_output(path)
+    }
+
+    let mut spans = flame::threads().into_iter().fold(Vec::new(), |mut acc, t| {
+        acc.extend(t.spans);
+        acc
+    });
+
+    println!("Writing out flame graph for all threads");
     merge_spans(&mut spans);
 
-    let path: &std::path::Path = "flame-graph.html".as_ref();
+    let path_name = format!("flame-graph-all.html");
+    let path: &std::path::Path = path_name.as_ref();
     let mut file = std::fs::File::create(path).unwrap();
     flame::dump_html_custom(&mut file, &spans).unwrap();
-
     describe_output(path)
 }
 

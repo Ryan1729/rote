@@ -477,6 +477,7 @@ impl<'buffer> Iterator for GapLines<'buffer> {
     // fn nth(mut n: usize) -> Option<Self::Item> {
     //
     // }
+
     fn next(&mut self) -> Option<Self::Item> {
         macro_rules! handle_gap_edges {
             ($first:expr) => {
@@ -516,15 +517,6 @@ impl<'buffer> Iterator for GapLines<'buffer> {
 pub enum GapLine<'buffer> {
     Connected(&'buffer str),
     Gapped(&'buffer str, &'buffer str),
-}
-
-impl<'buffer> GapLine<'buffer> {
-    fn graphemes(&self) -> Box<Iterator<Item = &str> + 'buffer> {
-        match self {
-            GapLine::Connected(line) => Box::new(line.graphemes()),
-            GapLine::Gapped(first, second) => Box::new(first.graphemes().chain(second.graphemes())),
-        }
-    }
 }
 
 impl<'buffer> GapBuffer {
@@ -580,14 +572,7 @@ where
         let line = position.line.saturating_sub(1);
         Position {
             line,
-            // TODO write tests to confirm this works correctly
-            offset: CharOffset(
-                gap_buffer
-                    .lines()
-                    .nth(line)
-                    .map(|s| s.graphemes().count())
-                    .unwrap_or_default(),
-            ),
+            offset: CharOffset(gap_buffer.nth_line_count(line).unwrap_or_default()),
         }
     } else {
         Position {
@@ -683,6 +668,39 @@ mod tests {
         });
 
         assert_eq!(buffer.chars().collect::<String>(), "1234567890");
+    }
+
+    #[test]
+    fn backward_works_on_a_left_edge() {
+        let buffer = init!("1234\n567\r\n890");
+
+        assert_eq!(
+            backward(
+                &buffer,
+                Position {
+                    offset: CharOffset(0),
+                    line: 1,
+                },
+            ),
+            Position {
+                offset: CharOffset(4),
+                line: 0,
+            }
+        );
+
+        assert_eq!(
+            backward(
+                &buffer,
+                Position {
+                    offset: CharOffset(0),
+                    line: 2,
+                },
+            ),
+            Position {
+                offset: CharOffset(3),
+                line: 1,
+            }
+        );
     }
 
     #[test]
