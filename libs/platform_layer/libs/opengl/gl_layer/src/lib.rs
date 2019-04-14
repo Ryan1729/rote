@@ -134,6 +134,7 @@ pub fn set_dimensions(width: i32, height: i32) {
     }
 }
 
+#[perf_viz::record]
 pub fn render(
     State {
         ref mut vertex_count,
@@ -147,9 +148,11 @@ pub fn render(
     let dimensions = (width, height);
     let mut brush_action;
     loop {
+        perf_viz::start_record!("process_queued");
         brush_action = glyph_brush.process_queued(
             dimensions,
             |rect, tex_data| unsafe {
+                perf_viz::start_record!("|rect, tex_data|");
                 // Update part of gpu texture with new glyph alpha values
                 gl::TexSubImage2D(
                     gl::TEXTURE_2D,
@@ -163,9 +166,11 @@ pub fn render(
                     tex_data.as_ptr() as _,
                 );
                 gl_assert_ok!();
+                perf_viz::end_record!("|rect, tex_data|");
             },
             to_vertex,
         );
+        perf_viz::end_record!("process_queued");
 
         match brush_action {
             Ok(_) => break,
@@ -320,6 +325,7 @@ fn link_program(vs: GLuint, fs: GLuint) -> Res<GLuint> {
 }
 
 #[inline]
+#[perf_viz::record]
 fn to_vertex(
     glyph_brush::GlyphVertex {
         mut tex_coords,

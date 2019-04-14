@@ -12,14 +12,42 @@ pub use perf_viz_proc_macro::record;
 /// necessary. Or the root crate would need a dependency on at least one crate. But this way
 /// everything related to performance visualization is in this crate besides the annotations.
 
-pub fn start_record<S: Into<std::borrow::Cow<'static, str>>>(_s: S) {
+pub fn _start_record<S: Into<std::borrow::Cow<'static, str>>>(_s: S) {
     #[cfg(any(feature = "flame-chart", feature = "flame-graph"))]
     flame::start(_s);
 }
 
-pub fn end_record<S: Into<std::borrow::Cow<'static, str>>>(_s: S) {
+pub fn _end_record<S: Into<std::borrow::Cow<'static, str>>>(_s: S) {
     #[cfg(any(feature = "flame-chart", feature = "flame-graph"))]
     flame::end(_s);
+}
+
+#[cfg(any(feature = "flame-chart", feature = "flame-graph"))]
+#[macro_export]
+macro_rules! start_record {
+    ($label:expr) => {
+        perf_viz::_start_record($label);
+    };
+}
+
+#[cfg(not(any(feature = "flame-chart", feature = "flame-graph")))]
+#[macro_export]
+macro_rules! start_record {
+    ($label:expr) => {};
+}
+
+#[cfg(any(feature = "flame-chart", feature = "flame-graph"))]
+#[macro_export]
+macro_rules! end_record {
+    ($label:expr) => {
+        perf_viz::_end_record($label);
+    };
+}
+
+#[cfg(not(any(feature = "flame-chart", feature = "flame-graph")))]
+#[macro_export]
+macro_rules! end_record {
+    ($label:expr) => {};
 }
 
 #[cfg(any(feature = "flame-chart", feature = "flame-graph"))]
