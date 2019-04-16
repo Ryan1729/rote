@@ -5,6 +5,7 @@ authors = ["Ryan1729 <Ryan1729@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-glyph_brush = { version = "0.4.1" }
+glyph_brush = { path = "../glyph-brush" }
 gl = "0.11"
 perf_viz = { path = "../../../../perf_viz" }
+macros = { path = "../../../../macros" }

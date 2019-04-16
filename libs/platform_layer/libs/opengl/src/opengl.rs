@@ -1,6 +1,7 @@
 // This was originally based on example code for https://github.com/alexheretic/glyph-brush
-// the code is licensed under the Apache 2.0 license, as described in the license file in this folder.
-// To the extent that the code remains as it was (at commit 90e7c7c331e9f991e11de6404b2ca073c0a09e61)
+// the code is licensed under the Apache 2.0 license, as described in the license file in the
+// opengl folder, to the extent that the code remains as it was
+// (at commit 90e7c7c331e9f991e11de6404b2ca073c0a09e61)
 use glutin::dpi::LogicalPosition;
 use glutin::{Api, ContextTrait, GlProfile, GlRequest};
 use glyph_brush::{rusttype::Font, *};
@@ -50,7 +51,12 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
 
     let scale = rusttype::Scale::uniform((font_size * window.get_hidpi_factor() as f32).round());
 
-    let mut glyph_brush = GlyphBrushBuilder::using_font(font.clone()).build();
+    let mut glyph_brush = GlyphBrushBuilder::using_font(font.clone())
+        // Leaving this at the default of 0.1 makes the cache get cleared too often.
+        // Putting this at 1.0 means that the characters are visibly poorly kerned.
+        // This value seems like a happy medium at the moment.
+        .gpu_cache_position_tolerance(0.25)
+        .build();
 
     let mut gl_state = gl_layer::init(&glyph_brush, |symbol| window.get_proc_address(symbol) as _)?;
 
@@ -114,7 +120,9 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
     while running {
         loop_helper.loop_start();
 
+        perf_viz::start_record!("while running");
         events.poll_events(|event| {
+            perf_viz::record_guard!("events.poll_events");
             use glutin::*;
             if let Event::WindowEvent { event, .. } = event {
                 macro_rules! call_u_and_r {
@@ -255,6 +263,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
             };
         }
 
+        perf_viz::start_record!("for &BufferView");
         for &BufferView {
             kind,
             bounds,
@@ -267,6 +276,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
 
             // Without a background the edit buffer(s) show through the status line(s)
             if let BufferViewKind::StatusLine = kind {
+                perf_viz::record_guard!("StatusLine background");
                 let width = bounds.0;
                 let count = (width / block_width.floor()) + 1.0;
 
@@ -284,6 +294,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                 }
             }
 
+            perf_viz::record_guard!("glyph_brush.queue");
             glyph_brush.queue(Section {
                 text: chars,
                 scale,
@@ -299,6 +310,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                 ..Section::default()
             });
         }
+        perf_viz::end_record!("for &BufferView");
 
         let width = dimensions.width as u32;
         let height = dimensions.height as f32;
@@ -315,6 +327,8 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                 (mouse_x, mouse_y)
             ));
         }
+
+        perf_viz::end_record!("while running");
         loop_helper.loop_sleep();
     }
 

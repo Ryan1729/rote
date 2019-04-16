@@ -1,5 +1,7 @@
+// This file was split off of a file that was part of https://github.com/alexheretic/glyph-brush
 use gl::types::*;
 use glyph_brush::*;
+use macros::invariants_checked;
 use std::{ffi::CString, mem, ptr, str};
 
 pub struct State {
@@ -19,8 +21,10 @@ type Vertex = [GLfloat; 13];
 
 macro_rules! gl_assert_ok {
     () => {{
-        let err = gl::GetError();
-        assert_eq!(err, gl::NO_ERROR, "{}", gl_err_to_str(err));
+        if invariants_checked!() {
+            let err = gl::GetError();
+            assert_eq!(err, gl::NO_ERROR, "{}", gl_err_to_str(err));
+        }
     }};
 }
 
@@ -175,6 +179,7 @@ pub fn render(
         match brush_action {
             Ok(_) => break,
             Err(BrushError::TextureTooSmall { suggested, .. }) => unsafe {
+                perf_viz::record_guard!("BrushError::TextureTooSmall");
                 let (new_width, new_height) = suggested;
                 eprint!("\r                            \r");
                 eprintln!("Resizing glyph texture -> {}x{}", new_width, new_height);
@@ -197,6 +202,7 @@ pub fn render(
     }
     match brush_action? {
         BrushAction::Draw(vertices) => {
+            perf_viz::record_guard!("BrushAction::Draw");
             // Draw new vertices
             *vertex_count = vertices.len();
             unsafe {
@@ -222,6 +228,7 @@ pub fn render(
     }
 
     unsafe {
+        perf_viz::record_guard!("DrawArraysInstanced");
         gl::Clear(gl::COLOR_BUFFER_BIT);
         gl::DrawArraysInstanced(gl::TRIANGLE_STRIP, 0, 4, *vertex_count as _);
     }

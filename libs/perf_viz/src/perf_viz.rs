@@ -12,21 +12,11 @@ pub use perf_viz_proc_macro::record;
 /// necessary. Or the root crate would need a dependency on at least one crate. But this way
 /// everything related to performance visualization is in this crate besides the annotations.
 
-pub fn _start_record<S: Into<std::borrow::Cow<'static, str>>>(_s: S) {
-    #[cfg(any(feature = "flame-chart", feature = "flame-graph"))]
-    flame::start(_s);
-}
-
-pub fn _end_record<S: Into<std::borrow::Cow<'static, str>>>(_s: S) {
-    #[cfg(any(feature = "flame-chart", feature = "flame-graph"))]
-    flame::end(_s);
-}
-
 #[cfg(any(feature = "flame-chart", feature = "flame-graph"))]
 #[macro_export]
 macro_rules! start_record {
     ($label:expr) => {
-        perf_viz::_start_record($label);
+        perf_viz::z_start_record($label);
     };
 }
 
@@ -40,13 +30,42 @@ macro_rules! start_record {
 #[macro_export]
 macro_rules! end_record {
     ($label:expr) => {
-        perf_viz::_end_record($label);
+        perf_viz::z_end_record($label);
     };
 }
 
 #[cfg(not(any(feature = "flame-chart", feature = "flame-graph")))]
 #[macro_export]
 macro_rules! end_record {
+    ($label:expr) => {};
+}
+
+/// These `z_.*_record` functions need to be public for the similarly named macros to work,
+/// but they should not be directly called, and they should show up last in IDE autocomplete lists.
+/// That is why they start with the numerically largest character allowed in identifiers.
+pub fn z_start_record<S: Into<std::borrow::Cow<'static, str>>>(_s: S) {
+    #[cfg(any(feature = "flame-chart", feature = "flame-graph"))]
+    flame::start(_s);
+}
+
+pub fn z_end_record<S: Into<std::borrow::Cow<'static, str>>>(_s: S) {
+    #[cfg(any(feature = "flame-chart", feature = "flame-graph"))]
+    flame::end(_s);
+}
+
+#[cfg(any(feature = "flame-chart", feature = "flame-graph"))]
+#[macro_export]
+macro_rules! record_guard {
+    // See this link for an example of `std::ops::drop` with macros
+    // https://play.rust-lang.org/?version=stable&mode=debug&edition=2018&gist=635efd81d0830e534e15d228e45763ea
+    ($label:expr) => {
+        let _drop_in_outer_scope = perf_viz::flame_start_guard($label);
+    };
+}
+
+#[cfg(not(any(feature = "flame-chart", feature = "flame-graph")))]
+#[macro_export]
+macro_rules! record_guard {
     ($label:expr) => {};
 }
 
