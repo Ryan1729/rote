@@ -272,6 +272,10 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
             screen_position,
         } in view.buffers.iter()
         {
+            const EDIT_Z: f32 = 0.5;
+            const CURSOR_Z: f32 = 0.375;
+            const STATUS_BACKGROUND_Z: f32 = 0.25;
+            const STATUS_Z: f32 = 0.125;
             use platform_types::BufferViewKind;
 
             // Without a background the edit buffer(s) show through the status line(s)
@@ -289,6 +293,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                         bounds,
                         color: [7.0 / 256.0, 7.0 / 256.0, 7.0 / 256.0, 1.0],
                         layout: Layout::default_single_line(),
+                        z: STATUS_BACKGROUND_Z,
                         ..Section::default()
                     });
                 }
@@ -306,6 +311,11 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                     BufferViewKind::StatusLine | BufferViewKind::Cursor => {
                         Layout::default_single_line()
                     }
+                },
+                z: match kind {
+                    BufferViewKind::Edit => EDIT_Z,
+                    BufferViewKind::Cursor => CURSOR_Z,
+                    BufferViewKind::StatusLine => STATUS_Z,
                 },
                 ..Section::default()
             });

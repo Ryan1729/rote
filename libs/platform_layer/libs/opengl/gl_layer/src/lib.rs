@@ -53,6 +53,9 @@ where
         gl::GenBuffers(1, &mut vbo);
         gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
 
+        // Enamble Depth testing so we can occlude things while sending them down in any order
+        //gl::Enable(gl::DEPTH_TEST);
+
         {
             // Create a texture for the glyphs
             // The texture holds 1 byte per pixel as alpha data
@@ -229,7 +232,7 @@ pub fn render(
 
     unsafe {
         perf_viz::record_guard!("DrawArraysInstanced");
-        gl::Clear(gl::COLOR_BUFFER_BIT);
+        gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
         gl::DrawArraysInstanced(gl::TRIANGLE_STRIP, 0, 4, *vertex_count as _);
     }
 
