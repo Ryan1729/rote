@@ -263,6 +263,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
             };
         }
 
+        let mut status_line_position = None;
         perf_viz::start_record!("for &BufferView");
         for &BufferView {
             kind,
@@ -272,31 +273,11 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
             screen_position,
         } in view.buffers.iter()
         {
-            const EDIT_Z: f32 = 0.5;
-            const CURSOR_Z: f32 = 0.375;
-            const STATUS_BACKGROUND_Z: f32 = 0.25;
-            const STATUS_Z: f32 = 0.125;
             use platform_types::BufferViewKind;
 
             // Without a background the edit buffer(s) show through the status line(s)
             if let BufferViewKind::StatusLine = kind {
-                perf_viz::record_guard!("StatusLine background");
-                let width = bounds.0;
-                let count = (width / block_width.floor()) + 1.0;
-
-                let x = screen_position.0;
-                for i in 0..count as u64 {
-                    glyph_brush.queue(Section {
-                        text: "█",
-                        scale,
-                        screen_position: (x + (i as f32 * block_width.floor()), screen_position.1),
-                        bounds,
-                        color: [7.0 / 256.0, 7.0 / 256.0, 7.0 / 256.0, 1.0],
-                        layout: Layout::default_single_line(),
-                        z: STATUS_BACKGROUND_Z,
-                        ..Section::default()
-                    });
-                }
+                status_line_position = Some(screen_position);
             }
 
             perf_viz::record_guard!("glyph_brush.queue");
@@ -313,9 +294,9 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                     }
                 },
                 z: match kind {
-                    BufferViewKind::Edit => EDIT_Z,
-                    BufferViewKind::Cursor => CURSOR_Z,
-                    BufferViewKind::StatusLine => STATUS_Z,
+                    BufferViewKind::Edit => gl_layer::EDIT_Z,
+                    BufferViewKind::Cursor => gl_layer::CURSOR_Z,
+                    BufferViewKind::StatusLine => gl_layer::STATUS_Z,
                 },
                 ..Section::default()
             });
@@ -325,7 +306,13 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
         let width = dimensions.width as u32;
         let height = dimensions.height as f32;
 
-        gl_layer::render(&mut gl_state, &mut glyph_brush, width as _, height as _)?;
+        gl_layer::render(
+            &mut gl_state,
+            &mut glyph_brush,
+            width as _,
+            height as _,
+            status_line_position,
+        )?;
 
         window.swap_buffers()?;
 

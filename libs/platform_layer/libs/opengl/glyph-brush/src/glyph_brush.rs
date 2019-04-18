@@ -106,6 +106,11 @@ impl<'font, V: Clone + 'static, H: BuildHasher> GlyphCruncher<'font> for GlyphBr
     }
 }
 
+pub struct StatusLineInfo<V: Clone + 'static> {
+    pub transform_status_line: fn(&mut V),
+    pub status_line_position: (f32, f32),
+}
+
 impl<'font, V: Clone + 'static, H: BuildHasher> GlyphBrush<'font, V, H> {
     /// Queues a section/layout to be processed by the next call of
     /// [`process_queued`](struct.GlyphBrush.html#method.process_queued). Can be called multiple
@@ -246,6 +251,7 @@ impl<'font, V: Clone + 'static, H: BuildHasher> GlyphBrush<'font, V, H> {
         (screen_w, screen_h): (u32, u32),
         update_texture: F1,
         to_vertex: F2,
+        status_line_info: Option<StatusLineInfo<V>>,
     ) -> Result<BrushAction<V>, BrushError>
     where
         F1: FnMut(Rect<u32>, &[u8]),
@@ -267,6 +273,34 @@ impl<'font, V: Clone + 'static, H: BuildHasher> GlyphBrush<'font, V, H> {
             // Everything in the section_buffer should also be here. The extras should also
             // be retained in the texture cache avoiding cache thrashing if they are rendered
             // in a 2-draw per frame style.
+
+            // This status line stuff was hacked in here to fix a perf issue arising from
+            // the previous method that used multiple instances of the character
+            let status_line_hash = status_line_info.map(
+                |StatusLineInfo {
+                     transform_status_line,
+                     status_line_position,
+                 }| {
+                    let section = Section {
+                        text: "█",
+                        scale: Scale::uniform(11.0),
+                        screen_position: status_line_position,
+                        bounds: (std::f32::INFINITY, std::f32::INFINITY),
+                        color: [7.0 / 256.0, 7.0 / 256.0, 7.0 / 256.0, 1.0],
+                        layout: Layout::default_single_line(),
+                        z: 0.25,
+                        ..Section::default()
+                    }
+                    .into();
+
+                    let section_hash = self.cache_glyphs(&section, &section.layout);
+                    self.section_buffer.push(section_hash);
+                    self.keep_in_cache.insert(section_hash);
+
+                    (transform_status_line, section_hash)
+                },
+            );
+
             perf_viz::start_record!("keep_in_cache");
             for section_hash in &self.keep_in_cache {
                 for &(ref glyph, _, font_id) in self
@@ -340,6 +374,23 @@ impl<'font, V: Clone + 'static, H: BuildHasher> GlyphBrush<'font, V, H> {
                     glyphed.ensure_vertices(&self.texture_cache, screen_dims, to_vertex);
                     verts.append(&mut glyphed.vertices);
                     perf_viz::end_record!("BrushAction::Draw pre_positioned");
+                }
+
+                // This status line stuff was hacked in here to fix a perf issue arising from
+                // the previous method that used multiple instances of the character
+                if let Some((transform_status_line, status_line_hash)) = status_line_hash {
+                    let glyphed = self
+                        .calculate_glyph_cache
+                        .get_mut(&status_line_hash)
+                        .unwrap();
+                    println!("pre ensure_vertices {:?}", glyphed.positioned.glyphs);
+                    glyphed.ensure_vertices_dbg(&self.texture_cache, screen_dims, to_vertex);
+                    if let Some(mut vertex) = glyphed.vertices.pop() {
+                        println!("Some(mut vertex)");
+                        transform_status_line(&mut vertex);
+
+                        verts.push(vertex);
+                    }
                 }
 
                 verts
@@ -612,6 +663,7 @@ impl<'font, V: Clone + 'static> Glyphed<'font, V> {
         F: Fn(GlyphVertex) -> V,
     {
         if !self.vertices.is_empty() {
+            println!("ensure_vertices return");
             return;
         }
 
@@ -625,6 +677,57 @@ impl<'font, V: Clone + 'static> Glyphed<'font, V> {
         self.vertices
             .extend(glyphs.iter().filter_map(|(glyph, color, font_id)| {
                 match texture_cache.rect_for(font_id.0, glyph) {
+                    Err(err) => {
+                        error!("Cache miss?: {:?}, {:?}: {}", font_id, glyph, err);
+                        None
+                    }
+                    Ok(None) => None,
+                    Ok(Some((tex_coords, pixel_coords))) => {
+                        if pixel_coords.min.x as f32 > bounds.max.x
+                            || pixel_coords.min.y as f32 > bounds.max.y
+                            || bounds.min.x > pixel_coords.max.x as f32
+                            || bounds.min.y > pixel_coords.max.y as f32
+                        {
+                            // glyph is totally outside the bounds
+                            None
+                        } else {
+                            Some(to_vertex(GlyphVertex {
+                                tex_coords,
+                                pixel_coords,
+                                bounds,
+                                screen_dimensions,
+                                color: *color,
+                                z,
+                            }))
+                        }
+                    }
+                }
+            }));
+    }
+
+    fn ensure_vertices_dbg<F>(
+        &mut self,
+        texture_cache: &Cache<'font>,
+        screen_dimensions: (f32, f32),
+        to_vertex: F,
+    ) where
+        F: Fn(GlyphVertex) -> V,
+    {
+        if !self.vertices.is_empty() {
+            println!("ensure_vertices return");
+            return;
+        }
+
+        let GlyphedSection {
+            bounds,
+            z,
+            ref glyphs,
+        } = self.positioned;
+
+        self.vertices.reserve(glyphs.len());
+        self.vertices
+            .extend(glyphs.iter().filter_map(|(glyph, color, font_id)| {
+                match dbg!(texture_cache.rect_for(font_id.0, glyph)) {
                     Err(err) => {
                         error!("Cache miss?: {:?}, {:?}: {}", font_id, glyph, err);
                         None

@@ -4,6 +4,11 @@ use glyph_brush::*;
 use macros::invariants_checked;
 use std::{ffi::CString, mem, ptr, str};
 
+pub const EDIT_Z: f32 = 0.5;
+pub const CURSOR_Z: f32 = 0.375;
+pub const STATUS_BACKGROUND_Z: f32 = 0.25;
+pub const STATUS_Z: f32 = 0.125;
+
 pub struct State {
     vertex_count: usize,
     vertex_max: usize,
@@ -18,6 +23,11 @@ pub struct State {
 pub type Res<T> = Result<T, Box<std::error::Error>>;
 /// `[left_top * 3, right_bottom * 2, tex_left_top * 2, tex_right_bottom * 2, color * 4]`
 type Vertex = [GLfloat; 13];
+
+fn transform_status_line(vertex: &mut Vertex) {
+    let max_x = &mut vertex[3];
+    *max_x = std::f32::MAX;
+}
 
 macro_rules! gl_assert_ok {
     () => {{
@@ -54,7 +64,7 @@ where
         gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
 
         // Enamble Depth testing so we can occlude things while sending them down in any order
-        //gl::Enable(gl::DEPTH_TEST);
+        gl::Enable(gl::DEPTH_TEST);
 
         {
             // Create a texture for the glyphs
@@ -151,6 +161,7 @@ pub fn render(
     glyph_brush: &mut GlyphBrush<Vertex>,
     width: u32,
     height: u32,
+    status_line_position: Option<(f32, f32)>,
 ) -> Res<()> {
     let dimensions = (width, height);
     let mut brush_action;
@@ -176,6 +187,10 @@ pub fn render(
                 perf_viz::end_record!("|rect, tex_data|");
             },
             to_vertex,
+            status_line_position.map(|status_line_position| StatusLineInfo {
+                transform_status_line,
+                status_line_position,
+            }),
         );
         perf_viz::end_record!("process_queued");
 
