@@ -5,9 +5,11 @@ in vec2 right_bottom;
 in vec2 tex_left_top;
 in vec2 tex_right_bottom;
 in vec4 color;
+in float override_alpha;
 
 out vec2 f_tex_pos;
 out vec4 f_color;
+out float f_override_alpha;
 
 // generate positional data based on vertex ID
 void main() {
@@ -37,5 +39,6 @@ void main() {
     }
 
     f_color = color;
+    f_override_alpha = override_alpha;
     gl_Position = vec4(pos, left_top.z, 1.0);
 }

@@ -282,6 +282,8 @@ impl<'font, V: Clone + 'static, H: BuildHasher> GlyphBrush<'font, V, H> {
                      status_line_position,
                  }| {
                     let section = Section {
+                        // The status line will be a rectangle with the height of this glyph
+                        //stretched horzontally across the screen.
                         text: "█",
                         scale: Scale::uniform(11.0),
                         screen_position: status_line_position,

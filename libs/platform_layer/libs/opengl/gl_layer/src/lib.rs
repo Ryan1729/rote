@@ -21,12 +21,98 @@ pub struct State {
 }
 
 pub type Res<T> = Result<T, Box<std::error::Error>>;
-/// `[left_top * 3, right_bottom * 2, tex_left_top * 2, tex_right_bottom * 2, color * 4]`
-type Vertex = [GLfloat; 13];
+/// ```
+/// [
+///     left_top * 3,
+///     right_bottom * 2,
+///     tex_left_top * 2,
+///     tex_right_bottom * 2,
+///     color * 4,
+///     override_alpha
+/// ]
+/// ```
+type Vertex = [GLfloat; 14];
 
 fn transform_status_line(vertex: &mut Vertex) {
     let max_x = &mut vertex[3];
     *max_x = std::f32::MAX;
+    vertex[13] = 1.0;
+}
+
+#[inline]
+#[perf_viz::record]
+fn to_vertex(
+    glyph_brush::GlyphVertex {
+        mut tex_coords,
+        pixel_coords,
+        bounds,
+        screen_dimensions: (screen_w, screen_h),
+        color,
+        z,
+    }: glyph_brush::GlyphVertex,
+) -> Vertex {
+    let gl_bounds = rusttype::Rect {
+        min: rusttype::point(
+            2.0 * (bounds.min.x / screen_w - 0.5),
+            2.0 * (0.5 - bounds.min.y / screen_h),
+        ),
+        max: rusttype::point(
+            2.0 * (bounds.max.x / screen_w - 0.5),
+            2.0 * (0.5 - bounds.max.y / screen_h),
+        ),
+    };
+
+    let mut gl_rect = rusttype::Rect {
+        min: rusttype::point(
+            2.0 * (pixel_coords.min.x as f32 / screen_w - 0.5),
+            2.0 * (0.5 - pixel_coords.min.y as f32 / screen_h),
+        ),
+        max: rusttype::point(
+            2.0 * (pixel_coords.max.x as f32 / screen_w - 0.5),
+            2.0 * (0.5 - pixel_coords.max.y as f32 / screen_h),
+        ),
+    };
+
+    // handle overlapping bounds, modify uv_rect to preserve texture aspect
+    if gl_rect.max.x > gl_bounds.max.x {
+        let old_width = gl_rect.width();
+        gl_rect.max.x = gl_bounds.max.x;
+        tex_coords.max.x = tex_coords.min.x + tex_coords.width() * gl_rect.width() / old_width;
+    }
+    if gl_rect.min.x < gl_bounds.min.x {
+        let old_width = gl_rect.width();
+        gl_rect.min.x = gl_bounds.min.x;
+        tex_coords.min.x = tex_coords.max.x - tex_coords.width() * gl_rect.width() / old_width;
+    }
+    // note: y access is flipped gl compared with screen,
+    // texture is not flipped (ie is a headache)
+    if gl_rect.max.y < gl_bounds.max.y {
+        let old_height = gl_rect.height();
+        gl_rect.max.y = gl_bounds.max.y;
+        tex_coords.max.y = tex_coords.min.y + tex_coords.height() * gl_rect.height() / old_height;
+    }
+    if gl_rect.min.y > gl_bounds.min.y {
+        let old_height = gl_rect.height();
+        gl_rect.min.y = gl_bounds.min.y;
+        tex_coords.min.y = tex_coords.max.y - tex_coords.height() * gl_rect.height() / old_height;
+    }
+
+    [
+        gl_rect.min.x,
+        gl_rect.max.y,
+        z,
+        gl_rect.max.x,
+        gl_rect.min.y,
+        tex_coords.min.x,
+        tex_coords.max.y,
+        tex_coords.max.x,
+        tex_coords.min.y,
+        color[0],
+        color[1],
+        color[2],
+        color[3],
+        0.0,
+    ]
 }
 
 macro_rules! gl_assert_ok {
@@ -103,6 +189,7 @@ where
             ("tex_left_top", 2),
             ("tex_right_bottom", 2),
             ("color", 4),
+            ("override_alpha", 1),
         ] {
             let attr = gl::GetAttribLocation(program, CString::new(*v_field)?.as_ptr());
             if attr < 0 {
@@ -347,79 +434,4 @@ fn link_program(vs: GLuint, fs: GLuint) -> Res<GLuint> {
         }
         Ok(program)
     }
-}
-
-#[inline]
-#[perf_viz::record]
-fn to_vertex(
-    glyph_brush::GlyphVertex {
-        mut tex_coords,
-        pixel_coords,
-        bounds,
-        screen_dimensions: (screen_w, screen_h),
-        color,
-        z,
-    }: glyph_brush::GlyphVertex,
-) -> Vertex {
-    let gl_bounds = rusttype::Rect {
-        min: rusttype::point(
-            2.0 * (bounds.min.x / screen_w - 0.5),
-            2.0 * (0.5 - bounds.min.y / screen_h),
-        ),
-        max: rusttype::point(
-            2.0 * (bounds.max.x / screen_w - 0.5),
-            2.0 * (0.5 - bounds.max.y / screen_h),
-        ),
-    };
-
-    let mut gl_rect = rusttype::Rect {
-        min: rusttype::point(
-            2.0 * (pixel_coords.min.x as f32 / screen_w - 0.5),
-            2.0 * (0.5 - pixel_coords.min.y as f32 / screen_h),
-        ),
-        max: rusttype::point(
-            2.0 * (pixel_coords.max.x as f32 / screen_w - 0.5),
-            2.0 * (0.5 - pixel_coords.max.y as f32 / screen_h),
-        ),
-    };
-
-    // handle overlapping bounds, modify uv_rect to preserve texture aspect
-    if gl_rect.max.x > gl_bounds.max.x {
-        let old_width = gl_rect.width();
-        gl_rect.max.x = gl_bounds.max.x;
-        tex_coords.max.x = tex_coords.min.x + tex_coords.width() * gl_rect.width() / old_width;
-    }
-    if gl_rect.min.x < gl_bounds.min.x {
-        let old_width = gl_rect.width();
-        gl_rect.min.x = gl_bounds.min.x;
-        tex_coords.min.x = tex_coords.max.x - tex_coords.width() * gl_rect.width() / old_width;
-    }
-    // note: y access is flipped gl compared with screen,
-    // texture is not flipped (ie is a headache)
-    if gl_rect.max.y < gl_bounds.max.y {
-        let old_height = gl_rect.height();
-        gl_rect.max.y = gl_bounds.max.y;
-        tex_coords.max.y = tex_coords.min.y + tex_coords.height() * gl_rect.height() / old_height;
-    }
-    if gl_rect.min.y > gl_bounds.min.y {
-        let old_height = gl_rect.height();
-        gl_rect.min.y = gl_bounds.min.y;
-        tex_coords.min.y = tex_coords.max.y - tex_coords.height() * gl_rect.height() / old_height;
-    }
-
-    [
-        gl_rect.min.x,
-        gl_rect.max.y,
-        z,
-        gl_rect.max.x,
-        gl_rect.min.y,
-        tex_coords.min.x,
-        tex_coords.max.y,
-        tex_coords.max.x,
-        tex_coords.min.y,
-        color[0],
-        color[1],
-        color[2],
-        color[3],
-    ]
 }
