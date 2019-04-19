@@ -1,11 +1,18 @@
 ## TODO
 
-* Draw the status line background more efficiently
-  * Get z working properly so we can insert the status line anywhere in the array and have it display correctly.
-  * Add a vertex that just draws a single box across the bottom instead of a bunch of overlapping ones like we do now.
-  * Since we seems to be getting some texture lookup issues which is producing unwanted transparency
-  (I currently think that we are sampling outside of the filled area) let's just add an override alpha parameter to the vertex type
-  `max(texture(font_tex, f_tex_pos).r, override_alpha)` seems like the least branchy way to write this.
+* Make moving the cursor deep in the file faster. In particular, the cursor moving after clicking on a position is too slow.
+  * I don't currently see a way to do this for the clicking case, besides caching byte offsets.
+    * We could scan backwards or forwards from the current gap point to do up and down movement, but clicking speed would be unaffected.
+  * If we are going to cache byte offsets, we might as well get the most bang for our buck. I think the best way to do that is to
+  save the byte offsets of the middle of the buffer, the one-quarter mark and the three-quarters mark and so own.
+  The natural way to store this is in a binary tree, which we can store in an array with some slightly clever indexing.
+    * Should the tree grow as the file grows?
+    * Seems like this could have a lot of edge cases. Should we maybe try to write a bunch of tests for it first?
+      * property we want to test: after any number of random edit operations, the cached byte indexes are:
+        * valid character indexes
+        * in order
+        * optimal (optionally?)
+      * We can write a slow version to calculate the proper answer and check that after random edit operations we get the same answer.
 
 * Add a visible cursor, realizing that I will want to have more that one later
   * fix inserting a newline and re-rendering taking noticeably longer than a keystroke

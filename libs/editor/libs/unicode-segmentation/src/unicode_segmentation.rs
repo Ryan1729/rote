@@ -860,14 +860,19 @@ impl GraphemeCursor {
 
     #[perf_viz::record]
     pub fn next_boundary(&mut self, chunk: &str) -> usize {
+        perf_viz::record_guard!("next_boundary inner");
+        perf_viz::start_record!("next_boundary preamble");
         use grapheme as gr;
         let mut iter = chunk[self.offset..].chars();
         let mut ch = iter.next().unwrap();
+        perf_viz::end_record!("next_boundary preamble");
         loop {
+            perf_viz::record_guard!("next_boundary loop");
             self.offset += ch.len_utf8();
             self.state = GraphemeState::Unknown;
             self.cat_before = self.cat_after.take();
             if self.cat_before.is_none() {
+                perf_viz::record_guard!("grapheme_category 1");
                 self.cat_before = Some(gr::grapheme_category(ch));
             }
             if self.cat_before.unwrap() == GraphemeCat::GC_Regional_Indicator {
@@ -876,6 +881,7 @@ impl GraphemeCursor {
                 self.ris_count = Some(0);
             }
             if let Some(next_ch) = iter.next() {
+                perf_viz::record_guard!("grapheme_category 2");
                 ch = next_ch;
                 self.cat_after = Some(gr::grapheme_category(ch));
             } else if self.offset == self.len {

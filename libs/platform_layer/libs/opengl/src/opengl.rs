@@ -88,13 +88,6 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
         char_dim: char_dim,
     }));
 
-    let block_width = {
-        let full_block_char = '█';
-        let h_metrics = font.glyph(full_block_char).scaled(scale).h_metrics();
-
-        h_metrics.advance_width
-    };
-
     let (mut mouse_x, mut mouse_y) = (0.0, 0.0);
 
     use std::sync::mpsc::channel;
