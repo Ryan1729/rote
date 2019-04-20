@@ -24,3 +24,6 @@ path = "../editor_types"
 
 [dependencies.unicode_segmentation]
 path = "../unicode-segmentation"
+
+[dev-dependencies]
+proptest = "0.9.2"

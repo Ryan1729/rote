@@ -21,7 +21,7 @@ pub struct State {
 }
 
 pub type Res<T> = Result<T, Box<std::error::Error>>;
-/// ```
+/// ```text
 /// [
 ///     left_top * 3,
 ///     right_bottom * 2,
