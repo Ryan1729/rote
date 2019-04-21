@@ -4,6 +4,11 @@ macro_rules! init {
     ($str:literal) => {
         GapBuffer::new($str.to_string())
     };
+    ($str:literal gap $index:expr) => {{
+        let mut buffer = init!($str);
+        buffer.move_gap(ByteIndex($index));
+        buffer
+    }};
 }
 
 macro_rules! p {
@@ -130,8 +135,7 @@ fn backward_works_with_an_invalid_postion() {
 
 #[test]
 fn lines_works_with_single_line_with_gap_at_start() {
-    let mut buffer = init!("1234567890");
-    buffer.move_gap(ByteIndex(0));
+    let buffer = init!("1234567890" gap 0);
     assert_eq!(
         buffer.lines().collect::<Vec<_>>(),
         vec![GapLine::Connected("1234567890")]
@@ -139,8 +143,7 @@ fn lines_works_with_single_line_with_gap_at_start() {
 }
 #[test]
 fn lines_works_with_single_line_with_gap_in_middle() {
-    let mut buffer = init!("1234567890");
-    buffer.move_gap(ByteIndex(5));
+    let buffer = init!("1234567890" gap 5);
     assert_eq!(
         buffer.lines().collect::<Vec<_>>(),
         vec![GapLine::Gapped("12345", "67890")]
@@ -148,8 +151,7 @@ fn lines_works_with_single_line_with_gap_in_middle() {
 }
 #[test]
 fn lines_works_with_single_line_with_gap_at_end() {
-    let mut buffer = init!("1234567890");
-    buffer.move_gap(ByteIndex(10));
+    let buffer = init!("1234567890" gap 10);
     assert_eq!(
         buffer.lines().collect::<Vec<_>>(),
         vec![GapLine::Connected("1234567890")]
@@ -158,8 +160,7 @@ fn lines_works_with_single_line_with_gap_at_end() {
 
 #[test]
 fn lines_works_with_two_lines_with_gap_at_start_of_first() {
-    let mut buffer = init!("12345\n67890");
-    buffer.move_gap(ByteIndex(0));
+    let buffer = init!("12345\n67890" gap 0);
     assert_eq!(
         buffer.lines().collect::<Vec<_>>(),
         vec![GapLine::Connected("12345"), GapLine::Connected("67890")]
@@ -167,8 +168,7 @@ fn lines_works_with_two_lines_with_gap_at_start_of_first() {
 }
 #[test]
 fn lines_works_with_two_lines_with_gap_in_midde_of_first() {
-    let mut buffer = init!("12345\n67890");
-    buffer.move_gap(ByteIndex(2));
+    let buffer = init!("12345\n67890" gap 2);
     assert_eq!(
         buffer.lines().collect::<Vec<_>>(),
         vec![GapLine::Gapped("12", "345"), GapLine::Connected("67890")]
@@ -176,8 +176,7 @@ fn lines_works_with_two_lines_with_gap_in_midde_of_first() {
 }
 #[test]
 fn lines_works_with_two_lines_with_gap_at_end_of_first() {
-    let mut buffer = init!("12345\n67890");
-    buffer.move_gap(ByteIndex(5));
+    let buffer = init!("12345\n67890" gap 5);
     assert_eq!(
         buffer.lines().collect::<Vec<_>>(),
         vec![GapLine::Connected("12345"), GapLine::Connected("67890")]
@@ -186,8 +185,7 @@ fn lines_works_with_two_lines_with_gap_at_end_of_first() {
 
 #[test]
 fn lines_works_with_two_lines_with_gap_at_start_of_second() {
-    let mut buffer = init!("12345\n67890");
-    buffer.move_gap(ByteIndex(6));
+    let buffer = init!("12345\n67890" gap 6);
     assert_eq!(
         buffer.lines().collect::<Vec<_>>(),
         vec![GapLine::Connected("12345"), GapLine::Connected("67890")]
@@ -195,8 +193,7 @@ fn lines_works_with_two_lines_with_gap_at_start_of_second() {
 }
 #[test]
 fn lines_works_with_two_lines_with_gap_in_midde_of_second() {
-    let mut buffer = init!("12345\n67890");
-    buffer.move_gap(ByteIndex(8));
+    let buffer = init!("12345\n67890" gap 8);
     assert_eq!(
         buffer.lines().collect::<Vec<_>>(),
         vec![GapLine::Connected("12345"), GapLine::Gapped("67", "890")]
@@ -204,8 +201,7 @@ fn lines_works_with_two_lines_with_gap_in_midde_of_second() {
 }
 #[test]
 fn lines_works_with_two_lines_with_gap_at_end_of_second() {
-    let mut buffer = init!("12345\n67890");
-    buffer.move_gap(ByteIndex(11));
+    let buffer = init!("12345\n67890" gap 11);
     assert_eq!(
         buffer.lines().collect::<Vec<_>>(),
         vec![GapLine::Connected("12345"), GapLine::Connected("67890")]
@@ -214,8 +210,7 @@ fn lines_works_with_two_lines_with_gap_at_end_of_second() {
 
 #[test]
 fn lines_works_with_three_lines_with_gap_at_start_of_first() {
-    let mut buffer = init!("1234\n567\n890");
-    buffer.move_gap(ByteIndex(0));
+    let buffer = init!("1234\n567\n890" gap 0);
     assert_eq!(
         buffer.lines().collect::<Vec<_>>(),
         vec![
@@ -227,8 +222,7 @@ fn lines_works_with_three_lines_with_gap_at_start_of_first() {
 }
 #[test]
 fn lines_works_with_three_lines_with_gap_in_midde_of_first() {
-    let mut buffer = init!("1234\n567\n890");
-    buffer.move_gap(ByteIndex(2));
+    let buffer = init!("1234\n567\n890" gap 2);
     assert_eq!(
         buffer.lines().collect::<Vec<_>>(),
         vec![
@@ -240,8 +234,7 @@ fn lines_works_with_three_lines_with_gap_in_midde_of_first() {
 }
 #[test]
 fn lines_works_with_three_lines_with_gap_at_end_of_first() {
-    let mut buffer = init!("1234\n567\n890");
-    buffer.move_gap(ByteIndex(4));
+    let buffer = init!("1234\n567\n890" gap 4);
     assert_eq!(
         buffer.lines().collect::<Vec<_>>(),
         vec![
@@ -254,8 +247,7 @@ fn lines_works_with_three_lines_with_gap_at_end_of_first() {
 
 #[test]
 fn lines_works_with_three_lines_with_gap_at_start_of_second() {
-    let mut buffer = init!("1234\n567\n890");
-    buffer.move_gap(ByteIndex(5));
+    let buffer = init!("1234\n567\n890" gap 5);
     assert_eq!(
         buffer.lines().collect::<Vec<_>>(),
         vec![
@@ -267,8 +259,7 @@ fn lines_works_with_three_lines_with_gap_at_start_of_second() {
 }
 #[test]
 fn lines_works_with_three_lines_with_gap_in_midde_of_second() {
-    let mut buffer = init!("1234\n567\n890");
-    buffer.move_gap(ByteIndex(6));
+    let buffer = init!("1234\n567\n890" gap 6);
     assert_eq!(
         buffer.lines().collect::<Vec<_>>(),
         vec![
@@ -280,8 +271,7 @@ fn lines_works_with_three_lines_with_gap_in_midde_of_second() {
 }
 #[test]
 fn lines_works_with_three_lines_with_gap_at_end_of_second() {
-    let mut buffer = init!("1234\n567\n890");
-    buffer.move_gap(ByteIndex(8));
+    let buffer = init!("1234\n567\n890" gap 8);
     assert_eq!(
         buffer.lines().collect::<Vec<_>>(),
         vec![
@@ -294,8 +284,7 @@ fn lines_works_with_three_lines_with_gap_at_end_of_second() {
 
 #[test]
 fn lines_works_with_three_lines_with_gap_at_start_of_third() {
-    let mut buffer = init!("1234\n567\n890");
-    buffer.move_gap(ByteIndex(9));
+    let buffer = init!("1234\n567\n890" gap 9);
     assert_eq!(
         buffer.lines().collect::<Vec<_>>(),
         vec![
@@ -307,8 +296,7 @@ fn lines_works_with_three_lines_with_gap_at_start_of_third() {
 }
 #[test]
 fn lines_works_with_three_lines_with_gap_in_midde_of_third() {
-    let mut buffer = init!("1234\n567\n890");
-    buffer.move_gap(ByteIndex(10));
+    let buffer = init!("1234\n567\n890" gap 10);
     assert_eq!(
         buffer.lines().collect::<Vec<_>>(),
         vec![
@@ -320,8 +308,7 @@ fn lines_works_with_three_lines_with_gap_in_midde_of_third() {
 }
 #[test]
 fn lines_works_with_three_lines_with_gap_at_end_of_third() {
-    let mut buffer = init!("1234\n567\n890");
-    buffer.move_gap(ByteIndex(12));
+    let buffer = init!("1234\n567\n890" gap 12);
     assert_eq!(
         buffer.lines().collect::<Vec<_>>(),
         vec![
@@ -338,87 +325,75 @@ fn lines_works_with_three_lines_with_gap_at_end_of_third() {
 
 #[test]
 fn nth_line_count_works_with_single_line_with_gap_at_start() {
-    let mut buffer = init!("1234567890");
-    buffer.move_gap(ByteIndex(0));
+    let buffer = init!("1234567890" gap 0);
     assert_eq!(buffer.nth_line_count(0), Some(10));
 }
 #[test]
 fn nth_line_count_works_with_single_line_with_gap_in_middle() {
-    let mut buffer = init!("1234567890");
-    buffer.move_gap(ByteIndex(5));
+    let buffer = init!("1234567890" gap 5);
     assert_eq!(buffer.nth_line_count(0), Some(10));
 }
 #[test]
 fn nth_line_count_works_with_single_line_with_gap_at_end() {
-    let mut buffer = init!("1234567890");
-    buffer.move_gap(ByteIndex(10));
+    let buffer = init!("1234567890" gap 10);
     assert_eq!(buffer.nth_line_count(0), Some(10));
 }
 
 #[test]
 fn nth_line_count_works_with_two_lines_with_gap_at_start_of_first() {
-    let mut buffer = init!("12345\n67890");
-    buffer.move_gap(ByteIndex(0));
+    let buffer = init!("12345\n67890" gap 0);
     assert_eq!(buffer.nth_line_count(0), Some(5));
     assert_eq!(buffer.nth_line_count(1), Some(5));
 }
 #[test]
 fn nth_line_count_works_with_two_lines_with_gap_in_midde_of_first() {
-    let mut buffer = init!("12345\n67890");
-    buffer.move_gap(ByteIndex(2));
+    let buffer = init!("12345\n67890" gap 2);
     assert_eq!(buffer.nth_line_count(0), Some(5));
     assert_eq!(buffer.nth_line_count(1), Some(5));
 }
 #[test]
 fn nth_line_count_works_with_two_lines_with_gap_at_end_of_first() {
-    let mut buffer = init!("12345\n67890");
-    buffer.move_gap(ByteIndex(5));
+    let buffer = init!("12345\n67890" gap 5);
     assert_eq!(buffer.nth_line_count(0), Some(5));
     assert_eq!(buffer.nth_line_count(1), Some(5));
 }
 
 #[test]
 fn nth_line_count_works_with_two_lines_with_gap_at_start_of_second() {
-    let mut buffer = init!("12345\n67890");
-    buffer.move_gap(ByteIndex(6));
+    let buffer = init!("12345\n67890" gap 6);
     assert_eq!(buffer.nth_line_count(0), Some(5));
     assert_eq!(buffer.nth_line_count(1), Some(5));
 }
 #[test]
 fn nth_line_count_works_with_two_lines_with_gap_in_midde_of_second() {
-    let mut buffer = init!("12345\n67890");
-    buffer.move_gap(ByteIndex(8));
+    let buffer = init!("12345\n67890" gap 8);
     assert_eq!(buffer.nth_line_count(0), Some(5));
     assert_eq!(buffer.nth_line_count(1), Some(5));
 }
 #[test]
 fn nth_line_count_works_with_two_lines_with_gap_at_end_of_second() {
-    let mut buffer = init!("12345\n67890");
-    buffer.move_gap(ByteIndex(11));
+    let buffer = init!("12345\n67890" gap 11);
     assert_eq!(buffer.nth_line_count(0), Some(5));
     assert_eq!(buffer.nth_line_count(1), Some(5));
 }
 
 #[test]
 fn nth_line_count_works_with_three_lines_with_gap_at_start_of_first() {
-    let mut buffer = init!("1234\n567\n890");
-    buffer.move_gap(ByteIndex(0));
+    let buffer = init!("1234\n567\n890" gap 0);
     assert_eq!(buffer.nth_line_count(0), Some(4));
     assert_eq!(buffer.nth_line_count(1), Some(3));
     assert_eq!(buffer.nth_line_count(2), Some(3));
 }
 #[test]
 fn nth_line_count_works_with_three_lines_with_gap_in_midde_of_first() {
-    let mut buffer = init!("1234\n567\n890");
-    buffer.move_gap(ByteIndex(2));
+    let buffer = init!("1234\n567\n890" gap 2);
     assert_eq!(buffer.nth_line_count(0), Some(4));
     assert_eq!(buffer.nth_line_count(1), Some(3));
     assert_eq!(buffer.nth_line_count(2), Some(3));
 }
 #[test]
 fn nth_line_count_works_with_three_lines_with_gap_at_end_of_first() {
-    let mut buffer = init!("1234\n567\n890");
-    buffer.move_gap(ByteIndex(4));
+    let buffer = init!("1234\n567\n890" gap 4);
     assert_eq!(buffer.nth_line_count(0), Some(4));
     assert_eq!(buffer.nth_line_count(1), Some(3));
     assert_eq!(buffer.nth_line_count(2), Some(3));
@@ -426,24 +401,21 @@ fn nth_line_count_works_with_three_lines_with_gap_at_end_of_first() {
 
 #[test]
 fn nth_line_count_works_with_three_lines_with_gap_at_start_of_second() {
-    let mut buffer = init!("1234\n567\n890");
-    buffer.move_gap(ByteIndex(5));
+    let buffer = init!("1234\n567\n890" gap 5);
     assert_eq!(buffer.nth_line_count(0), Some(4));
     assert_eq!(buffer.nth_line_count(1), Some(3));
     assert_eq!(buffer.nth_line_count(2), Some(3));
 }
 #[test]
 fn nth_line_count_works_with_three_lines_with_gap_in_midde_of_second() {
-    let mut buffer = init!("1234\n567\n890");
-    buffer.move_gap(ByteIndex(6));
+    let buffer = init!("1234\n567\n890" gap 6);
     assert_eq!(buffer.nth_line_count(0), Some(4));
     assert_eq!(buffer.nth_line_count(1), Some(3));
     assert_eq!(buffer.nth_line_count(2), Some(3));
 }
 #[test]
 fn nth_line_count_works_with_three_lines_with_gap_at_end_of_second() {
-    let mut buffer = init!("1234\n567\n890");
-    buffer.move_gap(ByteIndex(8));
+    let buffer = init!("1234\n567\n890" gap 8);
     assert_eq!(buffer.nth_line_count(0), Some(4));
     assert_eq!(buffer.nth_line_count(1), Some(3));
     assert_eq!(buffer.nth_line_count(2), Some(3));
@@ -451,39 +423,34 @@ fn nth_line_count_works_with_three_lines_with_gap_at_end_of_second() {
 
 #[test]
 fn nth_line_count_works_with_three_lines_with_gap_at_start_of_third() {
-    let mut buffer = init!("1234\n567\n890");
-    buffer.move_gap(ByteIndex(9));
+    let buffer = init!("1234\n567\n890" gap 9);
     assert_eq!(buffer.nth_line_count(0), Some(4));
     assert_eq!(buffer.nth_line_count(1), Some(3));
     assert_eq!(buffer.nth_line_count(2), Some(3));
 }
 #[test]
 fn nth_line_count_works_with_three_lines_with_gap_in_midde_of_third() {
-    let mut buffer = init!("1234\n567\n890");
-    buffer.move_gap(ByteIndex(10));
+    let buffer = init!("1234\n567\n890" gap 10);
     assert_eq!(buffer.nth_line_count(0), Some(4));
     assert_eq!(buffer.nth_line_count(1), Some(3));
     assert_eq!(buffer.nth_line_count(2), Some(3));
 }
 #[test]
 fn nth_line_count_works_with_three_lines_with_gap_at_end_of_third() {
-    let mut buffer = init!("1234\n567\n890");
-    buffer.move_gap(ByteIndex(12));
+    let buffer = init!("1234\n567\n890" gap 12);
     assert_eq!(buffer.nth_line_count(0), Some(4));
     assert_eq!(buffer.nth_line_count(1), Some(3));
     assert_eq!(buffer.nth_line_count(2), Some(3));
 }
 
-enum Operation {
-    Insert(String, Position),
-    Delete(std::ops::RangeInclusive<Position>),
-    MoveGap(Position),
-}
-
-use proptest::proptest;
+use proptest::strategy::Strategy;
+use proptest::{prop_oneof, proptest};
 
 // Regex is "Zero or more Non-control characters, plus '\r' and '\n', and minus space.
 const TYPEABLE: &str = r"[\PC\r\n&&[^ ]]*";
+
+/*
+// re run these if the TYPEABLE regex ever changes.
 
 fn first_char_utf8_len<S: AsRef<str>>(s: S) -> usize {
     s.as_ref()
@@ -530,17 +497,174 @@ proptest! {
         assert!(!(first_char_utf8_len(s) == 4));
     }
 }
+*/
+
+fn any_position() -> impl proptest::strategy::Strategy<Value = Position> {
+    use proptest::arbitrary::any;
+    (any::<usize>(), any::<usize>()).prop_map(|(line, o)| Position {
+        line,
+        offset: CharOffset(o),
+    })
+}
+
+#[derive(Debug)]
+enum Operation {
+    Insert(String, Position),
+    Delete(std::ops::RangeInclusive<Position>),
+    MoveGap(Position),
+}
+
+fn any_operation() -> impl Strategy<Value = Operation> {
+    prop_oneof![
+        any_position().prop_map(Operation::MoveGap),
+        (any_position(), any_position()).prop_map(|(p1, p2)| {
+            if p1 <= p2 {
+                Operation::Delete(p1..=p2)
+            } else {
+                Operation::Delete(p2..=p1)
+            }
+        }),
+        (TYPEABLE, any_position()).prop_map(|(s, p)| Operation::Insert(s, p)),
+    ]
+}
 
 proptest! {
-    // #[test]
+    #[test]
+    fn buffers_start_with_correct_caches(s in TYPEABLE) {
+        let buffer = GapBuffer::new(s);
+        assert_eq!(buffer.offset_cache, buffer.optimal_offset_cache());
+    }
 
-    // fn any_single_operation_preserves_offset_cache_correctness(operation in any_operation(), s in r"[\PC\r\n&&[^ ]]*") {
-    //     let mut buffer = init!(s);
-    //     match operation {
-    //         Insert(s, p) => buffer.insert_str(&s, p),
-    //         Delete(r) => buffer.delete_range(r),
-    //         MoveGap(p) => buffer.move_gap(p),
-    //     }
-    //     assert_eq!(buffer.offset_cache, buffer.optimal_offset_cache());
-    // }
+    #[test]
+    fn any_single_operation_preserves_offset_cache_correctness(operation in any_operation(), s in TYPEABLE) {
+        let mut buffer = GapBuffer::new(s);
+        match operation {
+            Operation::Insert(s, p) => { buffer.insert_str(&s, p);} ,
+            Operation::Delete(r) => buffer.delete_range(r),
+            Operation::MoveGap(p) => {
+                if let Some(i) = buffer.find_index(p) { buffer.move_gap(i); }
+            },
+        }
+        assert_eq!(buffer.offset_cache, buffer.optimal_offset_cache());
+    }
+}
+
+macro_rules! pos {
+    (l $line:literal o $offset:literal) => {
+        Position {
+            line: $line,
+            offset: CharOffset($offset),
+        }
+    };
+    () => {
+        Position::default()
+    };
+}
+mod find_index {
+    use super::*;
+    #[test]
+    fn unbounded_to_unbounded_at_start() {
+        let buffer = init!("1234\n567\n890" gap 6);
+
+        assert_eq!(
+            buffer.find_index_within_range(pos! {}, ..),
+            Some(ByteIndex(0))
+        );
+    }
+    #[test]
+    fn unbounded_to_unbounded_before_gap() {
+        let buffer = init!("1234\n567\n890" gap 6);
+
+        assert_eq!(
+            buffer.find_index_within_range(pos! {l 0 o 2}, ..),
+            Some(ByteIndex(2))
+        );
+    }
+    #[test]
+    fn unbounded_to_unbounded_at_gap() {
+        let buffer = init!("1234\n567\n890" gap 6);
+
+        assert_eq!(
+            buffer.find_index_within_range(pos! {l 1 o 1}, ..),
+            Some(ByteIndex(6))
+        );
+    }
+    #[test]
+    fn unbounded_to_unbounded_after_gap() {
+        let buffer = init!("1234\n567\n890" gap 6);
+
+        assert_eq!(
+            buffer.find_index_within_range(pos! {l 2 o 1}, ..),
+            Some(ByteIndex(10))
+        );
+    }
+    #[test]
+    fn unbounded_to_unbounded_at_end() {
+        let buffer = init!("1234\n567\n890" gap 6);
+
+        assert_eq!(
+            buffer.find_index_within_range(pos! {l 2 o 3}, ..),
+            Some(ByteIndex(12))
+        );
+    }
+
+    #[test]
+    fn included_to_unbounded_at_start() {
+        let buffer = init!("1234\n567\n890" gap 6);
+
+        assert_eq!(
+            buffer.find_index_within_range(pos! {}, ByteIndex(0)..),
+            Some(ByteIndex(0))
+        );
+    }
+    #[test]
+    fn included_to_unbounded_before_gap() {
+        let buffer = init!("1234\n567\n890" gap 6);
+
+        assert_eq!(
+            buffer.find_index_within_range(pos! {l 0 o 2}, ByteIndex(1)..),
+            Some(ByteIndex(2))
+        );
+    }
+    #[test]
+    fn included_to_unbounded_at_gap_left_edge_before() {
+        let buffer = init!("1234\n567\n890" gap 6);
+
+        assert_eq!(
+            buffer.find_index_within_range(pos! {l 1 o 1}, ByteIndex(4)..),
+            Some(ByteIndex(6))
+        );
+    }
+    #[test]
+    fn included_to_unbounded_at_gap_left_edge_at() {
+        let buffer = init!("1234\n567\n890" gap 6);
+
+        assert_eq!(
+            buffer.find_index_within_range(pos! {l 1 o 1}, ByteIndex(6)..),
+            Some(ByteIndex(6))
+        );
+    }
+    #[test]
+    fn included_to_unbounded_after_gap() {
+        let buffer = init!("1234\n567\n890" gap 6);
+
+        assert_eq!(
+            buffer.find_index_within_range(pos! {l 2 o 1}, ByteIndex(7)..),
+            Some(ByteIndex(10))
+        );
+    }
+    #[test]
+    fn included_to_unbounded_at_end() {
+        let buffer = init!("1234\n567\n890" gap 6);
+
+        assert_eq!(
+            buffer.find_index_within_range(pos! {l 2 o 3}, ByteIndex(7)..),
+            Some(ByteIndex(12))
+        );
+    }
+
+    // Excluded at the beginning currently requires sonmeone to implement the RangeBounds trait
+    // on a new data structure, eithout using the `..`syntax. This seems unlikely enough that we
+    // don't bother testing it.
+
 }

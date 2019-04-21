@@ -93,7 +93,7 @@ d!(for Input : Input::None);
 /// four possibe `CharOffset`s. (Note that "ö" is two characters: "o\u{308}".)
 /// Here they are represented as vertical bars: "|a|ö|c|"
 /// Whatever the state of the gap is, that is how `CharOffset`s are meant to be interpreted.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, Ord, PartialEq, PartialOrd)]
 pub struct CharOffset(pub usize);
 
 usize_newtype! {
@@ -107,10 +107,31 @@ number_newtype! {
 display! {for CharOffset : CharOffset(offset) in "{}", offset}
 
 /// `offset` indicates a location before or after characters, not at the charaters.
-#[derive(Copy, Clone, Debug, Default, PartialEq)]
+#[derive(Copy, Clone, Debug, Default, Eq)]
 pub struct Position {
     pub line: usize,
     pub offset: CharOffset,
+}
+
+use std::cmp::Ordering;
+impl PartialOrd for Position {
+    fn partial_cmp(&self, other: &Position) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Position {
+    fn cmp(&self, other: &Position) -> Ordering {
+        self.line
+            .cmp(&other.line)
+            .then_with(|| self.offset.cmp(&other.offset))
+    }
+}
+
+impl PartialEq for Position {
+    fn eq(&self, other: &Position) -> bool {
+        self.line == other.line && self.offset == other.offset
+    }
 }
 
 display! {for Position : Position{ line, offset } in "{}:{}", line, offset}

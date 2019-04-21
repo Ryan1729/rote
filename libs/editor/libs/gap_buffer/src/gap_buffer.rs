@@ -17,18 +17,20 @@ macro_rules! tdbg {
 
 type Utf8Data = Vec<u8>; // must always be a valid utf8 string
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 struct CachedOffset {
     position: Position,
     index: ByteIndex,
 }
+
+type OffsetCache = Vec<CachedOffset>;
 
 #[derive(Debug)]
 pub struct GapBuffer {
     data: Utf8Data,
     gap_start: ByteIndex,
     gap_length: ByteLength,
-    offset_cache: Vec<CachedOffset>,
+    offset_cache: OffsetCache,
 }
 
 impl GapBuffer {
@@ -56,30 +58,6 @@ impl GapBuffer {
             gap_start,
             gap_length,
             offset_cache: d!(),
-        }
-    }
-
-    // This is the index that a grapheme would be at if it was one past the last slot we have
-    // allocated.
-    fn capacity(data: &Utf8Data) -> ByteIndex {
-        ByteIndex(data.capacity())
-    }
-
-    fn gap_end(&self) -> ByteIndex {
-        ByteIndex(self.gap_start.0 + self.gap_length.0)
-    }
-
-    fn match_len_to_capacity(
-        data: &mut Utf8Data,
-        gap_start: ByteIndex,
-        gap_length: &mut ByteLength,
-    ) {
-        // Update the tracked gap size and tell the vector that
-        // we're using all of the new space immediately.
-        let capacity = Self::capacity(data);
-        *gap_length = ByteLength(capacity.0 - gap_start.0);
-        unsafe {
-            data.set_len(capacity.0);
         }
     }
 
@@ -126,14 +104,19 @@ impl GapBuffer {
     }
 
     pub fn delete_range(&mut self, range: std::ops::RangeInclusive<Position>) {
-        let start_index = match self.find_index(range.start()) {
+        let (start_pos, end_pos) = (range.start(), range.end());
+        if start_pos > end_pos {
+            //range is empty, so nothing to delete
+            return;
+        }
+        let start_index = match self.find_index(start_pos) {
             Some(o) => o,
             None => return,
         };
 
         self.move_gap(start_index);
 
-        self.gap_length = match self.find_index(range.end()) {
+        self.gap_length = match self.find_index(end_pos) {
             Some(offset) => {
                 // Widen the gap to cover the deleted contents.
                 offset - self.gap_start
@@ -192,6 +175,36 @@ impl GapBuffer {
             // Because the index was after the gap, its value included the
             // gap length. We must remove it to determine the starting point.
             self.gap_start = ByteIndex(index.0 - self.gap_length.0);
+        }
+    }
+
+    fn optimal_offset_cache(&self) -> OffsetCache {
+        //TODO calcaulate optimal cache as a binary tree that can later be used to find indexes
+        //from positions more quickly
+        d!()
+    }
+
+    // This is the index that a grapheme would be at if it was one past the last slot we have
+    // allocated.
+    fn capacity(data: &Utf8Data) -> ByteIndex {
+        ByteIndex(data.capacity())
+    }
+
+    fn gap_end(&self) -> ByteIndex {
+        ByteIndex(self.gap_start.0 + self.gap_length.0)
+    }
+
+    fn match_len_to_capacity(
+        data: &mut Utf8Data,
+        gap_start: ByteIndex,
+        gap_length: &mut ByteLength,
+    ) {
+        // Update the tracked gap size and tell the vector that
+        // we're using all of the new space immediately.
+        let capacity = Self::capacity(data);
+        *gap_length = ByteLength(capacity.0 - gap_start.0);
+        unsafe {
+            data.set_len(capacity.0);
         }
     }
 }
@@ -284,6 +297,12 @@ impl GapBuffer {
     /// can delete the "ö" with a single keystroke.
     #[perf_viz::record]
     pub fn find_index<P: Borrow<Position>>(&self, position: P) -> Option<ByteIndex> {
+        // TODO walk down offset_cache as binary tree and then search from the closest match
+        // instead of the whole range.
+
+        // TODO implement this instead of everything below this
+        //self.find_index_within_range(position, ..)
+
         let pos = position.borrow();
         let mut line = 0;
         let mut line_offset = 0;
@@ -341,6 +360,85 @@ impl GapBuffer {
         }
 
         None
+    }
+
+    pub fn find_index_within_range<P, R>(&self, position: P, range: R) -> Option<ByteIndex>
+    where
+        P: Borrow<Position>,
+        R: std::ops::RangeBounds<ByteIndex>,
+    {
+        let pos = position.borrow();
+        let mut line = 0;
+        let mut line_offset = 0;
+
+        use std::ops::Bound;
+
+        macro_rules! whole_second_half {
+            () => {{
+                // We haven't reached the position yet, so we'll move on to the other half.
+                let second_half = self.get_str(self.gap_end().0..);
+                for (index, grapheme) in second_half
+                    .grapheme_indices()
+                    .map(|(o, g)| (ByteIndex(o), g))
+                {
+                    // Check to see if we've found the position yet.
+                    if line == pos.line && line_offset == pos.offset {
+                        return Some(self.gap_end() + index);
+                    }
+
+                    // Advance the line and offset characters.
+                    if grapheme == "\n" || grapheme == "\r\n" {
+                        line += 1;
+                        line_offset = 0;
+                    } else {
+                        line_offset += 1;
+                    }
+                }
+
+                // We didn't find the position *within* the second half, but it could
+                // be right after it, which means it's at the end of the buffer.
+                if line == pos.line && line_offset == pos.offset {
+                    return Some(ByteIndex(self.data.len()));
+                }
+
+                None
+            }};
+        }
+
+        match (range.start_bound(), range.end_bound()) {
+            (Bound::Excluded(_), _) => None, //There's no syntax for this, so who cares!
+            (Bound::Included(lower), Bound::Unbounded) => whole_second_half!(),
+            (Bound::Unbounded, Bound::Unbounded) => {
+                let first_half = self.get_str(..self.gap_start.0);
+
+                for (index, grapheme) in first_half
+                    .grapheme_indices()
+                    .map(|(o, g)| (ByteIndex(o), g))
+                {
+                    // Check to see if we've found the position yet.
+                    if line == pos.line && line_offset == pos.offset {
+                        return Some(index);
+                    }
+
+                    // Advance the line and offset characters.
+                    if grapheme == "\n" || grapheme == "\r\n" {
+                        line += 1;
+                        line_offset = 0;
+                    } else {
+                        line_offset += 1;
+                    }
+                }
+
+                // We didn't find the position *within* the first half, but it could
+                // be right after it, which means it's right at the start of the gap.
+                if line == pos.line && line_offset == pos.offset {
+                    return Some(self.gap_end());
+                }
+
+                whole_second_half!()
+            }
+            _ => None,
+        }
     }
 
     /// The character offset of the given position in the entre buffer. The output is suitable for
