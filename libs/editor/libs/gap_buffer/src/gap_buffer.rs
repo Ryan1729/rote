@@ -117,9 +117,9 @@ impl GapBuffer {
         self.move_gap(start_index);
 
         self.gap_length = match self.find_index(end_pos) {
-            Some(offset) => {
+            Some(index) => {
                 // Widen the gap to cover the deleted contents.
-                offset - self.gap_start
+                index - self.gap_start
             }
             None => {
                 // The end of the range doesn't exist; check
@@ -130,10 +130,10 @@ impl GapBuffer {
                 };
 
                 match self.find_index(&start_of_next_line) {
-                    Some(offset) => {
+                    Some(index) => {
                         // There are other lines below this range.
                         // Just remove up until the end of the line.
-                        offset - self.gap_start
+                        index - self.gap_start
                     }
                     None => {
                         // We're on the last line, just get rid of the rest
@@ -300,78 +300,88 @@ impl GapBuffer {
         // TODO walk down offset_cache as binary tree and then search from the closest match
         // instead of the whole range.
 
-        // TODO implement this instead of everything below this
-        //self.find_index_within_range(position, ..)
-
-        let pos = position.borrow();
-        let mut line = 0;
-        let mut line_offset = 0;
-
-        let first_half = self.get_str(..self.gap_start.0);
-
-        for (index, grapheme) in first_half
-            .grapheme_indices()
-            .map(|(o, g)| (ByteIndex(o), g))
-        {
-            // Check to see if we've found the position yet.
-            if line == pos.line && line_offset == pos.offset {
-                return Some(index);
-            }
-
-            // Advance the line and offset characters.
-            if grapheme == "\n" || grapheme == "\r\n" {
-                line += 1;
-                line_offset = 0;
-            } else {
-                line_offset += 1;
-            }
-        }
-
-        // We didn't find the position *within* the first half, but it could
-        // be right after it, which means it's right at the start of the gap.
-        if line == pos.line && line_offset == pos.offset {
-            return Some(self.gap_end());
-        }
-
-        // We haven't reached the position yet, so we'll move on to the other half.
-        let second_half = self.get_str(self.gap_end().0..);
-        for (index, grapheme) in second_half
-            .grapheme_indices()
-            .map(|(o, g)| (ByteIndex(o), g))
-        {
-            // Check to see if we've found the position yet.
-            if line == pos.line && line_offset == pos.offset {
-                return Some(self.gap_end() + index);
-            }
-
-            // Advance the line and offset characters.
-            if grapheme == "\n" || grapheme == "\r\n" {
-                line += 1;
-                line_offset = 0;
-            } else {
-                line_offset += 1;
-            }
-        }
-
-        // We didn't find the position *within* the second half, but it could
-        // be right after it, which means it's at the end of the buffer.
-        if line == pos.line && line_offset == pos.offset {
-            return Some(ByteIndex(self.data.len()));
-        }
-
-        None
+        self.find_index_within_range(position, ..)
     }
 
-    pub fn find_index_within_range<P, R>(&self, position: P, range: R) -> Option<ByteIndex>
+    fn find_index_within_range<P, R>(&self, position: P, range: R) -> Option<ByteIndex>
     where
         P: Borrow<Position>,
-        R: std::ops::RangeBounds<ByteIndex>,
+        R: std::ops::RangeBounds<CachedOffset>,
     {
         let pos = position.borrow();
         let mut line = 0;
         let mut line_offset = 0;
 
         use std::ops::Bound;
+
+        macro_rules! whole_first_half {
+            () => {{
+                let first_half = self.get_str(..self.gap_start.0);
+
+                for (index, grapheme) in first_half
+                    .grapheme_indices()
+                    .map(|(o, g)| (ByteIndex(o), g))
+                {
+                    // Check to see if we've found the position yet.
+                    if line == pos.line && line_offset == pos.offset {
+                        return Some(index);
+                    }
+
+                    // Advance the line and offset characters.
+                    if grapheme == "\n" || grapheme == "\r\n" {
+                        line += 1;
+                        line_offset = 0;
+                    } else {
+                        line_offset += 1;
+                    }
+                }
+
+                // We didn't find the position *within* the first half, but it could
+                // be right after it, which means it's right at the start of the gap.
+                if line == pos.line && line_offset == pos.offset {
+                    return Some(self.gap_start);
+                }
+            }};
+        }
+
+        macro_rules! bounded_first_half {
+            ($lower_bound: expr) => {{
+                let first_half = self.get_str(..self.gap_start.0);
+
+                if $lower_bound.index <= first_half.len() {
+                    for (index, grapheme) in first_half
+                        .grapheme_indices()
+                        .map(|(o, g)| (ByteIndex(o), g))
+                    {
+                        // Check to see if we've found the position yet.
+                        if line == pos.line && line_offset == pos.offset {
+                            return Some(index);
+                        }
+
+                        // Advance the line and offset characters.
+                        if grapheme == "\n" || grapheme == "\r\n" {
+                            line += 1;
+                            line_offset = 0;
+                        } else {
+                            line_offset += 1;
+                        }
+                    }
+
+                    // We didn't find the position *within* the first half, but it could
+                    // be right after it, which means it's right at the start of the gap.
+                    if line == pos.line && line_offset == pos.offset {
+                        return Some(self.gap_start);
+                    }
+                } else {
+                    line = $lower_bound.position.line;
+                    line_offset = $lower_bound.position.offset.0;
+
+                    if line == pos.line && line_offset == pos.offset {
+                        return Some($lower_bound.index);
+                    }
+                }
+            }};
+        }
 
         macro_rules! whole_second_half {
             () => {{
@@ -407,33 +417,13 @@ impl GapBuffer {
 
         match (range.start_bound(), range.end_bound()) {
             (Bound::Excluded(_), _) => None, //There's no syntax for this, so who cares!
-            (Bound::Included(lower), Bound::Unbounded) => whole_second_half!(),
+            (Bound::Included(lower), Bound::Unbounded) => {
+                bounded_first_half!(lower);
+
+                whole_second_half!()
+            }
             (Bound::Unbounded, Bound::Unbounded) => {
-                let first_half = self.get_str(..self.gap_start.0);
-
-                for (index, grapheme) in first_half
-                    .grapheme_indices()
-                    .map(|(o, g)| (ByteIndex(o), g))
-                {
-                    // Check to see if we've found the position yet.
-                    if line == pos.line && line_offset == pos.offset {
-                        return Some(index);
-                    }
-
-                    // Advance the line and offset characters.
-                    if grapheme == "\n" || grapheme == "\r\n" {
-                        line += 1;
-                        line_offset = 0;
-                    } else {
-                        line_offset += 1;
-                    }
-                }
-
-                // We didn't find the position *within* the first half, but it could
-                // be right after it, which means it's right at the start of the gap.
-                if line == pos.line && line_offset == pos.offset {
-                    return Some(self.gap_end());
-                }
+                whole_first_half!();
 
                 whole_second_half!()
             }

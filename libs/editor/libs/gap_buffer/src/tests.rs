@@ -1,9 +1,71 @@
 use super::*;
 
-macro_rules! init {
-    ($str:literal) => {
-        GapBuffer::new($str.to_string())
+macro_rules! p {
+    ($buffer:ident) => {
+        println!("{:?}", $buffer);
+        println!("{:?}", $buffer.chars().collect::<String>())
     };
+}
+
+macro_rules! pos {
+    (l $line:literal o $offset:literal) => {
+        Position {
+            line: $line,
+            offset: CharOffset($offset),
+        }
+    };
+    () => {
+        Position::default()
+    };
+}
+
+macro_rules! cached_offset {
+    (l $line:literal o $offset:literal i $index:literal) => {
+        CachedOffset {
+            position: Position {
+                line: $line,
+                offset: CharOffset($offset),
+            },
+            index: ByteIndex($index),
+        }
+    };
+    (p: $position:expr, i $index:literal) => {
+        CachedOffset {
+            position: $position,
+            index: ByteIndex($index),
+        }
+    };
+    (i $index:literal) => {
+        CachedOffset {
+            position: pos! {},
+            index: ByteIndex($index),
+        }
+    };
+    () => {
+        CachedOffset::default()
+    };
+}
+
+macro_rules! init {
+    ($str:literal) => {{
+        let mut buffer = GapBuffer::new($str.to_string());
+
+        // make sure the gap is not empty since things could work
+        // accidentally in the tests otherwise
+        let s = "␠␠␠␠";
+        buffer.insert_str(s, pos! {});
+        buffer.delete_range(
+            pos! {}..=Position {
+                offset: CharOffset(s.chars().count()),
+                ..d!()
+            },
+        );
+        // moving the gap to the end allows tests to continue to use byte indexes
+        // without knowing the size of the gap
+        buffer.move_gap(ByteIndex(buffer.data.len()));
+
+        buffer
+    }};
     ($str:literal gap $index:expr) => {{
         let mut buffer = init!($str);
         buffer.move_gap(ByteIndex($index));
@@ -11,11 +73,15 @@ macro_rules! init {
     }};
 }
 
-macro_rules! p {
-    ($buffer:ident) => {
-        println!("{:?}", $buffer);
-        println!("{:?}", $buffer.chars().collect::<String>())
-    };
+#[test]
+fn init_makes_a_gap_without_affecting_the_string() {
+    //let buffer = init!("the same literal\nas the other one" gap 6);
+    let buffer = init!("the same literal\nas the other one");
+
+    assert_eq!(
+        buffer.chars().collect::<String>(),
+        "the same literal\nas the other one".to_owned()
+    );
 }
 
 #[test]
@@ -549,21 +615,10 @@ proptest! {
     }
 }
 
-macro_rules! pos {
-    (l $line:literal o $offset:literal) => {
-        Position {
-            line: $line,
-            offset: CharOffset($offset),
-        }
-    };
-    () => {
-        Position::default()
-    };
-}
-mod find_index {
+mod find_index_unbounded_to_unbounded {
     use super::*;
     #[test]
-    fn unbounded_to_unbounded_at_start() {
+    fn at_start() {
         let buffer = init!("1234\n567\n890" gap 6);
 
         assert_eq!(
@@ -572,7 +627,7 @@ mod find_index {
         );
     }
     #[test]
-    fn unbounded_to_unbounded_before_gap() {
+    fn before_gap() {
         let buffer = init!("1234\n567\n890" gap 6);
 
         assert_eq!(
@@ -581,7 +636,7 @@ mod find_index {
         );
     }
     #[test]
-    fn unbounded_to_unbounded_at_gap() {
+    fn at_gap() {
         let buffer = init!("1234\n567\n890" gap 6);
 
         assert_eq!(
@@ -590,81 +645,124 @@ mod find_index {
         );
     }
     #[test]
-    fn unbounded_to_unbounded_after_gap() {
+    fn after_gap() {
         let buffer = init!("1234\n567\n890" gap 6);
 
         assert_eq!(
             buffer.find_index_within_range(pos! {l 2 o 1}, ..),
-            Some(ByteIndex(10))
+            Some(ByteIndex(10 + buffer.gap_length.0))
         );
     }
     #[test]
-    fn unbounded_to_unbounded_at_end() {
+    fn at_end() {
         let buffer = init!("1234\n567\n890" gap 6);
 
         assert_eq!(
             buffer.find_index_within_range(pos! {l 2 o 3}, ..),
-            Some(ByteIndex(12))
+            Some(ByteIndex(12 + buffer.gap_length.0))
         );
     }
+}
 
+mod find_index_included_to_unbounded {
+    use super::*;
     #[test]
-    fn included_to_unbounded_at_start() {
+    fn at_start() {
         let buffer = init!("1234\n567\n890" gap 6);
 
         assert_eq!(
-            buffer.find_index_within_range(pos! {}, ByteIndex(0)..),
+            buffer.find_index_within_range(pos! {}, cached_offset! {i 0}..),
             Some(ByteIndex(0))
         );
     }
     #[test]
-    fn included_to_unbounded_before_gap() {
+    fn before_gap() {
         let buffer = init!("1234\n567\n890" gap 6);
 
+        let p = pos! {l 0 o 2};
         assert_eq!(
-            buffer.find_index_within_range(pos! {l 0 o 2}, ByteIndex(1)..),
+            buffer.find_index_within_range(p, cached_offset! {p: p, i 2}..),
             Some(ByteIndex(2))
         );
     }
     #[test]
-    fn included_to_unbounded_at_gap_left_edge_before() {
+    fn not_found_before_gap() {
         let buffer = init!("1234\n567\n890" gap 6);
 
+        let p = pos! {l 0 o 2};
         assert_eq!(
-            buffer.find_index_within_range(pos! {l 1 o 1}, ByteIndex(4)..),
+            buffer.find_index_within_range(p, cached_offset! {p: p, i 2}..),
+            None
+        );
+    }
+    #[test]
+    fn at_gap_left_edge_before() {
+        let buffer = init!("1234\n567\n890" gap 6);
+
+        let p = pos! {l 1 o 1};
+        assert_eq!(
+            buffer.find_index_within_range(p, cached_offset! {l 0 o 4 i 4}..),
             Some(ByteIndex(6))
         );
     }
     #[test]
-    fn included_to_unbounded_at_gap_left_edge_at() {
+    fn at_gap_left_edge_at() {
         let buffer = init!("1234\n567\n890" gap 6);
 
+        let p = pos! {l 1 o 1};
         assert_eq!(
-            buffer.find_index_within_range(pos! {l 1 o 1}, ByteIndex(6)..),
+            buffer.find_index_within_range(p, cached_offset! {p: p, i 6}..),
             Some(ByteIndex(6))
         );
     }
     #[test]
-    fn included_to_unbounded_after_gap() {
+    fn not_found_at_gap() {
         let buffer = init!("1234\n567\n890" gap 6);
 
         assert_eq!(
-            buffer.find_index_within_range(pos! {l 2 o 1}, ByteIndex(7)..),
-            Some(ByteIndex(10))
+            buffer.find_index_within_range(pos! {l 1 o 1}, cached_offset! {l 1 o 2 i 7}..),
+            None
         );
     }
     #[test]
-    fn included_to_unbounded_at_end() {
+    fn after_gap() {
         let buffer = init!("1234\n567\n890" gap 6);
 
         assert_eq!(
-            buffer.find_index_within_range(pos! {l 2 o 3}, ByteIndex(7)..),
-            Some(ByteIndex(12))
+            buffer.find_index_within_range(pos! {l 2 o 1}, cached_offset! {l 1 o 2 i 7}..),
+            Some(ByteIndex(10 + buffer.gap_length.0))
         );
     }
+    #[test]
+    fn not_found_after_gap() {
+        let buffer = init!("1234\n567\n890" gap 6);
 
-    // Excluded at the beginning currently requires sonmeone to implement the RangeBounds trait
-    // on a new data structure, eithout using the `..`syntax. This seems unlikely enough that we
-    // don't bother testing it.
+        assert_eq!(
+            buffer.find_index_within_range(pos! {l 2 o 1}, cached_offset! {l 1 o 2 i 7}..),
+            None
+        );
+    }
+    #[test]
+    fn at_end() {
+        let buffer = init!("1234\n567\n890" gap 6);
 
+        assert_eq!(
+            buffer.find_index_within_range(pos! {l 2 o 3}, cached_offset! {l 1 o 2 i 7}..),
+            Some(ByteIndex(12 + buffer.gap_length.0))
+        );
+    }
+    #[test]
+    fn not_found_at_end() {
+        let buffer = init!("1234\n567\n890" gap 6);
+
+        let p = pos! {l 2 o 3};
+        assert_eq!(
+            buffer.find_index_within_range(p, cached_offset! {p: p, i 13}..),
+            None
+        );
+    }
 }
+
+// Excluded at the beginning currently requires sonmeone to implement the RangeBounds trait
+// on a new data structure, eithout using the `..`syntax. This seems unlikely enough that we
+// don't bother testing it.
