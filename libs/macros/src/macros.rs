@@ -66,7 +66,7 @@ macro_rules! usize_newtype {
 }
 
 #[macro_export]
-macro_rules! number_newtype {
+macro_rules! integer_newtype {
     ($name: ident) => {
         impl std::ops::Add for $name {
             type Output = $name;
@@ -82,6 +82,26 @@ macro_rules! number_newtype {
                 $name(self.0 - other.0)
             }
         }
+
+        impl PartialOrd for $name {
+            fn partial_cmp(&self, other: &$name) -> Option<std::cmp::Ordering> {
+                Some(self.cmp(other))
+            }
+        }
+
+        impl Ord for $name {
+            fn cmp(&self, other: &$name) -> std::cmp::Ordering {
+                self.0.cmp(&other.0)
+            }
+        }
+
+        impl PartialEq for $name {
+            fn eq(&self, other: &$name) -> bool {
+                self.0 == (*other).0
+            }
+        }
+
+        impl Eq for $name {}
     };
 }
 

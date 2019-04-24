@@ -35,12 +35,6 @@ macro_rules! cached_offset {
             index: ByteIndex($index),
         }
     };
-    (i $index:literal) => {
-        CachedOffset {
-            position: pos! {},
-            index: ByteIndex($index),
-        }
-    };
     () => {
         CachedOffset::default()
     };
@@ -671,7 +665,16 @@ mod find_index_included_to_unbounded {
         let buffer = init!("1234\n567\n890" gap 6);
 
         assert_eq!(
-            buffer.find_index_within_range(pos! {}, cached_offset! {i 0}..),
+            buffer.find_index_within_range(pos! {}, cached_offset! {}..),
+            Some(ByteIndex(0))
+        );
+    }
+    #[test]
+    fn not_found_at_start() {
+        let buffer = init!("1234\n567\n890" gap 6);
+
+        assert_eq!(
+            buffer.find_index_within_range(pos! {}, cached_offset! {l 0 o 1 i 1}..),
             Some(ByteIndex(0))
         );
     }
@@ -691,7 +694,7 @@ mod find_index_included_to_unbounded {
 
         let p = pos! {l 0 o 2};
         assert_eq!(
-            buffer.find_index_within_range(p, cached_offset! {p: p, i 2}..),
+            buffer.find_index_within_range(p, cached_offset! {l 1 o 2 i 7}..),
             None
         );
     }
@@ -738,7 +741,7 @@ mod find_index_included_to_unbounded {
         let buffer = init!("1234\n567\n890" gap 6);
 
         assert_eq!(
-            buffer.find_index_within_range(pos! {l 2 o 1}, cached_offset! {l 1 o 2 i 7}..),
+            buffer.find_index_within_range(pos! {l 2 o 1}, cached_offset! {l 2 o 2 i 11}..),
             None
         );
     }
@@ -757,7 +760,7 @@ mod find_index_included_to_unbounded {
 
         let p = pos! {l 2 o 3};
         assert_eq!(
-            buffer.find_index_within_range(p, cached_offset! {p: p, i 13}..),
+            buffer.find_index_within_range(p, cached_offset! {l 4 o 0 i 13}..),
             None
         );
     }
@@ -766,3 +769,116 @@ mod find_index_included_to_unbounded {
 // Excluded at the beginning currently requires sonmeone to implement the RangeBounds trait
 // on a new data structure, eithout using the `..`syntax. This seems unlikely enough that we
 // don't bother testing it.
+
+mod find_index_unbounded_to_included {
+    use super::*;
+    #[test]
+    fn at_start_to_before_gap() {
+        let buffer = init!("1234\n567\n890" gap 6);
+
+        assert_eq!(
+            buffer.find_index_within_range(pos! {}, ..=cached_offset! {l 0 o 4 i 4}),
+            Some(ByteIndex(0))
+        );
+    }
+    #[test]
+    fn at_start_to_after_gap() {
+        let buffer = init!("1234\n567\n890" gap 6);
+
+        assert_eq!(
+            buffer.find_index_within_range(pos! {}, ..=cached_offset! {l 1 o 2 i 7}),
+            Some(ByteIndex(0))
+        );
+    }
+    #[test]
+    fn before_gap_to_before_gap() {
+        let buffer = init!("1234\n567\n890" gap 6);
+
+        assert_eq!(
+            buffer.find_index_within_range(pos! {l 0 o 2}, ..=cached_offset! {l 0 o 4 i 4}),
+            Some(ByteIndex(2))
+        );
+    }
+    #[test]
+    fn before_gap_to_after_gap() {
+        let buffer = init!("1234\n567\n890" gap 6);
+
+        assert_eq!(
+            buffer.find_index_within_range(pos! {l 0 o 2}, ..=cached_offset! {l 1 o 2 i 7}),
+            Some(ByteIndex(2))
+        );
+    }
+    #[test]
+    fn not_found_before_gap() {
+        let buffer = init!("1234\n567\n890" gap 6);
+
+        assert_eq!(
+            buffer.find_index_within_range(pos! {l 0 o 2}, ..=cached_offset! {}),
+            None
+        );
+    }
+    #[test]
+    fn at_gap_to_at_gap() {
+        let buffer = init!("1234\n567\n890" gap 6);
+
+        let p = pos! {l 1 o 1};
+        assert_eq!(
+            buffer.find_index_within_range(p, ..=cached_offset! {p: p, i 6}),
+            Some(ByteIndex(6))
+        );
+    }
+    #[test]
+    fn at_gap_to_after_gap() {
+        let buffer = init!("1234\n567\n890" gap 6);
+
+        assert_eq!(
+            buffer.find_index_within_range(pos! {l 1 o 1},  ..=cached_offset! {l 1 o 2 i 7}),
+            Some(ByteIndex(6))
+        );
+    }
+    #[test]
+    fn not_found_at_gap() {
+        let buffer = init!("1234\n567\n890" gap 6);
+
+        assert_eq!(
+            buffer.find_index_within_range(pos! {l 1 o 1}, ..=cached_offset! {l 0 o 1 i 1}),
+            None
+        );
+    }
+    #[test]
+    fn after_gap() {
+        let buffer = init!("1234\n567\n890" gap 6);
+
+        assert_eq!(
+            buffer.find_index_within_range(pos! {l 2 o 1}, ..=cached_offset! {l 2 o 2 i 11}),
+            Some(ByteIndex(10 + buffer.gap_length.0))
+        );
+    }
+    #[test]
+    fn not_found_after_gap() {
+        let buffer = init!("1234\n567\n890" gap 6);
+
+        assert_eq!(
+            buffer.find_index_within_range(pos! {l 2 o 1}, ..=cached_offset! {l 1 o 2 i 7}),
+            None
+        );
+    }
+    #[test]
+    fn at_end() {
+        let buffer = init!("1234\n567\n890" gap 6);
+
+        assert_eq!(
+            buffer.find_index_within_range(pos! {l 2 o 3}, ..=cached_offset! {l 4 o 0 i 13}),
+            Some(ByteIndex(12 + buffer.gap_length.0))
+        );
+    }
+    #[test]
+    fn not_found_at_end() {
+        let buffer = init!("1234\n567\n890" gap 6);
+
+        assert_eq!(
+            buffer.find_index_within_range(pos! {l 2 o 3}, ..=cached_offset! {l 1 o 2 i 7}),
+            None
+        );
+    }
+}

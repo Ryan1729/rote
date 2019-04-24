@@ -1,4 +1,4 @@
-use macros::{d, display, number_newtype, usize_newtype};
+use macros::{d, display, integer_newtype, usize_newtype};
 use std::ops::{Add, Sub};
 
 #[derive(Clone, Copy, Debug)]
@@ -93,14 +93,14 @@ d!(for Input : Input::None);
 /// four possibe `CharOffset`s. (Note that "ö" is two characters: "o\u{308}".)
 /// Here they are represented as vertical bars: "|a|ö|c|"
 /// Whatever the state of the gap is, that is how `CharOffset`s are meant to be interpreted.
-#[derive(Clone, Copy, Debug, Default, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct CharOffset(pub usize);
 
 usize_newtype! {
     CharOffset
 }
 
-number_newtype! {
+integer_newtype! {
     CharOffset
 }
 

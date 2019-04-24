@@ -1,14 +1,14 @@
-use macros::{display, number_newtype, usize_newtype};
+use macros::{display, integer_newtype, usize_newtype};
 use platform_types::{CharOffset, Position};
 use std::borrow::Borrow;
 use std::ops::{Add, Sub};
 
 /// In index into thebuffer's underlying bytes. Indexes into the gap are possible but usually
 /// (always?) undesired.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct ByteIndex(pub usize);
 
-number_newtype! {
+integer_newtype! {
     ByteIndex
 }
 
@@ -16,10 +16,10 @@ usize_newtype! {
     ByteIndex
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct ByteLength(pub usize);
 
-number_newtype! {
+integer_newtype! {
     ByteLength
 }
 
