@@ -313,38 +313,8 @@ impl GapBuffer {
 
         use std::ops::Bound;
 
-        macro_rules! whole_first_half {
-            () => {{
-                let first_half = self.get_str(..self.gap_start.0);
-
-                for (index, grapheme) in first_half
-                    .grapheme_indices()
-                    .map(|(o, g)| (ByteIndex(o), g))
-                {
-                    // Check to see if we've found the position yet.
-                    if current_pos == *pos {
-                        return Some(index);
-                    }
-
-                    // Advance the line and offset characters.
-                    if grapheme == "\n" || grapheme == "\r\n" {
-                        current_pos.line += 1;
-                        current_pos.offset = d!();
-                    } else {
-                        current_pos.offset += 1;
-                    }
-                }
-
-                // We didn't find the position *within* the first half, but it could
-                // be right after it, which means it's right at the start of the gap.
-                if current_pos == *pos {
-                    return Some(self.gap_start);
-                }
-            }};
-        }
-
-        macro_rules! bounded_first_half {
-            ($lower_bound: expr, $upper_bound: expr) => {{
+        macro_rules! bounded {
+            ($lower_bound: expr, $upper_bound_condition: expr) => {{
                 let first_half = self.get_str(..self.gap_start.0);
 
                 if $lower_bound.index <= first_half.len() {
@@ -365,7 +335,7 @@ impl GapBuffer {
                             current_pos.offset += 1;
                         }
 
-                        if current_pos > $upper_bound.position {
+                        if $upper_bound_condition {
                             return None;
                         }
                     }
@@ -382,43 +352,7 @@ impl GapBuffer {
                         return Some($lower_bound.index);
                     }
                 }
-            }};
-        }
 
-        macro_rules! whole_second_half {
-            () => {{
-                // We haven't reached the position yet, so we'll move on to the other half.
-                let second_half = self.get_str(self.gap_end().0..);
-                for (index, grapheme) in second_half
-                    .grapheme_indices()
-                    .map(|(o, g)| (ByteIndex(o), g))
-                {
-                    // Check to see if we've found the position yet.
-                    if current_pos == *pos {
-                        return Some(self.gap_end() + index);
-                    }
-
-                    // Advance the line and offset characters.
-                    if grapheme == "\n" || grapheme == "\r\n" {
-                        current_pos.line += 1;
-                        current_pos.offset = d!();
-                    } else {
-                        current_pos.offset += 1;
-                    }
-                }
-
-                // We didn't find the position *within* the second half, but it could
-                // be right after it, which means it's at the end of the buffer.
-                if current_pos == *pos {
-                    return Some(ByteIndex(self.data.len()));
-                }
-
-                None
-            }};
-        }
-
-        macro_rules! bounded_second_half {
-            ($lower_bound: expr, $upper_bound: expr) => {{
                 // We haven't reached the position yet, so we'll move on to the other half.
                 let second_half = self.get_str(self.gap_end().0..);
 
@@ -440,7 +374,7 @@ impl GapBuffer {
                             current_pos.offset += 1;
                         }
 
-                        if current_pos > $upper_bound.position {
+                        if $upper_bound_condition {
                             return None;
                         }
                     }
@@ -463,32 +397,29 @@ impl GapBuffer {
         }
 
         match (range.start_bound(), range.end_bound()) {
-            (Bound::Excluded(_), _) => None, //There's no syntax for this, so who cares!
-            (Bound::Included(lower), Bound::Unbounded) => {
-                bounded_first_half!(
-                    lower,
-                    CachedOffset {
-                        position: Position {
-                            line: usize::max_value(),
-                            offset: CharOffset(usize::max_value())
-                        },
-                        index: ByteIndex(usize::max_value())
-                    }
-                );
-
-                whole_second_half!()
-            }
-            (Bound::Unbounded, Bound::Included(upper)) => {
-                bounded_first_half!(CachedOffset::default(), upper);
-
-                bounded_second_half!(CachedOffset::default(), upper)
+            (Bound::Excluded(_), _) => {
+                //There's no syntax for this, so who cares!
+                unreachable!("Someone specified exclusive lower bounds somehow?")
             }
             (Bound::Unbounded, Bound::Unbounded) => {
-                whole_first_half!();
-
-                whole_second_half!()
+                let lower = CachedOffset::default();
+                bounded!(lower, false)
             }
-            _ => None,
+            (Bound::Included(lower), Bound::Unbounded) => bounded!(lower, false),
+            (Bound::Unbounded, Bound::Included(upper)) => {
+                let lower = CachedOffset::default();
+                bounded!(lower, current_pos > upper.position)
+            }
+            (Bound::Included(lower), Bound::Included(upper)) => {
+                bounded!(lower, current_pos > upper.position)
+            }
+            (Bound::Unbounded, Bound::Excluded(upper)) => {
+                let lower = CachedOffset::default();
+                bounded!(lower, current_pos >= upper.position)
+            }
+            (Bound::Included(lower), Bound::Excluded(upper)) => {
+                bounded!(lower, current_pos >= upper.position)
+            }
         }
     }
 
