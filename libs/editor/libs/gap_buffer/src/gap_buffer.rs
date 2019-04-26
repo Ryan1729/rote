@@ -18,12 +18,20 @@ macro_rules! tdbg {
 type Utf8Data = Vec<u8>; // must always be a valid utf8 string
 
 #[derive(Debug, PartialEq, Default)]
-struct CachedOffset {
+pub struct CachedOffset {
     position: Position,
     index: ByteIndex,
 }
 
 type OffsetCache = Vec<CachedOffset>;
+
+pub fn get_index_bounds<O, P>(cache: O, position: P) -> impl std::ops::RangeBounds<CachedOffset>
+where
+    O: Borrow<OffsetCache>,
+    P: Borrow<Position>,
+{
+    ..
+}
 
 #[derive(Debug)]
 pub struct GapBuffer {
@@ -297,10 +305,8 @@ impl GapBuffer {
     /// can delete the "ö" with a single keystroke.
     #[perf_viz::record]
     pub fn find_index<P: Borrow<Position>>(&self, position: P) -> Option<ByteIndex> {
-        // TODO walk down offset_cache as binary tree and then search from the closest match
-        // instead of the whole range.
-
-        self.find_index_within_range(position, ..)
+        let position = position.borrow();
+        self.find_index_within_range(position, get_index_bounds(&self.offset_cache, position))
     }
 
     fn find_index_within_range<P, R>(&self, position: P, range: R) -> Option<ByteIndex>
@@ -317,46 +323,46 @@ impl GapBuffer {
             ($lower_bound: expr, $upper_bound_condition: expr) => {{
                 let first_half = self.get_str(..self.gap_start.0);
 
-                if $lower_bound.index <= first_half.len() {
-                    for (index, grapheme) in first_half
-                        .grapheme_indices()
-                        .map(|(o, g)| (ByteIndex(o), g))
-                    {
-                        // Check to see if we've found the position yet.
+                current_pos = $lower_bound.position;
+                if $lower_bound.index < first_half.len() {
+                    if let Some(first_half) = dbg!(first_half.get(dbg!($lower_bound.index.0)..)) {
+                        for (index, grapheme) in first_half
+                            .grapheme_indices()
+                            .map(|(o, g)| (ByteIndex(o + $lower_bound.index.0), g))
+                        {
+                            // Check to see if we've found the position yet.
+                            if current_pos == *pos {
+                                return Some(index);
+                            }
+
+                            // Advance the line and offset characters.
+                            if grapheme == "\n" || grapheme == "\r\n" {
+                                current_pos.line += 1;
+                                current_pos.offset = d!();
+                            } else {
+                                current_pos.offset += 1;
+                            }
+
+                            if $upper_bound_condition {
+                                return None;
+                            }
+                        }
+
+                        // We didn't find the position *within* the first half, but it could
+                        // be right after it, which means it's right at the start of the gap.
                         if current_pos == *pos {
-                            return Some(index);
-                        }
-
-                        // Advance the line and offset characters.
-                        if grapheme == "\n" || grapheme == "\r\n" {
-                            current_pos.line += 1;
-                            current_pos.offset = d!();
-                        } else {
-                            current_pos.offset += 1;
-                        }
-
-                        if $upper_bound_condition {
-                            return None;
+                            return Some(self.gap_start);
                         }
                     }
-
-                    // We didn't find the position *within* the first half, but it could
-                    // be right after it, which means it's right at the start of the gap.
-                    if current_pos == *pos {
-                        return Some(self.gap_start);
-                    }
-                } else {
-                    current_pos = $lower_bound.position;
-
-                    if current_pos == *pos {
-                        return Some($lower_bound.index);
-                    }
+                }
+                if current_pos == *pos {
+                    return Some($lower_bound.index);
                 }
 
                 // We haven't reached the position yet, so we'll move on to the other half.
                 let second_half = self.get_str(self.gap_end().0..);
 
-                if $lower_bound.index <= self.gap_end() + second_half.len() {
+                if $lower_bound.index < self.gap_end() + second_half.len() {
                     for (index, grapheme) in second_half
                         .grapheme_indices()
                         .map(|(o, g)| (ByteIndex(o), g))
