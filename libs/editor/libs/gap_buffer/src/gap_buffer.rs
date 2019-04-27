@@ -48,7 +48,7 @@ impl GapObliviousByteIndex {
     }
 }
 
-#[derive(Debug, PartialEq, Default)]
+#[derive(Debug, PartialEq, Default, Clone)]
 pub struct CachedOffset {
     position: Position,
     index: GapObliviousByteIndex,
@@ -61,7 +61,30 @@ where
     O: Borrow<OffsetCache>,
     P: Borrow<Position>,
 {
-    ..
+    use std::ops::Bound::{Excluded, Included, Unbounded};
+    let cache = cache.borrow();
+
+    let mut index = 0;
+    let mut lower = Unbounded;
+    let mut upper = Unbounded;
+    loop {
+        let current: &CachedOffset = if let Some(current) = cache.get(index) {
+            current
+        } else {
+            return (lower, upper);
+        };
+
+        let position = position.borrow();
+        if position < &current.position {
+            upper = Excluded((*current).clone());
+            index = 2 * index + 1;
+        } else if &current.position == position {
+            return (Included((*current).clone()), Included((*current).clone()));
+        } else {
+            lower = Excluded((*current).clone());
+            index = 2 * index + 2;
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -439,9 +462,16 @@ impl GapBuffer {
         }
 
         match (range.start_bound(), range.end_bound()) {
-            (Bound::Excluded(_), _) => {
-                //There's no syntax for this, so who cares!
-                unreachable!("Someone specified exclusive lower bounds somehow?")
+            (Bound::Excluded(lower), upper) => {
+                // Since in a string each index is unique the fact that we will stop looking if we
+                // find the lower bound, and then discard it will produce the right answer
+                // in practice.
+                match upper {
+                    Bound::Unbounded => bounded!(lower, false),
+                    Bound::Included(upper) => bounded!(lower, current_pos > upper.position),
+                    Bound::Excluded(upper) => bounded!(lower, current_pos >= upper.position),
+                }
+                .and_then(|c: ByteIndex| if c.0 == lower.index.0 { None } else { Some(c) })
             }
             (Bound::Unbounded, Bound::Unbounded) => {
                 let lower = CachedOffset::default();
