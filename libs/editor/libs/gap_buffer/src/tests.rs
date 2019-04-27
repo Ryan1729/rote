@@ -19,6 +19,12 @@ macro_rules! pos {
     };
 }
 
+macro_rules! gap_informed {
+    ($index:literal, $buffer:ident) => {
+        GapObliviousByteIndex($index).inform_of_gap(&$buffer)
+    };
+}
+
 macro_rules! cached_offset {
     (l $line:literal o $offset:literal i $index:literal) => {
         CachedOffset {
@@ -26,13 +32,13 @@ macro_rules! cached_offset {
                 line: $line,
                 offset: CharOffset($offset),
             },
-            index: ByteIndex($index),
+            index: GapObliviousByteIndex($index),
         }
     };
     (p: $position:expr, i $index:literal) => {
         CachedOffset {
             position: $position,
-            index: ByteIndex($index),
+            index: GapObliviousByteIndex($index),
         }
     };
     () => {
@@ -615,7 +621,7 @@ mod find_index_unbounded_to_unbounded {
 
         assert_eq!(
             buffer.find_index_within_range(pos! {}, ..),
-            Some(ByteIndex(0))
+            Some(gap_informed!(0, buffer))
         );
     }
     #[test]
@@ -624,7 +630,7 @@ mod find_index_unbounded_to_unbounded {
 
         assert_eq!(
             buffer.find_index_within_range(pos! {l 0 o 2}, ..),
-            Some(ByteIndex(2))
+            Some(gap_informed!(2, buffer))
         );
     }
     #[test]
@@ -633,7 +639,7 @@ mod find_index_unbounded_to_unbounded {
 
         assert_eq!(
             buffer.find_index_within_range(pos! {l 1 o 1}, ..),
-            Some(ByteIndex(6))
+            Some(gap_informed!(6, buffer))
         );
     }
     #[test]
@@ -642,7 +648,7 @@ mod find_index_unbounded_to_unbounded {
 
         assert_eq!(
             buffer.find_index_within_range(pos! {l 2 o 1}, ..),
-            Some(ByteIndex(10 + buffer.gap_length.0))
+            Some(gap_informed!(10, buffer))
         );
     }
     #[test]
@@ -651,7 +657,7 @@ mod find_index_unbounded_to_unbounded {
 
         assert_eq!(
             buffer.find_index_within_range(pos! {l 2 o 3}, ..),
-            Some(ByteIndex(12 + buffer.gap_length.0))
+            Some(gap_informed!(12, buffer))
         );
     }
 }
@@ -664,7 +670,7 @@ mod find_index_included_to_unbounded {
 
         assert_eq!(
             buffer.find_index_within_range(pos! {}, cached_offset! {}..),
-            Some(ByteIndex(0))
+            Some(gap_informed!(0, buffer))
         );
     }
     #[test]
@@ -683,7 +689,7 @@ mod find_index_included_to_unbounded {
         let p = pos! {l 0 o 2};
         assert_eq!(
             buffer.find_index_within_range(p, cached_offset! {p: p, i 2}..),
-            Some(ByteIndex(2))
+            Some(gap_informed!(2, buffer))
         );
     }
     #[test]
@@ -703,17 +709,17 @@ mod find_index_included_to_unbounded {
         let p = pos! {l 1 o 1};
         assert_eq!(
             buffer.find_index_within_range(p, cached_offset! {l 0 o 4 i 4}..),
-            Some(ByteIndex(6))
+            Some(gap_informed!(6, buffer))
         );
     }
     #[test]
     fn at_gap_left_edge_at() {
-        let buffer = init!("1234\n567\n890" gap 6);
+        let buffer = dbg!(init!("1234\n567\n890" gap 6));
 
         let p = pos! {l 1 o 1};
         assert_eq!(
             buffer.find_index_within_range(p, cached_offset! {p: p, i 6}..),
-            Some(ByteIndex(6))
+            Some(gap_informed!(6, buffer))
         );
     }
     #[test]
@@ -731,7 +737,7 @@ mod find_index_included_to_unbounded {
 
         assert_eq!(
             buffer.find_index_within_range(pos! {l 2 o 1}, cached_offset! {l 1 o 2 i 7}..),
-            Some(ByteIndex(10 + buffer.gap_length.0))
+            Some(gap_informed!(10, buffer))
         );
     }
     #[test]
@@ -749,7 +755,7 @@ mod find_index_included_to_unbounded {
 
         assert_eq!(
             buffer.find_index_within_range(pos! {l 2 o 1}, cached_offset! {l 2 o 0 i 9}..),
-            Some(ByteIndex(10 + buffer.gap_length.0))
+            Some(gap_informed!(10, buffer))
         );
     }
     #[test]
@@ -767,7 +773,7 @@ mod find_index_included_to_unbounded {
 
         assert_eq!(
             buffer.find_index_within_range(pos! {l 2 o 3}, cached_offset! {l 1 o 2 i 7}..),
-            Some(ByteIndex(12 + buffer.gap_length.0))
+            Some(gap_informed!(12, buffer))
         );
     }
     #[test]
@@ -794,7 +800,7 @@ mod find_index_unbounded_to_included {
 
         assert_eq!(
             buffer.find_index_within_range(pos! {}, ..=cached_offset! {l 0 o 4 i 4}),
-            Some(ByteIndex(0))
+            Some(gap_informed!(0, buffer))
         );
     }
     #[test]
@@ -803,7 +809,7 @@ mod find_index_unbounded_to_included {
 
         assert_eq!(
             buffer.find_index_within_range(pos! {}, ..=cached_offset! {l 1 o 2 i 7}),
-            Some(ByteIndex(0))
+            Some(gap_informed!(0, buffer))
         );
     }
     #[test]
@@ -812,7 +818,7 @@ mod find_index_unbounded_to_included {
 
         assert_eq!(
             buffer.find_index_within_range(pos! {l 0 o 2}, ..=cached_offset! {l 0 o 4 i 4}),
-            Some(ByteIndex(2))
+            Some(gap_informed!(2, buffer))
         );
     }
     #[test]
@@ -821,7 +827,7 @@ mod find_index_unbounded_to_included {
 
         assert_eq!(
             buffer.find_index_within_range(pos! {l 0 o 2}, ..=cached_offset! {l 1 o 2 i 7}),
-            Some(ByteIndex(2))
+            Some(gap_informed!(2, buffer))
         );
     }
     #[test]
@@ -840,7 +846,7 @@ mod find_index_unbounded_to_included {
         let p = pos! {l 1 o 1};
         assert_eq!(
             buffer.find_index_within_range(p, ..=cached_offset! {p: p, i 6}),
-            Some(ByteIndex(6))
+            Some(gap_informed!(6, buffer))
         );
     }
     #[test]
@@ -849,7 +855,7 @@ mod find_index_unbounded_to_included {
 
         assert_eq!(
             buffer.find_index_within_range(pos! {l 1 o 1}, ..=cached_offset! {l 1 o 2 i 7}),
-            Some(ByteIndex(6))
+            Some(gap_informed!(6, buffer))
         );
     }
     #[test]
@@ -867,7 +873,7 @@ mod find_index_unbounded_to_included {
 
         assert_eq!(
             buffer.find_index_within_range(pos! {l 2 o 1}, ..=cached_offset! {l 2 o 2 i 11}),
-            Some(ByteIndex(10 + buffer.gap_length.0))
+            Some(gap_informed!(10, buffer))
         );
     }
     #[test]
@@ -885,7 +891,7 @@ mod find_index_unbounded_to_included {
 
         assert_eq!(
             buffer.find_index_within_range(pos! {l 2 o 3}, ..=cached_offset! {l 4 o 0 i 13}),
-            Some(ByteIndex(12 + buffer.gap_length.0))
+            Some(gap_informed!(12, buffer))
         );
     }
     #[test]
@@ -894,6 +900,24 @@ mod find_index_unbounded_to_included {
 
         assert_eq!(
             buffer.find_index_within_range(pos! {l 2 o 3}, ..=cached_offset! {l 1 o 2 i 7}),
+            None
+        );
+    }
+    #[test]
+    fn at_end_when_gap_is_at_end() {
+        let buffer = init!("1234\n567\n890" gap 12);
+
+        assert_eq!(
+            buffer.find_index_within_range(pos! {l 2 o 3}, ..=cached_offset! {l 4 o 0 i 13}),
+            Some(gap_informed!(12, buffer))
+        );
+    }
+    #[test]
+    fn not_found_at_end_when_gap_is_at_end() {
+        let buffer = init!("1234\n567\n890" gap 12);
+
+        assert_eq!(
+            buffer.find_index_within_range(pos! {l 2 o 3}, ..=cached_offset! {l 2 o 2 i 11}),
             None
         );
     }
@@ -917,7 +941,7 @@ mod find_index_included_to_included {
         assert_eq!(
             buffer
                 .find_index_within_range(pos! {}, cached_offset! {}..=cached_offset! {l 0 o 4 i 4}),
-            Some(ByteIndex(0))
+            Some(gap_informed!(0, buffer))
         );
     }
     #[test]
@@ -939,7 +963,7 @@ mod find_index_included_to_included {
         assert_eq!(
             buffer
                 .find_index_within_range(pos! {}, cached_offset! {}..=cached_offset! {l 1 o 2 i 7}),
-            Some(ByteIndex(0))
+            Some(gap_informed!(0, buffer))
         );
     }
     #[test]
@@ -963,7 +987,7 @@ mod find_index_included_to_included {
                 pos! {l 0 o 2},
                 cached_offset! {l 0 o 1 i 1}..=cached_offset! {l 0 o 4 i 4}
             ),
-            Some(ByteIndex(2))
+            Some(gap_informed!(2, buffer))
         );
     }
     #[test]
@@ -975,7 +999,7 @@ mod find_index_included_to_included {
                 pos! {l 0 o 2},
                 cached_offset! {l 0 o 1 i 1}..=cached_offset! {l 1 o 2 i 7}
             ),
-            Some(ByteIndex(2))
+            Some(gap_informed!(2, buffer))
         );
     }
     #[test]
@@ -987,7 +1011,7 @@ mod find_index_included_to_included {
                 pos! {l 0 o 2},
                 cached_offset! {l 0 o 1 i 1}..=cached_offset! {l 2 o 0 i 9}
             ),
-            Some(ByteIndex(2))
+            Some(gap_informed!(2, buffer))
         );
     }
     #[test]
@@ -1000,7 +1024,7 @@ mod find_index_included_to_included {
                 p,
                 cached_offset! {p: p, i 6}..=cached_offset! {p: p, i 6}
             ),
-            Some(ByteIndex(6))
+            Some(gap_informed!(6, buffer))
         );
     }
     #[test]
@@ -1013,7 +1037,7 @@ mod find_index_included_to_included {
                 p,
                 cached_offset! {p: p, i 6}..=cached_offset! {l 1 o 2 i 7}
             ),
-            Some(ByteIndex(6))
+            Some(gap_informed!(6, buffer))
         );
     }
     #[test]
@@ -1026,7 +1050,7 @@ mod find_index_included_to_included {
                 p,
                 cached_offset! {p: p, i 6}..=cached_offset! {l 2 o 0 i 9}
             ),
-            Some(ByteIndex(6))
+            Some(gap_informed!(6, buffer))
         );
     }
     #[test]
@@ -1050,7 +1074,7 @@ mod find_index_included_to_included {
                 pos! {l 2 o 1},
                 cached_offset! {l 0 o 4 i 4}..=cached_offset! {l 2 o 2 i 11}
             ),
-            Some(ByteIndex(10 + buffer.gap_length.0))
+            Some(gap_informed!(10, buffer))
         );
     }
     #[test]
@@ -1062,7 +1086,7 @@ mod find_index_included_to_included {
                 pos! {l 2 o 1},
                 cached_offset! {l 1 o 1 i 6}..=cached_offset! {l 2 o 2 i 11}
             ),
-            Some(ByteIndex(10 + buffer.gap_length.0))
+            Some(gap_informed!(10, buffer))
         );
     }
     #[test]
@@ -1074,7 +1098,7 @@ mod find_index_included_to_included {
                 pos! {l 2 o 1},
                 cached_offset! {l 1 o 2 i 7}..=cached_offset! {l 2 o 2 i 11}
             ),
-            Some(ByteIndex(10 + buffer.gap_length.0))
+            Some(gap_informed!(10, buffer))
         );
     }
     #[test]
@@ -1110,7 +1134,7 @@ mod find_index_included_to_included {
                 pos! {l 2 o 1},
                 cached_offset! {l 2 o 0 i 9}..=cached_offset! {l 2 o 2 i 11}
             ),
-            Some(ByteIndex(10 + buffer.gap_length.0))
+            Some(gap_informed!(10, buffer))
         );
     }
     #[test]
@@ -1134,7 +1158,7 @@ mod find_index_included_to_included {
                 pos! {l 2 o 3},
                 cached_offset! {}..=cached_offset! {l 4 o 0 i 13}
             ),
-            Some(ByteIndex(12 + buffer.gap_length.0))
+            Some(gap_informed!(12, buffer))
         );
     }
     #[test]
@@ -1149,6 +1173,30 @@ mod find_index_included_to_included {
             None
         );
     }
+    #[test]
+    fn at_end_when_gap_is_at_end() {
+        let buffer = init!("1234\n567\n890" gap 12);
+
+        assert_eq!(
+            buffer.find_index_within_range(
+                pos! {l 2 o 3},
+                cached_offset! {}..=cached_offset! {l 4 o 0 i 13}
+            ),
+            Some(gap_informed!(12, buffer))
+        );
+    }
+    #[test]
+    fn not_found_at_end_when_gap_is_at_end() {
+        let buffer = init!("1234\n567\n890" gap 12);
+
+        assert_eq!(
+            buffer.find_index_within_range(
+                pos! {l 2 o 3},
+                cached_offset! {}..=cached_offset! {l 2 o 2 i 11}
+            ),
+            None
+        );
+    }
 }
 
 mod find_index_unbounded_to_excluded {
@@ -1159,7 +1207,7 @@ mod find_index_unbounded_to_excluded {
 
         assert_eq!(
             buffer.find_index_within_range(pos! {}, ..cached_offset! {l 0 o 4 i 4}),
-            Some(ByteIndex(0))
+            Some(gap_informed!(0, buffer))
         );
     }
     #[test]
@@ -1168,7 +1216,7 @@ mod find_index_unbounded_to_excluded {
 
         assert_eq!(
             buffer.find_index_within_range(pos! {}, ..cached_offset! {l 1 o 3 i 8}),
-            Some(ByteIndex(0))
+            Some(gap_informed!(0, buffer))
         );
     }
     #[test]
@@ -1177,7 +1225,7 @@ mod find_index_unbounded_to_excluded {
 
         assert_eq!(
             buffer.find_index_within_range(pos! {l 0 o 2}, ..cached_offset! {l 0 o 4 i 4}),
-            Some(ByteIndex(2))
+            Some(gap_informed!(2, buffer))
         );
     }
     #[test]
@@ -1186,7 +1234,7 @@ mod find_index_unbounded_to_excluded {
 
         assert_eq!(
             buffer.find_index_within_range(pos! {l 0 o 2}, ..cached_offset! {l 1 o 3 i 8}),
-            Some(ByteIndex(2))
+            Some(gap_informed!(2, buffer))
         );
     }
     #[test]
@@ -1205,7 +1253,7 @@ mod find_index_unbounded_to_excluded {
         let p = pos! {l 1 o 1};
         assert_eq!(
             buffer.find_index_within_range(p, ..cached_offset! {l 1 o 2 i 7}),
-            Some(ByteIndex(6))
+            Some(gap_informed!(6, buffer))
         );
     }
     #[test]
@@ -1215,7 +1263,7 @@ mod find_index_unbounded_to_excluded {
         let p = pos! {l 1 o 1};
         assert_eq!(
             buffer.find_index_within_range(p, ..cached_offset! {l 2 o 0 i 9}),
-            Some(ByteIndex(6))
+            Some(gap_informed!(6, buffer))
         );
     }
     #[test]
@@ -1233,7 +1281,7 @@ mod find_index_unbounded_to_excluded {
 
         assert_eq!(
             buffer.find_index_within_range(pos! {l 2 o 1}, ..cached_offset! {l 2 o 2 i 11}),
-            Some(ByteIndex(10 + buffer.gap_length.0))
+            Some(gap_informed!(10, buffer))
         );
     }
     #[test]
@@ -1251,12 +1299,30 @@ mod find_index_unbounded_to_excluded {
 
         assert_eq!(
             buffer.find_index_within_range(pos! {l 2 o 3}, ..cached_offset! {l 4 o 0 i 13}),
-            Some(ByteIndex(12 + buffer.gap_length.0))
+            Some(gap_informed!(12, buffer))
         );
     }
     #[test]
     fn not_found_at_end() {
         let buffer = init!("1234\n567\n890" gap 6);
+
+        assert_eq!(
+            buffer.find_index_within_range(pos! {l 2 o 3}, ..cached_offset! {l 2 o 3 i 12}),
+            None
+        );
+    }
+    #[test]
+    fn at_end_when_gap_is_at_end() {
+        let buffer = init!("1234\n567\n890" gap 12);
+
+        assert_eq!(
+            buffer.find_index_within_range(pos! {l 2 o 3}, ..cached_offset! {l 4 o 0 i 13}),
+            Some(gap_informed!(12, buffer))
+        );
+    }
+    #[test]
+    fn not_found_at_end_when_gap_is_at_end() {
+        let buffer = init!("1234\n567\n890" gap 12);
 
         assert_eq!(
             buffer.find_index_within_range(pos! {l 2 o 3}, ..cached_offset! {l 2 o 3 i 12}),
@@ -1274,7 +1340,7 @@ mod find_index_included_to_excluded {
         assert_eq!(
             buffer
                 .find_index_within_range(pos! {}, cached_offset! {}..cached_offset! {l 0 o 4 i 4}),
-            Some(ByteIndex(0))
+            Some(gap_informed!(0, buffer))
         );
     }
     #[test]
@@ -1296,7 +1362,7 @@ mod find_index_included_to_excluded {
         assert_eq!(
             buffer
                 .find_index_within_range(pos! {}, cached_offset! {}..cached_offset! {l 1 o 3 i 8}),
-            Some(ByteIndex(0))
+            Some(gap_informed!(0, buffer))
         );
     }
     #[test]
@@ -1333,7 +1399,7 @@ mod find_index_included_to_excluded {
                 p,
                 cached_offset! {p: p, i 2}..cached_offset! {l 0 o 4 i 4}
             ),
-            Some(ByteIndex(2))
+            Some(gap_informed!(2, buffer))
         );
     }
     #[test]
@@ -1346,7 +1412,7 @@ mod find_index_included_to_excluded {
                 p,
                 cached_offset! {p: p, i 2}..cached_offset! {l 1 o 3 i 8}
             ),
-            Some(ByteIndex(2))
+            Some(gap_informed!(2, buffer))
         );
     }
     #[test]
@@ -1368,7 +1434,7 @@ mod find_index_included_to_excluded {
         let p = pos! {l 1 o 1};
         assert_eq!(
             buffer.find_index_within_range(p, ..cached_offset! {l 1 o 2 i 7}),
-            Some(ByteIndex(6))
+            Some(gap_informed!(6, buffer))
         );
     }
     #[test]
@@ -1378,7 +1444,7 @@ mod find_index_included_to_excluded {
         let p = pos! {l 1 o 1};
         assert_eq!(
             buffer.find_index_within_range(p, ..cached_offset! {l 2 o 0 i 9}),
-            Some(ByteIndex(6))
+            Some(gap_informed!(6, buffer))
         );
     }
     #[test]
@@ -1402,7 +1468,7 @@ mod find_index_included_to_excluded {
                 pos! {l 2 o 1},
                 cached_offset! {}..cached_offset! {l 2 o 2 i 11}
             ),
-            Some(ByteIndex(10 + buffer.gap_length.0))
+            Some(gap_informed!(10, buffer))
         );
     }
     #[test]
@@ -1426,7 +1492,7 @@ mod find_index_included_to_excluded {
                 pos! {l 2 o 1},
                 cached_offset! {l 2 o 0 i 9}..cached_offset! {l 2 o 2 i 11}
             ),
-            Some(ByteIndex(10 + buffer.gap_length.0))
+            Some(gap_informed!(10, buffer))
         );
     }
     #[test]
@@ -1450,12 +1516,36 @@ mod find_index_included_to_excluded {
                 pos! {l 2 o 3},
                 cached_offset! {}..cached_offset! {l 4 o 0 i 13}
             ),
-            Some(ByteIndex(12 + buffer.gap_length.0))
+            Some(gap_informed!(12, buffer))
         );
     }
     #[test]
     fn not_found_at_end() {
         let buffer = init!("1234\n567\n890" gap 6);
+
+        assert_eq!(
+            buffer.find_index_within_range(
+                pos! {l 2 o 3},
+                cached_offset! {}..cached_offset! {l 2 o 3 i 12}
+            ),
+            None
+        );
+    }
+    #[test]
+    fn at_end_when_gap_is_at_end() {
+        let buffer = init!("1234\n567\n890" gap 12);
+
+        assert_eq!(
+            buffer.find_index_within_range(
+                pos! {l 2 o 3},
+                cached_offset! {}..cached_offset! {l 4 o 0 i 13}
+            ),
+            Some(gap_informed!(12, buffer))
+        );
+    }
+    #[test]
+    fn not_found_at_end_when_gap_is_at_end() {
+        let buffer = init!("1234\n567\n890" gap 12);
 
         assert_eq!(
             buffer.find_index_within_range(

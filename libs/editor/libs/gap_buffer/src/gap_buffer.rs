@@ -1,8 +1,9 @@
 use editor_types::{ByteIndex, ByteLength, Cursor};
 use macros::d;
-use macros::invariant_assert;
+use macros::{integer_newtype, invariant_assert, usize_newtype};
 use platform_types::{CharOffset, Position};
 use std::borrow::Borrow;
+use std::ops::{Add, Sub};
 use unicode_segmentation::UnicodeSegmentation;
 
 #[cfg(test)]
@@ -17,10 +18,40 @@ macro_rules! tdbg {
 
 type Utf8Data = Vec<u8>; // must always be a valid utf8 string
 
+// An index into the buffer that assumes the gap size is zero.
+// In otherwords this is a byte index into the string that the buffer represents
+#[derive(Clone, Copy, Debug, Default)]
+pub struct GapObliviousByteIndex(pub usize);
+
+integer_newtype! {
+    GapObliviousByteIndex
+}
+
+usize_newtype! {
+    GapObliviousByteIndex
+}
+
+impl GapObliviousByteIndex {
+    pub fn inform_of_gap(
+        &self,
+        GapBuffer {
+            gap_start,
+            gap_length,
+            ..
+        }: &GapBuffer,
+    ) -> ByteIndex {
+        ByteIndex(if self.0 <= gap_start.0 {
+            self.0
+        } else {
+            self.0 + gap_length.0
+        })
+    }
+}
+
 #[derive(Debug, PartialEq, Default)]
 pub struct CachedOffset {
     position: Position,
-    index: ByteIndex,
+    index: GapObliviousByteIndex,
 }
 
 type OffsetCache = Vec<CachedOffset>;
@@ -315,15 +346,15 @@ impl GapBuffer {
         R: std::ops::RangeBounds<CachedOffset>,
     {
         let pos = position.borrow();
-        let mut current_pos: Position = d!();
+        let mut current_pos: Position;
 
         use std::ops::Bound;
 
         macro_rules! bounded {
             ($lower_bound: expr, $upper_bound_condition: expr) => {{
                 let first_half = self.get_str(..self.gap_start.0);
-
                 current_pos = $lower_bound.position;
+
                 if $lower_bound.index < first_half.len() {
                     if let Some(first_half) = dbg!(first_half.get(dbg!($lower_bound.index.0)..)) {
                         for (index, grapheme) in first_half
@@ -355,46 +386,51 @@ impl GapBuffer {
                         }
                     }
                 }
+
+                let lower_bound_index = $lower_bound.index.inform_of_gap(self);
+
                 if current_pos == *pos {
-                    return Some($lower_bound.index);
+                    return Some(lower_bound_index);
                 }
 
                 // We haven't reached the position yet, so we'll move on to the other half.
                 let second_half = self.get_str(self.gap_end().0..);
 
-                if $lower_bound.index < self.gap_end() + second_half.len() {
-                    for (index, grapheme) in second_half
-                        .grapheme_indices()
-                        .map(|(o, g)| (ByteIndex(o), g))
-                    {
-                        // Check to see if we've found the position yet.
+                if lower_bound_index < self.gap_end() + second_half.len() {
+                    let second_half_start = if $lower_bound.index < first_half.len() {
+                        0
+                    } else {
+                        $lower_bound.index.0.saturating_sub(self.gap_start.0)
+                    };
+
+                    if let Some(second_half) = second_half.get(second_half_start..) {
+                        for (index, grapheme) in second_half
+                            .grapheme_indices()
+                            .map(|(o, g)| (ByteIndex(o + second_half_start), g))
+                        {
+                            // Check to see if we've found the position yet.
+                            if current_pos == *pos {
+                                return Some(self.gap_end() + index);
+                            }
+
+                            // Advance the line and offset characters.
+                            if grapheme == "\n" || grapheme == "\r\n" {
+                                current_pos.line += 1;
+                                current_pos.offset = d!();
+                            } else {
+                                current_pos.offset += 1;
+                            }
+
+                            if $upper_bound_condition {
+                                return None;
+                            }
+                        }
+
+                        // We didn't find the position *within* the second half, but it could
+                        // be right after it, which means it's at the end of the buffer.
                         if current_pos == *pos {
-                            return Some(self.gap_end() + index);
+                            return Some(ByteIndex(self.data.len()));
                         }
-
-                        // Advance the line and offset characters.
-                        if grapheme == "\n" || grapheme == "\r\n" {
-                            current_pos.line += 1;
-                            current_pos.offset = d!();
-                        } else {
-                            current_pos.offset += 1;
-                        }
-
-                        if $upper_bound_condition {
-                            return None;
-                        }
-                    }
-
-                    // We didn't find the position *within* the second half, but it could
-                    // be right after it, which means it's at the end of the buffer.
-                    if current_pos == *pos {
-                        return Some(ByteIndex(self.data.len()));
-                    }
-                } else {
-                    current_pos = $lower_bound.position;
-
-                    if current_pos == *pos {
-                        return Some($lower_bound.index);
                     }
                 }
 
