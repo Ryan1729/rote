@@ -1875,3 +1875,99 @@ fn get_index_bounds_length_3_cache_after_node_2() {
     );
     assert_eq!(output.end_bound(), Bound::Unbounded);
 }
+
+mod optimal_offset_cache_from_all_cached_offsets_tests {
+    use super::*;
+    const f: fn(Vec<CachedOffset>, usize) -> OffsetCache =
+        optimal_offset_cache_from_all_cached_offsets;
+
+    #[test]
+    fn works_on_empty_vector() {
+        let output = f(vec![], 16);
+
+        assert_eq!(output, vec![]);
+    }
+
+    #[test]
+    fn does_not_crash_given_duplicates() {
+        let output = f(
+            vec![
+                cached_offset! {l 1 o 2 i 7},
+                cached_offset! {l 1 o 2 i 7},
+                cached_offset! {l 1 o 2 i 7},
+            ],
+            16,
+        );
+
+        assert!(true);
+    }
+
+    macro_rules! assert_reasonable_output {
+        ($output: ident, $block_size: ident, $offsets: ident) => {
+            let minimum_len = if $offsets.len() == 0 {
+                0
+            } else {
+                std::cmp::max($offsets.len() / $block_size, 1)
+            };
+            assert!(
+                $output.len() >= minimum_len,
+                "{} not <= to {}",
+                $output.len(),
+                minimum_len
+            );
+            assert!(
+                $output.len() < minimum_len * 2,
+                "{} not < {}",
+                $output.len(),
+                minimum_len * 2
+            );
+            for c_o in $output.iter() {
+                assert!(
+                    $offsets.contains(c_o),
+                    "{:?} does not contain {:?}",
+                    $offsets,
+                    c_o
+                );
+            }
+        };
+    }
+
+    #[test]
+    fn works_on_less_than_one_block() {
+        let offsets = vec![
+            cached_offset! {},
+            cached_offset! {l 0 o 1 i 1},
+            cached_offset! {l 0 o 2 i 2},
+            cached_offset! {l 0 o 3 i 3},
+            cached_offset! {l 0 o 4 i 4},
+            cached_offset! {l 1 o 0 i 5},
+            cached_offset! {l 1 o 1 i 6},
+            cached_offset! {l 1 o 2 i 7},
+            cached_offset! {l 1 o 3 i 8},
+            cached_offset! {l 2 o 0 i 9},
+            cached_offset! {l 2 o 1 i 10},
+            cached_offset! {l 2 o 2 i 11},
+            cached_offset! {l 2 o 3 i 12},
+        ];
+
+        let block_size = 16;
+
+        let output = f(offsets.clone(), block_size);
+
+        assert_reasonable_output!(output, block_size, offsets);
+    }
+
+    proptest! {
+        #[test]
+        fn works_multiple_blocks(s in TYPEABLE) {
+            let buffer = GapBuffer::new(s);
+            let offsets = buffer.get_all_cached_offsets();
+            let block_size = 8;
+
+            let output = f(offsets.clone(), block_size);
+
+            assert_reasonable_output!(output, block_size, offsets);
+        }
+    }
+
+}

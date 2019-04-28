@@ -87,6 +87,13 @@ where
     }
 }
 
+fn optimal_offset_cache_from_all_cached_offsets(
+    all_cached_offsets: Vec<CachedOffset>,
+    block_size: usize,
+) -> OffsetCache {
+    all_cached_offsets
+}
+
 #[derive(Debug)]
 pub struct GapBuffer {
     data: Utf8Data,
@@ -104,6 +111,17 @@ impl Default for GapBuffer {
     fn default() -> Self {
         GapBuffer::new(include_str!("../../../../../text/slipsum.txt").into())
     }
+}
+
+macro_rules! advance_position_based_on_grapheme {
+    ($current_pos: ident, $grapheme: ident) => {
+        if $grapheme == "\n" || $grapheme == "\r\n" {
+            $current_pos.line += 1;
+            $current_pos.offset = d!();
+        } else {
+            $current_pos.offset += 1;
+        }
+    };
 }
 
 impl GapBuffer {
@@ -240,10 +258,49 @@ impl GapBuffer {
         }
     }
 
+    fn get_all_cached_offsets(&self) -> Vec<CachedOffset> {
+        let mut all_cached_offsets = Vec::with_capacity(
+            // a loose upper bound
+            self.data.len() - self.gap_length.0,
+        );
+        let mut cached_offset: CachedOffset = d!();
+
+        let first_half = self.get_str(..self.gap_start.0);
+
+        for (index, grapheme) in first_half
+            .grapheme_indices()
+            .map(|(o, g)| (GapObliviousByteIndex(o), g))
+        {
+            cached_offset.index = index;
+            all_cached_offsets.push(cached_offset.clone());
+
+            let position = &mut cached_offset.position;
+            advance_position_based_on_grapheme!(position, grapheme);
+        }
+
+        let second_half = self.get_str(self.gap_end().0..);
+
+        for (index, grapheme) in second_half
+            .grapheme_indices()
+            .map(|(o, g)| (GapObliviousByteIndex(o + self.gap_start.0), g))
+        {
+            cached_offset.index = index;
+            all_cached_offsets.push(cached_offset.clone());
+
+            let position = &mut cached_offset.position;
+            advance_position_based_on_grapheme!(position, grapheme);
+        }
+
+        all_cached_offsets.push(cached_offset);
+
+        all_cached_offsets
+    }
+
     fn optimal_offset_cache(&self) -> OffsetCache {
-        //TODO calcaulate optimal cache as a binary tree that can later be used to find indexes
-        //from positions more quickly
-        d!()
+        optimal_offset_cache_from_all_cached_offsets(
+            self.get_all_cached_offsets(),
+            Self::BLOCK_SIZE,
+        )
     }
 
     // This is the index that a grapheme would be at if it was one past the last slot we have
@@ -389,13 +446,7 @@ impl GapBuffer {
                                 return Some(index);
                             }
 
-                            // Advance the line and offset characters.
-                            if grapheme == "\n" || grapheme == "\r\n" {
-                                current_pos.line += 1;
-                                current_pos.offset = d!();
-                            } else {
-                                current_pos.offset += 1;
-                            }
+                            advance_position_based_on_grapheme!(current_pos, grapheme);
 
                             if $upper_bound_condition {
                                 return None;
@@ -436,13 +487,7 @@ impl GapBuffer {
                                 return Some(self.gap_end() + index);
                             }
 
-                            // Advance the line and offset characters.
-                            if grapheme == "\n" || grapheme == "\r\n" {
-                                current_pos.line += 1;
-                                current_pos.offset = d!();
-                            } else {
-                                current_pos.offset += 1;
-                            }
+                            advance_position_based_on_grapheme!(current_pos, grapheme);
 
                             if $upper_bound_condition {
                                 return None;
@@ -500,25 +545,18 @@ impl GapBuffer {
     #[perf_viz::record]
     pub fn find_absolute_offset<P: Borrow<Position>>(&self, position: P) -> Option<CharOffset> {
         let pos = position.borrow();
-        let mut line = 0;
-        let mut line_offset = 0;
+        let mut current_pos: Position = d!();
         let mut absolute_offset = CharOffset(0);
 
         let first_half = self.get_str(..self.gap_start.0);
 
         for grapheme in first_half.graphemes() {
             // Check to see if we've found the position yet.
-            if line == pos.line && line_offset == pos.offset {
+            if current_pos == *pos {
                 return Some(absolute_offset);
             }
 
-            // Advance the line and offset characters.
-            if grapheme == "\n" || grapheme == "\r\n" {
-                line += 1;
-                line_offset = 0;
-            } else {
-                line_offset += 1;
-            }
+            advance_position_based_on_grapheme!(current_pos, grapheme);
 
             absolute_offset += 1;
         }
@@ -527,24 +565,18 @@ impl GapBuffer {
         let second_half = self.get_str(self.gap_end().0..);
         for grapheme in second_half.graphemes() {
             // Check to see if we've found the position yet.
-            if line == pos.line && line_offset == pos.offset {
+            if current_pos == *pos {
                 return Some(absolute_offset);
             }
 
-            // Advance the line and offset characters.
-            if grapheme == "\n" || grapheme == "\r\n" {
-                line += 1;
-                line_offset = 0;
-            } else {
-                line_offset += 1;
-            }
+            advance_position_based_on_grapheme!(current_pos, grapheme);
 
             absolute_offset += 1;
         }
 
         // We didn't find the position *within* the second half, but it could
         // be right after it, which means it's at the end of the buffer.
-        if line == pos.line && line_offset == pos.offset {
+        if current_pos == *pos {
             return Some(absolute_offset);
         }
 
