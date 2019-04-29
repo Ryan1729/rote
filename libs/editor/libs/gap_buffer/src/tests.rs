@@ -1876,21 +1876,86 @@ fn get_index_bounds_length_3_cache_after_node_2() {
     assert_eq!(output.end_bound(), Bound::Unbounded);
 }
 
+fn assert_is_reasonable_all_cached_offsets(offsets: Vec<CachedOffset>, buffer: GapBuffer) {
+    use std::collections::HashMap;
+    let len = offsets.len();
+
+    // It should included the offst before the first character and after the last character.
+    assert_eq!(len, buffer.graphemes().count() + 1);
+
+    let mut pos_counts: HashMap<_, usize> = HashMap::with_capacity(len);
+    let mut index_counts: HashMap<_, usize> = HashMap::with_capacity(len);
+    let mut offset_counts: HashMap<_, usize> = HashMap::with_capacity(len);
+
+    for offset in offsets.iter() {
+        let pos_count = pos_counts.entry(offset.position).or_insert(0);
+        *pos_count += 1;
+
+        let index_count = index_counts.entry(offset.index).or_insert(0);
+        *index_count += 1;
+
+        let offset_count = offset_counts.entry(offset).or_insert(0);
+        *offset_count += 1;
+    }
+
+    for (k, count) in pos_counts {
+        assert_eq!(
+            count, 1,
+            "count for {:?} is {}.\noffsets: {:#?}",
+            k, count, offsets
+        );
+    }
+
+    for (k, count) in index_counts {
+        assert_eq!(
+            count, 1,
+            "count for {:?} is {}.\noffsets: {:#?}",
+            k, count, offsets
+        );
+    }
+
+    for (k, count) in offset_counts {
+        assert_eq!(
+            count, 1,
+            "count for {:?} is {}.\noffsets: {:#?}",
+            k, count, offsets
+        );
+    }
+}
+
+#[test]
+fn get_all_cached_offsets_works_on_single_char() {
+    let buffer = GapBuffer::new("a".to_owned());
+    let offsets = buffer.get_all_cached_offsets();
+
+    assert_is_reasonable_all_cached_offsets(offsets, buffer);
+}
+
+proptest! {
+    #[test]
+    fn get_all_cached_offsets_works(s in TYPEABLE) {
+        let buffer = GapBuffer::new(s);
+        let offsets = buffer.get_all_cached_offsets();
+
+        assert_is_reasonable_all_cached_offsets(offsets, buffer);
+    }
+}
+
 mod optimal_offset_cache_from_all_cached_offsets_tests {
     use super::*;
-    const f: fn(Vec<CachedOffset>, usize) -> OffsetCache =
+    const F: fn(Vec<CachedOffset>, usize) -> OffsetCache =
         optimal_offset_cache_from_all_cached_offsets;
 
     #[test]
     fn works_on_empty_vector() {
-        let output = f(vec![], 16);
+        let output = F(vec![], 16);
 
         assert_eq!(output, vec![]);
     }
 
     #[test]
     fn does_not_crash_given_duplicates() {
-        let output = f(
+        F(
             vec![
                 cached_offset! {l 1 o 2 i 7},
                 cached_offset! {l 1 o 2 i 7},
@@ -1902,24 +1967,53 @@ mod optimal_offset_cache_from_all_cached_offsets_tests {
         assert!(true);
     }
 
+    fn is_sorted<P, I>(mut iterator: I) -> bool
+    where
+        P: PartialOrd,
+        I: Iterator<Item = P>,
+    {
+        let mut previous: P = match iterator.next() {
+            Some(e) => e,
+            None => return true,
+        };
+
+        while let Some(current) = iterator.next() {
+            if previous
+                .partial_cmp(&current)
+                .map(|o| o == std::cmp::Ordering::Greater)
+                .unwrap_or(true)
+            {
+                return false;
+            }
+            previous = current;
+        }
+
+        true
+    }
+
     macro_rules! assert_reasonable_output {
         ($output: ident, $block_size: ident, $offsets: ident) => {
-            let minimum_len = if $offsets.len() == 0 {
-                0
+            let len = $offsets.len();
+
+            let minimum_len = if len <= 1 {
+                len
             } else {
-                std::cmp::max($offsets.len() / $block_size, 1)
+                std::cmp::max(len / $block_size, 1)
             };
             assert!(
                 $output.len() >= minimum_len,
-                "{} not <= to {}",
+                "{} not <= to {}.\n output: {:#?}",
+                minimum_len,
                 $output.len(),
-                minimum_len
+                $output
             );
+            let maximun_len = minimum_len * 2 + 1;
             assert!(
-                $output.len() < minimum_len * 2,
-                "{} not < {}",
+                $output.len() < maximun_len,
+                "{} not < {}.\n output: {:#?}",
                 $output.len(),
-                minimum_len * 2
+                maximun_len,
+                $output
             );
             for c_o in $output.iter() {
                 assert!(
@@ -1929,7 +2023,39 @@ mod optimal_offset_cache_from_all_cached_offsets_tests {
                     c_o
                 );
             }
+
+            assert!(is_sorted($offsets.iter()));
+
+            let deduped = {
+                let mut d = $offsets.clone();
+                d.dedup();
+                d
+            };
+            assert!(
+                deduped.len() == $offsets.len(),
+                "{:?} contains duplicates",
+                $offsets,
+            );
+
+            for chunk in $offsets.chunks($block_size) {
+                assert!(
+                    $output.iter().any(|o| chunk.contains(o)),
+                    "{:#?} does not contain any element of {:#?}",
+                    $output,
+                    chunk
+                );
+            }
         };
+    }
+
+    #[test]
+    fn works_on_single_offset() {
+        let offsets = vec![d!()];
+        let block_size = 8;
+
+        let output = F(offsets.clone(), block_size);
+
+        assert_reasonable_output!(output, block_size, offsets);
     }
 
     #[test]
@@ -1952,19 +2078,30 @@ mod optimal_offset_cache_from_all_cached_offsets_tests {
 
         let block_size = 16;
 
-        let output = f(offsets.clone(), block_size);
+        let output = F(offsets.clone(), block_size);
+
+        assert_reasonable_output!(output, block_size, offsets);
+    }
+
+    #[test]
+    fn works_on_string_with_newline_at_index_5() {
+        let buffer = GapBuffer::new("12345\n78".to_owned());
+        let offsets = dbg!(buffer.get_all_cached_offsets());
+        let block_size = 8;
+        dbg!(offsets.chunks(block_size).collect::<Vec<_>>());
+        let output = F(offsets.clone(), block_size);
 
         assert_reasonable_output!(output, block_size, offsets);
     }
 
     proptest! {
         #[test]
-        fn works_multiple_blocks(s in TYPEABLE) {
+        fn works_on_multiple_blocks(s in TYPEABLE) {
             let buffer = GapBuffer::new(s);
             let offsets = buffer.get_all_cached_offsets();
             let block_size = 8;
 
-            let output = f(offsets.clone(), block_size);
+            let output = F(offsets.clone(), block_size);
 
             assert_reasonable_output!(output, block_size, offsets);
         }

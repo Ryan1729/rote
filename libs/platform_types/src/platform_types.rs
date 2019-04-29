@@ -93,7 +93,7 @@ d!(for Input : Input::None);
 /// four possibe `CharOffset`s. (Note that "ö" is two characters: "o\u{308}".)
 /// Here they are represented as vertical bars: "|a|ö|c|"
 /// Whatever the state of the gap is, that is how `CharOffset`s are meant to be interpreted.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, Hash)]
 pub struct CharOffset(pub usize);
 
 usize_newtype! {
@@ -107,7 +107,7 @@ integer_newtype! {
 display! {for CharOffset : CharOffset(offset) in "{}", offset}
 
 /// `offset` indicates a location before or after characters, not at the charaters.
-#[derive(Copy, Clone, Debug, Default, Eq)]
+#[derive(Copy, Clone, Debug, Default, Eq, Hash)]
 pub struct Position {
     pub line: usize,
     pub offset: CharOffset,

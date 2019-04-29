@@ -20,7 +20,7 @@ type Utf8Data = Vec<u8>; // must always be a valid utf8 string
 
 // An index into the buffer that assumes the gap size is zero.
 // In otherwords this is a byte index into the string that the buffer represents
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, Hash)]
 pub struct GapObliviousByteIndex(pub usize);
 
 integer_newtype! {
@@ -48,7 +48,7 @@ impl GapObliviousByteIndex {
     }
 }
 
-#[derive(Debug, PartialEq, Default, Clone)]
+#[derive(Clone, Default, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CachedOffset {
     position: Position,
     index: GapObliviousByteIndex,
@@ -91,7 +91,22 @@ fn optimal_offset_cache_from_all_cached_offsets(
     all_cached_offsets: Vec<CachedOffset>,
     block_size: usize,
 ) -> OffsetCache {
-    all_cached_offsets
+    let len = all_cached_offsets.len();
+    let minimum_len = if len <= 1 {
+        len
+    } else {
+        std::cmp::max(len / block_size, 1)
+    };
+
+    let mut output = Vec::with_capacity(minimum_len);
+
+    for chunk in all_cached_offsets.chunks(block_size) {
+        if let Some(last) = chunk.last() {
+            output.push((*last).clone());
+        }
+    }
+
+    output
 }
 
 #[derive(Debug)]
@@ -267,28 +282,24 @@ impl GapBuffer {
 
         let first_half = self.get_str(..self.gap_start.0);
 
-        for (index, grapheme) in first_half
-            .grapheme_indices()
-            .map(|(o, g)| (GapObliviousByteIndex(o), g))
-        {
-            cached_offset.index = index;
+        for grapheme in first_half.graphemes() {
             all_cached_offsets.push(cached_offset.clone());
 
             let position = &mut cached_offset.position;
             advance_position_based_on_grapheme!(position, grapheme);
+            cached_offset.index += grapheme.len();
         }
 
         let second_half = self.get_str(self.gap_end().0..);
 
-        for (index, grapheme) in second_half
-            .grapheme_indices()
-            .map(|(o, g)| (GapObliviousByteIndex(o + self.gap_start.0), g))
-        {
-            cached_offset.index = index;
+        cached_offset.index += self.gap_length.0;
+
+        for grapheme in second_half.graphemes() {
             all_cached_offsets.push(cached_offset.clone());
 
             let position = &mut cached_offset.position;
             advance_position_based_on_grapheme!(position, grapheme);
+            cached_offset.index += grapheme.len();
         }
 
         all_cached_offsets.push(cached_offset);
