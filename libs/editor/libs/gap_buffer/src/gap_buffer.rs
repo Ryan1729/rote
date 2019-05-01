@@ -3,7 +3,9 @@ use macros::d;
 use macros::{integer_newtype, invariant_assert, usize_newtype};
 use platform_types::{CharOffset, Position};
 use std::borrow::Borrow;
+use std::num::NonZeroUsize;
 use std::ops::{Add, Sub};
+use std::ops::{Bound, RangeBounds};
 use unicode_segmentation::UnicodeSegmentation;
 
 #[cfg(test)]
@@ -31,21 +33,34 @@ usize_newtype! {
     GapObliviousByteIndex
 }
 
-impl GapObliviousByteIndex {
-    pub fn inform_of_gap(
-        &self,
-        GapBuffer {
-            gap_start,
-            gap_length,
-            ..
-        }: &GapBuffer,
-    ) -> ByteIndex {
-        ByteIndex(if self.0 <= gap_start.0 {
-            self.0
-        } else {
-            self.0 + gap_length.0
-        })
-    }
+fn inform_of_gap(
+    GapObliviousByteIndex(i): GapObliviousByteIndex,
+    GapBuffer {
+        gap_start,
+        gap_length,
+        ..
+    }: &GapBuffer,
+) -> ByteIndex {
+    ByteIndex(if i <= gap_start.0 {
+        i
+    } else {
+        i + gap_length.0
+    })
+}
+
+fn remove_gap_knowledge(
+    ByteIndex(i): ByteIndex,
+    GapBuffer {
+        gap_start,
+        gap_length,
+        ..
+    }: &GapBuffer,
+) -> GapObliviousByteIndex {
+    GapObliviousByteIndex(if i <= gap_start.0 {
+        i
+    } else {
+        i - gap_length.0
+    })
 }
 
 #[derive(Clone, Default, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -56,12 +71,12 @@ pub struct CachedOffset {
 
 type OffsetCache = Vec<CachedOffset>;
 
-pub fn get_index_bounds<O, P>(cache: O, position: P) -> impl std::ops::RangeBounds<CachedOffset>
+pub fn get_index_bounds<O, P>(cache: O, position: P) -> impl RangeBounds<CachedOffset>
 where
     O: Borrow<OffsetCache>,
     P: Borrow<Position>,
 {
-    use std::ops::Bound::{Excluded, Included, Unbounded};
+    use Bound::{Excluded, Included, Unbounded};
     let cache = cache.borrow();
 
     let mut index = 0;
@@ -89,8 +104,9 @@ where
 
 fn optimal_offset_cache_from_all_cached_offsets(
     all_cached_offsets: Vec<CachedOffset>,
-    block_size: usize,
+    block_size: NonZeroUsize,
 ) -> OffsetCache {
+    let block_size = block_size.get();
     let len = all_cached_offsets.len();
     let minimum_len = if len <= 1 {
         len
@@ -115,12 +131,11 @@ pub struct GapBuffer {
     gap_start: ByteIndex,
     gap_length: ByteLength,
     offset_cache: OffsetCache,
+    block_size: NonZeroUsize,
 }
 
-impl GapBuffer {
-    // TODO tune this.
-    const BLOCK_SIZE: usize = 4096;
-}
+// TODO tune this.
+const DEFAULT_BLOCK_SIZE: NonZeroUsize = unsafe { NonZeroUsize::new_unchecked(4096) };
 
 impl Default for GapBuffer {
     fn default() -> Self {
@@ -139,6 +154,14 @@ macro_rules! advance_position_based_on_grapheme {
     };
 }
 
+macro_rules! advance_cached_offset_based_on_grapheme {
+    ($cached_offset: ident, $grapheme: ident) => {{
+        let position = &mut $cached_offset.position;
+        advance_position_based_on_grapheme!(position, $grapheme);
+        $cached_offset.index += $grapheme.len();
+    }};
+}
+
 impl GapBuffer {
     pub fn new(data: String) -> GapBuffer {
         // If we made a valid buffer then called `insert_str` that would be slow for opening new
@@ -148,12 +171,17 @@ impl GapBuffer {
         let mut gap_length = d!();
         Self::match_len_to_capacity(&mut bytes, gap_start, &mut gap_length);
 
-        GapBuffer {
+        let mut output = GapBuffer {
             data: bytes,
             gap_start,
             gap_length,
             offset_cache: d!(),
-        }
+            block_size: DEFAULT_BLOCK_SIZE,
+        };
+
+        output.offset_cache = output.optimal_offset_cache();
+
+        output
     }
 
     pub fn insert<P: Borrow<Position>>(&mut self, c: char, position: P) -> Option<()> {
@@ -180,6 +208,38 @@ impl GapBuffer {
         // run the lines above which potentially allocate, if the position is invalid. But if we
         // need to allocate then the index might be invalidated.
         let index = self.find_index(position)?;
+
+        //
+        // fix offst cache
+        let end_offset = {
+            let index_bounds = get_index_bounds(&self.offset_cache, position);
+            dbg!((index_bounds.start_bound(), index_bounds.end_bound()));
+            if let Bound::Included(end_offset) | Bound::Excluded(end_offset) =
+                index_bounds.end_bound()
+            {
+                Some(end_offset.clone())
+            } else {
+                // It must be at the end of the cache so we don't need to switch anything
+                None
+            }
+        };
+
+        if let Some(end_offset) = end_offset {
+            let target_index = self.offset_cache.iter().position(|p| *p == end_offset)?;
+
+            let mut cached_offset = CachedOffset {
+                position: position.clone(),
+                index: remove_gap_knowledge(index, self),
+            };
+
+            for g in data.graphemes() {
+                advance_cached_offset_based_on_grapheme!(cached_offset, g);
+            }
+
+            self.offset_cache[target_index] = cached_offset;
+        }
+        //
+        //
 
         self.move_gap(index);
 
@@ -285,9 +345,7 @@ impl GapBuffer {
         for grapheme in first_half.graphemes() {
             all_cached_offsets.push(cached_offset.clone());
 
-            let position = &mut cached_offset.position;
-            advance_position_based_on_grapheme!(position, grapheme);
-            cached_offset.index += grapheme.len();
+            advance_cached_offset_based_on_grapheme!(cached_offset, grapheme);
         }
 
         let second_half = self.get_str(self.gap_end().0..);
@@ -297,9 +355,7 @@ impl GapBuffer {
         for grapheme in second_half.graphemes() {
             all_cached_offsets.push(cached_offset.clone());
 
-            let position = &mut cached_offset.position;
-            advance_position_based_on_grapheme!(position, grapheme);
-            cached_offset.index += grapheme.len();
+            advance_cached_offset_based_on_grapheme!(cached_offset, grapheme);
         }
 
         all_cached_offsets.push(cached_offset);
@@ -308,10 +364,7 @@ impl GapBuffer {
     }
 
     fn optimal_offset_cache(&self) -> OffsetCache {
-        optimal_offset_cache_from_all_cached_offsets(
-            self.get_all_cached_offsets(),
-            Self::BLOCK_SIZE,
-        )
+        optimal_offset_cache_from_all_cached_offsets(self.get_all_cached_offsets(), self.block_size)
     }
 
     // This is the index that a grapheme would be at if it was one past the last slot we have
@@ -434,12 +487,10 @@ impl GapBuffer {
     fn find_index_within_range<P, R>(&self, position: P, range: R) -> Option<ByteIndex>
     where
         P: Borrow<Position>,
-        R: std::ops::RangeBounds<CachedOffset>,
+        R: RangeBounds<CachedOffset>,
     {
         let pos = position.borrow();
         let mut current_pos: Position;
-
-        use std::ops::Bound;
 
         macro_rules! bounded {
             ($lower_bound: expr, $upper_bound_condition: expr) => {{
@@ -472,7 +523,7 @@ impl GapBuffer {
                     }
                 }
 
-                let lower_bound_index = $lower_bound.index.inform_of_gap(self);
+                let lower_bound_index = inform_of_gap($lower_bound.index, self);
 
                 if current_pos == *pos {
                     return Some(lower_bound_index);
@@ -612,6 +663,15 @@ impl GapBuffer {
 //
 #[allow(dead_code)]
 impl GapBuffer {
+    fn new_with_block_size(data: String, block_size: NonZeroUsize) -> GapBuffer {
+        let mut output = Self::new(data);
+
+        output.block_size = block_size;
+        output.offset_cache = output.optimal_offset_cache();
+
+        output
+    }
+
     #[perf_viz::record]
     pub fn grapheme_before(&self, c: &Cursor) -> Option<&str> {
         let offset = self.find_absolute_offset(c);

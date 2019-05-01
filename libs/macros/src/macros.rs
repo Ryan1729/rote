@@ -1,4 +1,22 @@
 #[macro_export]
+macro_rules! add_assign {
+    (for $name: ident) => {
+        impl std::ops::AddAssign for $name {
+            fn add_assign(&mut self, other: $name) {
+                *self = self.add(other);
+            }
+        }
+    };
+    (<$rhs:ty> for $name: ident) => {
+        impl std::ops::AddAssign<$rhs> for $name {
+            fn add_assign(&mut self, other: $rhs) {
+                *self = self.add(other);
+            }
+        }
+    };
+}
+
+#[macro_export]
 macro_rules! usize_newtype {
     ($name: ident) => {
         impl std::ops::Add<usize> for $name {
@@ -9,6 +27,7 @@ macro_rules! usize_newtype {
             }
         }
 
+        //We write this out so you don't need timport `add_assign!` to use this macro
         impl std::ops::AddAssign<usize> for $name {
             fn add_assign(&mut self, other: usize) {
                 *self = self.add(other);

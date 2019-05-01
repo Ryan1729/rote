@@ -21,7 +21,7 @@ macro_rules! pos {
 
 macro_rules! gap_informed {
     ($index:literal, $buffer:ident) => {
-        GapObliviousByteIndex($index).inform_of_gap(&$buffer)
+        inform_of_gap(GapObliviousByteIndex($index), &$buffer)
     };
 }
 
@@ -46,9 +46,12 @@ macro_rules! cached_offset {
     };
 }
 
+const TEST_BLOCK_SIZE: NonZeroUsize = unsafe { NonZeroUsize::new_unchecked(8) };
+
 macro_rules! init {
     ($str:literal) => {{
-        let mut buffer = GapBuffer::new($str.to_string());
+        //make the blocksize smaller to make edge cases more frequent
+        let mut buffer = GapBuffer::new_with_block_size($str.to_string(), TEST_BLOCK_SIZE);
 
         // make sure the gap is not empty since things could work
         // accidentally in the tests otherwise
@@ -84,6 +87,8 @@ fn init_makes_a_gap_without_affecting_the_string() {
     );
 }
 
+// This has failed before due to an incorrect offset cache.
+// If the offset cache tests are failing try fixing them first
 #[test]
 fn newline_bug_is_squished() {
     // "fix bug where if you add a newline in the middle of a line then move down and then to
@@ -595,13 +600,13 @@ fn any_operation() -> impl Strategy<Value = Operation> {
 proptest! {
     #[test]
     fn buffers_start_with_correct_caches(s in TYPEABLE) {
-        let buffer = GapBuffer::new(s);
+        let buffer = GapBuffer::new_with_block_size(s, TEST_BLOCK_SIZE);
         assert_eq!(buffer.offset_cache, buffer.optimal_offset_cache());
     }
 
     #[test]
     fn any_single_operation_preserves_offset_cache_correctness(operation in any_operation(), s in TYPEABLE) {
-        let mut buffer = GapBuffer::new(s);
+        let mut buffer = GapBuffer::new_with_block_size(s, TEST_BLOCK_SIZE);
         match operation {
             Operation::Insert(s, p) => { buffer.insert_str(&s, p);} ,
             Operation::Delete(r) => buffer.delete_range(r),
@@ -611,6 +616,24 @@ proptest! {
         }
         assert_eq!(buffer.offset_cache, buffer.optimal_offset_cache());
     }
+}
+
+#[test]
+fn insert_with_newline_preserves_offset_cache_correctness() {
+    let mut buffer = GapBuffer::new_with_block_size("".to_owned(), TEST_BLOCK_SIZE);
+
+    buffer.insert_str("a\n", Position::default());
+
+    assert_eq!(buffer.offset_cache, buffer.optimal_offset_cache());
+}
+
+#[test]
+fn insert_with_newline_on_non_empty_string_preserves_offset_cache_correctness() {
+    let mut buffer = GapBuffer::new_with_block_size("0".to_owned(), TEST_BLOCK_SIZE);
+
+    buffer.insert_str("a\n", Position::default());
+
+    assert_eq!(buffer.offset_cache, buffer.optimal_offset_cache());
 }
 
 mod find_index_unbounded_to_unbounded {
@@ -1943,12 +1966,12 @@ proptest! {
 
 mod optimal_offset_cache_from_all_cached_offsets_tests {
     use super::*;
-    const F: fn(Vec<CachedOffset>, usize) -> OffsetCache =
+    const F: fn(Vec<CachedOffset>, NonZeroUsize) -> OffsetCache =
         optimal_offset_cache_from_all_cached_offsets;
 
     #[test]
     fn works_on_empty_vector() {
-        let output = F(vec![], 16);
+        let output = F(vec![], TEST_BLOCK_SIZE);
 
         assert_eq!(output, vec![]);
     }
@@ -1961,7 +1984,7 @@ mod optimal_offset_cache_from_all_cached_offsets_tests {
                 cached_offset! {l 1 o 2 i 7},
                 cached_offset! {l 1 o 2 i 7},
             ],
-            16,
+            TEST_BLOCK_SIZE,
         );
 
         assert!(true);
@@ -1998,7 +2021,7 @@ mod optimal_offset_cache_from_all_cached_offsets_tests {
             let minimum_len = if len <= 1 {
                 len
             } else {
-                std::cmp::max(len / $block_size, 1)
+                std::cmp::max(len / $block_size.get(), 1)
             };
             assert!(
                 $output.len() >= minimum_len,
@@ -2037,7 +2060,7 @@ mod optimal_offset_cache_from_all_cached_offsets_tests {
                 $offsets,
             );
 
-            for chunk in $offsets.chunks($block_size) {
+            for chunk in $offsets.chunks($block_size.get()) {
                 assert!(
                     $output.iter().any(|o| chunk.contains(o)),
                     "{:#?} does not contain any element of {:#?}",
@@ -2051,11 +2074,10 @@ mod optimal_offset_cache_from_all_cached_offsets_tests {
     #[test]
     fn works_on_single_offset() {
         let offsets = vec![d!()];
-        let block_size = 8;
 
-        let output = F(offsets.clone(), block_size);
+        let output = F(offsets.clone(), TEST_BLOCK_SIZE);
 
-        assert_reasonable_output!(output, block_size, offsets);
+        assert_reasonable_output!(output, TEST_BLOCK_SIZE, offsets);
     }
 
     #[test]
@@ -2068,30 +2090,27 @@ mod optimal_offset_cache_from_all_cached_offsets_tests {
             cached_offset! {l 0 o 4 i 4},
             cached_offset! {l 1 o 0 i 5},
             cached_offset! {l 1 o 1 i 6},
-            cached_offset! {l 1 o 2 i 7},
-            cached_offset! {l 1 o 3 i 8},
-            cached_offset! {l 2 o 0 i 9},
-            cached_offset! {l 2 o 1 i 10},
-            cached_offset! {l 2 o 2 i 11},
-            cached_offset! {l 2 o 3 i 12},
+            // cached_offset! {l 1 o 2 i 7},
+            // cached_offset! {l 1 o 3 i 8},
+            // cached_offset! {l 2 o 0 i 9},
+            // cached_offset! {l 2 o 1 i 10},
+            // cached_offset! {l 2 o 2 i 11},
+            // cached_offset! {l 2 o 3 i 12},
         ];
 
-        let block_size = 16;
+        let output = F(offsets.clone(), TEST_BLOCK_SIZE);
 
-        let output = F(offsets.clone(), block_size);
-
-        assert_reasonable_output!(output, block_size, offsets);
+        assert_reasonable_output!(output, TEST_BLOCK_SIZE, offsets);
     }
 
     #[test]
     fn works_on_string_with_newline_at_index_5() {
         let buffer = GapBuffer::new("12345\n78".to_owned());
         let offsets = dbg!(buffer.get_all_cached_offsets());
-        let block_size = 8;
-        dbg!(offsets.chunks(block_size).collect::<Vec<_>>());
-        let output = F(offsets.clone(), block_size);
 
-        assert_reasonable_output!(output, block_size, offsets);
+        let output = F(offsets.clone(), TEST_BLOCK_SIZE);
+
+        assert_reasonable_output!(output, TEST_BLOCK_SIZE, offsets);
     }
 
     proptest! {
@@ -2099,12 +2118,26 @@ mod optimal_offset_cache_from_all_cached_offsets_tests {
         fn works_on_multiple_blocks(s in TYPEABLE) {
             let buffer = GapBuffer::new(s);
             let offsets = buffer.get_all_cached_offsets();
-            let block_size = 8;
 
-            let output = F(offsets.clone(), block_size);
+            let output = F(offsets.clone(), TEST_BLOCK_SIZE);
 
-            assert_reasonable_output!(output, block_size, offsets);
+            assert_reasonable_output!(output, TEST_BLOCK_SIZE, offsets);
         }
     }
 
+}
+
+proptest! {
+    #[test]
+    fn inform_of_gap_and_remove_gap_knowledge_composed_is_identity(s in TYPEABLE, i in 0usize..) {
+        let buffer = GapBuffer::new(s);
+        assert_eq!(
+            remove_gap_knowledge(inform_of_gap(GapObliviousByteIndex(i), &buffer), &buffer).0,
+            i
+        );
+        assert_eq!(
+            inform_of_gap(remove_gap_knowledge(ByteIndex(i), &buffer), &buffer).0,
+            i
+        );
+    }
 }
