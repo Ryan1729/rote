@@ -597,11 +597,104 @@ fn any_operation() -> impl Strategy<Value = Operation> {
     ]
 }
 
+fn spans<O: Borrow<OffsetCache>>(cache: O) -> Vec<(CachedOffset, CachedOffset)> {
+    let cache = cache.borrow();
+
+    let mut in_order = Vec::with_capacity(cache.len());
+    in_order_helper(cache, 0, &mut in_order);
+
+    let mut output = Vec::with_capacity(in_order.len());
+    if in_order.len() == 1 {
+        output.push((in_order[0].clone(), in_order[0].clone()));
+    } else {
+        for slice in in_order.windows(2) {
+            output.push((slice[0].clone(), slice[1].clone()));
+        }
+    }
+
+    output
+}
+
+#[test]
+fn spans_looks_like_it_works() {
+    assert_eq!(
+        spans(vec![
+            cached_offset! {l 1 o 2 i 7},
+            cached_offset! {l 0 o 2 i 2},
+            cached_offset! {l 2 o 2 i 11},
+        ]),
+        vec![
+            (cached_offset! {l 0 o 2 i 2}, cached_offset! {l 1 o 2 i 7}),
+            (cached_offset! {l 1 o 2 i 7}, cached_offset! {l 2 o 2 i 11})
+        ]
+    )
+}
+
+#[test]
+fn spans_works_on_a_single_offset() {
+    assert_eq!(
+        spans(vec![cached_offset! {l 1 o 2 i 7},]),
+        vec![(cached_offset! {l 1 o 2 i 7}, cached_offset! {l 1 o 2 i 7}),]
+    )
+}
+
+fn in_order_helper(cache: &OffsetCache, index: usize, output: &mut Vec<CachedOffset>) {
+    if let Some(offset) = cache.get(index) {
+        in_order_helper(cache, index * 2 + 1, output);
+        output.push(offset.clone());
+        in_order_helper(cache, index * 2 + 2, output);
+    }
+}
+
+#[test]
+fn in_order_works_on_a_single_offset() {
+    let mut in_order = Vec::with_capacity(1);
+    in_order_helper(&vec![cached_offset! {l 1 o 2 i 7}], 0, &mut in_order);
+    assert_eq!(in_order, vec![cached_offset! {l 1 o 2 i 7}])
+}
+
+fn extrema(spans: &Vec<(CachedOffset, CachedOffset)>) -> Option<(CachedOffset, CachedOffset)> {
+    match (spans.first(), spans.last()) {
+        (None, None) | (None, Some(_)) | (Some(_), None) => None,
+        (Some((first, _)), Some((_, last))) => Some((first.clone(), last.clone())),
+    }
+}
+
+fn total_lines(spans: &Vec<(CachedOffset, CachedOffset)>) -> usize {
+    let mut output = 0;
+    for (c1, c2) in spans {
+        output += c2.position.line - c1.position.line;
+    }
+    output
+}
+
+fn buffer_has_correct_cache(buffer: GapBuffer) {
+    let current = &buffer.offset_cache;
+    let target = buffer.optimal_offset_cache();
+
+    let current_spans = spans(current);
+    let target_spans = spans(&target);
+
+    assert_eq!(
+        extrema(&current_spans),
+        extrema(&target_spans),
+        "extrema don't match"
+    );
+
+    assert_eq!(
+        total_lines(&current_spans),
+        total_lines(&target_spans),
+        "total_lines don't match"
+    );
+
+    assert_eq!(*current, target, "caches don't match");
+}
+
 proptest! {
     #[test]
     fn buffers_start_with_correct_caches(s in TYPEABLE) {
         let buffer = GapBuffer::new_with_block_size(s, TEST_BLOCK_SIZE);
-        assert_eq!(buffer.offset_cache, buffer.optimal_offset_cache());
+        buffer_has_correct_cache(buffer);
     }
 
     #[test]
@@ -614,7 +707,7 @@ proptest! {
                 if let Some(i) = buffer.find_index(p) { buffer.move_gap(i); }
             },
         }
-        assert_eq!(buffer.offset_cache, buffer.optimal_offset_cache());
+        buffer_has_correct_cache(buffer);
     }
 }
 
@@ -624,7 +717,7 @@ fn insert_with_newline_preserves_offset_cache_correctness() {
 
     buffer.insert_str("a\n", Position::default());
 
-    assert_eq!(buffer.offset_cache, buffer.optimal_offset_cache());
+    buffer_has_correct_cache(buffer);
 }
 
 #[test]
@@ -633,7 +726,7 @@ fn insert_with_newline_on_non_empty_string_preserves_offset_cache_correctness() 
 
     buffer.insert_str("a\n", Position::default());
 
-    assert_eq!(buffer.offset_cache, buffer.optimal_offset_cache());
+    buffer_has_correct_cache(buffer);
 }
 
 mod find_index_unbounded_to_unbounded {

@@ -209,6 +209,9 @@ impl GapBuffer {
         // need to allocate then the index might be invalidated.
         let index = self.find_index(position)?;
 
+        // TODO use self.find_index_within_range and use the index_bounds to search for a up to a
+        // block in order to find out where the cached offset should be placed.
+
         //
         // fix offst cache
         let end_offset = {
