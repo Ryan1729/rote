@@ -113,6 +113,32 @@ pub struct Position {
     pub offset: CharOffset,
 }
 
+/// Semantically this is concatenate strings with these final positions together and take the final
+/// postion. That is, if a string that has as its final position, the position on the lef- hand
+/// side, is concatenated at the beginning of a string with a final position of the position on the
+/// right hand side, the resulting string will have the position that results applying this
+/// function.
+pub fn append_positions(left: Position, right: Position) -> Position {
+    Position {
+        line: left.line + right.line,
+        offset: right.offset + if right.line == 0 { left.offset } else { d!() },
+    }
+}
+
+/// THe inverse of `append_positions`. That is,
+/// `unappend_positions(append_positions(p, q), q) == p`
+// TODO proptest this property
+pub fn unappend_positions(left: Position, right: Position) -> Position {
+    Position {
+        line: left.line - right.line,
+        offset: CharOffset(left.offset.0.saturating_sub(if left.line == right.line {
+            right.offset.0
+        } else {
+            0
+        })),
+    }
+}
+
 use std::cmp::Ordering;
 impl PartialOrd for Position {
     fn partial_cmp(&self, other: &Position) -> Option<Ordering> {

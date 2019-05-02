@@ -1,7 +1,7 @@
 use editor_types::{ByteIndex, ByteLength, Cursor};
 use macros::d;
 use macros::{integer_newtype, invariant_assert, usize_newtype};
-use platform_types::{CharOffset, Position};
+use platform_types::{append_positions, unappend_positions, CharOffset, Position};
 use std::borrow::Borrow;
 use std::num::NonZeroUsize;
 use std::ops::{Add, Sub};
@@ -69,9 +69,27 @@ pub struct CachedOffset {
     index: GapObliviousByteIndex,
 }
 
+/// Semantically this is `append_positions` but with the idexes accounted for too.
+pub fn append_offsets(left: CachedOffset, right: CachedOffset) -> CachedOffset {
+    CachedOffset {
+        position: append_positions(left.position, right.position),
+        index: left.index + right.index,
+    }
+}
+
+/// THe inverse of `append_offsets`. That is,
+/// `unappend_offsets(append_offsets(o, p), p) == o`
+// TODO proptest this property
+pub fn unappend_offsets(left: CachedOffset, right: CachedOffset) -> CachedOffset {
+    CachedOffset {
+        position: unappend_positions(left.position, right.position),
+        index: left.index - right.index,
+    }
+}
+
 type OffsetCache = Vec<CachedOffset>;
 
-pub fn get_index_bounds<O, P>(cache: O, position: P) -> impl RangeBounds<CachedOffset>
+pub fn get_index_bounds<O, P>(cache: O, position: P) -> impl RangeBounds<CachedOffset> + Clone
 where
     O: Borrow<OffsetCache>,
     P: Borrow<Position>,
@@ -204,42 +222,46 @@ impl GapBuffer {
             Self::match_len_to_capacity(&mut self.data, self.gap_start, &mut self.gap_length)
         }
 
-        // You might be tempted to move this early return to the top of this method so we don't
-        // run the lines above which potentially allocate, if the position is invalid. But if we
-        // need to allocate then the index might be invalidated.
-        let index = self.find_index(position)?;
-
-        // TODO use self.find_index_within_range and use the index_bounds to search for a up to a
-        // block in order to find out where the cached offset should be placed.
-
-        //
-        // fix offst cache
-        let end_offset = {
+        let (index, end_offset) = {
             let index_bounds = get_index_bounds(&self.offset_cache, position);
-            dbg!((index_bounds.start_bound(), index_bounds.end_bound()));
-            if let Bound::Included(end_offset) | Bound::Excluded(end_offset) =
+
+            // You might be tempted to move this early return to the top of this method so we don't
+            // run the lines above which potentially allocate, if the position is invalid. But if
+            // we need to allocate then the index might be invalidated.
+            let index = self.find_index_within_range(position, index_bounds.clone())?;
+
+            let end_offset = if let Bound::Included(end_offset) | Bound::Excluded(end_offset) =
                 index_bounds.end_bound()
             {
                 Some(end_offset.clone())
             } else {
                 // It must be at the end of the cache so we don't need to switch anything
                 None
-            }
+            };
+
+            (index, end_offset)
         };
 
         if let Some(end_offset) = end_offset {
             let target_index = self.offset_cache.iter().position(|p| *p == end_offset)?;
 
-            let mut cached_offset = CachedOffset {
+            let insertion_offset = CachedOffset {
+                position: position.clone(),
+                index: remove_gap_knowledge(index, self),
+            };
+            let mut advanced_offset = CachedOffset {
                 position: position.clone(),
                 index: remove_gap_knowledge(index, self),
             };
 
             for g in data.graphemes() {
-                advance_cached_offset_based_on_grapheme!(cached_offset, g);
+                advance_cached_offset_based_on_grapheme!(advanced_offset, g);
             }
 
-            self.offset_cache[target_index] = cached_offset;
+            self.offset_cache[target_index] = append_offsets(
+                advanced_offset,
+                unappend_offsets(end_offset, insertion_offset),
+            );
         }
         //
         //

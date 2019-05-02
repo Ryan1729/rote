@@ -690,6 +690,18 @@ fn buffer_has_correct_cache(buffer: GapBuffer) {
     assert_eq!(*current, target, "caches don't match");
 }
 
+fn single_operation_preserves_offset_cache_correctness(operation: Operation, s: String) {
+    let mut buffer = GapBuffer::new_with_block_size(s, TEST_BLOCK_SIZE);
+    match operation {
+        Operation::Insert(s, p) => { buffer.insert_str(&s, p);} ,
+        Operation::Delete(r) => buffer.delete_range(r),
+        Operation::MoveGap(p) => {
+            if let Some(i) = buffer.find_index(p) { buffer.move_gap(i); }
+        },
+    }
+    buffer_has_correct_cache(buffer);
+}
+
 proptest! {
     #[test]
     fn buffers_start_with_correct_caches(s in TYPEABLE) {
@@ -699,15 +711,13 @@ proptest! {
 
     #[test]
     fn any_single_operation_preserves_offset_cache_correctness(operation in any_operation(), s in TYPEABLE) {
-        let mut buffer = GapBuffer::new_with_block_size(s, TEST_BLOCK_SIZE);
-        match operation {
-            Operation::Insert(s, p) => { buffer.insert_str(&s, p);} ,
-            Operation::Delete(r) => buffer.delete_range(r),
-            Operation::MoveGap(p) => {
-                if let Some(i) = buffer.find_index(p) { buffer.move_gap(i); }
-            },
+        println!("\n\n\n\n");
+        for cy in s.chars() {
+            for c in cy.escape_unicode() {
+                print!("{}", c);
+            }
         }
-        buffer_has_correct_cache(buffer);
+        single_operation_preserves_offset_cache_correctness(operation, s);
     }
 }
 
@@ -729,6 +739,35 @@ fn insert_with_newline_on_non_empty_string_preserves_offset_cache_correctness() 
     buffer_has_correct_cache(buffer);
 }
 
+/*
+These are from proptest failures. But they don't fail! For now, I'm assuming that the test memory
+was corrupted by my code or something.
+#[test]
+fn insert_to_half_block_preserves_offset_cache_correctness() {
+    let mut buffer = GapBuffer::new_with_block_size("ក".to_owned(), TEST_BLOCK_SIZE);
+
+    buffer.insert_str("000", Position::default());
+
+    buffer_has_correct_cache(buffer);
+}
+
+#[test]
+fn move_gap_to_0_at_block_size_preserves_offset_cache_correctness() {
+    //let mut buffer = init!("12345678");
+    // let mut buffer = GapBuffer::new_with_block_size("\r!!\r0�অ0".to_owned(), TEST_BLOCK_SIZE);
+    // buffer.move_gap(d!());
+    // buffer_has_correct_cache(buffer);
+
+    let operation = Operation::MoveGap(Position {
+        line: 0,
+        offset: CharOffset(0),
+    });
+    let s = "\u{d}\u{21}\u{21}\u{d}\u{30}\u{1f300}\u{985}\u{30}".to_owned();
+
+    single_operation_preserves_offset_cache_correctness(operation, s);
+
+}
+*/
 mod find_index_unbounded_to_unbounded {
     use super::*;
     #[test]
