@@ -1,5 +1,30 @@
 use super::*;
 
+fn is_sorted<P, I>(mut iterator: I) -> bool
+where
+    P: PartialOrd,
+    I: Iterator<Item = P>,
+{
+    let mut previous: P = match iterator.next() {
+        Some(e) => e,
+        None => return true,
+    };
+
+    while let Some(current) = iterator.next() {
+        if previous
+            .partial_cmp(&current)
+            .map(|o| o == std::cmp::Ordering::Greater)
+            .unwrap_or(true)
+        {
+            return false;
+        }
+        previous = current;
+    }
+
+    true
+}
+
+
 macro_rules! p {
     ($buffer:ident) => {
         println!("{:?}", $buffer);
@@ -138,6 +163,40 @@ fn deleting_past_the_end_does_nothing() {
     });
 
     assert_eq!(buffer.chars().collect::<String>(), "1234567890");
+}
+
+#[test]
+fn insert_and_delete_maintains_expected_properties_at_all_times() {
+    let mut buffer = GapBuffer::new_with_block_size("1234567890".to_string(), TEST_BLOCK_SIZE);
+
+    macro_rules! properties_check {
+        () => {{
+            assert!(std::str::from_utf8(&buffer.data[..buffer.gap_start.0]).is_ok());
+            assert!(std::str::from_utf8(&buffer.data[buffer.gap_end().0..]).is_ok());
+
+            buffer_has_correct_cache(&buffer);
+        }};
+    }
+
+    properties_check!();
+
+    let s = "␠␠␠␠";
+    buffer.insert_str(s, pos! {});
+
+    properties_check!();
+
+    buffer.delete_range(
+        pos! {}..=Position {
+            offset: CharOffset(s.chars().count()),
+            ..d!()
+        },
+    );
+
+    properties_check!();
+
+    buffer.move_gap(ByteIndex(buffer.data.len()));
+
+    properties_check!();
 }
 
 #[test]
@@ -600,8 +659,7 @@ fn any_operation() -> impl Strategy<Value = Operation> {
 fn spans<O: Borrow<OffsetCache>>(cache: O) -> Vec<(CachedOffset, CachedOffset)> {
     let cache = cache.borrow();
 
-    let mut in_order = Vec::with_capacity(cache.len());
-    in_order_helper(cache, 0, &mut in_order);
+    let mut in_order = in_order(cache);
 
     let mut output = Vec::with_capacity(in_order.len());
     if in_order.len() == 1 {
@@ -638,6 +696,12 @@ fn spans_works_on_a_single_offset() {
     )
 }
 
+fn in_order(cache: &OffsetCache) -> Vec<CachedOffset> {
+    let mut output = Vec::with_capacity(cache.len());
+    in_order_helper(cache, 0, &mut output);
+    output
+}
+
 fn in_order_helper(cache: &OffsetCache, index: usize, output: &mut Vec<CachedOffset>) {
     if let Some(offset) = cache.get(index) {
         in_order_helper(cache, index * 2 + 1, output);
@@ -648,8 +712,7 @@ fn in_order_helper(cache: &OffsetCache, index: usize, output: &mut Vec<CachedOff
 
 #[test]
 fn in_order_works_on_a_single_offset() {
-    let mut in_order = Vec::with_capacity(1);
-    in_order_helper(&vec![cached_offset! {l 1 o 2 i 7}], 0, &mut in_order);
+    let in_order = in_order(&vec![cached_offset! {l 1 o 2 i 7}]);
     assert_eq!(in_order, vec![cached_offset! {l 1 o 2 i 7}])
 }
 
@@ -668,9 +731,28 @@ fn total_lines(spans: &Vec<(CachedOffset, CachedOffset)>) -> usize {
     output
 }
 
-fn buffer_has_correct_cache(buffer: GapBuffer) {
+macro_rules! assert_in_tree_order {
+    ($offset_cache: expr) => (
+        assert!(
+            is_sorted(in_order(&$offset_cache).iter()),
+            "\nIn order traversal of `{}` does not produce ordered array: {:?}",
+            stringify!($offset_cache),
+            in_order(&$offset_cache)
+        );
+    );
+}
+
+fn buffer_has_correct_cache<G: Borrow<GapBuffer>>(buffer: G) {
+    let buffer = buffer.borrow();
     let current = &buffer.offset_cache;
     let target = buffer.optimal_offset_cache();
+
+    assert_in_tree_order!(
+        current
+    );
+    assert_in_tree_order!(
+        target
+    );
 
     let current_spans = spans(current);
     let target_spans = spans(&target);
@@ -739,18 +821,18 @@ fn insert_with_newline_on_non_empty_string_preserves_offset_cache_correctness() 
     buffer_has_correct_cache(buffer);
 }
 
-/*
-These are from proptest failures. But they don't fail! For now, I'm assuming that the test memory
-was corrupted by my code or something.
+
 #[test]
 fn insert_to_half_block_preserves_offset_cache_correctness() {
-    let mut buffer = GapBuffer::new_with_block_size("ក".to_owned(), TEST_BLOCK_SIZE);
+    let mut buffer = GapBuffer::new_with_block_size("000".to_owned(), TEST_BLOCK_SIZE);
 
-    buffer.insert_str("000", Position::default());
+    buffer.insert_str("ក", Position::default());
 
     buffer_has_correct_cache(buffer);
 }
-
+/*
+These are from proptest failures. But they don't fail! For now, I'm assuming that the test memory
+was corrupted by my code or something.
 #[test]
 fn move_gap_to_0_at_block_size_preserves_offset_cache_correctness() {
     //let mut buffer = init!("12345678");
@@ -2120,30 +2202,6 @@ mod optimal_offset_cache_from_all_cached_offsets_tests {
         );
 
         assert!(true);
-    }
-
-    fn is_sorted<P, I>(mut iterator: I) -> bool
-    where
-        P: PartialOrd,
-        I: Iterator<Item = P>,
-    {
-        let mut previous: P = match iterator.next() {
-            Some(e) => e,
-            None => return true,
-        };
-
-        while let Some(current) = iterator.next() {
-            if previous
-                .partial_cmp(&current)
-                .map(|o| o == std::cmp::Ordering::Greater)
-                .unwrap_or(true)
-            {
-                return false;
-            }
-            previous = current;
-        }
-
-        true
     }
 
     macro_rules! assert_reasonable_output {

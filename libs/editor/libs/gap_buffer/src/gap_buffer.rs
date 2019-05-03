@@ -675,7 +675,7 @@ impl GapBuffer {
     where
         I: std::slice::SliceIndex<[u8], Output = [u8]>,
     {
-        invariant_assert!(str::from_utf8(&self.data[index]).is_ok());
+        invariant_assert!(std::str::from_utf8(&self.data[index]).is_ok());
 
         let minimize_unsafe = &self.data[index];
 
