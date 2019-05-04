@@ -22,6 +22,9 @@ path = "../../../platform_types"
 [dependencies.editor_types]
 path = "../editor_types"
 
+[dependencies.search_tree]
+path = "../search_tree"
+
 [dependencies.unicode_segmentation]
 path = "../unicode-segmentation"
 

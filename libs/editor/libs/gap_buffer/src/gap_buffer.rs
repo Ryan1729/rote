@@ -6,6 +6,7 @@ use std::borrow::Borrow;
 use std::num::NonZeroUsize;
 use std::ops::{Add, Sub};
 use std::ops::{Bound, RangeBounds};
+use search_tree::SearchTree;
 use unicode_segmentation::UnicodeSegmentation;
 
 #[cfg(test)]
@@ -87,7 +88,7 @@ pub fn unappend_offsets(left: CachedOffset, right: CachedOffset) -> CachedOffset
     }
 }
 
-type OffsetCache = Vec<CachedOffset>;
+type OffsetCache = SearchTree<CachedOffset>;
 
 pub fn get_index_bounds<O, P>(cache: O, position: P) -> impl RangeBounds<CachedOffset> + Clone
 where
@@ -140,7 +141,7 @@ fn optimal_offset_cache_from_all_cached_offsets(
         }
     }
 
-    output
+    output.into()
 }
 
 #[derive(Debug)]
@@ -258,10 +259,10 @@ impl GapBuffer {
                 advance_cached_offset_based_on_grapheme!(advanced_offset, g);
             }
 
-            self.offset_cache[target_index] = append_offsets(
+            self.offset_cache.insert(target_index, append_offsets(
                 advanced_offset,
                 unappend_offsets(end_offset, insertion_offset),
-            );
+            ));
         }
         //
         //
