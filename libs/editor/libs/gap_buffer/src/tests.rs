@@ -665,28 +665,10 @@ fn total_lines(spans: &Vec<(CachedOffset, CachedOffset)>) -> usize {
     output
 }
 
-macro_rules! assert_in_tree_order {
-    ($offset_cache: expr) => (
-        assert!(
-            is_sorted(in_order(&$offset_cache).iter()),
-            "\nIn order traversal of `{}` does not produce ordered array: {:?}",
-            stringify!($offset_cache),
-            in_order(&$offset_cache)
-        );
-    );
-}
-
 fn buffer_has_correct_cache<G: Borrow<GapBuffer>>(buffer: G) {
     let buffer = buffer.borrow();
     let current: &OffsetCache = &buffer.offset_cache;
     let target: OffsetCache = buffer.optimal_offset_cache();
-
-    assert_in_tree_order!(
-        current
-    );
-    assert_in_tree_order!(
-        target
-    );
 
     let current_spans = spans(current);
     let target_spans = spans(&target);

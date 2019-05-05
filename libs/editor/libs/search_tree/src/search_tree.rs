@@ -5,12 +5,31 @@ pub struct SearchTree<O: Ord>(Vec<O>);
 
 impl <O: Ord> From<Vec<O>> for SearchTree<O> {
     fn from(vec: Vec<O>) -> SearchTree<O> {
-        //TODO ensure the vector is in tree order.
-        SearchTree(vec)
+        SearchTree::new(vec)
+    }
+}
+
+impl <O: Ord> std::iter::FromIterator<O> for SearchTree<O> {
+    fn from_iter<I: IntoIterator<Item=O>>(iter: I) -> Self {
+        let iter = iter.into_iter();
+        let (l, u) = iter.size_hint();
+        let mut v = Vec::with_capacity(u.unwrap_or(l));
+
+        for e in iter {
+            v.push(e);
+        }
+
+        v.into()
     }
 }
 
 impl <O: Ord> SearchTree<O> {
+    pub fn new(mut vec: Vec<O>) -> Self {
+        put_in_tree_order(&mut vec);
+
+        SearchTree(vec)
+    }
+
     pub fn into_vec(self) -> Vec<O> {
         let SearchTree(vec) = self;
         vec
@@ -45,26 +64,26 @@ impl <O: Ord + Clone> SearchTree<O> {
     }
 }
 
-pub fn in_order<O : Ord + Clone>(cache: &SearchTree<O>) -> Vec<O> {
-    let mut output = Vec::with_capacity(cache.len());
-    in_order_helper(cache, 0, &mut output);
+pub fn in_order<O : Ord + Clone>(tree: &SearchTree<O>) -> Vec<O> {
+    let mut output = Vec::with_capacity(tree.len());
+    in_order_helper(tree, 0, &mut output);
     output
 }
 
-fn in_order_helper<O : Ord + Clone>(cache: &SearchTree<O>, index: usize, output: &mut Vec<O>) {
-    if let Some(offset) = cache.get(index) {
-        in_order_helper(cache, index * 2 + 1, output);
+fn in_order_helper<O : Ord + Clone>(tree: &SearchTree<O>, index: usize, output: &mut Vec<O>) {
+    if let Some(offset) = tree.get(index) {
+        in_order_helper(tree, index * 2 + 1, output);
         output.push(offset.clone());
-        in_order_helper(cache, index * 2 + 2, output);
+        in_order_helper(tree, index * 2 + 2, output);
     }
 }
 
-pub fn spans<S, O>(cache: S) -> Vec<(O, O)>
+pub fn spans<S, O>(tree: S) -> Vec<(O, O)>
 where S : Borrow<SearchTree<O>>,
     O : Ord + Clone {
-    let cache = cache.borrow();
+    let tree = tree.borrow();
 
-    let in_order = in_order(cache);
+    let in_order = in_order(tree);
 
     let mut output = Vec::with_capacity(in_order.len());
     if in_order.len() == 1 {
@@ -97,41 +116,19 @@ impl <O: Ord> PartialEq<Vec<O>> for SearchTree<O> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn in_order_works_on_a_single_thing() {
-        let in_order = in_order(&vec![7].into());
-        assert_eq!(in_order, vec![7])
-    }
+pub fn put_in_tree_order<O: Ord>(vec: &mut Vec<O>) {
+    vec.sort_unstable();
 
-    #[test]
-    fn in_order_works_on_multiple_single_things() {
-        let in_order = in_order(&vec![7, 3, 11].into());
-        assert_eq!(in_order, vec![3, 7, 11])
-    }
-
-    #[test]
-    fn spans_looks_like_it_works() {
-        assert_eq!(
-            spans(vec![
-                cached_offset! {l 1 o 2 i 7},
-                cached_offset! {l 0 o 2 i 2},
-                cached_offset! {l 2 o 2 i 11},
-            ].into()),
-            vec![
-                (cached_offset! {l 0 o 2 i 2}, cached_offset! {l 1 o 2 i 7}),
-                (cached_offset! {l 1 o 2 i 7}, cached_offset! {l 2 o 2 i 11})
-            ]
-        )
-    }
-
-    #[test]
-    fn spans_works_on_a_single_offset() {
-        assert_eq!(
-            spans(vec![cached_offset! {l 1 o 2 i 7}].into()),
-            vec![(cached_offset! {l 1 o 2 i 7}, cached_offset! {l 1 o 2 i 7}),]
-        )
-    }
-
+    put_in_tree_order_helper(vec, 0);
 }
+
+fn put_in_tree_order_helper<O : Ord>(output: &mut Vec<O>, index: usize) {
+    // if let Some(offset) = cache.get(index) {
+    //     in_order_helper(cache, index * 2 + 1, output);
+    //     output.push(offset.clone());
+    //     in_order_helper(cache, index * 2 + 2, output);
+    // }
+}
+
+#[cfg(test)]
+mod tests;
