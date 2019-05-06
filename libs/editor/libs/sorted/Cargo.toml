@@ -1,13 +1,16 @@
 [package]
-name = "search_tree"
+name = "sorted"
 version = "0.1.0"
 authors = ["Ryan1729 <Ryan1729@gmail.com>"]
 edition = "2018"
 
 [lib]
-path = "./src/search_tree.rs"
+path = "./src/sorted.rs"
 
 [dependencies]
+
+[dependencies.macros]
+path = "../../../macros"
 
 [dev-dependencies]
 proptest = "0.9.2"

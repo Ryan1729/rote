@@ -2,11 +2,11 @@ use editor_types::{ByteIndex, ByteLength, Cursor};
 use macros::d;
 use macros::{integer_newtype, invariant_assert, usize_newtype};
 use platform_types::{append_positions, unappend_positions, CharOffset, Position};
+use sorted::{get_tree_bounds_by, Sorted};
 use std::borrow::Borrow;
 use std::num::NonZeroUsize;
 use std::ops::{Add, Sub};
 use std::ops::{Bound, RangeBounds};
-use search_tree::SearchTree;
 use unicode_segmentation::UnicodeSegmentation;
 
 #[cfg(test)]
@@ -88,38 +88,7 @@ pub fn unappend_offsets(left: CachedOffset, right: CachedOffset) -> CachedOffset
     }
 }
 
-type OffsetCache = SearchTree<CachedOffset>;
-
-pub fn get_index_bounds<O, P>(cache: O, position: P) -> impl RangeBounds<CachedOffset> + Clone
-where
-    O: Borrow<OffsetCache>,
-    P: Borrow<Position>,
-{
-    use Bound::{Excluded, Included, Unbounded};
-    let cache = cache.borrow();
-
-    let mut index = 0;
-    let mut lower = Unbounded;
-    let mut upper = Unbounded;
-    loop {
-        let current: &CachedOffset = if let Some(current) = cache.get(index) {
-            current
-        } else {
-            return (lower, upper);
-        };
-
-        let position = position.borrow();
-        if position < &current.position {
-            upper = Excluded((*current).clone());
-            index = 2 * index + 1;
-        } else if &current.position == position {
-            return (Included((*current).clone()), Included((*current).clone()));
-        } else {
-            lower = Excluded((*current).clone());
-            index = 2 * index + 2;
-        }
-    }
-}
+type OffsetCache = Sorted<CachedOffset>;
 
 fn optimal_offset_cache_from_all_cached_offsets(
     all_cached_offsets: Vec<CachedOffset>,
@@ -224,7 +193,7 @@ impl GapBuffer {
         }
 
         let (index, end_offset) = {
-            let index_bounds = get_index_bounds(&self.offset_cache, position);
+            let index_bounds = get_tree_bounds_by(&self.offset_cache, |o| o.position.cmp(position));
 
             // You might be tempted to move this early return to the top of this method so we don't
             // run the lines above which potentially allocate, if the position is invalid. But if
@@ -259,10 +228,13 @@ impl GapBuffer {
                 advance_cached_offset_based_on_grapheme!(advanced_offset, g);
             }
 
-            self.offset_cache.insert(target_index, append_offsets(
-                advanced_offset,
-                unappend_offsets(end_offset, insertion_offset),
-            ));
+            self.offset_cache.insert(
+                target_index,
+                append_offsets(
+                    advanced_offset,
+                    unappend_offsets(end_offset, insertion_offset),
+                ),
+            );
         }
         //
         //
@@ -507,7 +479,10 @@ impl GapBuffer {
     #[perf_viz::record]
     pub fn find_index<P: Borrow<Position>>(&self, position: P) -> Option<ByteIndex> {
         let position = position.borrow();
-        self.find_index_within_range(position, get_index_bounds(&self.offset_cache, position))
+        self.find_index_within_range(
+            position,
+            get_tree_bounds_by(&self.offset_cache, |offset| offset.position.cmp(position)),
+        )
     }
 
     fn find_index_within_range<P, R>(&self, position: P, range: R) -> Option<ByteIndex>

@@ -1,5 +1,5 @@
 use super::*;
-use search_tree::{extrema, in_order, spans};
+use sorted::{extrema, spans};
 
 fn is_sorted<P, I>(mut iterator: I) -> bool
 where
@@ -24,7 +24,6 @@ where
 
     true
 }
-
 
 macro_rules! p {
     ($buffer:ident) => {
@@ -691,11 +690,15 @@ fn buffer_has_correct_cache<G: Borrow<GapBuffer>>(buffer: G) {
 fn single_operation_preserves_offset_cache_correctness(operation: Operation, s: String) {
     let mut buffer = GapBuffer::new_with_block_size(s, TEST_BLOCK_SIZE);
     match operation {
-        Operation::Insert(s, p) => { buffer.insert_str(&s, p);} ,
+        Operation::Insert(s, p) => {
+            buffer.insert_str(&s, p);
+        }
         Operation::Delete(r) => buffer.delete_range(r),
         Operation::MoveGap(p) => {
-            if let Some(i) = buffer.find_index(p) { buffer.move_gap(i); }
-        },
+            if let Some(i) = buffer.find_index(p) {
+                buffer.move_gap(i);
+            }
+        }
     }
     buffer_has_correct_cache(buffer);
 }
@@ -736,7 +739,6 @@ fn insert_with_newline_on_non_empty_string_preserves_offset_cache_correctness() 
 
     buffer_has_correct_cache(buffer);
 }
-
 
 #[test]
 fn insert_to_half_block_preserves_offset_cache_correctness() {
@@ -1708,343 +1710,6 @@ mod find_index_included_to_excluded {
             None
         );
     }
-}
-
-mod get_index_bounds_tests {
-use super::*;
-use std::ops::{Bound, RangeBounds};
-
-//This way is nicer to use with parameters that are literals.
-fn f(o: OffsetCache, p: Position) -> (Bound<CachedOffset>, Bound<CachedOffset>) {
-    let bounds = get_index_bounds(o, p);
-    (cloned_bound(bounds.start_bound()), cloned_bound(bounds.end_bound()))
-}
-
-fn cloned_bound<T: Clone>(bound: Bound<&T>) -> Bound<T> {
-    match bound {
-        Bound::Unbounded => Bound::Unbounded,
-        Bound::Included(b) => Bound::Included(b.clone()),
-        Bound::Excluded(b) => Bound::Excluded(b.clone()),
-    }
-}
-
-#[test]
-fn works_on_empty_cache() {
-    let output = f(OffsetCache::default(), pos! {});
-
-    assert_eq!(output.start_bound(), Bound::Unbounded);
-    assert_eq!(output.end_bound(), Bound::Unbounded);
-}
-
-#[test]
-fn length_1_cache_at_start() {
-    let output = f(vec![cached_offset! {l 1 o 2 i 7}].into(), pos! {});
-
-    assert_eq!(output.start_bound(), Bound::Unbounded);
-    assert_eq!(
-        output.end_bound(),
-        Bound::Excluded(&cached_offset! {l 1 o 2 i 7})
-    );
-}
-
-#[test]
-fn length_1_cache_after_start() {
-    let output = f(vec![cached_offset! {l 1 o 2 i 7}].into(), pos! {l 1 o 0});
-
-    assert_eq!(output.start_bound(), Bound::Unbounded);
-    assert_eq!(
-        output.end_bound(),
-        Bound::Excluded(&cached_offset! {l 1 o 2 i 7})
-    );
-}
-
-#[test]
-fn length_1_cache_on_node_0() {
-    let output = f(vec![cached_offset! {l 1 o 2 i 7}].into(), pos! {l 1 o 2});
-
-    assert_eq!(
-        output.start_bound(),
-        Bound::Included(&cached_offset! {l 1 o 2 i 7})
-    );
-    assert_eq!(
-        output.end_bound(),
-        Bound::Included(&cached_offset! {l 1 o 2 i 7})
-    );
-}
-
-#[test]
-fn length_1_cache_after_middle() {
-    let output = f(vec![cached_offset! {l 1 o 2 i 7}].into(), pos! {l 1 o 3});
-
-    assert_eq!(
-        output.start_bound(),
-        Bound::Excluded(&cached_offset! {l 1 o 2 i 7})
-    );
-    assert_eq!(output.end_bound(), Bound::Unbounded);
-}
-
-#[test]
-fn length_1_cache_far_after_middle() {
-    let output = f(vec![cached_offset! {l 1 o 2 i 7}].into(), pos! {l 2 o 3});
-
-    assert_eq!(
-        output.start_bound(),
-        Bound::Excluded(&cached_offset! {l 1 o 2 i 7})
-    );
-    assert_eq!(output.end_bound(), Bound::Unbounded);
-}
-
-#[test]
-fn length_2_cache_at_start() {
-    let output = f(
-        vec![cached_offset! {l 1 o 2 i 7}, cached_offset! {l 0 o 2 i 2}].into(),
-        pos! {},
-    );
-
-    assert_eq!(output.start_bound(), Bound::Unbounded);
-    assert_eq!(
-        output.end_bound(),
-        Bound::Excluded(&cached_offset! {l 0 o 2 i 2})
-    );
-}
-
-#[test]
-fn length_2_cache_after_start() {
-    let output = f(
-        vec![cached_offset! {l 1 o 2 i 7}, cached_offset! {l 0 o 2 i 2}].into(),
-        pos! {l 0 o 1},
-    );
-
-    assert_eq!(output.start_bound(), Bound::Unbounded);
-    assert_eq!(
-        output.end_bound(),
-        Bound::Excluded(&cached_offset! {l 0 o 2 i 2})
-    );
-}
-
-#[test]
-fn length_2_cache_on_node_1() {
-    let output = f(
-        vec![cached_offset! {l 1 o 2 i 7}, cached_offset! {l 0 o 2 i 2}].into(),
-        pos! {l 0 o 2},
-    );
-
-    assert_eq!(
-        output.start_bound(),
-        Bound::Included(&cached_offset! {l 0 o 2 i 2})
-    );
-    assert_eq!(
-        output.end_bound(),
-        Bound::Included(&cached_offset! {l 0 o 2 i 2})
-    );
-}
-
-#[test]
-fn length_2_cache_after_node_1() {
-    let output = f(
-        vec![cached_offset! {l 1 o 2 i 7}, cached_offset! {l 0 o 2 i 2}].into(),
-        pos! {l 0 o 3},
-    );
-
-    assert_eq!(
-        output.start_bound(),
-        Bound::Excluded(&cached_offset! {l 0 o 2 i 2})
-    );
-    assert_eq!(
-        output.end_bound(),
-        Bound::Excluded(&cached_offset! {l 1 o 2 i 7})
-    );
-}
-
-#[test]
-fn length_2_cache_on_node_0() {
-    let output = f(
-        vec![cached_offset! {l 1 o 2 i 7}, cached_offset! {l 0 o 2 i 2}].into(),
-        pos! {l 1 o 2},
-    );
-
-    assert_eq!(
-        output.start_bound(),
-        Bound::Included(&cached_offset! {l 1 o 2 i 7})
-    );
-    assert_eq!(
-        output.end_bound(),
-        Bound::Included(&cached_offset! {l 1 o 2 i 7})
-    );
-}
-
-#[test]
-fn length_2_cache_after_node_0() {
-    let output = f(
-        vec![cached_offset! {l 1 o 2 i 7}, cached_offset! {l 0 o 2 i 2}].into(),
-        pos! {l 2 o 2},
-    );
-
-    assert_eq!(
-        output.start_bound(),
-        Bound::Excluded(&cached_offset! {l 1 o 2 i 7})
-    );
-    assert_eq!(output.end_bound(), Bound::Unbounded);
-}
-
-#[test]
-fn length_3_cache_at_start() {
-    let output = f(
-        vec![
-            cached_offset! {l 1 o 2 i 7},
-            cached_offset! {l 0 o 2 i 2},
-            cached_offset! {l 2 o 2 i 11},
-        ].into(),
-        pos! {},
-    );
-
-    assert_eq!(output.start_bound(), Bound::Unbounded);
-    assert_eq!(
-        output.end_bound(),
-        Bound::Excluded(&cached_offset! {l 0 o 2 i 2})
-    );
-}
-
-#[test]
-fn length_3_cache_after_start() {
-    let output = f(
-        vec![
-            cached_offset! {l 1 o 2 i 7},
-            cached_offset! {l 0 o 2 i 2},
-            cached_offset! {l 2 o 2 i 11},
-        ].into(),
-        pos! {l 0 o 1},
-    );
-
-    assert_eq!(output.start_bound(), Bound::Unbounded);
-    assert_eq!(
-        output.end_bound(),
-        Bound::Excluded(&cached_offset! {l 0 o 2 i 2})
-    );
-}
-
-#[test]
-fn length_3_cache_on_node_1() {
-    let output = f(
-        vec![
-            cached_offset! {l 1 o 2 i 7},
-            cached_offset! {l 0 o 2 i 2},
-            cached_offset! {l 2 o 2 i 11},
-        ].into(),
-        pos! {l 0 o 2},
-    );
-
-    assert_eq!(
-        output.start_bound(),
-        Bound::Included(&cached_offset! {l 0 o 2 i 2})
-    );
-    assert_eq!(
-        output.end_bound(),
-        Bound::Included(&cached_offset! {l 0 o 2 i 2})
-    );
-}
-
-#[test]
-fn length_3_cache_after_node_1() {
-    let output = f(
-        vec![
-            cached_offset! {l 1 o 2 i 7},
-            cached_offset! {l 0 o 2 i 2},
-            cached_offset! {l 2 o 2 i 11},
-        ].into(),
-        pos! {l 0 o 3},
-    );
-
-    assert_eq!(
-        output.start_bound(),
-        Bound::Excluded(&cached_offset! {l 0 o 2 i 2})
-    );
-    assert_eq!(
-        output.end_bound(),
-        Bound::Excluded(&cached_offset! {l 1 o 2 i 7})
-    );
-}
-
-#[test]
-fn length_3_cache_on_node_0() {
-    let output = f(
-        vec![
-            cached_offset! {l 1 o 2 i 7},
-            cached_offset! {l 0 o 2 i 2},
-            cached_offset! {l 2 o 2 i 11},
-        ].into(),
-        pos! {l 1 o 2},
-    );
-
-    assert_eq!(
-        output.start_bound(),
-        Bound::Included(&cached_offset! {l 1 o 2 i 7})
-    );
-    assert_eq!(
-        output.end_bound(),
-        Bound::Included(&cached_offset! {l 1 o 2 i 7})
-    );
-}
-
-#[test]
-fn length_3_cache_after_node_0_before_node_2() {
-    let output = f(
-        vec![
-            cached_offset! {l 1 o 2 i 7},
-            cached_offset! {l 0 o 2 i 2},
-            cached_offset! {l 2 o 2 i 11},
-        ].into(),
-        pos! {l 2 o 1},
-    );
-
-    assert_eq!(
-        output.start_bound(),
-        Bound::Excluded(&cached_offset! {l 1 o 2 i 7})
-    );
-    assert_eq!(
-        output.end_bound(),
-        Bound::Excluded(&cached_offset! {l 2 o 2 i 11})
-    );
-}
-
-#[test]
-fn length_3_cache_at_node_2() {
-    let output = f(
-        vec![
-            cached_offset! {l 1 o 2 i 7},
-            cached_offset! {l 0 o 2 i 2},
-            cached_offset! {l 2 o 2 i 11},
-        ].into(),
-        pos! {l 2 o 2},
-    );
-
-    assert_eq!(
-        output.start_bound(),
-        Bound::Included(&cached_offset! {l 2 o 2 i 11})
-    );
-    assert_eq!(
-        output.end_bound(),
-        Bound::Included(&cached_offset! {l 2 o 2 i 11})
-    );
-}
-
-#[test]
-fn length_3_cache_after_node_2() {
-    let output = f(
-        vec![
-            cached_offset! {l 1 o 2 i 7},
-            cached_offset! {l 0 o 2 i 2},
-            cached_offset! {l 2 o 2 i 11},
-        ].into(),
-        pos! {l 2 o 4},
-    );
-
-    assert_eq!(
-        output.start_bound(),
-        Bound::Excluded(&cached_offset! {l 2 o 2 i 11})
-    );
-    assert_eq!(output.end_bound(), Bound::Unbounded);
-}
 }
 
 fn assert_is_reasonable_all_cached_offsets(offsets: Vec<CachedOffset>, buffer: GapBuffer) {
