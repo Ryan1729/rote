@@ -1,4 +1,4 @@
-use macros::{d, display, integer_newtype, usize_newtype};
+use macros::{d, fmt_debug, fmt_display, integer_newtype, usize_newtype};
 use std::ops::{Add, Sub};
 
 #[derive(Clone, Copy, Debug)]
@@ -104,14 +104,31 @@ integer_newtype! {
     CharOffset
 }
 
-display! {for CharOffset : CharOffset(offset) in "{}", offset}
+fmt_display! {for CharOffset : CharOffset(offset) in "{}", offset}
 
 /// `offset` indicates a location before or after characters, not at the charaters.
-#[derive(Copy, Clone, Debug, Default, Eq, Hash)]
+#[derive(Copy, Clone, Default, Eq, Hash)]
 pub struct Position {
     pub line: usize,
     pub offset: CharOffset,
 }
+
+#[macro_export]
+macro_rules! pos {
+    (l $line:literal o $offset:literal) => {
+        Position {
+            line: $line,
+            offset: CharOffset($offset),
+        }
+    };
+    () => {
+        Position::default()
+    };
+}
+
+fmt_debug! {for Position : Position{ line, offset } in "pos!{{l {} o {}}}", line, offset}
+
+fmt_display! {for Position : Position{ line, offset } in "{}:{}", line, offset}
 
 /// Semantically this is concatenate strings with these final positions together and take the final
 /// postion. That is, if a string that has as its final position, the position on the lef- hand
@@ -159,8 +176,6 @@ impl PartialEq for Position {
         self.line == other.line && self.offset == other.offset
     }
 }
-
-display! {for Position : Position{ line, offset } in "{}:{}", line, offset}
 
 #[derive(Default)]
 pub struct View {

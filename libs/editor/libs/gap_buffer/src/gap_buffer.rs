@@ -1,6 +1,5 @@
 use editor_types::{ByteIndex, ByteLength, Cursor};
-use macros::d;
-use macros::{integer_newtype, invariant_assert, usize_newtype};
+use macros::{d, fmt_debug, integer_newtype, invariant_assert, usize_newtype};
 use platform_types::{append_positions, unappend_positions, CharOffset, Position};
 use sorted::{get_tree_bounds_by, Sorted};
 use std::borrow::Borrow;
@@ -64,10 +63,45 @@ fn remove_gap_knowledge(
     })
 }
 
-#[derive(Clone, Default, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[macro_export]
+macro_rules! gap_informed {
+    ($index:literal, $buffer:ident) => {
+        inform_of_gap(GapObliviousByteIndex($index), &$buffer)
+    };
+}
+
+#[macro_export]
+macro_rules! cached_offset {
+    (l $line:literal o $offset:literal i $index:literal) => {
+        CachedOffset {
+            position: Position {
+                line: $line,
+                offset: CharOffset($offset),
+            },
+            index: GapObliviousByteIndex($index),
+        }
+    };
+    (p: $position:expr, i $index:literal) => {
+        CachedOffset {
+            position: $position,
+            index: GapObliviousByteIndex($index),
+        }
+    };
+    () => {
+        CachedOffset::default()
+    };
+}
+
+#[derive(Clone, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CachedOffset {
     position: Position,
     index: GapObliviousByteIndex,
+}
+
+fmt_debug! {
+    for CachedOffset :
+    CachedOffset { position: Position{ line, offset}, index: GapObliviousByteIndex(index) } in
+    "cached_offset!{{ l {} o {} i {} }}", line, offset, index
 }
 
 /// Semantically this is `append_positions` but with the idexes accounted for too.
@@ -227,13 +261,13 @@ impl GapBuffer {
             for g in data.graphemes() {
                 advance_cached_offset_based_on_grapheme!(advanced_offset, g);
             }
-
+            dbg!((&self.offset_cache, target_index));
             self.offset_cache.insert(
                 target_index,
-                append_offsets(
+                dbg!(append_offsets(
                     advanced_offset,
                     unappend_offsets(end_offset, insertion_offset),
-                ),
+                )),
             );
         }
         //

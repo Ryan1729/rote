@@ -1,4 +1,4 @@
-use macros::{display, integer_newtype, usize_newtype};
+use macros::{fmt_display, integer_newtype, usize_newtype};
 use platform_types::{CharOffset, Position};
 use std::borrow::Borrow;
 use std::ops::{Add, Sub};
@@ -47,7 +47,7 @@ pub struct Cursor {
     pub sticky_offset: CharOffset,
 }
 
-display! {for Cursor : Cursor { position, sticky_offset, } in "{}({})", position, sticky_offset}
+fmt_display! {for Cursor : Cursor { position, sticky_offset, } in "{}({})", position, sticky_offset}
 
 impl Cursor {
     pub fn new(position: Position) -> Self {

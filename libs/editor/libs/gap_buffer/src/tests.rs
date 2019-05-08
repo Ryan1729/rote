@@ -1,4 +1,5 @@
 use super::*;
+use platform_types::pos;
 use sorted::{extrema, spans};
 
 fn is_sorted<P, I>(mut iterator: I) -> bool
@@ -29,45 +30,6 @@ macro_rules! p {
     ($buffer:ident) => {
         println!("{:?}", $buffer);
         println!("{:?}", $buffer.chars().collect::<String>())
-    };
-}
-
-macro_rules! pos {
-    (l $line:literal o $offset:literal) => {
-        Position {
-            line: $line,
-            offset: CharOffset($offset),
-        }
-    };
-    () => {
-        Position::default()
-    };
-}
-
-macro_rules! gap_informed {
-    ($index:literal, $buffer:ident) => {
-        inform_of_gap(GapObliviousByteIndex($index), &$buffer)
-    };
-}
-
-macro_rules! cached_offset {
-    (l $line:literal o $offset:literal i $index:literal) => {
-        CachedOffset {
-            position: Position {
-                line: $line,
-                offset: CharOffset($offset),
-            },
-            index: GapObliviousByteIndex($index),
-        }
-    };
-    (p: $position:expr, i $index:literal) => {
-        CachedOffset {
-            position: $position,
-            index: GapObliviousByteIndex($index),
-        }
-    };
-    () => {
-        CachedOffset::default()
     };
 }
 
@@ -685,6 +647,19 @@ fn buffer_has_correct_cache<G: Borrow<GapBuffer>>(buffer: G) {
     );
 
     assert_eq!(*current, target, "caches don't match");
+}
+
+proptest! {
+    #[test]
+    fn buffer_has_correct_cache_works_on_optimal_offset_cache(s1 in TYPEABLE, s2 in TYPEABLE) {
+        let mut buffer = GapBuffer::new_with_block_size(s1, TEST_BLOCK_SIZE);
+
+        buffer.insert_str(&s2, Position::default());
+
+        buffer.offset_cache = buffer.optimal_offset_cache();
+
+        buffer_has_correct_cache(buffer);
+    }
 }
 
 fn single_operation_preserves_offset_cache_correctness(operation: Operation, s: String) {

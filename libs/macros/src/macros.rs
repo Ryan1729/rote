@@ -139,9 +139,21 @@ macro_rules! d {
 }
 
 #[macro_export]
-macro_rules! display {
+macro_rules! fmt_display {
     ($(<$generics:tt>)? for $name:ty : $pattern:pat in $($args:tt)+) => (
         impl $(<$generics>)? std::fmt::Display for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                let $pattern = self;
+                write!(f, $($args)+)
+            }
+        }
+    );
+}
+
+#[macro_export]
+macro_rules! fmt_debug {
+    ($(<$generics:tt>)? for $name:ty : $pattern:pat in $($args:tt)+) => (
+        impl $(<$generics>)? std::fmt::Debug for $name {
             fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
                 let $pattern = self;
                 write!(f, $($args)+)
