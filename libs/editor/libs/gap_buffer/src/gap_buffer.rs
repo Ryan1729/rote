@@ -122,29 +122,68 @@ pub fn unappend_offsets(left: CachedOffset, right: CachedOffset) -> CachedOffset
     }
 }
 
-type OffsetCache = Sorted<CachedOffset>;
+#[derive(Debug, PartialEq)]
+struct OffsetCache {
+    offsets: Sorted<CachedOffset>,
+    block_size: NonZeroUsize,
+}
+
+d!(for OffsetCache : OffsetCache {
+    offsets: d!(),
+    block_size: DEFAULT_BLOCK_SIZE,
+});
+
+impl OffsetCache {
+    pub fn iter(&self) -> std::slice::Iter<CachedOffset> {
+        self.offsets.iter()
+    }
+
+    pub fn len(&self) -> usize {
+        self.offsets.len()
+    }
+
+    pub fn insert(&mut self, index: usize, offset: CachedOffset) {
+        //TODO do block_size respecting insertion
+        self.offsets.insert(offset);
+    }
+}
+
+impl std::borrow::Borrow<Sorted<CachedOffset>> for OffsetCache {
+    fn borrow(&self) -> &Sorted<CachedOffset> {
+        &self.offsets
+    }
+}
+
+impl std::borrow::Borrow<Sorted<CachedOffset>> for &OffsetCache {
+    fn borrow(&self) -> &Sorted<CachedOffset> {
+        &self.offsets
+    }
+}
 
 fn optimal_offset_cache_from_all_cached_offsets(
     all_cached_offsets: Vec<CachedOffset>,
     block_size: NonZeroUsize,
 ) -> OffsetCache {
-    let block_size = block_size.get();
+    let size = block_size.get();
     let len = all_cached_offsets.len();
     let minimum_len = if len <= 1 {
         len
     } else {
-        std::cmp::max(len / block_size, 1)
+        std::cmp::max(len / size, 1)
     };
 
     let mut output = Vec::with_capacity(minimum_len);
 
-    for chunk in all_cached_offsets.chunks(block_size) {
+    for chunk in all_cached_offsets.chunks(size) {
         if let Some(last) = chunk.last() {
             output.push((*last).clone());
         }
     }
 
-    output.into()
+    OffsetCache {
+        offsets: output.into(),
+        block_size,
+    }
 }
 
 #[derive(Debug)]
@@ -153,7 +192,6 @@ pub struct GapBuffer {
     gap_start: ByteIndex,
     gap_length: ByteLength,
     offset_cache: OffsetCache,
-    block_size: NonZeroUsize,
 }
 
 // TODO tune this.
@@ -198,10 +236,9 @@ impl GapBuffer {
             gap_start,
             gap_length,
             offset_cache: d!(),
-            block_size: DEFAULT_BLOCK_SIZE,
         };
 
-        output.offset_cache = output.optimal_offset_cache();
+        output.offset_cache = output.optimal_offset_cache(DEFAULT_BLOCK_SIZE);
 
         output
     }
@@ -395,8 +432,8 @@ impl GapBuffer {
         all_cached_offsets
     }
 
-    fn optimal_offset_cache(&self) -> OffsetCache {
-        optimal_offset_cache_from_all_cached_offsets(self.get_all_cached_offsets(), self.block_size)
+    fn optimal_offset_cache(&self, block_size: NonZeroUsize) -> OffsetCache {
+        optimal_offset_cache_from_all_cached_offsets(self.get_all_cached_offsets(), block_size)
     }
 
     // This is the index that a grapheme would be at if it was one past the last slot we have
@@ -701,8 +738,7 @@ impl GapBuffer {
     fn new_with_block_size(data: String, block_size: NonZeroUsize) -> GapBuffer {
         let mut output = Self::new(data);
 
-        output.block_size = block_size;
-        output.offset_cache = output.optimal_offset_cache();
+        output.offset_cache = output.optimal_offset_cache(block_size);
 
         output
     }

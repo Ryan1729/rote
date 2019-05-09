@@ -45,8 +45,7 @@ impl<O: Ord> Sorted<O> {
     }
 
     pub fn into_vec(self) -> Vec<O> {
-        let Sorted(vec) = self;
-        vec
+        self.0
     }
 
     pub fn get<I>(&self, index: I) -> Option<&I::Output>
@@ -64,9 +63,11 @@ impl<O: Ord> Sorted<O> {
         self.0.len()
     }
 
-    pub fn insert(&mut self, index: usize, element: O) {
-        //TODO write insert that rebalances tree if necessary
-        self.0.insert(index, element)
+    pub fn insert(&mut self, element: O) {
+        match self.0.binary_search(&element) {
+            Ok(i) => self.0[i] = element,
+            Err(i) => self.0.insert(i, element),
+        }
     }
 }
 

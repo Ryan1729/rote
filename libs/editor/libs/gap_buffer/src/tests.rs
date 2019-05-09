@@ -629,10 +629,11 @@ fn total_lines(spans: &Vec<(CachedOffset, CachedOffset)>) -> usize {
 fn buffer_has_correct_cache<G: Borrow<GapBuffer>>(buffer: G) {
     let buffer = buffer.borrow();
     let current: &OffsetCache = &buffer.offset_cache;
-    let target: OffsetCache = buffer.optimal_offset_cache();
+    let target: OffsetCache = buffer.optimal_offset_cache(current.block_size);
 
-    let current_spans = spans(current);
-    let target_spans = spans(&target);
+    // TODO make this function less annoying to use
+    let current_spans = spans::<&OffsetCache, CachedOffset>(current.borrow());
+    let target_spans = spans::<OffsetCache, CachedOffset>(target.borrow());
 
     assert_eq!(
         extrema(&current_spans),
@@ -656,7 +657,7 @@ proptest! {
 
         buffer.insert_str(&s2, Position::default());
 
-        buffer.offset_cache = buffer.optimal_offset_cache();
+        buffer.offset_cache = buffer.optimal_offset_cache(TEST_BLOCK_SIZE);
 
         buffer_has_correct_cache(buffer);
     }
@@ -1761,7 +1762,7 @@ mod optimal_offset_cache_from_all_cached_offsets_tests {
     fn works_on_empty_vector() {
         let output = F(vec![], TEST_BLOCK_SIZE);
 
-        assert_eq!(output, vec![]);
+        assert_eq!(output.offsets, vec![]);
     }
 
     #[test]
