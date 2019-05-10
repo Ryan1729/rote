@@ -32,14 +32,6 @@ mod get_tree_bounds_tests {
         )
     }
 
-    fn cloned_bound<T: Clone>(bound: Bound<&T>) -> Bound<T> {
-        match bound {
-            Bound::Unbounded => Bound::Unbounded,
-            Bound::Included(b) => Bound::Included(b.clone()),
-            Bound::Excluded(b) => Bound::Excluded(b.clone()),
-        }
-    }
-
     #[test]
     fn works_on_empty_vec() {
         let output = f(d!(), d!());

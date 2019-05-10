@@ -44,6 +44,10 @@ impl<O: Ord> Sorted<O> {
         Sorted(vec)
     }
 
+    pub fn new_unchecked(vec: Vec<O>) -> Self {
+        Sorted(vec)
+    }
+
     pub fn into_vec(self) -> Vec<O> {
         self.0
     }
@@ -154,6 +158,21 @@ where
         if half < 1 {
             return (lower, upper);
         }
+    }
+}
+
+pub fn to_bound_pair<O: Ord + Clone, R: RangeBounds<O> + Clone>(bounds: R) -> (Bound<O>, Bound<O>) {
+    (
+        cloned_bound(bounds.start_bound()),
+        cloned_bound(bounds.end_bound()),
+    )
+}
+
+pub fn cloned_bound<T: Clone>(bound: Bound<&T>) -> Bound<T> {
+    match bound {
+        Bound::Unbounded => Bound::Unbounded,
+        Bound::Included(b) => Bound::Included(b.clone()),
+        Bound::Excluded(b) => Bound::Excluded(b.clone()),
     }
 }
 

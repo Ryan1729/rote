@@ -633,7 +633,7 @@ fn buffer_has_correct_cache<G: Borrow<GapBuffer>>(buffer: G) {
 
     // TODO make this function less annoying to use
     let current_spans = spans::<&OffsetCache, CachedOffset>(current.borrow());
-    let target_spans = spans::<OffsetCache, CachedOffset>(target.borrow());
+    let target_spans = spans::<&OffsetCache, CachedOffset>(target.borrow());
 
     assert_eq!(
         extrema(&current_spans),

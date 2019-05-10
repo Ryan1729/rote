@@ -1,7 +1,7 @@
 use editor_types::{ByteIndex, ByteLength, Cursor};
 use macros::{d, fmt_debug, integer_newtype, invariant_assert, usize_newtype};
 use platform_types::{append_positions, unappend_positions, CharOffset, Position};
-use sorted::{get_tree_bounds_by, Sorted};
+use sorted::{get_tree_bounds, get_tree_bounds_by, to_bound_pair, Sorted};
 use std::borrow::Borrow;
 use std::num::NonZeroUsize;
 use std::ops::{Add, Sub};
@@ -142,9 +142,42 @@ impl OffsetCache {
         self.offsets.len()
     }
 
-    pub fn insert(&mut self, index: usize, offset: CachedOffset) {
-        //TODO do block_size respecting insertion
-        self.offsets.insert(offset);
+    pub fn insert(&mut self, _index: usize, offset: CachedOffset) {
+        use std::ops::Bound::{Excluded, Included, Unbounded};
+        match to_bound_pair(get_tree_bounds(&self.offsets, offset.clone())) {
+            (_, Unbounded) | (Unbounded, _) => self.offsets.insert(offset),
+            (Excluded(s), Excluded(e))
+            | (Excluded(s), Included(e))
+            | (Included(s), Excluded(e))
+            | (Included(s), Included(e)) => {
+                if s == offset || e == offset {
+                    return;
+                }
+
+                // we assume that the distance between `s` and `e` is at most `block_size`
+                let bump = e.index - offset.index;
+
+                let mut vec = std::mem::replace(&mut self.offsets, d!()).into_vec();
+                let len = vec.len();
+
+                // if this becomes a bottleneck, we should be able to retain this info from
+                // `get_tree_bounds`
+                let mut index = len;
+                for i in 0..len {
+                    if vec[i] == e {
+                        index = i;
+                        break;
+                    }
+                }
+                if index < len {
+                    for i in index..len {
+                        vec[i].index += bump;
+                    }
+                }
+
+                std::mem::replace(&mut self.offsets, Sorted::new_unchecked(vec));
+            }
+        }
     }
 }
 

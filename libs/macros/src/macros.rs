@@ -27,7 +27,7 @@ macro_rules! usize_newtype {
             }
         }
 
-        //We write this out so you don't need timport `add_assign!` to use this macro
+        //We write this out so you don't need to import `add_assign!` to use this macro
         impl std::ops::AddAssign<usize> for $name {
             fn add_assign(&mut self, other: usize) {
                 *self = self.add(other);
@@ -94,11 +94,24 @@ macro_rules! integer_newtype {
                 $name(self.0 + other.0)
             }
         }
+
+        impl std::ops::AddAssign for $name {
+            fn add_assign(&mut self, other: $name) {
+                *self = self.add(other);
+            }
+        }
+
         impl std::ops::Sub for $name {
             type Output = $name;
 
             fn sub(self, other: $name) -> $name {
                 $name(self.0 - other.0)
+            }
+        }
+
+        impl std::ops::SubAssign for $name {
+            fn sub_assign(&mut self, other: $name) {
+                *self = self.sub(other);
             }
         }
 
