@@ -37,6 +37,12 @@ impl<O: Ord> std::iter::FromIterator<O> for Sorted<O> {
     }
 }
 
+impl<O: Ord + Clone> Clone for Sorted<O> {
+    fn clone(&self) -> Sorted<O> {
+        Sorted(self.0.clone())
+    }
+}
+
 impl<O: Ord> Sorted<O> {
     pub fn new(mut vec: Vec<O>) -> Self {
         vec.sort_unstable();

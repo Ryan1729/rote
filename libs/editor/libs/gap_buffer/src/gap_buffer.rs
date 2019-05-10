@@ -122,7 +122,7 @@ pub fn unappend_offsets(left: CachedOffset, right: CachedOffset) -> CachedOffset
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 struct OffsetCache {
     offsets: Sorted<CachedOffset>,
     block_size: NonZeroUsize,
@@ -219,7 +219,7 @@ fn optimal_offset_cache_from_all_cached_offsets(
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GapBuffer {
     data: Utf8Data,
     gap_start: ByteIndex,
@@ -804,6 +804,32 @@ impl GapBuffer {
     pub fn grapheme_after_gap(&self) -> Option<&str> {
         let second_half = self.get_str(self.gap_end().0..);
         second_half.graphemes().next()
+    }
+}
+
+struct Positions<'buffer> {
+    graphemes: Box<dyn Iterator<Item = &'buffer str> + 'buffer>,
+    current: Position,
+}
+
+impl<'buffer> Iterator for Positions<'buffer> {
+    type Item = Position;
+    fn next(&mut self) -> Option<Position> {
+        let grapheme = self.graphemes.next()?;
+
+        let current = &mut self.current;
+        advance_position_based_on_grapheme!(current, grapheme);
+
+        Some(self.current)
+    }
+}
+
+impl<'buffer> GapBuffer {
+    fn positions(&self) -> Positions {
+        Positions {
+            graphemes: Box::new(self.graphemes()),
+            current: d!(),
+        }
     }
 }
 

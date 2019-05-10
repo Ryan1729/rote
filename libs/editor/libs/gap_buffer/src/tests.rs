@@ -663,8 +663,7 @@ proptest! {
     }
 }
 
-fn single_operation_preserves_offset_cache_correctness(operation: Operation, s: String) {
-    let mut buffer = GapBuffer::new_with_block_size(s, TEST_BLOCK_SIZE);
+fn apply_single_operation(buffer: &mut GapBuffer, operation: Operation) {
     match operation {
         Operation::Insert(s, p) => {
             buffer.insert_str(&s, p);
@@ -676,7 +675,28 @@ fn single_operation_preserves_offset_cache_correctness(operation: Operation, s: 
             }
         }
     }
+}
+
+fn single_operation_preserves_offset_cache_correctness(operation: Operation, s: String) {
+    let mut buffer = GapBuffer::new_with_block_size(s, TEST_BLOCK_SIZE);
+    apply_single_operation(&mut buffer, operation);
+
     buffer_has_correct_cache(buffer);
+}
+
+fn single_operation_preserves_offset_cache_results(operation: Operation, s: String) {
+    let mut buffer = GapBuffer::new_with_block_size(s, TEST_BLOCK_SIZE);
+    apply_single_operation(&mut buffer, operation);
+
+    let no_cache_buffer = {
+        let mut b = buffer.clone();
+        b.offset_cache = d!();
+        b
+    };
+
+    for pos in no_cache_buffer.positions() {
+        assert_eq!(buffer.find_index(pos), no_cache_buffer.find_index(pos))
+    }
 }
 
 proptest! {
@@ -695,6 +715,17 @@ proptest! {
             }
         }
         single_operation_preserves_offset_cache_correctness(operation, s);
+    }
+
+    #[test]
+    fn any_single_operation_preserves_offset_cache_results(operation in any_operation(), s in TYPEABLE) {
+        println!("\n\n\n\n");
+        for cy in s.chars() {
+            for c in cy.escape_unicode() {
+                print!("{}", c);
+            }
+        }
+        single_operation_preserves_offset_cache_results(operation, s);
     }
 }
 
