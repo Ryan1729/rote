@@ -161,7 +161,7 @@ where
             }
         }
         len -= half;
-        if half < 1 {
+        if dbg!(half < 1) {
             return (lower, upper);
         }
     }

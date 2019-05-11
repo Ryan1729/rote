@@ -144,7 +144,13 @@ impl OffsetCache {
 
     pub fn insert(&mut self, _index: usize, offset: CachedOffset) {
         use std::ops::Bound::{Excluded, Included, Unbounded};
-        match to_bound_pair(get_tree_bounds(&self.offsets, offset.clone())) {
+
+        //If you are inserting a new offset because the string was changed, thn there is no
+        //guarentee that the bounds you get here make any sense!
+        match dbg!(to_bound_pair(get_tree_bounds(
+            &self.offsets,
+            offset.clone()
+        ))) {
             (_, Unbounded) | (Unbounded, _) => self.offsets.insert(offset),
             (Excluded(s), Excluded(e))
             | (Excluded(s), Included(e))
@@ -153,9 +159,9 @@ impl OffsetCache {
                 if s == offset || e == offset {
                     return;
                 }
-
+                println!("\n\n{:?}\n\n{:?}", self.offsets, offset);
                 // we assume that the distance between `s` and `e` is at most `block_size`
-                let bump = e.index - offset.index;
+                let bump = dbg!(e.index) - dbg!(offset.index);
 
                 let mut vec = std::mem::replace(&mut self.offsets, d!()).into_vec();
                 let len = vec.len();
@@ -284,7 +290,7 @@ impl GapBuffer {
     pub fn insert_str<P: Borrow<Position>>(&mut self, data: &str, position: P) -> Option<()> {
         let position = position.borrow();
         // Ensure we have the capacity to insert this data.
-        if data.len() > self.gap_length {
+        if dbg!(data.len() > self.gap_length) {
             // We're about to add space to the end of the buffer, so move the gap
             // there beforehand so that we're essentially just increasing the
             // gap size, and preventing a split/two-segment gap.
@@ -302,7 +308,7 @@ impl GapBuffer {
             // You might be tempted to move this early return to the top of this method so we don't
             // run the lines above which potentially allocate, if the position is invalid. But if
             // we need to allocate then the index might be invalidated.
-            let index = self.find_index_within_range(position, index_bounds.clone())?;
+            let index = dbg!(self.find_index_within_range(position, index_bounds.clone())?);
 
             let end_offset = if let Bound::Included(end_offset) | Bound::Excluded(end_offset) =
                 index_bounds.end_bound()
@@ -323,14 +329,26 @@ impl GapBuffer {
                 position: position.clone(),
                 index: remove_gap_knowledge(index, self),
             };
-            let mut advanced_offset = CachedOffset {
+            let mut advanced_offset = dbg!(CachedOffset {
                 position: position.clone(),
                 index: remove_gap_knowledge(index, self),
-            };
+            });
 
+            println!("\n\n{}", data);
+            println!("\n\n");
             for g in data.graphemes() {
+                println!("{:?} + {:?}", advanced_offset, g);
                 advance_cached_offset_based_on_grapheme!(advanced_offset, g);
             }
+            println!(
+                "\n\n\n{:?}\n\n\n",
+                (
+                    advanced_offset.clone(),
+                    end_offset.clone(),
+                    insertion_offset.clone(),
+                    unappend_offsets(end_offset.clone(), insertion_offset.clone())
+                )
+            );
             dbg!((&self.offset_cache, target_index));
             self.offset_cache.insert(
                 target_index,
@@ -343,7 +361,7 @@ impl GapBuffer {
         //
         //
 
-        self.move_gap(index);
+        self.move_gap(dbg!(index));
 
         for byte in data.bytes() {
             self.data[self.gap_start.0] = byte;
