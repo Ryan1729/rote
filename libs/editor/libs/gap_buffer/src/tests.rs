@@ -1923,6 +1923,52 @@ mod optimal_offset_cache_from_all_cached_offsets_tests {
 
 }
 
+macro_rules! offset_cache_example {
+    () => {
+        OffsetCache {
+            block_size: TEST_BLOCK_SIZE,
+            offsets: vec![
+                cached_offset! { l 0 o 7 i 7 },
+                cached_offset! { l 0 o 15 i 15 },
+                cached_offset! { l 1 o 6 i 23 },
+                cached_offset! { l 1 o 14 i 31 },
+                cached_offset! { l 1 o 16 i 33 },
+            ]
+            .into(),
+        }
+    };
+}
+
+#[test]
+fn optimal_offset_cache_matches_this_example() {
+    let buffer = GapBuffer::new_with_block_size(
+        "the same literal\nas the other one".to_owned(),
+        TEST_BLOCK_SIZE,
+    );
+    let actual = buffer.optimal_offset_cache(TEST_BLOCK_SIZE);
+    let expected = offset_cache_example!();
+
+    assert_eq!(actual, expected);
+}
+
+#[test]
+fn offset_cache_insert_works_in_this_previously_failing_case() {
+    let mut cache = offset_cache_example!();
+
+    cache.insert(0, cached_offset! { l 0 o 11 i 19 });
+
+    let expected: Sorted<CachedOffset> = vec![
+        cached_offset! { l 0 o 18 i 26 },
+        cached_offset! { l 0 o 26 i 34 },
+        cached_offset! { l 1 o 6 i 42 },
+        cached_offset! { l 1 o 14 i 50 },
+        cached_offset! { l 1 o 16 i 52 },
+    ]
+    .into();
+
+    assert_eq!(cache.offsets, expected)
+}
+
 proptest! {
     #[test]
     fn inform_of_gap_and_remove_gap_knowledge_composed_is_identity(s in TYPEABLE, i in 0usize..) {
