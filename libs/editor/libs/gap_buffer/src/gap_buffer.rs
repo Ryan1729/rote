@@ -142,48 +142,17 @@ impl OffsetCache {
         self.offsets.len()
     }
 
-    pub fn insert(&mut self, _index: usize, offset: CachedOffset) {
-        use std::ops::Bound::{Excluded, Included, Unbounded};
+    pub fn insert(&mut self, index: usize, offset: CachedOffset) {
+        let mut vec = std::mem::replace(&mut self.offsets, d!()).into_vec();
+        let len = vec.len();
 
-        //If you are inserting a new offset because the string was changed, thn there is no
-        //guarentee that the bounds you get here make any sense!
-        match dbg!(to_bound_pair(get_tree_bounds(
-            &self.offsets,
-            offset.clone()
-        ))) {
-            (_, Unbounded) | (Unbounded, _) => self.offsets.insert(offset),
-            (Excluded(s), Excluded(e))
-            | (Excluded(s), Included(e))
-            | (Included(s), Excluded(e))
-            | (Included(s), Included(e)) => {
-                if s == offset || e == offset {
-                    return;
-                }
-                println!("\n\n{:?}\n\n{:?}", self.offsets, offset);
-                // we assume that the distance between `s` and `e` is at most `block_size`
-                let bump = dbg!(e.index) - dbg!(offset.index);
-
-                let mut vec = std::mem::replace(&mut self.offsets, d!()).into_vec();
-                let len = vec.len();
-
-                // if this becomes a bottleneck, we should be able to retain this info from
-                // `get_tree_bounds`
-                let mut index = len;
-                for i in 0..len {
-                    if vec[i] == e {
-                        index = i;
-                        break;
-                    }
-                }
-                if index < len {
-                    for i in index..len {
-                        vec[i].index += bump;
-                    }
-                }
-
-                std::mem::replace(&mut self.offsets, Sorted::new_unchecked(vec));
+        if index < len {
+            for i in index..len {
+                vec[i] = append_offsets(vec[i].clone(), offset.clone());
             }
         }
+
+        std::mem::replace(&mut self.offsets, Sorted::new_unchecked(vec));
     }
 }
 
