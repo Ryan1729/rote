@@ -1,4 +1,4 @@
-use editor_types::Cursor;
+use editor_types::{ByteIndex, Cursor, MultiCursorBuffer};
 use gap_buffer::{backward, forward, GapBuffer};
 use macros::{d, dg};
 use platform_types::{
@@ -14,7 +14,7 @@ struct Buffer {
     cursors: Vec1<Cursor>,
 }
 
-impl Buffer {
+impl MultiCursorBuffer for Buffer {
     #[perf_viz::record]
     fn insert(&mut self, ch: char) {
         for cursor in &mut self.cursors {
@@ -60,30 +60,17 @@ impl Buffer {
     }
 
     #[perf_viz::record]
+    fn find_index<P: Borrow<Position>>(&self, p: P) -> Option<ByteIndex> {
+        self.gap_buffer.find_index(p)
+    }
+
+    #[perf_viz::record]
     fn nearest_valid_position_on_same_line<P: Borrow<Position>>(&self, p: P) -> Option<Position> {
         self.gap_buffer.nearest_valid_position_on_same_line(p)
     }
-}
 
-impl Buffer {
-    #[allow(dead_code)]
-    fn grapheme_before(&self, c: &Cursor) -> Option<&str> {
-        self.gap_buffer.grapheme_before(c)
-    }
-
-    #[allow(dead_code)]
-    fn grapheme_after(&self, c: &Cursor) -> Option<&str> {
-        self.gap_buffer.grapheme_after(c)
-    }
-
-    #[allow(dead_code)]
-    fn grapheme_before_gap(&self) -> Option<&str> {
-        self.gap_buffer.grapheme_before_gap()
-    }
-
-    #[allow(dead_code)]
-    fn grapheme_after_gap(&self) -> Option<&str> {
-        self.gap_buffer.grapheme_after_gap()
+    fn cursors(&self) -> &Vec1<Cursor> {
+        &self.cursors
     }
 }
 
@@ -272,7 +259,7 @@ pub fn render_view(state: &State, view: &mut View) {
                 chars: buffer.chars().collect::<String>(),
             });
 
-            for position in buffer.cursors.iter().map(|c| c.position) {
+            for position in buffer.cursors().iter().map(|c| c.position) {
                 let screen_position = position_to_screen_space(
                     position,
                     state.char_dim,
@@ -305,24 +292,17 @@ pub fn render_view(state: &State, view: &mut View) {
                         (state.char_dim.w, state.char_dim.h)
                     );
 
-                    let _cannot_actually_fail = write!(
-                        chars,
-                        "g({:?}|{:?}) ",
-                        buffer.grapheme_before_gap(),
-                        buffer.grapheme_after_gap()
-                    );
-
                     chars = buffer.cursors.iter().fold(chars, |mut acc, c| {
                         let _cannot_actually_fail = write!(
                             acc,
                             "{} ({:?}|{:?})",
                             c,
-                            buffer.gap_buffer.find_index(c).and_then(|o| if o == 0 {
+                            buffer.find_index(c).and_then(|o| if o == 0 {
                                 None
                             } else {
                                 Some(o - 1)
                             }),
-                            buffer.gap_buffer.find_index(c),
+                            buffer.find_index(c),
                         );
                         acc
                     });

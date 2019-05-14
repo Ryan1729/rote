@@ -1,7 +1,8 @@
 use macros::{fmt_display, integer_newtype, usize_newtype};
-use platform_types::{CharOffset, Position};
+use platform_types::{CharOffset, Move, Position};
 use std::borrow::Borrow;
 use std::ops::{Add, Sub};
+use vec1::Vec1;
 
 /// In index into thebuffer's underlying bytes. Indexes into the gap are possible but usually
 /// (always?) undesired.
@@ -67,4 +68,24 @@ impl Borrow<Position> for &Cursor {
     fn borrow(&self) -> &Position {
         &self.position
     }
+}
+
+pub trait MultiCursorBuffer {
+    fn insert(&mut self, ch: char);
+
+    fn delete(&mut self);
+
+    fn move_all_cursors(&mut self, r#move: Move);
+
+    fn move_cursor(&mut self, index: usize, r#move: Move);
+
+    fn in_bounds<P: Borrow<Position>>(&self, position: P) -> bool {
+        self.find_index(position) != None
+    }
+
+    fn find_index<P: Borrow<Position>>(&self, position: P) -> Option<ByteIndex>;
+
+    fn nearest_valid_position_on_same_line<P: Borrow<Position>>(&self, p: P) -> Option<Position>;
+
+    fn cursors(&self) -> &Vec1<Cursor>;
 }

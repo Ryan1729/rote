@@ -1,7 +1,7 @@
 use editor_types::{ByteIndex, ByteLength, Cursor};
 use macros::{d, fmt_debug, integer_newtype, invariant_assert, usize_newtype};
 use platform_types::{append_positions, unappend_positions, CharOffset, Position};
-use sorted::{get_tree_bounds, get_tree_bounds_by, to_bound_pair, Sorted};
+use sorted::{get_tree_bounds_by, Sorted};
 use std::borrow::Borrow;
 use std::num::NonZeroUsize;
 use std::ops::{Add, Sub};
@@ -791,32 +791,6 @@ impl GapBuffer {
     pub fn grapheme_after_gap(&self) -> Option<&str> {
         let second_half = self.get_str(self.gap_end().0..);
         second_half.graphemes().next()
-    }
-}
-
-struct Positions<'buffer> {
-    graphemes: Box<dyn Iterator<Item = &'buffer str> + 'buffer>,
-    current: Position,
-}
-
-impl<'buffer> Iterator for Positions<'buffer> {
-    type Item = Position;
-    fn next(&mut self) -> Option<Position> {
-        let grapheme = self.graphemes.next()?;
-
-        let current = &mut self.current;
-        advance_position_based_on_grapheme!(current, grapheme);
-
-        Some(self.current)
-    }
-}
-
-impl<'buffer> GapBuffer {
-    fn positions(&self) -> Positions {
-        Positions {
-            graphemes: Box::new(self.graphemes()),
-            current: d!(),
-        }
     }
 }
 
