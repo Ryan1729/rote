@@ -176,6 +176,30 @@ macro_rules! fmt_debug {
 }
 
 #[macro_export]
+macro_rules! borrow {
+    (<$type:ty> for $name:ty : $self:ident in $code:expr) => {
+        impl std::borrow::Borrow<$type> for $name {
+            fn borrow(&self) -> &$type {
+                let $self = self;
+                $code
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! borrow_mut {
+    (<$type:ty> for $name:ty : $self:ident in $code:expr) => {
+        impl std::borrow::BorrowMut<$type> for $name {
+            fn borrow_mut(&mut self) -> &mut $type {
+                let $self = self;
+                $code
+            }
+        }
+    };
+}
+
+#[macro_export]
 macro_rules! dg {
     ($thing:expr) => {
         if cfg!(debug_assertions) {

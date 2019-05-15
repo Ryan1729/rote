@@ -8,7 +8,6 @@ edition = "2018"
 path = "./src/editor.rs"
 
 [dependencies]
-vec1 = "1.4.0"
 
 [dependencies.perf_viz]
 path = "../perf_viz"
@@ -24,5 +23,5 @@ path = "../macros"
 [dependencies.editor_types]
 path = "libs/editor_types"
 
-[dependencies.gap_buffer]
-path = "libs/gap_buffer"
+[dependencies.text_buffer]
+path = "libs/text_buffer"

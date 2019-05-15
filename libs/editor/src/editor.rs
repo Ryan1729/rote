@@ -1,223 +1,14 @@
-use editor_types::{ByteIndex, Cursor, MultiCursorBuffer};
-use gap_buffer::{backward, forward, GapBuffer};
+use editor_types::{Cursor, MultiCursorBuffer, Vec1};
 use macros::{d, dg};
 use platform_types::{
-    position_to_screen_space, screen_space_to_position, BufferView, CharDim, CharOffset, Cmd,
-    Input, Move, Position, ScreenSpaceXY, UpdateAndRenderOutput, View,
+    position_to_screen_space, screen_space_to_position, BufferView, CharDim, Cmd, Input,
+    ScreenSpaceXY, UpdateAndRenderOutput, View,
 };
-use std::borrow::Borrow;
-use vec1::Vec1;
-
-#[derive(Default)]
-struct Buffer {
-    gap_buffer: GapBuffer,
-    cursors: Vec1<Cursor>,
-}
-
-impl MultiCursorBuffer for Buffer {
-    #[perf_viz::record]
-    fn insert(&mut self, ch: char) {
-        for cursor in &mut self.cursors {
-            self.gap_buffer.insert(ch, &cursor.position);
-            move_right(&self.gap_buffer, cursor);
-        }
-    }
-
-    #[perf_viz::record]
-    fn delete(&mut self) {
-        for cursor in &mut self.cursors {
-            self.gap_buffer.delete(&cursor.position);
-            move_left(&self.gap_buffer, cursor);
-        }
-    }
-
-    #[perf_viz::record]
-    fn move_all_cursors(&mut self, r#move: Move) {
-        for i in 0..self.cursors.len() {
-            self.move_cursor(i, r#move)
-        }
-    }
-
-    #[perf_viz::record]
-    fn move_cursor(&mut self, index: usize, r#move: Move) {
-        if let Some(cursor) = self.cursors.get_mut(index) {
-            match r#move {
-                Move::Up => move_up(&self.gap_buffer, cursor),
-                Move::Down => move_down(&self.gap_buffer, cursor),
-                Move::Left => move_left(&self.gap_buffer, cursor),
-                Move::Right => move_right(&self.gap_buffer, cursor),
-                Move::ToLineStart => move_to_line_start(&self.gap_buffer, cursor),
-                Move::ToLineEnd => move_to_line_end(&self.gap_buffer, cursor),
-                Move::ToBufferStart => move_to_buffer_start(&self.gap_buffer, cursor),
-                Move::ToBufferEnd => move_to_buffer_end(&self.gap_buffer, cursor),
-            }
-        }
-    }
-
-    #[perf_viz::record]
-    fn in_bounds<P: Borrow<Position>>(&self, p: P) -> bool {
-        self.gap_buffer.in_bounds(p)
-    }
-
-    #[perf_viz::record]
-    fn find_index<P: Borrow<Position>>(&self, p: P) -> Option<ByteIndex> {
-        self.gap_buffer.find_index(p)
-    }
-
-    #[perf_viz::record]
-    fn nearest_valid_position_on_same_line<P: Borrow<Position>>(&self, p: P) -> Option<Position> {
-        self.gap_buffer.nearest_valid_position_on_same_line(p)
-    }
-
-    fn cursors(&self) -> &Vec1<Cursor> {
-        &self.cursors
-    }
-}
-
-enum Moved {
-    No,
-    Yes,
-}
-
-#[perf_viz::record]
-fn move_to(gap_buffer: &GapBuffer, cursor: &mut Cursor, position: Position) -> Moved {
-    if gap_buffer.in_bounds(&position) {
-        cursor.position = position;
-
-        // Remember this offset so that we can try
-        // to maintain it when moving across lines.
-        cursor.sticky_offset = position.offset;
-
-        return Moved::Yes;
-    }
-    Moved::No
-}
-
-#[perf_viz::record]
-fn move_up(gap_buffer: &GapBuffer, cursor: &mut Cursor) {
-    let pos = cursor.position;
-    // Don't bother if we are already at the top.
-    if pos.line == 0 {
-        return;
-    }
-
-    let target_line = pos.line - 1;
-    let new_position = Position {
-        line: target_line,
-        offset: cursor.sticky_offset,
-    };
-
-    // Try moving to the same offset on the line below, falling back to its EOL.
-    if let Moved::No = move_to(gap_buffer, cursor, new_position) {
-        let mut target_offset = 0;
-        if let Some(count) = gap_buffer.nth_line_count(target_line) {
-            target_offset = count;
-        }
-        move_to(
-            gap_buffer,
-            cursor,
-            Position {
-                line: target_line,
-                offset: CharOffset(target_offset),
-            },
-        );
-
-        // Moving the position successfully updates the sticky offset, but we
-        // haven't actually moved to where we really wanted to go (offset-wise).
-        // Restore the original desired offset; it might be available on the next try.
-        cursor.sticky_offset = new_position.offset;
-    }
-}
-
-#[perf_viz::record]
-fn move_down(gap_buffer: &GapBuffer, cursor: &mut Cursor) {
-    let target_line = cursor.position.line + 1;
-    let new_position = Position {
-        line: target_line,
-        offset: cursor.sticky_offset,
-    };
-
-    // Try moving to the same offset on the line below, falling back to its EOL.
-    if let Moved::No = move_to(gap_buffer, cursor, new_position) {
-        let mut target_offset = 0;
-        let current_line = gap_buffer.nth_line_count(target_line);
-        if let Some(line) = current_line {
-            target_offset = line;
-        }
-        move_to(
-            gap_buffer,
-            cursor,
-            Position {
-                line: target_line,
-                offset: CharOffset(target_offset),
-            },
-        );
-
-        // Moving the position successfully updates the sticky offset, but we
-        // haven't actually moved to where we really wanted to go (offset-wise).
-        // Restore the original desired offset; it might be available on the next try.
-        cursor.sticky_offset = new_position.offset;
-    }
-}
-#[perf_viz::record]
-fn move_left(gap_buffer: &GapBuffer, cursor: &mut Cursor) {
-    move_to(gap_buffer, cursor, backward(gap_buffer, cursor.position));
-}
-#[perf_viz::record]
-fn move_right(gap_buffer: &GapBuffer, cursor: &mut Cursor) {
-    move_to(gap_buffer, cursor, forward(gap_buffer, cursor.position));
-}
-#[perf_viz::record]
-fn move_to_line_start(gap_buffer: &GapBuffer, cursor: &mut Cursor) {
-    move_to(
-        gap_buffer,
-        cursor,
-        Position {
-            offset: d!(),
-            ..cursor.position
-        },
-    );
-}
-#[perf_viz::record]
-fn move_to_line_end(gap_buffer: &GapBuffer, cursor: &mut Cursor) {
-    let line = cursor.position.line;
-    if let Some(count) = gap_buffer.nth_line_count(line) {
-        let new_position = Position {
-            line,
-            offset: CharOffset(count),
-        };
-        move_to(gap_buffer, cursor, new_position);
-    }
-}
-#[perf_viz::record]
-fn move_to_buffer_start(_gap_buffer: &GapBuffer, cursor: &mut Cursor) {
-    // The fisrt position is always valid
-    cursor.position = Position {
-        line: 0,
-        offset: d!(),
-    };
-    cursor.sticky_offset = d!();
-}
-#[perf_viz::record]
-fn move_to_buffer_end(gap_buffer: &GapBuffer, cursor: &mut Cursor) {
-    if let Some((line, count)) = gap_buffer.last_line_index_and_count() {
-        let new_position = Position {
-            line,
-            offset: CharOffset(count),
-        };
-        move_to(gap_buffer, cursor, new_position);
-    }
-}
-
-impl<'buffer> Buffer {
-    fn chars(&'buffer self) -> impl Iterator<Item = char> + 'buffer {
-        self.gap_buffer.chars()
-    }
-}
+use text_buffer::TextBuffer;
 
 #[derive(Default)]
 pub struct State {
-    buffers: Vec1<Buffer>,
+    buffers: Vec1<TextBuffer>,
     current_burrer_index: usize,
     scroll_x: f32,
     scroll_y: f32,
@@ -230,11 +21,11 @@ pub struct State {
 
 impl State {
     #[perf_viz::record]
-    fn current_buffer(&self) -> Option<&Buffer> {
+    fn current_buffer(&self) -> Option<&TextBuffer> {
         self.buffers.get(self.current_burrer_index)
     }
     #[perf_viz::record]
-    fn current_buffer_mut(&mut self) -> Option<&mut Buffer> {
+    fn current_buffer_mut(&mut self) -> Option<&mut TextBuffer> {
         self.buffers.get_mut(self.current_burrer_index)
     }
 }
@@ -292,7 +83,7 @@ pub fn render_view(state: &State, view: &mut View) {
                         (state.char_dim.w, state.char_dim.h)
                     );
 
-                    chars = buffer.cursors.iter().fold(chars, |mut acc, c| {
+                    chars = buffer.cursors().iter().fold(chars, |mut acc, c| {
                         let _cannot_actually_fail = write!(
                             acc,
                             "{} ({:?}|{:?})",
@@ -382,9 +173,11 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                 screen_space_to_position(xy, state.char_dim, (state.scroll_x, state.scroll_y));
             if let Some(b) = state.current_buffer_mut() {
                 if b.in_bounds(position) {
-                    b.cursors = Vec1::new(Cursor::new(position));
+                    let cursors = b.cursors_mut();
+                    *cursors = Vec1::new(Cursor::new(position));
                 } else if let Some(p) = b.nearest_valid_position_on_same_line(position) {
-                    b.cursors = Vec1::new(Cursor::new(p));
+                    let cursors = b.cursors_mut();
+                    *cursors = Vec1::new(Cursor::new(p));
                 }
             }
         }
