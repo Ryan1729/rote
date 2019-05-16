@@ -1,5 +1,5 @@
 use editor_types::{ByteIndex, Cursor, MultiCursorBuffer, Vec1};
-use macros::{borrow, borrow_mut, d, dg};
+use macros::{borrow, borrow_mut, d};
 use platform_types::{CharOffset, Move, Position};
 use ropey::Rope;
 use std::borrow::Borrow;
@@ -16,25 +16,29 @@ borrow_mut!(<Vec1<Cursor>> for TextBuffer : s in &mut s.cursors);
 impl MultiCursorBuffer for TextBuffer {
     #[perf_viz::record]
     fn insert(&mut self, ch: char) {
-        // for cursor in &mut self.cursors {
-        //     self.rope.insert(ch, &cursor.position);
-        //     move_right(&self.rope, cursor);
-        // }
+        for cursor in &mut self.cursors {
+            self.rope
+                .insert_char(pos_to_char_offset(&self.rope, &cursor.position).0, ch);
+            move_right(&self.rope, cursor);
+        }
     }
 
     #[perf_viz::record]
     fn delete(&mut self) {
-        // for cursor in &mut self.cursors {
-        //     self.rope.delete(&cursor.position);
-        //     move_left(&self.rope, cursor);
-        // }
+        for cursor in &mut self.cursors {
+            let char_index = pos_to_char_offset(&self.rope, &cursor.position).0;
+            if char_index > 0 {
+                self.rope.remove((char_index - 1)..char_index);
+                move_left(&self.rope, cursor);
+            }
+        }
     }
 
     #[perf_viz::record]
     fn move_all_cursors(&mut self, r#move: Move) {
-        // for i in 0..self.cursors.len() {
-        //     self.move_cursor(i, r#move)
-        // }
+        for i in 0..self.cursors.len() {
+            self.move_cursor(i, r#move)
+        }
     }
 
     #[perf_viz::record]
@@ -70,6 +74,11 @@ impl MultiCursorBuffer for TextBuffer {
         //self.rope.nearest_valid_position_on_same_line(p)
         unimplemented!();
     }
+}
+
+#[perf_viz::record]
+fn pos_to_char_offset(rope: &Rope, position: &Position) -> CharOffset {
+    CharOffset(rope.line_to_char(position.line)) + position.offset
 }
 
 enum Moved {
