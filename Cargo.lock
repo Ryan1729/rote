@@ -798,6 +798,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "panic_safe_rope"
+version = "0.1.0"
+dependencies = [
+ "macros 0.1.0",
+ "ropey 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "parking_lot"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1245,9 +1253,9 @@ version = "0.1.0"
 dependencies = [
  "editor_types 0.1.0",
  "macros 0.1.0",
+ "panic_safe_rope 0.1.0",
  "perf_viz 0.1.0",
  "platform_types 0.1.0",
- "ropey 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

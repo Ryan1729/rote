@@ -8,13 +8,15 @@ edition = "2018"
 path = "./src/text_buffer.rs"
 
 [dependencies]
-ropey = "1.0.1"
 
 [dependencies.editor_types]
 path = "../editor_types"
 
 [dependencies.macros]
 path = "../../../macros"
+
+[dependencies.panic_safe_rope]
+path = "../panic_safe_rope"
 
 [dependencies.perf_viz]
 path = "../../../perf_viz"

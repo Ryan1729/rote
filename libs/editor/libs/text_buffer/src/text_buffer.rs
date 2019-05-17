@@ -1,7 +1,7 @@
 use editor_types::{ByteIndex, Cursor, MultiCursorBuffer, Vec1};
 use macros::{borrow, borrow_mut, d};
+use panic_safe_rope::Rope;
 use platform_types::{CharOffset, Move, Position};
-use ropey::Rope;
 use std::borrow::Borrow;
 
 #[derive(Default)]
@@ -17,19 +17,22 @@ impl MultiCursorBuffer for TextBuffer {
     #[perf_viz::record]
     fn insert(&mut self, ch: char) {
         for cursor in &mut self.cursors {
-            self.rope
-                .insert_char(pos_to_char_offset(&self.rope, &cursor.position).0, ch);
-            move_right(&self.rope, cursor);
+            if let Some(CharOffset(o)) = pos_to_char_offset(&self.rope, &cursor.position) {
+                self.rope.insert_char(o, ch);
+                move_right(&self.rope, cursor);
+            }
         }
     }
 
     #[perf_viz::record]
     fn delete(&mut self) {
         for cursor in &mut self.cursors {
-            let char_index = pos_to_char_offset(&self.rope, &cursor.position).0;
-            if char_index > 0 {
-                self.rope.remove((char_index - 1)..char_index);
-                move_left(&self.rope, cursor);
+            match pos_to_char_offset(&self.rope, &cursor.position) {
+                Some(CharOffset(o)) if o > 0 => {
+                    self.rope.remove((o - 1)..o);
+                    move_left(&self.rope, cursor);
+                }
+                _ => {}
             }
         }
     }
@@ -65,8 +68,8 @@ impl MultiCursorBuffer for TextBuffer {
 
     #[perf_viz::record]
     fn find_index<P: Borrow<Position>>(&self, p: P) -> Option<ByteIndex> {
-        //self.rope.find_index(p)
-        unimplemented!();
+        pos_to_char_offset(&self.rope, p.borrow())
+            .and_then(|CharOffset(o)| self.rope.char_to_byte(o).map(ByteIndex))
     }
 
     #[perf_viz::record]
@@ -77,8 +80,8 @@ impl MultiCursorBuffer for TextBuffer {
 }
 
 #[perf_viz::record]
-fn pos_to_char_offset(rope: &Rope, position: &Position) -> CharOffset {
-    CharOffset(rope.line_to_char(position.line)) + position.offset
+fn pos_to_char_offset(rope: &Rope, position: &Position) -> Option<CharOffset> {
+    Some(CharOffset(rope.line_to_char(position.line)?) + position.offset)
 }
 
 enum Moved {
