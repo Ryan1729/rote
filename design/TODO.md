@@ -1,5 +1,8 @@
 ## TODO
 
+* We need to be able to see spaces and newline characters.
+  * Should we edit the font, or render over top of the characters? Do we care about being able to not see spaces and newlines if we want to? How long does it take to change fonts?
+
 * Make moving the cursor deep in the file faster. In particular, the cursor moving after clicking on a position is too slow.
   * I don't currently see a way to do this for the clicking case, besides caching byte offsets.
     * We could scan backwards or forwards from the current gap point to do up and down movement, but clicking speed would be unaffected.
