@@ -54,29 +54,47 @@ impl MultiCursorBuffer for TextBuffer {
                 Move::Right => move_right(&self.rope, cursor),
                 Move::ToLineStart => move_to_line_start(&self.rope, cursor),
                 Move::ToLineEnd => move_to_line_end(&self.rope, cursor),
-                Move::ToBufferStart => move_to_buffer_start(&self.rope, cursor),
-                Move::ToBufferEnd => move_to_buffer_end(&self.rope, cursor),
+                Move::ToBufferStart => move_to_rope_start(&self.rope, cursor),
+                Move::ToBufferEnd => move_to_rope_end(&self.rope, cursor),
             }
         }
     }
 
     #[perf_viz::record]
-    fn in_bounds<P: Borrow<Position>>(&self, p: P) -> bool {
-        //self.rope.in_bounds(p)
-        unimplemented!()
-    }
-
-    #[perf_viz::record]
     fn find_index<P: Borrow<Position>>(&self, p: P) -> Option<ByteIndex> {
-        pos_to_char_offset(&self.rope, p.borrow())
-            .and_then(|CharOffset(o)| self.rope.char_to_byte(o).map(ByteIndex))
+        find_index(&self.rope, p)
     }
 
     #[perf_viz::record]
     fn nearest_valid_position_on_same_line<P: Borrow<Position>>(&self, p: P) -> Option<Position> {
-        //self.rope.nearest_valid_position_on_same_line(p)
-        unimplemented!();
+        let p = p.borrow();
+        let line = self.rope.lines().nth(p.line)?;
+
+        Some(Position {
+            offset: std::cmp::min(p.offset, CharOffset(line.len_chars())),
+            ..*p
+        })
     }
+}
+
+fn in_bounds<P: Borrow<Position>>(rope: &Rope, position: P) -> bool {
+    find_index(rope, position) != None
+}
+
+fn find_index<P: Borrow<Position>>(rope: &Rope, p: P) -> Option<ByteIndex> {
+    pos_to_char_offset(rope, p.borrow())
+        .and_then(|CharOffset(o)| rope.char_to_byte(o).map(ByteIndex))
+}
+
+fn nth_line_count(rope: &Rope, n: usize) -> Option<CharOffset> {
+    rope.lines().nth(n).map(|l| CharOffset(l.len_chars()))
+}
+
+fn last_line_index_and_count(rope: &Rope) -> Option<(usize, CharOffset)> {
+    rope.lines()
+        .map(|l| CharOffset(l.len_chars()))
+        .enumerate()
+        .last()
 }
 
 #[perf_viz::record]
@@ -91,83 +109,68 @@ enum Moved {
 
 #[perf_viz::record]
 fn move_to(rope: &Rope, cursor: &mut Cursor, position: Position) -> Moved {
-    // if rope.in_bounds(&position) {
-    //     cursor.position = position;
-    //
-    //     // Remember this offset so that we can try
-    //     // to maintain it when moving across lines.
-    //     cursor.sticky_offset = position.offset;
-    //
-    //     return Moved::Yes;
-    // }
+    if in_bounds(rope, &position) {
+        cursor.position = position;
+
+        // Remember this offset so that we can try
+        // to maintain it when moving across lines.
+        cursor.sticky_offset = position.offset;
+
+        return Moved::Yes;
+    }
     Moved::No
+}
+
+/// Try moving to the same offset on the line below, falling back to its EOL.
+#[perf_viz::record]
+fn move_to_with_fallback(rope: &Rope, cursor: &mut Cursor, new_position: Position) {
+    let target_line = new_position.line;
+    if let Moved::No = move_to(rope, cursor, new_position) {
+        let mut target_offset = d!();
+        if let Some(count) = nth_line_count(rope, target_line) {
+            target_offset = count;
+        }
+        move_to(
+            rope,
+            cursor,
+            Position {
+                line: target_line,
+                offset: target_offset,
+            },
+        );
+
+        // Moving the position successfully updates the sticky offset, but we
+        // haven't actually moved to where we really wanted to go (offset-wise).
+        // Restore the original desired offset; it might be available on the next try.
+        cursor.sticky_offset = new_position.offset;
+    }
 }
 
 #[perf_viz::record]
 fn move_up(rope: &Rope, cursor: &mut Cursor) {
-    // let pos = cursor.position;
-    // // Don't bother if we are already at the top.
-    // if pos.line == 0 {
-    //     return;
-    // }
-    //
-    // let target_line = pos.line - 1;
-    // let new_position = Position {
-    //     line: target_line,
-    //     offset: cursor.sticky_offset,
-    // };
-    //
-    // // Try moving to the same offset on the line below, falling back to its EOL.
-    // if let Moved::No = move_to(rope, cursor, new_position) {
-    //     let mut target_offset = 0;
-    //     if let Some(count) = rope.nth_line_count(target_line) {
-    //         target_offset = count;
-    //     }
-    //     move_to(
-    //         rope,
-    //         cursor,
-    //         Position {
-    //             line: target_line,
-    //             offset: CharOffset(target_offset),
-    //         },
-    //     );
-    //
-    //     // Moving the position successfully updates the sticky offset, but we
-    //     // haven't actually moved to where we really wanted to go (offset-wise).
-    //     // Restore the original desired offset; it might be available on the next try.
-    //     cursor.sticky_offset = new_position.offset;
-    // }
+    let pos = cursor.position;
+    // Don't bother if we are already at the top.
+    if pos.line == 0 {
+        return;
+    }
+
+    let target_line = pos.line - 1;
+    let new_position = Position {
+        line: target_line,
+        offset: cursor.sticky_offset,
+    };
+    move_to_with_fallback(rope, cursor, new_position)
 }
 
 #[perf_viz::record]
 fn move_down(rope: &Rope, cursor: &mut Cursor) {
-    // let target_line = cursor.position.line + 1;
-    // let new_position = Position {
-    //     line: target_line,
-    //     offset: cursor.sticky_offset,
-    // };
-    //
-    // // Try moving to the same offset on the line below, falling back to its EOL.
-    // if let Moved::No = move_to(rope, cursor, new_position) {
-    //     let mut target_offset = 0;
-    //     let current_line = rope.nth_line_count(target_line);
-    //     if let Some(line) = current_line {
-    //         target_offset = line;
-    //     }
-    //     move_to(
-    //         rope,
-    //         cursor,
-    //         Position {
-    //             line: target_line,
-    //             offset: CharOffset(target_offset),
-    //         },
-    //     );
-    //
-    //     // Moving the position successfully updates the sticky offset, but we
-    //     // haven't actually moved to where we really wanted to go (offset-wise).
-    //     // Restore the original desired offset; it might be available on the next try.
-    //     cursor.sticky_offset = new_position.offset;
-    // }
+    let target_line = cursor.position.line + 1;
+    let new_position = Position {
+        line: target_line,
+        offset: cursor.sticky_offset,
+    };
+
+    move_to_with_fallback(rope, cursor, new_position)
 }
 #[perf_viz::record]
 fn move_left(rope: &Rope, cursor: &mut Cursor) {
@@ -190,39 +193,27 @@ fn move_to_line_start(rope: &Rope, cursor: &mut Cursor) {
 }
 #[perf_viz::record]
 fn move_to_line_end(rope: &Rope, cursor: &mut Cursor) {
-    unimplemented!();
-    // let line = cursor.position.line;
-    // if let Some(count) = rope.nth_line_count(line) {
-    //     let new_position = Position {
-    //         line,
-    //         offset: CharOffset(count),
-    //     };
-    //     move_to(rope, cursor, new_position);
-    // }
+    let line = cursor.position.line;
+    if let Some(offset) = nth_line_count(rope, line) {
+        let new_position = Position { line, offset };
+        move_to(rope, cursor, new_position);
+    }
 }
 #[perf_viz::record]
-fn move_to_buffer_start(_rope: &Rope, cursor: &mut Cursor) {
-    // The fisrt position is always valid
-    cursor.position = Position {
-        line: 0,
-        offset: d!(),
-    };
-    cursor.sticky_offset = d!();
+fn move_to_rope_start(_rope: &Rope, cursor: &mut Cursor) {
+    // The default is the first position, and the first position is always there.
+    cursor.position = d!();
 }
 #[perf_viz::record]
-fn move_to_buffer_end(rope: &Rope, cursor: &mut Cursor) {
-    unimplemented!();
-    // if let Some((line, count)) = rope.last_line_index_and_count() {
-    //     let new_position = Position {
-    //         line,
-    //         offset: CharOffset(count),
-    //     };
-    //     move_to(rope, cursor, new_position);
-    // }
+fn move_to_rope_end(rope: &Rope, cursor: &mut Cursor) {
+    if let Some((line, offset)) = last_line_index_and_count(rope) {
+        let new_position = Position { line, offset };
+        move_to(rope, cursor, new_position);
+    }
 }
 
-impl<'buffer> TextBuffer {
-    pub fn chars(&'buffer self) -> impl Iterator<Item = char> + 'buffer {
+impl<'rope> TextBuffer {
+    pub fn chars(&'rope self) -> impl Iterator<Item = char> + 'rope {
         self.rope.chars()
     }
 }
@@ -231,43 +222,41 @@ fn backward<P>(rope: &Rope, position: P) -> Position
 where
     P: Borrow<Position>,
 {
-    unimplemented!();
-    // let position = position.borrow();
-    //
-    // if position.offset == 0 {
-    //     if position.line == 0 {
-    //         return *position;
-    //     }
-    //     let line = position.line.saturating_sub(1);
-    //     Position {
-    //         line,
-    //         offset: CharOffset(rope.nth_line_count(line).unwrap_or_default()),
-    //     }
-    // } else {
-    //     Position {
-    //         offset: position.offset - 1,
-    //         ..*position
-    //     }
-    // }
+    let position = position.borrow();
+
+    if position.offset == 0 {
+        if position.line == 0 {
+            return *position;
+        }
+        let line = position.line.saturating_sub(1);
+        Position {
+            line,
+            offset: nth_line_count(rope, line).unwrap_or_default(),
+        }
+    } else {
+        Position {
+            offset: position.offset - 1,
+            ..*position
+        }
+    }
 }
 
 fn forward<P>(rope: &Rope, position: P) -> Position
 where
     P: Borrow<Position>,
 {
-    unimplemented!();
-    // let position = position.borrow();
-    //
-    // let mut new = Position {
-    //     offset: position.offset + 1,
-    //     ..*position
-    // };
-    //
-    // //  we expect the rest of the system to bounds check on positions
-    // if !rope.in_bounds(&new) {
-    //     new.line += 1;
-    //     new.offset = d!();
-    // }
-    //
-    // new
+    let position = position.borrow();
+
+    let mut new = Position {
+        offset: position.offset + 1,
+        ..*position
+    };
+
+    //  we expect the rest of the system to bounds check on positions
+    if !in_bounds(rope, &new) {
+        new.line += 1;
+        new.offset = d!();
+    }
+
+    new
 }
