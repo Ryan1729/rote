@@ -7,17 +7,8 @@ I'm starting this project over, this time as a graphical editor from the start i
 ![demo gif](/rote-0.2.10.gif?raw=true "Demo gif of a text editor performing a simple editing task")
 
 ## Plan
-* implement my shortlist of useful keyboard shortcuts
-* generally make it a usable terminal editor
-  - list of previously opened files
-  - keymap?
-  - drop down menu?
-* abstract out terminal specific portions to a struct of function pointers
-* implement another, non-terminal frontend
-* add plugin interface based on loading dynamic library files
-  - explain that adding different versions of the same library will need a restart because of POSIX
-  - allow a single plugin file to perform multiple things. Users should be able to everything they
-    want with one plugin file. For good or for ill that allows a plugin that runs scripts to exist.
+* implement everything in [MVP-FEATURES.md](./design/MVP-FEATURES.md).
+* Think of more useful features and/or add support for external code scanning programs like [`rls`](https://github.com/rust-lang/rls)
 
 ____
 
