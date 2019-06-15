@@ -1,13 +1,7 @@
-use super::*;
+use super::{cursor_assert, r, t_b, *};
 use platform_types::pos;
 use proptest::prelude::*;
 use proptest::{prop_compose, proptest};
-
-macro_rules! r {
-    ($s:expr) => {
-        Rope::from_str(&$s)
-    };
-}
 
 prop_compose! {
     fn arb_rope()(s in any::<String>()) -> Rope {
@@ -156,27 +150,27 @@ fn insertion_with_forward_selection_deletes_selected_text() {
     buffer.insert('4');
 
     // TODO move these sanity checks into a separate test?
-    {
-        let c = buffer.cursors.first();
-        assert_eq!(c.highlight_position, None);
-        assert_eq!(c.position, pos! {l 0 o 4});
+    cursor_assert! {
+        buffer,
+        p: pos! {l 0 o 4},
+        h: None
     }
 
     buffer.move_cursor(0, Move::Left);
     buffer.move_cursor(0, Move::Left);
 
-    {
-        let c = buffer.cursors.first();
-        assert_eq!(c.highlight_position, None);
-        assert_eq!(c.position, pos! {l 0 o 2});
+    cursor_assert! {
+        buffer,
+        p: pos! {l 0 o 2},
+        h: None
     }
 
     buffer.extend_selection(0, Move::Right);
 
-    {
-        let c = buffer.cursors.first();
-        assert_eq!(c.highlight_position, Some(pos! {l 0 o 2}));
-        assert_eq!(c.position, pos! {l 0 o 3});
+    cursor_assert! {
+        buffer,
+        p: pos! {l 0 o 3},
+        h: Some(pos! {l 0 o 2})
     }
 
     // Act
@@ -186,7 +180,77 @@ fn insertion_with_forward_selection_deletes_selected_text() {
     let s: String = buffer.rope.into();
     assert_eq!(s, "1234");
 
-    let c = buffer.cursors.first();
-    assert_eq!(c.highlight_position, None);
-    assert_eq!(c.position, pos! {l 0 o 3});
+    cursor_assert! {
+        buffer,
+        p: pos! {l 0 o 3},
+        h: None
+    }
+}
+
+#[test]
+fn newline_places_cursor_in_correct_spot() {
+    let mut buffer = t_b!("123");
+
+    cursor_assert! {
+        buffer,
+        p: pos! {l 0 o 0},
+    }
+
+    for _ in 0..5 {
+        buffer.move_cursor(0, Move::Right);
+    }
+
+    cursor_assert! {
+        buffer,
+        p: pos! {l 0 o 3},
+    }
+
+    buffer.insert(dbg!('\n'));
+
+    cursor_assert! {
+        buffer,
+        p: pos! {l 1 o 0},
+    }
+}
+
+#[test]
+fn in_cursor_bounds_does_not_allow_going_past_a_line_feed() {
+    let rope = r!("123\n567");
+
+    assert_eq!(in_cursor_bounds(&rope, pos! {l 0 o 5}), false);
+    assert_eq!(in_cursor_bounds(&rope, pos! {l 0 o 4}), false);
+
+    assert_eq!(in_cursor_bounds(&rope, pos! {l 0 o 3}), true);
+    assert_eq!(in_cursor_bounds(&rope, pos! {l 1 o 0}), true);
+}
+
+#[test]
+fn in_cursor_bounds_does_not_allow_going_past_a_carriage_return_line_feed() {
+    let rope = r!("123\r\n678");
+
+    assert_eq!(in_cursor_bounds(&rope, pos! {l 0 o 5}), false);
+    assert_eq!(in_cursor_bounds(&rope, pos! {l 0 o 4}), false);
+
+    assert_eq!(in_cursor_bounds(&rope, pos! {l 0 o 3}), true);
+    assert_eq!(in_cursor_bounds(&rope, pos! {l 1 o 0}), true);
+}
+
+#[test]
+fn in_cursor_bounds_works_on_line_feed() {
+    let rope = r!("\n");
+
+    assert_eq!(in_cursor_bounds(&rope, pos! {l 0 o 0}), true);
+    assert_eq!(in_cursor_bounds(&rope, pos! {l 0 o 1}), false);
+    assert_eq!(in_cursor_bounds(&rope, pos! {l 0 o 2}), false);
+    assert_eq!(in_cursor_bounds(&rope, pos! {l 1 o 0}), true);
+}
+
+#[test]
+fn in_cursor_bounds_works_on_carriage_return_line_feed() {
+    let rope = r!("\r\n");
+
+    assert_eq!(in_cursor_bounds(&rope, pos! {l 0 o 0}), true);
+    assert_eq!(in_cursor_bounds(&rope, pos! {l 0 o 1}), false);
+    assert_eq!(in_cursor_bounds(&rope, pos! {l 0 o 2}), false);
+    assert_eq!(in_cursor_bounds(&rope, pos! {l 1 o 0}), true);
 }

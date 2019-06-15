@@ -142,8 +142,41 @@ fn nearest_valid_position_on_same_line(rope: &Rope, p: &Position) -> Option<Posi
     })
 }
 
-fn in_bounds<P: Borrow<Position>>(rope: &Rope, position: P) -> bool {
-    find_index(rope, position) != None
+fn in_cursor_bounds<P: Borrow<Position>>(rope: &Rope, position: P) -> bool {
+    let p = position.borrow();
+    rope.lines()
+        .nth(p.line)
+        .map(|line| {
+            // we assume a line can contain at most one `'\n'`
+
+            let mut len = dbg!(line.len_chars());
+            macro_rules! return_if_0 {
+                () => {
+                    if len == 0 {
+                        return p.offset == 0;
+                    }
+                };
+            }
+
+            return_if_0!();
+
+            let last = line.char(len - 1);
+
+            if dbg!(last) == '\n' {
+                len -= 1;
+                return_if_0!();
+
+                let second_last = line.char(len - 1);
+
+                if second_last == '\r' {
+                    len -= 1;
+                    return_if_0!();
+                }
+            }
+
+            p.offset <= len
+        })
+        .unwrap_or(false)
 }
 
 fn find_index<P: Borrow<Position>>(rope: &Rope, p: P) -> Option<ByteIndex> {
@@ -208,7 +241,7 @@ fn move_cursor_directly(rope: &Rope, cursor: &mut Cursor, r#move: Move) {
 
 #[perf_viz::record]
 fn move_to(rope: &Rope, cursor: &mut Cursor, position: Position) -> Moved {
-    if in_bounds(rope, &position) {
+    if in_cursor_bounds(rope, &position) {
         cursor.position = position;
 
         // Remember this offset so that we can try
@@ -358,7 +391,7 @@ where
     };
 
     //  we expect the rest of the system to bounds check on positions
-    if !in_bounds(rope, &new) {
+    if !dbg!(in_cursor_bounds(rope, &new)) {
         new.line += 1;
         new.offset = d!();
     }
@@ -366,5 +399,8 @@ where
     new
 }
 
+#[cfg(test)]
+#[macro_use]
+mod test_macros;
 #[cfg(test)]
 mod tests;

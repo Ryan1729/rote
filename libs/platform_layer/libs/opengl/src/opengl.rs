@@ -22,7 +22,7 @@ impl FontInfo<'static> {
     pub fn new(hidpi_factor: f32) -> Result<Self, FontError> {
         const FONT_BYTES: &[u8] = include_bytes!("./fonts/FiraCode-Retina-plus-CR-and-LF.ttf");
         let font: Font<'static> = Font::from_bytes(FONT_BYTES)?;
-        let text_size: f32 = 16.0;
+        let text_size: f32 = 60.0;
         let status_size: f32 = 22.0;
 
         let text_scale = Scale::uniform((text_size * hidpi_factor).round());
@@ -462,11 +462,11 @@ pub fn render_buffer_view<A: Clone>(
                 .chars()
                 .map(|c| {
                     // map unprinatbles to symbols for themselves
-                    if c < 0x20 as char {
-                        std::char::from_u32(c as u32 | 0x2400u32).unwrap_or(c)
-                    } else {
-                        c
-                    }
+                    // if c < 0x20 as char {
+                    //     std::char::from_u32(c as u32 | 0x2400u32).unwrap_or(c)
+                    // } else {
+                    c
+                    // }
                 })
                 .collect::<String>();
             s
@@ -481,7 +481,7 @@ pub fn render_buffer_view<A: Clone>(
             screen_position,
             bounds,
             color,
-            layout: Layout::default_single_line(),
+            layout: Layout::default_wrap(),
             z: match kind {
                 BufferViewKind::Edit => gl_layer::EDIT_Z,
                 BufferViewKind::Cursor => gl_layer::CURSOR_Z,
