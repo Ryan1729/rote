@@ -65,6 +65,13 @@ pub fn render_view(state: &State, view: &mut View) {
     let status_line_y = state.screen_h - state.status_char_dim.h;
     view.buffers.clear();
 
+    let status_line_view = BufferView {
+        kind: BufferViewKind::StatusLine,
+        screen_position: (0.0, status_line_y),
+        bounds: (state.screen_w, state.status_char_dim.h),
+        ..d!()
+    };
+
     match state.current_buffer() {
         Some(buffer) => {
             let cursors = buffer.cursors();
@@ -107,9 +114,6 @@ pub fn render_view(state: &State, view: &mut View) {
             });
 
             view.buffers.push(BufferView {
-                kind: BufferViewKind::StatusLine,
-                screen_position: (0.0, status_line_y),
-                bounds: (state.screen_w, state.text_char_dim.h),
                 color: [0.3, 0.9, 0.3, 1.0],
                 chars: {
                     use std::fmt::Write;
@@ -139,17 +143,14 @@ pub fn render_view(state: &State, view: &mut View) {
 
                     chars
                 },
-                ..d!()
+                ..status_line_view
             });
         }
         None => {
             view.buffers.push(BufferView {
-                kind: BufferViewKind::StatusLine,
-                screen_position: (0.0, status_line_y),
-                bounds: (state.screen_w, state.text_char_dim.h),
                 color: [0.9, 0.3, 0.3, 1.0],
                 chars: "No buffer selected.".to_owned(),
-                ..d!()
+                ..status_line_view
             });
         }
     };
