@@ -221,15 +221,17 @@ d!(for BufferViewKind: BufferViewKind::Cursor);
 
 #[derive(Debug)]
 pub struct Highlight {
-    min: Position,
-    max: Position,
+    pub min: Position,
+    pub max: Position,
+    pub color: [f32; 4],
 }
 
 impl Highlight {
-    pub fn new((p1, p2): (Position, Position)) -> Self {
+    pub fn new((p1, p2): (Position, Position), color: [f32; 4]) -> Self {
         Highlight {
             min: std::cmp::min(p1, p2),
             max: std::cmp::max(p1, p2),
+            color,
         }
     }
 

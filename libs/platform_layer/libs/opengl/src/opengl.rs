@@ -8,7 +8,9 @@ use glutin::{Api, GlProfile, GlRequest};
 use glyph_brush::{rusttype::Error as FontError, rusttype::Font, rusttype::Scale, *};
 use macros::d;
 
-use platform_types::{BufferView, CharDim, Input, ScreenSpaceXY, Sizes, UpdateAndRender, View};
+use platform_types::{
+    BufferView, CharDim, Highlight, Input, ScreenSpaceXY, Sizes, UpdateAndRender, View,
+};
 
 pub struct FontInfo<'a> {
     font: Font<'a>,
@@ -494,9 +496,7 @@ pub fn render_buffer_view<A: Clone>(
         rect_bounds.max = bounds.into();
 
         perf_viz::start_record!("highlight_ranges.extend");
-        highlight_ranges.extend(highlights.iter().map(|h| {
-            let (min, max) = h.get();
-
+        highlight_ranges.extend(highlights.iter().map(|&Highlight { min, max, color }| {
             let mut pixel_coords: PixelCoords = d!();
             pixel_coords.min.x = (min.offset.0 as f32 * text_char_dim.w + screen_position.0) as i32;
 
@@ -506,7 +506,7 @@ pub fn render_buffer_view<A: Clone>(
             HighlightRange {
                 pixel_coords,
                 bounds: rect_bounds,
-                color: [0.0, 0.0, 0.0, 0.6],
+                color,
                 z: gl_layer::HIGHLIGHT_Z,
             }
         }));

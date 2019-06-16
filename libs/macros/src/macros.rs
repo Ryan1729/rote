@@ -216,6 +216,26 @@ macro_rules! dg {
     };
 }
 
+#[macro_export]
+macro_rules! c {
+    (
+        $red: expr,
+        $green: expr,
+        $blue: expr $(,)?
+    ) => {
+        c![$red, $green, $blue, 1.0]
+    };
+
+    (
+        $red: expr,
+        $green: expr,
+        $blue: expr,
+        $alpha: expr $(,)?
+    ) => {
+        [$red, $green, $blue, $alpha]
+    };
+}
+
 #[cfg(feature = "invariant-checking")]
 #[macro_export]
 macro_rules! invariant_violation {

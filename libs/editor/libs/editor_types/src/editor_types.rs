@@ -41,18 +41,27 @@ impl From<ByteIndex> for ByteLength {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub enum CursorState {
+    None,
+    PressedAgainstWall,
+}
+d!(for CursorState: CursorState::None);
+
 #[derive(Clone, Debug)]
 pub struct Cursor {
     pub position: Position,
     pub sticky_offset: CharOffset,
     pub highlight_position: Option<Position>,
+    pub state: CursorState,
 }
 
 fmt_display! {
     for Cursor : Cursor {
             position,
             sticky_offset,
-            highlight_position
+            highlight_position,
+            ..
         } in "{}({}){}",
         position,
         sticky_offset,
@@ -64,7 +73,8 @@ impl Cursor {
         Cursor {
             position,
             sticky_offset: position.offset,
-            highlight_position: None,
+            highlight_position: d!(),
+            state: d!(),
         }
     }
 }

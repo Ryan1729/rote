@@ -254,3 +254,154 @@ fn in_cursor_bounds_works_on_carriage_return_line_feed() {
     assert_eq!(in_cursor_bounds(&rope, pos! {l 0 o 2}), false);
     assert_eq!(in_cursor_bounds(&rope, pos! {l 1 o 0}), true);
 }
+
+fn moving_across_lines(mut buffer: TextBuffer) {
+    cursor_assert! {
+        buffer,
+        p: pos! {l 0 o 0},
+    }
+
+    for _ in 0..3 {
+        buffer.move_cursor(0, Move::Right);
+    }
+
+    cursor_assert! {
+        buffer,
+        p: pos! {l 0 o 3},
+    }
+
+    buffer.move_cursor(0, Move::Right);
+
+    cursor_assert! {
+        buffer,
+        p: pos! {l 1 o 0},
+    }
+
+    buffer.move_cursor(0, Move::Left);
+
+    cursor_assert! {
+        buffer,
+        p: pos! {l 0 o 3},
+    }
+}
+
+#[test]
+fn moving_across_line_feeds_works() {
+    moving_across_lines(t_b!("123\n567"));
+}
+
+#[test]
+fn moving_across_carriage_return_line_feeds_works() {
+    moving_across_lines(t_b!("123\r\n567"));
+}
+
+#[test]
+fn forward_works_across_line_feeds() {
+    let rope = r!("123\n567");
+
+    assert_eq!(forward(&rope, pos! {l 0 o 3}), Some(pos! {l 1 o 0}));
+}
+#[test]
+fn forward_works_across_carriage_return_line_feeds() {
+    let rope = r!("123\r\n567");
+
+    assert_eq!(forward(&rope, pos! {l 0 o 3}), Some(pos! {l 1 o 0}));
+}
+
+#[test]
+fn backward_works_across_line_feeds() {
+    let rope = r!("123\n567");
+
+    assert_eq!(backward(&rope, pos! {l 1 o 0}), Some(pos! {l 0 o 3}));
+}
+#[test]
+fn backward_works_across_carriage_return_line_feeds() {
+    let rope = r!("123\r\n567");
+
+    assert_eq!(backward(&rope, pos! {l 1 o 0}), Some(pos! {l 0 o 3}));
+}
+
+macro_rules! all_cursor_movements {
+    ($line_separator: literal) => {
+        let mut buffer: TextBuffer = t_b!(concat!("123", $line_separator, "567"));
+        cursor_assert! {
+            buffer,
+            p: pos! {l 0 o 0},
+            s: CursorState::None
+        }
+
+        buffer.move_cursor(0, Move::Right);
+
+        cursor_assert! {
+            buffer,
+            p: pos! {l 0 o 1},
+            s: CursorState::None
+        }
+
+        buffer.move_cursor(0, Move::Down);
+
+        cursor_assert! {
+            buffer,
+            p: pos! {l 1 o 1},
+            s: CursorState::None
+        }
+
+        buffer.move_cursor(0, Move::Up);
+
+        cursor_assert! {
+            buffer,
+            p: pos! {l 0 o 1},
+            s: CursorState::None
+        }
+
+        buffer.move_cursor(0, Move::Left);
+
+        cursor_assert! {
+            buffer,
+            p: pos! {l 0 o 0},
+            s: CursorState::None
+        }
+
+        buffer.move_cursor(0, Move::ToLineEnd);
+
+        cursor_assert! {
+            buffer,
+            p: pos! {l 0 o 3},
+            s: CursorState::None
+        }
+
+        buffer.move_cursor(0, Move::ToLineStart);
+
+        cursor_assert! {
+            buffer,
+            p: pos! {l 0 o 0},
+            s: CursorState::None
+        }
+
+        buffer.move_cursor(0, Move::ToBufferEnd);
+
+        cursor_assert! {
+            buffer,
+            p: pos! {l 1 o 3},
+            s: CursorState::None
+        }
+
+        buffer.move_cursor(0, Move::ToBufferStart);
+
+        cursor_assert! {
+            buffer,
+            p: pos! {l 0 o 0},
+            s: CursorState::None
+        }
+    };
+}
+
+#[test]
+fn all_cursor_movements_across_line_feeds_works() {
+    all_cursor_movements!("\n");
+}
+
+#[test]
+fn all_cursor_movements_across_carriage_return_line_feeds_works() {
+    all_cursor_movements!("\r\n");
+}

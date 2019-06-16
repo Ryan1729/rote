@@ -1,5 +1,5 @@
-use editor_types::{Cursor, MultiCursorBuffer, Vec1};
-use macros::{d, dg};
+use editor_types::{Cursor, CursorState, MultiCursorBuffer, Vec1};
+use macros::{c, d, dg};
 use platform_types::{
     position_to_screen_space, screen_space_to_position, BufferView, CharDim, Cmd, Highlight, Input,
     ScreenSpaceXY, UpdateAndRenderOutput, View,
@@ -91,14 +91,17 @@ pub fn render_view(state: &State, view: &mut View) {
                     kind: BufferViewKind::Cursor,
                     screen_position,
                     bounds: (state.screen_w, state.text_char_dim.h),
-                    color: [0.9, 0.3, 0.3, 1.0],
+                    color: match c.state {
+                        CursorState::None => c![0.9, 0.3, 0.3],
+                        CursorState::PressedAgainstWall => c![0.9, 0.9, 0.3],
+                    },
                     chars: "▏".to_string(),
                     ..d!()
                 });
 
                 match c.highlight_position {
                     Some(h) if h != position => {
-                        highlights.push(Highlight::new((h, position)));
+                        highlights.push(Highlight::new((h, position), [0.0, 0.0, 0.0, 0.6]));
                     }
                     _ => {}
                 }
@@ -108,13 +111,13 @@ pub fn render_view(state: &State, view: &mut View) {
                 kind: BufferViewKind::Edit,
                 screen_position: (state.scroll_x, state.scroll_y),
                 bounds: (std::f32::INFINITY, std::f32::INFINITY),
-                color: [0.3, 0.3, 0.9, 1.0],
+                color: c![0.3, 0.3, 0.9],
                 chars: buffer.chars().collect::<String>(),
                 highlights,
             });
 
             view.buffers.push(BufferView {
-                color: [0.3, 0.9, 0.3, 1.0],
+                color: c![0.3, 0.9, 0.3],
                 chars: {
                     use std::fmt::Write;
                     let mut chars = String::with_capacity(state.screen_w as usize);
@@ -148,7 +151,7 @@ pub fn render_view(state: &State, view: &mut View) {
         }
         None => {
             view.buffers.push(BufferView {
-                color: [0.9, 0.3, 0.3, 1.0],
+                color: c![0.9, 0.3, 0.3],
                 chars: "No buffer selected.".to_owned(),
                 ..status_line_view
             });
