@@ -405,3 +405,114 @@ fn all_cursor_movements_across_line_feeds_works() {
 fn all_cursor_movements_across_carriage_return_line_feeds_works() {
     all_cursor_movements!("\r\n");
 }
+
+macro_rules! multiline_selection {
+    ($line_separator: literal) => {
+        let mut buffer: TextBuffer = t_b!(concat!("123", $line_separator, "567"));
+        cursor_assert! {
+            buffer,
+            p: pos! {l 0 o 0},
+            h: None
+        }
+
+        buffer.extend_selection(0, Move::ToBufferEnd);
+
+        cursor_assert! {
+            buffer,
+            p: pos! {l 1 o 3},
+            h: pos! {l 0 o 0}
+        }
+
+        buffer.move_cursor(0, Move::ToBufferEnd);
+
+        cursor_assert! {
+            buffer,
+            p: pos! {l 1 o 3},
+            h: None,
+            s: d!()
+        }
+
+        buffer.extend_selection(0, Move::ToBufferStart);
+
+        cursor_assert! {
+            buffer,
+            p: pos! {l 0 o 0},
+            h: pos! {l 1 o 3}
+        }
+
+        buffer.move_cursor(0, Move::ToLineEnd);
+
+        cursor_assert! {
+            buffer,
+            p: pos! {l 0 o 3},
+            h: None
+        }
+
+        buffer.extend_selection(0, Move::Right);
+
+        cursor_assert! {
+            buffer,
+            p: pos! {l 1 o 0},
+            h: pos! {l 0 o 3}
+        }
+
+        buffer.extend_selection(0, Move::ToLineEnd);
+
+        cursor_assert! {
+            buffer,
+            p: pos! {l 1 o 3},
+            h: pos! {l 0 o 3}
+        }
+
+        buffer.extend_selection(0, Move::ToLineStart);
+
+        cursor_assert! {
+            buffer,
+            p: pos! {l 1 o 0},
+            h: pos! {l 0 o 3}
+        }
+
+        buffer.move_cursor(0, Move::Down);
+
+        cursor_assert! {
+            buffer,
+            p: pos! {l 1 o 0},
+            h: None,
+            s: d!()
+        }
+
+        buffer.extend_selection(0, Move::Left);
+
+        cursor_assert! {
+            buffer,
+            p: pos! {l 0 o 3},
+            h: pos! {l 1 o 0},
+        }
+
+        buffer.extend_selection(0, Move::ToLineStart);
+
+        cursor_assert! {
+            buffer,
+            p: pos! {l 0 o 0},
+            h: pos! {l 1 o 0}
+        }
+
+        buffer.extend_selection(0, Move::ToLineEnd);
+
+        cursor_assert! {
+            buffer,
+            p: pos! {l 0 o 3},
+            h: pos! {l 1 o 0}
+        }
+    };
+}
+
+#[test]
+fn multiline_selection_across_line_feeds_works() {
+    multiline_selection!("\n");
+}
+
+#[test]
+fn multiline_selection_across_carriage_return_line_feeds_works() {
+    multiline_selection!("\r\n");
+}

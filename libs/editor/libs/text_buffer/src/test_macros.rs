@@ -24,11 +24,15 @@ macro_rules! cursor_assert {
         let c = $buffer.cursors.first();
 
         $(
-            assert_eq!(c.position, $pos);
+            assert_eq!(c.position, $pos, "positions do not match");
         )*
 
         $(
-            assert_eq!(c.highlight_position, $highlight_position);
+            assert_eq!(
+                c.highlight_position,
+                $highlight_position.into(),
+                "highlight positions do not match"
+            );
         )*
 
         $(

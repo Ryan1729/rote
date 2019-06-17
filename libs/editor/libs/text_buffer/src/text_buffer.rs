@@ -97,18 +97,30 @@ impl MultiCursorBuffer for TextBuffer {
     fn move_cursor(&mut self, index: usize, r#move: Move) {
         if let Some(cursor) = self.cursors.get_mut(index) {
             if let Some(p) = cursor.highlight_position {
-                let decreasing = match r#move {
-                    Move::Up | Move::Left | Move::ToLineStart | Move::ToBufferStart => true,
-                    Move::Down | Move::Right | Move::ToLineEnd | Move::ToBufferEnd => false,
-                };
                 cursor.highlight_position = None;
-                if (decreasing && p <= cursor.position) || (!decreasing && p >= cursor.position) {
-                    cursor.position = p;
-                }
-                return;
-            }
 
-            move_cursor_directly(&self.rope, cursor, r#move);
+                match r#move {
+                    Move::Up | Move::Left => {
+                        if p <= cursor.position {
+                            cursor.position = p;
+                        }
+                    }
+                    Move::Down | Move::Right => {
+                        if p >= cursor.position {
+                            cursor.position = p;
+                        }
+                    }
+                    Move::ToLineStart
+                    | Move::ToBufferStart
+                    | Move::ToLineEnd
+                    | Move::ToBufferEnd => {
+                        move_cursor_directly(&self.rope, cursor, r#move);
+                        cursor.state = d!();
+                    }
+                };
+            } else {
+                move_cursor_directly(&self.rope, cursor, r#move);
+            }
         }
     }
 
