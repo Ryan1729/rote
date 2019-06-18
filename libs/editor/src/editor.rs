@@ -1,8 +1,8 @@
 use editor_types::{Cursor, CursorState, MultiCursorBuffer, Vec1};
 use macros::{c, d, dg};
 use platform_types::{
-    position_to_screen_space, screen_space_to_position, BufferView, CharDim, Cmd, Highlight, Input,
-    ScreenSpaceXY, UpdateAndRenderOutput, View,
+    position_to_screen_space, push_highlights, screen_space_to_position, BufferView, CharDim, Cmd,
+    Input, ScreenSpaceXY, UpdateAndRenderOutput, View,
 };
 use text_buffer::TextBuffer;
 
@@ -75,7 +75,9 @@ pub fn render_view(state: &State, view: &mut View) {
     match state.current_buffer() {
         Some(buffer) => {
             let cursors = buffer.cursors();
-            let mut highlights = Vec::with_capacity(cursors.len());
+            const AVERAGE_SELECTION_LNES_ESTIMATE: usize = 4;
+            let mut highlights =
+                Vec::with_capacity(cursors.len() * AVERAGE_SELECTION_LNES_ESTIMATE);
 
             for c in cursors.iter() {
                 let position = c.position;
@@ -99,12 +101,7 @@ pub fn render_view(state: &State, view: &mut View) {
                     ..d!()
                 });
 
-                match c.highlight_position {
-                    Some(h) if h != position => {
-                        highlights.push(Highlight::new((h, position), [0.0, 0.0, 0.0, 0.6]));
-                    }
-                    _ => {}
-                }
+                push_highlights(&mut highlights, position, c.highlight_position);
             }
 
             view.buffers.push(BufferView {

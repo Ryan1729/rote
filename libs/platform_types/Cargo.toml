@@ -9,3 +9,6 @@ path = "./src/platform_types.rs"
 
 [dependencies]
 macros = { path = "../macros" }
+
+[dev-dependencies]
+proptest = "0.9.3"

@@ -154,9 +154,25 @@ macro_rules! pos {
     };
 }
 
-fmt_debug! {for Position : Position{ line, offset } in "pos!{{l {} o {}}}", line, offset}
+macro_rules! display_max {
+    ($n: expr) => {
+        if $n == !0 {
+            "max".to_string()
+        } else {
+            $n.to_string()
+        }
+    };
+}
 
-fmt_display! {for Position : Position{ line, offset } in "{}:{}", line, offset}
+fmt_debug! {
+    for Position :
+    Position{ line, offset } in "pos!{{l {} o {}}}", line, display_max!(offset.0)
+}
+
+fmt_display! {
+   for Position :
+   Position{ line, offset } in "{}:{}", line, display_max!(offset.0)
+}
 
 /// Semantically this is concatenate strings with these final positions together and take the final
 /// postion. That is, if a string that has as its final position, the position on the lef- hand
@@ -219,6 +235,8 @@ pub enum BufferViewKind {
 
 d!(for BufferViewKind: BufferViewKind::Cursor);
 
+pub const DEFAULT_HIGHLIGHT_COLOUR: [f32; 4] = [0.0, 0.0, 0.0, 0.6];
+
 #[derive(Debug)]
 pub struct Highlight {
     pub min: Position,
@@ -227,16 +245,126 @@ pub struct Highlight {
 }
 
 impl Highlight {
-    pub fn new((p1, p2): (Position, Position), color: [f32; 4]) -> Self {
+    pub fn new((p1, p2): (Position, Position)) -> Self {
         Highlight {
             min: std::cmp::min(p1, p2),
             max: std::cmp::max(p1, p2),
-            color,
+            color: DEFAULT_HIGHLIGHT_COLOUR,
         }
     }
 
     pub fn get(&self) -> (Position, Position) {
         (self.min, self.max)
+    }
+}
+
+#[macro_export]
+macro_rules! highlight {
+    (l $min_line:literal o $min_offset:literal l $max_line:literal o $max_offset:literal ) => {
+        Highlight::new(
+            (
+                Position {
+                    line: $min_line,
+                    offset: CharOffset($min_offset),
+                },
+                Position {
+                    line: $max_line,
+                    offset: CharOffset($max_offset),
+                },
+            )
+        )
+    };
+    (l $min_line:literal o $min_offset:literal l $max_line:literal o max ) => {
+        highlight!(l $min_line o $min_offset l $max_line o 0xFFFF_FFFF__FFFF_FFFF)
+    };
+}
+
+pub fn push_highlights<O: Into<Option<Position>>>(
+    highlights: &mut Vec<Highlight>,
+    position: Position,
+    highlight_position: O,
+) {
+    match highlight_position.into() {
+        Some(h) if h != position => {
+            let min = std::cmp::min(position, h);
+            let max = std::cmp::max(position, h);
+
+            if min.line == max.line {
+                highlights.push(Highlight::new((min, max)));
+                return;
+            }
+
+            //This early return is merely an optimization from three rectangles to two.
+            // TODO Is this optimization actually worth it? The sticky cursor offset does make this
+            // more likely that it would otherwise be.
+            if min.offset != 0 && min.offset == max.offset {
+                let min_middle = min.line + if min.offset == 0 { 0 } else { 1 };
+                // Since We know the lines must be different, we know `max.line > 0`
+                let max_middle = max.line - 1;
+
+                let offset = min.offset;
+                highlights.push(Highlight::new((
+                    Position {
+                        offset,
+                        line: min.line,
+                    },
+                    Position {
+                        offset: CharOffset(0xFFFF_FFFF__FFFF_FFFF),
+                        line: max_middle,
+                    },
+                )));
+
+                highlights.push(Highlight::new((
+                    Position {
+                        offset: CharOffset(0),
+                        line: min_middle,
+                    },
+                    Position {
+                        offset,
+                        line: max.line,
+                    },
+                )));
+
+                return;
+            }
+
+            if min.offset != 0 {
+                highlights.push(Highlight::new((
+                    min,
+                    Position {
+                        offset: CharOffset(0xFFFF_FFFF__FFFF_FFFF),
+                        ..min
+                    },
+                )));
+            }
+
+            let min_middle = min.line + if min.offset == 0 { 0 } else { 1 };
+            // Since We know the lines must be different, we know `max.line > 0`
+            let max_middle = max.line - 1;
+            if min_middle <= max_middle {
+                highlights.push(Highlight::new((
+                    Position {
+                        offset: CharOffset(0),
+                        line: min_middle,
+                    },
+                    Position {
+                        offset: CharOffset(0xFFFF_FFFF__FFFF_FFFF),
+                        line: max_middle,
+                    },
+                )));
+            }
+
+            if max.offset != 0 {
+                highlights.push(Highlight::new((
+                    Position {
+                        offset: CharOffset(0),
+                        ..max
+                    },
+                    max,
+                )));
+            }
+        }
+        _ => {}
     }
 }
 
@@ -285,3 +413,6 @@ macro_rules! Sizes {
         }
     );
 }
+
+#[cfg(test)]
+mod tests;
