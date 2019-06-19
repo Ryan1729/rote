@@ -5,7 +5,10 @@
 use gl_layer::RenderExtras;
 use glutin::dpi::LogicalPosition;
 use glutin::{Api, GlProfile, GlRequest};
-use glyph_brush::{rusttype::Error as FontError, rusttype::Font, rusttype::Scale, *};
+use glyph_brush::{
+    rusttype::Error as FontError, rusttype::Font, rusttype::Scale, Bounds, GlyphBrush,
+    GlyphBrushBuilder, HighlightRange, Layout, PixelCoords, Section,
+};
 use macros::d;
 
 use platform_types::{
@@ -428,6 +431,32 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
     gl_layer::cleanup(gl_state)
 }
 
+/// As of this writing, casting f32 to i32 is undefined behaviour if the value does not fit!
+/// https://github.com/rust-lang/rust/issues/10184
+fn f32_to_i32_or_max(f: f32) -> i32 {
+    if f >= i32::min_value() as f32 && f <= i32::max_value() as f32 {
+        f as i32
+    } else {
+        // make this the default so NaN etc. end up here
+        i32::max_value()
+    }
+}
+
+fn highlight_to_pixel_coords(
+    &Highlight { min, max, .. }: &Highlight,
+    (x, y): (f32, f32),
+    CharDim { w, h }: CharDim,
+) -> PixelCoords {
+    let mut pixel_coords: PixelCoords = d!();
+
+    pixel_coords.min.x = f32_to_i32_or_max(min.offset.0 as f32 * w + x);
+    pixel_coords.min.y = f32_to_i32_or_max(min.line as f32 * h + y);
+    pixel_coords.max.x = f32_to_i32_or_max(max.offset.0 as f32 * w + x);
+    pixel_coords.max.y = f32_to_i32_or_max((max.line + 1) as f32 * h + y);
+
+    pixel_coords
+}
+
 pub fn render_buffer_view<A: Clone>(
     glyph_brush: &mut GlyphBrush<A>,
     view: &View,
@@ -494,21 +523,17 @@ pub fn render_buffer_view<A: Clone>(
 
         let mut rect_bounds: Bounds = d!();
         rect_bounds.max = bounds.into();
+        if let BufferViewKind::Edit = kind {
+            if_changed::dbg!(rect_bounds);
+        }
+        //rect_bounds.max = (1.0 / 0.0, 1.0 / 0.0).into();
 
         perf_viz::start_record!("highlight_ranges.extend");
-        highlight_ranges.extend(highlights.iter().map(|&Highlight { min, max, color }| {
-            let mut pixel_coords: PixelCoords = d!();
-            pixel_coords.min.x = (min.offset.0 as f32 * text_char_dim.w + screen_position.0) as i32;
-
-            pixel_coords.max.x = (max.offset.0 as f32 * text_char_dim.w + screen_position.0) as i32;
-            pixel_coords.max.y = (text_char_dim.h + screen_position.1) as i32;
-
-            HighlightRange {
-                pixel_coords,
-                bounds: rect_bounds,
-                color,
-                z: gl_layer::HIGHLIGHT_Z,
-            }
+        highlight_ranges.extend(highlights.iter().map(|h| HighlightRange {
+            pixel_coords: highlight_to_pixel_coords(h, screen_position, *text_char_dim),
+            bounds: rect_bounds,
+            color: h.color,
+            z: gl_layer::HIGHLIGHT_Z,
         }));
         perf_viz::end_record!("highlight_ranges.extend");
     }
@@ -521,3 +546,6 @@ pub fn render_buffer_view<A: Clone>(
         highlight_ranges,
     }
 }
+
+#[cfg(test)]
+mod tests;

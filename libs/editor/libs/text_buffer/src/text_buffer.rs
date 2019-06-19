@@ -133,67 +133,66 @@ impl MultiCursorBuffer for TextBuffer {
         }
     }
 
+    fn in_bounds<P: Borrow<Position>>(&self, position: P) -> bool {
+        in_cursor_bounds(&self.rope, position)
+    }
+
     #[perf_viz::record]
     fn find_index<P: Borrow<Position>>(&self, p: P) -> Option<ByteIndex> {
-        find_index(&self.rope, p)
+        let rope = &self.rope;
+        pos_to_char_offset(rope, p.borrow())
+            .and_then(|AbsoluteCharOffset(o)| rope.char_to_byte(o).map(ByteIndex))
     }
 
     #[perf_viz::record]
     fn nearest_valid_position_on_same_line<P: Borrow<Position>>(&self, p: P) -> Option<Position> {
         let p = p.borrow();
-        nearest_valid_position_on_same_line(&self.rope, p)
+
+        valid_len_chars_for_line(&self.rope, p.line).map(|len| Position {
+            offset: std::cmp::min(p.offset, CharOffset(len)),
+            ..*p
+        })
     }
 }
 
-fn nearest_valid_position_on_same_line(rope: &Rope, p: &Position) -> Option<Position> {
-    let line = rope.lines().nth(p.line)?;
+fn valid_len_chars_for_line(rope: &Rope, line_index: usize) -> Option<usize> {
+    rope.lines().nth(line_index).map(|line| {
+        // we assume a line can contain at most one `'\n'`
 
-    Some(Position {
-        offset: std::cmp::min(p.offset, CharOffset(line.len_chars())),
-        ..*p
+        let mut len = line.len_chars();
+        macro_rules! return_if_0 {
+            () => {
+                if len == 0 {
+                    return 0;
+                }
+            };
+        }
+
+        return_if_0!();
+
+        let last = line.char(len - 1);
+
+        if last == '\n' {
+            len -= 1;
+            return_if_0!();
+
+            let second_last = line.char(len - 1);
+
+            if second_last == '\r' {
+                len -= 1;
+                return_if_0!();
+            }
+        }
+
+        len
     })
 }
 
 fn in_cursor_bounds<P: Borrow<Position>>(rope: &Rope, position: P) -> bool {
     let p = position.borrow();
-    rope.lines()
-        .nth(p.line)
-        .map(|line| {
-            // we assume a line can contain at most one `'\n'`
-
-            let mut len = line.len_chars();
-            macro_rules! return_if_0 {
-                () => {
-                    if len == 0 {
-                        return p.offset == 0;
-                    }
-                };
-            }
-
-            return_if_0!();
-
-            let last = line.char(len - 1);
-
-            if last == '\n' {
-                len -= 1;
-                return_if_0!();
-
-                let second_last = line.char(len - 1);
-
-                if second_last == '\r' {
-                    len -= 1;
-                    return_if_0!();
-                }
-            }
-
-            p.offset <= len
-        })
+    valid_len_chars_for_line(rope, p.line)
+        .map(|l| p.offset <= l)
         .unwrap_or(false)
-}
-
-fn find_index<P: Borrow<Position>>(rope: &Rope, p: P) -> Option<ByteIndex> {
-    pos_to_char_offset(rope, p.borrow())
-        .and_then(|AbsoluteCharOffset(o)| rope.char_to_byte(o).map(ByteIndex))
 }
 
 fn nth_line_count(rope: &Rope, n: usize) -> Option<CharOffset> {
@@ -224,7 +223,7 @@ fn char_offset_to_pos(
         dbg!(rope.char_to_line(offset))
     }
     .and_then(|line_index| {
-        let start_of_line = dbg!(rope.line_to_char(line_index))?;
+        let start_of_line = rope.line_to_char(line_index)?;
 
         offset.checked_sub(start_of_line).map(|o| Position {
             line: line_index,
@@ -434,11 +433,14 @@ where
     if !in_cursor_bounds(rope, &new) {
         new.line += 1;
         new.offset = d!();
+        dbg!(new);
     }
 
     if in_cursor_bounds(rope, &new) {
+        dbg!(Some(new));
         Some(new)
     } else {
+        dbg!("None");
         None
     }
 }

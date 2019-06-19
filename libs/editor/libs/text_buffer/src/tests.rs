@@ -214,6 +214,39 @@ fn newline_places_cursor_in_correct_spot() {
 }
 
 #[test]
+fn right_does_not_go_to_the_next_line_if_there_is_not_one() {
+    let mut buffer = t_b!("123\n567");
+
+    cursor_assert! {
+        buffer,
+        p: pos! {l 0 o 0},
+    }
+
+    buffer.move_cursor(0, Move::Down);
+
+    cursor_assert! {
+        buffer,
+        p: pos! {l 1 o 0},
+    }
+
+    buffer.move_cursor(0, Move::Right);
+    buffer.move_cursor(0, Move::Right);
+    buffer.move_cursor(0, Move::Right);
+
+    cursor_assert! {
+        buffer,
+        p: pos! {l 1 o 3},
+    }
+
+    buffer.move_cursor(0, Move::Right);
+
+    cursor_assert! {
+        buffer,
+        p: pos! {l 1 o 3},
+    }
+}
+
+#[test]
 fn in_cursor_bounds_does_not_allow_going_past_a_line_feed() {
     let rope = r!("123\n567");
 
@@ -253,6 +286,13 @@ fn in_cursor_bounds_works_on_carriage_return_line_feed() {
     assert_eq!(in_cursor_bounds(&rope, pos! {l 0 o 1}), false);
     assert_eq!(in_cursor_bounds(&rope, pos! {l 0 o 2}), false);
     assert_eq!(in_cursor_bounds(&rope, pos! {l 1 o 0}), true);
+}
+
+#[test]
+fn in_cursor_bounds_does_not_allow_going_to_a_non_existant_line() {
+    let rope = r!("123");
+
+    assert_eq!(in_cursor_bounds(&rope, pos! {l 1 o 0}), false);
 }
 
 fn moving_across_lines(mut buffer: TextBuffer) {

@@ -113,9 +113,7 @@ pub trait MultiCursorBuffer: Borrow<Vec1<Cursor>> + BorrowMut<Vec1<Cursor>> {
 
     fn extend_selection(&mut self, index: usize, r#move: Move);
 
-    fn in_bounds<P: Borrow<Position>>(&self, position: P) -> bool {
-        self.find_index(position) != None
-    }
+    fn in_bounds<P: Borrow<Position>>(&self, position: P) -> bool;
 
     fn find_index<P: Borrow<Position>>(&self, position: P) -> Option<ByteIndex>;
 
