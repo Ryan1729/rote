@@ -1,6 +1,6 @@
 use macros::{d, fmt_display, integer_newtype, usize_newtype};
-use platform_types::{CharOffset, Move, Position};
-use std::borrow::{Borrow, BorrowMut};
+use platform_types::{CharOffset, Position};
+use std::borrow::Borrow;
 use std::ops::{Add, Sub};
 pub use vec1::Vec1;
 
@@ -50,10 +50,63 @@ d!(for CursorState: CursorState::None);
 
 #[derive(Clone, Debug)]
 pub struct Cursor {
-    pub position: Position,
+    // These are private so we can make sure whether to clear highlight is considered on each
+    // mutation of `position. And we can use a state we don't otherwise want,
+    // `highlight_position == Some(position)` to represent a state we do:
+    // `highlight_position == None`.
+    position: Position,
+    highlight_position: Position,
     pub sticky_offset: CharOffset,
-    pub highlight_position: Option<Position>,
     pub state: CursorState,
+}
+
+pub enum SetPositionAction {
+    ClearHighlight,
+    ClearHighlightOnlyIfItMatchesNewPosition,
+    OldPositionBecomesHighlightIfItIsNone,
+}
+d!(for SetPositionAction: SetPositionAction::ClearHighlight);
+
+impl Cursor {
+    pub fn new(position: Position) -> Self {
+        Cursor {
+            position,
+            sticky_offset: position.offset,
+            highlight_position: d!(),
+            state: d!(),
+        }
+    }
+
+    pub fn get_position(&self) -> &Position {
+        &self.position
+    }
+
+    pub fn set_position(&mut self, position: Position) {
+        self.set_position_custom(position, d!())
+    }
+
+    pub fn set_position_custom(&mut self, position: Position, action: SetPositionAction) {
+        match action {
+            SetPositionAction::ClearHighlight => {
+                self.highlight_position = position;
+            }
+            SetPositionAction::ClearHighlightOnlyIfItMatchesNewPosition => {}
+            SetPositionAction::OldPositionBecomesHighlightIfItIsNone => {
+                if self.get_highlight_position().is_none() {
+                    self.highlight_position = self.position;
+                }
+            }
+        }
+        self.position = position;
+    }
+
+    pub fn get_highlight_position(&self) -> Option<Position> {
+        Some(self.highlight_position).filter(|&p| p != self.position)
+    }
+
+    pub fn set_highlight_position<P: Into<Option<Position>>>(&mut self, position: P) {
+        self.highlight_position = position.into().unwrap_or(self.position);
+    }
 }
 
 fmt_display! {
@@ -65,20 +118,9 @@ fmt_display! {
         } in "{}({}){}",
         position,
         sticky_offset,
-        highlight_position.map(|h| format!("h:{}", h)).unwrap_or_default()
+        //kind of annoying duplication here.
+        Some(highlight_position).filter(|&p| p != position).map(|h| format!("h:{}", h)).unwrap_or_default()
 }
-
-impl Cursor {
-    pub fn new(position: Position) -> Self {
-        Cursor {
-            position,
-            sticky_offset: position.offset,
-            highlight_position: d!(),
-            state: d!(),
-        }
-    }
-}
-
 d!(for Cursor: Cursor::new(d!()));
 
 impl Borrow<Position> for Cursor {
@@ -89,41 +131,5 @@ impl Borrow<Position> for Cursor {
 impl Borrow<Position> for &Cursor {
     fn borrow(&self) -> &Position {
         &self.position
-    }
-}
-
-pub trait MultiCursorBuffer: Borrow<Vec1<Cursor>> + BorrowMut<Vec1<Cursor>> {
-    fn insert(&mut self, ch: char);
-
-    fn delete(&mut self);
-
-    fn move_all_cursors(&mut self, r#move: Move) {
-        for i in 0..self.cursors().len() {
-            self.move_cursor(i, r#move)
-        }
-    }
-
-    fn move_cursor(&mut self, index: usize, r#move: Move);
-
-    fn extend_selection_for_all_cursors(&mut self, r#move: Move) {
-        for i in 0..self.cursors().len() {
-            self.extend_selection(i, r#move)
-        }
-    }
-
-    fn extend_selection(&mut self, index: usize, r#move: Move);
-
-    fn in_bounds<P: Borrow<Position>>(&self, position: P) -> bool;
-
-    fn find_index<P: Borrow<Position>>(&self, position: P) -> Option<ByteIndex>;
-
-    fn nearest_valid_position_on_same_line<P: Borrow<Position>>(&self, p: P) -> Option<Position>;
-
-    fn cursors(&self) -> &Vec1<Cursor> {
-        self.borrow()
-    }
-
-    fn cursors_mut(&mut self) -> &mut Vec1<Cursor> {
-        self.borrow_mut()
     }
 }

@@ -1,4 +1,4 @@
-use editor_types::{ByteIndex, Cursor, CursorState, MultiCursorBuffer, Vec1};
+use editor_types::{ByteIndex, Cursor, CursorState, Vec1};
 use macros::{borrow, borrow_mut, d};
 use panic_safe_rope::Rope;
 use platform_types::{AbsoluteCharOffset, CharOffset, Move, Position};
@@ -45,16 +45,16 @@ fn offset_pair(
     )
 }
 
-impl MultiCursorBuffer for TextBuffer {
+impl TextBuffer {
     #[perf_viz::record]
-    fn insert(&mut self, ch: char) {
+    pub fn insert(&mut self, ch: char) {
         for cursor in &mut self.cursors {
             match offset_pair(&self.rope, cursor) {
                 (Some(AbsoluteCharOffset(o)), highlight)
                     if highlight.is_none() || Some(AbsoluteCharOffset(o)) == highlight =>
                 {
                     self.rope.insert_char(o, ch);
-                    move_right(&self.rope, cursor);
+                    move_cursor::directly(&self.rope, cursor, Move::Right);
                 }
                 (Some(o1), Some(o2)) => {
                     let min = std::cmp::min(o1, o2);
@@ -62,10 +62,9 @@ impl MultiCursorBuffer for TextBuffer {
 
                     self.rope.remove(min.0..max.0);
                     cursor.position = char_offset_to_pos(&self.rope, &min).unwrap_or_default();
-                    cursor.highlight_position = None;
 
                     self.rope.insert_char(min.0, ch);
-                    move_right(&self.rope, cursor);
+                    move_cursor::directly(&self.rope, cursor, Move::Right);
                 }
                 _ => {}
             }
@@ -73,12 +72,12 @@ impl MultiCursorBuffer for TextBuffer {
     }
 
     #[perf_viz::record]
-    fn delete(&mut self) {
+    pub fn delete(&mut self) {
         for cursor in &mut self.cursors {
             match offset_pair(&self.rope, cursor) {
                 (Some(AbsoluteCharOffset(o)), None) if o > 0 => {
                     self.rope.remove((o - 1)..o);
-                    move_left(&self.rope, cursor);
+                    move_cursor::directly(&self.rope, cursor, Move::Left);
                 }
                 (Some(o1), Some(o2)) if o1 > 0 || o2 > 0 => {
                     let min = std::cmp::min(o1, o2);
@@ -93,12 +92,26 @@ impl MultiCursorBuffer for TextBuffer {
         }
     }
 
-    #[perf_viz::record]
-    fn move_cursor(&mut self, index: usize, r#move: Move) {
-        if let Some(cursor) = self.cursors.get_mut(index) {
-            if let Some(p) = cursor.highlight_position {
-                cursor.highlight_position = None;
+    pub fn move_all_cursors(&mut self, r#move: Move) {
+        for i in 0..self.cursors().len() {
+            self.move_cursor(i, r#move)
+        }
+    }
 
+    pub fn extend_selection_for_all_cursors(&mut self, r#move: Move) {
+        for i in 0..self.cursors().len() {
+            self.extend_selection(i, r#move)
+        }
+    }
+
+    pub fn cursors(&self) -> &Vec1<Cursor> {
+        self.borrow()
+    }
+
+    #[perf_viz::record]
+    pub fn move_cursor(&mut self, index: usize, r#move: Move) {
+        if let Some(cursor) = self.cursors.get_mut(index) {
+            if let Some(p) = cursor.highlight_position.take() {
                 match r#move {
                     Move::Up | Move::Left => {
                         if p <= cursor.position {
@@ -114,44 +127,83 @@ impl MultiCursorBuffer for TextBuffer {
                     | Move::ToBufferStart
                     | Move::ToLineEnd
                     | Move::ToBufferEnd => {
-                        move_cursor_directly(&self.rope, cursor, r#move);
+                        move_cursor::directly(&self.rope, cursor, r#move);
                         cursor.state = d!();
                     }
                 };
             } else {
-                move_cursor_directly(&self.rope, cursor, r#move);
+                move_cursor::directly(&self.rope, cursor, r#move);
             }
         }
     }
 
     #[perf_viz::record]
-    fn extend_selection(&mut self, index: usize, r#move: Move) {
+    pub fn extend_selection(&mut self, index: usize, r#move: Move) {
         if let Some(cursor) = self.cursors.get_mut(index) {
             set_selection_to_here_if_not_set(cursor);
 
-            move_cursor_directly(&self.rope, cursor, r#move);
+            move_cursor::directly_custom(
+                &self.rope,
+                cursor,
+                r#move,
+                move_cursor::KeepHighlight::Yes,
+            );
         }
     }
 
-    fn in_bounds<P: Borrow<Position>>(&self, position: P) -> bool {
+    pub fn in_bounds<P: Borrow<Position>>(&self, position: P) -> bool {
         in_cursor_bounds(&self.rope, position)
     }
 
     #[perf_viz::record]
-    fn find_index<P: Borrow<Position>>(&self, p: P) -> Option<ByteIndex> {
+    pub fn find_index<P: Borrow<Position>>(&self, p: P) -> Option<ByteIndex> {
         let rope = &self.rope;
         pos_to_char_offset(rope, p.borrow())
             .and_then(|AbsoluteCharOffset(o)| rope.char_to_byte(o).map(ByteIndex))
     }
 
     #[perf_viz::record]
-    fn nearest_valid_position_on_same_line<P: Borrow<Position>>(&self, p: P) -> Option<Position> {
+    pub fn nearest_valid_position_on_same_line<P: Borrow<Position>>(
+        &self,
+        p: P,
+    ) -> Option<Position> {
         let p = p.borrow();
 
         valid_len_chars_for_line(&self.rope, p.line).map(|len| Position {
             offset: std::cmp::min(p.offset, CharOffset(len)),
             ..*p
         })
+    }
+
+    #[perf_viz::record]
+    pub fn replace_cursors<P: Borrow<Position>>(&mut self, position: P) {
+        let position = position.borrow();
+
+        if self.in_bounds(position) {
+            self.cursors = Vec1::new(Cursor::new(*position));
+        } else if let Some(p) = self.nearest_valid_position_on_same_line(position) {
+            self.cursors = Vec1::new(Cursor::new(p));
+        }
+    }
+
+    #[perf_viz::record]
+    pub fn drag_cursors<P: Borrow<Position>>(&mut self, position: P) {
+        let position = {
+            let position = position.borrow();
+
+            if self.in_bounds(position) {
+                Some(*position)
+            } else {
+                self.nearest_valid_position_on_same_line(position)
+            }
+        };
+
+        if let Some(p) = position {
+            for c in self.cursors.iter_mut() {
+                set_selection_to_here_if_not_set(c);
+                c.position = p;
+            }
+        }
     }
 }
 
@@ -232,155 +284,167 @@ fn char_offset_to_pos(
     })
 }
 
-fn move_cursor_directly(rope: &Rope, cursor: &mut Cursor, r#move: Move) {
-    let new_state = match r#move {
-        Move::Up => move_up(rope, cursor),
-        Move::Down => move_down(rope, cursor),
-        Move::Left => move_left(rope, cursor),
-        Move::Right => move_right(rope, cursor),
-        Move::ToLineStart => move_to_line_start(rope, cursor),
-        Move::ToLineEnd => move_to_line_end(rope, cursor),
-        Move::ToBufferStart => move_to_rope_start(rope, cursor),
-        Move::ToBufferEnd => move_to_rope_end(rope, cursor),
-    };
-
-    cursor.state = match new_state {
-        Moved::No => CursorState::PressedAgainstWall,
-        Moved::Yes => CursorState::None,
-    };
-}
-
-enum Moved {
-    No,
-    Yes,
-}
-
-#[perf_viz::record]
-fn move_to(rope: &Rope, cursor: &mut Cursor, position: Position) -> Moved {
-    if cursor.position != position && in_cursor_bounds(rope, &position) {
-        cursor.position = position;
-
-        // Remember this offset so that we can try
-        // to maintain it when moving across lines.
-        cursor.sticky_offset = position.offset;
-
-        return Moved::Yes;
+mod move_cursor {
+    use super::*;
+    pub enum KeepHighlight {
+        No,
+        Yes,
     }
-    Moved::No
-}
 
-/// Try moving to the same offset on the line below, falling back to its EOL.
-#[perf_viz::record]
-fn move_to_with_fallback(rope: &Rope, cursor: &mut Cursor, new_position: Position) -> Moved {
-    let target_line = new_position.line;
-
-    let mut output = move_to(rope, cursor, new_position);
-    if let Moved::No = output {
-        let mut target_offset = d!();
-        if let Some(count) = nth_line_count(rope, target_line) {
-            target_offset = count;
+    pub fn directly(rope: &Rope, cursor: &mut Cursor, r#move: Move) {
+        directly_custom(rope, cursor, r#move, KeepHighlight::No)
+    }
+    pub fn directly_custom(rope: &Rope, cursor: &mut Cursor, r#move: Move, clear: KeepHighlight) {
+        match clear {
+            KeepHighlight::No => {
+                cursor.highlight_position = None;
+            }
+            KeepHighlight::Yes => {}
         }
-        output = move_to(
+
+        let new_state = match r#move {
+            Move::Up => move_up(rope, cursor),
+            Move::Down => move_down(rope, cursor),
+            Move::Left => move_left(rope, cursor),
+            Move::Right => move_right(rope, cursor),
+            Move::ToLineStart => move_to_line_start(rope, cursor),
+            Move::ToLineEnd => move_to_line_end(rope, cursor),
+            Move::ToBufferStart => move_to_rope_start(rope, cursor),
+            Move::ToBufferEnd => move_to_rope_end(rope, cursor),
+        };
+
+        cursor.state = match new_state {
+            Moved::No => CursorState::PressedAgainstWall,
+            Moved::Yes => CursorState::None,
+        };
+    }
+
+    enum Moved {
+        No,
+        Yes,
+    }
+
+    #[perf_viz::record]
+    fn move_to(rope: &Rope, cursor: &mut Cursor, position: Position) -> Moved {
+        if cursor.position != position && in_cursor_bounds(rope, &position) {
+            cursor.position = position;
+
+            // Remember this offset so that we can try
+            // to maintain it when moving across lines.
+            cursor.sticky_offset = position.offset;
+
+            return Moved::Yes;
+        }
+        Moved::No
+    }
+
+    /// Try moving to the same offset on the line below, falling back to its EOL.
+    #[perf_viz::record]
+    fn move_to_with_fallback(rope: &Rope, cursor: &mut Cursor, new_position: Position) -> Moved {
+        let target_line = new_position.line;
+
+        let mut output = move_to(rope, cursor, new_position);
+        if let Moved::No = output {
+            let mut target_offset = d!();
+            if let Some(count) = nth_line_count(rope, target_line) {
+                target_offset = count;
+            }
+            output = move_to(
+                rope,
+                cursor,
+                Position {
+                    line: target_line,
+                    offset: target_offset,
+                },
+            );
+
+            // Moving the position successfully updates the sticky offset, but we
+            // haven't actually moved to where we really wanted to go (offset-wise).
+            // Restore the original desired offset; it might be available on the next try.
+            cursor.sticky_offset = new_position.offset;
+        }
+        output
+    }
+
+    #[perf_viz::record]
+    fn move_up(rope: &Rope, cursor: &mut Cursor) -> Moved {
+        let pos = cursor.position;
+        // Don't bother if we are already at the top.
+        if pos.line == 0 {
+            return Moved::No;
+        }
+
+        let target_line = pos.line - 1;
+        let new_position = Position {
+            line: target_line,
+            offset: cursor.sticky_offset,
+        };
+        move_to_with_fallback(rope, cursor, new_position)
+    }
+
+    #[perf_viz::record]
+    fn move_down(rope: &Rope, cursor: &mut Cursor) -> Moved {
+        let target_line = cursor.position.line + 1;
+        let new_position = Position {
+            line: target_line,
+            offset: cursor.sticky_offset,
+        };
+
+        move_to_with_fallback(rope, cursor, new_position)
+    }
+    #[perf_viz::record]
+    fn move_left(rope: &Rope, cursor: &mut Cursor) -> Moved {
+        if let Some(new_pos) = backward(rope, cursor.position) {
+            move_to(rope, cursor, new_pos)
+        } else {
+            Moved::No
+        }
+    }
+    #[perf_viz::record]
+    fn move_right(rope: &Rope, cursor: &mut Cursor) -> Moved {
+        if let Some(new_pos) = forward(rope, cursor.position) {
+            move_to(rope, cursor, new_pos)
+        } else {
+            Moved::No
+        }
+    }
+    #[perf_viz::record]
+    fn move_to_line_start(rope: &Rope, cursor: &mut Cursor) -> Moved {
+        move_to(
             rope,
             cursor,
             Position {
-                line: target_line,
-                offset: target_offset,
+                offset: d!(),
+                ..cursor.position
             },
-        );
-
-        // Moving the position successfully updates the sticky offset, but we
-        // haven't actually moved to where we really wanted to go (offset-wise).
-        // Restore the original desired offset; it might be available on the next try.
-        cursor.sticky_offset = new_position.offset;
+        )
     }
-    output
-}
-
-#[perf_viz::record]
-fn move_up(rope: &Rope, cursor: &mut Cursor) -> Moved {
-    let pos = cursor.position;
-    // Don't bother if we are already at the top.
-    if pos.line == 0 {
-        return Moved::No;
-    }
-
-    let target_line = pos.line - 1;
-    let new_position = Position {
-        line: target_line,
-        offset: cursor.sticky_offset,
-    };
-    move_to_with_fallback(rope, cursor, new_position)
-}
-
-#[perf_viz::record]
-fn move_down(rope: &Rope, cursor: &mut Cursor) -> Moved {
-    let target_line = cursor.position.line + 1;
-    let new_position = Position {
-        line: target_line,
-        offset: cursor.sticky_offset,
-    };
-
-    move_to_with_fallback(rope, cursor, new_position)
-}
-#[perf_viz::record]
-fn move_left(rope: &Rope, cursor: &mut Cursor) -> Moved {
-    if let Some(new_pos) = backward(rope, cursor.position) {
-        move_to(rope, cursor, new_pos)
-    } else {
-        Moved::No
-    }
-}
-#[perf_viz::record]
-fn move_right(rope: &Rope, cursor: &mut Cursor) -> Moved {
-    if let Some(new_pos) = forward(rope, cursor.position) {
-        move_to(rope, cursor, new_pos)
-    } else {
-        Moved::No
-    }
-}
-#[perf_viz::record]
-fn move_to_line_start(rope: &Rope, cursor: &mut Cursor) -> Moved {
-    move_to(
-        rope,
-        cursor,
-        Position {
-            offset: d!(),
-            ..cursor.position
-        },
-    )
-}
-#[perf_viz::record]
-fn move_to_line_end(rope: &Rope, cursor: &mut Cursor) -> Moved {
-    let line = cursor.position.line;
-    if let Some(offset) = nth_line_count(rope, line) {
-        let mut new_position = Position { line, offset };
-        if !in_cursor_bounds(rope, new_position) {
-            new_position = backward(rope, new_position).unwrap_or_default();
+    #[perf_viz::record]
+    fn move_to_line_end(rope: &Rope, cursor: &mut Cursor) -> Moved {
+        let line = cursor.position.line;
+        if let Some(offset) = nth_line_count(rope, line) {
+            let mut new_position = Position { line, offset };
+            if !in_cursor_bounds(rope, new_position) {
+                new_position = backward(rope, new_position).unwrap_or_default();
+            }
+            move_to(rope, cursor, new_position)
+        } else {
+            Moved::No
         }
-        move_to(rope, cursor, new_position)
-    } else {
-        Moved::No
     }
-}
-#[perf_viz::record]
-fn move_to_rope_start(rope: &Rope, cursor: &mut Cursor) -> Moved {
-    // The default is the first position, and the first position is always there.
-    move_to(rope, cursor, d!())
-}
-#[perf_viz::record]
-fn move_to_rope_end(rope: &Rope, cursor: &mut Cursor) -> Moved {
-    if let Some((line, offset)) = last_line_index_and_count(rope) {
-        let new_position = Position { line, offset };
-        move_to(rope, cursor, new_position)
-    } else {
-        Moved::No
+    #[perf_viz::record]
+    fn move_to_rope_start(rope: &Rope, cursor: &mut Cursor) -> Moved {
+        // The default is the first position, and the first position is always there.
+        move_to(rope, cursor, d!())
     }
-}
-
-fn set_selection_to_here_if_not_set(cursor: &mut Cursor) {
-    if cursor.highlight_position.is_none() {
-        cursor.highlight_position = Some(cursor.position);
+    #[perf_viz::record]
+    fn move_to_rope_end(rope: &Rope, cursor: &mut Cursor) -> Moved {
+        if let Some((line, offset)) = last_line_index_and_count(rope) {
+            let new_position = Position { line, offset };
+            move_to(rope, cursor, new_position)
+        } else {
+            Moved::No
+        }
     }
 }
 

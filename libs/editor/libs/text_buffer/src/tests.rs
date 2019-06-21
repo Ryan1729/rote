@@ -141,6 +141,37 @@ proptest! {
 }
 
 #[test]
+fn insert_with_matching_cursor_and_highlight_sets_highlight_to_none() {
+    let mut buffer: TextBuffer = d!();
+
+    {
+        let mut c = &mut buffer.cursors[0];
+        c.highlight_position = Some(c.position);
+        assert_eq!(c.position, c.highlight_position.unwrap());
+    }
+
+    buffer.insert('1');
+
+    {
+        let c = &buffer.cursors[0];
+        assert_eq!(c.highlight_position, None);
+    }
+
+    {
+        let mut c = &mut buffer.cursors[0];
+        c.highlight_position = Some(c.position);
+        assert_eq!(c.position, c.highlight_position.unwrap());
+    }
+
+    buffer.insert('2');
+
+    {
+        let c = &buffer.cursors[0];
+        assert_eq!(c.highlight_position, None);
+    }
+}
+
+#[test]
 fn insertion_with_forward_selection_deletes_selected_text() {
     // Arrange
     let mut buffer: TextBuffer = d!();

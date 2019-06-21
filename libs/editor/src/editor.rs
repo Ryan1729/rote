@@ -1,4 +1,4 @@
-use editor_types::{Cursor, CursorState, MultiCursorBuffer, Vec1};
+use editor_types::{CursorState, Vec1};
 use macros::{c, d, dg};
 use platform_types::{
     position_to_screen_space, push_highlights, screen_space_to_position, BufferView, CharDim, Cmd,
@@ -164,8 +164,19 @@ macro_rules! set_if_present {
     };
 }
 
-#[perf_viz::record]
 pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutput {
+    macro_rules! buffer_call {
+        ($buffer: ident . $($method_call:tt)*) => {
+            buffer_call!($buffer {$buffer.$($method_call)*})
+        };
+        ($buffer: ident $tokens:block) => {
+            if let Some($buffer) = state.current_buffer_mut() {
+                $tokens;
+            }
+        }
+    }
+    perf_viz::record_guard!("update_and_render");
+
     if cfg!(debug_assertions) {
         if let Input::SetMousePos(_) = input {
 
@@ -176,25 +187,11 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
     match input {
         Input::None => {}
         Input::Quit => {}
-        Input::Insert(c) => {
-            if let Some(b) = state.current_buffer_mut() {
-                b.insert(c);
-            }
-        }
-        Input::Delete => {
-            if let Some(b) = state.current_buffer_mut() {
-                b.delete();
-            }
-        }
-        Input::MoveAllCursors(r#move) => {
-            if let Some(b) = state.current_buffer_mut() {
-                b.move_all_cursors(r#move);
-            }
-        }
+        Input::Insert(c) => buffer_call!(b.insert(c)),
+        Input::Delete => buffer_call!(b.delete()),
+        Input::MoveAllCursors(r#move) => buffer_call!(b.move_all_cursors(r#move)),
         Input::ExtendSelectionForAllCursors(r#move) => {
-            if let Some(b) = state.current_buffer_mut() {
-                b.extend_selection_for_all_cursors(r#move);
-            }
+            buffer_call!(b.extend_selection_for_all_cursors(r#move))
         }
         Input::ScrollVertically(amount) => {
             state.scroll_y -= amount;
@@ -219,15 +216,15 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
         Input::ReplaceCursors(xy) => {
             let position =
                 screen_space_to_position(xy, state.text_char_dim, (state.scroll_x, state.scroll_y));
-            if let Some(b) = state.current_buffer_mut() {
-                if b.in_bounds(position) {
-                    let cursors = b.cursors_mut();
-                    *cursors = Vec1::new(Cursor::new(position));
-                } else if let Some(p) = b.nearest_valid_position_on_same_line(position) {
-                    let cursors = b.cursors_mut();
-                    *cursors = Vec1::new(Cursor::new(p));
-                }
-            }
+            buffer_call!(b.replace_cursors(position))
+        }
+        Input::DragCursors(xy) => {
+            // In practice we currently expect this to be sent only immeadately after an
+            // `Input::ReplaceCursors` input, so there will be only one cursor. But it seems like
+            // we might as well just do it to all the cursors
+            let position =
+                screen_space_to_position(xy, state.text_char_dim, (state.scroll_x, state.scroll_y));
+            buffer_call!(b.drag_cursors(position))
         }
     }
 

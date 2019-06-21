@@ -371,12 +371,31 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                     }
                     WindowEvent::MouseInput {
                         button: MouseButton::Left,
+                        state: ElementState::Pressed,
                         ..
                     } => {
                         call_u_and_r!(Input::ReplaceCursors(ScreenSpaceXY {
                             x: mouse_x,
                             y: mouse_y
                         }));
+                    }
+                    WindowEvent::MouseInput {
+                        button: MouseButton::Left,
+                        state: ElementState::Released,
+                        ..
+                    } => {
+                        call_u_and_r!(Input::DragCursors(ScreenSpaceXY {
+                            x: mouse_x,
+                            y: mouse_y
+                        }));
+                    }
+                    WindowEvent::MouseInput {
+                        ref state,
+                        ref modifiers,
+                        ref button,
+                        ..
+                    } => {
+                        dbg!((state, modifiers, button));
                     }
                     _ => {}
                 }
