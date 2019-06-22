@@ -1581,6 +1581,7 @@ name = "text_buffer"
 version = "0.1.0"
 dependencies = [
  "editor_types 0.1.0",
+ "if_changed 0.1.0",
  "macros 0.1.0",
  "panic_safe_rope 0.1.0",
  "perf_viz 0.1.0",

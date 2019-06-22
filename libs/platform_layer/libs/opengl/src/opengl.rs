@@ -157,6 +157,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
         })
         .expect("Could not start editor thread!");
 
+    let mut mouse_state = glutin::ElementState::Released;
     while running {
         loop_helper.loop_start();
 
@@ -368,12 +369,19 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                     } => {
                         mouse_x = x as f32;
                         mouse_y = y as f32;
+                        if mouse_state == ElementState::Pressed {
+                            call_u_and_r!(Input::DragCursors(ScreenSpaceXY {
+                                x: mouse_x,
+                                y: mouse_y
+                            }));
+                        }
                     }
                     WindowEvent::MouseInput {
                         button: MouseButton::Left,
                         state: ElementState::Pressed,
                         ..
                     } => {
+                        mouse_state = ElementState::Pressed;
                         call_u_and_r!(Input::ReplaceCursors(ScreenSpaceXY {
                             x: mouse_x,
                             y: mouse_y
@@ -384,18 +392,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                         state: ElementState::Released,
                         ..
                     } => {
-                        call_u_and_r!(Input::DragCursors(ScreenSpaceXY {
-                            x: mouse_x,
-                            y: mouse_y
-                        }));
-                    }
-                    WindowEvent::MouseInput {
-                        ref state,
-                        ref modifiers,
-                        ref button,
-                        ..
-                    } => {
-                        dbg!((state, modifiers, button));
+                        mouse_state = ElementState::Released;
                     }
                     _ => {}
                 }

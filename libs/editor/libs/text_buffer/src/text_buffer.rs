@@ -1,4 +1,5 @@
 use editor_types::{ByteIndex, Cursor, CursorState, SetPositionAction, Vec1};
+use if_changed;
 use macros::{borrow, borrow_mut, d};
 use panic_safe_rope::Rope;
 use platform_types::{AbsoluteCharOffset, CharOffset, Move, Position};
@@ -196,6 +197,8 @@ impl TextBuffer {
 
         if let Some(p) = position {
             for c in self.cursors.iter_mut() {
+                if_changed::dbg!(p);
+                if_changed::dbg!(&c);
                 c.set_position_custom(p, SetPositionAction::OldPositionBecomesHighlightIfItIsNone);
             }
         }

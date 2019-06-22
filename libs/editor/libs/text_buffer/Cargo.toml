@@ -12,6 +12,9 @@ path = "./src/text_buffer.rs"
 [dependencies.editor_types]
 path = "../editor_types"
 
+[dependencies.if_changed]
+path = "../../../if_changed"
+
 [dependencies.macros]
 path = "../../../macros"
 

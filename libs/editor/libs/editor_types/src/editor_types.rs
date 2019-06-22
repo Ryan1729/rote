@@ -73,7 +73,7 @@ impl Cursor {
         Cursor {
             position,
             sticky_offset: position.offset,
-            highlight_position: d!(),
+            highlight_position: position,
             state: d!(),
         }
     }

@@ -181,7 +181,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
         if let Input::SetMousePos(_) = input {
 
         } else {
-            dg!(input);
+            if_changed::dbg!(input);
         }
     }
     match input {
