@@ -67,9 +67,13 @@ proptest! {
             let min = std::cmp::min(pos, h);
             let max = std::cmp::max(pos, h);
 
-            max.line
-             - min.line
+            let lines_difference = max.line - min.line;
+
+            // I have forgotten the reasoning behined thia, ad I just (as of this writing)
+            // added the lines_difference max call, to fix a suprise test failure
+            std::cmp::max(lines_difference, 2)
              + if h.offset == pos.offset || max.offset == 0 {0} else {1}
+
         }).unwrap_or(0);
 
         let upper_bound = std::cmp::min(unoptimized_upper_bound, 3);

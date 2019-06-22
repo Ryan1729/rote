@@ -145,29 +145,23 @@ fn insert_with_matching_cursor_and_highlight_sets_highlight_to_none() {
     let mut buffer: TextBuffer = d!();
 
     {
-        let mut c = &mut buffer.cursors[0];
-        c.highlight_position = Some(c.position);
-        assert_eq!(c.position, c.highlight_position.unwrap());
+        let c = &mut buffer.cursors[0];
+        c.set_highlight_position(c.get_position());
+        assert_eq!(c.get_highlight_position(), None);
     }
 
     buffer.insert('1');
 
     {
         let c = &buffer.cursors[0];
-        assert_eq!(c.highlight_position, None);
-    }
-
-    {
-        let mut c = &mut buffer.cursors[0];
-        c.highlight_position = Some(c.position);
-        assert_eq!(c.position, c.highlight_position.unwrap());
+        assert_eq!(c.get_highlight_position(), None);
     }
 
     buffer.insert('2');
 
     {
         let c = &buffer.cursors[0];
-        assert_eq!(c.highlight_position, None);
+        assert_eq!(c.get_highlight_position(), None);
     }
 }
 
@@ -480,6 +474,7 @@ fn all_cursor_movements_across_carriage_return_line_feeds_works() {
 macro_rules! multiline_selection {
     ($line_separator: literal) => {
         let mut buffer: TextBuffer = t_b!(concat!("123", $line_separator, "567"));
+        dbg!(1);
         cursor_assert! {
             buffer,
             p: pos! {l 0 o 0},
@@ -488,6 +483,7 @@ macro_rules! multiline_selection {
 
         buffer.extend_selection(0, Move::ToBufferEnd);
 
+        dbg!(2);
         cursor_assert! {
             buffer,
             p: pos! {l 1 o 3},
@@ -495,7 +491,7 @@ macro_rules! multiline_selection {
         }
 
         buffer.move_cursor(0, Move::ToBufferEnd);
-
+        dbg!(3);
         cursor_assert! {
             buffer,
             p: pos! {l 1 o 3},
@@ -505,6 +501,7 @@ macro_rules! multiline_selection {
 
         buffer.extend_selection(0, Move::ToBufferStart);
 
+        dbg!(4);
         cursor_assert! {
             buffer,
             p: pos! {l 0 o 0},
@@ -513,6 +510,7 @@ macro_rules! multiline_selection {
 
         buffer.move_cursor(0, Move::ToLineEnd);
 
+        dbg!(5);
         cursor_assert! {
             buffer,
             p: pos! {l 0 o 3},
@@ -543,8 +541,10 @@ macro_rules! multiline_selection {
             h: pos! {l 0 o 3}
         }
 
+        dbg!(5.5);
         buffer.move_cursor(0, Move::Down);
 
+        dbg!(6);
         cursor_assert! {
             buffer,
             p: pos! {l 1 o 0},
@@ -553,7 +553,7 @@ macro_rules! multiline_selection {
         }
 
         buffer.extend_selection(0, Move::Left);
-
+        dbg!(7);
         cursor_assert! {
             buffer,
             p: pos! {l 0 o 3},

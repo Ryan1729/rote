@@ -80,7 +80,7 @@ pub fn render_view(state: &State, view: &mut View) {
                 Vec::with_capacity(cursors.len() * AVERAGE_SELECTION_LNES_ESTIMATE);
 
             for c in cursors.iter() {
-                let position = c.position;
+                let position = c.get_position();
 
                 let screen_position = position_to_screen_space(
                     position,
@@ -101,7 +101,7 @@ pub fn render_view(state: &State, view: &mut View) {
                     ..d!()
                 });
 
-                push_highlights(&mut highlights, position, c.highlight_position);
+                push_highlights(&mut highlights, position, c.get_highlight_position());
             }
 
             view.buffers.push(BufferView {

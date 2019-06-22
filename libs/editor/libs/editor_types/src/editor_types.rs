@@ -60,6 +60,7 @@ pub struct Cursor {
     pub state: CursorState,
 }
 
+#[derive(Clone, Copy, Debug)]
 pub enum SetPositionAction {
     ClearHighlight,
     ClearHighlightOnlyIfItMatchesNewPosition,
@@ -77,8 +78,8 @@ impl Cursor {
         }
     }
 
-    pub fn get_position(&self) -> &Position {
-        &self.position
+    pub fn get_position(&self) -> Position {
+        self.position
     }
 
     pub fn set_position(&mut self, position: Position) {
