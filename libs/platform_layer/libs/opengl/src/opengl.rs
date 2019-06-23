@@ -95,7 +95,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
         }
     }
 
-    let mut events = glutin::EventsLoop::new();
+    let events = glutin::event_loop::EventLoop::new();
     let title = "rote";
 
     let glutin_context = glutin::ContextBuilder::new()
@@ -104,16 +104,15 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
         .with_gl(GlRequest::Specific(Api::OpenGl, (3, 3)))
         .with_srgb(true)
         .build_windowed(
-            glutin::WindowBuilder::new()
-                .with_dimensions((1024, 576).into())
+            glutin::window::WindowBuilder::new()
+                .with_inner_size((1024, 576).into())
                 .with_title(title),
             &events,
         )?;
     let glutin_context = unsafe { glutin_context.make_current().map_err(|(_, e)| e)? };
-    let window = glutin_context.window();
 
     let scroll_multiplier: f32 = 16.0;
-    let font_info = FontInfo::new(window.get_hidpi_factor() as f32)?;
+    let font_info = FontInfo::new(glutin_context.window().hidpi_factor() as f32)?;
 
     let mut glyph_brush = get_glyph_brush(&font_info);
 
@@ -122,11 +121,12 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
     })?;
 
     let mut loop_helper = spin_sleep::LoopHelper::builder().build_with_target_rate(250.0);
+
     let mut running = true;
-    let mut dimensions = window
-        .get_inner_size()
-        .ok_or("get_inner_size = None")?
-        .to_physical(window.get_hidpi_factor());
+    let mut dimensions = glutin_context
+        .window()
+        .inner_size()
+        .to_physical(glutin_context.window().hidpi_factor());
 
     let (mut view, mut _cmd) = update_and_render(Input::SetSizes(Sizes! {
         screen_w: dimensions.width as f32,
@@ -144,63 +144,136 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
     // out of the editor thread
     let (out_tx, out_rx) = channel();
 
-    let join_handle = std::thread::Builder::new()
-        .name("editor".to_string())
-        .spawn(move || {
-            while let Ok(input) = in_rx.recv() {
-                let pair = update_and_render(input);
-                let _hope_it_gets_there = out_tx.send(pair);
-                if let Input::Quit = input {
-                    return;
-                }
-            }
-        })
-        .expect("Could not start editor thread!");
-
-    let mut mouse_state = glutin::ElementState::Released;
-    while running {
-        loop_helper.loop_start();
-
-        perf_viz::start_record!("while running");
-        events.poll_events(|event| {
-            perf_viz::record_guard!("events.poll_events");
-            use glutin::*;
-            if let Event::WindowEvent { event, .. } = event {
-                macro_rules! call_u_and_r {
-                    ($input:expr) => {
-                        let _hope_it_gets_there = in_tx.send($input);
-                    };
-                }
-
-                macro_rules! quit {
-                    () => {{
-                        call_u_and_r!(Input::Quit);
-                        running = false;
-                    }};
-                }
-
-                if cfg!(feature = "print-raw-input") {
-                    match &event {
-                        &WindowEvent::KeyboardInput { ref input, .. } => {
-                            println!(
-                                "{:?}",
-                                (
-                                    input.virtual_keycode.unwrap_or(VirtualKeyCode::WebStop),
-                                    input.state
-                                )
-                            );
-                        }
-                        _ => {}
+    let mut join_handle = Some(
+        std::thread::Builder::new()
+            .name("editor".to_string())
+            .spawn(move || {
+                while let Ok(input) = in_rx.recv() {
+                    let pair = update_and_render(input);
+                    let _hope_it_gets_there = out_tx.send(pair);
+                    if let Input::Quit = input {
+                        return;
                     }
                 }
+            })
+            .expect("Could not start editor thread!"),
+    );
 
-                use platform_types::Move;
-                match event {
-                    WindowEvent::CloseRequested => quit!(),
-                    WindowEvent::Resized(size) => {
-                        let dpi = window.get_hidpi_factor();
-                        glutin_context.resize(size.to_physical(dpi));
-                        if let Some(ls) = window.get_inner_size() {
+    let mut mouse_state = glutin::event::ElementState::Released;
+    {
+        events.run(move |event, _, control_flow| {
+            use glutin::event::*;
+            match event {
+                Event::EventsCleared if running => {
+                    match out_rx.try_recv() {
+                        Ok((v, c)) => {
+                            view = v;
+                            _cmd = c;
+                        }
+                        _ => {}
+                    };
+
+                    // Queue a RedrawRequested event so we draw the updated view quickly.
+                    glutin_context.window().request_redraw();
+                }
+                Event::WindowEvent {
+                    event: WindowEvent::RedrawRequested,
+                    ..
+                } => {
+                    let width = dimensions.width as u32;
+                    let height = dimensions.height as f32;
+
+                    {
+                        let extras = render_buffer_view(&mut glyph_brush, &view, &font_info);
+
+                        gl_layer::render(
+                            &mut gl_state,
+                            &mut glyph_brush,
+                            width as _,
+                            height as _,
+                            extras,
+                        )
+                        .expect("gl_layer::render didn't work");
+                    }
+
+                    glutin_context
+                        .swap_buffers()
+                        .expect("swap_buffers didn't work!");
+
+                    if let Some(rate) = loop_helper.report_rate() {
+                        glutin_context.window().set_title(&format!(
+                            "{} {:.0} FPS {:?}",
+                            title,
+                            rate,
+                            (mouse_x, mouse_y),
+                        ));
+                    }
+
+                    perf_viz::start_record!("sleepin'");
+                    loop_helper.loop_sleep();
+                    perf_viz::end_record!("sleepin'");
+
+                    perf_viz::end_record!("main loop");
+                    perf_viz::start_record!("main loop");
+
+                    // We want to track the time that the message loop takes too!
+                    loop_helper.loop_start();
+                }
+                Event::NewEvents(StartCause::Init) => {
+                    // At least try to measure the first frame accurately
+                    perf_viz::start_record!("main loop");
+                    loop_helper.loop_start();
+                }
+                Event::WindowEvent { event, .. } => {
+                    macro_rules! call_u_and_r {
+                        ($input:expr) => {
+                            let _hope_it_gets_there = in_tx.send($input);
+                        };
+                    }
+
+                    macro_rules! quit {
+                        () => {{
+                            perf_viz::end_record!("main loop");
+                            call_u_and_r!(Input::Quit);
+                            running = false;
+
+                            // If we got here, we assume that we've sent a Quit input to the editor thread so it will stop.
+                            match join_handle.take() {
+                                Some(j_h) => j_h.join().expect("Could not join editor thread!"),
+                                None => {}
+                            };
+
+                            perf_viz::output!();
+
+                            let _ = gl_layer::cleanup(&gl_state);
+
+                            *control_flow = glutin::event_loop::ControlFlow::Exit;
+                        }};
+                    }
+
+                    if cfg!(feature = "print-raw-input") {
+                        match &event {
+                            &WindowEvent::KeyboardInput { ref input, .. } => {
+                                println!(
+                                    "{:?}",
+                                    (
+                                        input.virtual_keycode.unwrap_or(VirtualKeyCode::WebStop),
+                                        input.state
+                                    )
+                                );
+                            }
+                            _ => {}
+                        }
+                    }
+
+                    use platform_types::Move;
+                    match event {
+                        WindowEvent::CloseRequested => quit!(),
+                        WindowEvent::Resized(size) => {
+                            let window = glutin_context.window();
+                            let dpi = window.hidpi_factor();
+                            glutin_context.resize(size.to_physical(dpi));
+                            let ls = window.inner_size();
                             dimensions = ls.to_physical(dpi);
                             call_u_and_r!(Input::SetSizes(Sizes! {
                                 screen_w: dimensions.width as f32,
@@ -215,236 +288,197 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                             let (t_w, t_h) = glyph_brush.texture_dimensions();
                             glyph_brush.resize_texture(t_w, t_h);
                         }
-                    }
-                    WindowEvent::KeyboardInput {
-                        input:
-                            KeyboardInput {
-                                state: ElementState::Pressed,
-                                virtual_keycode: Some(keypress),
-                                modifiers:
-                                    ModifiersState {
-                                        ctrl: true,
-                                        shift: false,
-                                        ..
-                                    },
-                                ..
-                            },
-                        ..
-                    } => match keypress {
-                        VirtualKeyCode::Key0 => {
-                            call_u_and_r!(Input::ResetScroll);
-                        }
-                        VirtualKeyCode::Home => {
-                            call_u_and_r!(Input::MoveAllCursors(Move::ToBufferStart));
-                        }
-                        VirtualKeyCode::End => {
-                            call_u_and_r!(Input::MoveAllCursors(Move::ToBufferEnd));
-                        }
-                        _ => (),
-                    },
-                    WindowEvent::KeyboardInput {
-                        input:
-                            KeyboardInput {
-                                state: ElementState::Pressed,
-                                virtual_keycode: Some(keypress),
-                                modifiers:
-                                    ModifiersState {
-                                        ctrl: true,
-                                        shift: true,
-                                        ..
-                                    },
-                                ..
-                            },
-                        ..
-                    } => match keypress {
-                        VirtualKeyCode::Home => {
-                            call_u_and_r!(Input::ExtendSelectionForAllCursors(Move::ToBufferStart));
-                        }
-                        VirtualKeyCode::End => {
-                            call_u_and_r!(Input::ExtendSelectionForAllCursors(Move::ToBufferEnd));
-                        }
-                        _ => (),
-                    },
-                    WindowEvent::KeyboardInput {
-                        input:
-                            KeyboardInput {
-                                state: ElementState::Pressed,
-                                virtual_keycode: Some(keypress),
-                                modifiers:
-                                    ModifiersState {
-                                        ctrl: false,
-                                        shift: false,
-                                        ..
-                                    },
-                                ..
-                            },
-                        ..
-                    } => match keypress {
-                        VirtualKeyCode::Escape => {
-                            quit!();
-                        }
-                        VirtualKeyCode::Back => {
-                            call_u_and_r!(Input::Delete);
-                        }
-                        VirtualKeyCode::Up => {
-                            call_u_and_r!(Input::MoveAllCursors(Move::Up));
-                        }
-                        VirtualKeyCode::Down => {
-                            call_u_and_r!(Input::MoveAllCursors(Move::Down));
-                        }
-                        VirtualKeyCode::Left => {
-                            call_u_and_r!(Input::MoveAllCursors(Move::Left));
-                        }
-                        VirtualKeyCode::Right => {
-                            call_u_and_r!(Input::MoveAllCursors(Move::Right));
-                        }
-                        VirtualKeyCode::Home => {
-                            call_u_and_r!(Input::MoveAllCursors(Move::ToLineStart));
-                        }
-                        VirtualKeyCode::End => {
-                            call_u_and_r!(Input::MoveAllCursors(Move::ToLineEnd));
-                        }
-                        _ => (),
-                    },
-                    WindowEvent::KeyboardInput {
-                        input:
-                            KeyboardInput {
-                                state: ElementState::Pressed,
-                                virtual_keycode: Some(keypress),
-                                modifiers:
-                                    ModifiersState {
-                                        ctrl: false,
-                                        shift: true,
-                                        ..
-                                    },
-                                ..
-                            },
-                        ..
-                    } => match keypress {
-                        VirtualKeyCode::Up => {
-                            call_u_and_r!(Input::ExtendSelectionForAllCursors(Move::Up));
-                        }
-                        VirtualKeyCode::Down => {
-                            call_u_and_r!(Input::ExtendSelectionForAllCursors(Move::Down));
-                        }
-                        VirtualKeyCode::Left => {
-                            call_u_and_r!(Input::ExtendSelectionForAllCursors(Move::Left));
-                        }
-                        VirtualKeyCode::Right => {
-                            call_u_and_r!(Input::ExtendSelectionForAllCursors(Move::Right));
-                        }
-                        VirtualKeyCode::Home => {
-                            call_u_and_r!(Input::ExtendSelectionForAllCursors(Move::ToLineStart));
-                        }
-                        VirtualKeyCode::End => {
-                            call_u_and_r!(Input::ExtendSelectionForAllCursors(Move::ToLineEnd));
-                        }
-                        _ => (),
-                    },
-                    WindowEvent::ReceivedCharacter(mut c) => {
-                        if c != '\u{7f}' && c != '\u{8}' {
-                            if c == '\r' {
-                                c = '\n';
+                        WindowEvent::KeyboardInput {
+                            input:
+                                KeyboardInput {
+                                    state: ElementState::Pressed,
+                                    virtual_keycode: Some(keypress),
+                                    modifiers:
+                                        ModifiersState {
+                                            ctrl: true,
+                                            shift: false,
+                                            ..
+                                        },
+                                    ..
+                                },
+                            ..
+                        } => match keypress {
+                            VirtualKeyCode::Key0 => {
+                                call_u_and_r!(Input::ResetScroll);
                             }
-                            call_u_and_r!(Input::Insert(c));
+                            VirtualKeyCode::Home => {
+                                call_u_and_r!(Input::MoveAllCursors(Move::ToBufferStart));
+                            }
+                            VirtualKeyCode::End => {
+                                call_u_and_r!(Input::MoveAllCursors(Move::ToBufferEnd));
+                            }
+                            _ => (),
+                        },
+                        WindowEvent::KeyboardInput {
+                            input:
+                                KeyboardInput {
+                                    state: ElementState::Pressed,
+                                    virtual_keycode: Some(keypress),
+                                    modifiers:
+                                        ModifiersState {
+                                            ctrl: true,
+                                            shift: true,
+                                            ..
+                                        },
+                                    ..
+                                },
+                            ..
+                        } => match keypress {
+                            VirtualKeyCode::Home => {
+                                call_u_and_r!(Input::ExtendSelectionForAllCursors(
+                                    Move::ToBufferStart
+                                ));
+                            }
+                            VirtualKeyCode::End => {
+                                call_u_and_r!(Input::ExtendSelectionForAllCursors(
+                                    Move::ToBufferEnd
+                                ));
+                            }
+                            _ => (),
+                        },
+                        WindowEvent::KeyboardInput {
+                            input:
+                                KeyboardInput {
+                                    state: ElementState::Pressed,
+                                    virtual_keycode: Some(keypress),
+                                    modifiers:
+                                        ModifiersState {
+                                            ctrl: false,
+                                            shift: false,
+                                            ..
+                                        },
+                                    ..
+                                },
+                            ..
+                        } => match keypress {
+                            VirtualKeyCode::Escape => {
+                                quit!();
+                            }
+                            VirtualKeyCode::Back => {
+                                call_u_and_r!(Input::Delete);
+                            }
+                            VirtualKeyCode::Up => {
+                                call_u_and_r!(Input::MoveAllCursors(Move::Up));
+                            }
+                            VirtualKeyCode::Down => {
+                                call_u_and_r!(Input::MoveAllCursors(Move::Down));
+                            }
+                            VirtualKeyCode::Left => {
+                                call_u_and_r!(Input::MoveAllCursors(Move::Left));
+                            }
+                            VirtualKeyCode::Right => {
+                                call_u_and_r!(Input::MoveAllCursors(Move::Right));
+                            }
+                            VirtualKeyCode::Home => {
+                                call_u_and_r!(Input::MoveAllCursors(Move::ToLineStart));
+                            }
+                            VirtualKeyCode::End => {
+                                call_u_and_r!(Input::MoveAllCursors(Move::ToLineEnd));
+                            }
+                            _ => (),
+                        },
+                        WindowEvent::KeyboardInput {
+                            input:
+                                KeyboardInput {
+                                    state: ElementState::Pressed,
+                                    virtual_keycode: Some(keypress),
+                                    modifiers:
+                                        ModifiersState {
+                                            ctrl: false,
+                                            shift: true,
+                                            ..
+                                        },
+                                    ..
+                                },
+                            ..
+                        } => match keypress {
+                            VirtualKeyCode::Up => {
+                                call_u_and_r!(Input::ExtendSelectionForAllCursors(Move::Up));
+                            }
+                            VirtualKeyCode::Down => {
+                                call_u_and_r!(Input::ExtendSelectionForAllCursors(Move::Down));
+                            }
+                            VirtualKeyCode::Left => {
+                                call_u_and_r!(Input::ExtendSelectionForAllCursors(Move::Left));
+                            }
+                            VirtualKeyCode::Right => {
+                                call_u_and_r!(Input::ExtendSelectionForAllCursors(Move::Right));
+                            }
+                            VirtualKeyCode::Home => {
+                                call_u_and_r!(Input::ExtendSelectionForAllCursors(
+                                    Move::ToLineStart
+                                ));
+                            }
+                            VirtualKeyCode::End => {
+                                call_u_and_r!(Input::ExtendSelectionForAllCursors(Move::ToLineEnd));
+                            }
+                            _ => (),
+                        },
+                        WindowEvent::ReceivedCharacter(mut c) => {
+                            if c != '\u{7f}' && c != '\u{8}' {
+                                if c == '\r' {
+                                    c = '\n';
+                                }
+                                call_u_and_r!(Input::Insert(c));
+                            }
                         }
-                    }
-                    WindowEvent::MouseWheel {
-                        delta: MouseScrollDelta::LineDelta(_, y),
-                        modifiers: ModifiersState { shift: false, .. },
-                        ..
-                    } => {
-                        call_u_and_r!(Input::ScrollVertically(-y * scroll_multiplier));
-                    }
-                    WindowEvent::MouseWheel {
-                        delta: MouseScrollDelta::LineDelta(_, y),
-                        modifiers: ModifiersState { shift: true, .. },
-                        ..
-                    } => {
-                        call_u_and_r!(Input::ScrollHorizontally(y * scroll_multiplier));
-                    }
-                    WindowEvent::CursorMoved {
-                        position: LogicalPosition { x, y },
-                        ..
-                    } => {
-                        mouse_x = x as f32;
-                        mouse_y = y as f32;
-                        if mouse_state == ElementState::Pressed {
-                            call_u_and_r!(Input::DragCursors(ScreenSpaceXY {
+                        WindowEvent::MouseWheel {
+                            delta: MouseScrollDelta::LineDelta(_, y),
+                            modifiers: ModifiersState { shift: false, .. },
+                            ..
+                        } => {
+                            call_u_and_r!(Input::ScrollVertically(-y * scroll_multiplier));
+                        }
+                        WindowEvent::MouseWheel {
+                            delta: MouseScrollDelta::LineDelta(_, y),
+                            modifiers: ModifiersState { shift: true, .. },
+                            ..
+                        } => {
+                            call_u_and_r!(Input::ScrollHorizontally(y * scroll_multiplier));
+                        }
+                        WindowEvent::CursorMoved {
+                            position: LogicalPosition { x, y },
+                            ..
+                        } => {
+                            mouse_x = x as f32;
+                            mouse_y = y as f32;
+                            if mouse_state == ElementState::Pressed {
+                                call_u_and_r!(Input::DragCursors(ScreenSpaceXY {
+                                    x: mouse_x,
+                                    y: mouse_y
+                                }));
+                            }
+                        }
+                        WindowEvent::MouseInput {
+                            button: MouseButton::Left,
+                            state: ElementState::Pressed,
+                            ..
+                        } => {
+                            mouse_state = ElementState::Pressed;
+                            call_u_and_r!(Input::ReplaceCursors(ScreenSpaceXY {
                                 x: mouse_x,
                                 y: mouse_y
                             }));
                         }
+                        WindowEvent::MouseInput {
+                            button: MouseButton::Left,
+                            state: ElementState::Released,
+                            ..
+                        } => {
+                            mouse_state = ElementState::Released;
+                        }
+                        _ => {}
                     }
-                    WindowEvent::MouseInput {
-                        button: MouseButton::Left,
-                        state: ElementState::Pressed,
-                        ..
-                    } => {
-                        mouse_state = ElementState::Pressed;
-                        call_u_and_r!(Input::ReplaceCursors(ScreenSpaceXY {
-                            x: mouse_x,
-                            y: mouse_y
-                        }));
-                    }
-                    WindowEvent::MouseInput {
-                        button: MouseButton::Left,
-                        state: ElementState::Released,
-                        ..
-                    } => {
-                        mouse_state = ElementState::Released;
-                    }
-                    _ => {}
-                }
-            }
-        });
-
-        if running {
-            match out_rx.try_recv() {
-                Ok((v, c)) => {
-                    view = v;
-                    _cmd = c;
                 }
                 _ => {}
-            };
-        }
-
-        let width = dimensions.width as u32;
-        let height = dimensions.height as f32;
-
-        {
-            let extras = render_buffer_view(&mut glyph_brush, &view, &font_info);
-
-            gl_layer::render(
-                &mut gl_state,
-                &mut glyph_brush,
-                width as _,
-                height as _,
-                extras,
-            )?;
-        }
-
-        glutin_context.swap_buffers()?;
-
-        if let Some(rate) = loop_helper.report_rate() {
-            window.set_title(&format!(
-                "{} {:.0} FPS {:?}",
-                title,
-                rate,
-                (mouse_x, mouse_y),
-            ));
-        }
-
-        perf_viz::end_record!("while running");
-        loop_helper.loop_sleep();
+            }
+        });
     }
-
-    // If we got here, we assume that we've sent a Quit input to the editor thread so it will stop.
-    join_handle.join().expect("Could not join editor thread!");
-
-    perf_viz::output!();
-
-    gl_layer::cleanup(gl_state)
 }
 
 /// As of this writing, casting f32 to i32 is undefined behaviour if the value does not fit!

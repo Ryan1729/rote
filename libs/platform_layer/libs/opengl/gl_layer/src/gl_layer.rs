@@ -403,7 +403,7 @@ pub fn render(
 }
 
 pub fn cleanup(
-    State {
+    &State {
         program,
         fs,
         vs,
@@ -411,7 +411,7 @@ pub fn cleanup(
         vao,
         glyph_texture,
         ..
-    }: State,
+    }: &State,
 ) -> Res<()> {
     unsafe {
         gl::DeleteProgram(program);

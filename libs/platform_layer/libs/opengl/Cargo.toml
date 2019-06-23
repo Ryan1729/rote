@@ -18,13 +18,8 @@ perf_viz_proc_macro = { path = "../../../perf_viz/libs/perf_viz_proc_macro" }
 gl_layer = { path = "gl_layer" }
 glyph_brush = { path = "glyph-brush" }
 glyph_brush_layout = { path = "glyph-brush-layout" }
-log = "0.4.4"
-ordered-float = "1"
 full_rusttype = { version = "0.7.5", features = ["gpu_cache"], package = "rusttype" }
-hashbrown = "0.2"
-twox-hash = "1"
-lazy_static = "1"
-glutin = "0.21"
+glutin = "0.22.0-alpha1"
 spin_sleep = "0.3"
 
 [features]
