@@ -1,5 +1,5 @@
 use editor_types::{CursorState, Vec1};
-use macros::{c, d, dg};
+use macros::{c, d};
 use platform_types::{
     position_to_screen_space, push_highlights, screen_space_to_position, BufferView, CharDim, Cmd,
     Input, ScreenSpaceXY, UpdateAndRenderOutput, View,
@@ -14,8 +14,6 @@ pub struct State {
     scroll_y: f32,
     screen_w: f32,
     screen_h: f32,
-    mouse_x: f32,
-    mouse_y: f32,
     text_char_dim: CharDim,
     status_char_dim: CharDim,
 }
@@ -121,8 +119,7 @@ pub fn render_view(state: &State, view: &mut View) {
 
                     let _cannot_actually_fail = write!(
                         chars,
-                        "m{:?} c{:?} ",
-                        (state.mouse_x, state.mouse_y),
+                        "c{:?} ",
                         (state.text_char_dim.w, state.text_char_dim.h)
                     );
 
@@ -178,11 +175,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
     perf_viz::record_guard!("update_and_render");
 
     if cfg!(debug_assertions) {
-        if let Input::SetMousePos(_) = input {
-
-        } else {
-            if_changed::dbg!(input);
-        }
+        if_changed::dbg!(input);
     }
     match input {
         Input::None => {}
@@ -208,10 +201,6 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             set_if_present!(sizes => state.screen_h);
             set_if_present!(sizes => state.text_char_dim);
             set_if_present!(sizes => state.status_char_dim);
-        }
-        Input::SetMousePos(ScreenSpaceXY { x, y }) => {
-            state.mouse_x = x;
-            state.mouse_y = y;
         }
         Input::ReplaceCursors(xy) => {
             let position =

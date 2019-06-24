@@ -324,7 +324,11 @@ mod move_cursor {
         position: Position,
         action: SetPositionAction,
     ) -> Moved {
-        if cursor.get_position() != position && in_cursor_bounds(rope, &position) {
+        if cursor.get_position() == position {
+            // We might need to clear the highlight cursor, depending on the action, even though
+            // the postion matches.
+            cursor.set_position_custom(position, action);
+        } else if in_cursor_bounds(rope, &position) {
             dbg!(&cursor);
             dbg!((position, action));
             cursor.set_position_custom(position, action);
@@ -334,13 +338,10 @@ mod move_cursor {
             // to maintain it when moving across lines.
             cursor.sticky_offset = position.offset;
 
-            Moved::Yes
-        } else {
-            // We might need to clear the highlight cursor, depending on the action, even though
-            // the postion matches.
-            cursor.set_position_custom(position, action);
-            Moved::No
+            return Moved::Yes;
         }
+
+        Moved::No
     }
 
     /// Try moving to the same offset on the line below, falling back to its EOL.

@@ -35,7 +35,6 @@ pub enum Input {
     ScrollVertically(f32),
     ScrollHorizontally(f32),
     SetSizes(Sizes),
-    SetMousePos(ScreenSpaceXY),
     MoveAllCursors(Move),
     ExtendSelectionForAllCursors(Move),
     ReplaceCursors(ScreenSpaceXY),
