@@ -313,6 +313,12 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                             VirtualKeyCode::End => {
                                 call_u_and_r!(Input::MoveAllCursors(Move::ToBufferEnd));
                             }
+                            VirtualKeyCode::Z => {
+                                call_u_and_r!(Input::Undo);
+                            }
+                            VirtualKeyCode::Y => {
+                                call_u_and_r!(Input::Redo);
+                            }
                             _ => (),
                         },
                         WindowEvent::KeyboardInput {
@@ -339,6 +345,9 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                                 call_u_and_r!(Input::ExtendSelectionForAllCursors(
                                     Move::ToBufferEnd
                                 ));
+                            }
+                            VirtualKeyCode::Z => {
+                                call_u_and_r!(Input::Redo);
                             }
                             _ => (),
                         },

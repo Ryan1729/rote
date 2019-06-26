@@ -5,7 +5,7 @@ use panic_safe_rope::Rope;
 use platform_types::{AbsoluteCharOffset, CharOffset, Move, Position};
 use std::borrow::Borrow;
 
-#[derive(Default)]
+#[derive(Default, Clone, Debug)]
 pub struct TextBuffer {
     rope: Rope,
     cursors: Vec1<Cursor>,
@@ -203,6 +203,10 @@ impl TextBuffer {
             }
         }
     }
+
+    pub fn redo(&mut self) {}
+
+    pub fn undo(&mut self) {}
 }
 
 fn valid_len_chars_for_line(rope: &Rope, line_index: usize) -> Option<usize> {

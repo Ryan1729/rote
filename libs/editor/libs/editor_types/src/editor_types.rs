@@ -41,14 +41,14 @@ impl From<ByteIndex> for ByteLength {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CursorState {
     None,
     PressedAgainstWall,
 }
 d!(for CursorState: CursorState::None);
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Cursor {
     // These are private so we can make sure whether to clear highlight is considered on each
     // mutation of `position. And we can use a state we don't otherwise want,

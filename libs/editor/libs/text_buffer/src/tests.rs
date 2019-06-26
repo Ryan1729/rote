@@ -587,3 +587,144 @@ fn multiline_selection_across_line_feeds_works() {
 fn multiline_selection_across_carriage_return_line_feeds_works() {
     multiline_selection!("\r\n");
 }
+
+fn arb_move() -> impl Strategy<Value = Move> {
+    prop_oneof![
+        Just(Move::Up),
+        Just(Move::Down),
+        Just(Move::Left),
+        Just(Move::Right),
+        Just(Move::ToLineStart),
+        Just(Move::ToLineEnd),
+        Just(Move::ToBufferStart),
+        Just(Move::ToBufferEnd),
+    ]
+}
+
+#[derive(Debug, Clone, Copy)]
+enum Edit {
+    Insert(char),
+    Delete,
+    MoveAllCursors(Move),
+    ExtendSelectionForAllCursors(Move),
+}
+
+fn apply_edit(buffer: &mut TextBuffer, edit: Edit) {
+    match edit {
+        Edit::Insert(c) => buffer.insert(c),
+        Edit::Delete => buffer.delete(),
+        Edit::MoveAllCursors(r#move) => buffer.move_all_cursors(r#move),
+        Edit::ExtendSelectionForAllCursors(r#move) => {
+            buffer.extend_selection_for_all_cursors(r#move)
+        }
+    }
+}
+
+fn arb_edit() -> impl Strategy<Value = Edit> {
+    prop_oneof![
+        Just(Edit::Delete),
+        any::<char>().prop_map(Edit::Insert),
+        arb_move().prop_map(Edit::MoveAllCursors),
+        arb_move().prop_map(Edit::ExtendSelectionForAllCursors)
+    ]
+}
+
+prop_compose! {
+    fn arb_edits_and_index(max_len: usize)
+        (index in 0..max_len)
+        (
+            edits in proptest::collection::vec(arb_edit(), 0..max_len),
+             i in Just(index)
+         ) -> (Vec<Edit>, usize) {
+        (edits, i)
+    }
+}
+
+// `Rope`s share backing buffers when cloned, so we want to avoid that.
+fn deep_clone(buffer: &TextBuffer) -> TextBuffer {
+    let s: std::borrow::Cow<str> = (&buffer.rope).into();
+    TextBuffer {
+        rope: Rope::from_str(&s),
+        ..buffer.clone()
+    }
+}
+
+proptest! {
+    #[test]
+    fn undo_redo_works((edits, index) in arb_edits_and_index(16)) {
+        //TODO generate initial buffer?
+        let initial_buffer: TextBuffer = d!();
+        let mut buffer: TextBuffer = deep_clone(&initial_buffer);
+
+        let mut expected_buffer_at_index: Option<TextBuffer> = None;
+        for (i, edit) in edits.iter().enumerate() {
+            apply_edit(&mut buffer, *edit);
+
+            if i == index {
+                expected_buffer_at_index = Some(deep_clone(&buffer));
+            }
+        }
+
+        let final_buffer = deep_clone(&buffer);
+        let expected_buffer_at_index = expected_buffer_at_index.unwrap_or_default();
+
+        let len = edits.len();
+
+        for _ in 0..dbg!(dbg!(len) - index) {
+            buffer.undo();
+        }
+
+        assert_text_buffer_eq_ignoring_history!(buffer, expected_buffer_at_index);
+
+        for _ in 0..len {
+            buffer.redo();
+        }
+
+        assert_text_buffer_eq_ignoring_history!(buffer, final_buffer);
+
+        // Redo with no redos left should be a no-op
+        for _ in 0..3 {
+            buffer.redo();
+        }
+
+        assert_text_buffer_eq_ignoring_history!(buffer, final_buffer);
+
+        for _ in 0..len {
+            buffer.undo();
+        }
+
+        assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
+
+        // undo with no redos left should be a no-op
+        for _ in 0..3 {
+            buffer.undo();
+        }
+
+        assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
+    }
+}
+
+#[test]
+fn undo_undoes() {
+    let initial_buffer: TextBuffer = d!();
+    let mut buffer: TextBuffer = deep_clone(&initial_buffer);
+
+    buffer.insert('a');
+    buffer.undo();
+
+    assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
+}
+
+#[test]
+fn redo_redoes() {
+    let mut buffer: TextBuffer = d!();
+    buffer.insert('a');
+
+    let final_buffer: TextBuffer = deep_clone(&buffer);
+
+    buffer.undo();
+
+    buffer.redo();
+
+    assert_text_buffer_eq_ignoring_history!(buffer, final_buffer);
+}

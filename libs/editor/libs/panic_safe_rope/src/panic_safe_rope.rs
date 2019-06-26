@@ -1,7 +1,7 @@
 ///! A wrapper around `ropey::Rope` that checks the panic conditions at runtime and
 ///! changes the return type of some methods with the aim of preventing panics.
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Rope {
     rope: ropey::Rope,
 }

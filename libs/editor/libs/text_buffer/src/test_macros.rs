@@ -1,3 +1,6 @@
+use super::*;
+use macros::fmt_debug;
+
 #[macro_export]
 macro_rules! r {
     ($s:expr) => {
@@ -40,4 +43,26 @@ macro_rules! cursor_assert {
         )*
 
     }};
+}
+
+pub struct IgnoringHistory<'buffer>(pub &'buffer TextBuffer);
+
+fmt_debug!(<'a> for IgnoringHistory<'a>:
+     IgnoringHistory(b) in "{{ rope: {:?}, cursors: {:?} }}", b.rope, b.cursors
+ );
+
+impl<'a, 'b> PartialEq<IgnoringHistory<'b>> for IgnoringHistory<'a> {
+    fn eq(&self, other: &IgnoringHistory<'b>) -> bool {
+        self.0.rope == other.0.rope && self.0.cursors == other.0.cursors
+    }
+}
+
+macro_rules! assert_text_buffer_eq_ignoring_history {
+    ($left:expr, $right:expr) => {
+        assert_eq!(
+            $crate::test_macros::IgnoringHistory(&$left),
+            $crate::test_macros::IgnoringHistory(&$right),
+            stringify!($left != $right (ignoring history))
+        );
+    };
 }

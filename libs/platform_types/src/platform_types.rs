@@ -39,6 +39,8 @@ pub enum Input {
     ExtendSelectionForAllCursors(Move),
     ReplaceCursors(ScreenSpaceXY),
     DragCursors(ScreenSpaceXY),
+    Undo,
+    Redo,
 }
 
 #[derive(Clone, Copy, Debug, Default)]

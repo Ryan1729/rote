@@ -19,3 +19,6 @@
   * How easy is it to pop open the system file chooser? Can we get file choosing done with that alone for now?
 
 * Persistence for Undo/Redo and clipboard history, per file.
+  * If a file in the history does not exist any more, and a file with a name which is a short Levenstein distance away is opened, prompt to use the old history and change the key in the stored file.
+    * should we just hash the content instead?
+    * "Never prompt for this file pair" seems extraneous. Is there a case where we ever not want it checked?

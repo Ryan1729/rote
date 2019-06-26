@@ -182,6 +182,8 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
         Input::Quit => {}
         Input::Insert(c) => buffer_call!(b.insert(c)),
         Input::Delete => buffer_call!(b.delete()),
+        Input::Redo => buffer_call!(b.redo()),
+        Input::Undo => buffer_call!(b.undo()),
         Input::MoveAllCursors(r#move) => buffer_call!(b.move_all_cursors(r#move)),
         Input::ExtendSelectionForAllCursors(r#move) => {
             buffer_call!(b.extend_selection_for_all_cursors(r#move))
