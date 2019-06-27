@@ -13,6 +13,24 @@ pub enum Move {
     ToBufferEnd,
 }
 
+impl std::ops::Not for Move {
+    type Output = Move;
+
+    fn not(self) -> Self::Output {
+        use Move::*;
+        match self {
+            Up => Down,
+            Down => Up,
+            Left => Right,
+            Right => Left,
+            ToLineStart => ToLineEnd,
+            ToLineEnd => ToLineStart,
+            ToBufferStart => ToBufferEnd,
+            ToBufferEnd => ToBufferStart,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct ScreenSpaceXY {
     pub x: f32,
@@ -188,7 +206,7 @@ pub fn append_positions(left: Position, right: Position) -> Position {
     }
 }
 
-/// THe inverse of `append_positions`. That is,
+/// The inverse of `append_positions`. That is,
 /// `unappend_positions(append_positions(p, q), q) == p`
 // TODO proptest this property
 pub fn unappend_positions(left: Position, right: Position) -> Position {

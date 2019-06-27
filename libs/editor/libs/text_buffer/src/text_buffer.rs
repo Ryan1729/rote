@@ -4,11 +4,14 @@ use macros::{borrow, borrow_mut, d};
 use panic_safe_rope::Rope;
 use platform_types::{AbsoluteCharOffset, CharOffset, Move, Position};
 use std::borrow::Borrow;
+use std::collections::VecDeque;
 
 #[derive(Default, Clone, Debug)]
 pub struct TextBuffer {
     rope: Rope,
     cursors: Vec1<Cursor>,
+    history: VecDeque<Edit>,
+    history_index: usize,
 }
 
 impl From<String> for TextBuffer {
@@ -34,10 +37,9 @@ impl From<&str> for TextBuffer {
 borrow!(<Vec1<Cursor>> for TextBuffer : s in &s.cursors);
 borrow_mut!(<Vec1<Cursor>> for TextBuffer : s in &mut s.cursors);
 
-fn offset_pair(
-    rope: &Rope,
-    cursor: &Cursor,
-) -> (Option<AbsoluteCharOffset>, Option<AbsoluteCharOffset>) {
+type OffsetPair = (Option<AbsoluteCharOffset>, Option<AbsoluteCharOffset>);
+
+fn offset_pair(rope: &Rope, cursor: &Cursor) -> OffsetPair {
     (
         pos_to_char_offset(rope, &cursor.get_position()),
         cursor
@@ -48,48 +50,37 @@ fn offset_pair(
 
 impl TextBuffer {
     #[perf_viz::record]
-    pub fn insert(&mut self, ch: char) {
-        for cursor in &mut self.cursors {
-            match offset_pair(&self.rope, cursor) {
-                (Some(AbsoluteCharOffset(o)), highlight)
-                    if highlight.is_none() || Some(AbsoluteCharOffset(o)) == highlight =>
-                {
-                    self.rope.insert_char(o, ch);
-                    move_cursor::directly(&self.rope, cursor, Move::Right);
-                }
-                (Some(o1), Some(o2)) => {
-                    let min = std::cmp::min(o1, o2);
-                    let max = std::cmp::max(o1, o2);
+    pub fn insert(&mut self, c: char) {
+        let edit = Edit::Insert(self.cursors.mapped_ref(|cursor| CharEdit {
+            c: c.into(),
+            offsets: offset_pair(&self.rope, cursor),
+        }));
+        self.apply_edit(&edit);
 
-                    self.rope.remove(min.0..max.0);
-                    cursor.set_position(char_offset_to_pos(&self.rope, &min).unwrap_or_default());
-
-                    self.rope.insert_char(min.0, ch);
-                    move_cursor::directly(&self.rope, cursor, Move::Right);
-                }
-                _ => {}
-            }
-        }
+        self.history.push_back(edit);
+        self.history_index += 1;
     }
 
     #[perf_viz::record]
     pub fn delete(&mut self) {
-        for cursor in &mut self.cursors {
-            match offset_pair(&self.rope, cursor) {
-                (Some(AbsoluteCharOffset(o)), None) if o > 0 => {
-                    self.rope.remove((o - 1)..o);
-                    move_cursor::directly(&self.rope, cursor, Move::Left);
-                }
-                (Some(o1), Some(o2)) if o1 > 0 || o2 > 0 => {
-                    let min = std::cmp::min(o1, o2);
-                    let max = std::cmp::max(o1, o2);
+        let edit = Edit::Delete(self.get_char_edits());
 
-                    self.rope.remove(dbg!(min.0..max.0));
-                    cursor.set_position(char_offset_to_pos(&self.rope, &min).unwrap_or_default());
-                }
-                _ => {}
+        self.apply_edit(&edit);
+
+        self.history.push_back(edit);
+        self.history_index += 1;
+    }
+
+    fn get_char_edits(&self) -> Vec1<CharEdit> {
+        self.cursors().mapped_ref(|cursor| {
+            let offsets = offset_pair(&self.rope, cursor);
+            CharEdit {
+                c: offsets
+                    .0
+                    .and_then(|AbsoluteCharOffset(o)| self.rope.char(o)),
+                offsets,
             }
-        }
+        })
     }
 
     pub fn move_all_cursors(&mut self, r#move: Move) {
@@ -101,6 +92,60 @@ impl TextBuffer {
     pub fn extend_selection_for_all_cursors(&mut self, r#move: Move) {
         for i in 0..self.cursors().len() {
             self.extend_selection(i, r#move)
+        }
+    }
+
+    fn apply_edit(&mut self, edit: &Edit) {
+        match edit {
+            Edit::Insert(edits) => {
+                for (cursor, &CharEdit { c, offsets }) in self.cursors.iter_mut().zip(edits) {
+                    if let Some(c) = c {
+                        match offsets {
+                            (Some(AbsoluteCharOffset(o)), highlight)
+                                if highlight.is_none()
+                                    || Some(AbsoluteCharOffset(o)) == highlight =>
+                            {
+                                self.rope.insert_char(o, c);
+                                move_cursor::directly(&self.rope, cursor, Move::Right);
+                            }
+                            (Some(o1), Some(o2)) => {
+                                let min = std::cmp::min(o1, o2);
+                                let max = std::cmp::max(o1, o2);
+
+                                self.rope.remove(min.0..max.0);
+                                cursor.set_position(
+                                    char_offset_to_pos(&self.rope, &min).unwrap_or_default(),
+                                );
+
+                                self.rope.insert_char(min.0, c);
+                                move_cursor::directly(&self.rope, cursor, Move::Right);
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+            Edit::Delete(edits) => {
+                for (cursor, &CharEdit { offsets, .. }) in self.cursors.iter_mut().zip(edits) {
+                    match offsets {
+                        (Some(AbsoluteCharOffset(o)), None) if o > 0 => {
+                            self.rope.remove((o - 1)..o);
+                            move_cursor::directly(&self.rope, cursor, Move::Left);
+                        }
+                        (Some(o1), Some(o2)) if o1 > 0 || o2 > 0 => {
+                            let min = std::cmp::min(o1, o2);
+                            let max = std::cmp::max(o1, o2);
+
+                            self.rope.remove(dbg!(min.0..max.0));
+                            cursor.set_position(
+                                char_offset_to_pos(&self.rope, &min).unwrap_or_default(),
+                            );
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            &Edit::Select { r#move } => self.extend_selection_for_all_cursors(r#move),
         }
     }
 
@@ -203,10 +248,6 @@ impl TextBuffer {
             }
         }
     }
-
-    pub fn redo(&mut self) {}
-
-    pub fn undo(&mut self) {}
 }
 
 fn valid_len_chars_for_line(rope: &Rope, line_index: usize) -> Option<usize> {
@@ -525,6 +566,67 @@ where
     } else {
         dbg!("None");
         None
+    }
+}
+
+//
+// Undo / Redo
+//
+
+// The platform layer does not need the ability to set the cursor to arbitrary positions.
+#[derive(Clone, Copy, Debug)]
+enum MoveSpec {
+    To(Position),
+    Move(Move),
+}
+d!(for MoveSpec: MoveSpec::To(d!()));
+
+#[derive(Clone, Copy, Debug, Default)]
+struct CharEdit {
+    c: Option<char>,
+    offsets: OffsetPair,
+}
+
+#[derive(Clone, Debug)]
+enum Edit {
+    Insert(Vec1<CharEdit>),
+    Delete(Vec1<CharEdit>),
+    Select { r#move: Move },
+}
+
+impl std::ops::Not for Edit {
+    type Output = Edit;
+
+    fn not(self) -> Self::Output {
+        match self {
+            Edit::Insert(edits) => Edit::Delete(edits.mapped(|e| CharEdit {
+                offsets: (
+                    Some(e.offsets.0.map(|o| o + 1).unwrap_or_default()),
+                    e.offsets.1,
+                ),
+                ..e
+            })),
+            Edit::Delete(edits) => Edit::Insert(edits),
+            Edit::Select { r#move } => Edit::Select { r#move: !r#move },
+        }
+    }
+}
+
+impl TextBuffer {
+    pub fn redo(&mut self) -> Option<()> {
+        let new_index = self.history_index + 1;
+        self.history.get(new_index).cloned().map(|edit| {
+            self.apply_edit(&edit);
+            self.history_index = new_index;
+        })
+    }
+
+    pub fn undo(&mut self) -> Option<()> {
+        let new_index = self.history_index.saturating_sub(1);
+        self.history.get(new_index).cloned().map(|edit| {
+            self.apply_edit(&dbg!(!edit));
+            self.history_index = new_index;
+        })
     }
 }
 
