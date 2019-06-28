@@ -6,10 +6,12 @@ use platform_types::{AbsoluteCharOffset, CharOffset, Move, Position};
 use std::borrow::Borrow;
 use std::collections::VecDeque;
 
+pub type Cursors = Vec1<Cursor>;
+
 #[derive(Default, Clone, Debug)]
 pub struct TextBuffer {
     rope: Rope,
-    cursors: Vec1<Cursor>,
+    cursors: Cursors,
     history: VecDeque<Edit>,
     history_index: usize,
 }
@@ -614,15 +616,17 @@ impl std::ops::Not for Edit {
 
 impl TextBuffer {
     pub fn redo(&mut self) -> Option<()> {
-        let new_index = self.history_index + 1;
-        self.history.get(new_index).cloned().map(|edit| {
-            self.apply_edit(&edit);
-            self.history_index = new_index;
-        })
+        dbg!(&self.history)
+            .get(self.history_index)
+            .cloned()
+            .map(|edit| {
+                self.apply_edit(&dbg!(edit));
+                self.history_index += 1;
+            })
     }
 
     pub fn undo(&mut self) -> Option<()> {
-        let new_index = self.history_index.saturating_sub(1);
+        let new_index = self.history_index.checked_sub(1)?;
         self.history.get(new_index).cloned().map(|edit| {
             self.apply_edit(&dbg!(!edit));
             self.history_index = new_index;

@@ -664,70 +664,6 @@ fn deep_clone(buffer: &TextBuffer) -> TextBuffer {
     }
 }
 
-fn undo_redo_works_on_these_edits_and_index(edits: Vec<TestEdit>, index: usize) {
-    //TODO generate initial buffer?
-    let initial_buffer: TextBuffer = d!();
-    let mut buffer: TextBuffer = deep_clone(&initial_buffer);
-
-    let mut expected_buffer_at_index: Option<TextBuffer> = None;
-    for (i, edit) in edits.iter().enumerate() {
-        apply_edit(&mut buffer, *edit);
-
-        if i == index {
-            expected_buffer_at_index = Some(deep_clone(&buffer));
-        }
-    }
-
-    let final_buffer = deep_clone(&buffer);
-    let expected_buffer_at_index = expected_buffer_at_index.unwrap_or_default();
-
-    let len = edits.len();
-
-    for _ in 0..dbg!(dbg!(len) - index) {
-        buffer.undo();
-    }
-
-    assert_text_buffer_eq_ignoring_history!(buffer, expected_buffer_at_index);
-
-    for _ in 0..len {
-        buffer.redo();
-    }
-
-    assert_text_buffer_eq_ignoring_history!(buffer, final_buffer);
-
-    // Redo with no redos left should be a no-op
-    for _ in 0..3 {
-        buffer.redo();
-    }
-
-    assert_text_buffer_eq_ignoring_history!(buffer, final_buffer);
-
-    for _ in 0..len {
-        buffer.undo();
-    }
-
-    assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
-
-    // undo with no redos left should be a no-op
-    for _ in 0..3 {
-        buffer.undo();
-    }
-
-    assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
-}
-
-proptest! {
-    #[test]
-    fn undo_redo_works((edits, index) in arb_edits_and_index(16, ArbEditSpec::All)) {
-        undo_redo_works_on_these_edits_and_index(edits, index);
-    }
-
-    #[test]
-    fn undo_redo_works_on_inserts((edits, index) in arb_edits_and_index(16, ArbEditSpec::Insert)) {
-        undo_redo_works_on_these_edits_and_index(edits, index);
-    }
-}
-
 #[test]
 fn undo_undoes() {
     let initial_buffer: TextBuffer = d!();
@@ -751,4 +687,111 @@ fn redo_redoes() {
     buffer.redo();
 
     assert_text_buffer_eq_ignoring_history!(buffer, final_buffer);
+}
+
+fn undo_redo_works_on_these_edits_and_index(edits: Vec<TestEdit>, index: usize) {
+    //TODO generate initial buffer?
+    let initial_buffer: TextBuffer = d!();
+    let mut buffer: TextBuffer = deep_clone(&initial_buffer);
+
+    let mut expected_buffer_at_index: Option<TextBuffer> = None;
+    for (i, edit) in edits.iter().enumerate() {
+        apply_edit(&mut buffer, *edit);
+
+        if i == index {
+            expected_buffer_at_index = Some(deep_clone(&buffer));
+        }
+    }
+
+    let final_buffer = deep_clone(&buffer);
+    let expected_buffer_at_index = expected_buffer_at_index.unwrap_or_default();
+
+    let len = edits.len();
+
+    if len != 0 {
+        for i in 0..dbg!(dbg!(len - 1) - index) {
+            dbg!(i);
+            buffer.undo();
+        }
+    }
+    dbg!(1);
+    assert_text_buffer_eq_ignoring_history!(buffer, expected_buffer_at_index);
+
+    for _ in 0..len {
+        buffer.redo();
+    }
+
+    dbg!(2);
+    assert_text_buffer_eq_ignoring_history!(buffer, final_buffer);
+
+    // Redo with no redos left should be a no-op
+    for _ in 0..3 {
+        buffer.redo();
+    }
+
+    dbg!(3);
+    assert_text_buffer_eq_ignoring_history!(buffer, final_buffer);
+
+    for _ in 0..len {
+        buffer.undo();
+    }
+
+    dbg!(4);
+    assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
+
+    // undo with no undos left should be a no-op
+    for _ in 0..3 {
+        buffer.undo();
+    }
+
+    dbg!(5);
+    assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
+}
+
+proptest! {
+    #[test]
+    fn undo_redo_works((edits, index) in arb_edits_and_index(16, ArbEditSpec::All)) {
+        undo_redo_works_on_these_edits_and_index(edits, index);
+    }
+
+    #[test]
+    fn undo_redo_works_on_inserts((edits, index) in arb_edits_and_index(16, ArbEditSpec::Insert)) {
+        undo_redo_works_on_these_edits_and_index(edits, index);
+    }
+}
+
+#[test]
+fn undo_redo_works_on_this_set_of_edits() {
+    undo_redo_works_on_these_edits_and_index(
+        vec![
+            TestEdit::Insert('\u{b}'),
+            TestEdit::Insert('a'),
+            TestEdit::Insert('\n'),
+        ],
+        0,
+    );
+}
+
+#[test]
+fn undo_redo_works_in_this_reduced_scenario() {
+    let initial_buffer: TextBuffer = d!();
+    let mut buffer: TextBuffer = deep_clone(&initial_buffer);
+
+    apply_edit(&mut buffer, TestEdit::Insert('\u{b}'));
+
+    let expected_final_buffer = deep_clone(&buffer);
+
+    apply_edit(&mut buffer, TestEdit::Insert('a'));
+
+    let expected_mid_buffer = deep_clone(&buffer);
+
+    apply_edit(&mut buffer, TestEdit::Insert('\n'));
+
+    buffer.undo();
+
+    assert_text_buffer_eq_ignoring_history!(buffer, expected_mid_buffer);
+
+    buffer.undo();
+
+    assert_text_buffer_eq_ignoring_history!(buffer, expected_final_buffer);
 }
