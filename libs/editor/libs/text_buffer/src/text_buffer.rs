@@ -100,7 +100,7 @@ impl TextBuffer {
     fn apply_edit(&mut self, edit: &Edit) {
         match edit {
             Edit::Insert(edits) => {
-                for (cursor, &CharEdit { c, offsets }) in self.cursors.iter_mut().zip(edits) {
+                for (cursor, &CharEdit { c, offsets, .. }) in self.cursors.iter_mut().zip(edits) {
                     if let Some(c) = c {
                         match offsets {
                             (Some(AbsoluteCharOffset(o)), highlight)
@@ -279,6 +279,16 @@ fn valid_len_chars_for_line(rope: &Rope, line_index: usize) -> Option<usize> {
                 len -= 1;
                 return_if_0!();
             }
+        } else if
+        // The rope library we are using treats these as line breaks, so we do too.
+        // See also https://www.unicode.org/reports/tr14/tr14-32.html
+        (last >= '\u{a}' && last <= '\r')
+            || last == '\u{0085}'
+            || last == '\u{2028}'
+            || last == '\u{2029}'
+        {
+            len -= 1;
+            return_if_0!();
         }
 
         len

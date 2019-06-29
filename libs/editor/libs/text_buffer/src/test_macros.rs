@@ -45,15 +45,45 @@ macro_rules! cursor_assert {
     }};
 }
 
+pub struct IgnoringStateSingle<'cursor>(pub &'cursor Cursor);
+
+fmt_debug!(<'a> for IgnoringStateSingle<'a>:
+     IgnoringStateSingle(cursor) in
+     "{{ position: {:?}, highlight_position: {:?}, sticky_offset: {:?} }}",
+      cursor.get_position(), cursor.get_highlight_position(), cursor.sticky_offset
+ );
+
+impl<'a, 'b> PartialEq<IgnoringStateSingle<'b>> for IgnoringStateSingle<'a> {
+    fn eq(&self, other: &IgnoringStateSingle<'b>) -> bool {
+        self.0.get_position() == other.0.get_position()
+            && self.0.get_highlight_position() == other.0.get_highlight_position()
+            && self.0.sticky_offset == other.0.sticky_offset
+    }
+}
+
+pub struct IgnoringState<'cursors>(pub &'cursors Cursors);
+
+fmt_debug!(<'a> for IgnoringState<'a>:
+     IgnoringState(cursors) in "{:?}", cursors.iter().map(IgnoringStateSingle).collect::<Vec<_>>()
+ );
+
+impl<'a, 'b> PartialEq<IgnoringState<'b>> for IgnoringState<'a> {
+    fn eq(&self, other: &IgnoringState<'b>) -> bool {
+        self.0.iter().map(IgnoringStateSingle).collect::<Vec<_>>()
+            == other.0.iter().map(IgnoringStateSingle).collect::<Vec<_>>()
+    }
+}
+
 pub struct IgnoringHistory<'buffer>(pub &'buffer TextBuffer);
 
 fmt_debug!(<'a> for IgnoringHistory<'a>:
-     IgnoringHistory(b) in "{{ rope: {:?}, cursors: {:?} }}", b.rope, b.cursors
+     IgnoringHistory(b) in "{{ rope: {:?}, cursors: {:?} }}", b.rope, IgnoringState(&b.cursors)
  );
 
 impl<'a, 'b> PartialEq<IgnoringHistory<'b>> for IgnoringHistory<'a> {
     fn eq(&self, other: &IgnoringHistory<'b>) -> bool {
-        self.0.rope == other.0.rope && self.0.cursors == other.0.cursors
+        self.0.rope == other.0.rope
+            && IgnoringState(&self.0.cursors) == IgnoringState(&other.0.cursors)
     }
 }
 

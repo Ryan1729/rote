@@ -633,25 +633,31 @@ fn arb_edit_insert() -> impl Strategy<Value = TestEdit> {
     any::<char>().prop_map(TestEdit::Insert)
 }
 
+fn arb_edit_non_control_insert() -> impl Strategy<Value = TestEdit> {
+    "\\PC".prop_map(|s| TestEdit::Insert(s.chars().next().unwrap_or('a')))
+}
+
 enum ArbEditSpec {
     All,
     Insert,
+    NonControlInsert,
 }
 
 prop_compose! {
     fn arb_edits_and_index(max_len: usize, spec: ArbEditSpec)
-        (index in 0..max_len)
+        (edits in proptest::collection::vec(
+            match spec {
+                ArbEditSpec::All => arb_edit().boxed(),
+                ArbEditSpec::Insert => arb_edit_insert().boxed(),
+                ArbEditSpec::NonControlInsert => arb_edit_non_control_insert().boxed(),
+            },
+            0..max_len
+        ))
         (
-            edits in proptest::collection::vec(
-                match spec {
-                    ArbEditSpec::All => arb_edit().boxed(),
-                    ArbEditSpec::Insert => arb_edit_insert().boxed(),
-                },
-                0..max_len
-            ),
-             i in Just(index)
+            i in if edits.len() == 0 { 0..1 } else { 0..edits.len() },
+            es in Just(edits)
          ) -> (Vec<TestEdit>, usize) {
-        (edits, i)
+        (es, i)
     }
 }
 
@@ -758,6 +764,11 @@ proptest! {
     fn undo_redo_works_on_inserts((edits, index) in arb_edits_and_index(16, ArbEditSpec::Insert)) {
         undo_redo_works_on_these_edits_and_index(edits, index);
     }
+
+    #[test]
+    fn undo_redo_works_on_non_control_inserts((edits, index) in arb_edits_and_index(16, ArbEditSpec::NonControlInsert)) {
+        undo_redo_works_on_these_edits_and_index(edits, index);
+    }
 }
 
 #[test]
@@ -794,4 +805,30 @@ fn undo_redo_works_in_this_reduced_scenario() {
     buffer.undo();
 
     assert_text_buffer_eq_ignoring_history!(buffer, expected_final_buffer);
+}
+
+#[test]
+fn undo_redo_works_on_this_single_movement_edit() {
+    undo_redo_works_on_these_edits_and_index(vec![TestEdit::MoveAllCursors(Move::Up)], 0);
+}
+
+#[test]
+fn undo_redo_works_on_a_wall_hitting_movement_after_an_insert() {
+    undo_redo_works_on_these_edits_and_index(
+        vec![TestEdit::Insert('a'), TestEdit::MoveAllCursors(Move::Up)],
+        0,
+    );
+}
+
+#[test]
+fn undo_redo_works_on_this_manually_invented_case() {
+    undo_redo_works_on_these_edits_and_index(
+        vec![
+            TestEdit::Insert('a'),
+            TestEdit::MoveAllCursors(Move::Left),
+            TestEdit::Insert('b'),
+            TestEdit::MoveAllCursors(Move::Right),
+        ],
+        2,
+    );
 }
