@@ -21,7 +21,10 @@ macro_rules! some_if {
     }};
 }
 
+use no_panic::no_panic;
+
 impl Rope {
+    //#[no_panic]
     #[inline]
     pub fn new() -> Self {
         Rope {

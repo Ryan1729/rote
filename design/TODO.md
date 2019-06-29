@@ -1,5 +1,8 @@
 ## TODO
 
+* create a `#[check_or_no_panic]` attr proc macro that adds `#[no_panic]` iff `invariant-checking` is enabled.
+  * this allows us to have guaranteed no panics, but if there is a hard to find bug we can get an assert panic from what would otherwise be a silently handled `Option`
+
 * basic Undo/Redo (no persistent storage)
   * write unimplemented interface for this
     * ctrl-z for undo

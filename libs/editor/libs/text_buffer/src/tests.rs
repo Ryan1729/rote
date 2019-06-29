@@ -832,3 +832,15 @@ fn undo_redo_works_on_this_manually_invented_case() {
         2,
     );
 }
+
+#[test]
+fn undo_redo_works_on_this_previously_panicking_case() {
+    undo_redo_works_on_these_edits_and_index(
+        vec![
+            TestEdit::Insert('a'),
+            TestEdit::ExtendSelectionForAllCursors(Move::Left),
+            TestEdit::Delete,
+        ],
+        2,
+    );
+}

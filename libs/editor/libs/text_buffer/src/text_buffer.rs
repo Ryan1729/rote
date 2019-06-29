@@ -50,27 +50,26 @@ fn offset_pair(rope: &Rope, cursor: &Cursor) -> OffsetPair {
     )
 }
 
+enum ApplyKind {
+    Record,
+    Playback,
+}
+
 impl TextBuffer {
     #[perf_viz::record]
     pub fn insert(&mut self, c: char) {
-        let edit = Edit::Insert(self.cursors.mapped_ref(|cursor| CharEdit {
-            c: c.into(),
-            offsets: offset_pair(&self.rope, cursor),
-        }));
-        self.apply_edit(&edit);
-
-        self.history.push_back(edit);
-        self.history_index += 1;
+        self.apply_edit(
+            Edit::Insert(self.cursors.mapped_ref(|cursor| CharEdit {
+                c: c.into(),
+                offsets: offset_pair(&self.rope, cursor),
+            })),
+            ApplyKind::Record,
+        );
     }
 
     #[perf_viz::record]
     pub fn delete(&mut self) {
-        let edit = Edit::Delete(self.get_char_edits());
-
-        self.apply_edit(&edit);
-
-        self.history.push_back(edit);
-        self.history_index += 1;
+        self.apply_edit(Edit::Delete(self.get_char_edits()), ApplyKind::Record);
     }
 
     fn get_char_edits(&self) -> Vec1<CharEdit> {
@@ -86,19 +85,15 @@ impl TextBuffer {
     }
 
     pub fn move_all_cursors(&mut self, r#move: Move) {
-        for i in 0..self.cursors().len() {
-            self.move_cursor(i, r#move)
-        }
+        self.apply_edit(Edit::Move { r#move }, ApplyKind::Record);
     }
 
     pub fn extend_selection_for_all_cursors(&mut self, r#move: Move) {
-        for i in 0..self.cursors().len() {
-            self.extend_selection(i, r#move)
-        }
+        self.apply_edit(Edit::Select { r#move }, ApplyKind::Record);
     }
 
-    fn apply_edit(&mut self, edit: &Edit) {
-        match edit {
+    fn apply_edit(&mut self, edit: Edit, kind: ApplyKind) {
+        match &edit {
             Edit::Insert(edits) => {
                 for (cursor, &CharEdit { c, offsets, .. }) in self.cursors.iter_mut().zip(edits) {
                     if let Some(c) = c {
@@ -147,7 +142,24 @@ impl TextBuffer {
                     }
                 }
             }
-            &Edit::Select { r#move } => self.extend_selection_for_all_cursors(r#move),
+            &Edit::Move { r#move } => {
+                for i in 0..self.cursors().len() {
+                    self.move_cursor(i, r#move)
+                }
+            }
+            &Edit::Select { r#move } => {
+                for i in 0..self.cursors().len() {
+                    self.extend_selection(i, r#move)
+                }
+            }
+        }
+
+        match kind {
+            ApplyKind::Record => {
+                self.history.push_back(edit);
+                self.history_index += 1;
+            }
+            ApplyKind::Playback => {}
         }
     }
 
@@ -603,6 +615,7 @@ struct CharEdit {
 enum Edit {
     Insert(Vec1<CharEdit>),
     Delete(Vec1<CharEdit>),
+    Move { r#move: Move },
     Select { r#move: Move },
 }
 
@@ -619,6 +632,7 @@ impl std::ops::Not for Edit {
                 ..e
             })),
             Edit::Delete(edits) => Edit::Insert(edits),
+            Edit::Move { r#move } => Edit::Move { r#move: !r#move },
             Edit::Select { r#move } => Edit::Select { r#move: !r#move },
         }
     }
@@ -630,7 +644,7 @@ impl TextBuffer {
             .get(self.history_index)
             .cloned()
             .map(|edit| {
-                self.apply_edit(&dbg!(edit));
+                self.apply_edit(edit, ApplyKind::Playback);
                 self.history_index += 1;
             })
     }
@@ -638,7 +652,7 @@ impl TextBuffer {
     pub fn undo(&mut self) -> Option<()> {
         let new_index = self.history_index.checked_sub(1)?;
         self.history.get(new_index).cloned().map(|edit| {
-            self.apply_edit(&dbg!(!edit));
+            self.apply_edit(!edit, ApplyKind::Playback);
             self.history_index = new_index;
         })
     }

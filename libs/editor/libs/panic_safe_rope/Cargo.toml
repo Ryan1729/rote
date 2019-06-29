@@ -9,6 +9,7 @@ path = "./src/panic_safe_rope.rs"
 
 [dependencies]
 ropey = "1.0.1"
+no-panic = "0.1"
 
 [dependencies.macros]
 path = "../../../macros"

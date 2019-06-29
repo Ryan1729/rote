@@ -8,6 +8,7 @@ edition = "2018"
 path = "./src/editor.rs"
 
 [dependencies]
+no-panic = "0.1"
 
 [dependencies.if_changed]
 path = "../if_changed"
