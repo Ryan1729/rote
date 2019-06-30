@@ -8,7 +8,9 @@ edition = "2018"
 path = "./src/editor.rs"
 
 [dependencies]
-no-panic = "0.1"
+
+[dependencies.check_or_no_panic]
+path = "../check_or_no_panic"
 
 [dependencies.if_changed]
 path = "../if_changed"
@@ -32,6 +34,10 @@ path = "libs/text_buffer"
 
 [dev-dependencies]
 criterion = "0.2"
+
+[features]
+default = []
+invariant-checking = ["check_or_no_panic/invariant-checking"]
 
 [[bench]]
 name = "user_input"

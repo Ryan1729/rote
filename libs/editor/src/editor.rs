@@ -161,7 +161,7 @@ macro_rules! set_if_present {
     };
 }
 
-#[no_panic::no_panic]
+//#[check_or_no_panic::check_or_no_panic]
 pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutput {
     update_and_render_inner(state, input)
 }

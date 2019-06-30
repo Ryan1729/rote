@@ -21,10 +21,10 @@ macro_rules! some_if {
     }};
 }
 
-use no_panic::no_panic;
+use check_or_no_panic::check_or_no_panic;
 
 impl Rope {
-    //#[no_panic]
+    //#[check_or_no_panic]
     #[inline]
     pub fn new() -> Self {
         Rope {
@@ -86,6 +86,7 @@ impl Rope {
 
     /// Returns `None` and does not mutate if the start of the range is greater than the end, or if the
     /// end is out of bounds (i.e. `end > len_chars()`).
+    //#[check_or_no_panic]
     pub fn remove<R>(&mut self, char_range: R) -> Option<()>
     where
         R: RangeBounds<usize>,

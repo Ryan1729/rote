@@ -716,41 +716,44 @@ fn undo_redo_works_on_these_edits_and_index(edits: Vec<TestEdit>, index: usize) 
 
     if len != 0 {
         for i in 0..dbg!(dbg!(len - 1) - index) {
-            dbg!(i);
+            dbg!();
             buffer.undo();
         }
     }
-    dbg!(1);
+    dbg!();
     assert_text_buffer_eq_ignoring_history!(buffer, expected_buffer_at_index);
 
     for _ in 0..len {
         buffer.redo();
     }
 
-    dbg!(2);
+    dbg!();
     assert_text_buffer_eq_ignoring_history!(buffer, final_buffer);
 
     // Redo with no redos left should be a no-op
     for _ in 0..3 {
+        dbg!();
         buffer.redo();
     }
 
-    dbg!(3);
+    dbg!();
     assert_text_buffer_eq_ignoring_history!(buffer, final_buffer);
 
     for _ in 0..len {
-        buffer.undo();
+        dbg!();
+        dbg!(&mut buffer).undo();
     }
 
-    dbg!(4);
+    dbg!();
     assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
 
     // undo with no undos left should be a no-op
     for _ in 0..3 {
+        dbg!();
         buffer.undo();
     }
 
-    dbg!(5);
+    dbg!();
     assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
 }
 

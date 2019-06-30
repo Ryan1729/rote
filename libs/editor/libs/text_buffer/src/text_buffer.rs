@@ -97,7 +97,7 @@ impl TextBuffer {
             Edit::Insert(edits) => {
                 for (cursor, &CharEdit { c, offsets, .. }) in self.cursors.iter_mut().zip(edits) {
                     if let Some(c) = c {
-                        match offsets {
+                        match dbg!(offsets) {
                             (Some(AbsoluteCharOffset(o)), highlight)
                                 if highlight.is_none()
                                     || Some(AbsoluteCharOffset(o)) == highlight =>
