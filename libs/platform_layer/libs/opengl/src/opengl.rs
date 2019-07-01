@@ -430,7 +430,12 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                             _ => (),
                         },
                         WindowEvent::ReceivedCharacter(mut c) => {
-                            if c != '\u{7f}' && c != '\u{8}' {
+                            if
+                             c != '\u{7f}'      // delete
+                             && c != '\u{8}'   // backspace
+                             && c != '\u{19}'  // "end of medium" (sent with Ctrl-y)
+                             && c != '\u{1a}'  // "substitute" (sent with Ctrl-z)
+                          {
                                 if c == '\r' {
                                     c = '\n';
                                 }

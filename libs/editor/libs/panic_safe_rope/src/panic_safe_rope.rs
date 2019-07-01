@@ -95,7 +95,7 @@ impl Rope {
         let end = end_bound_to_num(char_range.end_bound()).unwrap_or_else(|| self.len_chars());
 
         some_if!(
-            start <= end || end <= self.len_chars() => self.rope.remove(char_range)
+            start <= end && end <= self.len_chars() => self.rope.remove(char_range)
         )
     }
 
@@ -215,7 +215,7 @@ impl Rope {
         let end = end_bound_to_num(char_range.end_bound()).unwrap_or_else(|| self.len_chars());
 
         some_if!(
-            start <= end || end <= self.len_chars() => self.rope.slice(char_range)
+            start <= end && end <= self.len_chars() => self.rope.slice(char_range)
         )
     }
 

@@ -2,7 +2,7 @@ use editor_types::{CursorState, Vec1};
 use macros::{c, d};
 use platform_types::{
     position_to_screen_space, push_highlights, screen_space_to_position, BufferView, CharDim, Cmd,
-    Input, ScreenSpaceXY, UpdateAndRenderOutput, View,
+    Input, UpdateAndRenderOutput, View,
 };
 use text_buffer::TextBuffer;
 

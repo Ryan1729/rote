@@ -633,14 +633,16 @@ fn arb_edit_insert() -> impl Strategy<Value = TestEdit> {
     any::<char>().prop_map(TestEdit::Insert)
 }
 
-fn arb_edit_non_control_insert() -> impl Strategy<Value = TestEdit> {
-    "\\PC".prop_map(|s| TestEdit::Insert(s.chars().next().unwrap_or('a')))
+type Regex = &'static str;
+
+fn arb_edit_regex_insert(regex: Regex) -> impl Strategy<Value = TestEdit> {
+    regex.prop_map(|s| TestEdit::Insert(s.chars().next().unwrap_or('a')))
 }
 
 enum ArbEditSpec {
     All,
     Insert,
-    NonControlInsert,
+    RegexInsert(Regex),
 }
 
 prop_compose! {
@@ -649,7 +651,7 @@ prop_compose! {
             match spec {
                 ArbEditSpec::All => arb_edit().boxed(),
                 ArbEditSpec::Insert => arb_edit_insert().boxed(),
-                ArbEditSpec::NonControlInsert => arb_edit_non_control_insert().boxed(),
+                ArbEditSpec::RegexInsert(regex) => arb_edit_regex_insert(regex).boxed(),
             },
             0..max_len
         ))
@@ -715,7 +717,7 @@ fn undo_redo_works_on_these_edits_and_index(edits: Vec<TestEdit>, index: usize) 
     let len = edits.len();
 
     if len != 0 {
-        for i in 0..dbg!(dbg!(len - 1) - index) {
+        for _ in 0..dbg!(dbg!(len - 1) - index) {
             dbg!();
             buffer.undo();
         }
@@ -769,7 +771,12 @@ proptest! {
     }
 
     #[test]
-    fn undo_redo_works_on_non_control_inserts((edits, index) in arb_edits_and_index(16, ArbEditSpec::NonControlInsert)) {
+    fn undo_redo_works_on_non_control_inserts((edits, index) in arb_edits_and_index(16, ArbEditSpec::RegexInsert("\\PC"))) {
+        undo_redo_works_on_these_edits_and_index(edits, index);
+    }
+
+    #[test]
+    fn undo_redo_works_on_non_cr_inserts((edits, index) in arb_edits_and_index(16, ArbEditSpec::RegexInsert("[^\r]"))) {
         undo_redo_works_on_these_edits_and_index(edits, index);
     }
 }
@@ -846,4 +853,50 @@ fn undo_redo_works_on_this_previously_panicking_case() {
         ],
         2,
     );
+}
+
+#[test]
+fn undo_redo_works_on_this_cr_lf_case() { // sigh
+    undo_redo_works_on_these_edits_and_index(
+        vec![
+            TestEdit::Insert('\r'), TestEdit::Insert('\n')
+        ],
+        0,
+    );
+}
+
+#[test]
+fn undo_redo_works_on_this_line_end_case() {
+    undo_redo_works_on_these_edits_and_index(
+        vec![TestEdit::Insert('a'), TestEdit::MoveAllCursors(Move::ToLineEnd)],
+        0,
+    );
+}
+
+#[test]
+fn undo_redo_works_in_this_familiar_scenario() {
+    let initial_buffer: TextBuffer = d!();
+    let mut buffer: TextBuffer = deep_clone(&initial_buffer);
+
+    apply_edit(&mut buffer, TestEdit::Insert('1'));
+
+    let buffer_with_1 = deep_clone(&buffer);
+
+    apply_edit(&mut buffer, TestEdit::Insert('2'));
+
+    let buffer_with_2 = deep_clone(&buffer);
+
+    apply_edit(&mut buffer, TestEdit::Insert('3'));
+
+    buffer.undo();
+
+    assert_text_buffer_eq_ignoring_history!(buffer, buffer_with_2);
+
+    buffer.undo();
+
+    assert_text_buffer_eq_ignoring_history!(buffer, buffer_with_1);
+
+    buffer.undo();
+
+    assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
 }

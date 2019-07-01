@@ -97,7 +97,7 @@ impl TextBuffer {
             Edit::Insert(edits) => {
                 for (cursor, &CharEdit { c, offsets, .. }) in self.cursors.iter_mut().zip(edits) {
                     if let Some(c) = c {
-                        match dbg!(offsets) {
+                        match offsets {
                             (Some(AbsoluteCharOffset(o)), highlight)
                                 if highlight.is_none()
                                     || Some(AbsoluteCharOffset(o)) == highlight =>
@@ -126,8 +126,28 @@ impl TextBuffer {
                 for (cursor, &CharEdit { offsets, .. }) in self.cursors.iter_mut().zip(edits) {
                     match offsets {
                         (Some(AbsoluteCharOffset(o)), None) if o > 0 => {
+                            // Deleting the LF ('\n') of a CRLF ("\r\n") pair is a special case
+                            // where the cursor should not be moved backwards. Thsi is because
+                            // CR ('\r') and CRLF ("\r\n") both count as a single newline.
+                            // TODO would it better to just delete both at once? That seems like
+                            // it would require a moe comlicated special case elsewhere.
+                            let not_deleting_lf_of_cr_lf = {
+                                let rope = &self.rope; // without this we get a borrowck error
+
+                                o.checked_sub(2).and_then(|two_back| {
+                                    let mut chars = rope.slice(two_back..o)?.chars();
+
+                                    Some(
+                                        (chars.next()?, chars.next()?) != ('\r', '\n')
+                                    )
+                                }).unwrap_or(true)
+                            };
+
                             self.rope.remove((o - 1)..o);
-                            move_cursor::directly(&self.rope, cursor, Move::Left);
+
+                            if not_deleting_lf_of_cr_lf {
+                                move_cursor::directly(&self.rope, cursor, Move::Left);
+                            }
                         }
                         (Some(o1), Some(o2)) if o1 > 0 || o2 > 0 => {
                             let min = std::cmp::min(o1, o2);
@@ -356,7 +376,7 @@ mod move_cursor {
 
     pub fn directly(rope: &Rope, cursor: &mut Cursor, r#move: Move) {
         directly_custom(rope, cursor, r#move, SetPositionAction::ClearHighlight);
-        dbg!(("directly_custom", &cursor));
+        dbg!(("directly_custom", rope, cursor, r#move));
     }
     pub fn directly_custom(
         rope: &Rope,
@@ -398,10 +418,7 @@ mod move_cursor {
             // the postion matches.
             cursor.set_position_custom(position, action);
         } else if in_cursor_bounds(rope, &position) {
-            dbg!(&cursor);
-            dbg!((position, action));
             cursor.set_position_custom(position, action);
-            dbg!(&cursor);
 
             // Remember this offset so that we can try
             // to maintain it when moving across lines.
@@ -422,8 +439,6 @@ mod move_cursor {
         action: SetPositionAction,
     ) -> Moved {
         let target_line = new_position.line;
-        dbg!(action);
-        dbg!((&cursor, new_position, action));
         let mut output = move_to(rope, cursor, new_position, action);
         if let Moved::No = output {
             let mut target_offset = d!();
@@ -652,7 +667,7 @@ impl TextBuffer {
     pub fn undo(&mut self) -> Option<()> {
         let new_index = self.history_index.checked_sub(1)?;
         self.history.get(new_index).cloned().map(|edit| {
-            self.apply_edit(!edit, ApplyKind::Playback);
+            self.apply_edit(dbg!(!dbg!(edit)), ApplyKind::Playback);
             self.history_index = new_index;
         })
     }
