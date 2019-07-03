@@ -101,6 +101,12 @@ macro_rules! integer_newtype {
             }
         }
 
+        impl $name {
+            pub fn saturating_add(self, other: Self) -> Self {
+                $name(self.0.saturating_add(other.0))
+            }
+        }
+
         impl std::ops::Sub for $name {
             type Output = $name;
 
@@ -112,6 +118,12 @@ macro_rules! integer_newtype {
         impl std::ops::SubAssign for $name {
             fn sub_assign(&mut self, other: $name) {
                 *self = self.sub(other);
+            }
+        }
+
+        impl $name {
+            pub fn saturating_sub(self, other: Self) -> Self {
+                $name(self.0.saturating_sub(other.0))
             }
         }
 

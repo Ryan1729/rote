@@ -719,7 +719,13 @@ impl std::ops::Not for Edit {
                 ),
                 ..e
             })),
-            Edit::Delete(edits) => Edit::Insert(edits),
+            Edit::Delete(edits) => Edit::Insert(edits.mapped(|e| CharEdit {
+                offsets: (
+                    Some(e.offsets.0.map(|o| o.saturating_sub(AbsoluteCharOffset(1))).unwrap_or_default()),
+                    e.offsets.1,
+                ),
+                ..e
+            })),
             Edit::Move(c) => Edit::Move(!c),
             Edit::Select(c) => Edit::Select(!c),
         }

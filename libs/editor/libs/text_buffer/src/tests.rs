@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use super::{cursor_assert, r, t_b, *};
 use platform_types::pos;
 use proptest::prelude::*;
@@ -11,7 +12,7 @@ prop_compose! {
 }
 
 prop_compose! {
-    fn arb_absolute_char_offset(max_len: usize)(offset in 0..max_len) -> AbsoluteCharOffset {
+    fn arb_absolute_char_offset(max_len: usize)(offset in 0..=max_len) -> AbsoluteCharOffset {
         AbsoluteCharOffset(offset)
     }
 }
@@ -51,7 +52,7 @@ fn arb_rope_and_pos() -> impl Strategy<Value = (Rope, Position)> {
 }
 
 prop_compose! {
-    fn arb_char_offset(max_len: usize)(offset in 0..max_len) -> CharOffset {
+    fn arb_char_offset(max_len: usize)(offset in 0..=max_len) -> CharOffset {
         CharOffset(offset)
     }
 }
@@ -626,7 +627,7 @@ fn arb_move() -> impl Strategy<Value = Move> {
 }
 
 // Because I couldn't figure out the types for this. And it looks like `proptest` ends up making
-// custom structs for each instnace of things like this.
+// custom structs for each instance of things like this.
 macro_rules! arb_change {
     ($strat: expr) => {
         ($strat, $strat).prop_map(|(old, new)| Change {
@@ -650,24 +651,21 @@ fn vec1<D: Debug>(strat: impl Strategy<Value = D>, max_len: usize) -> impl Strat
         .prop_map(|v| Vec1::try_from_vec(v).expect("we said at least one!"))
 }
 
-const arb_offset_pair_size: usize = 16;
+const ARB_OFFSET_PAIR_SIZE: usize = 16;
 prop_compose! {
     fn arb_offset_pair()(
-        o1 in option::of(arb_absolute_char_offset(arb_offset_pair_size)),
-        o2 in option::of(arb_absolute_char_offset(arb_offset_pair_size))
+        o1 in option::of(arb_absolute_char_offset(ARB_OFFSET_PAIR_SIZE)),
+        o2 in option::of(arb_absolute_char_offset(ARB_OFFSET_PAIR_SIZE))
     ) -> OffsetPair {
         (o1, o2)
     }
 }
 
-
-const arb_cursor_size: usize = 16;
-
 prop_compose! {
-    fn arb_cursor()(
-        position in arb_pos(arb_cursor_size, arb_cursor_size),
-        highlight_position in arb_pos(arb_cursor_size, arb_cursor_size),
-        sticky_offset in arb_char_offset(arb_cursor_size),
+    fn arb_cursor(max_len: usize)(
+        position in arb_pos(max_len, max_len),
+        highlight_position in arb_pos(max_len, max_len),
+        sticky_offset in arb_char_offset(max_len),
         state in arb_cursor_state()
     ) -> Cursor {
         let mut c = Cursor::new(position);
@@ -680,19 +678,63 @@ prop_compose! {
 
 
 fn arb_cursors(max_len: usize) -> impl Strategy<Value = Cursors> {
-    vec1(arb_cursor(), max_len)
+    // It doesn't semm particularly useful to have more cursors than text positions.
+    vec1(arb_cursor(max_len), max_len)
+}
+
+prop_compose! {
+    fn arb_no_history_text_buffer()
+    (rope in arb_rope())
+    (cursors in arb_cursors(rope.chars().count()), r in Just(rope)) -> TextBuffer {
+        let mut text_buffer: TextBuffer = d!();
+        text_buffer.rope = r;
+        text_buffer.cursors = cursors;
+        text_buffer
+    }
 }
 
 fn arb_edit() -> impl Strategy<Value = Edit> {
-    const len: usize = 16;
+    const LEN: usize = 16;
     prop_oneof![
-        vec1(arb_char_edit(), len).prop_map(Edit::Insert),
-        vec1(arb_char_edit(), len).prop_map(Edit::Delete),
-        arb_change!(arb_cursors(len)).prop_map(Edit::Move),
-        arb_change!(arb_cursors(len)).prop_map(Edit::Select),
+        vec1(arb_char_edit(), LEN).prop_map(Edit::Insert),
+        vec1(arb_char_edit(), LEN).prop_map(Edit::Delete),
+        arb_change!(arb_cursors(LEN)).prop_map(Edit::Move),
+        arb_change!(arb_cursors(LEN)).prop_map(Edit::Select),
     ]
 }
 
+fn arb_edit_from_buffer(text_buffer: TextBuffer) -> impl Strategy<Value = Edit> {
+    let cs = text_buffer.cursors.clone();
+    arb_edit()
+    //Okay this amount of cloning and `move` annotation seems excessive.
+    .prop_map(move |mut edit| {
+        match edit {
+            Edit::Move(ref mut change)| Edit::Select(ref mut change) => {
+                change.old = cs.clone();
+            }
+            _ => {}
+        }
+        edit
+    })
+}
+
+prop_compose! {
+    fn arb_no_history_text_buffer_and_edit()
+    (text_buffer in arb_no_history_text_buffer())
+    (edit in arb_edit_from_buffer(deep_clone(&text_buffer)), t_b in Just(text_buffer)) -> (TextBuffer, Edit) {
+        (t_b, edit)
+    }
+}
+
+// After some thought I am unable to establish a relationship between this property holding and
+// the property we actually care about, undo/redo working. It seemed intuitive that either this
+// property would imply undo/redo works or vice versa. But the closest I have come to
+// demonstrating a link requires assumiong that there is only one edit that produces a given rope
+// to rope transition, which is clearly false, (sometimes moving the cursor one spec doen the same
+// thing as Home/End.) So, at this time it does not seem worth it to try to make this property
+// hold. But it feels like it might make sense to do this later, and it also feels like without
+// a reminder of this happneing before, it moght happen again so I will leave this commented out.
+/*
 proptest! {
     #[test]
     fn edits_double_negate_properly(edit in arb_edit()) {
@@ -701,6 +743,94 @@ proptest! {
         assert_eq!(!!edit, initial);
     }
 }
+*/
+
+fn negated_edit_undo_redos_properly(initial_buffer: TextBuffer, edit: Edit) {
+    let mut buffer: TextBuffer = deep_clone(&initial_buffer);
+
+    buffer.apply_edit(edit.clone(), ApplyKind::Record);
+
+    let modified_buffer = deep_clone(&buffer);
+
+    buffer.apply_edit(!(edit.clone()), ApplyKind::Playback);
+
+    assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
+
+    buffer.apply_edit(edit, ApplyKind::Playback);
+
+    assert_text_buffer_eq_ignoring_history!(buffer, modified_buffer);
+}
+
+// I am more confidnent that this weaker theorem follows directly from undo/redo working. It is
+// essentially the statement that undo/redo works for a single action.
+// However,it is complicated to generate valid edits for this, whereas the method used in
+// `undo_redo_works_on_these_edits_and_index` (seemingly?) generates valid edits every time.
+// So let's skip these for now.
+proptest! {
+    //#[test]
+    fn negated_edits_undo_redo_properly(
+        (initial_buffer, edit) in arb_no_history_text_buffer_and_edit()
+    ) {
+        negated_edit_undo_redos_properly(initial_buffer, edit)
+    }
+}
+
+//#[test]
+fn negated_edits_undo_redo_this_delete_edit() {
+    negated_edit_undo_redos_properly(
+        d!(),
+        Edit::Delete(
+            Vec1::new(CharEdit { c: Some('0'), offsets: (Some(AbsoluteCharOffset(0)), None) })
+        )
+    )
+}
+
+
+#[test]
+fn negated_edits_undo_redo_this_edit_that_only_changes_the_sticky_offset() {
+    let new_cursor = {
+        let mut c: Cursor = d!();
+        c.sticky_offset = CharOffset(1);
+        c
+    };
+
+    let initial_buffer: TextBuffer = d!();
+    let mut buffer: TextBuffer = deep_clone(&initial_buffer);
+
+    let edit = Edit::Move(Change {
+        // If the first old change does not correspond to the initial buffer, then undoing to that
+        // state can fail to match the initila buffer.
+        old: buffer.cursors.clone(),
+        new: Vec1::new(new_cursor.clone())
+    });
+
+    buffer.apply_edit(edit.clone(), ApplyKind::Record);
+
+    let modified_buffer = deep_clone(&buffer);
+
+    assert_eq!(modified_buffer.cursors.first(), &new_cursor);
+
+    let undo_edit = !(edit.clone());
+
+    match (&undo_edit, &edit) {
+        (Edit::Move(u), Edit::Move(e)) => {
+            assert_eq!(u.old, e.new);
+            assert_eq!(u.new, e.old);
+        }
+        _ => {
+            assert!(false);
+        }
+    }
+
+    buffer.apply_edit(undo_edit, ApplyKind::Playback);
+
+    assert_eq!(buffer.cursors.first(), initial_buffer.cursors.first());
+
+    buffer.apply_edit(edit, ApplyKind::Playback);
+
+    assert_eq!(buffer.cursors.first(), modified_buffer.cursors.first());
+}
+
 
 #[derive(Debug, Clone, Copy)]
 enum TestEdit {
@@ -1015,17 +1145,39 @@ fn undo_redo_works_on_this_reduced_simple_insert_delete_case() {
     let initial_buffer: TextBuffer = d!();
     let mut buffer: TextBuffer = deep_clone(&initial_buffer);
 
-    apply_edit(&mut buffer, TestEdit::Insert('a'));
+    let inserted_char = 'a';
+
+    apply_edit(&mut buffer, TestEdit::Insert(inserted_char));
 
     let buffer_with_a = deep_clone(&buffer);
 
     apply_edit(&mut buffer, TestEdit::Delete);
-dbg!();
+
+    dbg!();
+    let delete_edit = buffer.history.get(buffer.history_index.checked_sub(1).unwrap()).unwrap();
+    match delete_edit {
+        Edit::Delete(char_edits) => assert_eq!(char_edits.first().c, Some(inserted_char)),
+        _ => assert!(false),
+    }
+
+    dbg!();
     buffer.undo();
 
     assert_text_buffer_eq_ignoring_history!(buffer, buffer_with_a);
-
+    dbg!();
     buffer.undo();
 
     assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
+}
+
+#[test]
+fn undo_redo_works_on_this_move_to_line_start_case() {
+    undo_redo_works_on_these_edits_and_index(
+        vec![
+            TestEdit::Insert('¡'),
+            TestEdit::ExtendSelectionForAllCursors(Move::ToLineStart),
+            TestEdit::Delete
+        ],
+        0,
+    );
 }
