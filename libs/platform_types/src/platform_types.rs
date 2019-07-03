@@ -1,7 +1,7 @@
 use macros::{d, fmt_debug, fmt_display, integer_newtype, usize_newtype};
 use std::ops::{Add, Sub};
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Move {
     Up,
     Down,

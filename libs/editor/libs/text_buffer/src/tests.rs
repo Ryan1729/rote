@@ -1,7 +1,8 @@
 use super::{cursor_assert, r, t_b, *};
 use platform_types::pos;
 use proptest::prelude::*;
-use proptest::{prop_compose, proptest};
+use proptest::{prop_compose, proptest, option, collection};
+use std::fmt::Debug;
 
 prop_compose! {
     fn arb_rope()(s in any::<String>()) -> Rope {
@@ -47,6 +48,29 @@ fn arb_rope_and_pos() -> impl Strategy<Value = (Rope, Position)> {
             })
         })
     })
+}
+
+prop_compose! {
+    fn arb_char_offset(max_len: usize)(offset in 0..max_len) -> CharOffset {
+        CharOffset(offset)
+    }
+}
+
+// This is duplicated from `platform_types`'s `tests` module. There is a way to avoid thi s
+// duplication, but its complex enough that it does not seem worth ti for this code.
+// https://stackoverflow.com/a/42329538
+prop_compose! {
+    fn arb_pos(max_line: usize, max_offset: usize)
+    (line in 0..=max_line, offset in 0..=max_offset) -> Position {
+        Position{ line, offset: CharOffset(offset) }
+    }
+}
+
+fn arb_cursor_state() -> impl Strategy<Value = CursorState> {
+    prop_oneof![
+        Just(CursorState::None),
+        Just(CursorState::PressedAgainstWall),
+    ]
 }
 
 #[test]
@@ -601,6 +625,83 @@ fn arb_move() -> impl Strategy<Value = Move> {
     ]
 }
 
+// Because I couldn't figure out the types for this. And it looks like `proptest` ends up making
+// custom structs for each instnace of things like this.
+macro_rules! arb_change {
+    ($strat: expr) => {
+        ($strat, $strat).prop_map(|(old, new)| Change {
+            old,
+            new,
+        })
+    }
+}
+
+prop_compose! {
+    fn arb_char_edit()(c in option::of(any::<char>()), offsets in arb_offset_pair()) -> CharEdit {
+        CharEdit {
+            c,
+            offsets,
+        }
+    }
+}
+
+fn vec1<D: Debug>(strat: impl Strategy<Value = D>, max_len: usize) -> impl Strategy<Value = Vec1<D>> {
+    collection::vec(strat, 1..std::cmp::max(2, max_len))
+        .prop_map(|v| Vec1::try_from_vec(v).expect("we said at least one!"))
+}
+
+const arb_offset_pair_size: usize = 16;
+prop_compose! {
+    fn arb_offset_pair()(
+        o1 in option::of(arb_absolute_char_offset(arb_offset_pair_size)),
+        o2 in option::of(arb_absolute_char_offset(arb_offset_pair_size))
+    ) -> OffsetPair {
+        (o1, o2)
+    }
+}
+
+
+const arb_cursor_size: usize = 16;
+
+prop_compose! {
+    fn arb_cursor()(
+        position in arb_pos(arb_cursor_size, arb_cursor_size),
+        highlight_position in arb_pos(arb_cursor_size, arb_cursor_size),
+        sticky_offset in arb_char_offset(arb_cursor_size),
+        state in arb_cursor_state()
+    ) -> Cursor {
+        let mut c = Cursor::new(position);
+        c.set_highlight_position(highlight_position);
+        c.sticky_offset = sticky_offset;
+        c.state = state;
+        c
+    }
+}
+
+
+fn arb_cursors(max_len: usize) -> impl Strategy<Value = Cursors> {
+    vec1(arb_cursor(), max_len)
+}
+
+fn arb_edit() -> impl Strategy<Value = Edit> {
+    const len: usize = 16;
+    prop_oneof![
+        vec1(arb_char_edit(), len).prop_map(Edit::Insert),
+        vec1(arb_char_edit(), len).prop_map(Edit::Delete),
+        arb_change!(arb_cursors(len)).prop_map(Edit::Move),
+        arb_change!(arb_cursors(len)).prop_map(Edit::Select),
+    ]
+}
+
+proptest! {
+    #[test]
+    fn edits_double_negate_properly(edit in arb_edit()) {
+        let initial = edit.clone();
+
+        assert_eq!(!!edit, initial);
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 enum TestEdit {
     Insert(char),
@@ -620,7 +721,7 @@ fn apply_edit(buffer: &mut TextBuffer, edit: TestEdit) {
     }
 }
 
-fn arb_edit() -> impl Strategy<Value = TestEdit> {
+fn arb_test_edit() -> impl Strategy<Value = TestEdit> {
     prop_oneof![
         Just(TestEdit::Delete),
         any::<char>().prop_map(TestEdit::Insert),
@@ -629,29 +730,29 @@ fn arb_edit() -> impl Strategy<Value = TestEdit> {
     ]
 }
 
-fn arb_edit_insert() -> impl Strategy<Value = TestEdit> {
+fn arb_test_edit_insert() -> impl Strategy<Value = TestEdit> {
     any::<char>().prop_map(TestEdit::Insert)
 }
 
 type Regex = &'static str;
 
-fn arb_edit_regex_insert(regex: Regex) -> impl Strategy<Value = TestEdit> {
+fn arb_test_edit_regex_insert(regex: Regex) -> impl Strategy<Value = TestEdit> {
     regex.prop_map(|s| TestEdit::Insert(s.chars().next().unwrap_or('a')))
 }
 
-enum ArbEditSpec {
+enum ArbTestEditSpec {
     All,
     Insert,
     RegexInsert(Regex),
 }
 
 prop_compose! {
-    fn arb_edits_and_index(max_len: usize, spec: ArbEditSpec)
-        (edits in proptest::collection::vec(
+    fn arb_test_edits_and_index(max_len: usize, spec: ArbTestEditSpec)
+        (edits in collection::vec(
             match spec {
-                ArbEditSpec::All => arb_edit().boxed(),
-                ArbEditSpec::Insert => arb_edit_insert().boxed(),
-                ArbEditSpec::RegexInsert(regex) => arb_edit_regex_insert(regex).boxed(),
+                ArbTestEditSpec::All => arb_test_edit().boxed(),
+                ArbTestEditSpec::Insert => arb_test_edit_insert().boxed(),
+                ArbTestEditSpec::RegexInsert(regex) => arb_test_edit_regex_insert(regex).boxed(),
             },
             0..max_len
         ))
@@ -761,22 +862,22 @@ fn undo_redo_works_on_these_edits_and_index(edits: Vec<TestEdit>, index: usize) 
 
 proptest! {
     #[test]
-    fn undo_redo_works((edits, index) in arb_edits_and_index(16, ArbEditSpec::All)) {
+    fn undo_redo_works((edits, index) in arb_test_edits_and_index(16, ArbTestEditSpec::All)) {
         undo_redo_works_on_these_edits_and_index(edits, index);
     }
 
     #[test]
-    fn undo_redo_works_on_inserts((edits, index) in arb_edits_and_index(16, ArbEditSpec::Insert)) {
+    fn undo_redo_works_on_inserts((edits, index) in arb_test_edits_and_index(16, ArbTestEditSpec::Insert)) {
         undo_redo_works_on_these_edits_and_index(edits, index);
     }
 
     #[test]
-    fn undo_redo_works_on_non_control_inserts((edits, index) in arb_edits_and_index(16, ArbEditSpec::RegexInsert("\\PC"))) {
+    fn undo_redo_works_on_non_control_inserts((edits, index) in arb_test_edits_and_index(16, ArbTestEditSpec::RegexInsert("\\PC"))) {
         undo_redo_works_on_these_edits_and_index(edits, index);
     }
 
     #[test]
-    fn undo_redo_works_on_non_cr_inserts((edits, index) in arb_edits_and_index(16, ArbEditSpec::RegexInsert("[^\r]"))) {
+    fn undo_redo_works_on_non_cr_inserts((edits, index) in arb_test_edits_and_index(16, ArbTestEditSpec::RegexInsert("[^\r]"))) {
         undo_redo_works_on_these_edits_and_index(edits, index);
     }
 }
@@ -895,6 +996,34 @@ fn undo_redo_works_in_this_familiar_scenario() {
     buffer.undo();
 
     assert_text_buffer_eq_ignoring_history!(buffer, buffer_with_1);
+
+    buffer.undo();
+
+    assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
+}
+
+#[test]
+fn undo_redo_works_on_this_simple_insert_delete_case() {
+    undo_redo_works_on_these_edits_and_index(
+        vec![TestEdit::Insert('a'), TestEdit::Delete],
+        0,
+    );
+}
+
+#[test]
+fn undo_redo_works_on_this_reduced_simple_insert_delete_case() {
+    let initial_buffer: TextBuffer = d!();
+    let mut buffer: TextBuffer = deep_clone(&initial_buffer);
+
+    apply_edit(&mut buffer, TestEdit::Insert('a'));
+
+    let buffer_with_a = deep_clone(&buffer);
+
+    apply_edit(&mut buffer, TestEdit::Delete);
+dbg!();
+    buffer.undo();
+
+    assert_text_buffer_eq_ignoring_history!(buffer, buffer_with_a);
 
     buffer.undo();
 

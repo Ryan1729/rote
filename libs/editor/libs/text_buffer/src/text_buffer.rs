@@ -55,6 +55,21 @@ enum ApplyKind {
     Playback,
 }
 
+enum AllOrOne {
+    All,
+    Index(usize),
+}
+
+enum MoveOrSelect {
+    Move,
+    Select,
+}
+
+struct CursorMoveSpec {
+    what: MoveOrSelect,
+    how_many: AllOrOne,
+}
+
 impl TextBuffer {
     #[perf_viz::record]
     pub fn insert(&mut self, c: char) {
@@ -76,20 +91,75 @@ impl TextBuffer {
         self.cursors().mapped_ref(|cursor| {
             let offsets = offset_pair(&self.rope, cursor);
             CharEdit {
-                c: offsets
+                c: dbg!(offsets
                     .0
-                    .and_then(|AbsoluteCharOffset(o)| self.rope.char(o)),
+                    .and_then(|AbsoluteCharOffset(o)|
+                        o.checked_sub(1).and_then(|o| self.rope.char(o))
+                    )),
                 offsets,
             }
         })
     }
 
     pub fn move_all_cursors(&mut self, r#move: Move) {
-        self.apply_edit(Edit::Move { r#move }, ApplyKind::Record);
+        self.move_cursors(CursorMoveSpec {
+            what: MoveOrSelect::Move,
+            how_many: AllOrOne::All,
+        }, r#move);
     }
 
     pub fn extend_selection_for_all_cursors(&mut self, r#move: Move) {
-        self.apply_edit(Edit::Select { r#move }, ApplyKind::Record);
+        self.move_cursors(CursorMoveSpec {
+            what: MoveOrSelect::Select,
+            how_many: AllOrOne::All,
+        }, r#move);
+    }
+
+    #[perf_viz::record]
+    fn move_cursor(&mut self, index: usize, r#move: Move) {
+        self.move_cursors(CursorMoveSpec {
+            what: MoveOrSelect::Move,
+            how_many: AllOrOne::Index(index),
+        }, r#move);
+    }
+
+    #[perf_viz::record]
+    fn extend_selection(&mut self, index: usize, r#move: Move) {
+        self.move_cursors(CursorMoveSpec {
+            what: MoveOrSelect::Select,
+            how_many: AllOrOne::Index(index),
+        }, r#move);
+    }
+
+    fn move_cursors(&mut self, spec: CursorMoveSpec, r#move: Move) -> Option<()> {
+        // There is probably a way to save a copy here, by keeping the old one on the heap and
+        // ref counting, but that seems overly complicated, given it has not been a problem so far.
+        let old = self.cursors.clone();
+        let mut new = self.cursors.clone();
+
+        let (action, variant): (
+            for<'r, 's>
+            fn(&'r Rope, &'s mut Cursor, Move),
+            fn(Change<Cursors>) -> Edit
+        ) = match spec.what {
+            MoveOrSelect::Move => (move_cursor::or_clear_highlights, Edit::Move),
+            MoveOrSelect::Select => (move_cursor::and_extend_selection, Edit::Select)
+        };
+
+        match spec.how_many {
+            AllOrOne::All => {
+                for cursor in new.iter_mut() {
+                    action(&self.rope, cursor, r#move);
+                }
+            },
+            AllOrOne::Index(index) => {
+                action(&self.rope, dbg!(new.get_mut(index)?), r#move);
+            }
+        };
+
+        Some(
+            self.apply_edit(variant(Change { old, new }), ApplyKind::Record)
+        )
     }
 
     fn apply_edit(&mut self, edit: Edit, kind: ApplyKind) {
@@ -162,15 +232,8 @@ impl TextBuffer {
                     }
                 }
             }
-            &Edit::Move { r#move } => {
-                for i in 0..self.cursors().len() {
-                    self.move_cursor(i, r#move)
-                }
-            }
-            &Edit::Select { r#move } => {
-                for i in 0..self.cursors().len() {
-                    self.extend_selection(i, r#move)
-                }
+            Edit::Select(Change { new, .. }) | Edit::Move(Change { new, .. }) => {
+                self.cursors = new.clone();
             }
         }
 
@@ -185,46 +248,6 @@ impl TextBuffer {
 
     pub fn cursors(&self) -> &Vec1<Cursor> {
         self.borrow()
-    }
-
-    #[perf_viz::record]
-    pub fn move_cursor(&mut self, index: usize, r#move: Move) {
-        if let Some(cursor) = self.cursors.get_mut(index) {
-            if let Some(p) = cursor.get_highlight_position() {
-                use std::cmp::{max, min};
-                match r#move {
-                    Move::Up | Move::Left => {
-                        //we might need to clear the highlight_position and set the cursor state
-                        cursor.set_position(min(p, cursor.get_position()));
-                    }
-                    Move::Down | Move::Right => {
-                        // see above comment
-                        cursor.set_position(max(p, cursor.get_position()));
-                    }
-                    Move::ToLineStart
-                    | Move::ToBufferStart
-                    | Move::ToLineEnd
-                    | Move::ToBufferEnd => {
-                        move_cursor::directly(&self.rope, cursor, r#move);
-                        cursor.state = d!();
-                    }
-                };
-            } else {
-                move_cursor::directly(&self.rope, cursor, r#move);
-            }
-        }
-    }
-
-    #[perf_viz::record]
-    pub fn extend_selection(&mut self, index: usize, r#move: Move) {
-        if let Some(cursor) = self.cursors.get_mut(index) {
-            move_cursor::directly_custom(
-                &self.rope,
-                cursor,
-                r#move,
-                SetPositionAction::ClearHighlightOnlyIfItMatchesNewPosition,
-            );
-        }
     }
 
     pub fn in_bounds<P: Borrow<Position>>(&self, position: P) -> bool {
@@ -373,6 +396,40 @@ fn char_offset_to_pos(
 
 mod move_cursor {
     use super::*;
+
+    pub fn or_clear_highlights(rope: &Rope, cursor: &mut Cursor, r#move: Move) {
+        if let Some(p) = cursor.get_highlight_position() {
+            use std::cmp::{max, min};
+            match r#move {
+                Move::Up | Move::Left => {
+                    //we might need to clear the highlight_position and set the cursor state
+                    cursor.set_position(min(p, cursor.get_position()));
+                }
+                Move::Down | Move::Right => {
+                    // see above comment
+                    cursor.set_position(max(p, cursor.get_position()));
+                }
+                Move::ToLineStart
+                | Move::ToBufferStart
+                | Move::ToLineEnd
+                | Move::ToBufferEnd => {
+                    move_cursor::directly(rope, cursor, r#move);
+                    cursor.state = d!();
+                }
+            };
+        } else {
+            move_cursor::directly(rope, cursor, r#move);
+        }
+    }
+
+    pub fn and_extend_selection(rope: &Rope, cursor: &mut Cursor, r#move: Move) {
+        directly_custom(
+            rope,
+            cursor,
+            r#move,
+            SetPositionAction::ClearHighlightOnlyIfItMatchesNewPosition,
+        );
+    }
 
     pub fn directly(rope: &Rope, cursor: &mut Cursor, r#move: Move) {
         directly_custom(rope, cursor, r#move, SetPositionAction::ClearHighlight);
@@ -620,18 +677,34 @@ enum MoveSpec {
 }
 d!(for MoveSpec: MoveSpec::To(d!()));
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct CharEdit {
     c: Option<char>,
     offsets: OffsetPair,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Change<T> {
+    old: T,
+    new: T
+}
+
+impl <T> std::ops::Not for Change<T> {
+    type Output = Change<T>;
+
+    fn not(self) -> Self::Output {
+        let Change { old, new } = self;
+
+        Change { old: new, new: old }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum Edit {
     Insert(Vec1<CharEdit>),
     Delete(Vec1<CharEdit>),
-    Move { r#move: Move },
-    Select { r#move: Move },
+    Move(Change<Cursors>),
+    Select(Change<Cursors>),
 }
 
 impl std::ops::Not for Edit {
@@ -647,8 +720,8 @@ impl std::ops::Not for Edit {
                 ..e
             })),
             Edit::Delete(edits) => Edit::Insert(edits),
-            Edit::Move { r#move } => Edit::Move { r#move: !r#move },
-            Edit::Select { r#move } => Edit::Select { r#move: !r#move },
+            Edit::Move(c) => Edit::Move(!c),
+            Edit::Select(c) => Edit::Select(!c),
         }
     }
 }
