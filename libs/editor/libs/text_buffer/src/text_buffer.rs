@@ -89,7 +89,7 @@ impl TextBuffer {
 
     fn get_char_edits(&self) -> Vec1<CharEdit> {
         self.cursors().mapped_ref(|cursor| {
-            let offsets = offset_pair(&self.rope, cursor);
+            let offsets = dbg!(offset_pair(&self.rope, cursor));
             CharEdit {
                 c: dbg!(offsets
                     .0
@@ -176,13 +176,7 @@ impl TextBuffer {
                                 move_cursor::directly(&self.rope, cursor, Move::Right);
                             }
                             (Some(o1), Some(o2)) => {
-                                let min = std::cmp::min(o1, o2);
-                                let max = std::cmp::max(o1, o2);
-
-                                self.rope.remove(min.0..max.0);
-                                cursor.set_position(
-                                    char_offset_to_pos(&self.rope, &min).unwrap_or_default(),
-                                );
+                                let min = delete_highlighted(&mut self.rope, cursor, o1, o2);
 
                                 self.rope.insert_char(min.0, c);
                                 move_cursor::directly(&self.rope, cursor, Move::Right);
@@ -220,13 +214,7 @@ impl TextBuffer {
                             }
                         }
                         (Some(o1), Some(o2)) if o1 > 0 || o2 > 0 => {
-                            let min = std::cmp::min(o1, o2);
-                            let max = std::cmp::max(o1, o2);
-
-                            self.rope.remove(dbg!(min.0..max.0));
-                            cursor.set_position(
-                                char_offset_to_pos(&self.rope, &min).unwrap_or_default(),
-                            );
+                            delete_highlighted(&mut self.rope, cursor, o1, o2);
                         }
                         _ => {}
                     }
@@ -305,6 +293,24 @@ impl TextBuffer {
             }
         }
     }
+}
+
+/// returns the minimum of the two passed in offsets.
+fn delete_highlighted(
+    rope: &mut Rope,
+    cursor: &mut Cursor,
+    o1: AbsoluteCharOffset,
+    o2: AbsoluteCharOffset
+) -> AbsoluteCharOffset {
+    let min = std::cmp::min(o1, o2);
+    let max = std::cmp::max(o1, o2);
+
+    rope.remove(min.0..max.0);
+    cursor.set_position(
+        char_offset_to_pos(&rope, &min).unwrap_or_default(),
+    );
+
+    min
 }
 
 fn valid_len_chars_for_line(rope: &Rope, line_index: usize) -> Option<usize> {
@@ -604,6 +610,8 @@ mod move_cursor {
     }
 }
 
+
+
 impl<'rope> TextBuffer {
     pub fn chars(&'rope self) -> impl Iterator<Item = char> + 'rope {
         self.rope.chars()
@@ -701,6 +709,7 @@ impl <T> std::ops::Not for Change<T> {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Edit {
+    /// We need a char edit for each cursor, becasue each charac5ter we delete can be different.
     Insert(Vec1<CharEdit>),
     Delete(Vec1<CharEdit>),
     Move(Change<Cursors>),

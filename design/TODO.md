@@ -1,5 +1,9 @@
 ## TODO
 
+* We can delete several chars in one delete or insert edit, if there are several things highlighted. So we need to be able to store multiple characters per `CharEdit`. So `c` will need to become a `String`.
+  * This implies that we should make an `insert_str` method that the current `insert` method on `TextBuffer` will call into.
+  * would it be an optimization to make an enum that can hold a `char` or a `String`? Essentially trading some stack space for often not needing any heap space.
+
 * basic Undo/Redo (no persistent storage)
   * write unimplemented interface for this
     * ctrl-z for undo

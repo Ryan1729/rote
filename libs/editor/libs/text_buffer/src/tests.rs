@@ -1181,3 +1181,33 @@ fn undo_redo_works_on_this_move_to_line_start_case() {
         0,
     );
 }
+
+#[test]
+fn undo_redo_works_on_this_reduced_move_to_line_start_case() {
+    let initial_buffer: TextBuffer = d!();
+    let mut buffer: TextBuffer = deep_clone(&initial_buffer);
+
+    apply_edit(&mut buffer, TestEdit::Insert('¡'));
+
+    let buffer_after_1 = deep_clone(&buffer);
+
+    apply_edit(&mut buffer, TestEdit::ExtendSelectionForAllCursors(Move::ToLineStart));
+
+    let buffer_after_2 = deep_clone(&buffer);
+
+    apply_edit(&mut buffer, TestEdit::Delete);
+    
+    assert_eq!(buffer.rope.to_string(),  "");
+
+    buffer.undo();
+
+    assert_text_buffer_eq_ignoring_history!(buffer, buffer_after_2);
+
+    buffer.undo();
+
+    assert_text_buffer_eq_ignoring_history!(buffer, buffer_after_1);
+
+    buffer.undo();
+
+    assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
+}
