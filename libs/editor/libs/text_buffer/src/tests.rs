@@ -696,8 +696,8 @@ prop_compose! {
 fn arb_edit() -> impl Strategy<Value = Edit> {
     const LEN: usize = 16;
     prop_oneof![
-        vec1(arb_char_edit(), LEN).prop_map(Edit::Insert),
-        vec1(arb_char_edit(), LEN).prop_map(Edit::Delete),
+        (vec1(arb_char_edit(), LEN), arb_change!(arb_cursors(LEN))).prop_map(|(es, cs)| Edit::Insert(es, cs)),
+        (vec1(arb_char_edit(), LEN), arb_change!(arb_cursors(LEN))).prop_map(|(es, cs)| Edit::Delete(es, cs)),
         arb_change!(arb_cursors(LEN)).prop_map(Edit::Move),
         arb_change!(arb_cursors(LEN)).prop_map(Edit::Select),
     ]
@@ -780,7 +780,8 @@ fn negated_edits_undo_redo_this_delete_edit() {
     negated_edit_undo_redos_properly(
         d!(),
         Edit::Delete(
-            Vec1::new(CharEdit { s: "0".to_owned(), offsets: (Some(AbsoluteCharOffset(0)), None) })
+            Vec1::new(CharEdit { s: "0".to_owned(), offsets: (Some(AbsoluteCharOffset(0)), None) }),
+            d!()
         )
     )
 }
@@ -1156,7 +1157,7 @@ fn undo_redo_works_on_this_reduced_simple_insert_delete_case() {
     dbg!();
     let delete_edit = buffer.history.get(buffer.history_index.checked_sub(1).unwrap()).unwrap();
     match delete_edit {
-        Edit::Delete(char_edits) => assert_eq!(char_edits.first().s, char_to_string(inserted_char)),
+        Edit::Delete(char_edits, _) => assert_eq!(char_edits.first().s, char_to_string(inserted_char)),
         _ => assert!(false),
     }
 

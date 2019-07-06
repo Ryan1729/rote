@@ -86,20 +86,18 @@ impl TextBuffer {
     pub fn insert_string(&mut self, s: String) {
         self.apply_edit(
             Edit::Insert(self.cursors.mapped_ref(|cursor| CharEdit {
-                s: s.clone(),
-                offsets: offset_pair(&self.rope, cursor),
-            })),
+                    s: s.clone(),
+                    offsets: offset_pair(&self.rope, cursor),
+                }),
+                d!() // TODO put the code that determines the cursor positions here
+            ),
             ApplyKind::Record,
         );
     }
 
     #[perf_viz::record]
     pub fn delete(&mut self) {
-        self.apply_edit(Edit::Delete(self.get_char_edits()), ApplyKind::Record);
-    }
-
-    fn get_char_edits(&self) -> Vec1<CharEdit> {
-        self.cursors().mapped_ref(|cursor| {
+        let char_edits = self.cursors().mapped_ref(|cursor| {
             let offsets = dbg!(offset_pair(&self.rope, cursor));
 
             match offsets {
@@ -129,9 +127,12 @@ impl TextBuffer {
                     }
                 }
             }
+        });
 
-
-        })
+        self.apply_edit(Edit::Delete(
+            char_edits,
+            d!() // TODO put the code that determines the cursor positions here
+        ), ApplyKind::Record);
     }
 
     pub fn move_all_cursors(&mut self, r#move: Move) {
@@ -197,7 +198,7 @@ impl TextBuffer {
 
     fn apply_edit(&mut self, edit: Edit, kind: ApplyKind) {
         match &edit {
-            Edit::Insert(edits) => {
+            Edit::Insert(edits, _) => {
                 for (ref mut cursor, CharEdit { ref s, ref offsets, .. }) in self.cursors.iter_mut().zip(edits) {
                     if s.is_empty() {
                         return;
@@ -220,7 +221,7 @@ impl TextBuffer {
                     }
                 }
             }
-            Edit::Delete(edits) => {
+            Edit::Delete(edits, _) => {
                 for (ref mut cursor, CharEdit { ref s, ref offsets, .. }) in self.cursors.iter_mut().zip(edits) {
                     if s.is_empty() {
                         return;
@@ -257,10 +258,10 @@ impl TextBuffer {
                     }
                 }
             }
-            Edit::Select(Change { new, .. }) | Edit::Move(Change { new, .. }) => {
-                self.cursors = new.clone();
-            }
+            _ => {}
         }
+
+        self.cursors = edit.new_cursors().clone();
 
         match kind {
             ApplyKind::Record => {
@@ -728,7 +729,7 @@ struct CharEdit {
     offsets: OffsetPair,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Default, Debug, PartialEq, Eq)]
 struct Change<T> {
     old: T,
     new: T
@@ -746,11 +747,23 @@ impl <T> std::ops::Not for Change<T> {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Edit {
-    /// We need a char edit for each cursor, becasue each charac5ter we delete can be different.
-    Insert(Vec1<CharEdit>),
-    Delete(Vec1<CharEdit>),
+    /// We need a char edit for each cursor, becasue each character we delete can be different.
+    Insert(Vec1<CharEdit>, Change<Cursors>),
+    Delete(Vec1<CharEdit>, Change<Cursors>),
     Move(Change<Cursors>),
     Select(Change<Cursors>),
+}
+
+impl Edit {
+    fn new_cursors(&self) -> &Cursors {
+        use Edit::*;
+        match self {
+            Insert(_, Change {new, ..}) => new,
+            Delete(_, Change {new, ..}) => new,
+            Move(Change {new, ..}) => new,
+            Select(Change {new, ..}) => new,
+        }
+    }
 }
 
 impl std::ops::Not for Edit {
@@ -758,20 +771,20 @@ impl std::ops::Not for Edit {
 
     fn not(self) -> Self::Output {
         match self {
-            Edit::Insert(edits) => Edit::Delete(edits.mapped(|e| CharEdit {
+            Edit::Insert(edits, change) => Edit::Delete(edits.mapped(|e| CharEdit {
                 offsets: (
                     Some(e.offsets.0.map(|o| o + 1).unwrap_or_default()),
                     e.offsets.1,
                 ),
                 ..e
-            })),
-            Edit::Delete(edits) => Edit::Insert(edits.mapped(|e| CharEdit {
+            }), !change),
+            Edit::Delete(edits, change) => Edit::Insert(edits.mapped(|e| CharEdit {
                 offsets: (
                     Some(e.offsets.0.map(|o| o.saturating_sub(AbsoluteCharOffset(1))).unwrap_or_default()),
                     e.offsets.1,
                 ),
                 ..e
-            })),
+            }), !change),
             Edit::Move(c) => Edit::Move(!c),
             Edit::Select(c) => Edit::Select(!c),
         }
