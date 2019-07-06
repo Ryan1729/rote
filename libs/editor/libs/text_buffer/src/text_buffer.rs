@@ -70,12 +70,23 @@ struct CursorMoveSpec {
     how_many: AllOrOne,
 }
 
+fn char_to_string(c: char) -> String {
+    let mut buf = [0;4];
+    c.encode_utf8(&mut buf).to_owned()
+}
+
 impl TextBuffer {
     #[perf_viz::record]
     pub fn insert(&mut self, c: char) {
+
+        self.insert_string(char_to_string(c));
+    }
+
+    #[perf_viz::record]
+    pub fn insert_string(&mut self, s: String) {
         self.apply_edit(
             Edit::Insert(self.cursors.mapped_ref(|cursor| CharEdit {
-                c: c.into(),
+                s: s.clone(),
                 offsets: offset_pair(&self.rope, cursor),
             })),
             ApplyKind::Record,
@@ -90,14 +101,36 @@ impl TextBuffer {
     fn get_char_edits(&self) -> Vec1<CharEdit> {
         self.cursors().mapped_ref(|cursor| {
             let offsets = dbg!(offset_pair(&self.rope, cursor));
-            CharEdit {
-                c: dbg!(offsets
-                    .0
-                    .and_then(|AbsoluteCharOffset(o)|
-                        o.checked_sub(1).and_then(|o| self.rope.char(o))
-                    )),
-                offsets,
+
+            match offsets {
+                (Some(AbsoluteCharOffset(o)), None) if o > 0 => {
+                    CharEdit {
+                        s: dbg!(offsets
+                            .0
+                            .and_then(|AbsoluteCharOffset(o)|
+                                o.checked_sub(1).and_then(|o| self.rope.char(o)).map(char_to_string)
+                            ).unwrap_or_default()),
+                        offsets,
+                    }
+                }
+                (Some(o1), Some(o2)) if o1 > 0 || o2 > 0 => {
+                    let min = std::cmp::min(o1, o2);
+                    let max = std::cmp::max(o1, o2);
+
+                    CharEdit {
+                        s: dbg!(self.rope.slice(min.0..max.0).map(|slice| {let s: String = slice.into(); s}).unwrap_or_default()),
+                        offsets,
+                    }
+                }
+                _ => {
+                    CharEdit {
+                        s: dbg!(d!()),
+                        offsets,
+                    }
+                }
             }
+
+
         })
     }
 
@@ -165,30 +198,34 @@ impl TextBuffer {
     fn apply_edit(&mut self, edit: Edit, kind: ApplyKind) {
         match &edit {
             Edit::Insert(edits) => {
-                for (cursor, &CharEdit { c, offsets, .. }) in self.cursors.iter_mut().zip(edits) {
-                    if let Some(c) = c {
-                        match offsets {
-                            (Some(AbsoluteCharOffset(o)), highlight)
-                                if highlight.is_none()
-                                    || Some(AbsoluteCharOffset(o)) == highlight =>
-                            {
-                                self.rope.insert_char(o, c);
-                                move_cursor::directly(&self.rope, cursor, Move::Right);
-                            }
-                            (Some(o1), Some(o2)) => {
-                                let min = delete_highlighted(&mut self.rope, cursor, o1, o2);
-
-                                self.rope.insert_char(min.0, c);
-                                move_cursor::directly(&self.rope, cursor, Move::Right);
-                            }
-                            _ => {}
+                for (ref mut cursor, CharEdit { ref s, ref offsets, .. }) in self.cursors.iter_mut().zip(edits) {
+                    if s.is_empty() {
+                        return;
+                    }
+                    match *offsets {
+                        (Some(AbsoluteCharOffset(o)), highlight)
+                            if highlight.is_none()
+                                || Some(AbsoluteCharOffset(o)) == highlight =>
+                        {
+                            self.rope.insert(o, &s);
+                            move_cursor::directly(&self.rope, cursor, Move::Right);
                         }
+                        (Some(o1), Some(o2)) => {
+                            let min = delete_highlighted(&mut self.rope, cursor, o1, o2);
+
+                            self.rope.insert(min.0, &s);
+                            move_cursor::directly(&self.rope, cursor, Move::Right);
+                        }
+                        _ => {}
                     }
                 }
             }
             Edit::Delete(edits) => {
-                for (cursor, &CharEdit { offsets, .. }) in self.cursors.iter_mut().zip(edits) {
-                    match offsets {
+                for (ref mut cursor, CharEdit { ref s, ref offsets, .. }) in self.cursors.iter_mut().zip(edits) {
+                    if s.is_empty() {
+                        return;
+                    }
+                    match *offsets {
                         (Some(AbsoluteCharOffset(o)), None) if o > 0 => {
                             // Deleting the LF ('\n') of a CRLF ("\r\n") pair is a special case
                             // where the cursor should not be moved backwards. Thsi is because
@@ -685,9 +722,9 @@ enum MoveSpec {
 }
 d!(for MoveSpec: MoveSpec::To(d!()));
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct CharEdit {
-    c: Option<char>,
+    s: String,
     offsets: OffsetPair,
 }
 

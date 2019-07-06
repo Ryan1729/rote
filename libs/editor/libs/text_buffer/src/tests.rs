@@ -638,9 +638,9 @@ macro_rules! arb_change {
 }
 
 prop_compose! {
-    fn arb_char_edit()(c in option::of(any::<char>()), offsets in arb_offset_pair()) -> CharEdit {
+    fn arb_char_edit()(s in ".*", offsets in arb_offset_pair()) -> CharEdit {
         CharEdit {
-            c,
+            s,
             offsets,
         }
     }
@@ -780,7 +780,7 @@ fn negated_edits_undo_redo_this_delete_edit() {
     negated_edit_undo_redos_properly(
         d!(),
         Edit::Delete(
-            Vec1::new(CharEdit { c: Some('0'), offsets: (Some(AbsoluteCharOffset(0)), None) })
+            Vec1::new(CharEdit { s: "0".to_owned(), offsets: (Some(AbsoluteCharOffset(0)), None) })
         )
     )
 }
@@ -1156,7 +1156,7 @@ fn undo_redo_works_on_this_reduced_simple_insert_delete_case() {
     dbg!();
     let delete_edit = buffer.history.get(buffer.history_index.checked_sub(1).unwrap()).unwrap();
     match delete_edit {
-        Edit::Delete(char_edits) => assert_eq!(char_edits.first().c, Some(inserted_char)),
+        Edit::Delete(char_edits) => assert_eq!(char_edits.first().s, char_to_string(inserted_char)),
         _ => assert!(false),
     }
 
@@ -1196,7 +1196,7 @@ fn undo_redo_works_on_this_reduced_move_to_line_start_case() {
     let buffer_after_2 = deep_clone(&buffer);
 
     apply_edit(&mut buffer, TestEdit::Delete);
-    
+
     assert_eq!(buffer.rope.to_string(),  "");
 
     buffer.undo();
