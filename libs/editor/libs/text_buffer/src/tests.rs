@@ -18,6 +18,13 @@ prop_compose! {
 }
 
 prop_compose! {
+    fn arb_absolute_char_offset_range(max_len: usize)
+    (o1 in arb_absolute_char_offset(max_len), o2 in arb_absolute_char_offset(max_len)) -> AbsoluteCharOffsetRange {
+        AbsoluteCharOffsetRange::new(o1, o2)
+    }
+}
+
+prop_compose! {
     fn arb_rope_and_offset()
         (s in ".*")
         (offset in 0..=r!(&s).len_chars(), s in Just(s)) -> (Rope, AbsoluteCharOffset) {
@@ -84,7 +91,7 @@ fn offset_at_end_of_line_works() {
     );
 
     assert_eq!(
-        char_offset_to_pos(&rope, &AbsoluteCharOffset(1)),
+        char_offset_to_pos(&rope, AbsoluteCharOffset(1)),
         Some(pos! {l 1 o 0})
     )
 }
@@ -94,7 +101,7 @@ fn offset_in_middle_of_single_line_with_non_ascii_works() {
     let rope = r!("0¡¡");
 
     assert_eq!(
-        char_offset_to_pos(&rope, &AbsoluteCharOffset(2)),
+        char_offset_to_pos(&rope, AbsoluteCharOffset(2)),
         Some(pos! {l 0 o 2})
     )
 }
@@ -114,14 +121,14 @@ fn char_offset_to_pos_works_on_middle_of_single_line() {
     let rope = r!("0A");
 
     assert_eq!(
-        char_offset_to_pos(&rope, &AbsoluteCharOffset(1)),
+        char_offset_to_pos(&rope, AbsoluteCharOffset(1)),
         Some(pos! {l 0 o 1})
     )
 }
 
 fn pos_to_to_char_offset_to_pos(rope: &Rope, p: Position) {
     if let Some(o) = pos_to_char_offset(&rope, &p) {
-        assert_eq!(char_offset_to_pos(&rope, &dbg!(o)), Some(p))
+        assert_eq!(char_offset_to_pos(&rope, dbg!(o)), Some(p))
     }
 }
 
@@ -137,7 +144,7 @@ fn char_offset_to_pos_works_on_final_offset() {
     let rope = r!("A");
 
     assert_eq!(
-        char_offset_to_pos(&rope, &AbsoluteCharOffset(1)),
+        char_offset_to_pos(&rope, AbsoluteCharOffset(1)),
         Some(pos! {l 0 o 1})
     )
 }
@@ -152,7 +159,7 @@ fn final_offset_works() {
 proptest! {
     #[test]
     fn char_offset_to_pos_to_char_offset((rope, offset) in arb_rope_and_offset()) {
-        if let Some(p) = char_offset_to_pos(&rope, &offset) {
+        if let Some(p) = char_offset_to_pos(&rope, offset) {
             assert_eq!(pos_to_char_offset(&rope, &p), Some(offset))
         }
     }
@@ -160,7 +167,7 @@ proptest! {
     #[test]
     fn pos_to_to_char_offset_to_pos_works((rope, pos) in arb_rope_and_pos()) {
         if let Some(o) = pos_to_char_offset(&rope, &pos) {
-            assert_eq!(char_offset_to_pos(&rope, &o), Some(pos))
+            assert_eq!(char_offset_to_pos(&rope, o), Some(pos))
         }
     }
 }
@@ -693,27 +700,43 @@ prop_compose! {
     }
 }
 
-fn arb_edit() -> impl Strategy<Value = Edit> {
-    const LEN: usize = 16;
-    prop_oneof![
-        (vec1(arb_char_edit(), LEN), arb_change!(arb_cursors(LEN))).prop_map(|(es, cs)| Edit::Insert(es, cs)),
-        (vec1(arb_char_edit(), LEN), arb_change!(arb_cursors(LEN))).prop_map(|(es, cs)| Edit::Delete(es, cs)),
-        arb_change!(arb_cursors(LEN)).prop_map(Edit::Move),
-        arb_change!(arb_cursors(LEN)).prop_map(Edit::Select),
-    ]
+prop_compose! {
+    fn arb_range_edit(max_len: usize)
+    (chars in ".*", range in arb_absolute_char_offset_range(max_len)) -> RangeEdit {
+        RangeEdit {
+            chars,
+            range
+        }
+    }
 }
+
+prop_compose! {
+    fn arb_range_edits(max_len: usize)
+    (insert_range in option::of(arb_range_edit(max_len)), delete_range in option::of(arb_range_edit(max_len))) -> RangeEdits {
+        RangeEdits {
+            insert_range,
+            delete_range,
+        }
+    }
+}
+
+prop_compose! {
+    fn arb_edit()
+    (len in 1..16usize)
+    (range_edits in vec1(arb_range_edits(len), len), cursors in arb_change!(arb_cursors(len))) -> Edit {
+        Edit {
+            range_edits,
+            cursors,
+        }
+    }
+}
+
 
 fn arb_edit_from_buffer(text_buffer: TextBuffer) -> impl Strategy<Value = Edit> {
     let cs = text_buffer.cursors.clone();
     arb_edit()
-    //Okay this amount of cloning and `move` annotation seems excessive.
     .prop_map(move |mut edit| {
-        match edit {
-            Edit::Move(ref mut change)| Edit::Select(ref mut change) => {
-                change.old = cs.clone();
-            }
-            _ => {}
-        }
+        edit.cursors.old = cs.clone();
         edit
     })
 }
@@ -776,15 +799,15 @@ proptest! {
 }
 
 //#[test]
-fn negated_edits_undo_redo_this_delete_edit() {
-    negated_edit_undo_redos_properly(
-        d!(),
-        Edit::Delete(
-            Vec1::new(CharEdit { s: "0".to_owned(), offsets: (Some(AbsoluteCharOffset(0)), None) }),
-            d!()
-        )
-    )
-}
+// fn negated_edits_undo_redo_this_delete_edit() {
+//     negated_edit_undo_redos_properly(
+//         d!(),
+//         Edit::Delete(
+//             Vec1::new(CharEdit { s: "0".to_owned(), offsets: (Some(AbsoluteCharOffset(0)), None) }),
+//             d!()
+//         )
+//     )
+// }
 
 
 #[test]
@@ -798,12 +821,12 @@ fn negated_edits_undo_redo_this_edit_that_only_changes_the_sticky_offset() {
     let initial_buffer: TextBuffer = d!();
     let mut buffer: TextBuffer = deep_clone(&initial_buffer);
 
-    let edit = Edit::Move(Change {
+    let edit: Edit = Change {
         // If the first old change does not correspond to the initial buffer, then undoing to that
         // state can fail to match the initila buffer.
         old: buffer.cursors.clone(),
         new: Vec1::new(new_cursor.clone())
-    });
+    }.into();
 
     buffer.apply_edit(edit.clone(), ApplyKind::Record);
 
@@ -813,8 +836,8 @@ fn negated_edits_undo_redo_this_edit_that_only_changes_the_sticky_offset() {
 
     let undo_edit = !(edit.clone());
 
-    match (&undo_edit, &edit) {
-        (Edit::Move(u), Edit::Move(e)) => {
+    match (&undo_edit.cursors, &edit.cursors) {
+        (u, e) => {
             assert_eq!(u.old, e.new);
             assert_eq!(u.new, e.old);
         }
@@ -1156,8 +1179,9 @@ fn undo_redo_works_on_this_reduced_simple_insert_delete_case() {
 
     dbg!();
     let delete_edit = buffer.history.get(buffer.history_index.checked_sub(1).unwrap()).unwrap();
-    match delete_edit {
-        Edit::Delete(char_edits, _) => assert_eq!(char_edits.first().s, char_to_string(inserted_char)),
+
+    match &delete_edit.range_edits.first().delete_range {
+        Some(r_e) => assert_eq!(r_e.chars, char_to_string(inserted_char)),
         _ => assert!(false),
     }
 
