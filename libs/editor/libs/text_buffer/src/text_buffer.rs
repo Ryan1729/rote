@@ -77,6 +77,14 @@ fn char_to_string(c: char) -> String {
     c.encode_utf8(&mut buf).to_owned()
 }
 
+fn copy_string(rope: &Rope, range: AbsoluteCharOffsetRange) -> String {
+    dbg!(
+        rope.slice(range.usize_range())
+            .map(|slice| {let s: String = slice.into(); s})
+            .unwrap_or_default()
+    )
+}
+
 impl TextBuffer {
     #[perf_viz::record]
     pub fn insert(&mut self, c: char) {
@@ -87,14 +95,14 @@ impl TextBuffer {
     #[perf_viz::record]
     pub fn insert_string(&mut self, s: String) {
         self.apply_edit(
-            self.get_insert_edit(s),
+            get_insert_edit(&self.rope, &self.cursors, s),
             ApplyKind::Record,
         );
     }
 
     #[perf_viz::record]
     pub fn delete(&mut self) {
-        self.apply_edit(self.get_delete_edit(), ApplyKind::Record);
+        self.apply_edit(get_delete_edit(&self.rope, &self.cursors), ApplyKind::Record);
     }
 
     pub fn move_all_cursors(&mut self, r#move: Move) {
@@ -112,8 +120,39 @@ impl TextBuffer {
     }
 
     #[perf_viz::record]
-    #[allow(dead_code)]
-    fn move_cursor(&mut self, index: usize, r#move: Move) {
+    pub fn replace_cursors<P: Borrow<Position>>(&mut self, position: P) {
+        let position = position.borrow();
+
+        if self.in_bounds(position) {
+            self.cursors = Vec1::new(Cursor::new(*position));
+        } else if let Some(p) = nearest_valid_position_on_same_line(&self.rope, position) {
+            self.cursors = Vec1::new(Cursor::new(p));
+        }
+    }
+
+    #[perf_viz::record]
+    pub fn drag_cursors<P: Borrow<Position>>(&mut self, position: P) {
+        let position = {
+            let position = position.borrow();
+
+            if self.in_bounds(position) {
+                Some(*position)
+            } else {
+                nearest_valid_position_on_same_line(&self.rope, position)
+            }
+        };
+
+        if let Some(p) = position {
+            for c in self.cursors.iter_mut() {
+                if_changed::dbg!(p);
+                if_changed::dbg!(&c);
+                c.set_position_custom(p, SetPositionAction::OldPositionBecomesHighlightIfItIsNone);
+            }
+        }
+    }
+
+    #[perf_viz::record]
+    pub fn move_cursor(&mut self, index: usize, r#move: Move) {
         self.move_cursors(CursorMoveSpec {
             what: MoveOrSelect::Move,
             how_many: AllOrOne::Index(index),
@@ -121,8 +160,7 @@ impl TextBuffer {
     }
 
     #[perf_viz::record]
-    #[allow(dead_code)]
-    fn extend_selection(&mut self, index: usize, r#move: Move) {
+    pub fn extend_selection(&mut self, index: usize, r#move: Move) {
         self.move_cursors(CursorMoveSpec {
             what: MoveOrSelect::Select,
             how_many: AllOrOne::Index(index),
@@ -154,171 +192,9 @@ impl TextBuffer {
             }
         };
 
-        Some(
-            self.apply_edit(Change {old, new}.into(), ApplyKind::Record)
-        )
-    }
+        self.apply_edit(Change {old, new}.into(), ApplyKind::Record);
 
-    fn get_insert_edit(&self, s: String) -> Edit {
-        let char_edits = self.cursors.mapped_ref(|cursor| CharEdit {
-                s: s.clone(),
-                offsets: offset_pair(&self.rope, cursor),
-            });
-
-        let mut cloned_rope = self.rope.clone();
-        let mut cloned_cursors = self.cursors.clone();
-
-        let mut range_edits = Vec::with_capacity(self.cursors.len());
-
-        for (ref mut cursor, CharEdit { ref s, ref offsets, .. }) in cloned_cursors.iter_mut().zip(char_edits) {
-            if s.is_empty() {
-                range_edits.push(d!());
-                continue;
-            }
-            match *offsets {
-                (Some(AbsoluteCharOffset(o)), highlight)
-                    if highlight.is_none()
-                        || Some(AbsoluteCharOffset(o)) == highlight =>
-                {
-                    cloned_rope.insert(o, &s);
-                    move_cursor::directly(&cloned_rope, cursor, Move::Right);
-
-                    range_edits.push(RangeEdits {
-                        insert_range: Some(RangeEdit {
-                            chars: s.to_owned(),
-                            range: AbsoluteCharOffsetRange::usize_new(o, o + 1)
-                        }),
-                        ..d!()
-                    });
-                }
-                (Some(o1), Some(o2)) => {
-                    let range_edit = delete_highlighted(&mut cloned_rope, cursor, o1, o2);
-
-                    cloned_rope.insert(range_edit.range.usize_min(), &s);
-                    move_cursor::directly(&cloned_rope, cursor, Move::Right);
-
-                    range_edits.push(RangeEdits {
-                        insert_range: Some(RangeEdit {
-                            chars: s.to_owned(),
-                            range: {
-                                let min = range_edit.range.min();
-                                AbsoluteCharOffsetRange::new(min, min + 1)
-                            }
-                        }),
-                        delete_range: Some(range_edit),
-                    });
-                }
-                _ => {
-                    range_edits.push(d!());
-                }
-            }
-        }
-
-        Edit {
-            range_edits: Vec1::try_from_vec(range_edits)
-                .expect("This should be the same length as cloned_cursors, which should be >= 1"),
-            cursors: Change {
-                new: cloned_cursors,
-                old: self.cursors.clone()
-            }
-        }
-    }
-    fn get_delete_edit(&self) -> Edit {
-        let char_edits = self.cursors().mapped_ref(|cursor| {
-            let offsets = dbg!(offset_pair(&self.rope, cursor));
-
-            match offsets {
-                (Some(AbsoluteCharOffset(o)), None) if o > 0 => {
-                    CharEdit {
-                        s: dbg!(offsets
-                            .0
-                            .and_then(|AbsoluteCharOffset(o)|
-                                o.checked_sub(1).and_then(|o| self.rope.char(o)).map(char_to_string)
-                            ).unwrap_or_default()),
-                        offsets,
-                    }
-                }
-                (Some(o1), Some(o2)) if o1 > 0 || o2 > 0 => {
-                    CharEdit {
-                        s: get_string(&self.rope, AbsoluteCharOffsetRange::new(o1, o2)),
-                        offsets,
-                    }
-                }
-                _ => {
-                    CharEdit {
-                        s: dbg!(d!()),
-                        offsets,
-                    }
-                }
-            }
-        });
-
-        let mut cloned_rope = self.rope.clone();
-        let mut cloned_cursors = self.cursors.clone();
-
-        let mut range_edits = Vec::with_capacity(self.cursors.len());
-
-        for (ref mut cursor, CharEdit { ref s, ref offsets, .. }) in cloned_cursors.iter_mut().zip(char_edits) {
-            if s.is_empty() {
-                range_edits.push(d!());
-                continue;
-            }
-            match *offsets {
-                (Some(AbsoluteCharOffset(o)), None) if o > 0 => {
-                    // Deleting the LF ('\n') of a CRLF ("\r\n") pair is a special case
-                    // where the cursor should not be moved backwards. Thsi is because
-                    // CR ('\r') and CRLF ("\r\n") both count as a single newline.
-                    // TODO would it better to just delete both at once? That seems like
-                    // it would require a moe comlicated special case elsewhere.
-                    let not_deleting_lf_of_cr_lf = {
-                        let rope = &cloned_rope; // without this we get a borrowck error
-                        //(TODO check if still true after code changes) ---^
-
-                        o.checked_sub(2).and_then(|two_back| {
-                            let mut chars = rope.slice(two_back..o)?.chars();
-
-                            Some(
-                                (chars.next()?, chars.next()?) != ('\r', '\n')
-                            )
-                        }).unwrap_or(true)
-                    };
-
-                    let delete_offset_range = AbsoluteCharOffsetRange::usize_new(o - 1, o);
-                    let chars = get_string(&cloned_rope, delete_offset_range);
-                    cloned_rope.remove(delete_offset_range.usize_range());
-
-                    if not_deleting_lf_of_cr_lf {
-                        move_cursor::directly(&cloned_rope, cursor, Move::Left);
-                    }
-
-                    range_edits.push(RangeEdits {
-                        delete_range: Some(RangeEdit {
-                            chars,
-                            range: delete_offset_range
-                        }),
-                        ..d!()
-                    });
-                }
-                (Some(o1), Some(o2)) if o1 > 0 || o2 > 0 => {
-                    range_edits.push(RangeEdits {
-                        delete_range: Some(delete_highlighted(&mut cloned_rope, cursor, o1, o2)),
-                        ..d!()
-                    });
-                }
-                _ => {
-                    range_edits.push(d!());
-                }
-            }
-        }
-
-        Edit {
-            range_edits: Vec1::try_from_vec(range_edits)
-                .expect("This should be the same length as cloned_cursors, which should be >= 1"),
-            cursors: Change {
-                new: cloned_cursors,
-                old: self.cursors.clone()
-            }
-        }
+        Some(())
     }
 
     fn apply_edit(&mut self, edit: Edit, kind: ApplyKind) {
@@ -342,66 +218,140 @@ impl TextBuffer {
             ApplyKind::Playback => {}
         }
     }
+}
 
-    pub fn cursors(&self) -> &Vec1<Cursor> {
-        self.borrow()
-    }
+fn get_insert_edit(
+    original_rope: &Rope,
+    original_cursors: &Cursors,
+    s: String
+) -> Edit {
+    let mut cloned_rope = original_rope.clone();
+    let mut cloned_cursors = original_cursors.clone();
 
-    pub fn in_bounds<P: Borrow<Position>>(&self, position: P) -> bool {
-        in_cursor_bounds(&self.rope, position)
-    }
+    let range_edits = cloned_cursors.mapped_mut(|cursor| {
+        match offset_pair(original_rope, cursor) {
+            (Some(AbsoluteCharOffset(o)), highlight)
+                if highlight.is_none()
+                    || Some(AbsoluteCharOffset(o)) == highlight =>
+            {
+                cloned_rope.insert(o, &s);
+                move_cursor::directly(&cloned_rope, cursor, Move::Right);
 
-    #[perf_viz::record]
-    pub fn find_index<P: Borrow<Position>>(&self, p: P) -> Option<ByteIndex> {
-        let rope = &self.rope;
-        pos_to_char_offset(rope, p.borrow())
-            .and_then(|AbsoluteCharOffset(o)| rope.char_to_byte(o).map(ByteIndex))
-    }
-
-    #[perf_viz::record]
-    pub fn nearest_valid_position_on_same_line<P: Borrow<Position>>(
-        &self,
-        p: P,
-    ) -> Option<Position> {
-        let p = p.borrow();
-
-        valid_len_chars_for_line(&self.rope, p.line).map(|len| Position {
-            offset: std::cmp::min(p.offset, CharOffset(len)),
-            ..*p
-        })
-    }
-
-    #[perf_viz::record]
-    pub fn replace_cursors<P: Borrow<Position>>(&mut self, position: P) {
-        let position = position.borrow();
-
-        if self.in_bounds(position) {
-            self.cursors = Vec1::new(Cursor::new(*position));
-        } else if let Some(p) = self.nearest_valid_position_on_same_line(position) {
-            self.cursors = Vec1::new(Cursor::new(p));
-        }
-    }
-
-    #[perf_viz::record]
-    pub fn drag_cursors<P: Borrow<Position>>(&mut self, position: P) {
-        let position = {
-            let position = position.borrow();
-
-            if self.in_bounds(position) {
-                Some(*position)
-            } else {
-                self.nearest_valid_position_on_same_line(position)
+                RangeEdits {
+                    insert_range: Some(RangeEdit {
+                        chars: s.to_owned(),
+                        range: AbsoluteCharOffsetRange::usize_new(o, o + 1)
+                    }),
+                    ..d!()
+                }
             }
-        };
+            (Some(o1), Some(o2)) => {
+                let range_edit = delete_highlighted(&mut cloned_rope, cursor, o1, o2);
 
-        if let Some(p) = position {
-            for c in self.cursors.iter_mut() {
-                if_changed::dbg!(p);
-                if_changed::dbg!(&c);
-                c.set_position_custom(p, SetPositionAction::OldPositionBecomesHighlightIfItIsNone);
+                cloned_rope.insert(range_edit.range.usize_min(), &s);
+                move_cursor::directly(&cloned_rope, cursor, Move::Right);
+
+                RangeEdits {
+                    insert_range: Some(RangeEdit {
+                        chars: s.to_owned(),
+                        range: {
+                            let min = range_edit.range.min();
+                            AbsoluteCharOffsetRange::new(min, min + 1)
+                        }
+                    }),
+                    delete_range: Some(range_edit),
+                }
+            }
+            _ => {
+                d!()
             }
         }
+    });
+
+    Edit {
+        range_edits,
+        cursors: Change {
+            new: cloned_cursors,
+            old: original_cursors.clone()
+        }
     }
+}
+
+fn get_delete_edit(
+    original_rope: &Rope,
+    original_cursors: &Cursors
+) -> Edit {
+    let mut cloned_rope = original_rope.clone();
+    let mut cloned_cursors = original_cursors.clone();
+
+    let range_edits = cloned_cursors.mapped_mut(|cursor| {
+        let offsets = offset_pair(original_rope, cursor);
+
+        match offsets {
+            (Some(AbsoluteCharOffset(o)), None) if o > 0 => {
+                // Deleting the LF ('\n') of a CRLF ("\r\n") pair is a special case
+                // where the cursor should not be moved backwards. Thsi is because
+                // CR ('\r') and CRLF ("\r\n") both count as a single newline.
+                // TODO would it better to just delete both at once? That seems like
+                // it would require a moe comlicated special case elsewhere.
+                let not_deleting_lf_of_cr_lf = {
+                    o.checked_sub(2).and_then(|two_back| {
+                        let mut chars = cloned_rope.slice(two_back..o)?.chars();
+
+                        Some(
+                            (chars.next()?, chars.next()?) != ('\r', '\n')
+                        )
+                    }).unwrap_or(true)
+                };
+
+                let delete_offset_range = AbsoluteCharOffsetRange::usize_new(o - 1, o);
+                let chars = copy_string(&cloned_rope, delete_offset_range);
+                cloned_rope.remove(delete_offset_range.usize_range());
+
+                if not_deleting_lf_of_cr_lf {
+                    move_cursor::directly(&cloned_rope, cursor, Move::Left);
+                }
+
+                RangeEdits {
+                    delete_range: Some(RangeEdit {
+                        chars,
+                        range: delete_offset_range
+                    }),
+                    ..d!()
+                }
+            }
+            (Some(o1), Some(o2)) if o1 > 0 || o2 > 0 => {
+                RangeEdits {
+                    delete_range: Some(delete_highlighted(&mut cloned_rope, cursor, o1, o2)),
+                    ..d!()
+                }
+            }
+            _ => {
+                d!()
+            }
+        }
+    });
+
+    Edit {
+        range_edits,
+        cursors: Change {
+            new: cloned_cursors,
+            old: original_cursors.clone()
+        }
+    }
+}
+
+/// returns `None` if the input position's line does not refer to a line in the `Rope`.
+fn nearest_valid_position_on_same_line<P: Borrow<Position>>(
+    rope: &Rope,
+    p: P,
+) -> Option<Position> {
+    let p = p.borrow();
+
+    valid_len_chars_for_line(rope, p.line).map(|len| Position {
+        offset: std::cmp::min(p.offset, CharOffset(len)),
+        ..*p
+    })
 }
 
 /// returns a `RangeEdit` representing the deletion.
@@ -413,7 +363,7 @@ fn delete_highlighted(
 ) -> RangeEdit {
     let range = AbsoluteCharOffsetRange::new(o1, o2);
 
-    let chars = get_string(rope, range);
+    let chars = copy_string(rope, range);
 
     rope.remove(range.usize_range());
     cursor.set_position(
@@ -426,6 +376,7 @@ fn delete_highlighted(
     }
 }
 
+/// returns `None` if that line is not in the `Rope`.
 fn valid_len_chars_for_line(rope: &Rope, line_index: usize) -> Option<usize> {
     rope.lines().nth(line_index).map(|line| {
         // we assume a line can contain at most one `'\n'`
@@ -579,20 +530,6 @@ where
 // Undo / Redo
 //
 
-// The platform layer does not need the ability to set the cursor to arbitrary positions.
-#[derive(Clone, Copy, Debug)]
-enum MoveSpec {
-    To(Position),
-    Move(Move),
-}
-d!(for MoveSpec: MoveSpec::To(d!()));
-
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-struct CharEdit {
-    s: String,
-    offsets: OffsetPair,
-}
-
 mod absolute_char_offset_range {
     use super::AbsoluteCharOffset;
 
@@ -730,12 +667,25 @@ impl TextBuffer {
     }
 }
 
-fn get_string(rope: &Rope, range: AbsoluteCharOffsetRange) -> String {
-    dbg!(
-        rope.slice(range.usize_range())
-            .map(|slice| {let s: String = slice.into(); s})
-            .unwrap_or_default()
-    )
+//
+// View rendering
+//
+
+impl TextBuffer {
+    pub fn cursors(&self) -> &Vec1<Cursor> {
+        self.borrow()
+    }
+
+    pub fn in_bounds<P: Borrow<Position>>(&self, position: P) -> bool {
+        in_cursor_bounds(&self.rope, position)
+    }
+
+    #[perf_viz::record]
+    pub fn find_index<P: Borrow<Position>>(&self, p: P) -> Option<ByteIndex> {
+        let rope = &self.rope;
+        pos_to_char_offset(rope, p.borrow())
+            .and_then(|AbsoluteCharOffset(o)| rope.char_to_byte(o).map(ByteIndex))
+    }
 }
 
 #[cfg(test)]

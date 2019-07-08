@@ -5,6 +5,14 @@ use proptest::prelude::*;
 use proptest::{prop_compose, proptest, option, collection};
 use std::fmt::Debug;
 
+/// This is expected to be used where the amount does not really matter, except that it must be
+/// enough that the behaviour we want to test has enough space.
+/// Ciode that assumes this is > 1 is known to exist as of this writing.
+const SOME_AMOUNT: usize = 16;
+/// This is expected to be used where the amount does not really matter, except that it must be
+/// greater than `SOME_AMOUNT` so that out-of-bounds checks, etc. get tested.
+const MORE_THAN_SOME_AMOUNT: usize = 24;
+
 prop_compose! {
     fn arb_rope()(s in any::<String>()) -> Rope {
         r!(s)
@@ -644,25 +652,15 @@ macro_rules! arb_change {
     }
 }
 
-prop_compose! {
-    fn arb_char_edit()(s in ".*", offsets in arb_offset_pair()) -> CharEdit {
-        CharEdit {
-            s,
-            offsets,
-        }
-    }
-}
-
 fn vec1<D: Debug>(strat: impl Strategy<Value = D>, max_len: usize) -> impl Strategy<Value = Vec1<D>> {
     collection::vec(strat, 1..std::cmp::max(2, max_len))
         .prop_map(|v| Vec1::try_from_vec(v).expect("we said at least one!"))
 }
 
-const ARB_OFFSET_PAIR_SIZE: usize = 16;
 prop_compose! {
     fn arb_offset_pair()(
-        o1 in option::of(arb_absolute_char_offset(ARB_OFFSET_PAIR_SIZE)),
-        o2 in option::of(arb_absolute_char_offset(ARB_OFFSET_PAIR_SIZE))
+        o1 in option::of(arb_absolute_char_offset(SOME_AMOUNT)),
+        o2 in option::of(arb_absolute_char_offset(SOME_AMOUNT))
     ) -> OffsetPair {
         (o1, o2)
     }
@@ -722,7 +720,7 @@ prop_compose! {
 
 prop_compose! {
     fn arb_edit()
-    (len in 1..16usize)
+    (len in 1..SOME_AMOUNT)
     (range_edits in vec1(arb_range_edits(len), len), cursors in arb_change!(arb_cursors(len))) -> Edit {
         Edit {
             range_edits,
@@ -841,9 +839,6 @@ fn negated_edits_undo_redo_this_edit_that_only_changes_the_sticky_offset() {
             assert_eq!(u.old, e.new);
             assert_eq!(u.new, e.old);
         }
-        _ => {
-            assert!(false);
-        }
     }
 
     buffer.apply_edit(undo_edit, ApplyKind::Playback);
@@ -856,31 +851,51 @@ fn negated_edits_undo_redo_this_edit_that_only_changes_the_sticky_offset() {
 }
 
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 enum TestEdit {
     Insert(char),
+    InsertString(String),
     Delete,
     MoveAllCursors(Move),
     ExtendSelectionForAllCursors(Move),
+    MoveCursors(usize, Move),
+    ExtendSelection(usize, Move),
+    ReplaceCursors(Position),
+    DragCursors(Position),
 }
 
 fn apply_edit(buffer: &mut TextBuffer, edit: TestEdit) {
+    use TestEdit::*;
     match edit {
-        TestEdit::Insert(c) => buffer.insert(c),
-        TestEdit::Delete => buffer.delete(),
-        TestEdit::MoveAllCursors(r#move) => buffer.move_all_cursors(r#move),
-        TestEdit::ExtendSelectionForAllCursors(r#move) => {
+        Insert(c) => buffer.insert(c),
+        InsertString(s) => buffer.insert_string(s),
+        Delete => buffer.delete(),
+        MoveAllCursors(r#move) => buffer.move_all_cursors(r#move),
+        ExtendSelectionForAllCursors(r#move) => {
             buffer.extend_selection_for_all_cursors(r#move)
-        }
+        },
+        MoveCursors(index, r#move) => buffer.move_cursor(index, r#move),
+        ExtendSelection(index, r#move) => buffer.extend_selection(index, r#move),
+        ReplaceCursors(position) => buffer.replace_cursors(position),
+        DragCursors(position) => buffer.drag_cursors(position),
     }
 }
 
 fn arb_test_edit() -> impl Strategy<Value = TestEdit> {
+    use TestEdit::*;
     prop_oneof![
-        Just(TestEdit::Delete),
-        any::<char>().prop_map(TestEdit::Insert),
-        arb_move().prop_map(TestEdit::MoveAllCursors),
-        arb_move().prop_map(TestEdit::ExtendSelectionForAllCursors)
+        Just(Delete),
+        any::<char>().prop_map(Insert),
+        ".*".prop_map(InsertString),
+        arb_move().prop_map(MoveAllCursors),
+        arb_move().prop_map(ExtendSelectionForAllCursors),
+        // Moving a cursor that isn't there should just be a no-op
+        (0..MORE_THAN_SOME_AMOUNT, arb_move()).prop_map(|(i, m)| MoveCursors(i, m)),
+        (0..MORE_THAN_SOME_AMOUNT, arb_move()).prop_map(|(i, m)| ExtendSelection(i, m)),
+        // The user can attempt to move the cursor to invalid positions,
+        // and there cursor may get snapped to a valid position producing an actual movement.
+        arb_pos(MORE_THAN_SOME_AMOUNT, MORE_THAN_SOME_AMOUNT).prop_map(ReplaceCursors),
+        arb_pos(MORE_THAN_SOME_AMOUNT, MORE_THAN_SOME_AMOUNT).prop_map(DragCursors)
     ]
 }
 
@@ -959,7 +974,7 @@ fn undo_redo_works_on_these_edits_and_index(edits: Vec<TestEdit>, index: usize) 
 
     let mut expected_buffer_at_index: Option<TextBuffer> = None;
     for (i, edit) in edits.iter().enumerate() {
-        apply_edit(&mut buffer, *edit);
+        apply_edit(&mut buffer, (*edit).clone());
 
         if i == index {
             expected_buffer_at_index = Some(deep_clone(&buffer));
@@ -1016,22 +1031,22 @@ fn undo_redo_works_on_these_edits_and_index(edits: Vec<TestEdit>, index: usize) 
 
 proptest! {
     #[test]
-    fn undo_redo_works((edits, index) in arb_test_edits_and_index(16, ArbTestEditSpec::All)) {
+    fn undo_redo_works((edits, index) in arb_test_edits_and_index(SOME_AMOUNT, ArbTestEditSpec::All)) {
         undo_redo_works_on_these_edits_and_index(edits, index);
     }
 
     #[test]
-    fn undo_redo_works_on_inserts((edits, index) in arb_test_edits_and_index(16, ArbTestEditSpec::Insert)) {
+    fn undo_redo_works_on_inserts((edits, index) in arb_test_edits_and_index(SOME_AMOUNT, ArbTestEditSpec::Insert)) {
         undo_redo_works_on_these_edits_and_index(edits, index);
     }
 
     #[test]
-    fn undo_redo_works_on_non_control_inserts((edits, index) in arb_test_edits_and_index(16, ArbTestEditSpec::RegexInsert("\\PC"))) {
+    fn undo_redo_works_on_non_control_inserts((edits, index) in arb_test_edits_and_index(SOME_AMOUNT, ArbTestEditSpec::RegexInsert("\\PC"))) {
         undo_redo_works_on_these_edits_and_index(edits, index);
     }
 
     #[test]
-    fn undo_redo_works_on_non_cr_inserts((edits, index) in arb_test_edits_and_index(16, ArbTestEditSpec::RegexInsert("[^\r]"))) {
+    fn undo_redo_works_on_non_cr_inserts((edits, index) in arb_test_edits_and_index(SOME_AMOUNT, ArbTestEditSpec::RegexInsert("[^\r]"))) {
         undo_redo_works_on_these_edits_and_index(edits, index);
     }
 }
