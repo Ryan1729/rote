@@ -1343,3 +1343,32 @@ fn undo_redo_works_on_this_case_involving_two_characters_at_once() {
         [InsertString!("¡A")], 0
     );
 }
+
+#[test]
+fn undo_redo_works_on_this_reduced_case_involving_two_characters_at_once() {
+    //TODO generate initial buffer?
+    let initial_buffer: TextBuffer = d!();
+    let mut buffer: TextBuffer = deep_clone(&initial_buffer);
+
+    apply_edit(&mut buffer, InsertString!("¡A"));
+
+    dbg!(&mut buffer).undo();
+
+    assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
+
+    // undo with no undos left should be a no-op
+    for _ in 0..3 {
+        dbg!();
+        buffer.undo();
+    }
+
+    dbg!();
+    assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
+}
+
+#[test]
+fn undo_redo_works_on_this_case_involving_two_characters_at_once_then_a_newline_then_dragging() {
+    undo_redo_works_on_these_edits_and_index(
+        [InsertString!("Aa"), InsertString!("\n"), TestEdit::DragCursors(pos!{l 0 o 0})], 0
+    );
+}

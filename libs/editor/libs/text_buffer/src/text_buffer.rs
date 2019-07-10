@@ -124,9 +124,9 @@ impl TextBuffer {
         let position = position.borrow();
 
         if self.in_bounds(position) {
-            self.cursors = Vec1::new(Cursor::new(*position));
+            self.apply_cursor_edit(Vec1::new(Cursor::new(*position)));
         } else if let Some(p) = nearest_valid_position_on_same_line(&self.rope, position) {
-            self.cursors = Vec1::new(Cursor::new(p));
+            self.apply_cursor_edit(Vec1::new(Cursor::new(p)));
         }
     }
 
@@ -143,11 +143,13 @@ impl TextBuffer {
         };
 
         if let Some(p) = position {
-            for c in self.cursors.iter_mut() {
+            let mut new = self.cursors.clone();
+            for c in new.iter_mut() {
                 if_changed::dbg!(p);
                 if_changed::dbg!(&c);
                 c.set_position_custom(p, SetPositionAction::OldPositionBecomesHighlightIfItIsNone);
             }
+            self.apply_cursor_edit(new);
         }
     }
 
@@ -168,9 +170,6 @@ impl TextBuffer {
     }
 
     fn move_cursors(&mut self, spec: CursorMoveSpec, r#move: Move) -> Option<()> {
-        // There is probably a way to save a copy here, by keeping the old one on the heap and
-        // ref counting, but that seems overly complicated, given it has not been a problem so far.
-        let old = self.cursors.clone();
         let mut new = self.cursors.clone();
 
         let action:
@@ -192,9 +191,15 @@ impl TextBuffer {
             }
         };
 
-        self.apply_edit(Change {old, new}.into(), ApplyKind::Record);
+        self.apply_cursor_edit(new);
 
         Some(())
+    }
+
+    fn apply_cursor_edit(&mut self, new: Cursors) {
+        // There is probably a way to save a copy here, by keeping the old one on the heap and
+        // ref counting, but that seems overly complicated, given it has not been a problem so far.
+        self.apply_edit(Change {old: self.cursors.clone(), new}.into(), ApplyKind::Record);
     }
 
     fn apply_edit(&mut self, edit: Edit, kind: ApplyKind) {
@@ -240,7 +245,7 @@ fn get_insert_edit(
                 RangeEdits {
                     insert_range: Some(RangeEdit {
                         chars: s.to_owned(),
-                        range: AbsoluteCharOffsetRange::usize_new(o, o + 1)
+                        range: AbsoluteCharOffsetRange::usize_new(o, o + s.chars().count())
                     }),
                     ..d!()
                 }
@@ -256,7 +261,7 @@ fn get_insert_edit(
                         chars: s.to_owned(),
                         range: {
                             let min = range_edit.range.min();
-                            AbsoluteCharOffsetRange::new(min, min + 1)
+                            AbsoluteCharOffsetRange::new(min, min + s.chars().count())
                         }
                     }),
                     delete_range: Some(range_edit),
