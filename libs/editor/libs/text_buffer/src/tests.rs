@@ -13,6 +13,14 @@ const SOME_AMOUNT: usize = 16;
 /// greater than `SOME_AMOUNT` so that out-of-bounds checks, etc. get tested.
 const MORE_THAN_SOME_AMOUNT: usize = 24;
 
+/// This macro is meant to make it easier to copy-paste proptest failing proptest inputs into
+/// their oun test. With this macro, only the `!` character needs to be added after copying an
+/// `InsertString` input.
+#[allow(non_snake_case)]
+macro_rules! InsertString {
+    ($s: expr) => (TestEdit::InsertString($s.into()));
+}
+
 prop_compose! {
     fn arb_rope()(s in any::<String>()) -> Rope {
         r!(s)
@@ -915,16 +923,20 @@ enum ArbTestEditSpec {
     RegexInsert(Regex),
 }
 
+fn arb_test_edits(max_len: usize, spec: ArbTestEditSpec) -> impl Strategy<Value = Vec<TestEdit>> {
+    collection::vec(
+        match spec {
+            ArbTestEditSpec::All => arb_test_edit().boxed(),
+            ArbTestEditSpec::Insert => arb_test_edit_insert().boxed(),
+            ArbTestEditSpec::RegexInsert(regex) => arb_test_edit_regex_insert(regex).boxed(),
+        },
+        0..max_len
+    )
+}
+
 prop_compose! {
     fn arb_test_edits_and_index(max_len: usize, spec: ArbTestEditSpec)
-        (edits in collection::vec(
-            match spec {
-                ArbTestEditSpec::All => arb_test_edit().boxed(),
-                ArbTestEditSpec::Insert => arb_test_edit_insert().boxed(),
-                ArbTestEditSpec::RegexInsert(regex) => arb_test_edit_regex_insert(regex).boxed(),
-            },
-            0..max_len
-        ))
+        (edits in arb_test_edits(max_len, spec))
         (
             i in if edits.len() == 0 { 0..1 } else { 0..edits.len() },
             es in Just(edits)
@@ -967,24 +979,89 @@ fn redo_redoes() {
     assert_text_buffer_eq_ignoring_history!(buffer, final_buffer);
 }
 
-fn undo_redo_works_on_these_edits_and_index(edits: Vec<TestEdit>, index: usize) {
+proptest! {
+    #[test]
+    fn undo_redo_is_a_no_op_if_there_are_no_valid_edits(
+        edits in arb_test_edits(SOME_AMOUNT, ArbTestEditSpec::All)
+    ) {
+        //TODO generate initial buffer? This would simulate a load from a new file.
+        let initial_buffer: TextBuffer = d!();
+        let mut buffer: TextBuffer = deep_clone(&initial_buffer);
+
+        for edit in edits.iter() {
+            apply_edit(&mut buffer, (*edit).clone());
+
+            // The cases where there are valid edits in the history should be covered by tests
+            // that call `undo_redo_works_on_these_edits_and_index` so we can just simplify the code
+            // here by just letting that case pass.
+            if !text_buffer_eq_ignoring_history!(buffer, initial_buffer) {
+                return Err(
+                    proptest::test_runner::TestCaseError::reject("buffer was changed!")
+                );
+            }
+        }
+
+        // Redo with no redos left should be a no-op
+        for _ in 0..3 {
+            buffer.redo();
+            assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
+        }
+
+        // undo with no undos left should be a no-op
+        for _ in 0..3 {
+            buffer.undo();
+            assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
+        }
+    }
+}
+
+
+fn undo_redo_works_on_these_edits_and_index<TestEdits: Borrow<[TestEdit]>>(edits: TestEdits, index: usize) {
+    let edits = edits.borrow();
+
     //TODO generate initial buffer?
     let initial_buffer: TextBuffer = d!();
     let mut buffer: TextBuffer = deep_clone(&initial_buffer);
 
     let mut expected_buffer_at_index: Option<TextBuffer> = None;
-    for (i, edit) in edits.iter().enumerate() {
-        apply_edit(&mut buffer, (*edit).clone());
 
-        if i == index {
-            expected_buffer_at_index = Some(deep_clone(&buffer));
-        }
+    macro_rules! record_if_index_matches {
+        // Things like moving cursors that don't exist are, and are expected to be, no-ops
+        // that do not get added to the history. So the `edits` len may be different than the
+        //  history len.
+        () => (
+            if buffer.history.len().checked_sub(1) == Some(index) {
+                expected_buffer_at_index = Some(deep_clone(&buffer));
+            }
+        );
     }
 
-    let final_buffer = deep_clone(&buffer);
-    let expected_buffer_at_index = expected_buffer_at_index.unwrap_or_default();
+    record_if_index_matches!();
 
-    let len = edits.len();
+    for edit in edits.iter() {
+        apply_edit(&mut buffer, dbg!((*edit).clone()));
+
+        record_if_index_matches!();
+    }
+
+    let expected_buffer_at_index = if let Some(b) = expected_buffer_at_index {
+        b
+    } else {
+        // We expect to get here only if either the index is higher than the amount of valid edits,
+        // which includes the case that there are no valid edits at all.
+
+        // The cases where there are no valid edits in the history should be covered by
+        // `undo_redo_is_a_no_op_if_there_are_no_valid_edits` so we can just simplify the code
+        // here by just letting that case pass.
+
+        // For the cases where there are some valid edits but the index is just too high, the same
+        // set of edits with a lower index should be tested by this test.
+        return;
+    };
+
+    let final_buffer = deep_clone(&buffer);
+
+    let len = buffer.history.len();
 
     if len != 0 {
         for _ in 0..dbg!(dbg!(len - 1) - index) {
@@ -992,7 +1069,7 @@ fn undo_redo_works_on_these_edits_and_index(edits: Vec<TestEdit>, index: usize) 
             buffer.undo();
         }
     }
-    dbg!();
+
     assert_text_buffer_eq_ignoring_history!(buffer, expected_buffer_at_index);
 
     for _ in 0..len {
@@ -1250,4 +1327,19 @@ fn undo_redo_works_on_this_reduced_move_to_line_start_case() {
     buffer.undo();
 
     assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
+}
+
+#[test]
+fn undo_redo_works_on_this_case_involving_moving_a_missing_cursor() {
+    use TestEdit::*;
+    undo_redo_works_on_these_edits_and_index(
+        [Insert('0'), MoveCursors(1, Move::Up)], 0
+    );
+}
+
+#[test]
+fn undo_redo_works_on_this_case_involving_two_characters_at_once() {
+    undo_redo_works_on_these_edits_and_index(
+        [InsertString!("¡A")], 0
+    );
 }

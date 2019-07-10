@@ -96,3 +96,10 @@ macro_rules! assert_text_buffer_eq_ignoring_history {
         );
     };
 }
+
+macro_rules! text_buffer_eq_ignoring_history {
+    ($left:expr, $right:expr) => {
+        $crate::test_macros::IgnoringHistory(&$left)
+         == $crate::test_macros::IgnoringHistory(&$right)
+    };
+}

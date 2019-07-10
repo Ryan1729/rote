@@ -212,7 +212,7 @@ impl TextBuffer {
 
         match kind {
             ApplyKind::Record => {
-                self.history.push_back(edit);
+                dbg!(&mut self.history).push_back(edit);
                 self.history_index += 1;
             }
             ApplyKind::Playback => {}
