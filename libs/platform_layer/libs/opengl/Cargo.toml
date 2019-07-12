@@ -21,6 +21,7 @@ glyph_brush_layout = { path = "glyph-brush-layout" }
 full_rusttype = { version = "0.7.5", features = ["gpu_cache"], package = "rusttype" }
 glutin = "0.22.0-alpha1"
 spin_sleep = "0.3"
+clipboard = "0.5.0"
 
 [features]
 default = []

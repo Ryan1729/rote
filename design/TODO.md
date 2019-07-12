@@ -1,20 +1,11 @@
 ## TODO
 
-* We can delete several chars in one delete or insert edit, if there are several things highlighted. So we need to be able to store multiple characters per `CharEdit`. So `c` will need to become a `String`.
-  * This implies that we should make an `insert_str` method that the current `insert` method on `TextBuffer` will call into.
-  * would it be an optimization to make an enum that can hold a `char` or a `String`? Essentially trading some stack space for often not needing any heap space.
-
-* basic Undo/Redo (no persistent storage)
-  * write unimplemented interface for this
-    * ctrl-z for undo
-    * ctrl-shift-z and ctrl-y for redo
-  * property-based test
-    * generate sequence of undo/redo actions and figure out what state should be, and make sure that it is correct
-  * struct containing `VecDeque` which keeps track of total bytes used
-  and automatically pops things off the end when storage would exceed a limit.
+* Ctrl-Left/Right to jump by "words"
+  * Does the word-boundary regex do what I want here?
 
 * start allowing multiple cursors to be manipulated
   * Ctrl-click to add cursors
+  * Ctrl-D to select word and find next instance of word and select it and place a cursor there.
   * Allow manipulating a single cursor on its own
     * store `cursor_index` per buffer
       * in `editor` or in `text_buffer`?
@@ -31,6 +22,8 @@
 
 
 * Cut, Copy, Paste, using the system clipboard
+
+* make Undo/Redo history into struct containing `VecDeque` which keeps track of total bytes used and automatically pops things off the end when storage would exceed a limit.
 
 * Store clipboard history (no persistent storage)
   * Use (parameterized version of?) Undo/Redo struct to store

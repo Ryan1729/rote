@@ -31,7 +31,7 @@ impl std::ops::Not for Move {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ScreenSpaceXY {
     pub x: f32,
     pub y: f32,
@@ -43,7 +43,7 @@ impl From<ScreenSpaceXY> for (f32, f32) {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Input {
     None,
     Quit,
@@ -59,9 +59,12 @@ pub enum Input {
     DragCursors(ScreenSpaceXY),
     Undo,
     Redo,
+    Cut,
+    Copy,
+    Paste(Option<String>)
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 ///We are currently assuming the font is monospace!
 pub struct CharDim {
     pub w: f32,
@@ -409,7 +412,7 @@ d!(for Cmd : Cmd::NoCmd);
 pub type UpdateAndRenderOutput = (View, Cmd);
 pub type UpdateAndRender = fn(Input) -> UpdateAndRenderOutput;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Sizes {
     pub screen_w: Option<f32>,
     pub screen_h: Option<f32>,

@@ -16,18 +16,25 @@ pub struct State {
     screen_h: f32,
     text_char_dim: CharDim,
     status_char_dim: CharDim,
+    clipboard_history: ClipboardHistory,
+}
+
+#[derive(Default)]
+struct ClipboardHistory;
+
+impl ClipboardHistory {
+    fn cut(&mut self, buffer: &mut TextBuffer) -> Option<String> {
+        unimplemented!();
+    }
+    fn copy(&mut self, buffer: &mut TextBuffer) -> Option<String> {
+        unimplemented!();
+    }
+    fn paste(&mut self, buffer: &mut TextBuffer, possible_string: Option<String>) {
+        unimplemented!();
+    }
 }
 
 impl State {
-    #[perf_viz::record]
-    fn current_buffer(&self) -> Option<&TextBuffer> {
-        self.buffers.get(self.current_burrer_index)
-    }
-    #[perf_viz::record]
-    fn current_buffer_mut(&mut self) -> Option<&mut TextBuffer> {
-        self.buffers.get_mut(self.current_burrer_index)
-    }
-
     pub fn new() -> State {
         d!()
     }
@@ -70,7 +77,7 @@ pub fn render_view(state: &State, view: &mut View) {
         ..d!()
     };
 
-    match state.current_buffer() {
+    match state.buffers.get(state.current_burrer_index) {
         Some(buffer) => {
             let cursors = buffer.cursors();
             const AVERAGE_SELECTION_LNES_ESTIMATE: usize = 4;
@@ -175,7 +182,7 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
             buffer_call!($buffer {$buffer.$($method_call)*})
         };
         ($buffer: ident $tokens:block) => {
-            if let Some($buffer) = state.current_buffer_mut() {
+            if let Some($buffer) = state.buffers.get_mut(state.current_burrer_index) {
                 $tokens;
             }
         }
@@ -183,41 +190,45 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
     perf_viz::record_guard!("update_and_render");
 
     if cfg!(debug_assertions) {
-        if_changed::dbg!(input);
+        if_changed::dbg!(&input);
     }
+
+    let cmd = Cmd::NoCmd;
+
+    use Input::*;
     match input {
         Input::None => {}
-        Input::Quit => {}
-        Input::Insert(c) => buffer_call!(b.insert(c)),
-        Input::Delete => buffer_call!(b.delete()),
-        Input::Redo => buffer_call!(b.redo()),
-        Input::Undo => buffer_call!(b.undo()),
-        Input::MoveAllCursors(r#move) => buffer_call!(b.move_all_cursors(r#move)),
-        Input::ExtendSelectionForAllCursors(r#move) => {
+        Quit => {}
+        Insert(c) => buffer_call!(b.insert(c)),
+        Delete => buffer_call!(b.delete()),
+        Redo => buffer_call!(b.redo()),
+        Undo => buffer_call!(b.undo()),
+        MoveAllCursors(r#move) => buffer_call!(b.move_all_cursors(r#move)),
+        ExtendSelectionForAllCursors(r#move) => {
             buffer_call!(b.extend_selection_for_all_cursors(r#move))
         }
-        Input::ScrollVertically(amount) => {
+        ScrollVertically(amount) => {
             state.scroll_y -= amount;
         }
-        Input::ScrollHorizontally(amount) => {
+        ScrollHorizontally(amount) => {
             state.scroll_x += amount;
         }
-        Input::ResetScroll => {
+        ResetScroll => {
             state.scroll_x = 0.0;
             state.scroll_y = 0.0;
         }
-        Input::SetSizes(sizes) => {
+        SetSizes(sizes) => {
             set_if_present!(sizes => state.screen_w);
             set_if_present!(sizes => state.screen_h);
             set_if_present!(sizes => state.text_char_dim);
             set_if_present!(sizes => state.status_char_dim);
         }
-        Input::ReplaceCursors(xy) => {
+        ReplaceCursors(xy) => {
             let position =
                 screen_space_to_position(xy, state.text_char_dim, (state.scroll_x, state.scroll_y));
             buffer_call!(b.replace_cursors(position))
         }
-        Input::DragCursors(xy) => {
+        DragCursors(xy) => {
             // In practice we currently expect this to be sent only immeadately after an
             // `Input::ReplaceCursors` input, so there will be only one cursor. But it seems like
             // we might as well just do it to all the cursors
@@ -225,11 +236,14 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
                 screen_space_to_position(xy, state.text_char_dim, (state.scroll_x, state.scroll_y));
             buffer_call!(b.drag_cursors(position))
         }
+        Cut => buffer_call!(b {state.clipboard_history.cut(b)}),
+        Copy => buffer_call!(b {state.clipboard_history.copy(b)}),
+        Paste(op_s) => buffer_call!(b {state.clipboard_history.paste(b, op_s)}),
     }
 
     let mut view = d!();
 
     render_view(state, &mut view);
 
-    (view, Cmd::NoCmd)
+    (view, cmd)
 }

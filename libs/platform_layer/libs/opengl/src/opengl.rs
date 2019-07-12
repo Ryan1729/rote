@@ -75,6 +75,55 @@ pub fn get_glyph_brush<'font, A: Clone>(font_info: &FontInfo<'font>) -> GlyphBru
         .build()
 }
 
+mod clipboard_layer {
+    pub use clipboard::ClipboardProvider;
+    /// This enum exists so we can do dynamic dispatch on `ClipboardProvider` instances even though
+    /// the trait requires `Sized`. The reason  we want to do that, is so that if we try to run this
+    /// on a platform where `clipboard::ClipboardContext::new` retirns an `Err` we can continue
+    /// operation, just without system clipboard support.
+    pub enum Clipboard {
+        System(clipboard::ClipboardContext),
+        Fallback(clipboard::nop_clipboard::NopClipboardContext)
+    }
+
+    impl clipboard::ClipboardProvider for Clipboard {
+        fn new() -> Result<Self, Box<std::error::Error>> {
+            let result: Result<clipboard::ClipboardContext, clipboard::nop_clipboard::NopClipboardContext> =
+            clipboard::ClipboardContext::new().map_err(|err| {
+                eprintln!("System clipboard not supported. {}", err);
+                // `NopClipboardContext::new` always returns an `Ok`
+                clipboard::nop_clipboard::NopClipboardContext::new().unwrap()
+            });
+
+            let output = match result {
+                Ok(ctx) => Clipboard::System(ctx),
+                Err(ctx) => Clipboard::Fallback(ctx),
+            };
+
+            // `get_clipboard` currently relies on this neer returning `Err`.
+            Ok(output)
+        }
+        fn get_contents(&mut self) -> Result<String, Box<std::error::Error>> {
+            match self {
+                Clipboard::System(ctx) => ctx.get_contents(),
+                Clipboard::Fallback(ctx) => ctx.get_contents()
+            }
+        }
+        fn set_contents(&mut self, s: String) -> Result<(), Box<std::error::Error>> {
+            match self {
+                Clipboard::System(ctx) => ctx.set_contents(s),
+                Clipboard::Fallback(ctx) => ctx.set_contents(s)
+            }
+        }
+    }
+
+    pub fn get_clipboard() -> Clipboard {
+        // As you can see in the implementation of the `new` method, it always returns `Ok`
+        Clipboard::new().unwrap()
+    }
+}
+use clipboard_layer::{get_clipboard, Clipboard, ClipboardProvider};
+
 #[perf_viz::record]
 pub fn run(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
     run_inner(update_and_render)
@@ -95,6 +144,8 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
             env::set_var("vblank_mode", "0");
         }
     }
+
+    let mut clipboard: Clipboard = get_clipboard();
 
     let events = glutin::event_loop::EventLoop::new();
     let title = "rote";
@@ -150,9 +201,10 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
             .name("editor".to_string())
             .spawn(move || {
                 while let Ok(input) = in_rx.recv() {
+                    let was_quit = Input::Quit == input;
                     let pair = update_and_render(input);
                     let _hope_it_gets_there = out_tx.send(pair);
-                    if let Input::Quit = input {
+                    if was_quit {
                         return;
                     }
                 }
@@ -313,11 +365,20 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                             VirtualKeyCode::End => {
                                 call_u_and_r!(Input::MoveAllCursors(Move::ToBufferEnd));
                             }
-                            VirtualKeyCode::Z => {
-                                call_u_and_r!(Input::Undo);
+                            VirtualKeyCode::C => {
+                                call_u_and_r!(Input::Copy);
+                            }
+                            VirtualKeyCode::V => {
+                                call_u_and_r!(Input::Paste(clipboard.get_contents().ok()));
+                            }
+                            VirtualKeyCode::X => {
+                                call_u_and_r!(Input::Cut);
                             }
                             VirtualKeyCode::Y => {
                                 call_u_and_r!(Input::Redo);
+                            }
+                            VirtualKeyCode::Z => {
+                                call_u_and_r!(Input::Undo);
                             }
                             _ => (),
                         },
@@ -430,12 +491,12 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                             _ => (),
                         },
                         WindowEvent::ReceivedCharacter(mut c) => {
-                            if
-                             c != '\u{7f}'      // delete
+                            if c != '\u{7f}'      // delete
                              && c != '\u{8}'   // backspace
                              && c != '\u{19}'  // "end of medium" (sent with Ctrl-y)
-                             && c != '\u{1a}'  // "substitute" (sent with Ctrl-z)
-                          {
+                             && c != '\u{1a}'
+                            // "substitute" (sent with Ctrl-z)
+                            {
                                 if c == '\r' {
                                     c = '\n';
                                 }
