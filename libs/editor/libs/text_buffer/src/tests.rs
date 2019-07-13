@@ -144,7 +144,7 @@ fn char_offset_to_pos_works_on_middle_of_single_line() {
 
 fn pos_to_to_char_offset_to_pos(rope: &Rope, p: Position) {
     if let Some(o) = pos_to_char_offset(&rope, &p) {
-        assert_eq!(char_offset_to_pos(&rope, dbg!(o)), Some(p))
+        assert_eq!(char_offset_to_pos(&rope, o), Some(p))
     }
 }
 
@@ -261,6 +261,28 @@ fn insertion_with_forward_selection_deletes_selected_text() {
 }
 
 #[test]
+fn insert_string_places_cursor_at_the_end() {
+    // Arrange
+    let mut buffer = t_b!("125");
+
+    buffer.move_cursor(0, Move::Right);
+    buffer.move_cursor(0, Move::Right);
+
+    // Act
+    buffer.insert_string("34".into());
+
+    // Assert
+    let s: String = buffer.rope.into();
+    assert_eq!(s, "12345");
+
+    cursor_assert! {
+        buffer,
+        p: pos! {l 0 o 4},
+        h: None
+    }
+}
+
+#[test]
 fn newline_places_cursor_in_correct_spot() {
     let mut buffer = t_b!("123");
 
@@ -278,7 +300,7 @@ fn newline_places_cursor_in_correct_spot() {
         p: pos! {l 0 o 3},
     }
 
-    buffer.insert(dbg!('\n'));
+    buffer.insert('\n');
 
     cursor_assert! {
         buffer,
@@ -522,7 +544,6 @@ fn all_cursor_movements_across_carriage_return_line_feeds_works() {
 macro_rules! multiline_selection {
     ($line_separator: literal) => {
         let mut buffer: TextBuffer = t_b!(concat!("123", $line_separator, "567"));
-        dbg!(1);
         cursor_assert! {
             buffer,
             p: pos! {l 0 o 0},
@@ -531,7 +552,6 @@ macro_rules! multiline_selection {
 
         buffer.extend_selection(0, Move::ToBufferEnd);
 
-        dbg!(2);
         cursor_assert! {
             buffer,
             p: pos! {l 1 o 3},
@@ -539,7 +559,6 @@ macro_rules! multiline_selection {
         }
 
         buffer.move_cursor(0, Move::ToBufferEnd);
-        dbg!(3);
         cursor_assert! {
             buffer,
             p: pos! {l 1 o 3},
@@ -549,7 +568,6 @@ macro_rules! multiline_selection {
 
         buffer.extend_selection(0, Move::ToBufferStart);
 
-        dbg!(4);
         cursor_assert! {
             buffer,
             p: pos! {l 0 o 0},
@@ -558,7 +576,6 @@ macro_rules! multiline_selection {
 
         buffer.move_cursor(0, Move::ToLineEnd);
 
-        dbg!(5);
         cursor_assert! {
             buffer,
             p: pos! {l 0 o 3},
@@ -589,10 +606,8 @@ macro_rules! multiline_selection {
             h: pos! {l 0 o 3}
         }
 
-        dbg!(5.5);
         buffer.move_cursor(0, Move::Down);
 
-        dbg!(6);
         cursor_assert! {
             buffer,
             p: pos! {l 1 o 0},
@@ -601,7 +616,6 @@ macro_rules! multiline_selection {
         }
 
         buffer.extend_selection(0, Move::Left);
-        dbg!(7);
         cursor_assert! {
             buffer,
             p: pos! {l 0 o 3},
@@ -1041,7 +1055,7 @@ fn undo_redo_works_on_these_edits_and_index<TestEdits: Borrow<[TestEdit]>>(edits
     record_if_index_matches!();
 
     for edit in edits.iter() {
-        apply_edit(&mut buffer, dbg!((*edit).clone()));
+        apply_edit(&mut buffer, (*edit).clone());
 
         record_if_index_matches!();
     }

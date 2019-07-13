@@ -402,12 +402,22 @@ pub struct BufferView {
     pub highlights: Vec<Highlight>,
 }
 
-#[derive(Debug, Clone, Copy)]
+ // Short form "Command".
+ // This is for telling the platform layer that it should do things something in addition to
+ // rendering the view.
+#[derive(Debug, Clone)]
 pub enum Cmd {
-    NoCmd, //The plan is to communicate things like saving to the platform layer with this
+    NoCmd,
+    SetClipboard(String)
 }
 
 d!(for Cmd : Cmd::NoCmd);
+
+impl Cmd {
+    pub fn take(&mut self) -> Cmd {
+        std::mem::replace(self, d!())
+    }
+}
 
 pub type UpdateAndRenderOutput = (View, Cmd);
 pub type UpdateAndRender = fn(Input) -> UpdateAndRenderOutput;

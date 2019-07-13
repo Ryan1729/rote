@@ -49,8 +49,7 @@ impl ClipboardHistory {
 
                 output.push_str(&s);
 
-                self.entries.push_back(s);
-                self.index += 1;
+                self.push_if_does_not_match_top(s);
 
                 sep = "\n";
             }
@@ -59,8 +58,27 @@ impl ClipboardHistory {
         }
     }
 
+    fn push_if_does_not_match_top(&mut self, to_push: String) {
+        match self.entries.get(self.index).map(|s| s != &to_push) {
+            None => {
+                self.entries.push_back(to_push);
+            }
+            Some(true) => {
+                self.entries.push_back(to_push);
+                self.index += 1;
+            }
+            Some(false) => {}
+        }
+    }
+
     fn paste(&mut self, buffer: &mut TextBuffer, possible_string: Option<String>) {
-        unimplemented!();
+        if let Some(s) = possible_string {
+            self.push_if_does_not_match_top(s)
+        }
+
+        if let Some(s) = dbg!(&self.entries).get(self.index) {
+            buffer.insert_string(s.to_owned());
+        }
     }
 }
 
@@ -223,7 +241,7 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
         if_changed::dbg!(&input);
     }
 
-    let cmd = Cmd::NoCmd;
+    let mut cmd = Cmd::NoCmd;
 
     use Input::*;
     match input {
@@ -266,8 +284,16 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
                 screen_space_to_position(xy, state.text_char_dim, (state.scroll_x, state.scroll_y));
             buffer_call!(b.drag_cursors(position))
         }
-        Cut => buffer_call!(b {state.clipboard_history.cut(b)}),
-        Copy => buffer_call!(b {state.clipboard_history.copy(b)}),
+        Cut => buffer_call!(b {
+            if let Some(s) = state.clipboard_history.cut(b) {
+                cmd = Cmd::SetClipboard(s);
+            }
+        }),
+        Copy => buffer_call!(b {
+            if let Some(s) = state.clipboard_history.copy(b) {
+                cmd = Cmd::SetClipboard(s);
+            }
+        }),
         Paste(op_s) => buffer_call!(b {state.clipboard_history.paste(b, op_s)}),
     }
 

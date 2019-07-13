@@ -1,5 +1,7 @@
 ## TODO
 
+* Cut, Copy, Paste, using the system clipboard
+
 * Ctrl-Left/Right to jump by "words"
   * Does the word-boundary regex do what I want here?
 
@@ -19,9 +21,6 @@
       * What should the keyboard shortcut be?
         * hold alt so both ctrl and shift are free to use?
         * a "current cursor mode"?
-
-
-* Cut, Copy, Paste, using the system clipboard
 
 * make Undo/Redo history into struct containing `VecDeque` which keeps track of total bytes used and automatically pops things off the end when storage would exceed a limit.
 

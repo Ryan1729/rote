@@ -1,5 +1,4 @@
 use editor_types::{ByteIndex, Cursor, CursorState, SetPositionAction, Vec1};
-use if_changed;
 use macros::{borrow, borrow_mut, d};
 use panic_safe_rope::Rope;
 use platform_types::{AbsoluteCharOffset, CharOffset, Move, Position};
@@ -78,11 +77,9 @@ fn char_to_string(c: char) -> String {
 }
 
 fn copy_string(rope: &Rope, range: AbsoluteCharOffsetRange) -> String {
-    dbg!(
-        rope.slice(range.usize_range())
-            .map(|slice| {let s: String = slice.into(); s})
-            .unwrap_or_default()
-    )
+    rope.slice(range.usize_range())
+        .map(|slice| {let s: String = slice.into(); s})
+        .unwrap_or_default()
 }
 
 impl TextBuffer {
@@ -170,8 +167,6 @@ impl TextBuffer {
         if let Some(p) = position {
             let mut new = self.cursors.clone();
             for c in new.iter_mut() {
-                if_changed::dbg!(p);
-                if_changed::dbg!(&c);
                 c.set_position_custom(p, SetPositionAction::OldPositionBecomesHighlightIfItIsNone);
             }
             self.apply_cursor_edit(new);
@@ -212,7 +207,7 @@ impl TextBuffer {
                 }
             },
             AllOrOne::Index(index) => {
-                action(&self.rope, dbg!(new.get_mut(index)?), r#move);
+                action(&self.rope, new.get_mut(index)?, r#move);
             }
         };
 
@@ -242,7 +237,7 @@ impl TextBuffer {
 
         match kind {
             ApplyKind::Record => {
-                dbg!(&mut self.history).push_back(edit);
+                self.history.push_back(edit);
                 self.history_index += 1;
             }
             ApplyKind::Playback => {}
@@ -513,7 +508,7 @@ fn char_offset_to_pos(
     if rope.len_chars() == offset {
         Some(rope.len_lines() - 1)
     } else {
-        dbg!(rope.char_to_line(offset))
+        rope.char_to_line(offset)
     }
     .and_then(|line_index| {
         let start_of_line = rope.line_to_char(line_index)?;
@@ -576,14 +571,11 @@ where
     if !in_cursor_bounds(rope, &new) {
         new.line += 1;
         new.offset = d!();
-        dbg!(new);
     }
 
     if in_cursor_bounds(rope, &new) {
-        dbg!(Some(new));
         Some(new)
     } else {
-        dbg!("None");
         None
     }
 }
@@ -711,7 +703,7 @@ impl std::ops::Not for Edit {
 
 impl TextBuffer {
     pub fn redo(&mut self) -> Option<()> {
-        dbg!(&self.history)
+        self.history
             .get(self.history_index)
             .cloned()
             .map(|edit| {
@@ -723,7 +715,7 @@ impl TextBuffer {
     pub fn undo(&mut self) -> Option<()> {
         let new_index = self.history_index.checked_sub(1)?;
         self.history.get(new_index).cloned().map(|edit| {
-            self.apply_edit(dbg!(!dbg!(edit)), ApplyKind::Playback);
+            self.apply_edit(!edit, ApplyKind::Playback);
             self.history_index = new_index;
         })
     }

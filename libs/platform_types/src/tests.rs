@@ -78,7 +78,7 @@ proptest! {
 
         let upper_bound = std::cmp::min(unoptimized_upper_bound, 3);
 
-        assert!(get_ord_highlights(pos, highlight_pos).len() <= dbg!(upper_bound));
+        assert!(get_ord_highlights(pos, highlight_pos).len() <= upper_bound);
     }
 
     #[test]

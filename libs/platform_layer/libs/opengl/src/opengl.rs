@@ -12,8 +12,8 @@ use glyph_brush::{
 use macros::d;
 
 use platform_types::{
-    BufferView, BufferViewKind, CharDim, Highlight, Input, ScreenSpaceXY, Sizes, UpdateAndRender,
-    View,
+    BufferView, BufferViewKind, CharDim, Cmd, Highlight, Input, ScreenSpaceXY, Sizes,
+    UpdateAndRender, View,
 };
 
 pub struct FontInfo<'a> {
@@ -180,7 +180,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
         .inner_size()
         .to_physical(glutin_context.window().hidpi_factor());
 
-    let (mut view, mut _cmd) = update_and_render(Input::SetSizes(Sizes! {
+    let (mut view, mut cmd) = update_and_render(Input::SetSizes(Sizes! {
         screen_w: dimensions.width as f32,
         screen_h: dimensions.height as f32,
         text_char_dim: font_info.text_char_dim,
@@ -221,7 +221,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                     match out_rx.try_recv() {
                         Ok((v, c)) => {
                             view = v;
-                            _cmd = c;
+                            cmd = c;
                         }
                         _ => {}
                     };
@@ -260,6 +260,15 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                             rate,
                             (mouse_x, mouse_y),
                         ));
+                    }
+
+                    match cmd.take() {
+                        Cmd::SetClipboard(s) => {
+                            if let Err(err) = clipboard.set_contents(s) {
+                                eprintln!("{}", err)
+                            }
+                        }
+                        Cmd::NoCmd => {}
                     }
 
                     perf_viz::start_record!("sleepin'");
@@ -491,11 +500,14 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                             _ => (),
                         },
                         WindowEvent::ReceivedCharacter(mut c) => {
-                            if c != '\u{7f}'      // delete
-                             && c != '\u{8}'   // backspace
+                            if
+                             c != '\u{3}'       // "end of text" (sent with Ctrl-c)
+                             && c != '\u{7f}'   // delete
+                             && c != '\u{8}'    // backspace
+                             && c != '\u{16}'  // "synchronous idle" (sent with Ctrl-v)
+                             && c != '\u{18}'  // "cancel" (sent with Ctrl-x)
                              && c != '\u{19}'  // "end of medium" (sent with Ctrl-y)
-                             && c != '\u{1a}'
-                            // "substitute" (sent with Ctrl-z)
+                             && c != '\u{1a}'  // "substitute" (sent with Ctrl-z)
                             {
                                 if c == '\r' {
                                     c = '\n';
@@ -666,9 +678,6 @@ pub fn render_buffer_view<A: Clone>(
 
         let mut rect_bounds: Bounds = d!();
         rect_bounds.max = bounds.into();
-        if let BufferViewKind::Edit = kind {
-            if_changed::dbg!(rect_bounds);
-        }
         //rect_bounds.max = (1.0 / 0.0, 1.0 / 0.0).into();
 
         perf_viz::start_record!("highlight_ranges.extend");

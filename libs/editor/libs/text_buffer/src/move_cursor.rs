@@ -12,10 +12,7 @@ pub fn or_clear_highlights(rope: &Rope, cursor: &mut Cursor, r#move: Move) {
                 // see above comment
                 cursor.set_position(max(p, cursor.get_position()));
             }
-            Move::ToLineStart
-            | Move::ToBufferStart
-            | Move::ToLineEnd
-            | Move::ToBufferEnd => {
+            Move::ToLineStart | Move::ToBufferStart | Move::ToLineEnd | Move::ToBufferEnd => {
                 move_cursor::directly(rope, cursor, r#move);
                 cursor.state = d!();
             }
@@ -36,14 +33,8 @@ pub fn and_extend_selection(rope: &Rope, cursor: &mut Cursor, r#move: Move) {
 
 pub fn directly(rope: &Rope, cursor: &mut Cursor, r#move: Move) {
     directly_custom(rope, cursor, r#move, SetPositionAction::ClearHighlight);
-    dbg!(("directly_custom", rope, cursor, r#move));
 }
-pub fn directly_custom(
-    rope: &Rope,
-    cursor: &mut Cursor,
-    r#move: Move,
-    action: SetPositionAction,
-) {
+pub fn directly_custom(rope: &Rope, cursor: &mut Cursor, r#move: Move, action: SetPositionAction) {
     let new_state = match r#move {
         Move::Up => move_up(rope, cursor, action),
         Move::Down => move_down(rope, cursor, action),
@@ -197,7 +188,6 @@ fn move_to_rope_start(rope: &Rope, cursor: &mut Cursor, action: SetPositionActio
 }
 #[perf_viz::record]
 fn move_to_rope_end(rope: &Rope, cursor: &mut Cursor, action: SetPositionAction) -> Moved {
-    dbg!("move_to_rope_end");
     if let Some((line, offset)) = last_line_index_and_count(rope) {
         let new_position = Position { line, offset };
         move_to(rope, cursor, new_position, action)
