@@ -88,7 +88,6 @@ fn copy_string(rope: &Rope, range: AbsoluteCharOffsetRange) -> String {
 impl TextBuffer {
     #[perf_viz::record]
     pub fn insert(&mut self, c: char) {
-
         self.insert_string(char_to_string(c));
     }
 
@@ -117,6 +116,32 @@ impl TextBuffer {
             what: MoveOrSelect::Select,
             how_many: AllOrOne::All,
         }, r#move);
+    }
+
+    pub fn copy_selections(&self) -> Vec<String> {
+        self.get_selections_and_cut_edit().0
+    }
+
+    pub fn cut_selections(&mut self) -> Vec<String> {
+        let (output, edit) = self.get_selections_and_cut_edit();
+
+        self.apply_edit(edit, ApplyKind::Record);
+
+        output
+    }
+
+    fn get_selections_and_cut_edit(&self) -> (Vec<String>, Edit) {
+        let mut strings = Vec::with_capacity(self.cursors.len());
+
+        let edit = get_cut_edit(&self.rope, &self.cursors);
+
+        for range_edit in edit.range_edits.iter() {
+            if let Some(RangeEdit {chars, ..}) = &range_edit.delete_range {
+                strings.push(chars.to_owned());
+            }
+        }
+
+        (strings, edit)
     }
 
     #[perf_viz::record]
@@ -325,6 +350,38 @@ fn get_delete_edit(
                     ..d!()
                 }
             }
+            (Some(o1), Some(o2)) if o1 > 0 || o2 > 0 => {
+                RangeEdits {
+                    delete_range: Some(delete_highlighted(&mut cloned_rope, cursor, o1, o2)),
+                    ..d!()
+                }
+            }
+            _ => {
+                d!()
+            }
+        }
+    });
+
+    Edit {
+        range_edits,
+        cursors: Change {
+            new: cloned_cursors,
+            old: original_cursors.clone()
+        }
+    }
+}
+
+fn get_cut_edit(
+    original_rope: &Rope,
+    original_cursors: &Cursors
+) -> Edit {
+    let mut cloned_rope = original_rope.clone();
+    let mut cloned_cursors = original_cursors.clone();
+
+    let range_edits = cloned_cursors.mapped_mut(|cursor| {
+        let offsets = offset_pair(original_rope, cursor);
+
+        match offsets {
             (Some(o1), Some(o2)) if o1 > 0 || o2 > 0 => {
                 RangeEdits {
                     delete_range: Some(delete_highlighted(&mut cloned_rope, cursor, o1, o2)),

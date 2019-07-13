@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use editor_types::{CursorState, Vec1};
 use macros::{c, d};
 use platform_types::{
@@ -20,15 +21,44 @@ pub struct State {
 }
 
 #[derive(Default)]
-struct ClipboardHistory;
+struct ClipboardHistory{
+    entries: VecDeque<String>,
+    index: usize,
+}
+
+const AVERAGE_SELECTION_SIZE_ESTIMATE: usize = 32;
 
 impl ClipboardHistory {
     fn cut(&mut self, buffer: &mut TextBuffer) -> Option<String> {
-        unimplemented!();
+        self.push_and_join_into_option(buffer.cut_selections())
+
     }
-    fn copy(&mut self, buffer: &mut TextBuffer) -> Option<String> {
-        unimplemented!();
+    fn copy(&mut self, buffer: &TextBuffer) -> Option<String> {
+        self.push_and_join_into_option(buffer.copy_selections())
     }
+
+    fn push_and_join_into_option(&mut self, strings: Vec<String>) -> Option<String> {
+        if strings.is_empty() {
+            None
+        } else {
+            let mut output = String::with_capacity(strings.len() * AVERAGE_SELECTION_SIZE_ESTIMATE);
+
+            let mut sep = "";
+            for s in strings {
+                output.push_str(sep);
+
+                output.push_str(&s);
+
+                self.entries.push_back(s);
+                self.index += 1;
+
+                sep = "\n";
+            }
+
+            Some(output)
+        }
+    }
+
     fn paste(&mut self, buffer: &mut TextBuffer, possible_string: Option<String>) {
         unimplemented!();
     }

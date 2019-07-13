@@ -870,6 +870,7 @@ enum TestEdit {
     ExtendSelection(usize, Move),
     ReplaceCursors(Position),
     DragCursors(Position),
+    Cut,
 }
 
 fn apply_edit(buffer: &mut TextBuffer, edit: TestEdit) {
@@ -886,6 +887,7 @@ fn apply_edit(buffer: &mut TextBuffer, edit: TestEdit) {
         ExtendSelection(index, r#move) => buffer.extend_selection(index, r#move),
         ReplaceCursors(position) => buffer.replace_cursors(position),
         DragCursors(position) => buffer.drag_cursors(position),
+        Cut => {buffer.cut_selections();},
     }
 }
 
