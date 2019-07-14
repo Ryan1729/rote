@@ -1,7 +1,5 @@
 ## TODO
 
-* Cut, Copy, Paste, using the system clipboard
-
 * Ctrl-Left/Right to jump by "words"
   * Does the word-boundary regex do what I want here?
 

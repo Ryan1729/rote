@@ -245,6 +245,8 @@ impl TextBuffer {
     }
 }
 
+/// Returns an edit that, if applied, after deleting the highlighted region at each cursor if
+/// there is one, inserts the given string at each of the cursors.
 fn get_insert_edit(
     original_rope: &Rope,
     original_cursors: &Cursors,
@@ -260,7 +262,9 @@ fn get_insert_edit(
                     || Some(AbsoluteCharOffset(o)) == highlight =>
             {
                 cloned_rope.insert(o, &s);
-                move_cursor::directly(&cloned_rope, cursor, Move::Right);
+                for _ in 0..s.len() {
+                    move_cursor::directly(&cloned_rope, cursor, Move::Right);
+                }
 
                 RangeEdits {
                     insert_range: Some(RangeEdit {
@@ -274,7 +278,9 @@ fn get_insert_edit(
                 let range_edit = delete_highlighted(&mut cloned_rope, cursor, o1, o2);
 
                 cloned_rope.insert(range_edit.range.usize_min(), &s);
-                move_cursor::directly(&cloned_rope, cursor, Move::Right);
+                for _ in 0..s.len() {
+                    move_cursor::directly(&cloned_rope, cursor, Move::Right);
+                }
 
                 RangeEdits {
                     insert_range: Some(RangeEdit {
@@ -302,6 +308,8 @@ fn get_insert_edit(
     }
 }
 
+/// Returns an edit that, if applied, deletes the highlighted region at each cursor if there is one.
+/// Otherwise the applying the edit will delete a single character at each cursor.
 fn get_delete_edit(
     original_rope: &Rope,
     original_cursors: &Cursors
@@ -366,6 +374,8 @@ fn get_delete_edit(
     }
 }
 
+/// returns an edit that if applied will delete the highlighted region at each cursor if there is
+/// one, and which does nothing otherwise.
 fn get_cut_edit(
     original_rope: &Rope,
     original_cursors: &Cursors
@@ -433,7 +443,7 @@ fn delete_highlighted(
     }
 }
 
-/// returns `None` if that line is not in the `Rope`.
+/// Returns `None` if that line is not in the `Rope`.
 fn valid_len_chars_for_line(rope: &Rope, line_index: usize) -> Option<usize> {
     rope.lines().nth(line_index).map(|line| {
         // we assume a line can contain at most one `'\n'`
@@ -484,17 +494,6 @@ fn in_cursor_bounds<P: Borrow<Position>>(rope: &Rope, position: P) -> bool {
         .unwrap_or(false)
 }
 
-fn nth_line_count(rope: &Rope, n: usize) -> Option<CharOffset> {
-    rope.lines().nth(n).map(|l| CharOffset(l.len_chars()))
-}
-
-fn last_line_index_and_count(rope: &Rope) -> Option<(usize, CharOffset)> {
-    rope.lines()
-        .map(|l| CharOffset(l.len_chars()))
-        .enumerate()
-        .last()
-}
-
 #[perf_viz::record]
 fn pos_to_char_offset(rope: &Rope, position: &Position) -> Option<AbsoluteCharOffset> {
     Some(AbsoluteCharOffset(rope.line_to_char(position.line)?) + position.offset)
@@ -520,63 +519,9 @@ fn char_offset_to_pos(
     })
 }
 
-
-
 impl<'rope> TextBuffer {
     pub fn chars(&'rope self) -> impl Iterator<Item = char> + 'rope {
         self.rope.chars()
-    }
-}
-
-fn backward<P>(rope: &Rope, position: P) -> Option<Position>
-where
-    P: Borrow<Position>,
-{
-    let mut position = *position.borrow();
-
-    while {
-        position = if position.offset == 0 {
-            if position.line == 0 {
-                return None;
-            }
-            let line = position.line.saturating_sub(1);
-            Position {
-                line,
-                offset: nth_line_count(rope, line).unwrap_or_default(),
-            }
-        } else {
-            Position {
-                offset: position.offset - 1,
-                ..position
-            }
-        };
-
-        !in_cursor_bounds(rope, position)
-    } {}
-
-    Some(position)
-}
-
-fn forward<P>(rope: &Rope, position: P) -> Option<Position>
-where
-    P: Borrow<Position>,
-{
-    let position = position.borrow();
-
-    let mut new = Position {
-        offset: position.offset + 1,
-        ..*position
-    };
-
-    if !in_cursor_bounds(rope, &new) {
-        new.line += 1;
-        new.offset = d!();
-    }
-
-    if in_cursor_bounds(rope, &new) {
-        Some(new)
-    } else {
-        None
     }
 }
 

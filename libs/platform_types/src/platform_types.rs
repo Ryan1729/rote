@@ -11,6 +11,8 @@ pub enum Move {
     ToLineEnd,
     ToBufferStart,
     ToBufferEnd,
+    ToPreviousWordBoundary,
+    ToNextWordBoundary,
 }
 
 impl std::ops::Not for Move {
@@ -27,6 +29,8 @@ impl std::ops::Not for Move {
             ToLineEnd => ToLineStart,
             ToBufferStart => ToBufferEnd,
             ToBufferEnd => ToBufferStart,
+            ToPreviousWordBoundary => ToNextWordBoundary,
+            ToNextWordBoundary => ToPreviousWordBoundary,
         }
     }
 }
