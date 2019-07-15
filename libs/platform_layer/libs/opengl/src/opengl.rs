@@ -374,6 +374,12 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                             VirtualKeyCode::End => {
                                 call_u_and_r!(Input::MoveAllCursors(Move::ToBufferEnd));
                             }
+                            VirtualKeyCode::Left => {
+                                call_u_and_r!(Input::MoveAllCursors(Move::ToPreviousWordBoundary));
+                            }
+                            VirtualKeyCode::Right => {
+                                call_u_and_r!(Input::MoveAllCursors(Move::ToNextWordBoundary));
+                            }
                             VirtualKeyCode::C => {
                                 call_u_and_r!(Input::Copy);
                             }
@@ -415,6 +421,12 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                                 call_u_and_r!(Input::ExtendSelectionForAllCursors(
                                     Move::ToBufferEnd
                                 ));
+                            }
+                            VirtualKeyCode::Left => {
+                                call_u_and_r!(Input::ExtendSelectionForAllCursors(Move::ToPreviousWordBoundary));
+                            }
+                            VirtualKeyCode::Right => {
+                                call_u_and_r!(Input::ExtendSelectionForAllCursors(Move::ToNextWordBoundary));
                             }
                             VirtualKeyCode::Z => {
                                 call_u_and_r!(Input::Redo);

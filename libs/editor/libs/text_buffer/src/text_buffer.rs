@@ -1,4 +1,4 @@
-use editor_types::{ByteIndex, Cursor, CursorState, SetPositionAction, Vec1};
+use editor_types::{ByteIndex, Cursor, SetPositionAction, Vec1};
 use macros::{borrow, borrow_mut, d};
 use panic_safe_rope::Rope;
 use platform_types::{AbsoluteCharOffset, CharOffset, Move, Position};

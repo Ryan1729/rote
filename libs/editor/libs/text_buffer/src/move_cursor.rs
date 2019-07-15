@@ -1,5 +1,13 @@
 // this module is inside `text_buffer`
-use super::*;
+use super::in_cursor_bounds;
+use std::borrow::Borrow;
+use editor_types::{SetPositionAction, Cursor, CursorState};
+use panic_safe_rope::Rope;
+use macros::{d};
+use platform_types::*;
+use std::borrow::Cow;
+use lazy_static::lazy_static;
+use regex::Regex;
 
 pub fn or_clear_highlights(rope: &Rope, cursor: &mut Cursor, r#move: Move) {
     if let Some(p) = cursor.get_highlight_position() {
@@ -15,12 +23,12 @@ pub fn or_clear_highlights(rope: &Rope, cursor: &mut Cursor, r#move: Move) {
                 cursor.set_position(max(p, cursor.get_position()));
             }
             ToLineStart | ToBufferStart | ToLineEnd | ToBufferEnd => {
-                move_cursor::directly(rope, cursor, r#move);
+                directly(rope, cursor, r#move);
                 cursor.state = d!();
             }
         };
     } else {
-        move_cursor::directly(rope, cursor, r#move);
+        directly(rope, cursor, r#move);
     }
 }
 
@@ -184,24 +192,118 @@ fn move_to_line_end(rope: &Rope, cursor: &mut Cursor, action: SetPositionAction)
 #[perf_viz::record]
 fn move_to_rope_start(rope: &Rope, cursor: &mut Cursor, action: SetPositionAction) -> Moved {
     // The default is the first position, and the first position is always there.
-    move_to(rope, cursor, Some(d!()), action)
+    let position: Position = d!();
+    move_to(rope, cursor, position, action)
 }
 #[perf_viz::record]
 fn move_to_rope_end(rope: &Rope, cursor: &mut Cursor, action: SetPositionAction) -> Moved {
     move_to(rope, cursor, last_position(rope), action)
 }
 
-// lazy_static! {
-//     static ref WORD_BOUNDARY: Regex = Regex::new("\\b").unwrap();
-// }
+lazy_static! {
+    static ref WORD_BOUNDARY: Regex = Regex::new("\\b").unwrap();
+}
 
 #[perf_viz::record]
 fn move_to_previous_word_boundary(rope: &Rope, cursor: &mut Cursor, action: SetPositionAction) -> Moved {
-    unimplemented!()
+    let line_index_and_section = {
+        let pos = cursor.get_position();
+        rope.line(pos.line).and_then(|line| {
+            let offset = pos.offset;
+
+            if offset == 0 {
+                // We want to be able to move to the previous line if possible
+                pos.line
+                    .checked_sub(1)
+                    .and_then(
+                        |i| rope.line(i).map(|l| (i, l))
+                    )
+            } else {
+                Some((
+                    pos.line,
+                    line.slice(..offset.0)
+                ))
+            }
+        })
+    };
+    dbg!(&line_index_and_section);
+    let position = {
+        line_index_and_section.and_then(|(index, section)| {
+            let line: Cow<str> = section.into();
+
+            WORD_BOUNDARY
+                .find_iter(&line)
+                .last()
+                .map(|r#match|
+                    Position {
+                        line: index,
+                        offset: CharOffset(r#match.end())
+                    }
+                )
+        })
+    };
+
+    move_to(rope, cursor, position, action)
+
 }
 #[perf_viz::record]
 fn move_to_next_word_boundary(rope: &Rope, cursor: &mut Cursor, action: SetPositionAction) -> Moved {
-    unimplemented!()
+    let line_index_and_section = {
+        let pos = cursor.get_position();
+        rope.line(pos.line).and_then(|line| {
+            let offset = pos.offset;
+
+            line
+                .len_chars()
+                .checked_sub(1)
+                .map(CharOffset)
+                // try to move to the next line if there is nothing left on this one
+                .filter(|&final_offset| offset < final_offset)
+                .map(|final_offset| dbg!((
+                    pos.line,
+                    offset,
+                    line.slice(offset.0..),
+                    final_offset
+                )))
+                .or_else(||
+                    dbg!(pos.line
+                        .checked_add(1)
+                        .and_then(
+                            // We rely on `d!()` being 0 here.
+                            |i| rope.line(i).map(|l| (i, d!(), l, d!()))
+                        ))
+                )
+        })
+    };
+    dbg!(&line_index_and_section);
+    let position = {
+        line_index_and_section.and_then(|(line_index, offset, section, final_offset)| {
+            let line: Cow<str> = section.into();
+
+            dbg!((line_index, offset, section, final_offset));
+            dbg!(WORD_BOUNDARY
+                .find_iter(&line).collect::<Vec<_>>());
+
+            WORD_BOUNDARY
+                .find_iter(&line)
+                // So we actually move if we started on a word boundary
+                .skip_while(|r#match| r#match.start() == 0)
+                .next()
+                .map(|r#match|
+                    Position {
+                        line: line_index,
+                        offset: offset + CharOffset(r#match.start())
+                    }
+                ).or_else(|| {
+                    Some(Position {
+                        line: line_index,
+                        offset: final_offset
+                    })
+                })
+        })
+    };
+
+    move_to(rope, cursor, position, action)
 }
 
 // utils
@@ -269,6 +371,9 @@ where
         None
     }
 }
+
+#[cfg(test)]
+use super::*;
 
 #[cfg(test)]
 mod tests {

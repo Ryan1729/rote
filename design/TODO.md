@@ -3,6 +3,25 @@
 * Ctrl-Left/Right to jump by "words"
   * Does the word-boundary regex do what I want here?
 
+* double click to select words
+  * register double click
+  * write test cases and enough code to get them to compile
+    * `{snake_case}`
+      * `{`
+      * `snake_case`
+      * `}`
+    * `(kebab-case)`
+      * `(`
+      * `kebab-case`
+      * `)`
+    * ` camelCase    ` (starts with tab `\t`, ends with 4 spaces)
+      * `\t`
+      * `camelCase`
+      * `    `
+    * `across-\nlines`
+      * `across-`
+      * `lines`
+
 * start allowing multiple cursors to be manipulated
   * Ctrl-click to add cursors
   * Ctrl-D to select word and find next instance of word and select it and place a cursor there.
@@ -34,3 +53,6 @@
     * "Never prompt for this file pair" seems extraneous. Is there a case where we ever not want it checked?
 
 * figure out why `#[check_or_no_panic]` seems to always report a panic in `panic_safe_rope`
+
+* Measure the timings and perceived latency without the weird `"time-render"` stuff again. A quick check is not showing a perceived difference anymore
+  * see https://gamedev.stackexchange.com/a/173730

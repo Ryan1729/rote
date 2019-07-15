@@ -48,6 +48,14 @@ pub enum CursorState {
 }
 d!(for CursorState: CursorState::None);
 
+#[derive(Clone, Copy, Debug)]
+pub enum SetPositionAction {
+    ClearHighlight,
+    ClearHighlightOnlyIfItMatchesNewPosition,
+    OldPositionBecomesHighlightIfItIsNone,
+}
+d!(for SetPositionAction: SetPositionAction::ClearHighlight);
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Cursor {
     // These are private so we can make sure whether to clear highlight is considered on each
@@ -59,14 +67,6 @@ pub struct Cursor {
     pub sticky_offset: CharOffset,
     pub state: CursorState,
 }
-
-#[derive(Clone, Copy, Debug)]
-pub enum SetPositionAction {
-    ClearHighlight,
-    ClearHighlightOnlyIfItMatchesNewPosition,
-    OldPositionBecomesHighlightIfItIsNone,
-}
-d!(for SetPositionAction: SetPositionAction::ClearHighlight);
 
 impl Cursor {
     pub fn new(position: Position) -> Self {
