@@ -455,8 +455,8 @@ macro_rules! moving_by_words {
             h: None,
             s: d!()
         }
-        dbg!();
-        buffer.move_cursor(0, ToNextWordBoundary);
+
+        buffer.move_cursor(0, ToNextLikelyEditLocation);
 
         cursor_assert! {
             buffer,
@@ -465,7 +465,7 @@ macro_rules! moving_by_words {
             s: d!()
         }
 
-        buffer.move_cursor(0, ToNextWordBoundary);
+        buffer.move_cursor(0, ToNextLikelyEditLocation);
         cursor_assert! {
             buffer,
             p: pos! {l 0 o 4},
@@ -473,7 +473,7 @@ macro_rules! moving_by_words {
             s: d!()
         }
 
-        buffer.move_cursor(0, ToNextWordBoundary);
+        buffer.move_cursor(0, ToNextLikelyEditLocation);
         cursor_assert! {
             buffer,
             p: pos! {l 0 o 5},
@@ -481,7 +481,7 @@ macro_rules! moving_by_words {
             s: d!()
         }
 
-        buffer.move_cursor(0, ToNextWordBoundary);
+        buffer.move_cursor(0, ToNextLikelyEditLocation);
         cursor_assert! {
             buffer,
             p: pos! {l 1 o 1},
@@ -489,7 +489,7 @@ macro_rules! moving_by_words {
             s: d!()
         }
 
-        buffer.move_cursor(0, ToNextWordBoundary);
+        buffer.move_cursor(0, ToNextLikelyEditLocation);
         cursor_assert! {
             buffer,
             p: pos! {l 1 o 4},
@@ -497,7 +497,7 @@ macro_rules! moving_by_words {
             s: d!()
         }
 
-        buffer.move_cursor(0, ToNextWordBoundary);
+        buffer.move_cursor(0, ToNextLikelyEditLocation);
         cursor_assert! {
             buffer,
             p: pos! {l 2 o 3},
@@ -505,7 +505,7 @@ macro_rules! moving_by_words {
             s: d!()
         }
 
-        buffer.move_cursor(0, ToNextWordBoundary);
+        buffer.move_cursor(0, ToNextLikelyEditLocation);
         cursor_assert! {
             buffer,
             p: pos! {l 2 o 4},
@@ -513,7 +513,7 @@ macro_rules! moving_by_words {
             s: d!()
         }
 
-        buffer.move_cursor(0, ToNextWordBoundary);
+        buffer.move_cursor(0, ToNextLikelyEditLocation);
         cursor_assert! {
             buffer,
             p: pos! {l 3 o 3},
@@ -521,7 +521,7 @@ macro_rules! moving_by_words {
             s: d!()
         }
 
-        buffer.move_cursor(0, ToNextWordBoundary);
+        buffer.move_cursor(0, ToNextLikelyEditLocation);
         cursor_assert! {
             buffer,
             p: pos! {l 3 o 6},
@@ -529,15 +529,15 @@ macro_rules! moving_by_words {
             s: d!()
         }
 
-        buffer.move_cursor(0, ToNextWordBoundary);
+        buffer.move_cursor(0, ToNextLikelyEditLocation);
         cursor_assert! {
             buffer,
-            p: pos! {l 3 o 8},
+            p: pos! {l 3 o 9},
             h: None,
             s: d!()
         }
 
-        buffer.move_cursor(0, ToNextWordBoundary);
+        buffer.move_cursor(0, ToNextLikelyEditLocation);
         cursor_assert! {
             buffer,
             p: pos! {l 3 o 10},
@@ -545,7 +545,7 @@ macro_rules! moving_by_words {
             s: d!()
         }
 
-        buffer.move_cursor(0, ToNextWordBoundary);
+        buffer.move_cursor(0, ToNextLikelyEditLocation);
         cursor_assert! {
             buffer,
             p: pos! {l 3 o 13},
@@ -553,7 +553,7 @@ macro_rules! moving_by_words {
             s: d!()
         }
 
-        buffer.move_cursor(0, ToNextWordBoundary);
+        buffer.move_cursor(0, ToNextLikelyEditLocation);
         cursor_assert! {
             buffer,
             p: pos! {l 3 o 16},
@@ -561,7 +561,7 @@ macro_rules! moving_by_words {
             s: d!()
         }
 
-        buffer.move_cursor(0, ToNextWordBoundary);
+        buffer.move_cursor(0, ToNextLikelyEditLocation);
         cursor_assert! {
             buffer,
             p: pos! {l 4 o 0},
@@ -569,7 +569,7 @@ macro_rules! moving_by_words {
             s: d!()
         }
 
-        buffer.move_cursor(0, ToNextWordBoundary);
+        buffer.move_cursor(0, ToNextLikelyEditLocation);
         cursor_assert! {
             buffer,
             p: pos! {l 4 o 0},
@@ -579,7 +579,8 @@ macro_rules! moving_by_words {
 
         // Now back the other way
 
-        buffer.move_cursor(0, ToPreviousWordBoundary);
+        buffer.move_cursor(0, ToPreviousLikelyEditLocation);
+        dbg!((pos! {l 3 o 13}, "<-"));
         cursor_assert! {
             buffer,
             p: pos! {l 3 o 13},
@@ -587,7 +588,7 @@ macro_rules! moving_by_words {
             s: d!()
         }
 
-        buffer.move_cursor(0, ToPreviousWordBoundary);
+        buffer.move_cursor(0, ToPreviousLikelyEditLocation);
         cursor_assert! {
             buffer,
             p: pos! {l 3 o 10},
@@ -595,7 +596,7 @@ macro_rules! moving_by_words {
             s: d!()
         }
 
-        buffer.move_cursor(0, ToPreviousWordBoundary);
+        buffer.move_cursor(0, ToPreviousLikelyEditLocation);
         cursor_assert! {
             buffer,
             p: pos! {l 3 o 9},
@@ -603,7 +604,7 @@ macro_rules! moving_by_words {
             s: d!()
         }
 
-        buffer.move_cursor(0, ToPreviousWordBoundary);
+        buffer.move_cursor(0, ToPreviousLikelyEditLocation);
         cursor_assert! {
             buffer,
             p: pos! {l 3 o 6},
@@ -611,7 +612,7 @@ macro_rules! moving_by_words {
             s: d!()
         }
 
-        buffer.move_cursor(0, ToPreviousWordBoundary);
+        buffer.move_cursor(0, ToPreviousLikelyEditLocation);
         cursor_assert! {
             buffer,
             p: pos! {l 3 o 3},
@@ -619,7 +620,7 @@ macro_rules! moving_by_words {
             s: d!()
         }
 
-        buffer.move_cursor(0, ToPreviousWordBoundary);
+        buffer.move_cursor(0, ToPreviousLikelyEditLocation);
         cursor_assert! {
             buffer,
             p: pos! {l 3 o 0},
@@ -627,7 +628,7 @@ macro_rules! moving_by_words {
             s: d!()
         }
 
-        buffer.move_cursor(0, ToPreviousWordBoundary);
+        buffer.move_cursor(0, ToPreviousLikelyEditLocation);
         cursor_assert! {
             buffer,
             p: pos! {l 2 o 3},
@@ -635,7 +636,7 @@ macro_rules! moving_by_words {
             s: d!()
         }
 
-        buffer.move_cursor(0, ToPreviousWordBoundary);
+        buffer.move_cursor(0, ToPreviousLikelyEditLocation);
         cursor_assert! {
             buffer,
             p: pos! {l 2 o 0},
@@ -643,15 +644,7 @@ macro_rules! moving_by_words {
             s: d!()
         }
 
-        buffer.move_cursor(0, ToPreviousWordBoundary);
-        cursor_assert! {
-            buffer,
-            p: pos! {l 1 o 4},
-            h: None,
-            s: d!()
-        }
-
-        buffer.move_cursor(0, ToPreviousWordBoundary);
+        buffer.move_cursor(0, ToPreviousLikelyEditLocation);
         cursor_assert! {
             buffer,
             p: pos! {l 1 o 1},
@@ -659,7 +652,7 @@ macro_rules! moving_by_words {
             s: d!()
         }
 
-        buffer.move_cursor(0, ToPreviousWordBoundary);
+        buffer.move_cursor(0, ToPreviousLikelyEditLocation);
         cursor_assert! {
             buffer,
             p: pos! {l 1 o 0},
@@ -667,7 +660,7 @@ macro_rules! moving_by_words {
             s: d!()
         }
 
-        buffer.move_cursor(0, ToPreviousWordBoundary);
+        buffer.move_cursor(0, ToPreviousLikelyEditLocation);
         cursor_assert! {
             buffer,
             p: pos! {l 0 o 4},
@@ -675,7 +668,7 @@ macro_rules! moving_by_words {
             s: d!()
         }
 
-        buffer.move_cursor(0, ToPreviousWordBoundary);
+        buffer.move_cursor(0, ToPreviousLikelyEditLocation);
         cursor_assert! {
             buffer,
             p: pos! {l 0 o 1},
@@ -683,7 +676,7 @@ macro_rules! moving_by_words {
             s: d!()
         }
 
-        buffer.move_cursor(0, ToPreviousWordBoundary);
+        buffer.move_cursor(0, ToPreviousLikelyEditLocation);
         cursor_assert! {
             buffer,
             p: pos! {l 0 o 0},
@@ -691,7 +684,7 @@ macro_rules! moving_by_words {
             s: d!()
         }
 
-        buffer.move_cursor(0, ToPreviousWordBoundary);
+        buffer.move_cursor(0, ToPreviousLikelyEditLocation);
         cursor_assert! {
             buffer,
             p: pos! {l 0 o 0},
@@ -706,15 +699,7 @@ macro_rules! moving_by_words {
             "123",
         ));
 
-        alt_buffer.move_cursor(0, ToNextWordBoundary);
-        cursor_assert! {
-            alt_buffer,
-            p: pos! {l 1 o 0},
-            h: None,
-            s: d!()
-        }
-
-        alt_buffer.move_cursor(0, ToNextWordBoundary);
+        alt_buffer.move_cursor(0, ToNextLikelyEditLocation);
         cursor_assert! {
             alt_buffer,
             p: pos! {l 1 o 3},
@@ -722,7 +707,7 @@ macro_rules! moving_by_words {
             s: d!()
         }
 
-        alt_buffer.move_cursor(0, ToNextWordBoundary);
+        alt_buffer.move_cursor(0, ToNextLikelyEditLocation);
         cursor_assert! {
             alt_buffer,
             p: pos! {l 1 o 3},
@@ -732,7 +717,7 @@ macro_rules! moving_by_words {
 
         // Back to the beginning again
 
-        alt_buffer.move_cursor(0, ToPreviousWordBoundary);
+        alt_buffer.move_cursor(0, ToPreviousLikelyEditLocation);
         cursor_assert! {
             alt_buffer,
             p: pos! {l 1 o 0},
@@ -740,7 +725,7 @@ macro_rules! moving_by_words {
             s: d!()
         }
 
-        alt_buffer.move_cursor(0, ToPreviousWordBoundary);
+        alt_buffer.move_cursor(0, ToPreviousLikelyEditLocation);
         cursor_assert! {
             alt_buffer,
             p: pos! {l 0 o 0},
@@ -748,7 +733,7 @@ macro_rules! moving_by_words {
             s: d!()
         }
 
-        alt_buffer.move_cursor(0, ToPreviousWordBoundary);
+        alt_buffer.move_cursor(0, ToPreviousLikelyEditLocation);
         cursor_assert! {
             alt_buffer,
             p: pos! {l 0 o 0},

@@ -11,8 +11,8 @@ pub enum Move {
     ToLineEnd,
     ToBufferStart,
     ToBufferEnd,
-    ToPreviousWordBoundary,
-    ToNextWordBoundary,
+    ToPreviousLikelyEditLocation,
+    ToNextLikelyEditLocation,
 }
 
 impl std::ops::Not for Move {
@@ -29,8 +29,8 @@ impl std::ops::Not for Move {
             ToLineEnd => ToLineStart,
             ToBufferStart => ToBufferEnd,
             ToBufferEnd => ToBufferStart,
-            ToPreviousWordBoundary => ToNextWordBoundary,
-            ToNextWordBoundary => ToPreviousWordBoundary,
+            ToPreviousLikelyEditLocation => ToNextLikelyEditLocation,
+            ToNextLikelyEditLocation => ToPreviousLikelyEditLocation,
         }
     }
 }
@@ -118,8 +118,8 @@ pub fn position_to_screen_space(
 d!(for Input : Input::None);
 
 /// The nth space between utf8 characters. So in the string "aöc" there are
-/// four possibe `CharOffset`s. (Note that "ö" is two characters: "o\u{308}".)
-/// Here they are represented as vertical bars: "|a|ö|c|"
+/// five possibe `CharOffset`s. (Note that "ö" is two characters: "o\u{308}".)
+/// Here they are represented as vertical bars: "|a|o|̈|c|"
 #[derive(Clone, Copy, Debug, Default, Hash)]
 pub struct CharOffset(pub usize);
 

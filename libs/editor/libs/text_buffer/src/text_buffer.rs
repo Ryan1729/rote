@@ -1,6 +1,6 @@
 use editor_types::{ByteIndex, Cursor, SetPositionAction, Vec1};
 use macros::{borrow, borrow_mut, d};
-use panic_safe_rope::Rope;
+use panic_safe_rope::{Rope, RopeSlice};
 use platform_types::{AbsoluteCharOffset, CharOffset, Move, Position};
 use std::borrow::Borrow;
 use std::collections::VecDeque;
@@ -415,8 +415,8 @@ fn nearest_valid_position_on_same_line<P: Borrow<Position>>(
 ) -> Option<Position> {
     let p = p.borrow();
 
-    valid_len_chars_for_line(rope, p.line).map(|len| Position {
-        offset: std::cmp::min(p.offset, CharOffset(len)),
+    final_non_newline_offset_for_line(rope, p.line).map(|final_offset| Position {
+        offset: std::cmp::min(p.offset, final_offset),
         ..*p
     })
 }
@@ -444,52 +444,55 @@ fn delete_highlighted(
 }
 
 /// Returns `None` if that line is not in the `Rope`.
-fn valid_len_chars_for_line(rope: &Rope, line_index: usize) -> Option<usize> {
-    rope.lines().nth(line_index).map(|line| {
-        // we assume a line can contain at most one `'\n'`
+fn final_non_newline_offset_for_line(rope: &Rope, line_index: usize) -> Option<CharOffset> {
+    rope
+        .lines()
+        .nth(line_index)
+        .map(final_non_newline_offset_for_rope_slice_with_at_most_one_newline)
+}
 
-        let mut len = line.len_chars();
-        macro_rules! return_if_0 {
-            () => {
-                if len == 0 {
-                    return 0;
-                }
-            };
-        }
+fn final_non_newline_offset_for_rope_slice_with_at_most_one_newline(line: RopeSlice) -> CharOffset {
+    let mut len = line.len_chars();
+    macro_rules! return_if_0 {
+        () => {
+            if len == 0 {
+                return CharOffset(0);
+            }
+        };
+    }
 
+    return_if_0!();
+
+    let last = line.char(len - 1);
+
+    if last == '\n' {
+        len -= 1;
         return_if_0!();
 
-        let last = line.char(len - 1);
+        let second_last = line.char(len - 1);
 
-        if last == '\n' {
-            len -= 1;
-            return_if_0!();
-
-            let second_last = line.char(len - 1);
-
-            if second_last == '\r' {
-                len -= 1;
-                return_if_0!();
-            }
-        } else if
-        // The rope library we are using treats these as line breaks, so we do too.
-        // See also https://www.unicode.org/reports/tr14/tr14-32.html
-        (last >= '\u{a}' && last <= '\r')
-            || last == '\u{0085}'
-            || last == '\u{2028}'
-            || last == '\u{2029}'
-        {
+        if second_last == '\r' {
             len -= 1;
             return_if_0!();
         }
+    } else if
+    // The rope library we are using treats these as line breaks, so we do too.
+    // See also https://www.unicode.org/reports/tr14/tr14-32.html
+    (last >= '\u{a}' && last <= '\r')
+        || last == '\u{0085}'
+        || last == '\u{2028}'
+        || last == '\u{2029}'
+    {
+        len -= 1;
+        return_if_0!();
+    }
 
-        len
-    })
+    CharOffset(len)
 }
 
 fn in_cursor_bounds<P: Borrow<Position>>(rope: &Rope, position: P) -> bool {
     let p = position.borrow();
-    valid_len_chars_for_line(rope, p.line)
+    final_non_newline_offset_for_line(rope, p.line)
         .map(|l| p.offset <= l)
         .unwrap_or(false)
 }

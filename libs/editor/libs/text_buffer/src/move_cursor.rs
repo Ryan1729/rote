@@ -2,7 +2,7 @@
 use super::in_cursor_bounds;
 use std::borrow::Borrow;
 use editor_types::{SetPositionAction, Cursor, CursorState};
-use panic_safe_rope::Rope;
+use panic_safe_rope::{Rope, RopeSlice};
 use macros::{d};
 use platform_types::*;
 use std::borrow::Cow;
@@ -14,11 +14,11 @@ pub fn or_clear_highlights(rope: &Rope, cursor: &mut Cursor, r#move: Move) {
         use std::cmp::{max, min};
         use Move::*;
         match r#move {
-            Up | Left | ToPreviousWordBoundary => {
+            Up | Left | ToPreviousLikelyEditLocation => {
                 //we might need to clear the highlight_position and set the cursor state
                 cursor.set_position(min(p, cursor.get_position()));
             }
-            Down | Right | ToNextWordBoundary => {
+            Down | Right | ToNextLikelyEditLocation => {
                 // see above comment
                 cursor.set_position(max(p, cursor.get_position()));
             }
@@ -55,8 +55,8 @@ pub fn directly_custom(rope: &Rope, cursor: &mut Cursor, r#move: Move, action: S
         ToLineEnd => move_to_line_end(rope, cursor, action),
         ToBufferStart => move_to_rope_start(rope, cursor, action),
         ToBufferEnd => move_to_rope_end(rope, cursor, action),
-        ToPreviousWordBoundary => move_to_previous_word_boundary(rope, cursor, action),
-        ToNextWordBoundary => move_to_next_word_boundary(rope, cursor, action),
+        ToPreviousLikelyEditLocation => move_to_previous_likely_edit_location(rope, cursor, action),
+        ToNextLikelyEditLocation => move_to_next_likely_edit_location(rope, cursor, action),
     };
 
     cursor.state = match new_state {
@@ -200,12 +200,8 @@ fn move_to_rope_end(rope: &Rope, cursor: &mut Cursor, action: SetPositionAction)
     move_to(rope, cursor, last_position(rope), action)
 }
 
-lazy_static! {
-    static ref WORD_BOUNDARY: Regex = Regex::new("\\b").unwrap();
-}
-
 #[perf_viz::record]
-fn move_to_previous_word_boundary(rope: &Rope, cursor: &mut Cursor, action: SetPositionAction) -> Moved {
+fn move_to_previous_likely_edit_location(rope: &Rope, cursor: &mut Cursor, action: SetPositionAction) -> Moved {
     let line_index_and_section = {
         let pos = cursor.get_position();
         rope.line(pos.line).and_then(|line| {
@@ -216,7 +212,7 @@ fn move_to_previous_word_boundary(rope: &Rope, cursor: &mut Cursor, action: SetP
                 pos.line
                     .checked_sub(1)
                     .and_then(
-                        |i| rope.line(i).map(|l| (i, l))
+                        |i| dbg!(rope.line(i).map(|l| (i, l)))
                     )
             } else {
                 Some((
@@ -228,16 +224,17 @@ fn move_to_previous_word_boundary(rope: &Rope, cursor: &mut Cursor, action: SetP
     };
     dbg!(&line_index_and_section);
     let position = {
-        line_index_and_section.and_then(|(index, section)| {
+        line_index_and_section.and_then(|(line_index, section)| {
             let line: Cow<str> = section.into();
 
-            WORD_BOUNDARY
-                .find_iter(&line)
+            dbg!(likely_edit_offsets(&line, IncludeStringLength::Yes).collect::<Vec<_>>());
+
+            likely_edit_offsets(&line, IncludeStringLength::Yes)
                 .last()
-                .map(|r#match|
+                .map(|offset|
                     Position {
-                        line: index,
-                        offset: CharOffset(r#match.end())
+                        line: line_index,
+                        offset
                     }
                 )
         })
@@ -247,7 +244,7 @@ fn move_to_previous_word_boundary(rope: &Rope, cursor: &mut Cursor, action: SetP
 
 }
 #[perf_viz::record]
-fn move_to_next_word_boundary(rope: &Rope, cursor: &mut Cursor, action: SetPositionAction) -> Moved {
+fn move_to_next_likely_edit_location(rope: &Rope, cursor: &mut Cursor, action: SetPositionAction) -> Moved {
     let line_index_and_section = {
         let pos = cursor.get_position();
         rope.line(pos.line).and_then(|line| {
@@ -270,7 +267,10 @@ fn move_to_next_word_boundary(rope: &Rope, cursor: &mut Cursor, action: SetPosit
                         .checked_add(1)
                         .and_then(
                             // We rely on `d!()` being 0 here.
-                            |i| rope.line(i).map(|l| (i, d!(), l, d!()))
+                            |i| rope.line(i).map(|l| (i, d!(), l, l
+                                .len_chars()
+                                .checked_sub(1)
+                                .map(CharOffset).unwrap_or_default()))
                         ))
                 )
         })
@@ -281,29 +281,106 @@ fn move_to_next_word_boundary(rope: &Rope, cursor: &mut Cursor, action: SetPosit
             let line: Cow<str> = section.into();
 
             dbg!((line_index, offset, section, final_offset));
-            dbg!(WORD_BOUNDARY
-                .find_iter(&line).collect::<Vec<_>>());
+            dbg!(likely_edit_offsets(&line, IncludeStringLength::No).collect::<Vec<_>>());
 
-            WORD_BOUNDARY
-                .find_iter(&line)
+            // The variable is needed to cause the `likely_edit_offsets` iterator to be dropped
+            // at the right time.
+            let output = likely_edit_offsets(&line, IncludeStringLength::No)
                 // So we actually move if we started on a word boundary
-                .skip_while(|r#match| r#match.start() == 0)
+                .skip_while(|&o| o == 0)
                 .next()
-                .map(|r#match|
-                    Position {
+                .map(|o|
+                    dbg!(Position {
                         line: line_index,
-                        offset: offset + CharOffset(r#match.start())
-                    }
+                        offset: std::cmp::min(offset + o, final_offset)
+                    })
                 ).or_else(|| {
-                    Some(Position {
+                    dbg!(Some(Position {
                         line: line_index,
                         offset: final_offset
-                    })
-                })
+                    }))
+                });
+
+            output
         })
     };
 
     move_to(rope, cursor, position, action)
+}
+
+// Regex Cheatsheet
+//  * `\\s`        - whitespace
+//  * `\\w`        - word character
+//  * `[^\\w\\s]`  - not whitespace or word, aka "punctuation"
+
+// We need mulitple regexes here because these matches might overlap, and we want all the matches
+lazy_static! {
+    static ref LIKELY_EDIT_REGEXES: Vec<Regex> = vec![
+         Regex::new("\\w[^\\w\\s]").unwrap(),
+         Regex::new("[^\\w\\s]\\w").unwrap(),
+         Regex::new("\\s\\w").unwrap(),
+         Regex::new("\\s[^\\w\\s]").unwrap(),
+    ];
+}
+
+enum IncludeStringLength {
+    No,
+    Yes
+}
+d!(for IncludeStringLength: IncludeStringLength::Yes);
+
+/// The general idea here is that we split all characters into one of three groups:
+/// * Word characters, as defined by the `regex` crate
+/// * Whitspace characters, again as defined by the `regex` crate
+/// * everything else, which we will call "Punctuation"
+///
+/// We condsider any time a string transitions from one of these categories to another to be a
+/// likely edit point. Hopefully it makes inuitive sense that most edits happen between things
+/// of different groups of charaters rather than inside of them.
+///
+/// This functions returns an iterator of the likely edit offsets in the given string.
+/// Depending upon the value of the `IncludeStringLength` parameter, the iterator will either
+/// include or omit what would be the last one which would always be the length of the string in
+/// chars if included.
+fn likely_edit_offsets<'string>(s: &'string str, include: IncludeStringLength) -> Box<dyn Iterator<Item = CharOffset> + 'string> {
+    use std::iter::once;
+
+    let output = once(CharOffset(0));
+
+    let len = s.chars().count();
+    if len == 0 {
+        return Box::new(output);
+    }
+
+    // There's a bunch of complicated ways we could try to make this algorithmically faster, like
+    // making sure the regexes are maximal while being non-overlapping and taking advantage of the
+    // fact that the individual streams are already sorted. But, that currently smells like
+    // premature optimization to me.
+    let mut matched_offsets: Vec<_> = LIKELY_EDIT_REGEXES.iter().flat_map(|re|
+        re.find_iter(s).map(|m|
+            // We expect only length 2 matches here, and the inde we want is in the middle
+            // We could divide, but in practice addition of 1 gives the right answer.
+            CharOffset(m.start() + 1)
+        )).collect();
+
+    matched_offsets.sort();
+    matched_offsets.dedup();
+
+    match include {
+        IncludeStringLength::No => {
+            Box::new(output
+                .chain(matched_offsets.into_iter())
+            )
+        }
+        IncludeStringLength::Yes => {
+            Box::new(output
+                .chain(matched_offsets.into_iter())
+                .chain(once(CharOffset(len)))
+            )
+        }
+    }
+
+
 }
 
 // utils
@@ -404,5 +481,41 @@ mod tests {
         let rope = r!("123\r\n567");
 
         assert_eq!(backward(&rope, pos! {l 1 o 0}), Some(pos! {l 0 o 3}));
+    }
+
+    #[test]
+    fn likely_edit_offsets_works_on_this_code_example() {
+        let offsets: Vec<_> = likely_edit_offsets("{[(012), (345)]}", IncludeStringLength::Yes).collect();
+
+        assert_eq!(
+            offsets,
+            vec![
+                CharOffset(0),
+                CharOffset(3),
+                CharOffset(6),
+                CharOffset(9),
+                CharOffset(10),
+                CharOffset(13),
+                CharOffset(16),
+            ]
+        );
+    }
+
+    #[test]
+    fn likely_edit_offsets_works_on_this_multiline_example() {
+        let offsets: Vec<_> = likely_edit_offsets("{[(012),\n (345)]}", IncludeStringLength::Yes).collect();
+
+        assert_eq!(
+            offsets,
+            vec![
+                CharOffset(0),
+                CharOffset(3),
+                CharOffset(6),
+                CharOffset(10),
+                CharOffset(11),
+                CharOffset(14),
+                CharOffset(17),
+            ]
+        );
     }
 }

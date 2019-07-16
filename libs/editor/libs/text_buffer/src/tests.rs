@@ -199,8 +199,8 @@ fn arb_move() -> impl Strategy<Value = Move> {
         Just(Move::ToLineEnd),
         Just(Move::ToBufferStart),
         Just(Move::ToBufferEnd),
-        Just(Move::ToPreviousWordBoundary),
-        Just(Move::ToNextWordBoundary),
+        Just(Move::ToPreviousLikelyEditLocation),
+        Just(Move::ToNextLikelyEditLocation),
     ]
 }
 
@@ -248,6 +248,34 @@ prop_compose! {
 fn arb_cursors(max_len: usize) -> impl Strategy<Value = Cursors> {
     // It doesn't semm particularly useful to have more cursors than text positions.
     vec1(arb_cursor(max_len), max_len)
+}
+
+#[test]
+fn final_non_newline_offset_for_line_works_on_a_string_with_no_newline() {
+    let rope = r!("1234");
+
+    assert_eq!(final_non_newline_offset_for_line(&rope, 0), CharOffset(4).into());
+}
+
+#[test]
+fn final_non_newline_offset_for_line_works_on_a_string_with_a_line_feed() {
+    let rope = r!("1234\n5678");
+
+    assert_eq!(final_non_newline_offset_for_line(&rope, 0), CharOffset(4).into());
+}
+
+#[test]
+fn final_non_newline_offset_for_line_works_on_a_string_with_a_carriage_return_line_feed() {
+    let rope = r!("1234\r\n5678");
+
+    assert_eq!(final_non_newline_offset_for_line(&rope, 0), CharOffset(4).into());
+}
+
+#[test]
+fn final_non_newline_offset_for_line_works_if_asked_about_anon_existant_line() {
+    let rope = r!("1234\r\n5678");
+
+    assert_eq!(final_non_newline_offset_for_line(&rope, 2), None);
 }
 
 mod undo_redo;

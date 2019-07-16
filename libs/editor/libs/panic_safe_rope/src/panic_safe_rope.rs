@@ -6,6 +6,9 @@ pub struct Rope {
     rope: ropey::Rope,
 }
 
+// TODO make panic safe version of this
+pub use ropey::RopeSlice;
+
 use macros::{fmt_debug, fmt_display};
 use std::io;
 use std::iter::FromIterator;
