@@ -1,6 +1,6 @@
 use editor_types::{ByteIndex, Cursor, SetPositionAction, Vec1};
 use macros::{borrow, borrow_mut, d};
-use panic_safe_rope::{Rope, RopeSlice};
+use panic_safe_rope::{Rope, RopeSliceTrait, RopeLine};
 use platform_types::{AbsoluteCharOffset, CharOffset, Move, Position};
 use std::borrow::Borrow;
 use std::collections::VecDeque;
@@ -448,11 +448,24 @@ fn final_non_newline_offset_for_line(rope: &Rope, line_index: usize) -> Option<C
     rope
         .lines()
         .nth(line_index)
-        .map(final_non_newline_offset_for_rope_slice_with_at_most_one_newline)
+        .map(final_non_newline_offset_for_rope_line)
 }
 
-fn final_non_newline_offset_for_rope_slice_with_at_most_one_newline(line: RopeSlice) -> CharOffset {
+fn final_non_newline_offset_for_rope_line(line: RopeLine) -> CharOffset {
     let mut len = line.len_chars();
+    macro_rules! get_char_before_len {
+        () => {
+            if let Some(c) = line.char(len - 1) {
+                c
+            } else {
+                // We know that the index we are passing in is less than `len_chars()`
+                // so this case should not actually happen. But, we have a reasonalble
+                // value to return so why no just do that?
+                return CharOffset(0);
+            };
+        };
+    }
+
     macro_rules! return_if_0 {
         () => {
             if len == 0 {
@@ -463,13 +476,13 @@ fn final_non_newline_offset_for_rope_slice_with_at_most_one_newline(line: RopeSl
 
     return_if_0!();
 
-    let last = line.char(len - 1);
+    let last = get_char_before_len!();
 
     if last == '\n' {
         len -= 1;
         return_if_0!();
 
-        let second_last = line.char(len - 1);
+        let second_last = get_char_before_len!();
 
         if second_last == '\r' {
             len -= 1;

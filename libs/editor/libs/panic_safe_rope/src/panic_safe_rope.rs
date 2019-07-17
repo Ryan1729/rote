@@ -1,3 +1,12 @@
+mod slice;
+
+pub use slice::{RopeSlice, RopeLine, RopeSliceTrait};
+use slice::to_rope_line;
+use macros::{fmt_debug, fmt_display, some_if};
+use std::io;
+use std::iter::FromIterator;
+use std::ops::{Bound, RangeBounds};
+
 ///! A wrapper around `ropey::Rope` that checks the panic conditions at runtime and
 ///! changes the return type of some methods with the aim of preventing panics.
 
@@ -6,25 +15,11 @@ pub struct Rope {
     rope: ropey::Rope,
 }
 
-// TODO make panic safe version of this
-pub use ropey::RopeSlice;
-
-use macros::{fmt_debug, fmt_display};
-use std::io;
-use std::iter::FromIterator;
-use std::ops::{Bound, RangeBounds};
-
-macro_rules! some_if {
-    ($condition: expr => $output: expr) => {{
-        if $condition {
-            Some($output)
-        } else {
-            None
-        }
-    }};
-}
-
 use check_or_no_panic::check_or_no_panic;
+
+pub type Lines<'rope> = std::iter::Map<
+    ropey::iter::Lines<'rope>, fn(ropey::RopeSlice<'rope>) -> RopeLine<'rope>
+>;
 
 impl Rope {
     //#[check_or_no_panic]
@@ -48,21 +43,6 @@ impl Rope {
 
     pub fn write_to<T: io::Write>(&self, writer: T) -> io::Result<()> {
         self.rope.write_to(writer)
-    }
-
-    #[inline]
-    pub fn len_bytes(&self) -> usize {
-        self.rope.len_bytes()
-    }
-
-    #[inline]
-    pub fn len_chars(&self) -> usize {
-        self.rope.len_chars()
-    }
-
-    #[inline]
-    pub fn len_lines(&self) -> usize {
-        self.rope.len_lines()
     }
 
     pub fn capacity(&self) -> usize {
@@ -114,28 +94,44 @@ impl Rope {
         self.rope.append(other.rope)
     }
 
+    // Begin methods in common with `RopeSlice`
+    #[inline]
+    pub fn len_bytes(&self) -> usize {
+        self.rope.len_bytes()
+    }
+
+    #[inline]
+    pub fn len_chars(&self) -> usize {
+        self.rope.len_chars()
+    }
+
+    #[inline]
+    pub fn len_lines(&self) -> usize {
+        self.rope.len_lines()
+    }
+
     /// Returns `None`  if `byte_idx` is out of bounds (i.e. `byte_idx > len_bytes()`).
     #[inline]
     pub fn byte_to_char(&self, byte_idx: usize) -> Option<usize> {
-        some_if!(byte_idx <= self.len_bytes() => self.rope.byte_to_char(byte_idx))
+        macros::some_if!(byte_idx <= self.len_bytes() => self.rope.byte_to_char(byte_idx))
     }
 
     /// Returns `None`  if `byte_idx` is out of bounds (i.e. `byte_idx > len_bytes()`).
     #[inline]
     pub fn byte_to_line(&self, byte_idx: usize) -> Option<usize> {
-        some_if!(byte_idx <= self.len_bytes() => self.rope.byte_to_line(byte_idx))
+        macros::some_if!(byte_idx <= self.len_bytes() => self.rope.byte_to_line(byte_idx))
     }
 
     /// Returns `None`  if `char_idx` is out of bounds (i.e. `char_idx > len_chars()`).
     #[inline]
     pub fn char_to_byte(&self, char_idx: usize) -> Option<usize> {
-        some_if!(char_idx <= self.len_chars() => self.rope.char_to_byte(char_idx))
+        macros::some_if!(char_idx <= self.len_chars() => self.rope.char_to_byte(char_idx))
     }
 
     /// Returns `None`  if `char_idx` is out of bounds (i.e. `char_idx > len_chars()`).
     #[inline]
     pub fn char_to_line(&self, char_idx: usize) -> Option<usize> {
-        some_if!(
+        macros::some_if!(
             char_idx <= self.len_chars() => self.rope.char_to_line(char_idx)
         )
     }
@@ -143,7 +139,7 @@ impl Rope {
     /// Returns `None`  if `line_idx` is out of bounds (i.e. `line_idx > len_lines()`).
     #[inline]
     pub fn line_to_byte(&self, line_idx: usize) -> Option<usize> {
-        some_if!(
+        macros::some_if!(
             line_idx <= self.len_lines() => self.rope.line_to_byte(line_idx)
         )
     }
@@ -151,7 +147,7 @@ impl Rope {
     /// Returns `None`  if `line_idx` is out of bounds (i.e. `line_idx > len_lines()`).
     #[inline]
     pub fn line_to_char(&self, line_idx: usize) -> Option<usize> {
-        some_if!(
+        macros::some_if!(
             line_idx <= self.len_lines() => self.rope.line_to_char(line_idx)
         )
     }
@@ -159,7 +155,7 @@ impl Rope {
     /// Returns `None`  if `byte_idx` is out of bounds (i.e. `byte_idx >= len_bytes()`).
     #[inline]
     pub fn byte(&self, byte_idx: usize) -> Option<u8> {
-        some_if!(
+        macros::some_if!(
             byte_idx < self.len_bytes() => self.rope.byte(byte_idx)
         )
     }
@@ -167,23 +163,15 @@ impl Rope {
     /// Returns `None`  if `char_idx` is out of bounds (i.e. `char_idx >= len_chars()`).
     #[inline]
     pub fn char(&self, char_idx: usize) -> Option<char> {
-        some_if!(
+        macros::some_if!(
             char_idx < self.len_chars() => self.rope.char(char_idx)
-        )
-    }
-
-    /// Returns `None`  if `line_idx` is out of bounds (i.e. `line_idx >= len_lines()`).
-    #[inline]
-    pub fn line(&self, line_idx: usize) -> Option<ropey::RopeSlice> {
-        some_if!(
-            line_idx < self.len_lines() => self.rope.line(line_idx)
         )
     }
 
     /// Returns `None` if `byte_idx` is out of bounds (i.e. `byte_idx > len_bytes()`).
     #[inline]
     pub fn chunk_at_byte(&self, byte_idx: usize) -> Option<(&str, usize, usize, usize)> {
-        some_if!(
+        macros::some_if!(
             byte_idx <= self.len_bytes() => self.rope.chunk_at_byte(byte_idx)
         )
     }
@@ -191,7 +179,7 @@ impl Rope {
     /// Returns `None` if `char_idx` is out of bounds (i.e. `char_idx > len_chars()`).
     #[inline]
     pub fn chunk_at_char(&self, char_idx: usize) -> Option<(&str, usize, usize, usize)> {
-        some_if!(
+        macros::some_if!(
             char_idx <= self.len_chars() => self.rope.chunk_at_char(char_idx)
         )
     }
@@ -202,23 +190,8 @@ impl Rope {
         &self,
         line_break_idx: usize,
     ) -> Option<(&str, usize, usize, usize)> {
-        some_if!(
+        macros::some_if!(
             line_break_idx <= self.len_lines() => self.rope.chunk_at_line_break(line_break_idx)
-        )
-    }
-
-    /// Returns `None` if the start of the range is greater than the end, or if the
-    /// end is out of bounds (i.e. `end > len_chars()`).
-    #[inline]
-    pub fn slice<R>(&self, char_range: R) -> Option<ropey::RopeSlice>
-    where
-        R: RangeBounds<usize>,
-    {
-        let start = start_bound_to_num(char_range.start_bound()).unwrap_or(0);
-        let end = end_bound_to_num(char_range.end_bound()).unwrap_or_else(|| self.len_chars());
-
-        some_if!(
-            start <= end && end <= self.len_chars() => self.rope.slice(char_range)
         )
     }
 
@@ -233,15 +206,43 @@ impl Rope {
     }
 
     #[inline]
-    pub fn lines(&self) -> ropey::iter::Lines {
-        self.rope.lines()
+    pub fn lines(&self) -> Lines {
+        self.rope.lines().map(to_rope_line)
     }
 
     #[inline]
     pub fn chunks(&self) -> ropey::iter::Chunks {
         self.rope.chunks()
     }
+
+    /// Returns `None`  if `line_idx` is out of bounds (i.e. `line_idx >= len_lines()`).
+    #[inline]
+    pub fn line(&self, line_idx: usize) -> Option<RopeLine> {
+        macros::some_if!(
+            line_idx < self.len_lines() => to_rope_line(self.rope.line(line_idx))
+        )
+    }
+
+    /// Returns `None` if the start of the range is greater than the end, or if the
+    /// end is out of bounds (i.e. `end > len_chars()`).
+    #[inline]
+    pub fn slice<R>(&self, char_range: R) -> Option<RopeSlice>
+    where
+        R: RangeBounds<usize>,
+    {
+        let start = start_bound_to_num(char_range.start_bound()).unwrap_or(0);
+        let end = end_bound_to_num(char_range.end_bound()).unwrap_or_else(|| self.len_chars());
+
+        macros::some_if!(
+            start <= end && end <= self.len_chars() => RopeSlice {
+                rope_slice: self.rope.slice(char_range)
+            }
+        )
+    }
 }
+
+fmt_debug!(for Rope : Rope {rope, ..} in "{:?}", rope);
+fmt_display!(for Rope : Rope {rope, ..} in "{}", rope);
 
 impl<'a> From<&'a str> for Rope {
     #[inline]
@@ -332,9 +333,6 @@ impl FromIterator<String> for Rope {
         ropey::Rope::from_iter(iter).into()
     }
 }
-
-fmt_debug!(for Rope : Rope {rope, ..} in "{:?}", rope);
-fmt_display!(for Rope : Rope {rope, ..} in "{}", rope);
 
 impl std::cmp::Eq for Rope {}
 

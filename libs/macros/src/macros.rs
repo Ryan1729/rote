@@ -194,6 +194,17 @@ macro_rules! fmt_debug {
 }
 
 #[macro_export]
+macro_rules! some_if {
+    ($condition: expr => $output: expr) => {{
+        if $condition {
+            Some($output)
+        } else {
+            None
+        }
+    }};
+}
+
+#[macro_export]
 macro_rules! borrow {
     (<$type:ty> for $name:ty : $self:ident in $code:expr) => {
         impl std::borrow::Borrow<$type> for $name {

@@ -2,7 +2,7 @@
 use super::in_cursor_bounds;
 use std::borrow::Borrow;
 use editor_types::{SetPositionAction, Cursor, CursorState};
-use panic_safe_rope::{Rope, RopeSlice};
+use panic_safe_rope::{Rope, RopeSliceTrait, RopeLine};
 use macros::{d};
 use platform_types::*;
 use std::borrow::Cow;
@@ -215,9 +215,9 @@ fn move_to_previous_likely_edit_location(rope: &Rope, cursor: &mut Cursor, actio
                         |i| dbg!(rope.line(i).map(|l| (i, l)))
                     )
             } else {
-                Some((
+                line.slice(..offset.0).map(|l| (
                     pos.line,
-                    line.slice(..offset.0)
+                    l
                 ))
             }
         })
@@ -225,11 +225,9 @@ fn move_to_previous_likely_edit_location(rope: &Rope, cursor: &mut Cursor, actio
     dbg!(&line_index_and_section);
     let position = {
         line_index_and_section.and_then(|(line_index, section)| {
-            let line: Cow<str> = section.into();
+            dbg!(likely_edit_offsets(section, IncludeStringLength::Yes).collect::<Vec<_>>());
 
-            dbg!(likely_edit_offsets(&line, IncludeStringLength::Yes).collect::<Vec<_>>());
-
-            likely_edit_offsets(&line, IncludeStringLength::Yes)
+            likely_edit_offsets(section, IncludeStringLength::Yes)
                 .last()
                 .map(|offset|
                     Position {
@@ -244,48 +242,57 @@ fn move_to_previous_likely_edit_location(rope: &Rope, cursor: &mut Cursor, actio
 
 }
 #[perf_viz::record]
-fn move_to_next_likely_edit_location(rope: &Rope, cursor: &mut Cursor, action: SetPositionAction) -> Moved {
-    let line_index_and_section = {
+fn move_to_next_likely_edit_location<'rope>(rope: &'rope Rope, cursor: &mut Cursor, action: SetPositionAction) -> Moved {
+    type Info<'a> = Option<(usize, CharOffset, RopeLine<'a>, CharOffset)>;
+    let line_index_and_section: Info<'rope> = {
         let pos = cursor.get_position();
         rope.line(pos.line).and_then(|line| {
             let offset = pos.offset;
 
-            line
+            let op_info: Info = line
                 .len_chars()
                 .checked_sub(1)
                 .map(CharOffset)
                 // try to move to the next line if there is nothing left on this one
                 .filter(|&final_offset| offset < final_offset)
-                .map(|final_offset| dbg!((
-                    pos.line,
-                    offset,
-                    line.slice(offset.0..),
-                    final_offset
-                )))
-                .or_else(||
-                    dbg!(pos.line
-                        .checked_add(1)
-                        .and_then(
-                            // We rely on `d!()` being 0 here.
-                            |i| rope.line(i).map(|l| (i, d!(), l, l
-                                .len_chars()
-                                .checked_sub(1)
-                                .map(CharOffset).unwrap_or_default()))
+                .and_then(|final_offset| dbg!(line.slice(offset.0..).map(|l|
+                    (
+                        pos.line,
+                        offset,
+                        l,
+                        final_offset
+                    )
+                )));
+
+            op_info.or_else(|| {
+                let info: Info = dbg!(pos.line
+                    .checked_add(1)
+                    .and_then(
+                        // We rely on `d!()` being 0 here.
+                        |i: usize| rope.line(i).map(|l: RopeLine| (
+                            i,
+                            d!(),
+                            l,
+                            l
+                            .len_chars()
+                            .checked_sub(1)
+                            .map(CharOffset).unwrap_or_default()
                         ))
-                )
+                    ));
+
+                info
+            })
         })
     };
     dbg!(&line_index_and_section);
     let position = {
         line_index_and_section.and_then(|(line_index, offset, section, final_offset)| {
-            let line: Cow<str> = section.into();
-
             dbg!((line_index, offset, section, final_offset));
-            dbg!(likely_edit_offsets(&line, IncludeStringLength::No).collect::<Vec<_>>());
+            dbg!(likely_edit_offsets(section, IncludeStringLength::No).collect::<Vec<_>>());
 
             // The variable is needed to cause the `likely_edit_offsets` iterator to be dropped
             // at the right time.
-            let output = likely_edit_offsets(&line, IncludeStringLength::No)
+            let output = likely_edit_offsets(section, IncludeStringLength::No)
                 // So we actually move if we started on a word boundary
                 .skip_while(|&o| o == 0)
                 .next()
@@ -342,22 +349,24 @@ d!(for IncludeStringLength: IncludeStringLength::Yes);
 /// Depending upon the value of the `IncludeStringLength` parameter, the iterator will either
 /// include or omit what would be the last one which would always be the length of the string in
 /// chars if included.
-fn likely_edit_offsets<'string>(s: &'string str, include: IncludeStringLength) -> Box<dyn Iterator<Item = CharOffset> + 'string> {
+fn likely_edit_offsets<'line>(rope_line: RopeLine<'line>, include: IncludeStringLength) -> Box<dyn Iterator<Item = CharOffset> + 'line> {
     use std::iter::once;
 
     let output = once(CharOffset(0));
 
-    let len = s.chars().count();
+    let len = rope_line.len_chars();
     if len == 0 {
         return Box::new(output);
     }
+
+    let s: Cow<str> = rope_line.into();
 
     // There's a bunch of complicated ways we could try to make this algorithmically faster, like
     // making sure the regexes are maximal while being non-overlapping and taking advantage of the
     // fact that the individual streams are already sorted. But, that currently smells like
     // premature optimization to me.
     let mut matched_offsets: Vec<_> = LIKELY_EDIT_REGEXES.iter().flat_map(|re|
-        re.find_iter(s).map(|m|
+        re.find_iter(&s).map(|m|
             // We expect only length 2 matches here, and the inde we want is in the middle
             // We could divide, but in practice addition of 1 gives the right answer.
             CharOffset(m.start() + 1)
