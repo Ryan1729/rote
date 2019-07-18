@@ -2,7 +2,7 @@
 use super::in_cursor_bounds;
 use std::borrow::Borrow;
 use editor_types::{SetPositionAction, Cursor, CursorState};
-use panic_safe_rope::{Rope, RopeSliceTrait, RopeLine};
+use panic_safe_rope::{Rope, RopeSliceTrait, RopeLine, LineIndex};
 use macros::{d};
 use platform_types::*;
 use std::borrow::Cow;
@@ -204,19 +204,22 @@ fn move_to_rope_end(rope: &Rope, cursor: &mut Cursor, action: SetPositionAction)
 fn move_to_previous_likely_edit_location(rope: &Rope, cursor: &mut Cursor, action: SetPositionAction) -> Moved {
     let line_index_and_section = {
         let pos = cursor.get_position();
-        rope.line(pos.line).and_then(|line| {
+
+        let line_index = LineIndex(pos.line);
+
+        rope.line(line_index).and_then(|line| {
             let offset = pos.offset;
 
             if offset == 0 {
                 // We want to be able to move to the previous line if possible
-                pos.line
-                    .checked_sub(1)
+                line_index
+                    .checked_sub_one()
                     .and_then(
                         |i| dbg!(rope.line(i).map(|l| (i, l)))
                     )
             } else {
-                line.slice(..offset.0).map(|l| (
-                    pos.line,
+                line.slice(..offset).map(|l| (
+                    line_index,
                     l
                 ))
             }
@@ -231,7 +234,7 @@ fn move_to_previous_likely_edit_location(rope: &Rope, cursor: &mut Cursor, actio
                 .last()
                 .map(|offset|
                     Position {
-                        line: line_index,
+                        line: line_index.0,
                         offset
                     }
                 )
@@ -243,21 +246,22 @@ fn move_to_previous_likely_edit_location(rope: &Rope, cursor: &mut Cursor, actio
 }
 #[perf_viz::record]
 fn move_to_next_likely_edit_location<'rope>(rope: &'rope Rope, cursor: &mut Cursor, action: SetPositionAction) -> Moved {
-    type Info<'a> = Option<(usize, CharOffset, RopeLine<'a>, CharOffset)>;
+    type Info<'a> = Option<(LineIndex, CharOffset, RopeLine<'a>, CharOffset)>;
     let line_index_and_section: Info<'rope> = {
         let pos = cursor.get_position();
-        rope.line(pos.line).and_then(|line| {
+
+        let line_index = LineIndex(pos.line);
+        rope.line(line_index).and_then(|line| {
             let offset = pos.offset;
 
             let op_info: Info = line
                 .len_chars()
-                .checked_sub(1)
-                .map(CharOffset)
+                .checked_sub_one()
                 // try to move to the next line if there is nothing left on this one
                 .filter(|&final_offset| offset < final_offset)
-                .and_then(|final_offset| dbg!(line.slice(offset.0..).map(|l|
+                .and_then(|final_offset| dbg!(line.slice(offset..).map(|l|
                     (
-                        pos.line,
+                        line_index,
                         offset,
                         l,
                         final_offset
@@ -267,16 +271,17 @@ fn move_to_next_likely_edit_location<'rope>(rope: &'rope Rope, cursor: &mut Curs
             op_info.or_else(|| {
                 let info: Info = dbg!(pos.line
                     .checked_add(1)
+                    .map(LineIndex)
                     .and_then(
                         // We rely on `d!()` being 0 here.
-                        |i: usize| rope.line(i).map(|l: RopeLine| (
+                        |i| rope.line(i).map(|l: RopeLine| (
                             i,
                             d!(),
                             l,
                             l
                             .len_chars()
-                            .checked_sub(1)
-                            .map(CharOffset).unwrap_or_default()
+                            .checked_sub_one()
+                            .unwrap_or_default()
                         ))
                     ));
 
@@ -298,12 +303,12 @@ fn move_to_next_likely_edit_location<'rope>(rope: &'rope Rope, cursor: &mut Curs
                 .next()
                 .map(|o|
                     dbg!(Position {
-                        line: line_index,
+                        line: line_index.0,
                         offset: std::cmp::min(offset + o, final_offset)
                     })
                 ).or_else(|| {
                     dbg!(Some(Position {
-                        line: line_index,
+                        line: line_index.0,
                         offset: final_offset
                     }))
                 });
@@ -384,7 +389,7 @@ fn likely_edit_offsets<'line>(rope_line: RopeLine<'line>, include: IncludeString
         IncludeStringLength::Yes => {
             Box::new(output
                 .chain(matched_offsets.into_iter())
-                .chain(once(CharOffset(len)))
+                .chain(once(len))
             )
         }
     }
@@ -395,12 +400,12 @@ fn likely_edit_offsets<'line>(rope_line: RopeLine<'line>, include: IncludeString
 // utils
 
 fn nth_line_count(rope: &Rope, n: usize) -> Option<CharOffset> {
-    rope.lines().nth(n).map(|l| CharOffset(l.len_chars()))
+    rope.lines().nth(n).map(|l| l.len_chars().into())
 }
 
 fn last_position(rope: &Rope) -> Option<Position> {
     rope.lines()
-        .map(|l| CharOffset(l.len_chars()))
+        .map(|l| l.len_chars().into())
         .enumerate()
         .last()
         .map(|(line, offset)| Position { line, offset })

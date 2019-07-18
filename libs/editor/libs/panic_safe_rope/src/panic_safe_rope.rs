@@ -1,11 +1,15 @@
 mod slice;
+mod conversion;
 
+use std::ops::{Add, Sub};
 pub use slice::{RopeSlice, RopeLine, RopeSliceTrait};
-use slice::to_rope_line;
-use macros::{fmt_debug, fmt_display, some_if};
+use conversion::{to_rope_line, to_chunk, to_slice_range};
+
+use macros::{fmt_debug, fmt_display, some_if, integer_newtype, usize_newtype};
+pub use platform_types::{AbsoluteCharOffset, CharOffset};
 use std::io;
 use std::iter::FromIterator;
-use std::ops::{Bound, RangeBounds};
+use std::ops::RangeBounds;
 
 ///! A wrapper around `ropey::Rope` that checks the panic conditions at runtime and
 ///! changes the return type of some methods with the aim of preventing panics.
@@ -15,11 +19,95 @@ pub struct Rope {
     rope: ropey::Rope,
 }
 
-use check_or_no_panic::check_or_no_panic;
-
 pub type Lines<'rope> = std::iter::Map<
     ropey::iter::Lines<'rope>, fn(ropey::RopeSlice<'rope>) -> RopeLine<'rope>
 >;
+
+pub type Chunk<'rope> = (&'rope str, ByteIndex, AbsoluteCharOffset, LineIndex);
+
+// TODO add either an `AbsoluteByteIndex` or a `RelativeByteIndex` if we ever start really using
+// these again, and the distiction comes up.
+/// A zero-based index into the buffer's underlying bytes.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ByteIndex(pub usize);
+
+integer_newtype! {
+    ByteIndex
+}
+
+usize_newtype! {
+    ByteIndex
+}
+
+/// The length of the buffer in bytes. Unless the buffer has grown in the meantime, not a valid
+/// byte index
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ByteLength(pub usize);
+
+integer_newtype! {
+    ByteLength
+}
+
+usize_newtype! {
+    ByteLength
+}
+
+impl std::ops::Add<ByteLength> for ByteIndex {
+    type Output = ByteIndex;
+
+    fn add(self, other: ByteLength) -> ByteIndex {
+        ByteIndex(self.0 + other.0)
+    }
+}
+
+impl From<ByteIndex> for ByteLength {
+    fn from(index: ByteIndex) -> ByteLength {
+        ByteLength(index.0)
+    }
+}
+
+// TODO add either an `AbsoluteLineIndex` or a `RelativeLineIndex` if the distiction comes up.
+/// An zero-based index that can be used to refer to the (n -1)th line of the buffer.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct LineIndex(pub usize);
+
+integer_newtype! {
+    LineIndex
+}
+
+usize_newtype! {
+    LineIndex
+}
+
+// TODO should this use `std::num::NonZeroUsize` or would that just be extra hassle?
+/// The total umber of lines in the buffer, that is, one plus the number of line breaks.
+/// Unless the buffer has grown in the meantime, not a valid line index.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct LineLength(pub usize);
+
+integer_newtype! {
+    LineLength
+}
+
+usize_newtype! {
+    LineLength
+}
+
+impl std::ops::Add<LineLength> for LineIndex {
+    type Output = LineIndex;
+
+    fn add(self, other: LineLength) -> LineIndex {
+        LineIndex(self.0 + other.0)
+    }
+}
+
+impl From<LineIndex> for LineLength {
+    fn from(index: LineIndex) -> LineLength {
+        LineLength(index.0)
+    }
+}
+
+use check_or_no_panic::check_or_no_panic;
 
 impl Rope {
     //#[check_or_no_panic]
@@ -55,15 +143,15 @@ impl Rope {
 
     /// Returns `None` and does not mutate if `char_idx` is out of bounds (i.e. `char_idx > len_chars()`).
     #[inline]
-    pub fn insert(&mut self, char_idx: usize, text: &str) -> Option<()> {
-        some_if!(char_idx <= self.len_chars() => self.rope.insert(char_idx, text))
+    pub fn insert(&mut self, char_idx: AbsoluteCharOffset, text: &str) -> Option<()> {
+        some_if!(char_idx <= self.len_chars() => self.rope.insert(char_idx.0, text))
     }
 
     /// Returns `None` and does not mutate if `char_idx` is out of bounds (i.e. `char_idx > len_chars()`).
     #[inline]
-    pub fn insert_char(&mut self, char_idx: usize, ch: char) -> Option<()> {
+    pub fn insert_char(&mut self, char_idx: AbsoluteCharOffset, ch: char) -> Option<()> {
         some_if!(
-            char_idx <= self.len_chars() => self.rope.insert_char(char_idx, ch)
+            char_idx <= self.len_chars() => self.rope.insert_char(char_idx.0, ch)
         )
     }
 
@@ -72,20 +160,15 @@ impl Rope {
     //#[check_or_no_panic]
     pub fn remove<R>(&mut self, char_range: R) -> Option<()>
     where
-        R: RangeBounds<usize>,
+        R: RangeBounds<AbsoluteCharOffset>,
     {
-        let start = start_bound_to_num(char_range.start_bound()).unwrap_or(0);
-        let end = end_bound_to_num(char_range.end_bound()).unwrap_or_else(|| self.len_chars());
-
-        some_if!(
-            start <= end && end <= self.len_chars() => self.rope.remove(char_range)
-        )
+        to_slice_range(char_range, self.len_chars()).map(|r| self.rope.remove(r))
     }
 
     /// Returns `None` and does not mutate if `char_idx` is out of bounds (i.e. `char_idx > len_chars()`).
-    pub fn split_off(&mut self, char_idx: usize) -> Option<Self> {
+    pub fn split_off(&mut self, char_idx: AbsoluteCharOffset) -> Option<Self> {
         some_if!(
-            char_idx <= self.len_chars() => self.rope.split_off(char_idx).into()
+            char_idx <= self.len_chars() => self.rope.split_off(char_idx.0).into()
         )
     }
 
@@ -96,92 +179,92 @@ impl Rope {
 
     // Begin methods in common with `RopeSlice`
     #[inline]
-    pub fn len_bytes(&self) -> usize {
-        self.rope.len_bytes()
+    pub fn len_bytes(&self) -> ByteLength {
+        ByteLength(self.rope.len_bytes())
     }
 
     #[inline]
-    pub fn len_chars(&self) -> usize {
-        self.rope.len_chars()
+    pub fn len_chars(&self) -> AbsoluteCharOffset {
+        AbsoluteCharOffset(self.rope.len_chars())
     }
 
     #[inline]
-    pub fn len_lines(&self) -> usize {
-        self.rope.len_lines()
-    }
-
-    /// Returns `None`  if `byte_idx` is out of bounds (i.e. `byte_idx > len_bytes()`).
-    #[inline]
-    pub fn byte_to_char(&self, byte_idx: usize) -> Option<usize> {
-        macros::some_if!(byte_idx <= self.len_bytes() => self.rope.byte_to_char(byte_idx))
+    pub fn len_lines(&self) -> LineLength {
+        LineLength(self.rope.len_lines())
     }
 
     /// Returns `None`  if `byte_idx` is out of bounds (i.e. `byte_idx > len_bytes()`).
     #[inline]
-    pub fn byte_to_line(&self, byte_idx: usize) -> Option<usize> {
-        macros::some_if!(byte_idx <= self.len_bytes() => self.rope.byte_to_line(byte_idx))
+    pub fn byte_to_char(&self, byte_idx: ByteIndex) -> Option<AbsoluteCharOffset> {
+        macros::some_if!(byte_idx <= self.len_bytes().0 => AbsoluteCharOffset(self.rope.byte_to_char(byte_idx.0)))
+    }
+
+    /// Returns `None`  if `byte_idx` is out of bounds (i.e. `byte_idx > len_bytes()`).
+    #[inline]
+    pub fn byte_to_line(&self, byte_idx: ByteIndex) -> Option<LineIndex> {
+        macros::some_if!(byte_idx <= self.len_bytes().0 => LineIndex(self.rope.byte_to_line(byte_idx.0)))
     }
 
     /// Returns `None`  if `char_idx` is out of bounds (i.e. `char_idx > len_chars()`).
     #[inline]
-    pub fn char_to_byte(&self, char_idx: usize) -> Option<usize> {
-        macros::some_if!(char_idx <= self.len_chars() => self.rope.char_to_byte(char_idx))
+    pub fn char_to_byte(&self, char_idx: AbsoluteCharOffset) -> Option<ByteIndex> {
+        macros::some_if!(char_idx <= self.len_chars() => ByteIndex(self.rope.char_to_byte(char_idx.0)))
     }
 
     /// Returns `None`  if `char_idx` is out of bounds (i.e. `char_idx > len_chars()`).
     #[inline]
-    pub fn char_to_line(&self, char_idx: usize) -> Option<usize> {
+    pub fn char_to_line(&self, char_idx: AbsoluteCharOffset) -> Option<LineIndex> {
         macros::some_if!(
-            char_idx <= self.len_chars() => self.rope.char_to_line(char_idx)
+            char_idx <= self.len_chars().0 => LineIndex(self.rope.char_to_line(char_idx.0))
         )
     }
 
     /// Returns `None`  if `line_idx` is out of bounds (i.e. `line_idx > len_lines()`).
     #[inline]
-    pub fn line_to_byte(&self, line_idx: usize) -> Option<usize> {
+    pub fn line_to_byte(&self, line_idx: LineIndex) -> Option<ByteIndex> {
         macros::some_if!(
-            line_idx <= self.len_lines() => self.rope.line_to_byte(line_idx)
+            line_idx <= self.len_lines().0 => ByteIndex(self.rope.line_to_byte(line_idx.0))
         )
     }
 
     /// Returns `None`  if `line_idx` is out of bounds (i.e. `line_idx > len_lines()`).
     #[inline]
-    pub fn line_to_char(&self, line_idx: usize) -> Option<usize> {
+    pub fn line_to_char(&self, line_idx: LineIndex) -> Option<AbsoluteCharOffset> {
         macros::some_if!(
-            line_idx <= self.len_lines() => self.rope.line_to_char(line_idx)
+            line_idx <= self.len_lines().0 => AbsoluteCharOffset(self.rope.line_to_char(line_idx.0))
         )
     }
 
     /// Returns `None`  if `byte_idx` is out of bounds (i.e. `byte_idx >= len_bytes()`).
     #[inline]
-    pub fn byte(&self, byte_idx: usize) -> Option<u8> {
+    pub fn byte(&self, byte_idx: ByteIndex) -> Option<u8> {
         macros::some_if!(
-            byte_idx < self.len_bytes() => self.rope.byte(byte_idx)
+            byte_idx < self.len_bytes().0 => self.rope.byte(byte_idx.0)
         )
     }
 
     /// Returns `None`  if `char_idx` is out of bounds (i.e. `char_idx >= len_chars()`).
     #[inline]
-    pub fn char(&self, char_idx: usize) -> Option<char> {
+    pub fn char(&self, char_idx: AbsoluteCharOffset) -> Option<char> {
         macros::some_if!(
-            char_idx < self.len_chars() => self.rope.char(char_idx)
+            char_idx < self.len_chars().0 => self.rope.char(char_idx.0)
         )
     }
 
     /// Returns `None` if `byte_idx` is out of bounds (i.e. `byte_idx > len_bytes()`).
     #[inline]
-    pub fn chunk_at_byte(&self, byte_idx: usize) -> Option<(&str, usize, usize, usize)> {
+    pub fn chunk_at_byte(&self, byte_idx: ByteIndex) -> Option<Chunk> {
         macros::some_if!(
-            byte_idx <= self.len_bytes() => self.rope.chunk_at_byte(byte_idx)
-        )
+            byte_idx <= self.len_bytes().0 => self.rope.chunk_at_byte(byte_idx.0)
+        ).map(to_chunk)
     }
 
     /// Returns `None` if `char_idx` is out of bounds (i.e. `char_idx > len_chars()`).
     #[inline]
-    pub fn chunk_at_char(&self, char_idx: usize) -> Option<(&str, usize, usize, usize)> {
+    pub fn chunk_at_char(&self, char_idx: AbsoluteCharOffset) -> Option<Chunk> {
         macros::some_if!(
-            char_idx <= self.len_chars() => self.rope.chunk_at_char(char_idx)
-        )
+            char_idx <= self.len_chars().0 => self.rope.chunk_at_char(char_idx.0)
+        ).map(to_chunk)
     }
 
     /// Returns `None` if `line_break_idx` is out of bounds (i.e. `line_break_idx > len_lines()`).
@@ -189,10 +272,10 @@ impl Rope {
     pub fn chunk_at_line_break(
         &self,
         line_break_idx: usize,
-    ) -> Option<(&str, usize, usize, usize)> {
+    ) -> Option<Chunk> {
         macros::some_if!(
-            line_break_idx <= self.len_lines() => self.rope.chunk_at_line_break(line_break_idx)
-        )
+            line_break_idx <= self.len_lines().0 => self.rope.chunk_at_line_break(line_break_idx)
+        ).map(to_chunk)
     }
 
     #[inline]
@@ -217,9 +300,9 @@ impl Rope {
 
     /// Returns `None`  if `line_idx` is out of bounds (i.e. `line_idx >= len_lines()`).
     #[inline]
-    pub fn line(&self, line_idx: usize) -> Option<RopeLine> {
+    pub fn line(&self, line_idx: LineIndex) -> Option<RopeLine> {
         macros::some_if!(
-            line_idx < self.len_lines() => to_rope_line(self.rope.line(line_idx))
+            line_idx < self.len_lines().0 => to_rope_line(self.rope.line(line_idx.0))
         )
     }
 
@@ -228,16 +311,11 @@ impl Rope {
     #[inline]
     pub fn slice<R>(&self, char_range: R) -> Option<RopeSlice>
     where
-        R: RangeBounds<usize>,
+        R: RangeBounds<AbsoluteCharOffset>,
     {
-        let start = start_bound_to_num(char_range.start_bound()).unwrap_or(0);
-        let end = end_bound_to_num(char_range.end_bound()).unwrap_or_else(|| self.len_chars());
-
-        macros::some_if!(
-            start <= end && end <= self.len_chars() => RopeSlice {
-                rope_slice: self.rope.slice(char_range)
-            }
-        )
+        to_slice_range(char_range, self.len_chars()).map(|r| RopeSlice {
+            rope_slice: self.rope.slice(r)
+        })
     }
 }
 
@@ -410,23 +488,5 @@ impl std::cmp::PartialOrd<Rope> for Rope {
     #[inline]
     fn partial_cmp(&self, other: &Rope) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
-    }
-}
-
-#[inline(always)]
-fn start_bound_to_num(b: Bound<&usize>) -> Option<usize> {
-    match b {
-        Bound::Included(n) => Some(*n),
-        Bound::Excluded(n) => Some(*n + 1),
-        Bound::Unbounded => None,
-    }
-}
-
-#[inline(always)]
-fn end_bound_to_num(b: Bound<&usize>) -> Option<usize> {
-    match b {
-        Bound::Included(n) => Some(*n + 1),
-        Bound::Excluded(n) => Some(*n),
-        Bound::Unbounded => None,
     }
 }

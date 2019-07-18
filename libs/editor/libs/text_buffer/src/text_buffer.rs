@@ -1,6 +1,6 @@
-use editor_types::{ByteIndex, Cursor, SetPositionAction, Vec1};
+use editor_types::{Cursor, SetPositionAction, Vec1};
 use macros::{borrow, borrow_mut, d};
-use panic_safe_rope::{Rope, RopeSliceTrait, RopeLine};
+use panic_safe_rope::{Rope, RopeSliceTrait, RopeLine, LineIndex, ByteIndex};
 use platform_types::{AbsoluteCharOffset, CharOffset, Move, Position};
 use std::borrow::Borrow;
 use std::collections::VecDeque;
@@ -77,7 +77,7 @@ fn char_to_string(c: char) -> String {
 }
 
 fn copy_string(rope: &Rope, range: AbsoluteCharOffsetRange) -> String {
-    rope.slice(range.usize_range())
+    rope.slice(range.range())
         .map(|slice| {let s: String = slice.into(); s})
         .unwrap_or_default()
 }
@@ -225,11 +225,11 @@ impl TextBuffer {
     fn apply_edit(&mut self, edit: Edit, kind: ApplyKind) {
         for range_edit in edit.range_edits.iter() {
             if let Some(RangeEdit{range, ..}) = range_edit.delete_range {
-                self.rope.remove(range.usize_range());
+                self.rope.remove(range.range());
             }
 
             if let Some(RangeEdit{ref chars, range, ..}) = &range_edit.insert_range {
-                self.rope.insert(range.usize_min(), chars);
+                self.rope.insert(range.min(), chars);
             }
         }
 
@@ -257,9 +257,9 @@ fn get_insert_edit(
 
     let range_edits = cloned_cursors.mapped_mut(|cursor| {
         match offset_pair(original_rope, cursor) {
-            (Some(AbsoluteCharOffset(o)), highlight)
+            (Some(o), highlight)
                 if highlight.is_none()
-                    || Some(AbsoluteCharOffset(o)) == highlight =>
+                    || Some(o) == highlight =>
             {
                 cloned_rope.insert(o, &s);
                 for _ in 0..s.len() {
@@ -269,7 +269,7 @@ fn get_insert_edit(
                 RangeEdits {
                     insert_range: Some(RangeEdit {
                         chars: s.to_owned(),
-                        range: AbsoluteCharOffsetRange::usize_new(o, o + s.chars().count())
+                        range: AbsoluteCharOffsetRange::new(o, o + s.chars().count())
                     }),
                     ..d!()
                 }
@@ -277,7 +277,7 @@ fn get_insert_edit(
             (Some(o1), Some(o2)) => {
                 let range_edit = delete_highlighted(&mut cloned_rope, cursor, o1, o2);
 
-                cloned_rope.insert(range_edit.range.usize_min(), &s);
+                cloned_rope.insert(range_edit.range.min(), &s);
                 for _ in 0..s.len() {
                     move_cursor::directly(&cloned_rope, cursor, Move::Right);
                 }
@@ -321,14 +321,14 @@ fn get_delete_edit(
         let offsets = offset_pair(original_rope, cursor);
 
         match offsets {
-            (Some(AbsoluteCharOffset(o)), None) if o > 0 => {
+            (Some(o), None) if o > 0 => {
                 // Deleting the LF ('\n') of a CRLF ("\r\n") pair is a special case
                 // where the cursor should not be moved backwards. Thsi is because
                 // CR ('\r') and CRLF ("\r\n") both count as a single newline.
                 // TODO would it better to just delete both at once? That seems like
                 // it would require a moe comlicated special case elsewhere.
                 let not_deleting_lf_of_cr_lf = {
-                    o.checked_sub(2).and_then(|two_back| {
+                    o.checked_sub(AbsoluteCharOffset(2)).and_then(|two_back| {
                         let mut chars = cloned_rope.slice(two_back..o)?.chars();
 
                         Some(
@@ -337,9 +337,9 @@ fn get_delete_edit(
                     }).unwrap_or(true)
                 };
 
-                let delete_offset_range = AbsoluteCharOffsetRange::usize_new(o - 1, o);
+                let delete_offset_range = AbsoluteCharOffsetRange::new(o - 1, o);
                 let chars = copy_string(&cloned_rope, delete_offset_range);
-                cloned_rope.remove(delete_offset_range.usize_range());
+                cloned_rope.remove(delete_offset_range.range());
 
                 if not_deleting_lf_of_cr_lf {
                     move_cursor::directly(&cloned_rope, cursor, Move::Left);
@@ -432,7 +432,7 @@ fn delete_highlighted(
 
     let chars = copy_string(rope, range);
 
-    rope.remove(range.usize_range());
+    rope.remove(range.range());
     cursor.set_position(
         char_offset_to_pos(&rope, range.min()).unwrap_or_default(),
     );
@@ -500,7 +500,7 @@ fn final_non_newline_offset_for_rope_line(line: RopeLine) -> CharOffset {
         return_if_0!();
     }
 
-    CharOffset(len)
+    len
 }
 
 fn in_cursor_bounds<P: Borrow<Position>>(rope: &Rope, position: P) -> bool {
@@ -512,16 +512,16 @@ fn in_cursor_bounds<P: Borrow<Position>>(rope: &Rope, position: P) -> bool {
 
 #[perf_viz::record]
 fn pos_to_char_offset(rope: &Rope, position: &Position) -> Option<AbsoluteCharOffset> {
-    Some(AbsoluteCharOffset(rope.line_to_char(position.line)?) + position.offset)
+    Some(rope.line_to_char(LineIndex(position.line))? + position.offset)
 }
 
 #[perf_viz::record]
 fn char_offset_to_pos(
     rope: &Rope,
-    AbsoluteCharOffset(offset): AbsoluteCharOffset,
+    offset: AbsoluteCharOffset,
 ) -> Option<Position> {
     if rope.len_chars() == offset {
-        Some(rope.len_lines() - 1)
+        Some(LineIndex(rope.len_lines().0 - 1))
     } else {
         rope.char_to_line(offset)
     }
@@ -529,8 +529,8 @@ fn char_offset_to_pos(
         let start_of_line = rope.line_to_char(line_index)?;
 
         offset.checked_sub(start_of_line).map(|o| Position {
-            line: line_index,
-            offset: CharOffset(o),
+            line: line_index.0,
+            offset: o.into(),
         })
     })
 }
@@ -566,12 +566,8 @@ mod absolute_char_offset_range {
             }
         }
 
-        pub fn usize_new(o1: usize, o2: usize) -> Self {
-            AbsoluteCharOffsetRange::new(AbsoluteCharOffset(o1), AbsoluteCharOffset(o2))
-        }
-
-        pub fn usize_range(&self) -> std::ops::Range<usize> {
-            self.min.0..self.max.0
+        pub fn range(&self) -> std::ops::Range<AbsoluteCharOffset> {
+            self.min..self.max
         }
 
         pub fn min(&self) -> AbsoluteCharOffset {
@@ -580,14 +576,6 @@ mod absolute_char_offset_range {
 
         pub fn max(&self) -> AbsoluteCharOffset {
             self.max
-        }
-
-        pub fn usize_min(&self) -> usize {
-            self.min.0
-        }
-
-        pub fn usize_max(&self) -> usize {
-            self.max.0
         }
     }
 }
@@ -699,7 +687,7 @@ impl TextBuffer {
     pub fn find_index<P: Borrow<Position>>(&self, p: P) -> Option<ByteIndex> {
         let rope = &self.rope;
         pos_to_char_offset(rope, p.borrow())
-            .and_then(|AbsoluteCharOffset(o)| rope.char_to_byte(o).map(ByteIndex))
+            .and_then(|o| rope.char_to_byte(o))
     }
 }
 

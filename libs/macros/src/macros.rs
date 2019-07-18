@@ -105,6 +105,15 @@ macro_rules! integer_newtype {
             pub fn saturating_add(self, other: Self) -> Self {
                 $name(self.0.saturating_add(other.0))
             }
+
+            pub fn checked_add(self, other: Self) -> Option<Self> {
+                self.0.checked_add(other.0).map($name)
+            }
+
+            /// Seems like 99% of the time we want to do a `checked_add` it's with one
+            pub fn checked_add_one(self) -> Option<Self> {
+                self.0.checked_add(1).map($name)
+            }
         }
 
         impl std::ops::Sub for $name {
@@ -124,6 +133,15 @@ macro_rules! integer_newtype {
         impl $name {
             pub fn saturating_sub(self, other: Self) -> Self {
                 $name(self.0.saturating_sub(other.0))
+            }
+
+            pub fn checked_sub(self, other: Self) -> Option<Self> {
+                self.0.checked_sub(other.0).map($name)
+            }
+
+            /// Seems like 99% of the time we want to do a `checked_sub` it's with one
+            pub fn checked_sub_one(self) -> Option<Self> {
+                self.0.checked_add(1).map($name)
             }
         }
 

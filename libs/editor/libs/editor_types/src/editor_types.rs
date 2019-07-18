@@ -4,43 +4,6 @@ use std::borrow::Borrow;
 use std::ops::{Add, Sub};
 pub use vec1::{Vec1, vec1};
 
-/// An index into the buffer's underlying bytes.
-#[derive(Clone, Copy, Debug, Default)]
-pub struct ByteIndex(pub usize);
-
-integer_newtype! {
-    ByteIndex
-}
-
-usize_newtype! {
-    ByteIndex
-}
-
-#[derive(Clone, Copy, Debug, Default)]
-pub struct ByteLength(pub usize);
-
-integer_newtype! {
-    ByteLength
-}
-
-usize_newtype! {
-    ByteLength
-}
-
-impl std::ops::Add<ByteLength> for ByteIndex {
-    type Output = ByteIndex;
-
-    fn add(self, other: ByteLength) -> ByteIndex {
-        ByteIndex(self.0 + other.0)
-    }
-}
-
-impl From<ByteIndex> for ByteLength {
-    fn from(index: ByteIndex) -> ByteLength {
-        ByteLength(index.0)
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CursorState {
     None,

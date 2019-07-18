@@ -1,10 +1,5 @@
 ## TODO
 
-* add "RopeLine" newtype and start returning it from the `line` method in `panic_safe_rope`
-  * start returning `CharOffset` and `AbsoluteCharOffset` from relevant methods as well.
-  * `likely_edit_offsets` should take a `RopeLine`
-
-
 * Ctrl-Left/Right to jump by "words"
   * Does the word-boundary regex do what I want here?
 
