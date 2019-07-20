@@ -1,5 +1,5 @@
 // this module is inside `text_buffer`
-use super::in_cursor_bounds;
+use super::{in_cursor_bounds, final_non_newline_offset_for_rope_line};
 use std::borrow::Borrow;
 use editor_types::{SetPositionAction, Cursor, CursorState};
 use panic_safe_rope::{Rope, RopeSliceTrait, RopeLine, LineIndex};
@@ -202,6 +202,7 @@ fn move_to_rope_end(rope: &Rope, cursor: &mut Cursor, action: SetPositionAction)
 
 #[perf_viz::record]
 fn move_to_previous_likely_edit_location(rope: &Rope, cursor: &mut Cursor, action: SetPositionAction) -> Moved {
+    dbg!(rope);
     let line_index_and_section = {
         let pos = cursor.get_position();
 
@@ -212,7 +213,7 @@ fn move_to_previous_likely_edit_location(rope: &Rope, cursor: &mut Cursor, actio
 
             if offset == 0 {
                 // We want to be able to move to the previous line if possible
-                line_index
+                dbg!(line_index)
                     .checked_sub_one()
                     .and_then(
                         |i| dbg!(rope.line(i).map(|l| (i, l)))
@@ -228,9 +229,9 @@ fn move_to_previous_likely_edit_location(rope: &Rope, cursor: &mut Cursor, actio
     dbg!(&line_index_and_section);
     let position = {
         line_index_and_section.and_then(|(line_index, section)| {
-            dbg!(likely_edit_offsets(section, IncludeStringLength::Yes).collect::<Vec<_>>());
+            dbg!(likely_edit_offsets(section, IncludeStringLength::No).collect::<Vec<_>>());
 
-            likely_edit_offsets(section, IncludeStringLength::Yes)
+            likely_edit_offsets(section, IncludeStringLength::No)
                 .last()
                 .map(|offset|
                     Position {
@@ -254,9 +255,7 @@ fn move_to_next_likely_edit_location<'rope>(rope: &'rope Rope, cursor: &mut Curs
         rope.line(line_index).and_then(|line| {
             let offset = pos.offset;
 
-            let op_info: Info = line
-                .len_chars()
-                .checked_sub_one()
+            Some(final_non_newline_offset_for_rope_line(line))
                 // try to move to the next line if there is nothing left on this one
                 .filter(|&final_offset| offset < final_offset)
                 .and_then(|final_offset| dbg!(line.slice(offset..).map(|l|
@@ -266,39 +265,35 @@ fn move_to_next_likely_edit_location<'rope>(rope: &'rope Rope, cursor: &mut Curs
                         l,
                         final_offset
                     )
-                )));
-
-            op_info.or_else(|| {
-                let info: Info = dbg!(pos.line
-                    .checked_add(1)
-                    .map(LineIndex)
+                ))).or_else(|| {
+                dbg!(line_index
+                    .checked_add_one()
                     .and_then(
                         // We rely on `d!()` being 0 here.
                         |i| rope.line(i).map(|l: RopeLine| (
                             i,
                             d!(),
                             l,
-                            l
-                            .len_chars()
-                            .checked_sub_one()
-                            .unwrap_or_default()
+                            final_non_newline_offset_for_rope_line(l)
                         ))
-                    ));
-
-                info
+                    ))
             })
         })
     };
     dbg!(&line_index_and_section);
-    let position = {
-        line_index_and_section.and_then(|(line_index, offset, section, final_offset)| {
+    let position = line_index_and_section
+        .and_then(|(line_index, offset, section, final_offset)| {
             dbg!((line_index, offset, section, final_offset));
             dbg!(likely_edit_offsets(section, IncludeStringLength::No).collect::<Vec<_>>());
 
             // The variable is needed to cause the `likely_edit_offsets` iterator to be dropped
             // at the right time.
             let output = likely_edit_offsets(section, IncludeStringLength::No)
-                // So we actually move if we started on a word boundary
+                // So we actually move if we started on a word boundary. This also causes us to
+                // skip the first location on each line going forwards, but many other text
+                // editors do it, and it seems plauible that the second edit location is used
+                // more often than the first edit location. Making the other edit locations
+                // "closer" doesn't seem like a bad thing. I guess we'll keep it.
                 .skip_while(|&o| o == 0)
                 .next()
                 .map(|o|
@@ -314,8 +309,7 @@ fn move_to_next_likely_edit_location<'rope>(rope: &'rope Rope, cursor: &mut Curs
                 });
 
             output
-        })
-    };
+        });
 
     move_to(rope, cursor, position, action)
 }
@@ -499,7 +493,9 @@ mod tests {
 
     #[test]
     fn likely_edit_offsets_works_on_this_code_example() {
-        let offsets: Vec<_> = likely_edit_offsets("{[(012), (345)]}", IncludeStringLength::Yes).collect();
+        let rope = r!("{[(012), (345)]}");
+        let line = rope.line(LineIndex(0)).unwrap();
+        let offsets: Vec<_> = likely_edit_offsets(line, IncludeStringLength::Yes).collect();
 
         assert_eq!(
             offsets,
@@ -516,19 +512,18 @@ mod tests {
     }
 
     #[test]
-    fn likely_edit_offsets_works_on_this_multiline_example() {
-        let offsets: Vec<_> = likely_edit_offsets("{[(012),\n (345)]}", IncludeStringLength::Yes).collect();
+    fn likely_edit_offsets_works_on_this_simple_example() {
+        let rope = r!("(123)");
+        let line = rope.line(LineIndex(0)).unwrap();
+        let offsets: Vec<_> = likely_edit_offsets(line, IncludeStringLength::Yes).collect();
 
         assert_eq!(
             offsets,
             vec![
                 CharOffset(0),
-                CharOffset(3),
-                CharOffset(6),
-                CharOffset(10),
-                CharOffset(11),
-                CharOffset(14),
-                CharOffset(17),
+                CharOffset(1),
+                CharOffset(4),
+                CharOffset(5)
             ]
         );
     }

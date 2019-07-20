@@ -1,7 +1,6 @@
 use macros::{d, fmt_display, integer_newtype, usize_newtype};
 use platform_types::{CharOffset, Position};
 use std::borrow::Borrow;
-use std::ops::{Add, Sub};
 pub use vec1::{Vec1, vec1};
 
 #[derive(Clone, Debug, PartialEq, Eq)]

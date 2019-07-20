@@ -141,7 +141,7 @@ macro_rules! integer_newtype {
 
             /// Seems like 99% of the time we want to do a `checked_sub` it's with one
             pub fn checked_sub_one(self) -> Option<Self> {
-                self.0.checked_add(1).map($name)
+                self.0.checked_sub(1).map($name)
             }
         }
 

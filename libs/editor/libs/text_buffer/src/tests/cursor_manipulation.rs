@@ -580,7 +580,6 @@ macro_rules! moving_by_words {
         // Now back the other way
 
         buffer.move_cursor(0, ToPreviousLikelyEditLocation);
-        dbg!((pos! {l 3 o 13}, "<-"));
         cursor_assert! {
             buffer,
             p: pos! {l 3 o 13},
@@ -661,6 +660,7 @@ macro_rules! moving_by_words {
         }
 
         buffer.move_cursor(0, ToPreviousLikelyEditLocation);
+        dbg!(1);
         cursor_assert! {
             buffer,
             p: pos! {l 0 o 4},

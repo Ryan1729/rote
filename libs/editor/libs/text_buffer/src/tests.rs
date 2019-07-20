@@ -44,14 +44,14 @@ prop_compose! {
 prop_compose! {
     fn arb_rope_and_offset()
         (s in ".*")
-        (offset in 0..=r!(&s).len_chars(), s in Just(s)) -> (Rope, AbsoluteCharOffset) {
+        (offset in 0..=r!(&s).len_chars().0, s in Just(s)) -> (Rope, AbsoluteCharOffset) {
         (r!(s), AbsoluteCharOffset(offset))
     }
 }
 
 fn arb_rope_and_pos() -> impl Strategy<Value = (Rope, Position)> {
     ".*".prop_flat_map(|s: String| {
-        let line_count = r!(s).len_lines();
+        let line_count = r!(s).len_lines().0;
         (0..line_count, Just(s)).prop_flat_map(move |(line_index, s)| {
             let line_len = r!(s)
                 .lines()
@@ -62,7 +62,7 @@ fn arb_rope_and_pos() -> impl Strategy<Value = (Rope, Position)> {
 
             let max_offset = line_len - if line_index < line_count - 1 { 1 } else { 0 };
 
-            (0..=max_offset, Just(s)).prop_map(move |(offset, s)| {
+            (0..=max_offset.0, Just(s)).prop_map(move |(offset, s)| {
                 (
                     r!(s),
                     Position {
