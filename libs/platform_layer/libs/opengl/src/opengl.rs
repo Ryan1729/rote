@@ -166,6 +166,20 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
     let scroll_multiplier: f32 = 16.0;
     let font_info = FontInfo::new(glutin_context.window().hidpi_factor() as f32)?;
 
+    // If you didn't click on the same symbol, counting that as a double click seems like it
+    // would be annoying.
+    let click_radius: f32 = {
+        let (w, h) = (font_info.text_char_dim.w, font_info.text_char_dim.h);
+
+        (
+            if w < h {
+                w
+            } else {
+                h
+            }
+        ) / 2.0
+    };
+
     let mut glyph_brush = get_glyph_brush(&font_info);
 
     let mut gl_state = gl_layer::init(&glyph_brush, |symbol| {
@@ -188,6 +202,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
     }));
 
     let (mut mouse_x, mut mouse_y) = (0.0, 0.0);
+    let (mut last_click_x, mut last_click_y) = (std::f32::NAN, std::f32::NAN);
 
     use std::sync::mpsc::channel;
 
@@ -255,10 +270,11 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
 
                     if let Some(rate) = loop_helper.report_rate() {
                         glutin_context.window().set_title(&format!(
-                            "{} {:.0} FPS {:?}",
+                            "{} {:.0} FPS {:?} click {:?}",
                             title,
                             rate,
                             (mouse_x, mouse_y),
+                            (last_click_x, last_click_y),
                         ));
                     }
 
@@ -579,10 +595,22 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                             ..
                         } => {
                             mouse_state = ElementState::Pressed;
-                            call_u_and_r!(Input::ReplaceCursors(ScreenSpaceXY {
-                                x: mouse_x,
-                                y: mouse_y
-                            }));
+
+                            let input = if
+                                (last_click_x - mouse_x).abs() <= click_radius
+                                 && (last_click_y - mouse_y).abs() <= click_radius {
+                                Input::SelectBewtweenLikelyEditLocations(ScreenSpaceXY {
+                                    x: mouse_x,
+                                    y: mouse_y
+                                })
+                            } else {
+                                Input::ReplaceCursors(ScreenSpaceXY {
+                                    x: mouse_x,
+                                    y: mouse_y
+                                })
+                            };
+
+                            call_u_and_r!(input);
                         }
                         WindowEvent::MouseInput {
                             button: MouseButton::Left,
@@ -590,6 +618,8 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                             ..
                         } => {
                             mouse_state = ElementState::Released;
+                            last_click_x = mouse_x;
+                            last_click_y = mouse_y;
                         }
                         _ => {}
                     }
@@ -690,7 +720,6 @@ pub fn render_buffer_view<A: Clone>(
 
         let mut rect_bounds: Bounds = d!();
         rect_bounds.max = bounds.into();
-        //rect_bounds.max = (1.0 / 0.0, 1.0 / 0.0).into();
 
         perf_viz::start_record!("highlight_ranges.extend");
         highlight_ranges.extend(highlights.iter().map(|h| HighlightRange {

@@ -5,6 +5,7 @@
 
 * double click to select words
   * register double click
+    * Due to lack of interest(?) there seems to be no cross-platform double-click timing library. I think for our purposes, registering a double-click if the last click was on the same screen xy within a threshold will do.
   * write test cases and enough code to get them to compile
     * `{snake_case}`
       * `{`
@@ -40,6 +41,9 @@
         * a "current cursor mode"?
 
 * make Undo/Redo history into struct containing `VecDeque` which keeps track of total bytes used and automatically pops things off the end when storage would exceed a limit.
+  * Why is undo/redo so slow?
+    * Actually, wait is the index being different than the length causing a bug? We probably need to clear old moves if the length is greater than the index.
+    * probably we should just wait until we make a limited bytes used history to bother fixing this?
 
 * Store clipboard history (no persistent storage)
   * Use (parameterized version of?) Undo/Redo struct to store

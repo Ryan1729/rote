@@ -61,6 +61,7 @@ pub enum Input {
     ExtendSelectionForAllCursors(Move),
     ReplaceCursors(ScreenSpaceXY),
     DragCursors(ScreenSpaceXY),
+    SelectBewtweenLikelyEditLocations(ScreenSpaceXY),
     Undo,
     Redo,
     Cut,

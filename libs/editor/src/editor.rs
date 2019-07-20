@@ -284,6 +284,9 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
                 screen_space_to_position(xy, state.text_char_dim, (state.scroll_x, state.scroll_y));
             buffer_call!(b.drag_cursors(position))
         }
+        SelectBewtweenLikelyEditLocations(xy) => {
+            
+        }
         Cut => buffer_call!(b {
             if let Some(s) = state.clipboard_history.cut(b) {
                 cmd = Cmd::SetClipboard(s);
