@@ -61,7 +61,7 @@ pub enum Input {
     ExtendSelectionForAllCursors(Move),
     ReplaceCursors(ScreenSpaceXY),
     DragCursors(ScreenSpaceXY),
-    SelectBewtweenLikelyEditLocations(ScreenSpaceXY),
+    SelectBewtweenLikelyEditLocations,
     Undo,
     Redo,
     Cut,
@@ -203,7 +203,7 @@ fmt_display! {
 }
 
 /// Semantically this is concatenate strings with these final positions together and take the final
-/// postion. That is, if a string that has as its final position, the position on the lef- hand
+/// position. That is, if a string that has as its final position, the position on the lef- hand
 /// side, is concatenated at the beginning of a string with a final position of the position on the
 /// right hand side, the resulting string will have the position that results applying this
 /// function.

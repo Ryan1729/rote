@@ -80,7 +80,7 @@ fn move_to<OptionPos: Into<Option<Position>>>(
     if let Some(position) = position.into() {
         if cursor.get_position() == position {
             // We might need to clear the highlight cursor, depending on the action, even though
-            // the postion matches.
+            // the position matches.
             cursor.set_position_custom(position, action);
         } else if in_cursor_bounds(rope, &position) {
             cursor.set_position_custom(position, action);
@@ -200,73 +200,61 @@ fn move_to_rope_end(rope: &Rope, cursor: &mut Cursor, action: SetPositionAction)
     move_to(rope, cursor, last_position(rope), action)
 }
 
-#[perf_viz::record]
-fn move_to_previous_likely_edit_location(rope: &Rope, cursor: &mut Cursor, action: SetPositionAction) -> Moved {
-    dbg!(rope);
+pub fn get_previous_likely_edit_location(rope: &Rope, Position{line, offset}: Position) -> Option<Position> {
     let line_index_and_section = {
-        let pos = cursor.get_position();
+        let line_index = LineIndex(line);
 
-        let line_index = LineIndex(pos.line);
-
-        rope.line(line_index).and_then(|line| {
-            let offset = pos.offset;
-
+        rope.line(line_index).and_then(|rope_line| {
             if offset == 0 {
                 // We want to be able to move to the previous line if possible
-                dbg!(line_index)
+                line_index
                     .checked_sub_one()
                     .and_then(
-                        |i| dbg!(rope.line(i).map(|l| (i, l)))
+                        |i| rope.line(i).map(|l| (i, l))
                     )
             } else {
-                line.slice(..offset).map(|l| (
+                rope_line.slice(..offset).map(|l| (
                     line_index,
                     l
                 ))
             }
         })
     };
-    dbg!(&line_index_and_section);
-    let position = {
-        line_index_and_section.and_then(|(line_index, section)| {
-            dbg!(likely_edit_offsets(section, IncludeStringLength::No).collect::<Vec<_>>());
 
-            likely_edit_offsets(section, IncludeStringLength::No)
-                .last()
-                .map(|offset|
-                    Position {
-                        line: line_index.0,
-                        offset
-                    }
-                )
-        })
-    };
+    line_index_and_section.and_then(|(line_index, section)| {
+        likely_edit_offsets(section, IncludeStringLength::No)
+            .last()
+            .map(|offset|
+                Position {
+                    line: line_index.0,
+                    offset
+                }
+            )
+    })
+}
 
-    move_to(rope, cursor, position, action)
+#[perf_viz::record]
+fn move_to_previous_likely_edit_location(rope: &Rope, cursor: &mut Cursor, action: SetPositionAction) -> Moved {
+    move_to(rope, cursor, get_previous_likely_edit_location(rope, cursor.get_position()), action)
 
 }
-#[perf_viz::record]
-fn move_to_next_likely_edit_location<'rope>(rope: &'rope Rope, cursor: &mut Cursor, action: SetPositionAction) -> Moved {
-    type Info<'a> = Option<(LineIndex, CharOffset, RopeLine<'a>, CharOffset)>;
-    let line_index_and_section: Info<'rope> = {
-        let pos = cursor.get_position();
 
-        let line_index = LineIndex(pos.line);
-        rope.line(line_index).and_then(|line| {
-            let offset = pos.offset;
-
-            Some(final_non_newline_offset_for_rope_line(line))
+pub fn get_next_likely_edit_location(rope: &Rope, Position{line, offset}: Position) -> Option<Position> {
+    let line_index_and_section = {
+        let line_index = LineIndex(line);
+        rope.line(line_index).and_then(|rope_line| {
+            Some(final_non_newline_offset_for_rope_line(rope_line))
                 // try to move to the next line if there is nothing left on this one
                 .filter(|&final_offset| offset < final_offset)
-                .and_then(|final_offset| dbg!(line.slice(offset..).map(|l|
+                .and_then(|final_offset| rope_line.slice(offset..).map(|l|
                     (
                         line_index,
                         offset,
                         l,
                         final_offset
                     )
-                ))).or_else(|| {
-                dbg!(line_index
+                )).or_else(|| {
+                line_index
                     .checked_add_one()
                     .and_then(
                         // We rely on `d!()` being 0 here.
@@ -276,16 +264,13 @@ fn move_to_next_likely_edit_location<'rope>(rope: &'rope Rope, cursor: &mut Curs
                             l,
                             final_non_newline_offset_for_rope_line(l)
                         ))
-                    ))
+                    )
             })
         })
     };
-    dbg!(&line_index_and_section);
-    let position = line_index_and_section
-        .and_then(|(line_index, offset, section, final_offset)| {
-            dbg!((line_index, offset, section, final_offset));
-            dbg!(likely_edit_offsets(section, IncludeStringLength::No).collect::<Vec<_>>());
 
+    line_index_and_section
+        .and_then(|(line_index, offset, section, final_offset)| {
             // The variable is needed to cause the `likely_edit_offsets` iterator to be dropped
             // at the right time.
             let output = likely_edit_offsets(section, IncludeStringLength::No)
@@ -297,21 +282,24 @@ fn move_to_next_likely_edit_location<'rope>(rope: &'rope Rope, cursor: &mut Curs
                 .skip_while(|&o| o == 0)
                 .next()
                 .map(|o|
-                    dbg!(Position {
+                    Position {
                         line: line_index.0,
                         offset: std::cmp::min(offset + o, final_offset)
-                    })
+                    }
                 ).or_else(|| {
-                    dbg!(Some(Position {
+                    Some(Position {
                         line: line_index.0,
                         offset: final_offset
-                    }))
+                    })
                 });
 
             output
-        });
+        })
+}
 
-    move_to(rope, cursor, position, action)
+#[perf_viz::record]
+fn move_to_next_likely_edit_location(rope: &Rope, cursor: &mut Cursor, action: SetPositionAction) -> Moved {
+    move_to(rope, cursor, get_previous_likely_edit_location(rope, cursor.get_position()), action)
 }
 
 // Regex Cheatsheet

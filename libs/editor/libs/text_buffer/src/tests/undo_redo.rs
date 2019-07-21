@@ -176,6 +176,7 @@ enum TestEdit {
     ExtendSelection(usize, Move),
     ReplaceCursors(Position),
     DragCursors(Position),
+    SelectBewtweenLikelyEditLocations,
     Cut,
 }
 
@@ -193,6 +194,7 @@ fn apply_edit(buffer: &mut TextBuffer, edit: TestEdit) {
         ExtendSelection(index, r#move) => buffer.extend_selection(index, r#move),
         ReplaceCursors(position) => buffer.replace_cursors(position),
         DragCursors(position) => buffer.drag_cursors(position),
+        SelectBewtweenLikelyEditLocations => buffer.select_between_likely_edit_locations(),
         Cut => {buffer.cut_selections();},
     }
 }
@@ -211,7 +213,9 @@ fn arb_test_edit() -> impl Strategy<Value = TestEdit> {
         // The user can attempt to move the cursor to invalid positions,
         // and there cursor may get snapped to a valid position producing an actual movement.
         arb_pos(MORE_THAN_SOME_AMOUNT, MORE_THAN_SOME_AMOUNT).prop_map(ReplaceCursors),
-        arb_pos(MORE_THAN_SOME_AMOUNT, MORE_THAN_SOME_AMOUNT).prop_map(DragCursors)
+        arb_pos(MORE_THAN_SOME_AMOUNT, MORE_THAN_SOME_AMOUNT).prop_map(DragCursors),
+        Just(SelectBewtweenLikelyEditLocations),
+        Just(Cut),
     ]
 }
 

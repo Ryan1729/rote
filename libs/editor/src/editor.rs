@@ -1,3 +1,5 @@
+use platform_types::ScreenSpaceXY;
+use platform_types::Position;
 use std::collections::VecDeque;
 use editor_types::{CursorState, Vec1};
 use macros::{c, d};
@@ -272,20 +274,19 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
             set_if_present!(sizes => state.status_char_dim);
         }
         ReplaceCursors(xy) => {
-            let position =
-                screen_space_to_position(xy, state.text_char_dim, (state.scroll_x, state.scroll_y));
+            let position = screen_space_to_position(xy, state.text_char_dim, (state.scroll_x, state.scroll_y));
             buffer_call!(b.replace_cursors(position))
         }
         DragCursors(xy) => {
+            let position = screen_space_to_position(xy, state.text_char_dim, (state.scroll_x, state.scroll_y));
             // In practice we currently expect this to be sent only immeadately after an
             // `Input::ReplaceCursors` input, so there will be only one cursor. But it seems like
             // we might as well just do it to all the cursors
-            let position =
-                screen_space_to_position(xy, state.text_char_dim, (state.scroll_x, state.scroll_y));
             buffer_call!(b.drag_cursors(position))
         }
-        SelectBewtweenLikelyEditLocations(xy) => {
-            
+        SelectBewtweenLikelyEditLocations => {
+            // We also expect this to be sent only when there is one cursor.
+            buffer_call!(b.select_between_likely_edit_locations())
         }
         Cut => buffer_call!(b {
             if let Some(s) = state.clipboard_history.cut(b) {

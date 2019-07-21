@@ -599,10 +599,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                             let input = if
                                 (last_click_x - mouse_x).abs() <= click_radius
                                  && (last_click_y - mouse_y).abs() <= click_radius {
-                                Input::SelectBewtweenLikelyEditLocations(ScreenSpaceXY {
-                                    x: mouse_x,
-                                    y: mouse_y
-                                })
+                                Input::SelectBewtweenLikelyEditLocations
                             } else {
                                 Input::ReplaceCursors(ScreenSpaceXY {
                                     x: mouse_x,

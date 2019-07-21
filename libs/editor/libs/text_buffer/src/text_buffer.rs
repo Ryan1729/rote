@@ -1,3 +1,4 @@
+use crate::move_cursor::{get_previous_likely_edit_location, get_next_likely_edit_location, forward};
 use editor_types::{Cursor, SetPositionAction, Vec1};
 use macros::{borrow, borrow_mut, d};
 use panic_safe_rope::{Rope, RopeSliceTrait, RopeLine, LineIndex, ByteIndex};
@@ -171,6 +172,29 @@ impl TextBuffer {
             }
             self.apply_cursor_edit(new);
         }
+    }
+
+    pub fn select_between_likely_edit_locations(&mut self) {
+        let mut new = self.cursors.clone();
+        for c in new.iter_mut() {
+            let rope = &self.rope;
+            let old_position = c.get_position();
+            
+            let highlight_position =
+            get_previous_likely_edit_location(
+                rope,
+                // Both of these `.unwrap_or(old_position)` calls are necessary.
+                // If we were to use an `and_then` call instead, then we would default to
+                // `old_position` too often
+                forward(rope, old_position).unwrap_or(old_position)
+            ).unwrap_or(old_position);
+            c.set_highlight_position(dbg!(highlight_position));
+
+            let position =
+                get_next_likely_edit_location(rope, old_position).unwrap_or(old_position);
+            c.set_position_custom(position, SetPositionAction::ClearHighlightOnlyIfItMatchesNewPosition);
+        }
+        self.apply_cursor_edit(new);
     }
 
     #[perf_viz::record]

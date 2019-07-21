@@ -752,3 +752,102 @@ fn moving_by_words_across_line_feeds_works() {
 fn moving_by_words_across_carriage_return_line_feeds_works() {
     moving_by_words!("\r\n");
 }
+
+macro_rules! selecting_likely_edit_locations_works_on_a_single_character {
+    ($single_char_str: expr) => (
+        let mut buffer = t_b!($single_char_str);
+
+        buffer.select_between_likely_edit_locations();
+        cursor_assert! {
+            buffer,
+            p: pos! {l 0 o 1},
+            h: pos! {l 0 o 0},
+            s: d!()
+        }
+
+        buffer.replace_cursors(pos! {l 0 o 1});
+        // not the main thing we are testing.
+        cursor_assert! {
+            buffer,
+            p: pos! {l 0 o 1},
+            h: None,
+            s: d!()
+        }
+
+        buffer.select_between_likely_edit_locations();
+
+        cursor_assert! {
+            buffer,
+            p: pos! {l 0 o 1},
+            h: pos! {l 0 o 0},
+            s: d!()
+        }
+    );
+}
+
+#[test]
+fn selecting_likely_edit_locations_works_on_a_word_char() {
+    selecting_likely_edit_locations_works_on_a_single_character!("a");
+}
+
+#[test]
+fn selecting_likely_edit_locations_works_on_a_whitespace_char() {
+    selecting_likely_edit_locations_works_on_a_single_character!(" ");
+}
+
+#[test]
+fn selecting_likely_edit_locations_works_on_a_punctuation_char() {
+    selecting_likely_edit_locations_works_on_a_single_character!(".");
+}
+
+
+#[test]
+fn selecting_likely_edit_locations_works_on_this_snake_case_example() {
+    let mut buffer = t_b!("{snake_case_example}");
+
+    buffer.select_between_likely_edit_locations();
+    cursor_assert! {
+        buffer,
+        p: pos! {l 0 o 1},
+        h: pos! {l 0 o 0},
+        s: d!()
+    }
+
+    let len = "snake_case_example".len();
+    let left_edge = pos!{l 0 o 1};
+    let right_edge = Position { offset: CharOffset(len + 1), ..d!() };
+
+    for i in 0..=len {
+        let p = Position { offset: CharOffset(i + 1), ..d!() };
+        buffer.replace_cursors(p);
+
+        buffer.select_between_likely_edit_locations();
+
+        cursor_assert! {
+            buffer,
+            p: right_edge,
+            h: left_edge,
+            s: d!()
+        }
+    }
+
+    let last = Position { offset: CharOffset(len + 1), ..d!() };
+    buffer.replace_cursors(last);
+
+    buffer.select_between_likely_edit_locations();
+
+    cursor_assert! {
+        buffer,
+        p: right_edge,
+        h: last,
+        s: d!()
+    }
+}
+
+#[test]
+fn get_previous_likely_edit_location_finds_the_first_location_int_the_file_before_a_single_char() {
+    assert_eq!(
+        get_previous_likely_edit_location(&r!("a"), pos!{l 0 o 1}),
+        Some(pos!{})
+    );
+}
