@@ -800,6 +800,57 @@ fn selecting_likely_edit_locations_works_on_a_punctuation_char() {
     selecting_likely_edit_locations_works_on_a_single_character!(".");
 }
 
+#[test]
+fn selecting_likely_edit_locations_works_on_wrapped_with_braces_example() {
+    let mut buffer = t_b!("{a}");
+
+    let len = "{a}".len();
+    let mut ranges = Vec::with_capacity(len);
+
+    for offset in (0..len).map(CharOffset) {
+        let p = Position { offset, ..d!() };
+        buffer.replace_cursors(dbg!(p));
+
+        buffer.select_between_likely_edit_locations();
+
+        let c = buffer.cursors.first();
+
+        ranges.push((
+            c.get_highlight_position(),
+            c.get_position(),
+        ))
+    }
+
+    assert!(
+        ranges.contains(&(Some(pos! {l 0 o 0}), pos!{l 0 o 1}))
+    );
+
+    assert!(
+        ranges.contains(&(Some(pos! {l 0 o 1}), pos!{l 0 o 2}))
+    );
+
+    assert!(
+        ranges.contains(&(Some(pos! {l 0 o 2}), pos!{l 0 o 3}))
+    );
+}
+
+macro_rules! check_select_bounds {
+    ($buffer: expr, ($left_edge: expr, $right_edge: expr)) => (
+        for offset in ($left_edge.offset.0..$right_edge.offset.0).map(CharOffset) {
+            let p = Position { offset, ..d!() };
+            $buffer.replace_cursors(p);
+
+            $buffer.select_between_likely_edit_locations();
+
+            cursor_assert! {
+                $buffer,
+                p: $right_edge,
+                h: $left_edge,
+                s: d!()
+            }
+        }
+    );
+}
 
 #[test]
 fn selecting_likely_edit_locations_works_on_this_snake_case_example() {
@@ -813,41 +864,179 @@ fn selecting_likely_edit_locations_works_on_this_snake_case_example() {
         s: d!()
     }
 
-    let len = "snake_case_example".len();
-    let left_edge = pos!{l 0 o 1};
-    let right_edge = Position { offset: CharOffset(len + 1), ..d!() };
+    let inner_len = "snake_case_example".len();
+    let inner_left_edge = pos!{l 0 o 1};
+    let inner_right_edge = Position { offset: CharOffset(1 + inner_len), ..d!() };
 
-    for i in 0..=len {
-        let p = Position { offset: CharOffset(i + 1), ..d!() };
-        buffer.replace_cursors(p);
-
-        buffer.select_between_likely_edit_locations();
-
-        cursor_assert! {
-            buffer,
-            p: right_edge,
-            h: left_edge,
-            s: d!()
-        }
+    check_select_bounds!{
+        buffer,
+        (inner_left_edge, inner_right_edge)
     }
 
-    let last = Position { offset: CharOffset(len + 1), ..d!() };
+    buffer.replace_cursors(inner_right_edge);
+
+    buffer.select_between_likely_edit_locations();
+
+    let last = Position { offset: inner_right_edge.offset + 1, ..d!() };
+    cursor_assert! {
+        buffer,
+        p: last,
+        h: inner_right_edge,
+        s: d!()
+    }
+
     buffer.replace_cursors(last);
 
     buffer.select_between_likely_edit_locations();
 
     cursor_assert! {
         buffer,
-        p: right_edge,
-        h: last,
+        p: last,
+        h: inner_right_edge,
         s: d!()
     }
 }
 
 #[test]
-fn get_previous_likely_edit_location_finds_the_first_location_int_the_file_before_a_single_char() {
+fn selecting_likely_edit_locations_works_on_this_subtraction_example() {
+    let mut buffer = t_b!("(this-that)");
+
+    buffer.select_between_likely_edit_locations();
+    cursor_assert! {
+        buffer,
+        p: pos! {l 0 o 1},
+        h: pos! {l 0 o 0},
+        s: d!()
+    }
+
+    let this_left_edge = pos!{l 0 o 1};
+    let this_right_edge = pos!{l 0 o 5};
+    let minus_left_edge = this_right_edge;
+    let minus_right_edge = pos!{l 0 o 6};
+    let that_left_edge = minus_right_edge;
+    let that_right_edge = pos!{l 0 o 10};
+
+    check_select_bounds!{
+        buffer,
+        (this_left_edge, this_right_edge)
+    }
+
+    check_select_bounds!{
+        buffer,
+        (minus_left_edge, minus_right_edge)
+    }
+
+    check_select_bounds!{
+        buffer,
+        (that_left_edge, that_right_edge)
+    }
+
+    buffer.replace_cursors(that_right_edge);
+
+    buffer.select_between_likely_edit_locations();
+
+    let last = Position { offset: that_right_edge.offset + 1, ..d!() };
+    cursor_assert! {
+        buffer,
+        p: last,
+        h: that_right_edge,
+        s: d!()
+    }
+
+    buffer.replace_cursors(last);
+
+    buffer.select_between_likely_edit_locations();
+
+    cursor_assert! {
+        buffer,
+        p: last,
+        h: that_right_edge,
+        s: d!()
+    }
+}
+
+macro_rules! four_spaces { () => ("    "); }
+
+#[test]
+fn selecting_likely_edit_locations_works_on_this_camel_case_example() {
+    let mut buffer = t_b!(concat!("\tcamelCase", four_spaces!()));
+
+    buffer.select_between_likely_edit_locations();
+    cursor_assert! {
+        buffer,
+        p: pos! {l 0 o 1},
+        h: pos! {l 0 o 0},
+        s: d!()
+    }
+
+    let camel_case_left_edge = pos!{l 0 o 1};
+    let camel_case_right_edge = pos!{l 0 o 10};
+    let four_spaces_left_edge = camel_case_right_edge;
+    let four_spaces_right_edge = pos!{l 0 o 14};
+
+    check_select_bounds!{
+        buffer,
+        (camel_case_left_edge, camel_case_right_edge)
+    }
+
+    check_select_bounds!{
+        buffer,
+        (four_spaces_left_edge, four_spaces_right_edge)
+    }
+}
+
+#[test]
+fn get_previous_likely_edit_location_finds_the_first_location_in_the_file_before_a_single_char() {
     assert_eq!(
-        get_previous_likely_edit_location(&r!("a"), pos!{l 0 o 1}),
+        get_previous_selection_point(&r!("a"), pos!{l 0 o 1}),
         Some(pos!{})
+    );
+}
+
+#[test]
+fn get_next_selection_point_finds_the_end_of_the_word_before_whitespace() {
+    assert_eq!(
+        get_next_selection_point(&r!(concat!("ab", four_spaces!())), pos!{l 0 o 1}),
+        Some(pos!{l 0 o 2})
+    );
+}
+
+#[test]
+fn get_next_selection_point_finds_the_end_of_the_word_before_punctuation() {
+    assert_eq!(
+        get_next_selection_point(&r!("ab..."), pos!{l 0 o 1}),
+        Some(pos!{l 0 o 2})
+    );
+}
+
+#[test]
+fn get_next_selection_point_finds_the_end_of_the_punctuation_before_a_word() {
+    assert_eq!(
+        get_next_selection_point(&r!("...ab"), pos!{l 0 o 1}),
+        Some(pos!{l 0 o 3})
+    );
+}
+
+#[test]
+fn get_next_selection_point_finds_the_end_of_the_punctuation_before_whitespace() {
+    assert_eq!(
+        get_next_selection_point(&r!(concat!("...", four_spaces!())), pos!{l 0 o 1}),
+        Some(pos!{l 0 o 3})
+    );
+}
+
+#[test]
+fn get_next_selection_point_finds_the_end_of_the_whitespace_before_a_word() {
+    assert_eq!(
+        get_next_selection_point(&r!(concat!(four_spaces!(), "ab")), pos!{l 0 o 1}),
+        Some(pos!{l 0 o 4})
+    );
+}
+
+#[test]
+fn get_next_selection_point_finds_the_end_of_the_whitespace_before_punctuation() {
+    assert_eq!(
+        get_next_selection_point(&r!(concat!(four_spaces!(), "...")), pos!{l 0 o 1}),
+        Some(pos!{l 0 o 4})
     );
 }

@@ -166,20 +166,6 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
     let scroll_multiplier: f32 = 16.0;
     let font_info = FontInfo::new(glutin_context.window().hidpi_factor() as f32)?;
 
-    // If you didn't click on the same symbol, counting that as a double click seems like it
-    // would be annoying.
-    let click_radius: f32 = {
-        let (w, h) = (font_info.text_char_dim.w, font_info.text_char_dim.h);
-
-        (
-            if w < h {
-                w
-            } else {
-                h
-            }
-        ) / 2.0
-    };
-
     let mut glyph_brush = get_glyph_brush(&font_info);
 
     let mut gl_state = gl_layer::init(&glyph_brush, |symbol| {
@@ -201,8 +187,29 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
         status_char_dim: font_info.status_char_dim,
     }));
 
+    // If you didn't click on the same symbol, counting that as a double click seems like it
+    // would be annoying.
+    let mouse_epsilon_radius: f32 = {
+        let (w, h) = (font_info.text_char_dim.w, font_info.text_char_dim.h);
+
+        (
+            if w < h {
+                w
+            } else {
+                h
+            }
+        ) / 2.0
+    };
+
     let (mut mouse_x, mut mouse_y) = (0.0, 0.0);
     let (mut last_click_x, mut last_click_y) = (std::f32::NAN, std::f32::NAN);
+
+    macro_rules! mouse_within_radius {
+        () => (
+            (last_click_x - mouse_x).abs() <= mouse_epsilon_radius
+             && (last_click_y - mouse_y).abs() <= mouse_epsilon_radius
+        );
+    }
 
     use std::sync::mpsc::channel;
 
@@ -582,7 +589,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
 
                             glutin_context.window().set_cursor_icon(cursor_icon);
 
-                            if mouse_state == ElementState::Pressed {
+                            if mouse_state == ElementState::Pressed && !mouse_within_radius!() {
                                 call_u_and_r!(Input::DragCursors(ScreenSpaceXY {
                                     x: mouse_x,
                                     y: mouse_y
@@ -596,9 +603,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                         } => {
                             mouse_state = ElementState::Pressed;
 
-                            let input = if
-                                (last_click_x - mouse_x).abs() <= click_radius
-                                 && (last_click_y - mouse_y).abs() <= click_radius {
+                            let input = if mouse_within_radius!() {
                                 Input::SelectBewtweenLikelyEditLocations
                             } else {
                                 Input::ReplaceCursors(ScreenSpaceXY {

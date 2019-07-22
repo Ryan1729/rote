@@ -4,24 +4,10 @@
   * Does the word-boundary regex do what I want here?
 
 * double click to select words
-  * register double click
-    * Due to lack of interest(?) there seems to be no cross-platform double-click timing library. I think for our purposes, registering a double-click if the last click was on the same screen xy within a threshold will do.
-  * write test cases and enough code to get them to compile
-    * `{snake_case}`
-      * `{`
-      * `snake_case`
-      * `}`
-    * `(kebab-case)`
-      * `(`
-      * `kebab-case`
-      * `)`
-    * ` camelCase    ` (starts with tab `\t`, ends with 4 spaces)
-      * `\t`
-      * `camelCase`
-      * `    `
-    * `across-\nlines`
-      * `across-`
-      * `lines`
+  * fix selection moving down the line after repeated double clicking
+    * maybe just pass back an xy and call `replace_cursors` automatically beforehand?
+
+* Ctrl-a select all
 
 * start allowing multiple cursors to be manipulated
   * Ctrl-click to add cursors
