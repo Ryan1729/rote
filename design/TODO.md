@@ -1,16 +1,8 @@
 ## TODO
 
-* Ctrl-Left/Right to jump by "words"
-  * Does the word-boundary regex do what I want here?
-
-* double click to select words
-  * fix selection moving down the line after repeated double clicking
-    * maybe just pass back an xy and call `replace_cursors` automatically beforehand?
-
-* Ctrl-a select all
-
 * start allowing multiple cursors to be manipulated
   * Ctrl-click to add cursors
+    * double Ctrl-click to select word with new cursor
   * Ctrl-D to select word and find next instance of word and select it and place a cursor there.
   * Allow manipulating a single cursor on its own
     * store `cursor_index` per buffer
@@ -21,12 +13,30 @@
     * add `Input` variant to increment or decrement it.
       * wrapping around to keep the index valid is implied. The platform layer should not need to store this
       * What should the keyboard shortcut be?
+        * given we use a alt below, would tapping alt work?
+        * maybe alt and page up/down?
     * add `Input` variant to move only the current cursor
       * What should the keyboard shortcut be?
         * hold alt so both ctrl and shift are free to use?
         * a "current cursor mode"?
 
+* scroll into view of cursor if it is moved.
+  * how does this work when multiple cursors are moved at once?
+    * We need to decide which cursor to follow. Wait until more multi cursor
+    stuff is implemented, to see what our choices are.
+      * most recently created or moved on it's own seem like the obvious choices,
+      but we may end up needing the concept of a `current_cursor` anyway for
+      other reasons .
+
+* Ctrl-a select all
+
 * make Undo/Redo history into struct containing `VecDeque` which keeps track of total bytes used and automatically pops things off the end when storage would exceed a limit.
+  * add max size parameter so we can test with small sizes
+  * test:
+    * let `n` be the maximum number of things that it can hold.
+    * make a new one and add `n` things to it, assert they are all there.
+    * add another item. Assert that only the expected on is missing
+  * make sure some kind of undo/redo tests with limited history are performed. We want to ensure that you can undo back to a point just before the history was deleted for, and get back to the final state by redoing.
   * Why is undo/redo so slow?
     * Actually, wait is the index being different than the length causing a bug? We probably need to clear old moves if the length is greater than the index.
     * probably we should just wait until we make a limited bytes used history to bother fixing this?

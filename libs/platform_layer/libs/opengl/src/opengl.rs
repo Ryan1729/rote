@@ -12,7 +12,7 @@ use glyph_brush::{
 use macros::d;
 
 use platform_types::{
-    BufferView, BufferViewKind, CharDim, Cmd, Highlight, Input, ScreenSpaceXY, Sizes,
+    BufferView, BufferViewKind, CharDim, Cmd, Highlight, Input, ReplaceOrAdd, ScreenSpaceXY, Sizes,
     UpdateAndRender, View,
 };
 
@@ -599,17 +599,38 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                         WindowEvent::MouseInput {
                             button: MouseButton::Left,
                             state: ElementState::Pressed,
+                            modifiers:
+                                ModifiersState {
+                                    ctrl,
+                                    shift: false,
+                                    ..
+                                },
                             ..
                         } => {
                             mouse_state = ElementState::Pressed;
 
-                            let input = if mouse_within_radius!() {
-                                Input::SelectBewtweenLikelyEditLocations
+                            let replace_or_add = if ctrl {
+                                ReplaceOrAdd::Add
                             } else {
-                                Input::ReplaceCursors(ScreenSpaceXY {
-                                    x: mouse_x,
-                                    y: mouse_y
-                                })
+                                ReplaceOrAdd::Replace
+                            };
+
+                            let input = if mouse_within_radius!() {
+                                Input::SelectCharTypeGrouping(
+                                    ScreenSpaceXY {
+                                        x: mouse_x,
+                                        y: mouse_y
+                                    },
+                                    replace_or_add
+                                )
+                            } else {
+                                Input::SetCursor(
+                                    ScreenSpaceXY {
+                                        x: mouse_x,
+                                        y: mouse_y
+                                    },
+                                    replace_or_add
+                                )
                             };
 
                             call_u_and_r!(input);

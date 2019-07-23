@@ -2,7 +2,7 @@ use crate::move_cursor::{get_previous_selection_point, get_next_selection_point,
 use editor_types::{Cursor, SetPositionAction, Vec1};
 use macros::{borrow, borrow_mut, d};
 use panic_safe_rope::{Rope, RopeSliceTrait, RopeLine, LineIndex, ByteIndex};
-use platform_types::{AbsoluteCharOffset, CharOffset, Move, Position};
+use platform_types::{AbsoluteCharOffset, CharOffset, Move, Position, ReplaceOrAdd};
 use std::borrow::Borrow;
 use std::collections::VecDeque;
 
@@ -143,29 +143,34 @@ impl TextBuffer {
     }
 
     #[perf_viz::record]
-    pub fn replace_cursors<P: Borrow<Position>>(&mut self, position: P) {
+    pub fn set_cursor<P: Borrow<Position>>(&mut self, position: P, replace_or_add: ReplaceOrAdd) {
+        if let Some(cursors) = self.get_new_cursors(position, replace_or_add) {
+            self.apply_cursor_edit(cursors);
+        }
+    }
+
+    fn get_new_cursors<P: Borrow<Position>>(&self, position: P, replace_or_add: ReplaceOrAdd) -> Option<Cursors> {
         let position = position.borrow();
 
-        if self.in_bounds(position) {
-            self.apply_cursor_edit(Vec1::new(Cursor::new(*position)));
-        } else if let Some(p) = nearest_valid_position_on_same_line(&self.rope, position) {
-            self.apply_cursor_edit(Vec1::new(Cursor::new(p)));
-        }
+        nearest_valid_position_on_same_line(&self.rope, position).map(|p|{
+            match replace_or_add {
+                ReplaceOrAdd::Replace => {
+                    Vec1::new(Cursor::new(p))
+                }
+                ReplaceOrAdd::Add => {
+                    let mut cursors = self.cursors.clone();
+                    cursors.push(Cursor::new(p));
+                    cursors
+                }
+            }
+        })
     }
 
     #[perf_viz::record]
     pub fn drag_cursors<P: Borrow<Position>>(&mut self, position: P) {
-        let position = {
-            let position = position.borrow();
+        let position = position.borrow();
 
-            if self.in_bounds(position) {
-                Some(*position)
-            } else {
-                nearest_valid_position_on_same_line(&self.rope, position)
-            }
-        };
-
-        if let Some(p) = position {
+        if let Some(p) = nearest_valid_position_on_same_line(&self.rope, position) {
             let mut new = self.cursors.clone();
             for c in new.iter_mut() {
                 c.set_position_custom(p, SetPositionAction::OldPositionBecomesHighlightIfItIsNone);
@@ -174,9 +179,10 @@ impl TextBuffer {
         }
     }
 
-    pub fn select_between_likely_edit_locations(&mut self) {
-        let mut new = self.cursors.clone();
-        for c in new.iter_mut() {
+    pub fn select_char_type_grouping<P: Borrow<Position>>(&mut self, position: P, replace_or_add: ReplaceOrAdd) {
+        if let Some(mut new) = self.get_new_cursors(position, replace_or_add) {
+            let c = new.last_mut();
+
             let rope = &self.rope;
             let old_position = c.get_position();
 
@@ -190,11 +196,12 @@ impl TextBuffer {
             ).unwrap_or(old_position);
             c.set_highlight_position(highlight_position);
 
-            let position =
+            let pos =
                 get_next_selection_point(rope, old_position).unwrap_or(old_position);
-            c.set_position_custom(position, SetPositionAction::ClearHighlightOnlyIfItMatchesNewPosition);
+            c.set_position_custom(pos, SetPositionAction::ClearHighlightOnlyIfItMatchesNewPosition);
+
+            self.apply_cursor_edit(new);
         }
-        self.apply_cursor_edit(new);
     }
 
     #[perf_viz::record]
@@ -667,8 +674,16 @@ impl std::ops::Not for Edit {
     type Output = Edit;
 
     fn not(self) -> Self::Output {
+        let reversed = self
+            .range_edits
+            .mapped(|r_e| !r_e)
+            .into_vec()
+            .into_iter()
+            .rev()
+            .collect::<Vec<_>>();
         Edit {
-            range_edits: self.range_edits.mapped(|r_e| !r_e),
+            // This unwrap is fine because `self.range_edits` was a `Vec1`.
+            range_edits: Vec1::try_from_vec(reversed).unwrap(),
             cursors: !self.cursors
         }
     }
@@ -687,8 +702,8 @@ impl TextBuffer {
 
     pub fn undo(&mut self) -> Option<()> {
         let new_index = self.history_index.checked_sub(1)?;
-        self.history.get(new_index).cloned().map(|edit| {
-            self.apply_edit(!edit, ApplyKind::Playback);
+        self.history.get(dbg!(new_index)).cloned().map(|edit| {
+            self.apply_edit(dbg!(!edit), ApplyKind::Playback);
             self.history_index = new_index;
         })
     }

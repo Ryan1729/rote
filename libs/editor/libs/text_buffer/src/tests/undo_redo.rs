@@ -43,7 +43,6 @@ prop_compose! {
     }
 }
 
-
 fn arb_edit_from_buffer(text_buffer: TextBuffer) -> impl Strategy<Value = Edit> {
     let cs = text_buffer.cursors.clone();
     arb_edit()
@@ -174,9 +173,9 @@ enum TestEdit {
     ExtendSelectionForAllCursors(Move),
     MoveCursors(usize, Move),
     ExtendSelection(usize, Move),
-    ReplaceCursors(Position),
+    SetCursor(Position, ReplaceOrAdd),
     DragCursors(Position),
-    SelectBewtweenLikelyEditLocations,
+    SelectCharTypeGrouping(Position, ReplaceOrAdd),
     Cut,
 }
 
@@ -192,12 +191,21 @@ fn apply_edit(buffer: &mut TextBuffer, edit: TestEdit) {
         },
         MoveCursors(index, r#move) => buffer.move_cursor(index, r#move),
         ExtendSelection(index, r#move) => buffer.extend_selection(index, r#move),
-        ReplaceCursors(position) => buffer.replace_cursors(position),
+        SetCursor(position, replace_or_add) => buffer.set_cursor(position, replace_or_add),
         DragCursors(position) => buffer.drag_cursors(position),
-        SelectBewtweenLikelyEditLocations => buffer.select_between_likely_edit_locations(),
+        SelectCharTypeGrouping(position, replace_or_add) =>
+            buffer.select_char_type_grouping(position, replace_or_add),
         Cut => {buffer.cut_selections();},
     }
 }
+
+fn arb_replace_or_add() -> impl Strategy<Value = ReplaceOrAdd> {
+    prop_oneof![
+        Just(ReplaceOrAdd::Replace),
+        Just(ReplaceOrAdd::Add),
+    ]
+}
+
 
 fn arb_test_edit() -> impl Strategy<Value = TestEdit> {
     use TestEdit::*;
@@ -212,9 +220,9 @@ fn arb_test_edit() -> impl Strategy<Value = TestEdit> {
         (0..MORE_THAN_SOME_AMOUNT, arb_move()).prop_map(|(i, m)| ExtendSelection(i, m)),
         // The user can attempt to move the cursor to invalid positions,
         // and there cursor may get snapped to a valid position producing an actual movement.
-        arb_pos(MORE_THAN_SOME_AMOUNT, MORE_THAN_SOME_AMOUNT).prop_map(ReplaceCursors),
+        (arb_pos(MORE_THAN_SOME_AMOUNT, MORE_THAN_SOME_AMOUNT), arb_replace_or_add()).prop_map(|(p, r)| SetCursor(p, r)),
         arb_pos(MORE_THAN_SOME_AMOUNT, MORE_THAN_SOME_AMOUNT).prop_map(DragCursors),
-        Just(SelectBewtweenLikelyEditLocations),
+        (arb_pos(MORE_THAN_SOME_AMOUNT, MORE_THAN_SOME_AMOUNT), arb_replace_or_add()).prop_map(|(p, r)| SelectCharTypeGrouping(p, r)),
         Just(Cut),
     ]
 }
@@ -683,4 +691,50 @@ fn undo_redo_works_on_this_case_involving_two_characters_at_once_then_a_newline_
     undo_redo_works_on_these_edits_and_index(
         [InsertString!("Aa"), InsertString!("\n"), TestEdit::DragCursors(pos!{l 0 o 0})], 0
     );
+}
+
+#[test]
+fn undo_redo_works_on_this_case_involving_a_select_bewtween_char_type_grouping_and_non_ascii_chars() {
+    undo_redo_works_on_these_edits_and_index(
+        [
+            InsertString!("ࠀ\u{e000}㐀"),
+            TestEdit::SelectCharTypeGrouping(pos!{l 0 o 0}, ReplaceOrAdd::Add),
+            InsertString!("a¡")
+        ],
+        0
+    );
+}
+
+#[test]
+fn undo_redo_works_on_this_smaller_case_involving_a_select_bewtween_char_type_grouping_and_non_ascii_chars() {
+    undo_redo_works_on_these_edits_and_index(
+        [
+            InsertString!("¡㐀"),
+            TestEdit::SelectCharTypeGrouping(pos!{l 0 o 0}, ReplaceOrAdd::Add),
+            InsertString!("a¡")
+        ],
+        0
+    );
+}
+
+#[test]
+fn undo_redo_works_on_this_reduced_case_involving_a_select_bewtween_char_type_grouping_and_non_ascii_chars() {
+    let initial_buffer: TextBuffer = d!();
+    let mut buffer: TextBuffer = deep_clone(&initial_buffer);
+
+    apply_edit(&mut buffer, InsertString!("¡㐀"));
+
+    apply_edit(&mut buffer, TestEdit::SelectCharTypeGrouping(pos!{l 0 o 0}, ReplaceOrAdd::Add));
+
+    let expected_buffer_after_second_edit = deep_clone(&buffer);
+
+    apply_edit(&mut buffer, InsertString!("a¡"));
+
+    dbg!(&mut buffer);
+
+    buffer.undo();
+
+    dbg!(&mut buffer);
+
+    assert_text_buffer_eq_ignoring_history!(buffer, expected_buffer_after_second_edit);
 }

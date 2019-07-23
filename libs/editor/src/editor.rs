@@ -5,7 +5,7 @@ use editor_types::{CursorState, Vec1};
 use macros::{c, d};
 use platform_types::{
     position_to_screen_space, push_highlights, screen_space_to_position, BufferView, CharDim, Cmd,
-    Input, UpdateAndRenderOutput, View,
+    Input, PositionRound, UpdateAndRenderOutput, View,
 };
 use text_buffer::TextBuffer;
 
@@ -20,6 +20,15 @@ pub struct State {
     text_char_dim: CharDim,
     status_char_dim: CharDim,
     clipboard_history: ClipboardHistory,
+}
+
+fn xy_to_pos(state: &State, xy: ScreenSpaceXY, round: PositionRound) -> Position {
+    screen_space_to_position(
+        xy,
+        state.text_char_dim,
+        (state.scroll_x, state.scroll_y),
+        round
+    )
 }
 
 #[derive(Default)]
@@ -273,20 +282,22 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
             set_if_present!(sizes => state.text_char_dim);
             set_if_present!(sizes => state.status_char_dim);
         }
-        ReplaceCursors(xy) => {
-            let position = screen_space_to_position(xy, state.text_char_dim, (state.scroll_x, state.scroll_y));
-            buffer_call!(b.replace_cursors(position))
+        SetCursor(xy, replace_or_add) => {
+            let position = xy_to_pos(state, xy, PositionRound::Up);
+            buffer_call!(b.set_cursor(position, replace_or_add))
         }
         DragCursors(xy) => {
-            let position = screen_space_to_position(xy, state.text_char_dim, (state.scroll_x, state.scroll_y));
+            let position = xy_to_pos(state, xy, PositionRound::Up);
             // In practice we currently expect this to be sent only immeadately after an
-            // `Input::ReplaceCursors` input, so there will be only one cursor. But it seems like
+            // `Input::SetCursors` input, so there will be only one cursor. But it seems like
             // we might as well just do it to all the cursors
             buffer_call!(b.drag_cursors(position))
         }
-        SelectBewtweenLikelyEditLocations => {
-            // We also expect this to be sent only when there is one cursor.
-            buffer_call!(b.select_between_likely_edit_locations())
+        SelectCharTypeGrouping(xy, replace_or_add) => {
+            // We want different rounding for selections so that if we trigger a selection on the
+            // right side of a character, we select that character rather than the next character.
+            let position = xy_to_pos(state, xy, PositionRound::TowardsZero);
+            buffer_call!(b.select_char_type_grouping(position, replace_or_add));
         }
         Cut => buffer_call!(b {
             if let Some(s) = state.clipboard_history.cut(b) {

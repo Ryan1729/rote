@@ -272,11 +272,28 @@ fn final_non_newline_offset_for_line_works_on_a_string_with_a_carriage_return_li
 }
 
 #[test]
-fn final_non_newline_offset_for_line_works_if_asked_about_anon_existant_line() {
+fn final_non_newline_offset_for_line_works_if_asked_about_a_non_existant_line() {
     let rope = r!("1234\r\n5678");
 
     assert_eq!(final_non_newline_offset_for_line(&rope, 2), None);
 }
+
+proptest!{
+    #[test]
+    fn nearest_valid_position_on_same_line_is_identity_for_positions_in_bounds(
+        rope in arb_rope(),
+        position in arb_pos(SOME_AMOUNT, SOME_AMOUNT)
+    ) {
+        let manually_checked = if in_cursor_bounds(&rope, position) {
+            Some(position)
+        } else {
+            nearest_valid_position_on_same_line(&rope, position)
+        };
+
+        assert_eq!(nearest_valid_position_on_same_line(&rope, position), manually_checked);
+    }
+}
+
 
 mod undo_redo;
 mod cursor_manipulation;

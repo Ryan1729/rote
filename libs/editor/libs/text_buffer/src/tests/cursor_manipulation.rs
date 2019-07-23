@@ -757,7 +757,7 @@ macro_rules! selecting_likely_edit_locations_works_on_a_single_character {
     ($single_char_str: expr) => (
         let mut buffer = t_b!($single_char_str);
 
-        buffer.select_between_likely_edit_locations();
+        buffer.select_char_type_grouping(pos! {}, ReplaceOrAdd::Replace);
         cursor_assert! {
             buffer,
             p: pos! {l 0 o 1},
@@ -765,16 +765,7 @@ macro_rules! selecting_likely_edit_locations_works_on_a_single_character {
             s: d!()
         }
 
-        buffer.replace_cursors(pos! {l 0 o 1});
-        // not the main thing we are testing.
-        cursor_assert! {
-            buffer,
-            p: pos! {l 0 o 1},
-            h: None,
-            s: d!()
-        }
-
-        buffer.select_between_likely_edit_locations();
+        buffer.select_char_type_grouping(pos! {l 0 o 1}, ReplaceOrAdd::Replace);
 
         cursor_assert! {
             buffer,
@@ -809,9 +800,8 @@ fn selecting_likely_edit_locations_works_on_wrapped_with_braces_example() {
 
     for offset in (0..len).map(CharOffset) {
         let p = Position { offset, ..d!() };
-        buffer.replace_cursors(dbg!(p));
 
-        buffer.select_between_likely_edit_locations();
+        buffer.select_char_type_grouping(p, ReplaceOrAdd::Replace);
 
         let c = buffer.cursors.first();
 
@@ -838,9 +828,8 @@ macro_rules! check_select_bounds {
     ($buffer: expr, ($left_edge: expr, $right_edge: expr)) => (
         for offset in ($left_edge.offset.0..$right_edge.offset.0).map(CharOffset) {
             let p = Position { offset, ..d!() };
-            $buffer.replace_cursors(p);
 
-            $buffer.select_between_likely_edit_locations();
+            $buffer.select_char_type_grouping(p, ReplaceOrAdd::Replace);
 
             cursor_assert! {
                 $buffer,
@@ -856,26 +845,21 @@ macro_rules! check_select_bounds {
 fn selecting_likely_edit_locations_works_on_this_snake_case_example() {
     let mut buffer = t_b!("{snake_case_example}");
 
-    buffer.select_between_likely_edit_locations();
-    cursor_assert! {
-        buffer,
-        p: pos! {l 0 o 1},
-        h: pos! {l 0 o 0},
-        s: d!()
-    }
-
     let inner_len = "snake_case_example".len();
     let inner_left_edge = pos!{l 0 o 1};
     let inner_right_edge = Position { offset: CharOffset(1 + inner_len), ..d!() };
 
     check_select_bounds!{
         buffer,
+        (pos!{}, inner_left_edge)
+    }
+
+    check_select_bounds!{
+        buffer,
         (inner_left_edge, inner_right_edge)
     }
 
-    buffer.replace_cursors(inner_right_edge);
-
-    buffer.select_between_likely_edit_locations();
+    buffer.select_char_type_grouping(inner_right_edge, ReplaceOrAdd::Replace);
 
     let last = Position { offset: inner_right_edge.offset + 1, ..d!() };
     cursor_assert! {
@@ -885,9 +869,7 @@ fn selecting_likely_edit_locations_works_on_this_snake_case_example() {
         s: d!()
     }
 
-    buffer.replace_cursors(last);
-
-    buffer.select_between_likely_edit_locations();
+    buffer.select_char_type_grouping(last, ReplaceOrAdd::Replace);
 
     cursor_assert! {
         buffer,
@@ -901,20 +883,17 @@ fn selecting_likely_edit_locations_works_on_this_snake_case_example() {
 fn selecting_likely_edit_locations_works_on_this_subtraction_example() {
     let mut buffer = t_b!("(this-that)");
 
-    buffer.select_between_likely_edit_locations();
-    cursor_assert! {
-        buffer,
-        p: pos! {l 0 o 1},
-        h: pos! {l 0 o 0},
-        s: d!()
-    }
-
     let this_left_edge = pos!{l 0 o 1};
     let this_right_edge = pos!{l 0 o 5};
     let minus_left_edge = this_right_edge;
     let minus_right_edge = pos!{l 0 o 6};
     let that_left_edge = minus_right_edge;
     let that_right_edge = pos!{l 0 o 10};
+
+    check_select_bounds!{
+        buffer,
+        (pos!{}, this_left_edge)
+    }
 
     check_select_bounds!{
         buffer,
@@ -931,9 +910,7 @@ fn selecting_likely_edit_locations_works_on_this_subtraction_example() {
         (that_left_edge, that_right_edge)
     }
 
-    buffer.replace_cursors(that_right_edge);
-
-    buffer.select_between_likely_edit_locations();
+    buffer.select_char_type_grouping(that_right_edge, ReplaceOrAdd::Replace);
 
     let last = Position { offset: that_right_edge.offset + 1, ..d!() };
     cursor_assert! {
@@ -943,9 +920,7 @@ fn selecting_likely_edit_locations_works_on_this_subtraction_example() {
         s: d!()
     }
 
-    buffer.replace_cursors(last);
-
-    buffer.select_between_likely_edit_locations();
+    buffer.select_char_type_grouping(last, ReplaceOrAdd::Replace);
 
     cursor_assert! {
         buffer,
@@ -961,18 +936,15 @@ macro_rules! four_spaces { () => ("    "); }
 fn selecting_likely_edit_locations_works_on_this_camel_case_example() {
     let mut buffer = t_b!(concat!("\tcamelCase", four_spaces!()));
 
-    buffer.select_between_likely_edit_locations();
-    cursor_assert! {
-        buffer,
-        p: pos! {l 0 o 1},
-        h: pos! {l 0 o 0},
-        s: d!()
-    }
-
     let camel_case_left_edge = pos!{l 0 o 1};
     let camel_case_right_edge = pos!{l 0 o 10};
     let four_spaces_left_edge = camel_case_right_edge;
     let four_spaces_right_edge = pos!{l 0 o 14};
+
+    check_select_bounds!{
+        buffer,
+        (pos!{}, camel_case_left_edge)
+    }
 
     check_select_bounds!{
         buffer,

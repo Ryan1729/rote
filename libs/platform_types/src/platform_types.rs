@@ -47,6 +47,12 @@ impl From<ScreenSpaceXY> for (f32, f32) {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ReplaceOrAdd {
+    Replace,
+    Add
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum Input {
     None,
@@ -59,9 +65,9 @@ pub enum Input {
     SetSizes(Sizes),
     MoveAllCursors(Move),
     ExtendSelectionForAllCursors(Move),
-    ReplaceCursors(ScreenSpaceXY),
+    SetCursor(ScreenSpaceXY, ReplaceOrAdd),
     DragCursors(ScreenSpaceXY),
-    SelectBewtweenLikelyEditLocations,
+    SelectCharTypeGrouping(ScreenSpaceXY, ReplaceOrAdd),
     Undo,
     Redo,
     Cut,
@@ -82,21 +88,43 @@ impl From<CharDim> for (f32, f32) {
     }
 }
 
+pub enum PositionRound {
+    Up,
+    TowardsZero,
+}
+
+fn normal_or_zero(x: f32) -> f32 {
+    if x.is_normal() { x } else { 0.0 }
+}
+
 pub fn screen_space_to_position(
     ScreenSpaceXY { x, y }: ScreenSpaceXY,
     CharDim { w, h }: CharDim,
     (scroll_x, scroll_y): (f32, f32),
+    round: PositionRound
 ) -> Position {
     // This is made much more conveinient by the monospace assumption!
+
+    let pre_rounded = (x - scroll_x) / w;
+
+    // if the value would not fit in a `usize` then the `as usize` is undefiend behaviour.
+    // https://github.com/rust-lang/rust/issues/10184
+    // https://play.rust-lang.org/?version=stable&mode=debug&edition=2018&gist=21e5f8c502c8e6e16a685449ccc9db82
+    let offset = normal_or_zero(
+        match round {
+            PositionRound::TowardsZero => pre_rounded,
+            PositionRound::Up => {
+                // The right half of a character should correspond to the position to the
+                // right of the character.
+                pre_rounded + 0.5
+            },
+        }
+    ) as usize;
+    let line = normal_or_zero((y - scroll_y) / h) as usize;
+
     Position {
-        offset: CharOffset(
-            //conveniently `(x / 0.0) as usize` is `0` rather than a panic.
-            (((x - scroll_x) / w)
-                // The right half of a character should correspond to the position to the right of
-                // the character.
-                + 0.5) as usize,
-        ),
-        line: ((y - scroll_y) / h) as usize,
+        offset: CharOffset(offset),
+        line,
     }
 }
 
