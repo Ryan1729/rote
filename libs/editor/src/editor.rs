@@ -177,6 +177,13 @@ pub fn render_view(state: &State, view: &mut View) {
                 highlights,
             });
 
+            fn display_option_compactly<A: ToString>(op: Option<A>) -> String {
+                match op {
+                    None => "N".to_string(),
+                    Some(a) => a.to_string()
+                }
+            }
+
             view.buffers.push(BufferView {
                 color: c![0.3, 0.9, 0.3],
                 chars: {
@@ -192,14 +199,14 @@ pub fn render_view(state: &State, view: &mut View) {
                     chars = buffer.cursors().iter().fold(chars, |mut acc, c| {
                         let _cannot_actually_fail = write!(
                             acc,
-                            "{} ({:?}|{:?})",
+                            "{} ({}|{}), ",
                             c,
-                            buffer.find_index(c).and_then(|o| if o == 0 {
+                            display_option_compactly(buffer.find_index(c).and_then(|o| if o == 0 {
                                 None
                             } else {
                                 Some(o - 1)
-                            }),
-                            buffer.find_index(c),
+                            })),
+                            display_option_compactly(buffer.find_index(c)),
                         );
                         acc
                     });

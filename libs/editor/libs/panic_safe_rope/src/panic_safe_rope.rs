@@ -39,6 +39,8 @@ usize_newtype! {
     ByteIndex
 }
 
+fmt_display! {for ByteIndex : ByteIndex(index) in "{}", index}
+
 /// The length of the buffer in bytes. Unless the buffer has grown in the meantime, not a valid
 /// byte index
 #[derive(Clone, Copy, Debug, Default)]
@@ -51,6 +53,8 @@ integer_newtype! {
 usize_newtype! {
     ByteLength
 }
+
+fmt_display! {for ByteLength : ByteLength(len) in "{}", len}
 
 impl std::ops::Add<ByteLength> for ByteIndex {
     type Output = ByteIndex;

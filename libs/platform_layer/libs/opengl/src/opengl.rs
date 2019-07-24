@@ -566,35 +566,46 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                         }
                         WindowEvent::CursorMoved {
                             position: LogicalPosition { x, y },
+                            modifiers,
                             ..
                         } => {
                             mouse_x = x as f32;
                             mouse_y = y as f32;
 
-                            let mut cursor_icon = glutin::window::CursorIcon::Text;
-                            // If there were more than two kinds of cursor this would be more
-                            // complicated. This might be an argument for changing the view to
-                            // arrays of structs of each type instead. Or maybe some form that has
-                            // no order to it at all.
-                            for v in view.buffers.iter() {
-                                match v.kind {
-                                    BufferViewKind::StatusLine => {
-                                        if mouse_y >= v.screen_position.1 {
-                                            cursor_icon = d!();
+
+                            match modifiers {
+                                ModifiersState {
+                                    ctrl: false, shift: false, ..
+                                } => {
+                                    let mut cursor_icon = glutin::window::CursorIcon::Text;
+                                    // If there were more than two kinds of cursor this would be more
+                                    // complicated. This might be an argument for changing the view to
+                                    // arrays of structs of each type instead. Or maybe some form that has
+                                    // no order to it at all.
+                                    for v in view.buffers.iter() {
+                                        match v.kind {
+                                            BufferViewKind::StatusLine => {
+                                                if mouse_y >= v.screen_position.1 {
+                                                    cursor_icon = d!();
+                                                }
+                                            }
+                                            _ => {}
                                         }
                                     }
-                                    _ => {}
+
+                                    glutin_context.window().set_cursor_icon(cursor_icon);
+
+                                    if mouse_state == ElementState::Pressed && !mouse_within_radius!() {
+                                        call_u_and_r!(Input::DragCursors(ScreenSpaceXY {
+                                            x: mouse_x,
+                                            y: mouse_y
+                                        }));
+                                    }
                                 }
+                                _ => {}
                             }
 
-                            glutin_context.window().set_cursor_icon(cursor_icon);
 
-                            if mouse_state == ElementState::Pressed && !mouse_within_radius!() {
-                                call_u_and_r!(Input::DragCursors(ScreenSpaceXY {
-                                    x: mouse_x,
-                                    y: mouse_y
-                                }));
-                            }
                         }
                         WindowEvent::MouseInput {
                             button: MouseButton::Left,

@@ -1,5 +1,9 @@
 ## TODO
 
+* write test that would have caught the multi cursor insert bug, to see what else it will catch
+
+* merge overlapping cursors, including those with overlapping highlights
+
 * start allowing multiple cursors to be manipulated
   * Ctrl-click to add cursors
     * double Ctrl-click to select word with new cursor

@@ -1,4 +1,4 @@
-use macros::{d, fmt_debug, fmt_display, integer_newtype, usize_newtype};
+use macros::{d, fmt_debug, fmt_display, integer_newtype, usize_newtype, ord};
 use std::ops::{Add, Sub};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -191,7 +191,7 @@ impl From<AbsoluteCharOffset> for CharOffset {
 }
 
 /// `offset` indicates a location before or after characters, not at the charaters.
-#[derive(Copy, Clone, Default, Eq, Hash)]
+#[derive(Copy, Clone, Default, Hash)]
 pub struct Position {
     pub line: usize,
     pub offset: CharOffset,
@@ -256,26 +256,11 @@ pub fn unappend_positions(left: Position, right: Position) -> Position {
     }
 }
 
-use std::cmp::Ordering;
-impl PartialOrd for Position {
-    fn partial_cmp(&self, other: &Position) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for Position {
-    fn cmp(&self, other: &Position) -> Ordering {
-        self.line
-            .cmp(&other.line)
-            .then_with(|| self.offset.cmp(&other.offset))
-    }
-}
-
-impl PartialEq for Position {
-    fn eq(&self, other: &Position) -> bool {
-        self.line == other.line && self.offset == other.offset
-    }
-}
+ord!(and friends for Position: p, other in {
+    p.line
+        .cmp(&other.line)
+        .then_with(|| p.offset.cmp(&other.offset))
+});
 
 #[derive(Default, Debug)]
 pub struct View {

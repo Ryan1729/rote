@@ -254,6 +254,10 @@ impl TextBuffer {
     }
 
     fn apply_edit(&mut self, edit: Edit, kind: ApplyKind) {
+        // we assume that the edits are in the proper order so we won't mess up our indexes with our
+        // own inserts and removeals. I'm not positive that there being a single order that works
+        // is possible for all possible edits, but in practice I think the edits we will actually
+        // produce will work out. The tests should tell us if we're wrong!
         for range_edit in edit.range_edits.iter() {
             if let Some(RangeEdit{range, ..}) = range_edit.delete_range {
                 self.rope.remove(range.range());
@@ -276,6 +280,39 @@ impl TextBuffer {
     }
 }
 
+fn sort_cursors(cursors: Cursors) -> Cursors {
+    let mut cursors = cursors.to_vec();
+
+    cursors.sort();
+    cursors.reverse();
+
+    // This unwrap is fine because we knew it was a Vec1 at the start.
+    Vec1::try_from_vec(cursors).unwrap()
+}
+
+/// Calls the `FnMut` once with a copy of each cursor and a reference to the same clone of the
+/// `Rope`. Then the (potentially) modified cursors and another copy of the `original_cursors`
+/// are wrapped up along with the returned `RangeEdit`s into the Edit.
+fn get_edit<F>(original_rope: &Rope, original_cursors: &Cursors, mut mapper: F) -> Edit
+where F: FnMut(&mut Cursor, &mut Rope) -> RangeEdits, {
+    let mut cloned_rope = original_rope.clone();
+    let mut cloned_cursors = sort_cursors(original_cursors.clone());
+
+    // We need to sort cursors, so our `range_edits` are in the right order, so we can go
+    // backwards, when we apply them so our indexes don't get messed up but our own inserts
+    // and deletes.
+    // Should we just always maintin that the cursors in sorted order?
+    let range_edits = cloned_cursors.mapped_mut(|c| mapper(c, &mut cloned_rope));
+
+    Edit {
+        range_edits,
+        cursors: Change {
+            new: cloned_cursors,
+            old: original_cursors.clone()
+        }
+    }
+}
+
 /// Returns an edit that, if applied, after deleting the highlighted region at each cursor if
 /// there is one, inserts the given string at each of the cursors.
 fn get_insert_edit(
@@ -283,18 +320,15 @@ fn get_insert_edit(
     original_cursors: &Cursors,
     s: String
 ) -> Edit {
-    let mut cloned_rope = original_rope.clone();
-    let mut cloned_cursors = original_cursors.clone();
-
-    let range_edits = cloned_cursors.mapped_mut(|cursor| {
+    get_edit(original_rope, original_cursors, |cursor, rope| {
         match offset_pair(original_rope, cursor) {
             (Some(o), highlight)
                 if highlight.is_none()
                     || Some(o) == highlight =>
             {
-                cloned_rope.insert(o, &s);
+                rope.insert(o, &s);
                 for _ in 0..s.len() {
-                    move_cursor::directly(&cloned_rope, cursor, Move::Right);
+                    move_cursor::directly(&rope, cursor, Move::Right);
                 }
 
                 RangeEdits {
@@ -306,11 +340,11 @@ fn get_insert_edit(
                 }
             }
             (Some(o1), Some(o2)) => {
-                let range_edit = delete_highlighted(&mut cloned_rope, cursor, o1, o2);
+                let range_edit = delete_highlighted(rope, cursor, o1, o2);
 
-                cloned_rope.insert(range_edit.range.min(), &s);
+                rope.insert(range_edit.range.min(), &s);
                 for _ in 0..s.len() {
-                    move_cursor::directly(&cloned_rope, cursor, Move::Right);
+                    move_cursor::directly(&rope, cursor, Move::Right);
                 }
 
                 RangeEdits {
@@ -328,15 +362,7 @@ fn get_insert_edit(
                 d!()
             }
         }
-    });
-
-    Edit {
-        range_edits,
-        cursors: Change {
-            new: cloned_cursors,
-            old: original_cursors.clone()
-        }
-    }
+    })
 }
 
 /// Returns an edit that, if applied, deletes the highlighted region at each cursor if there is one.
@@ -345,10 +371,7 @@ fn get_delete_edit(
     original_rope: &Rope,
     original_cursors: &Cursors
 ) -> Edit {
-    let mut cloned_rope = original_rope.clone();
-    let mut cloned_cursors = original_cursors.clone();
-
-    let range_edits = cloned_cursors.mapped_mut(|cursor| {
+    get_edit(original_rope, original_cursors, |cursor, rope| {
         let offsets = offset_pair(original_rope, cursor);
 
         match offsets {
@@ -360,7 +383,7 @@ fn get_delete_edit(
                 // it would require a moe comlicated special case elsewhere.
                 let not_deleting_lf_of_cr_lf = {
                     o.checked_sub(AbsoluteCharOffset(2)).and_then(|two_back| {
-                        let mut chars = cloned_rope.slice(two_back..o)?.chars();
+                        let mut chars = rope.slice(two_back..o)?.chars();
 
                         Some(
                             (chars.next()?, chars.next()?) != ('\r', '\n')
@@ -369,11 +392,11 @@ fn get_delete_edit(
                 };
 
                 let delete_offset_range = AbsoluteCharOffsetRange::new(o - 1, o);
-                let chars = copy_string(&cloned_rope, delete_offset_range);
-                cloned_rope.remove(delete_offset_range.range());
+                let chars = copy_string(&rope, delete_offset_range);
+                rope.remove(delete_offset_range.range());
 
                 if not_deleting_lf_of_cr_lf {
-                    move_cursor::directly(&cloned_rope, cursor, Move::Left);
+                    move_cursor::directly(&rope, cursor, Move::Left);
                 }
 
                 RangeEdits {
@@ -386,7 +409,7 @@ fn get_delete_edit(
             }
             (Some(o1), Some(o2)) if o1 > 0 || o2 > 0 => {
                 RangeEdits {
-                    delete_range: Some(delete_highlighted(&mut cloned_rope, cursor, o1, o2)),
+                    delete_range: Some(delete_highlighted(rope, cursor, o1, o2)),
                     ..d!()
                 }
             }
@@ -394,15 +417,7 @@ fn get_delete_edit(
                 d!()
             }
         }
-    });
-
-    Edit {
-        range_edits,
-        cursors: Change {
-            new: cloned_cursors,
-            old: original_cursors.clone()
-        }
-    }
+    })
 }
 
 /// returns an edit that if applied will delete the highlighted region at each cursor if there is
@@ -411,16 +426,13 @@ fn get_cut_edit(
     original_rope: &Rope,
     original_cursors: &Cursors
 ) -> Edit {
-    let mut cloned_rope = original_rope.clone();
-    let mut cloned_cursors = original_cursors.clone();
-
-    let range_edits = cloned_cursors.mapped_mut(|cursor| {
+    get_edit(original_rope, original_cursors, |cursor, rope| {
         let offsets = offset_pair(original_rope, cursor);
 
         match offsets {
             (Some(o1), Some(o2)) if o1 > 0 || o2 > 0 => {
                 RangeEdits {
-                    delete_range: Some(delete_highlighted(&mut cloned_rope, cursor, o1, o2)),
+                    delete_range: Some(delete_highlighted(rope, cursor, o1, o2)),
                     ..d!()
                 }
             }
@@ -428,15 +440,7 @@ fn get_cut_edit(
                 d!()
             }
         }
-    });
-
-    Edit {
-        range_edits,
-        cursors: Change {
-            new: cloned_cursors,
-            old: original_cursors.clone()
-        }
-    }
+    })
 }
 
 /// returns `None` if the input position's line does not refer to a line in the `Rope`.

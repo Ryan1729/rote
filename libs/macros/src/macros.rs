@@ -212,17 +212,6 @@ macro_rules! fmt_debug {
 }
 
 #[macro_export]
-macro_rules! some_if {
-    ($condition: expr => $output: expr) => {{
-        if $condition {
-            Some($output)
-        } else {
-            None
-        }
-    }};
-}
-
-#[macro_export]
 macro_rules! borrow {
     (<$type:ty> for $name:ty : $self:ident in $code:expr) => {
         impl std::borrow::Borrow<$type> for $name {
@@ -244,6 +233,48 @@ macro_rules! borrow_mut {
             }
         }
     };
+}
+
+#[macro_export]
+macro_rules! ord {
+    (and friends for $name:ty : $self:ident, $other:ident in $code:expr) => {
+        ord!(for $name : $self, $other in $code);
+
+        impl std::cmp::PartialOrd for $name {
+            fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+                Some(self.cmp(other))
+            }
+        }
+
+        impl PartialEq for $name {
+            fn eq(&self, other: &Self) -> bool {
+                self.cmp(other) == std::cmp::Ordering::Equal
+            }
+        }
+
+        impl Eq for $name {}
+    };
+
+    (for $name:ty : $self:ident, $other:ident in $code:expr) => {
+        impl std::cmp::Ord for $name {
+            fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+                let $self = self;
+                let $other = other;
+                $code
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! some_if {
+    ($condition: expr => $output: expr) => {{
+        if $condition {
+            Some($output)
+        } else {
+            None
+        }
+    }};
 }
 
 #[macro_export]
