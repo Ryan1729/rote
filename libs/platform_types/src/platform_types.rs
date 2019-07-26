@@ -72,7 +72,8 @@ pub enum Input {
     Redo,
     Cut,
     Copy,
-    Paste(Option<String>)
+    Paste(Option<String>),
+    InsertNumbersAtCursors,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]

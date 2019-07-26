@@ -317,6 +317,9 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
             }
         }),
         Paste(op_s) => buffer_call!(b {state.clipboard_history.paste(b, op_s)}),
+        InsertNumbersAtCursors => {
+            buffer_call!(b.insert_at_each_cursor(|i| i.to_string()))
+        },
     }
 
     let mut view = d!();

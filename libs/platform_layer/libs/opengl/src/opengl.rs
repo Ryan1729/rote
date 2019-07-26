@@ -382,6 +382,28 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                                         ModifiersState {
                                             ctrl: true,
                                             shift: false,
+                                            alt: true,
+                                            ..
+                                        },
+                                    ..
+                                },
+                            ..
+                        } => match keypress {
+                            VirtualKeyCode::Key0 => {
+                                call_u_and_r!(Input::InsertNumbersAtCursors);
+                            }
+                            _ => (),
+                        },
+                        WindowEvent::KeyboardInput {
+                            input:
+                                KeyboardInput {
+                                    state: ElementState::Pressed,
+                                    virtual_keycode: Some(keypress),
+                                    modifiers:
+                                        ModifiersState {
+                                            ctrl: true,
+                                            shift: false,
+                                            alt: false,
                                             ..
                                         },
                                     ..

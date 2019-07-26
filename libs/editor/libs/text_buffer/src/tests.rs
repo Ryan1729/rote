@@ -32,12 +32,6 @@ fn deep_clone(buffer: &TextBuffer) -> TextBuffer {
 }
 
 prop_compose! {
-    fn arb_rope()(s in any::<String>()) -> Rope {
-        r!(s)
-    }
-}
-
-prop_compose! {
     fn arb_absolute_char_offset(max_len: usize)(offset in 0..=max_len) -> AbsoluteCharOffset {
         AbsoluteCharOffset(offset)
     }
@@ -224,11 +218,6 @@ macro_rules! arb_change {
     }
 }
 
-fn vec1<D: Debug>(strat: impl Strategy<Value = D>, max_len: usize) -> impl Strategy<Value = Vec1<D>> {
-    collection::vec(strat, 1..std::cmp::max(2, max_len))
-        .prop_map(|v| Vec1::try_from_vec(v).expect("we said at least one!"))
-}
-
 prop_compose! {
     fn arb_offset_pair()(
         o1 in option::of(arb_absolute_char_offset(SOME_AMOUNT)),
@@ -269,7 +258,7 @@ fn final_non_newline_offset_for_line_works_if_asked_about_a_non_existant_line() 
 proptest!{
     #[test]
     fn nearest_valid_position_on_same_line_is_identity_for_positions_in_bounds(
-        rope in arb_rope(),
+        rope in arb::rope(),
         position in arb_pos(SOME_AMOUNT, SOME_AMOUNT)
     ) {
         let manually_checked = if in_cursor_bounds(&rope, position) {
@@ -299,35 +288,148 @@ fn this_multi_cursor_example_produces_the_correct_final_string() {
     assert_eq!(actual, expected);
 }
 
+fn buffer_preserves_this_equality(buffer: &TextBuffer) {
+    let mut buffer = deep_clone(buffer);
+    let cursors_len = buffer.cursors.len();
+
+    // This intentionally may double count, since not doing that will hide bugs.
+    let highlighted_char_count = buffer.cursors.iter().fold(0, |acc, c| {
+        if let (Some(o1), Some(o2)) = offset_pair(&buffer.rope, c) {
+            let range = AbsoluteCharOffsetRange::new(o1, o2);
+
+            acc + range.max().saturating_sub(range.min()).0
+        } else {
+            acc
+        }
+    });
+
+    let initial_len_chars = buffer.rope.len_chars().0;
+
+    buffer.insert('a');
+
+    let final_len_chars = buffer.rope.len_chars().0;
+
+    let expected = dbg!(initial_len_chars) as isize - dbg!(highlighted_char_count) as isize + dbg!(cursors_len) as isize;
+
+    assert_eq!(final_len_chars as isize, expected);
+}
+
 proptest!{
     #[test]
     fn multicursor_insertion_should_preserve_this_equality(
         buffer in arb::text_buffer_with_valid_cursors()
     ) {
-        let mut buffer = deep_clone(&buffer);
-        let cursors_len = buffer.cursors.len();
-
-        // This intentionally may double count, since not doing that will hide bugs.
-        let highlighted_char_count = buffer.cursors.iter().fold(0, |acc, c| {
-            if let (Some(o1), Some(o2)) = offset_pair(&buffer.rope, c) {
-                let range = AbsoluteCharOffsetRange::new(o1, o2);
-
-                acc + range.max().saturating_sub(range.min()).0
-            } else {
-                acc
-            }
-        });
-
-        let initial_len_chars = buffer.rope.len_chars().0;
-
-        buffer.insert('a');
-
-        let final_len_chars = buffer.rope.len_chars().0;
-
-        let expected = dbg!(initial_len_chars) as isize - dbg!(highlighted_char_count) as isize + dbg!(cursors_len) as isize;
-
-        assert_eq!(final_len_chars as isize, expected);
+        buffer_preserves_this_equality(&buffer);
     }
+}
+
+proptest!{
+    #[test]
+    fn multicursor_insertion_should_preserve_this_equality_even_if_there_are_lots_of_cursors(
+        buffer in arb::text_buffer_with_many_valid_cursors_and_no_0_to_9_chars()
+    ) {
+        buffer_preserves_this_equality(&buffer);
+    }
+}
+
+#[test]
+fn this_buffer_preserves_this_equality() {
+    let mut buffer = t_b!("abcde");
+
+    buffer.set_cursor(pos!{l 0 o 2}, ReplaceOrAdd::Replace);
+    buffer.set_cursor(pos!{l 0 o 4}, ReplaceOrAdd::Add);
+
+    buffer.extend_selection_for_all_cursors(Move::ToBufferStart);
+
+    buffer_preserves_this_equality(&buffer);
+}
+
+#[test]
+fn this_generated_buffer_preserves_this_equality() {
+    let mut buffer = t_b!(":\nA :\n");
+
+    buffer.cursors = Vec1::try_from_vec(vec![
+        {
+            let mut c = Cursor::new(pos!{l 0 o 0});
+            c.set_highlight_position(pos!{l 1 o 0});
+            c
+        },
+        {
+            let mut c = Cursor::new(pos!{l 2 o 0});
+            c.set_highlight_position(pos!{l 0 o 0});
+            c
+        }
+    ]).unwrap();
+
+    buffer_preserves_this_equality(&buffer);
+}
+
+fn buffer_inserts_all_the_requested_numbers(buffer: &TextBuffer) {
+    let mut buffer = deep_clone(buffer);
+
+    let cursors_len = buffer.cursors.len();
+
+    let get_string = |i: usize| i.to_string();
+
+    buffer.insert_at_each_cursor(get_string);
+
+    let expected_strings = (0..cursors_len).map(get_string);
+
+    let buffer_string: String = buffer.rope.into();
+
+    for s in expected_strings {
+        assert!(buffer_string.contains(&s), "{:?} does not contain {:?}", buffer_string, s);
+    }
+}
+
+proptest!{
+    #[test]
+    fn inserting_sequential_numbers_into_a_field_of_non_numbers_inserts_all_the_requested_numbers(
+        buffer in arb::text_buffer_with_valid_cursors_and_no_0_to_9_chars()
+    ) {
+        buffer_inserts_all_the_requested_numbers(&buffer);
+    }
+}
+
+proptest!{
+    #[test]
+    fn inserting_sequential_numbers_into_a_field_of_non_numbers_inserts_all_the_requested_numbers_even_if_there_are_lots_of_cursors(
+        buffer in arb::text_buffer_with_many_valid_cursors_and_no_0_to_9_chars()
+    ) {
+        buffer_inserts_all_the_requested_numbers(&buffer);
+    }
+}
+
+#[test]
+fn inserting_sequential_numbers_into_a_field_of_non_numbers_inserts_all_the_requested_numbers_on_this_example() {
+    let mut buffer = t_b!("\n\n");
+
+    buffer.cursors = Vec1::try_from_vec(vec![
+        {
+            let mut c = Cursor::new(pos!{l 0 o 0});
+            c.set_highlight_position(pos!{l 1 o 0});
+            c
+        },
+        {
+            let mut c = Cursor::new(pos!{l 1 o 0});
+            c.set_highlight_position(pos!{l 0 o 0});
+            c
+        }
+    ]).unwrap();
+
+    buffer_inserts_all_the_requested_numbers(&buffer);
+}
+
+#[test]
+fn inserting_sequential_numbers_into_this_buffer_inserts_all_the_requested_numbers() {
+    let mut buffer = t_b!("abcde");
+
+    buffer.set_cursor(pos!{l 0 o 2}, ReplaceOrAdd::Replace);
+    buffer.set_cursor(pos!{l 0 o 4}, ReplaceOrAdd::Add);
+
+    buffer.extend_selection_for_all_cursors(Move::ToBufferStart);
+
+    buffer_inserts_all_the_requested_numbers(&buffer);
 }
 
 mod arb;

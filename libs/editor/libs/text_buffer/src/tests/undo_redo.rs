@@ -1,40 +1,9 @@
 // This module is inside `tests`
 use super::*;
 
-prop_compose! {
-    fn arb_range_edit(max_len: usize)
-    (chars in ".*", range in arb_absolute_char_offset_range(max_len)) -> RangeEdit {
-        RangeEdit {
-            chars,
-            range
-        }
-    }
-}
-
-prop_compose! {
-    fn arb_range_edits(max_len: usize)
-    (insert_range in option::of(arb_range_edit(max_len)), delete_range in option::of(arb_range_edit(max_len))) -> RangeEdits {
-        RangeEdits {
-            insert_range,
-            delete_range,
-        }
-    }
-}
-
-prop_compose! {
-    fn arb_edit()
-    (len in 1..SOME_AMOUNT)
-    (range_edits in vec1(arb_range_edits(len), len), cursors in arb_change!(arb::cursors(len))) -> Edit {
-        Edit {
-            range_edits,
-            cursors,
-        }
-    }
-}
-
 fn arb_edit_from_buffer(text_buffer: TextBuffer) -> impl Strategy<Value = Edit> {
     let cs = text_buffer.cursors.clone();
-    arb_edit()
+    arb::edit()
     .prop_map(move |mut edit| {
         edit.cursors.old = cs.clone();
         edit
@@ -60,7 +29,7 @@ prop_compose! {
 /*
 proptest! {
     #[test]
-    fn edits_double_negate_properly(edit in arb_edit()) {
+    fn edits_double_negate_properly(edit in arb::edit()) {
         let initial = edit.clone();
 
         assert_eq!(!!edit, initial);
@@ -166,6 +135,7 @@ enum TestEdit {
     DragCursors(Position),
     SelectCharTypeGrouping(Position, ReplaceOrAdd),
     Cut,
+    InsertNumbersAtCursors,
 }
 
 fn apply_edit(buffer: &mut TextBuffer, edit: TestEdit) {
@@ -185,6 +155,7 @@ fn apply_edit(buffer: &mut TextBuffer, edit: TestEdit) {
         SelectCharTypeGrouping(position, replace_or_add) =>
             buffer.select_char_type_grouping(position, replace_or_add),
         Cut => {buffer.cut_selections();},
+        InsertNumbersAtCursors => buffer.insert_at_each_cursor(|i| i.to_string())
     }
 }
 
@@ -213,6 +184,7 @@ fn arb_test_edit() -> impl Strategy<Value = TestEdit> {
         arb_pos(MORE_THAN_SOME_AMOUNT, MORE_THAN_SOME_AMOUNT).prop_map(DragCursors),
         (arb_pos(MORE_THAN_SOME_AMOUNT, MORE_THAN_SOME_AMOUNT), arb_replace_or_add()).prop_map(|(p, r)| SelectCharTypeGrouping(p, r)),
         Just(Cut),
+        Just(InsertNumbersAtCursors),
     ]
 }
 

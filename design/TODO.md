@@ -7,6 +7,9 @@
       * `multicursor_insertion_should_preserve_this_equality` does not do everything we want. What we actually want to preserve is that when an insertion happens, each of the inserted characters actually makes it into the buffer and remain after the insertion is done. A way to test this would be to generate characters that do not include a special character and then call `buffer.insert('<special char>')` and then count the occurrences
       of the special character and make sure there is one for each cursor.
         * eventually we will want to insert incrementing numbers at each cursor. Maybe we could implement that and then test that all the numbers are inserted into a buffer with no numbers. That could give us better test failure messages.
+        * now that we've implemented incrementing numbers at each cursor, but with a bug, let's write that test above.
+        * done, but the generation is apparently not producing overlapping cursors, since we have an oracle test that fails a test that generated buffers are passed into.
+        * let's make a generator that (reliably) produces examples that causes the test to fail.
 
 
 

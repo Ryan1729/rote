@@ -92,10 +92,19 @@ impl TextBuffer {
     #[perf_viz::record]
     pub fn insert_string(&mut self, s: String) {
         self.apply_edit(
-            get_insert_edit(&self.rope, &self.cursors, s),
+            get_insert_edit(&self.rope, &self.cursors, |_| s.clone()),
             ApplyKind::Record,
         );
     }
+
+    pub fn insert_at_each_cursor<F>(&mut self, func: F)
+    where F: Fn(usize) -> String {
+        self.apply_edit(
+            get_insert_edit(&self.rope, &self.cursors, func),
+            ApplyKind::Record,
+        );
+    }
+
 
     #[perf_viz::record]
     pub fn delete(&mut self) {
@@ -294,7 +303,7 @@ fn sort_cursors(cursors: Cursors) -> Cursors {
 /// `Rope`. Then the (potentially) modified cursors and another copy of the `original_cursors`
 /// are wrapped up along with the returned `RangeEdit`s into the Edit.
 fn get_edit<F>(original_rope: &Rope, original_cursors: &Cursors, mut mapper: F) -> Edit
-where F: FnMut(&mut Cursor, &mut Rope) -> RangeEdits, {
+where F: FnMut(&mut Cursor, &mut Rope, usize) -> RangeEdits, {
     // We need to sort cursors, so our `range_edits` are in the right order, so we can go
     // backwards, when we apply them so our indexes don't get messed up but our own inserts
     // and deletes.
@@ -302,7 +311,12 @@ where F: FnMut(&mut Cursor, &mut Rope) -> RangeEdits, {
     let mut cloned_cursors = sort_cursors(original_cursors.clone());
     let mut cloned_rope = original_rope.clone();
 
-    let range_edits = cloned_cursors.mapped_mut(|c| mapper(c, &mut cloned_rope));
+    let mut index = 0;
+    let range_edits = cloned_cursors.mapped_mut(|c| {
+        let output = mapper(c, &mut cloned_rope, index);
+        index += 1;
+        output
+    });
 
     Edit {
         range_edits,
@@ -315,31 +329,38 @@ where F: FnMut(&mut Cursor, &mut Rope) -> RangeEdits, {
 
 /// Returns an edit that, if applied, after deleting the highlighted region at each cursor if
 /// there is one, inserts the given string at each of the cursors.
-fn get_insert_edit(
+fn get_insert_edit<F>(
     original_rope: &Rope,
     original_cursors: &Cursors,
-    s: String
-) -> Edit {
-    get_edit(original_rope, original_cursors, |cursor, rope| {
+    get_string: F
+) -> Edit
+where F: Fn(usize) -> String {
+    get_edit(original_rope, original_cursors, |cursor, rope, index| {
         match offset_pair(original_rope, cursor) {
             (Some(o), highlight)
                 if highlight.is_none()
                     || Some(o) == highlight =>
             {
+                let s = get_string(index);
+
                 rope.insert(o, &s);
                 for _ in 0..s.len() {
                     move_cursor::directly(&rope, cursor, Move::Right);
                 }
 
+                let range = AbsoluteCharOffsetRange::new(o, o + s.chars().count());
+
                 RangeEdits {
                     insert_range: Some(RangeEdit {
-                        chars: s.to_owned(),
-                        range: AbsoluteCharOffsetRange::new(o, o + s.chars().count())
+                        chars: s,
+                        range
                     }),
                     ..d!()
                 }
             }
             (Some(o1), Some(o2)) => {
+                let s = get_string(index);
+
                 let range_edit = delete_highlighted(rope, cursor, o1, o2);
 
                 rope.insert(range_edit.range.min(), &s);
@@ -347,13 +368,15 @@ fn get_insert_edit(
                     move_cursor::directly(&rope, cursor, Move::Right);
                 }
 
+                let range = {
+                    let min = range_edit.range.min();
+                    AbsoluteCharOffsetRange::new(min, min + s.chars().count())
+                };
+
                 RangeEdits {
                     insert_range: Some(RangeEdit {
-                        chars: s.to_owned(),
-                        range: {
-                            let min = range_edit.range.min();
-                            AbsoluteCharOffsetRange::new(min, min + s.chars().count())
-                        }
+                        chars: s,
+                        range
                     }),
                     delete_range: Some(range_edit),
                 }
@@ -364,14 +387,13 @@ fn get_insert_edit(
         }
     })
 }
-
 /// Returns an edit that, if applied, deletes the highlighted region at each cursor if there is one.
 /// Otherwise the applying the edit will delete a single character at each cursor.
 fn get_delete_edit(
     original_rope: &Rope,
     original_cursors: &Cursors
 ) -> Edit {
-    get_edit(original_rope, original_cursors, |cursor, rope| {
+    get_edit(original_rope, original_cursors, |cursor, rope, _| {
         let offsets = offset_pair(original_rope, cursor);
 
         match offsets {
@@ -426,7 +448,7 @@ fn get_cut_edit(
     original_rope: &Rope,
     original_cursors: &Cursors
 ) -> Edit {
-    get_edit(original_rope, original_cursors, |cursor, rope| {
+    get_edit(original_rope, original_cursors, |cursor, rope, _| {
         let offsets = offset_pair(original_rope, cursor);
 
         match offsets {
