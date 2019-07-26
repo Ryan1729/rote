@@ -22,6 +22,15 @@ macro_rules! InsertString {
     ($s: expr) => (TestEdit::InsertString($s.into()));
 }
 
+// `Rope`s share backing buffers when cloned, so we want to avoid that.
+fn deep_clone(buffer: &TextBuffer) -> TextBuffer {
+    let s: std::borrow::Cow<str> = (&buffer.rope).into();
+    TextBuffer {
+        rope: Rope::from_str(&s),
+        ..buffer.clone()
+    }
+}
+
 prop_compose! {
     fn arb_rope()(s in any::<String>()) -> Rope {
         r!(s)
@@ -229,27 +238,6 @@ prop_compose! {
     }
 }
 
-prop_compose! {
-    fn arb_cursor(max_len: usize)(
-        position in arb_pos(max_len, max_len),
-        highlight_position in arb_pos(max_len, max_len),
-        sticky_offset in arb_char_offset(max_len),
-        state in arb_cursor_state()
-    ) -> Cursor {
-        let mut c = Cursor::new(position);
-        c.set_highlight_position(highlight_position);
-        c.sticky_offset = sticky_offset;
-        c.state = state;
-        c
-    }
-}
-
-
-fn arb_cursors(max_len: usize) -> impl Strategy<Value = Cursors> {
-    // It doesn't semm particularly useful to have more cursors than text positions.
-    vec1(arb_cursor(max_len), max_len)
-}
-
 #[test]
 fn final_non_newline_offset_for_line_works_on_a_string_with_no_newline() {
     let rope = r!("1234");
@@ -294,6 +282,54 @@ proptest!{
     }
 }
 
+#[test]
+fn this_multi_cursor_example_produces_the_correct_final_string() {
+    let mut buffer = t_b!("000\n111\n222\n333\n");
 
+    buffer.set_cursor(pos!{l 1 o 1}, ReplaceOrAdd::Add);
+    buffer.set_cursor(pos!{l 2 o 2}, ReplaceOrAdd::Add);
+    buffer.set_cursor(pos!{l 3 o 3}, ReplaceOrAdd::Add);
+    buffer.set_cursor(pos!{l 4 o 0}, ReplaceOrAdd::Add);
+
+    buffer.insert('5');
+
+    let expected = "5000\n1511\n2252\n3335\n5".to_owned();
+    let actual: String = buffer.rope.into();
+
+    assert_eq!(actual, expected);
+}
+
+proptest!{
+    #[test]
+    fn multicursor_insertion_should_preserve_this_equality(
+        buffer in arb::text_buffer_with_valid_cursors()
+    ) {
+        let mut buffer = deep_clone(&buffer);
+        let cursors_len = buffer.cursors.len();
+
+        // This intentionally may double count, since not doing that will hide bugs.
+        let highlighted_char_count = buffer.cursors.iter().fold(0, |acc, c| {
+            if let (Some(o1), Some(o2)) = offset_pair(&buffer.rope, c) {
+                let range = AbsoluteCharOffsetRange::new(o1, o2);
+
+                acc + range.max().saturating_sub(range.min()).0
+            } else {
+                acc
+            }
+        });
+
+        let initial_len_chars = buffer.rope.len_chars().0;
+
+        buffer.insert('a');
+
+        let final_len_chars = buffer.rope.len_chars().0;
+
+        let expected = dbg!(initial_len_chars) as isize - dbg!(highlighted_char_count) as isize + dbg!(cursors_len) as isize;
+
+        assert_eq!(final_len_chars as isize, expected);
+    }
+}
+
+mod arb;
 mod undo_redo;
 mod cursor_manipulation;

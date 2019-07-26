@@ -295,13 +295,13 @@ fn sort_cursors(cursors: Cursors) -> Cursors {
 /// are wrapped up along with the returned `RangeEdit`s into the Edit.
 fn get_edit<F>(original_rope: &Rope, original_cursors: &Cursors, mut mapper: F) -> Edit
 where F: FnMut(&mut Cursor, &mut Rope) -> RangeEdits, {
-    let mut cloned_rope = original_rope.clone();
-    let mut cloned_cursors = sort_cursors(original_cursors.clone());
-
     // We need to sort cursors, so our `range_edits` are in the right order, so we can go
     // backwards, when we apply them so our indexes don't get messed up but our own inserts
     // and deletes.
     // Should we just always maintin that the cursors in sorted order?
+    let mut cloned_cursors = sort_cursors(original_cursors.clone());
+    let mut cloned_rope = original_rope.clone();
+
     let range_edits = cloned_cursors.mapped_mut(|c| mapper(c, &mut cloned_rope));
 
     Edit {

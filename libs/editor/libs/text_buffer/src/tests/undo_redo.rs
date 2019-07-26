@@ -2,17 +2,6 @@
 use super::*;
 
 prop_compose! {
-    fn arb_no_history_text_buffer()
-    (rope in arb_rope())
-    (cursors in arb_cursors(rope.chars().count()), r in Just(rope)) -> TextBuffer {
-        let mut text_buffer: TextBuffer = d!();
-        text_buffer.rope = r;
-        text_buffer.cursors = cursors;
-        text_buffer
-    }
-}
-
-prop_compose! {
     fn arb_range_edit(max_len: usize)
     (chars in ".*", range in arb_absolute_char_offset_range(max_len)) -> RangeEdit {
         RangeEdit {
@@ -35,7 +24,7 @@ prop_compose! {
 prop_compose! {
     fn arb_edit()
     (len in 1..SOME_AMOUNT)
-    (range_edits in vec1(arb_range_edits(len), len), cursors in arb_change!(arb_cursors(len))) -> Edit {
+    (range_edits in vec1(arb_range_edits(len), len), cursors in arb_change!(arb::cursors(len))) -> Edit {
         Edit {
             range_edits,
             cursors,
@@ -54,7 +43,7 @@ fn arb_edit_from_buffer(text_buffer: TextBuffer) -> impl Strategy<Value = Edit> 
 
 prop_compose! {
     fn arb_no_history_text_buffer_and_edit()
-    (text_buffer in arb_no_history_text_buffer())
+    (text_buffer in arb::no_history_text_buffer())
     (edit in arb_edit_from_buffer(deep_clone(&text_buffer)), t_b in Just(text_buffer)) -> (TextBuffer, Edit) {
         (t_b, edit)
     }
@@ -219,7 +208,7 @@ fn arb_test_edit() -> impl Strategy<Value = TestEdit> {
         (0..MORE_THAN_SOME_AMOUNT, arb_move()).prop_map(|(i, m)| MoveCursors(i, m)),
         (0..MORE_THAN_SOME_AMOUNT, arb_move()).prop_map(|(i, m)| ExtendSelection(i, m)),
         // The user can attempt to move the cursor to invalid positions,
-        // and there cursor may get snapped to a valid position producing an actual movement.
+        // and their cursor may get snapped to a valid position producing an actual movement.
         (arb_pos(MORE_THAN_SOME_AMOUNT, MORE_THAN_SOME_AMOUNT), arb_replace_or_add()).prop_map(|(p, r)| SetCursor(p, r)),
         arb_pos(MORE_THAN_SOME_AMOUNT, MORE_THAN_SOME_AMOUNT).prop_map(DragCursors),
         (arb_pos(MORE_THAN_SOME_AMOUNT, MORE_THAN_SOME_AMOUNT), arb_replace_or_add()).prop_map(|(p, r)| SelectCharTypeGrouping(p, r)),
@@ -240,7 +229,7 @@ fn arb_test_edit_regex_insert(regex: Regex) -> impl Strategy<Value = TestEdit> {
 enum ArbTestEditSpec {
     All,
     Insert,
-    RegexInsert(Regex),
+    RegexInsert(Regex)
 }
 
 fn arb_test_edits(max_len: usize, spec: ArbTestEditSpec) -> impl Strategy<Value = Vec<TestEdit>> {
@@ -262,15 +251,6 @@ prop_compose! {
             es in Just(edits)
          ) -> (Vec<TestEdit>, usize) {
         (es, i)
-    }
-}
-
-// `Rope`s share backing buffers when cloned, so we want to avoid that.
-fn deep_clone(buffer: &TextBuffer) -> TextBuffer {
-    let s: std::borrow::Cow<str> = (&buffer.rope).into();
-    TextBuffer {
-        rope: Rope::from_str(&s),
-        ..buffer.clone()
     }
 }
 
