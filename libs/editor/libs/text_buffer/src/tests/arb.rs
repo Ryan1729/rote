@@ -45,7 +45,7 @@ pub fn cursors(max_len: usize) -> impl Strategy<Value = Cursors> {
     )
 }
 
-pub fn valid_cursors_for_rope(rope: &Rope) -> impl Strategy<Value = Cursors> {
+pub fn valid_cursors_for_rope(rope: &Rope, max_len: usize) -> impl Strategy<Value = Cursors> {
     let (max_line, max_offset) =
         rope
         .lines()
@@ -56,11 +56,11 @@ pub fn valid_cursors_for_rope(rope: &Rope) -> impl Strategy<Value = Cursors> {
 
     vec1(
         cursor(LineIndex(max_line), max_offset),
-        std::cmp::max(max_line * max_offset.0, 1)
+        std::cmp::min(max_len, std::cmp::max(max_line * max_offset.0, 1))
     )
 }
 
-pub fn many_valid_cursors_for_rope(rope: &Rope) -> impl Strategy<Value = Cursors> {
+pub fn many_valid_cursors_for_rope(rope: &Rope, max_len: usize) -> impl Strategy<Value = Cursors> {
     let (max_line, max_offset) =
         rope
         .lines()
@@ -70,7 +70,10 @@ pub fn many_valid_cursors_for_rope(rope: &Rope) -> impl Strategy<Value = Cursors
         });
     let len = max_line + 1;
 
-    collection::vec(cursor(LineIndex(max_line), max_offset), std::cmp::max(len/2, 1)..std::cmp::max(2, len))
+    collection::vec(
+        cursor(LineIndex(max_line), max_offset),
+        std::cmp::max(len/2, 1)..std::cmp::min(std::cmp::max(2, len), max_len)
+    )
         .prop_map(|v| Vec1::try_from_vec(v).expect("we said at least one!"))
 }
 
@@ -109,10 +112,10 @@ prop_compose! {
 }
 
 prop_compose! {
-    pub fn text_buffer_with_valid_cursors_and_no_0_to_9_chars()
+    pub fn text_buffer_with_valid_cursors_and_no_0_to_9_chars(max_len: usize)
     (rope in non_0_to_9_char_rope())
     (
-        cursors in valid_cursors_for_rope(&rope),
+        cursors in valid_cursors_for_rope(&rope, max_len),
         r in Just(rope)
     ) -> TextBuffer {
         let mut text_buffer: TextBuffer = d!();
@@ -123,10 +126,10 @@ prop_compose! {
 }
 
 prop_compose! {
-    pub fn text_buffer_with_many_valid_cursors_and_no_0_to_9_chars()
+    pub fn text_buffer_with_many_valid_cursors_and_no_0_to_9_chars(max_len: usize)
     (rope in non_0_to_9_char_rope())
     (
-        cursors in many_valid_cursors_for_rope(&rope),
+        cursors in many_valid_cursors_for_rope(&rope, max_len),
         r in Just(rope)
     ) -> TextBuffer {
         let mut text_buffer: TextBuffer = d!();

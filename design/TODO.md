@@ -10,6 +10,7 @@
         * now that we've implemented incrementing numbers at each cursor, but with a bug, let's write that test above.
         * done, but the generation is apparently not producing overlapping cursors, since we have an oracle test that fails a test that generated buffers are passed into.
         * let's make a generator that (reliably) produces examples that causes the test to fail.
+        * done. Now how to do the merging of cursors? It seems nicest if adding cursors just never allows overlapping cursors/highlights. Since we are also currently sorting the cursors we can maintain two invariants. This is also easy to test by generating random mutations to a `Cursors` instance and checking whether the invariants are maintained.
 
 
 

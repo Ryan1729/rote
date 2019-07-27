@@ -8,9 +8,47 @@ use std::collections::VecDeque;
 
 mod move_cursor;
 
-pub type Cursors = Vec1<Cursor>;
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Cursors {
+    // Should be sorted in reverse order (positions later in a test file will have lower indexes)
+    // and no two cursors should be overlapping or have overlapping highlight regions.
+    cursors: Vec1<Cursor>
+}
 
-#[derive(Default, Clone, Debug)]
+fn merge_overlaps(cursors: &mut Vec1<Cursor>) {
+    unimplemented!();
+}
+
+impl Cursors {
+    pub fn new(mut cursors: Vec1<Cursor>) -> Self {
+        cursors.sort();
+        cursors.reverse();
+
+        merge_overlaps(&mut cursors);
+
+        Cursors {
+            cursors
+        }
+    }
+
+    pub fn mapped_ref<F, Out>(&self, mapper: F) -> Vec1<Out>
+    where
+        F: FnMut(&Cursor) -> Out, {
+        self.cursors.mapped_ref(mapper)
+    }
+
+    pub fn get_cloned_cursors(&self) -> Vec1<Cursor> {
+        self.cursors.clone()
+    }
+
+    pub fn len(&self) -> usize {
+        self.cursors.len()
+    }
+}
+
+borrow!(<Vec1<Cursor>> for Cursors : c in &c.cursors);
+
+#[derive(Clone, Debug, Default)]
 pub struct TextBuffer {
     rope: Rope,
     cursors: Cursors,
@@ -38,8 +76,7 @@ impl From<&str> for TextBuffer {
     }
 }
 
-borrow!(<Vec1<Cursor>> for TextBuffer : s in &s.cursors);
-borrow_mut!(<Vec1<Cursor>> for TextBuffer : s in &mut s.cursors);
+borrow!(<Vec1<Cursor>> for TextBuffer : b in b.cursors.borrow());
 
 type OffsetPair = (Option<AbsoluteCharOffset>, Option<AbsoluteCharOffset>);
 
@@ -158,7 +195,7 @@ impl TextBuffer {
         }
     }
 
-    fn get_new_cursors<P: Borrow<Position>>(&self, position: P, replace_or_add: ReplaceOrAdd) -> Option<Cursors> {
+    fn get_new_cursors<P: Borrow<Position>>(&self, position: P, replace_or_add: ReplaceOrAdd) -> Option<Vec1<Cursor>> {
         let position = position.borrow();
 
         nearest_valid_position_on_same_line(&self.rope, position).map(|p|{
@@ -167,7 +204,7 @@ impl TextBuffer {
                     Vec1::new(Cursor::new(p))
                 }
                 ReplaceOrAdd::Add => {
-                    let mut cursors = self.cursors.clone();
+                    let mut cursors = self.cursors.get_cloned_cursors();
                     cursors.push(Cursor::new(p));
                     cursors
                 }
@@ -180,7 +217,7 @@ impl TextBuffer {
         let position = position.borrow();
 
         if let Some(p) = nearest_valid_position_on_same_line(&self.rope, position) {
-            let mut new = self.cursors.clone();
+            let mut new = self.cursors.get_cloned_cursors();
             for c in new.iter_mut() {
                 c.set_position_custom(p, SetPositionAction::OldPositionBecomesHighlightIfItIsNone);
             }
@@ -230,7 +267,7 @@ impl TextBuffer {
     }
 
     fn move_cursors(&mut self, spec: CursorMoveSpec, r#move: Move) -> Option<()> {
-        let mut new = self.cursors.clone();
+        let mut new = self.cursors.get_cloned_cursors();
 
         let action:
             for<'r, 's>
@@ -256,10 +293,10 @@ impl TextBuffer {
         Some(())
     }
 
-    fn apply_cursor_edit(&mut self, new: Cursors) {
+    fn apply_cursor_edit(&mut self, new: Vec1<Cursor>) {
         // There is probably a way to save a copy here, by keeping the old one on the heap and
         // ref counting, but that seems overly complicated, given it has not been a problem so far.
-        self.apply_edit(Change {old: self.cursors.clone(), new}.into(), ApplyKind::Record);
+        self.apply_edit(Change {old: self.cursors.clone(), new: Cursors::new(new)}.into(), ApplyKind::Record);
     }
 
     fn apply_edit(&mut self, edit: Edit, kind: ApplyKind) {
@@ -289,7 +326,7 @@ impl TextBuffer {
     }
 }
 
-fn sort_cursors(cursors: Cursors) -> Cursors {
+fn sort_cursors(cursors: Vec1<Cursor>) -> Vec1<Cursor> {
     let mut cursors = cursors.to_vec();
 
     cursors.sort();
@@ -308,20 +345,20 @@ where F: FnMut(&mut Cursor, &mut Rope, usize) -> RangeEdits, {
     // backwards, when we apply them so our indexes don't get messed up but our own inserts
     // and deletes.
     // Should we just always maintin that the cursors in sorted order?
-    let mut cloned_cursors = sort_cursors(original_cursors.clone());
+    let mut cloned_cursors = sort_cursors(original_cursors.get_cloned_cursors());
     let mut cloned_rope = original_rope.clone();
 
-    let mut index = 0;
+    // the index needs to account for the order being from the high positions to the low positions
+    let mut index = dbg!(cloned_cursors.len());
     let range_edits = cloned_cursors.mapped_mut(|c| {
-        let output = mapper(c, &mut cloned_rope, index);
-        index += 1;
-        output
+        index -= 1;
+        mapper(c, &mut cloned_rope, index)
     });
 
     Edit {
         range_edits,
         cursors: Change {
-            new: cloned_cursors,
+            new: Cursors::new(cloned_cursors),
             old: original_cursors.clone()
         }
     }
@@ -336,6 +373,7 @@ fn get_insert_edit<F>(
 ) -> Edit
 where F: Fn(usize) -> String {
     get_edit(original_rope, original_cursors, |cursor, rope, index| {
+        dbg!(index);
         match offset_pair(original_rope, cursor) {
             (Some(o), highlight)
                 if highlight.is_none()

@@ -288,6 +288,8 @@ fn this_multi_cursor_example_produces_the_correct_final_string() {
     assert_eq!(actual, expected);
 }
 
+/*
+
 fn buffer_preserves_this_equality(buffer: &TextBuffer) {
     let mut buffer = deep_clone(buffer);
     let cursors_len = buffer.cursors.len();
@@ -311,7 +313,13 @@ fn buffer_preserves_this_equality(buffer: &TextBuffer) {
 
     let expected = dbg!(initial_len_chars) as isize - dbg!(highlighted_char_count) as isize + dbg!(cursors_len) as isize;
 
-    assert_eq!(final_len_chars as isize, expected);
+    assert_eq!(
+        final_len_chars as isize,
+        expected,
+        "we expected \"{}\" to be {} chars long",
+        {let s: String = buffer.rope.into(); s},
+        expected
+    );
 }
 
 proptest!{
@@ -364,10 +372,13 @@ fn this_generated_buffer_preserves_this_equality() {
     buffer_preserves_this_equality(&buffer);
 }
 
-fn buffer_inserts_all_the_requested_numbers(buffer: &TextBuffer) {
+*/
+
+fn buffer_inserts_all_the_requested_numbers_in_order(buffer: &TextBuffer) {
     let mut buffer = deep_clone(buffer);
 
     let cursors_len = buffer.cursors.len();
+    assert!(cursors_len <= 9, "this test is only valid if there are less than 10 cursors.");
 
     let get_string = |i: usize| i.to_string();
 
@@ -377,31 +388,44 @@ fn buffer_inserts_all_the_requested_numbers(buffer: &TextBuffer) {
 
     let buffer_string: String = buffer.rope.into();
 
-    for s in expected_strings {
-        assert!(buffer_string.contains(&s), "{:?} does not contain {:?}", buffer_string, s);
+    let mut chars = buffer_string.chars();
+
+    'outer: for s in expected_strings {
+        while {
+            if let Some(ch) = chars.next() {
+                if ch.to_string() == s {
+                    continue 'outer;
+                }
+                true
+            } else {
+                false
+            }
+        } {}
+
+        assert!(false, "{:?} does not contain {:?} or has them in the wrong order", buffer_string, s);
     }
 }
 
 proptest!{
     #[test]
-    fn inserting_sequential_numbers_into_a_field_of_non_numbers_inserts_all_the_requested_numbers(
-        buffer in arb::text_buffer_with_valid_cursors_and_no_0_to_9_chars()
+    fn inserting_sequential_numbers_into_a_field_of_non_numbers_inserts_all_the_requested_numbers_in_order(
+        buffer in arb::text_buffer_with_valid_cursors_and_no_0_to_9_chars(9)
     ) {
-        buffer_inserts_all_the_requested_numbers(&buffer);
+        buffer_inserts_all_the_requested_numbers_in_order(&buffer);
     }
 }
 
 proptest!{
     #[test]
-    fn inserting_sequential_numbers_into_a_field_of_non_numbers_inserts_all_the_requested_numbers_even_if_there_are_lots_of_cursors(
-        buffer in arb::text_buffer_with_many_valid_cursors_and_no_0_to_9_chars()
+    fn inserting_sequential_numbers_into_a_field_of_non_numbers_inserts_all_the_requested_numbers_in_order_even_if_there_are_lots_of_cursors(
+        buffer in arb::text_buffer_with_many_valid_cursors_and_no_0_to_9_chars(9)
     ) {
-        buffer_inserts_all_the_requested_numbers(&buffer);
+        buffer_inserts_all_the_requested_numbers_in_order(&buffer);
     }
 }
 
 #[test]
-fn inserting_sequential_numbers_into_a_field_of_non_numbers_inserts_all_the_requested_numbers_on_this_example() {
+fn inserting_sequential_numbers_into_a_field_of_non_numbers_inserts_all_the_requested_numbers_in_order_on_this_example() {
     let mut buffer = t_b!("\n\n");
 
     buffer.cursors = Vec1::try_from_vec(vec![
@@ -417,11 +441,11 @@ fn inserting_sequential_numbers_into_a_field_of_non_numbers_inserts_all_the_requ
         }
     ]).unwrap();
 
-    buffer_inserts_all_the_requested_numbers(&buffer);
+    buffer_inserts_all_the_requested_numbers_in_order(&buffer);
 }
 
 #[test]
-fn inserting_sequential_numbers_into_this_buffer_inserts_all_the_requested_numbers() {
+fn inserting_sequential_numbers_into_this_buffer_inserts_all_the_requested_numbers_in_order() {
     let mut buffer = t_b!("abcde");
 
     buffer.set_cursor(pos!{l 0 o 2}, ReplaceOrAdd::Replace);
@@ -429,7 +453,31 @@ fn inserting_sequential_numbers_into_this_buffer_inserts_all_the_requested_numbe
 
     buffer.extend_selection_for_all_cursors(Move::ToBufferStart);
 
-    buffer_inserts_all_the_requested_numbers(&buffer);
+    buffer_inserts_all_the_requested_numbers_in_order(&buffer);
+}
+
+enum CursorInvariantViolation {
+    OutOfOrder,
+    HasOverlaps,
+    // Would it be useful to have a variant for both being violated?
+}
+
+fn cursors_maintains_invariants(cursors: &Cursors) -> Result<(), CursorInvariantViolation> {
+    unimplemented!()
+}
+
+proptest!{
+    #[test]
+    fn editing_the_buffer_preserves_the_cursors_invariants(
+        mut buffer in arb::no_history_text_buffer(),
+        edits in arb_test_edits()
+    ) {
+        for edit in edits (
+            apply_edit(buffer, edit);
+        )
+
+        assert!(cursors_maintains_invariants(buffer.cursors))
+    }
 }
 
 mod arb;
