@@ -428,7 +428,7 @@ proptest!{
 fn inserting_sequential_numbers_into_a_field_of_non_numbers_inserts_all_the_requested_numbers_in_order_on_this_example() {
     let mut buffer = t_b!("\n\n");
 
-    buffer.cursors = Vec1::try_from_vec(vec![
+    buffer.cursors = Cursors::from_vec(vec![
         {
             let mut c = Cursor::new(pos!{l 0 o 0});
             c.set_highlight_position(pos!{l 1 o 0});
@@ -456,27 +456,69 @@ fn inserting_sequential_numbers_into_this_buffer_inserts_all_the_requested_numbe
     buffer_inserts_all_the_requested_numbers_in_order(&buffer);
 }
 
-enum CursorInvariantViolation {
-    OutOfOrder,
-    HasOverlaps,
-    // Would it be useful to have a variant for both being violated?
-}
+const OUT_OF_ORDER: u8 = 0b1;
+const HAS_OVERLAPS: u8 = 0b10;
 
-fn cursors_maintains_invariants(cursors: &Cursors) -> Result<(), CursorInvariantViolation> {
-    unimplemented!()
+fn cursors_maintains_invariants(cursors: &Cursors) -> u8 {
+    use std::cmp::Ordering;
+    let mut spans = cursors.cursors.mapped_ref(|c| {
+        let p = c.get_position();
+        let h = c.get_highlight_position().unwrap_or(p);
+
+        (
+            std::cmp::min(p, h),
+            std::cmp::max(p, h)
+        )
+    }).into_vec();
+
+    let mut output = 0;
+
+    for window in spans.windows(2) {
+        if let &[(later_min, later_max), (earlier_min, earlier_max)] = window {
+            match earlier_min.cmp(&later_min).then_with(|| earlier_max.cmp(&later_max)) {
+                Ordering::Less => {}
+                Ordering::Equal => {
+                    output |= HAS_OVERLAPS;
+                }
+                Ordering::Greater => {
+                    output |= OUT_OF_ORDER;
+                }
+            }
+        } else {
+            unreachable!();
+        }
+    }
+
+    // This prevents false overlap results given things are out of order
+    spans.sort_by(|(min1, max1), (min2, max2)| min1.cmp(&min2).then_with(|| max1.cmp(&max2)));
+
+    let mut current = None;
+
+    for (span_min, span_max) in spans.into_iter().rev() {
+        if let Some((_c_min, c_max)) = current {
+            // we know `c_min` is less than `span_min`
+            if c_max > span_min {
+                output |= HAS_OVERLAPS;
+            }
+        } else {
+            current = Some((span_min, span_max));
+        }
+    }
+
+    output
 }
 
 proptest!{
     #[test]
     fn editing_the_buffer_preserves_the_cursors_invariants(
         mut buffer in arb::no_history_text_buffer(),
-        edits in arb_test_edits()
+        edits in arb::test_edits(99, arb::TestEditSpec::All)
     ) {
-        for edit in edits (
-            apply_edit(buffer, edit);
-        )
+        for edit in edits {
+            arb::TestEdit::apply(&mut buffer, edit);
+        }
 
-        assert!(cursors_maintains_invariants(buffer.cursors))
+        assert_eq!(0, cursors_maintains_invariants(&buffer.cursors))
     }
 }
 

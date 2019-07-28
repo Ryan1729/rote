@@ -1,6 +1,6 @@
 use crate::move_cursor::{get_previous_selection_point, get_next_selection_point, forward};
 use editor_types::{Cursor, SetPositionAction, Vec1};
-use macros::{borrow, borrow_mut, d};
+use macros::{borrow, d};
 use panic_safe_rope::{Rope, RopeSliceTrait, RopeLine, LineIndex, ByteIndex};
 use platform_types::{AbsoluteCharOffset, CharOffset, Move, Position, ReplaceOrAdd};
 use std::borrow::Borrow;
@@ -11,13 +11,13 @@ mod move_cursor;
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Cursors {
     // Should be sorted in reverse order (positions later in a test file will have lower indexes)
-    // and no two cursors should be overlapping or have overlapping highlight regions.
+    // and no two cursors should be overlapping or have overlapping highlight regions. The order
+    // ensures that the edit don't screw the indexes up, and the lack of overlaps ensures that
+    // edits don't overwrite each other in a single action.
     cursors: Vec1<Cursor>
 }
 
-fn merge_overlaps(cursors: &mut Vec1<Cursor>) {
-    unimplemented!();
-}
+
 
 impl Cursors {
     pub fn new(mut cursors: Vec1<Cursor>) -> Self {
@@ -29,6 +29,88 @@ impl Cursors {
         Cursors {
             cursors
         }
+    }
+
+    /// This function assumes that the cursors are sorted in reverse order, (positions closer to the
+    /// first position of the buffer have larger indexes).
+    fn merge_overlaps(cursors: &mut Vec1<Cursor>) {
+        // let mut spans = cursors.mapped_ref(|c| {
+        //     let p = c.get_position();
+        //     let h = c.get_highlight_position().unwrap_or(p);
+        //
+        //     (
+        //         std::cmp::min(p, h),
+        //         std::cmp::max(p, h)
+        //     )
+        // }).into_vec();
+        //
+        // let mut current = None;
+        //
+        // for (span_min, span_max) in spans.into_iter().rev() {
+        //     if let Some((_c_min, c_max)) = current {
+        //         // we know `c_min` is less than `span_min`
+        //         if c_max > span_min {
+        //             output |= HAS_OVERLAPS;
+        //         }
+        //     } else {
+        //
+        //         current = Some((span_min, span_max));
+        //     }
+        // }
+
+        let mut keepers = Vec::with_capacity(cursors.len());
+
+        for slice in cursors.windows(2) {
+            if let &[c1, c2] = slice {
+                let c1_pair = {
+                    let p = c1.get_position();
+                    let h = c1.get_highlight_position().unwrap_or(p.clone());
+
+                    (p, h)
+                };
+
+                let c2_pair = {
+                    let p = c2.get_position();
+                    let h = c2.get_highlight_position().unwrap_or(p.clone());
+
+                    (p, h)
+                };
+
+                // some of these condiionals will need to adjust for the fact that the cursors are
+                // in reverse order.
+
+                // TODO handle a whole bunch of cases in this way...
+                // match (c1_pair, c2_pair) {
+                //     ((c1_p, c1_h), (c2_p, c2_h)) if c1_p > c2_p && ... => {
+                //          // know how to merge based on conditional
+                //
+                //          keepers.push(merged);
+                //     }
+                // }
+
+                // ...or this way
+                // match (c1_min_max_pair, c2_min_max_pair) {
+                //     ((c1_min, c1_max, c1_which_was_which), (c2_min, c2_max, c1_which_was_which)) if c1_max > c2_min => {
+                //          match (c1_which_was_which, c1_which_was_which) {
+                //              //decide how to merge the two cursors
+                //
+                //              keepers.push(merged);
+                //          }
+                //     }
+                // }
+            }
+        }
+
+        // It's probably possible to write an in-place version of this function, or at least to
+        // reuse the memory allocation but currently that seems like premature optimization.
+        if let Ok(cs) = Vec1::try_from_vec(keepers) {
+            *cursors = cs;
+        }
+    }
+
+    /// Returns `None` iff the vec was empty.
+    pub fn from_vec(cursors: Vec<Cursor>) -> Option<Self> {
+        Vec1::try_from_vec(cursors).ok().map(Cursors::new)
     }
 
     pub fn mapped_ref<F, Out>(&self, mapper: F) -> Vec1<Out>
@@ -43,6 +125,14 @@ impl Cursors {
 
     pub fn len(&self) -> usize {
         self.cursors.len()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &Cursor> {
+        self.cursors.iter()
+    }
+
+    pub fn first(&self) -> &Cursor {
+        self.cursors.first()
     }
 }
 

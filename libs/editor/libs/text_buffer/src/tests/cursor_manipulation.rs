@@ -5,22 +5,23 @@ fn insert_with_matching_cursor_and_highlight_sets_highlight_to_none() {
     let mut buffer: TextBuffer = d!();
 
     {
-        let c = &mut buffer.cursors[0];
+        let mut c = buffer.cursors.get_cloned_cursors().into_vec().pop().unwrap();
         c.set_highlight_position(c.get_position());
         assert_eq!(c.get_highlight_position(), None);
+        buffer.cursors = Cursors::new(Vec1::new(c));
     }
 
     buffer.insert('1');
 
     {
-        let c = &buffer.cursors[0];
+        let c = buffer.cursors.first();
         assert_eq!(c.get_highlight_position(), None);
     }
 
     buffer.insert('2');
 
     {
-        let c = &buffer.cursors[0];
+        let c = buffer.cursors.first();
         assert_eq!(c.get_highlight_position(), None);
     }
 }

@@ -1,5 +1,7 @@
 // This module is inside `tests`
-use super::*;
+use super::{arb::{TestEdit, TestEditSpec}, *};
+
+
 
 fn arb_edit_from_buffer(text_buffer: TextBuffer) -> impl Strategy<Value = Edit> {
     let cs = text_buffer.cursors.clone();
@@ -94,7 +96,7 @@ fn negated_edits_undo_redo_this_edit_that_only_changes_the_sticky_offset() {
         // If the first old change does not correspond to the initial buffer, then undoing to that
         // state can fail to match the initila buffer.
         old: buffer.cursors.clone(),
-        new: Vec1::new(new_cursor.clone())
+        new: Cursors::new(Vec1::new(new_cursor.clone()))
     }.into();
 
     buffer.apply_edit(edit.clone(), ApplyKind::Record);
@@ -119,111 +121,6 @@ fn negated_edits_undo_redo_this_edit_that_only_changes_the_sticky_offset() {
     buffer.apply_edit(edit, ApplyKind::Playback);
 
     assert_eq!(buffer.cursors.first(), modified_buffer.cursors.first());
-}
-
-
-#[derive(Debug, Clone)]
-enum TestEdit {
-    Insert(char),
-    InsertString(String),
-    Delete,
-    MoveAllCursors(Move),
-    ExtendSelectionForAllCursors(Move),
-    MoveCursors(usize, Move),
-    ExtendSelection(usize, Move),
-    SetCursor(Position, ReplaceOrAdd),
-    DragCursors(Position),
-    SelectCharTypeGrouping(Position, ReplaceOrAdd),
-    Cut,
-    InsertNumbersAtCursors,
-}
-
-fn apply_edit(buffer: &mut TextBuffer, edit: TestEdit) {
-    use TestEdit::*;
-    match edit {
-        Insert(c) => buffer.insert(c),
-        InsertString(s) => buffer.insert_string(s),
-        Delete => buffer.delete(),
-        MoveAllCursors(r#move) => buffer.move_all_cursors(r#move),
-        ExtendSelectionForAllCursors(r#move) => {
-            buffer.extend_selection_for_all_cursors(r#move)
-        },
-        MoveCursors(index, r#move) => buffer.move_cursor(index, r#move),
-        ExtendSelection(index, r#move) => buffer.extend_selection(index, r#move),
-        SetCursor(position, replace_or_add) => buffer.set_cursor(position, replace_or_add),
-        DragCursors(position) => buffer.drag_cursors(position),
-        SelectCharTypeGrouping(position, replace_or_add) =>
-            buffer.select_char_type_grouping(position, replace_or_add),
-        Cut => {buffer.cut_selections();},
-        InsertNumbersAtCursors => buffer.insert_at_each_cursor(|i| i.to_string())
-    }
-}
-
-fn arb_replace_or_add() -> impl Strategy<Value = ReplaceOrAdd> {
-    prop_oneof![
-        Just(ReplaceOrAdd::Replace),
-        Just(ReplaceOrAdd::Add),
-    ]
-}
-
-
-fn arb_test_edit() -> impl Strategy<Value = TestEdit> {
-    use TestEdit::*;
-    prop_oneof![
-        Just(Delete),
-        any::<char>().prop_map(Insert),
-        ".*".prop_map(InsertString),
-        arb_move().prop_map(MoveAllCursors),
-        arb_move().prop_map(ExtendSelectionForAllCursors),
-        // Moving a cursor that isn't there should just be a no-op
-        (0..MORE_THAN_SOME_AMOUNT, arb_move()).prop_map(|(i, m)| MoveCursors(i, m)),
-        (0..MORE_THAN_SOME_AMOUNT, arb_move()).prop_map(|(i, m)| ExtendSelection(i, m)),
-        // The user can attempt to move the cursor to invalid positions,
-        // and their cursor may get snapped to a valid position producing an actual movement.
-        (arb_pos(MORE_THAN_SOME_AMOUNT, MORE_THAN_SOME_AMOUNT), arb_replace_or_add()).prop_map(|(p, r)| SetCursor(p, r)),
-        arb_pos(MORE_THAN_SOME_AMOUNT, MORE_THAN_SOME_AMOUNT).prop_map(DragCursors),
-        (arb_pos(MORE_THAN_SOME_AMOUNT, MORE_THAN_SOME_AMOUNT), arb_replace_or_add()).prop_map(|(p, r)| SelectCharTypeGrouping(p, r)),
-        Just(Cut),
-        Just(InsertNumbersAtCursors),
-    ]
-}
-
-fn arb_test_edit_insert() -> impl Strategy<Value = TestEdit> {
-    any::<char>().prop_map(TestEdit::Insert)
-}
-
-type Regex = &'static str;
-
-fn arb_test_edit_regex_insert(regex: Regex) -> impl Strategy<Value = TestEdit> {
-    regex.prop_map(|s| TestEdit::Insert(s.chars().next().unwrap_or('a')))
-}
-
-enum ArbTestEditSpec {
-    All,
-    Insert,
-    RegexInsert(Regex)
-}
-
-fn arb_test_edits(max_len: usize, spec: ArbTestEditSpec) -> impl Strategy<Value = Vec<TestEdit>> {
-    collection::vec(
-        match spec {
-            ArbTestEditSpec::All => arb_test_edit().boxed(),
-            ArbTestEditSpec::Insert => arb_test_edit_insert().boxed(),
-            ArbTestEditSpec::RegexInsert(regex) => arb_test_edit_regex_insert(regex).boxed(),
-        },
-        0..max_len
-    )
-}
-
-prop_compose! {
-    fn arb_test_edits_and_index(max_len: usize, spec: ArbTestEditSpec)
-        (edits in arb_test_edits(max_len, spec))
-        (
-            i in if edits.len() == 0 { 0..1 } else { 0..edits.len() },
-            es in Just(edits)
-         ) -> (Vec<TestEdit>, usize) {
-        (es, i)
-    }
 }
 
 #[test]
@@ -254,14 +151,14 @@ fn redo_redoes() {
 proptest! {
     #[test]
     fn undo_redo_is_a_no_op_if_there_are_no_valid_edits(
-        edits in arb_test_edits(SOME_AMOUNT, ArbTestEditSpec::All)
+        edits in arb::test_edits(SOME_AMOUNT, TestEditSpec::All)
     ) {
         //TODO generate initial buffer? This would simulate a load from a new file.
         let initial_buffer: TextBuffer = d!();
         let mut buffer: TextBuffer = deep_clone(&initial_buffer);
 
         for edit in edits.iter() {
-            apply_edit(&mut buffer, (*edit).clone());
+            TestEdit::apply(&mut buffer, (*edit).clone());
 
             // The cases where there are valid edits in the history should be covered by tests
             // that call `undo_redo_works_on_these_edits_and_index` so we can just simplify the code
@@ -311,7 +208,7 @@ fn undo_redo_works_on_these_edits_and_index<TestEdits: Borrow<[TestEdit]>>(edits
     record_if_index_matches!();
 
     for edit in edits.iter() {
-        apply_edit(&mut buffer, (*edit).clone());
+        TestEdit::apply(&mut buffer, (*edit).clone());
 
         record_if_index_matches!();
     }
@@ -380,22 +277,22 @@ fn undo_redo_works_on_these_edits_and_index<TestEdits: Borrow<[TestEdit]>>(edits
 
 proptest! {
     #[test]
-    fn undo_redo_works((edits, index) in arb_test_edits_and_index(SOME_AMOUNT, ArbTestEditSpec::All)) {
+    fn undo_redo_works((edits, index) in arb::test_edits_and_index(SOME_AMOUNT, TestEditSpec::All)) {
         undo_redo_works_on_these_edits_and_index(edits, index);
     }
 
     #[test]
-    fn undo_redo_works_on_inserts((edits, index) in arb_test_edits_and_index(SOME_AMOUNT, ArbTestEditSpec::Insert)) {
+    fn undo_redo_works_on_inserts((edits, index) in arb::test_edits_and_index(SOME_AMOUNT, TestEditSpec::Insert)) {
         undo_redo_works_on_these_edits_and_index(edits, index);
     }
 
     #[test]
-    fn undo_redo_works_on_non_control_inserts((edits, index) in arb_test_edits_and_index(SOME_AMOUNT, ArbTestEditSpec::RegexInsert("\\PC"))) {
+    fn undo_redo_works_on_non_control_inserts((edits, index) in arb::test_edits_and_index(SOME_AMOUNT, TestEditSpec::RegexInsert("\\PC"))) {
         undo_redo_works_on_these_edits_and_index(edits, index);
     }
 
     #[test]
-    fn undo_redo_works_on_non_cr_inserts((edits, index) in arb_test_edits_and_index(SOME_AMOUNT, ArbTestEditSpec::RegexInsert("[^\r]"))) {
+    fn undo_redo_works_on_non_cr_inserts((edits, index) in arb::test_edits_and_index(SOME_AMOUNT, TestEditSpec::RegexInsert("[^\r]"))) {
         undo_redo_works_on_these_edits_and_index(edits, index);
     }
 }
@@ -417,15 +314,15 @@ fn undo_redo_works_in_this_reduced_scenario() {
     let initial_buffer: TextBuffer = d!();
     let mut buffer: TextBuffer = deep_clone(&initial_buffer);
 
-    apply_edit(&mut buffer, TestEdit::Insert('\u{b}'));
+    TestEdit::apply(&mut buffer, TestEdit::Insert('\u{b}'));
 
     let expected_final_buffer = deep_clone(&buffer);
 
-    apply_edit(&mut buffer, TestEdit::Insert('a'));
+    TestEdit::apply(&mut buffer, TestEdit::Insert('a'));
 
     let expected_mid_buffer = deep_clone(&buffer);
 
-    apply_edit(&mut buffer, TestEdit::Insert('\n'));
+    TestEdit::apply(&mut buffer, TestEdit::Insert('\n'));
 
     buffer.undo();
 
@@ -497,15 +394,15 @@ fn undo_redo_works_in_this_familiar_scenario() {
     let initial_buffer: TextBuffer = d!();
     let mut buffer: TextBuffer = deep_clone(&initial_buffer);
 
-    apply_edit(&mut buffer, TestEdit::Insert('1'));
+    TestEdit::apply(&mut buffer, TestEdit::Insert('1'));
 
     let buffer_with_1 = deep_clone(&buffer);
 
-    apply_edit(&mut buffer, TestEdit::Insert('2'));
+    TestEdit::apply(&mut buffer, TestEdit::Insert('2'));
 
     let buffer_with_2 = deep_clone(&buffer);
 
-    apply_edit(&mut buffer, TestEdit::Insert('3'));
+    TestEdit::apply(&mut buffer, TestEdit::Insert('3'));
 
     buffer.undo();
 
@@ -535,11 +432,11 @@ fn undo_redo_works_on_this_reduced_simple_insert_delete_case() {
 
     let inserted_char = 'a';
 
-    apply_edit(&mut buffer, TestEdit::Insert(inserted_char));
+    TestEdit::apply(&mut buffer, TestEdit::Insert(inserted_char));
 
     let buffer_with_a = deep_clone(&buffer);
 
-    apply_edit(&mut buffer, TestEdit::Delete);
+    TestEdit::apply(&mut buffer, TestEdit::Delete);
 
     dbg!();
     let delete_edit = buffer.history.get(buffer.history_index.checked_sub(1).unwrap()).unwrap();
@@ -576,15 +473,15 @@ fn undo_redo_works_on_this_reduced_move_to_line_start_case() {
     let initial_buffer: TextBuffer = d!();
     let mut buffer: TextBuffer = deep_clone(&initial_buffer);
 
-    apply_edit(&mut buffer, TestEdit::Insert('¡'));
+    TestEdit::apply(&mut buffer, TestEdit::Insert('¡'));
 
     let buffer_after_1 = deep_clone(&buffer);
 
-    apply_edit(&mut buffer, TestEdit::ExtendSelectionForAllCursors(Move::ToLineStart));
+    TestEdit::apply(&mut buffer, TestEdit::ExtendSelectionForAllCursors(Move::ToLineStart));
 
     let buffer_after_2 = deep_clone(&buffer);
 
-    apply_edit(&mut buffer, TestEdit::Delete);
+    TestEdit::apply(&mut buffer, TestEdit::Delete);
 
     assert_eq!(buffer.rope.to_string(),  "");
 
@@ -622,7 +519,7 @@ fn undo_redo_works_on_this_reduced_case_involving_two_characters_at_once() {
     let initial_buffer: TextBuffer = d!();
     let mut buffer: TextBuffer = deep_clone(&initial_buffer);
 
-    apply_edit(&mut buffer, InsertString!("¡A"));
+    TestEdit::apply(&mut buffer, InsertString!("¡A"));
 
     dbg!(&mut buffer).undo();
 
@@ -674,13 +571,13 @@ fn undo_redo_works_on_this_reduced_case_involving_a_select_bewtween_char_type_gr
     let initial_buffer: TextBuffer = d!();
     let mut buffer: TextBuffer = deep_clone(&initial_buffer);
 
-    apply_edit(&mut buffer, InsertString!("¡㐀"));
+    TestEdit::apply(&mut buffer, InsertString!("¡㐀"));
 
-    apply_edit(&mut buffer, TestEdit::SelectCharTypeGrouping(pos!{l 0 o 0}, ReplaceOrAdd::Add));
+    TestEdit::apply(&mut buffer, TestEdit::SelectCharTypeGrouping(pos!{l 0 o 0}, ReplaceOrAdd::Add));
 
     let expected_buffer_after_second_edit = deep_clone(&buffer);
 
-    apply_edit(&mut buffer, InsertString!("a¡"));
+    TestEdit::apply(&mut buffer, InsertString!("a¡"));
 
     dbg!(&mut buffer);
 
