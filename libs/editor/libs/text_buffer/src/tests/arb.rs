@@ -35,14 +35,29 @@ prop_compose! {
     }
 }
 
-pub fn cursors(max_len: usize) -> impl Strategy<Value = Cursors> {
+pub fn vec1_of_cursors(max_len: usize) -> impl Strategy<Value = Vec1<Cursor>> {
     vec1(
         // passing `max_len` in for both of these ensures that we get all possibly valid cursors
         // but itmeans we will get many invalid ones.
         cursor(LineIndex(max_len), CharOffset(max_len)),
         // It doesn't semm particularly useful to have more cursors than text positions.
         max_len
-    ).prop_map(Cursors::new)
+    )
+}
+
+pub fn cursors(max_len: usize) -> impl Strategy<Value = Cursors> {
+    vec1_of_cursors(max_len).prop_map(Cursors::new)
+}
+
+pub fn many_cursors(max_len: usize) -> impl Strategy<Value = Cursors> {
+
+
+    collection::vec(
+        cursor(LineIndex(max_len), CharOffset(max_len)),
+        std::cmp::max(max_len/2, 1)..std::cmp::min(std::cmp::max(2, max_len), max_len)
+    )
+        .prop_map(|v| Vec1::try_from_vec(v).expect("we said at least one!"))
+        .prop_map(Cursors::new)
 }
 
 pub fn valid_cursors_for_rope(rope: &Rope, max_len: usize) -> impl Strategy<Value = Cursors> {
@@ -79,9 +94,21 @@ pub fn many_valid_cursors_for_rope(rope: &Rope, max_len: usize) -> impl Strategy
 }
 
 prop_compose! {
+    pub fn text_buffer_with_many_cursors()
+    (rope in rope())
+    (cursors in many_cursors(MORE_THAN_SOME_AMOUNT), r in Just(rope)) -> TextBuffer {
+        let mut text_buffer: TextBuffer = d!();
+        text_buffer.rope = r;
+        text_buffer.cursors = cursors;
+        text_buffer
+    }
+}
+
+
+prop_compose! {
     pub fn no_history_text_buffer()
     (rope in rope())
-    (cursors in arb::cursors(rope.chars().count()), r in Just(rope)) -> TextBuffer {
+    (cursors in cursors(rope.chars().count()), r in Just(rope)) -> TextBuffer {
         let mut text_buffer: TextBuffer = d!();
         text_buffer.rope = r;
         text_buffer.cursors = cursors;
@@ -250,10 +277,19 @@ pub fn test_edit_regex_insert(regex: Regex) -> impl Strategy<Value = TestEdit> {
     regex.prop_map(|s| TestEdit::Insert(s.chars().next().unwrap_or('a')))
 }
 
+pub fn test_edit_set_cursor_heavy() -> impl Strategy<Value = TestEdit> {
+    use TestEdit::*;
+    prop_oneof![
+        9 => arb_pos(MORE_THAN_SOME_AMOUNT, MORE_THAN_SOME_AMOUNT).prop_map(|p| SetCursor(p, ReplaceOrAdd::Add)),
+        1 => test_edit()
+    ]
+}
+
 pub enum TestEditSpec {
     All,
     Insert,
-    RegexInsert(Regex)
+    RegexInsert(Regex),
+    SetCursorHeavy,
 }
 
 pub fn test_edits(max_len: usize, spec: TestEditSpec) -> impl Strategy<Value = Vec<TestEdit>> {
@@ -262,6 +298,7 @@ pub fn test_edits(max_len: usize, spec: TestEditSpec) -> impl Strategy<Value = V
             TestEditSpec::All => test_edit().boxed(),
             TestEditSpec::Insert => test_edit_insert().boxed(),
             TestEditSpec::RegexInsert(regex) => test_edit_regex_insert(regex).boxed(),
+            TestEditSpec::SetCursorHeavy => test_edit_set_cursor_heavy().boxed(),
         },
         0..max_len
     )

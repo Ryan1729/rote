@@ -1,5 +1,6 @@
 use super::*;
 use proptest::{prop_compose, proptest};
+use std::cmp::Ordering;
 
 prop_compose! {
     fn arb_pos(max_line: usize, max_offset: usize)
@@ -169,4 +170,13 @@ fn multiline_highlights_work() {
             h! {l 3 o 0 l 3 o 300}
         ]
     );
+}
+
+#[test]
+fn position_ord_works_as_expected() {
+    assert!(pos!{l 9 o 0} > pos!{l 0 o 0});
+    assert!(pos!{l 0 o 0} < pos!{l 0 o 9});
+
+    assert!(pos!{l 9 o 0} > pos!{l 0 o 9});
+    assert!(pos!{l 0 o 9} < pos!{l 9 o 0});
 }

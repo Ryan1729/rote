@@ -1,9 +1,10 @@
 #![allow(dead_code)]
 use super::{cursor_assert, r, t_b, *};
+
+use editor_types::{vec1, CursorState};
 use platform_types::pos;
-use editor_types::CursorState;
 use proptest::prelude::*;
-use proptest::{prop_compose, proptest, option, collection};
+use proptest::{collection, option, prop_compose, proptest};
 use std::fmt::Debug;
 
 /// This is expected to be used where the amount does not really matter, except that it must be
@@ -19,7 +20,9 @@ const MORE_THAN_SOME_AMOUNT: usize = 24;
 /// `InsertString` input.
 #[allow(non_snake_case)]
 macro_rules! InsertString {
-    ($s: expr) => (TestEdit::InsertString($s.into()));
+    ($s: expr) => {
+        TestEdit::InsertString($s.into())
+    };
 }
 
 // `Rope`s share backing buffers when cloned, so we want to avoid that.
@@ -211,11 +214,8 @@ fn arb_move() -> impl Strategy<Value = Move> {
 // custom structs for each instance of things like this.
 macro_rules! arb_change {
     ($strat: expr) => {
-        ($strat, $strat).prop_map(|(old, new)| Change {
-            old,
-            new,
-        })
-    }
+        ($strat, $strat).prop_map(|(old, new)| Change { old, new })
+    };
 }
 
 prop_compose! {
@@ -231,21 +231,30 @@ prop_compose! {
 fn final_non_newline_offset_for_line_works_on_a_string_with_no_newline() {
     let rope = r!("1234");
 
-    assert_eq!(final_non_newline_offset_for_line(&rope, 0), CharOffset(4).into());
+    assert_eq!(
+        final_non_newline_offset_for_line(&rope, 0),
+        CharOffset(4).into()
+    );
 }
 
 #[test]
 fn final_non_newline_offset_for_line_works_on_a_string_with_a_line_feed() {
     let rope = r!("1234\n5678");
 
-    assert_eq!(final_non_newline_offset_for_line(&rope, 0), CharOffset(4).into());
+    assert_eq!(
+        final_non_newline_offset_for_line(&rope, 0),
+        CharOffset(4).into()
+    );
 }
 
 #[test]
 fn final_non_newline_offset_for_line_works_on_a_string_with_a_carriage_return_line_feed() {
     let rope = r!("1234\r\n5678");
 
-    assert_eq!(final_non_newline_offset_for_line(&rope, 0), CharOffset(4).into());
+    assert_eq!(
+        final_non_newline_offset_for_line(&rope, 0),
+        CharOffset(4).into()
+    );
 }
 
 #[test]
@@ -255,7 +264,7 @@ fn final_non_newline_offset_for_line_works_if_asked_about_a_non_existant_line() 
     assert_eq!(final_non_newline_offset_for_line(&rope, 2), None);
 }
 
-proptest!{
+proptest! {
     #[test]
     fn nearest_valid_position_on_same_line_is_identity_for_positions_in_bounds(
         rope in arb::rope(),
@@ -275,10 +284,10 @@ proptest!{
 fn this_multi_cursor_example_produces_the_correct_final_string() {
     let mut buffer = t_b!("000\n111\n222\n333\n");
 
-    buffer.set_cursor(pos!{l 1 o 1}, ReplaceOrAdd::Add);
-    buffer.set_cursor(pos!{l 2 o 2}, ReplaceOrAdd::Add);
-    buffer.set_cursor(pos!{l 3 o 3}, ReplaceOrAdd::Add);
-    buffer.set_cursor(pos!{l 4 o 0}, ReplaceOrAdd::Add);
+    buffer.set_cursor(pos! {l 1 o 1}, ReplaceOrAdd::Add);
+    buffer.set_cursor(pos! {l 2 o 2}, ReplaceOrAdd::Add);
+    buffer.set_cursor(pos! {l 3 o 3}, ReplaceOrAdd::Add);
+    buffer.set_cursor(pos! {l 4 o 0}, ReplaceOrAdd::Add);
 
     buffer.insert('5');
 
@@ -378,7 +387,10 @@ fn buffer_inserts_all_the_requested_numbers_in_order(buffer: &TextBuffer) {
     let mut buffer = deep_clone(buffer);
 
     let cursors_len = buffer.cursors.len();
-    assert!(cursors_len <= 9, "this test is only valid if there are less than 10 cursors.");
+    assert!(
+        cursors_len <= 9,
+        "this test is only valid if there are less than 10 cursors."
+    );
 
     let get_string = |i: usize| i.to_string();
 
@@ -402,11 +414,15 @@ fn buffer_inserts_all_the_requested_numbers_in_order(buffer: &TextBuffer) {
             }
         } {}
 
-        assert!(false, "{:?} does not contain {:?} or has them in the wrong order", buffer_string, s);
+        assert!(
+            false,
+            "{:?} does not contain {:?} or has them in the wrong order",
+            buffer_string, s
+        );
     }
 }
 
-proptest!{
+proptest! {
     #[test]
     fn inserting_sequential_numbers_into_a_field_of_non_numbers_inserts_all_the_requested_numbers_in_order(
         buffer in arb::text_buffer_with_valid_cursors_and_no_0_to_9_chars(9)
@@ -415,7 +431,7 @@ proptest!{
     }
 }
 
-proptest!{
+proptest! {
     #[test]
     fn inserting_sequential_numbers_into_a_field_of_non_numbers_inserts_all_the_requested_numbers_in_order_even_if_there_are_lots_of_cursors(
         buffer in arb::text_buffer_with_many_valid_cursors_and_no_0_to_9_chars(9)
@@ -425,21 +441,23 @@ proptest!{
 }
 
 #[test]
-fn inserting_sequential_numbers_into_a_field_of_non_numbers_inserts_all_the_requested_numbers_in_order_on_this_example() {
+fn inserting_sequential_numbers_into_a_field_of_non_numbers_inserts_all_the_requested_numbers_in_order_on_this_example(
+) {
     let mut buffer = t_b!("\n\n");
 
     buffer.cursors = Cursors::from_vec(vec![
         {
-            let mut c = Cursor::new(pos!{l 0 o 0});
-            c.set_highlight_position(pos!{l 1 o 0});
+            let mut c = Cursor::new(pos! {l 0 o 0});
+            c.set_highlight_position(pos! {l 1 o 0});
             c
         },
         {
-            let mut c = Cursor::new(pos!{l 1 o 0});
-            c.set_highlight_position(pos!{l 0 o 0});
+            let mut c = Cursor::new(pos! {l 1 o 0});
+            c.set_highlight_position(pos! {l 0 o 0});
             c
-        }
-    ]).unwrap();
+        },
+    ])
+    .unwrap();
 
     buffer_inserts_all_the_requested_numbers_in_order(&buffer);
 }
@@ -448,8 +466,8 @@ fn inserting_sequential_numbers_into_a_field_of_non_numbers_inserts_all_the_requ
 fn inserting_sequential_numbers_into_this_buffer_inserts_all_the_requested_numbers_in_order() {
     let mut buffer = t_b!("abcde");
 
-    buffer.set_cursor(pos!{l 0 o 2}, ReplaceOrAdd::Replace);
-    buffer.set_cursor(pos!{l 0 o 4}, ReplaceOrAdd::Add);
+    buffer.set_cursor(pos! {l 0 o 2}, ReplaceOrAdd::Replace);
+    buffer.set_cursor(pos! {l 0 o 4}, ReplaceOrAdd::Add);
 
     buffer.extend_selection_for_all_cursors(Move::ToBufferStart);
 
@@ -459,23 +477,25 @@ fn inserting_sequential_numbers_into_this_buffer_inserts_all_the_requested_numbe
 const OUT_OF_ORDER: u8 = 0b1;
 const HAS_OVERLAPS: u8 = 0b10;
 
-fn cursors_maintains_invariants(cursors: &Cursors) -> u8 {
+fn cursor_vec1_maintains_invariants(cursors: &Vec1<Cursor>) -> u8 {
     use std::cmp::Ordering;
-    let mut spans = cursors.cursors.mapped_ref(|c| {
-        let p = c.get_position();
-        let h = c.get_highlight_position().unwrap_or(p);
+    let mut spans = cursors
+        .mapped_ref(|c| {
+            let p = c.get_position();
+            let h = c.get_highlight_position_or_position();
 
-        (
-            std::cmp::min(p, h),
-            std::cmp::max(p, h)
-        )
-    }).into_vec();
+            (std::cmp::min(p, h), std::cmp::max(p, h))
+        })
+        .into_vec();
 
     let mut output = 0;
 
     for window in spans.windows(2) {
         if let &[(later_min, later_max), (earlier_min, earlier_max)] = window {
-            match earlier_min.cmp(&later_min).then_with(|| earlier_max.cmp(&later_max)) {
+            match earlier_min
+                .cmp(&later_min)
+                .then_with(|| earlier_max.cmp(&later_max))
+            {
                 Ordering::Less => {}
                 Ordering::Equal => {
                     output |= HAS_OVERLAPS;
@@ -494,10 +514,9 @@ fn cursors_maintains_invariants(cursors: &Cursors) -> u8 {
 
     let mut current = None;
 
-    for (span_min, span_max) in spans.into_iter().rev() {
-        if let Some((_c_min, c_max)) = current {
-            // we know `c_min` is less than `span_min`
-            if c_max > span_min {
+    for (span_min, span_max) in dbg!(spans).into_iter().rev() {
+        if let Some((c_min, _c_max)) = current {
+            if span_max >= c_min {
                 output |= HAS_OVERLAPS;
             }
         } else {
@@ -508,20 +527,188 @@ fn cursors_maintains_invariants(cursors: &Cursors) -> u8 {
     output
 }
 
-proptest!{
+// meta
+#[test]
+fn cursor_vec1_maintains_invariants_detects_invariant_violations() {
+    assert_eq!(
+        HAS_OVERLAPS,
+        cursor_vec1_maintains_invariants(&vec1![
+            Cursor::new(pos! {l 1 o 2}),
+            Cursor::new(pos! {l 1 o 2})
+        ])
+    );
+
+    assert_eq!(
+        OUT_OF_ORDER,
+        cursor_vec1_maintains_invariants(&vec1![
+            Cursor::new(pos! {l 1 o 2}),
+            Cursor::new(pos! {l 9 o 0})
+        ])
+    );
+
+    assert_eq!(
+        OUT_OF_ORDER | HAS_OVERLAPS,
+        cursor_vec1_maintains_invariants(&vec1![
+            {
+                let mut c = Cursor::new(pos! {l 1 o 2});
+                c.set_highlight_position(pos! {l 9 o 1});
+                c
+            },
+            Cursor::new(pos! {l 9 o 0})
+        ])
+    );
+
+    assert_eq!(
+        OUT_OF_ORDER | HAS_OVERLAPS,
+        cursor_vec1_maintains_invariants(&vec1![
+            {
+                let mut c = Cursor::new(pos! {l 1 o 2});
+                c.set_highlight_position(pos! {l 9 o 0});
+                c
+            },
+            Cursor::new(pos! {l 9 o 0})
+        ])
+    );
+}
+
+fn cursors_maintains_invariants(cursors: &Cursors) -> u8 {
+    cursor_vec1_maintains_invariants(&cursors.cursors)
+}
+
+macro_rules! assert_cursor_invarints_maintained {
+    ($cursors: expr) => {{
+        let flags = cursors_maintains_invariants(&$cursors);
+
+        assert_eq!(
+            0,
+            flags,
+            "{} {}",
+            if flags & OUT_OF_ORDER == OUT_OF_ORDER {
+                "OUT_OF_ORDER"
+            } else {
+                ""
+            },
+            if flags & HAS_OVERLAPS == HAS_OVERLAPS {
+                "HAS_OVERLAPS"
+            } else {
+                ""
+            }
+        )
+    }};
+}
+
+proptest! {
     #[test]
     fn editing_the_buffer_preserves_the_cursors_invariants(
-        mut buffer in arb::no_history_text_buffer(),
+        mut buffer in arb::text_buffer_with_many_cursors(),
         edits in arb::test_edits(99, arb::TestEditSpec::All)
     ) {
+        assert_cursor_invarints_maintained!(buffer.cursors);
+
         for edit in edits {
             arb::TestEdit::apply(&mut buffer, edit);
         }
 
-        assert_eq!(0, cursors_maintains_invariants(&buffer.cursors))
+        assert_cursor_invarints_maintained!(buffer.cursors);
     }
 }
 
+proptest! {
+    #[test]
+    fn cursors_new_maintains_invariants(
+        vec1_of_cursors in arb::vec1_of_cursors(SOME_AMOUNT)
+    ) {
+        assert_cursor_invarints_maintained!(Cursors::new(vec1_of_cursors));
+    }
+}
+
+#[test]
+fn cursors_new_merges_these_cursors() {
+    let cursors = Cursors::new(vec1![d!(), d!(), d!()]);
+
+    assert_eq!(cursors.len(), 1);
+}
+
+#[test]
+fn cursors_new_merges_these_identical_cursors_correctly() {
+    let cursors = Cursors::new(vec1![
+        Cursor::new(pos! {l 1 o 2}),
+        Cursor::new(pos! {l 1 o 2}),
+        d!()
+    ]);
+
+    assert_eq!(cursors.cursors, vec1![Cursor::new(pos! {l 1 o 2}), d!()]);
+}
+
+#[test]
+fn adding_a_cursor_inside_a_highlight_does_not_change_the_selection() {
+    let mut buffer = t_b!("12345678");
+
+    macro_rules! selection_is_unchanged {
+        (p right) => {
+            assert_eq!(1, buffer.cursors.len());
+            let c = buffer.cursors.first();
+
+            assert_eq!(c.get_position(), pos! {l 0 o 7});
+            assert_eq!(c.get_highlight_position_or_position(), pos! {l 0 o 1});
+        };
+        (p left) => {
+            assert_eq!(1, buffer.cursors.len());
+            let c = buffer.cursors.first();
+
+            assert_eq!(c.get_position(), pos! {l 0 o 1});
+            assert_eq!(c.get_highlight_position_or_position(), pos! {l 0 o 7});
+        };
+    }
+
+    // Position on right
+    buffer.move_all_cursors(Move::Right);
+
+    for _ in 0..6 {
+        buffer.extend_selection_for_all_cursors(Move::Right);
+    }
+
+    // Establishing that it starts correct.
+    selection_is_unchanged!(p right);
+
+    buffer.set_cursor(pos! {l 0 o 4}, ReplaceOrAdd::Add);
+
+    selection_is_unchanged!(p right);
+
+    buffer.set_cursor(pos! {l 0 o 1}, ReplaceOrAdd::Add);
+
+    selection_is_unchanged!(p right);
+
+    buffer.set_cursor(pos! {l 0 o 7}, ReplaceOrAdd::Add);
+
+    selection_is_unchanged!(p right);
+
+
+    // Position on left
+    buffer.move_all_cursors(Move::Right);
+    buffer.move_all_cursors(Move::Left);
+
+    for _ in 0..6 {
+        buffer.extend_selection_for_all_cursors(Move::Left);
+    }
+
+    // Establishing that it starts correct.
+    selection_is_unchanged!(p left);
+
+    buffer.set_cursor(pos! {l 0 o 4}, ReplaceOrAdd::Add);
+
+    selection_is_unchanged!(p left);
+
+    buffer.set_cursor(pos! {l 0 o 1}, ReplaceOrAdd::Add);
+
+    selection_is_unchanged!(p left);
+
+    buffer.set_cursor(pos! {l 0 o 7}, ReplaceOrAdd::Add);
+
+    selection_is_unchanged!(p left);
+}
+
 mod arb;
-mod undo_redo;
+
 mod cursor_manipulation;
+mod undo_redo;

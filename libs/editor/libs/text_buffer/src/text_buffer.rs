@@ -1,7 +1,7 @@
-use crate::move_cursor::{get_previous_selection_point, get_next_selection_point, forward};
+use crate::move_cursor::{forward, get_next_selection_point, get_previous_selection_point};
 use editor_types::{Cursor, SetPositionAction, Vec1};
 use macros::{borrow, d};
-use panic_safe_rope::{Rope, RopeSliceTrait, RopeLine, LineIndex, ByteIndex};
+use panic_safe_rope::{ByteIndex, LineIndex, Rope, RopeLine, RopeSliceTrait};
 use platform_types::{AbsoluteCharOffset, CharOffset, Move, Position, ReplaceOrAdd};
 use std::borrow::Borrow;
 use std::collections::VecDeque;
@@ -14,9 +14,8 @@ pub struct Cursors {
     // and no two cursors should be overlapping or have overlapping highlight regions. The order
     // ensures that the edit don't screw the indexes up, and the lack of overlaps ensures that
     // edits don't overwrite each other in a single action.
-    cursors: Vec1<Cursor>
+    cursors: Vec1<Cursor>,
 }
-
 
 
 impl Cursors {
@@ -24,80 +23,75 @@ impl Cursors {
         cursors.sort();
         cursors.reverse();
 
-        merge_overlaps(&mut cursors);
+        Cursors::merge_overlaps(&mut cursors);
 
-        Cursors {
-            cursors
-        }
+        Cursors { cursors }
     }
 
     /// This function assumes that the cursors are sorted in reverse order, (positions closer to the
     /// first position of the buffer have larger indexes).
     fn merge_overlaps(cursors: &mut Vec1<Cursor>) {
-        // let mut spans = cursors.mapped_ref(|c| {
-        //     let p = c.get_position();
-        //     let h = c.get_highlight_position().unwrap_or(p);
-        //
-        //     (
-        //         std::cmp::min(p, h),
-        //         std::cmp::max(p, h)
-        //     )
-        // }).into_vec();
-        //
-        // let mut current = None;
-        //
-        // for (span_min, span_max) in spans.into_iter().rev() {
-        //     if let Some((_c_min, c_max)) = current {
-        //         // we know `c_min` is less than `span_min`
-        //         if c_max > span_min {
-        //             output |= HAS_OVERLAPS;
-        //         }
-        //     } else {
-        //
-        //         current = Some((span_min, span_max));
-        //     }
-        // }
+        let mut keepers: Vec<Cursor> = Vec::with_capacity(cursors.len());
+        for cursor in cursors.iter() {
+            if let Some(last) = keepers.last_mut() {
+                use std::cmp::Ordering::*;
+                #[derive(Copy, Clone, Debug)]
+                enum MaxWas {
+                    P,
+                    H
+                }
 
-        let mut keepers = Vec::with_capacity(cursors.len());
+                macro_rules! get_tuple {
+                    ($cursor: ident) => ({
+                        let p = $cursor.get_position();
+                        let h = $cursor.get_highlight_position().unwrap_or(p.clone());
+                        match p.cmp(&h) {
+                            Less | Equal => (p, h, MaxWas::H),
+                            Greater => (h, p, MaxWas::P)
+                        }
+                    });
+                }
 
-        for slice in cursors.windows(2) {
-            if let &[c1, c2] = slice {
-                let c1_pair = {
-                    let p = c1.get_position();
-                    let h = c1.get_highlight_position().unwrap_or(p.clone());
+                // We intuitively expect something called `c1` to be <= `c2`. Or at least the
+                // opposite is counter-intuitive. Because the Vec1 should be in reverse order,
+                // we swap the order here.
+                let c1: Cursor = cursor.clone();
+                let c2: Cursor = (*last).clone();
 
-                    (p, h)
-                };
-
-                let c2_pair = {
-                    let p = c2.get_position();
-                    let h = c2.get_highlight_position().unwrap_or(p.clone());
-
-                    (p, h)
-                };
-
-                // some of these condiionals will need to adjust for the fact that the cursors are
-                // in reverse order.
-
-                // TODO handle a whole bunch of cases in this way...
-                // match (c1_pair, c2_pair) {
-                //     ((c1_p, c1_h), (c2_p, c2_h)) if c1_p > c2_p && ... => {
-                //          // know how to merge based on conditional
-                //
-                //          keepers.push(merged);
-                //     }
-                // }
-
-                // ...or this way
-                // match (c1_min_max_pair, c2_min_max_pair) {
-                //     ((c1_min, c1_max, c1_which_was_which), (c2_min, c2_max, c1_which_was_which)) if c1_max > c2_min => {
-                //          match (c1_which_was_which, c1_which_was_which) {
-                //              //decide how to merge the two cursors
-                //
-                //              keepers.push(merged);
-                //          }
-                //     }
-                // }
+                match dbg!((get_tuple!(c1), get_tuple!(c2))) {
+                    ((c1_min, c1_max, c1_max_was), (c2_min, c2_max, c2_max_was))
+                    if c1_max >= c2_min => {
+                        // We want the following things to be true about the merged cursor:
+                        // * It should highlight the union of the areas highlighed by the two cursors
+                        // * If a cursor's position and extra state can be maintained, do so.
+                        let mut merged;
+                        // What to do in the `(P, P)` and `(H, H)` cases seems clear.
+                        // But expected behaviour for the other two middle cases is less clear.
+                        // It seems slighlty nicer if half of the 4 cases end up with the
+                        // position on the max edge and the other half end up with the
+                        // position on the min edge. If we have the (H, P) case use the max edge
+                        // we can handle the (_, P) cases the same way which seems like as good a
+                        // reason as any to decide which one uses which edge.
+                        match (c1_max_was, c2_max_was) {
+                             (_, MaxWas::P) => {
+                                 merged = c2.clone();
+                                 merged.set_highlight_position(c1_min);
+                             }
+                             (MaxWas::P, MaxWas::H) => {
+                                 merged = Cursor::new(c1_min);
+                                 merged.set_highlight_position(c2_max);
+                             }
+                             (MaxWas::H, MaxWas::H) => {
+                                 merged = c1.clone();
+                                 merged.set_highlight_position(c2_max);
+                             }
+                         }
+                         *last = merged;
+                    }
+                    _ => {keepers.push(c1)}
+                }
+            } else {
+                keepers.push(cursor.clone());
             }
         }
 
@@ -115,7 +109,8 @@ impl Cursors {
 
     pub fn mapped_ref<F, Out>(&self, mapper: F) -> Vec1<Out>
     where
-        F: FnMut(&Cursor) -> Out, {
+        F: FnMut(&Cursor) -> Out,
+    {
         self.cursors.mapped_ref(mapper)
     }
 
@@ -200,13 +195,16 @@ struct CursorMoveSpec {
 }
 
 fn char_to_string(c: char) -> String {
-    let mut buf = [0;4];
+    let mut buf = [0; 4];
     c.encode_utf8(&mut buf).to_owned()
 }
 
 fn copy_string(rope: &Rope, range: AbsoluteCharOffsetRange) -> String {
     rope.slice(range.range())
-        .map(|slice| {let s: String = slice.into(); s})
+        .map(|slice| {
+            let s: String = slice.into();
+            s
+        })
         .unwrap_or_default()
 }
 
@@ -225,7 +223,9 @@ impl TextBuffer {
     }
 
     pub fn insert_at_each_cursor<F>(&mut self, func: F)
-    where F: Fn(usize) -> String {
+    where
+        F: Fn(usize) -> String,
+    {
         self.apply_edit(
             get_insert_edit(&self.rope, &self.cursors, func),
             ApplyKind::Record,
@@ -235,21 +235,30 @@ impl TextBuffer {
 
     #[perf_viz::record]
     pub fn delete(&mut self) {
-        self.apply_edit(get_delete_edit(&self.rope, &self.cursors), ApplyKind::Record);
+        self.apply_edit(
+            get_delete_edit(&self.rope, &self.cursors),
+            ApplyKind::Record,
+        );
     }
 
     pub fn move_all_cursors(&mut self, r#move: Move) {
-        self.move_cursors(CursorMoveSpec {
-            what: MoveOrSelect::Move,
-            how_many: AllOrOne::All,
-        }, r#move);
+        self.move_cursors(
+            CursorMoveSpec {
+                what: MoveOrSelect::Move,
+                how_many: AllOrOne::All,
+            },
+            r#move,
+        );
     }
 
     pub fn extend_selection_for_all_cursors(&mut self, r#move: Move) {
-        self.move_cursors(CursorMoveSpec {
-            what: MoveOrSelect::Select,
-            how_many: AllOrOne::All,
-        }, r#move);
+        self.move_cursors(
+            CursorMoveSpec {
+                what: MoveOrSelect::Select,
+                how_many: AllOrOne::All,
+            },
+            r#move,
+        );
     }
 
     pub fn copy_selections(&self) -> Vec<String> {
@@ -270,7 +279,7 @@ impl TextBuffer {
         let edit = get_cut_edit(&self.rope, &self.cursors);
 
         for range_edit in edit.range_edits.iter() {
-            if let Some(RangeEdit {chars, ..}) = &range_edit.delete_range {
+            if let Some(RangeEdit { chars, .. }) = &range_edit.delete_range {
                 strings.push(chars.to_owned());
             }
         }
@@ -285,19 +294,19 @@ impl TextBuffer {
         }
     }
 
-    fn get_new_cursors<P: Borrow<Position>>(&self, position: P, replace_or_add: ReplaceOrAdd) -> Option<Vec1<Cursor>> {
+    fn get_new_cursors<P: Borrow<Position>>(
+        &self,
+        position: P,
+        replace_or_add: ReplaceOrAdd,
+    ) -> Option<Vec1<Cursor>> {
         let position = position.borrow();
 
-        nearest_valid_position_on_same_line(&self.rope, position).map(|p|{
-            match replace_or_add {
-                ReplaceOrAdd::Replace => {
-                    Vec1::new(Cursor::new(p))
-                }
-                ReplaceOrAdd::Add => {
-                    let mut cursors = self.cursors.get_cloned_cursors();
-                    cursors.push(Cursor::new(p));
-                    cursors
-                }
+        nearest_valid_position_on_same_line(&self.rope, position).map(|p| match replace_or_add {
+            ReplaceOrAdd::Replace => Vec1::new(Cursor::new(p)),
+            ReplaceOrAdd::Add => {
+                let mut cursors = self.cursors.get_cloned_cursors();
+                cursors.push(Cursor::new(p));
+                cursors
             }
         })
     }
@@ -315,26 +324,32 @@ impl TextBuffer {
         }
     }
 
-    pub fn select_char_type_grouping<P: Borrow<Position>>(&mut self, position: P, replace_or_add: ReplaceOrAdd) {
+    pub fn select_char_type_grouping<P: Borrow<Position>>(
+        &mut self,
+        position: P,
+        replace_or_add: ReplaceOrAdd,
+    ) {
         if let Some(mut new) = self.get_new_cursors(position, replace_or_add) {
             let c = new.last_mut();
 
             let rope = &self.rope;
             let old_position = c.get_position();
 
-            let highlight_position =
-            get_previous_selection_point(
+            let highlight_position = get_previous_selection_point(
                 rope,
                 // Both of these `.unwrap_or(old_position)` calls are necessary.
                 // If we were to use an `and_then` call instead, then we would default to
                 // `old_position` too often
-                forward(rope, old_position).unwrap_or(old_position)
-            ).unwrap_or(old_position);
+                forward(rope, old_position).unwrap_or(old_position),
+            )
+            .unwrap_or(old_position);
             c.set_highlight_position(highlight_position);
 
-            let pos =
-                get_next_selection_point(rope, old_position).unwrap_or(old_position);
-            c.set_position_custom(pos, SetPositionAction::ClearHighlightOnlyIfItMatchesNewPosition);
+            let pos = get_next_selection_point(rope, old_position).unwrap_or(old_position);
+            c.set_position_custom(
+                pos,
+                SetPositionAction::ClearHighlightOnlyIfItMatchesNewPosition,
+            );
 
             self.apply_cursor_edit(new);
         }
@@ -342,27 +357,30 @@ impl TextBuffer {
 
     #[perf_viz::record]
     pub fn move_cursor(&mut self, index: usize, r#move: Move) {
-        self.move_cursors(CursorMoveSpec {
-            what: MoveOrSelect::Move,
-            how_many: AllOrOne::Index(index),
-        }, r#move);
+        self.move_cursors(
+            CursorMoveSpec {
+                what: MoveOrSelect::Move,
+                how_many: AllOrOne::Index(index),
+            },
+            r#move,
+        );
     }
 
     #[perf_viz::record]
     pub fn extend_selection(&mut self, index: usize, r#move: Move) {
-        self.move_cursors(CursorMoveSpec {
-            what: MoveOrSelect::Select,
-            how_many: AllOrOne::Index(index),
-        }, r#move);
+        self.move_cursors(
+            CursorMoveSpec {
+                what: MoveOrSelect::Select,
+                how_many: AllOrOne::Index(index),
+            },
+            r#move,
+        );
     }
 
     fn move_cursors(&mut self, spec: CursorMoveSpec, r#move: Move) -> Option<()> {
         let mut new = self.cursors.get_cloned_cursors();
 
-        let action:
-            for<'r, 's>
-            fn(&'r Rope, &'s mut Cursor, Move)
-         = match spec.what {
+        let action: for<'r, 's> fn(&'r Rope, &'s mut Cursor, Move) = match spec.what {
             MoveOrSelect::Move => move_cursor::or_clear_highlights,
             MoveOrSelect::Select => move_cursor::and_extend_selection,
         };
@@ -372,7 +390,7 @@ impl TextBuffer {
                 for cursor in new.iter_mut() {
                     action(&self.rope, cursor, r#move);
                 }
-            },
+            }
             AllOrOne::Index(index) => {
                 action(&self.rope, new.get_mut(index)?, r#move);
             }
@@ -386,7 +404,14 @@ impl TextBuffer {
     fn apply_cursor_edit(&mut self, new: Vec1<Cursor>) {
         // There is probably a way to save a copy here, by keeping the old one on the heap and
         // ref counting, but that seems overly complicated, given it has not been a problem so far.
-        self.apply_edit(Change {old: self.cursors.clone(), new: Cursors::new(new)}.into(), ApplyKind::Record);
+        self.apply_edit(
+            Change {
+                old: self.cursors.clone(),
+                new: Cursors::new(new),
+            }
+            .into(),
+            ApplyKind::Record,
+        );
     }
 
     fn apply_edit(&mut self, edit: Edit, kind: ApplyKind) {
@@ -395,11 +420,14 @@ impl TextBuffer {
         // is possible for all possible edits, but in practice I think the edits we will actually
         // produce will work out. The tests should tell us if we're wrong!
         for range_edit in edit.range_edits.iter() {
-            if let Some(RangeEdit{range, ..}) = range_edit.delete_range {
+            if let Some(RangeEdit { range, .. }) = range_edit.delete_range {
                 self.rope.remove(range.range());
             }
 
-            if let Some(RangeEdit{ref chars, range, ..}) = &range_edit.insert_range {
+            if let Some(RangeEdit {
+                ref chars, range, ..
+            }) = &range_edit.insert_range
+            {
                 self.rope.insert(range.min(), chars);
             }
         }
@@ -430,7 +458,9 @@ fn sort_cursors(cursors: Vec1<Cursor>) -> Vec1<Cursor> {
 /// `Rope`. Then the (potentially) modified cursors and another copy of the `original_cursors`
 /// are wrapped up along with the returned `RangeEdit`s into the Edit.
 fn get_edit<F>(original_rope: &Rope, original_cursors: &Cursors, mut mapper: F) -> Edit
-where F: FnMut(&mut Cursor, &mut Rope, usize) -> RangeEdits, {
+where
+    F: FnMut(&mut Cursor, &mut Rope, usize) -> RangeEdits,
+{
     // We need to sort cursors, so our `range_edits` are in the right order, so we can go
     // backwards, when we apply them so our indexes don't get messed up but our own inserts
     // and deletes.
@@ -449,26 +479,21 @@ where F: FnMut(&mut Cursor, &mut Rope, usize) -> RangeEdits, {
         range_edits,
         cursors: Change {
             new: Cursors::new(cloned_cursors),
-            old: original_cursors.clone()
-        }
+            old: original_cursors.clone(),
+        },
     }
 }
 
 /// Returns an edit that, if applied, after deleting the highlighted region at each cursor if
 /// there is one, inserts the given string at each of the cursors.
-fn get_insert_edit<F>(
-    original_rope: &Rope,
-    original_cursors: &Cursors,
-    get_string: F
-) -> Edit
-where F: Fn(usize) -> String {
+fn get_insert_edit<F>(original_rope: &Rope, original_cursors: &Cursors, get_string: F) -> Edit
+where
+    F: Fn(usize) -> String,
+{
     get_edit(original_rope, original_cursors, |cursor, rope, index| {
         dbg!(index);
         match offset_pair(original_rope, cursor) {
-            (Some(o), highlight)
-                if highlight.is_none()
-                    || Some(o) == highlight =>
-            {
+            (Some(o), highlight) if highlight.is_none() || Some(o) == highlight => {
                 let s = get_string(index);
 
                 rope.insert(o, &s);
@@ -479,10 +504,7 @@ where F: Fn(usize) -> String {
                 let range = AbsoluteCharOffsetRange::new(o, o + s.chars().count());
 
                 RangeEdits {
-                    insert_range: Some(RangeEdit {
-                        chars: s,
-                        range
-                    }),
+                    insert_range: Some(RangeEdit { chars: s, range }),
                     ..d!()
                 }
             }
@@ -502,25 +524,17 @@ where F: Fn(usize) -> String {
                 };
 
                 RangeEdits {
-                    insert_range: Some(RangeEdit {
-                        chars: s,
-                        range
-                    }),
+                    insert_range: Some(RangeEdit { chars: s, range }),
                     delete_range: Some(range_edit),
                 }
             }
-            _ => {
-                d!()
-            }
+            _ => d!(),
         }
     })
 }
 /// Returns an edit that, if applied, deletes the highlighted region at each cursor if there is one.
 /// Otherwise the applying the edit will delete a single character at each cursor.
-fn get_delete_edit(
-    original_rope: &Rope,
-    original_cursors: &Cursors
-) -> Edit {
+fn get_delete_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
     get_edit(original_rope, original_cursors, |cursor, rope, _| {
         let offsets = offset_pair(original_rope, cursor);
 
@@ -532,13 +546,13 @@ fn get_delete_edit(
                 // TODO would it better to just delete both at once? That seems like
                 // it would require a moe comlicated special case elsewhere.
                 let not_deleting_lf_of_cr_lf = {
-                    o.checked_sub(AbsoluteCharOffset(2)).and_then(|two_back| {
-                        let mut chars = rope.slice(two_back..o)?.chars();
+                    o.checked_sub(AbsoluteCharOffset(2))
+                        .and_then(|two_back| {
+                            let mut chars = rope.slice(two_back..o)?.chars();
 
-                        Some(
-                            (chars.next()?, chars.next()?) != ('\r', '\n')
-                        )
-                    }).unwrap_or(true)
+                            Some((chars.next()?, chars.next()?) != ('\r', '\n'))
+                        })
+                        .unwrap_or(true)
                 };
 
                 let delete_offset_range = AbsoluteCharOffsetRange::new(o - 1, o);
@@ -552,52 +566,38 @@ fn get_delete_edit(
                 RangeEdits {
                     delete_range: Some(RangeEdit {
                         chars,
-                        range: delete_offset_range
+                        range: delete_offset_range,
                     }),
                     ..d!()
                 }
             }
-            (Some(o1), Some(o2)) if o1 > 0 || o2 > 0 => {
-                RangeEdits {
-                    delete_range: Some(delete_highlighted(rope, cursor, o1, o2)),
-                    ..d!()
-                }
-            }
-            _ => {
-                d!()
-            }
+            (Some(o1), Some(o2)) if o1 > 0 || o2 > 0 => RangeEdits {
+                delete_range: Some(delete_highlighted(rope, cursor, o1, o2)),
+                ..d!()
+            },
+            _ => d!(),
         }
     })
 }
 
 /// returns an edit that if applied will delete the highlighted region at each cursor if there is
 /// one, and which does nothing otherwise.
-fn get_cut_edit(
-    original_rope: &Rope,
-    original_cursors: &Cursors
-) -> Edit {
+fn get_cut_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
     get_edit(original_rope, original_cursors, |cursor, rope, _| {
         let offsets = offset_pair(original_rope, cursor);
 
         match offsets {
-            (Some(o1), Some(o2)) if o1 > 0 || o2 > 0 => {
-                RangeEdits {
-                    delete_range: Some(delete_highlighted(rope, cursor, o1, o2)),
-                    ..d!()
-                }
-            }
-            _ => {
-                d!()
-            }
+            (Some(o1), Some(o2)) if o1 > 0 || o2 > 0 => RangeEdits {
+                delete_range: Some(delete_highlighted(rope, cursor, o1, o2)),
+                ..d!()
+            },
+            _ => d!(),
         }
     })
 }
 
 /// returns `None` if the input position's line does not refer to a line in the `Rope`.
-fn nearest_valid_position_on_same_line<P: Borrow<Position>>(
-    rope: &Rope,
-    p: P,
-) -> Option<Position> {
+fn nearest_valid_position_on_same_line<P: Borrow<Position>>(rope: &Rope, p: P) -> Option<Position> {
     let p = p.borrow();
 
     final_non_newline_offset_for_line(rope, p.line).map(|final_offset| Position {
@@ -611,27 +611,21 @@ fn delete_highlighted(
     rope: &mut Rope,
     cursor: &mut Cursor,
     o1: AbsoluteCharOffset,
-    o2: AbsoluteCharOffset
+    o2: AbsoluteCharOffset,
 ) -> RangeEdit {
     let range = AbsoluteCharOffsetRange::new(o1, o2);
 
     let chars = copy_string(rope, range);
 
     rope.remove(range.range());
-    cursor.set_position(
-        char_offset_to_pos(&rope, range.min()).unwrap_or_default(),
-    );
+    cursor.set_position(char_offset_to_pos(&rope, range.min()).unwrap_or_default());
 
-    RangeEdit {
-        chars,
-        range
-    }
+    RangeEdit { chars, range }
 }
 
 /// Returns `None` if that line is not in the `Rope`.
 fn final_non_newline_offset_for_line(rope: &Rope, line_index: usize) -> Option<CharOffset> {
-    rope
-        .lines()
+    rope.lines()
         .nth(line_index)
         .map(final_non_newline_offset_for_rope_line)
 }
@@ -701,10 +695,7 @@ fn pos_to_char_offset(rope: &Rope, position: &Position) -> Option<AbsoluteCharOf
 }
 
 #[perf_viz::record]
-fn char_offset_to_pos(
-    rope: &Rope,
-    offset: AbsoluteCharOffset,
-) -> Option<Position> {
+fn char_offset_to_pos(rope: &Rope, offset: AbsoluteCharOffset) -> Option<Position> {
     if rope.len_chars() == offset {
         Some(LineIndex(rope.len_lines().0 - 1))
     } else {
@@ -736,7 +727,7 @@ mod absolute_char_offset_range {
     #[derive(Copy, Clone, Debug, PartialEq, Eq)]
     pub struct AbsoluteCharOffsetRange {
         min: AbsoluteCharOffset,
-        max: AbsoluteCharOffset
+        max: AbsoluteCharOffset,
     }
 
     #[allow(dead_code)]
@@ -745,10 +736,7 @@ mod absolute_char_offset_range {
             let min = std::cmp::min(o1, o2);
             let max = std::cmp::max(o1, o2);
 
-            AbsoluteCharOffsetRange {
-                min,
-                max
-            }
+            AbsoluteCharOffsetRange { min, max }
         }
 
         pub fn range(&self) -> std::ops::Range<AbsoluteCharOffset> {
@@ -767,15 +755,13 @@ mod absolute_char_offset_range {
 use absolute_char_offset_range::AbsoluteCharOffsetRange;
 
 
-
-
 #[derive(Clone, Default, Debug, PartialEq, Eq)]
 struct Change<T> {
     old: T,
-    new: T
+    new: T,
 }
 
-impl <T> std::ops::Not for Change<T> {
+impl<T> std::ops::Not for Change<T> {
     type Output = Change<T>;
 
     fn not(self) -> Self::Output {
@@ -803,7 +789,7 @@ impl std::ops::Not for RangeEdits {
     fn not(self) -> Self::Output {
         RangeEdits {
             insert_range: self.delete_range,
-            delete_range: self.insert_range
+            delete_range: self.insert_range,
         }
     }
 }
@@ -817,9 +803,9 @@ struct Edit {
 
 impl From<Change<Cursors>> for Edit {
     fn from(cursors: Change<Cursors>) -> Edit {
-        Edit{
+        Edit {
             range_edits: cursors.new.mapped_ref(|_| d!()),
-            cursors
+            cursors,
         }
     }
 }
@@ -838,20 +824,17 @@ impl std::ops::Not for Edit {
         Edit {
             // This unwrap is fine because `self.range_edits` was a `Vec1`.
             range_edits: Vec1::try_from_vec(reversed).unwrap(),
-            cursors: !self.cursors
+            cursors: !self.cursors,
         }
     }
 }
 
 impl TextBuffer {
     pub fn redo(&mut self) -> Option<()> {
-        self.history
-            .get(self.history_index)
-            .cloned()
-            .map(|edit| {
-                self.apply_edit(edit, ApplyKind::Playback);
-                self.history_index += 1;
-            })
+        self.history.get(self.history_index).cloned().map(|edit| {
+            self.apply_edit(edit, ApplyKind::Playback);
+            self.history_index += 1;
+        })
     }
 
     pub fn undo(&mut self) -> Option<()> {
@@ -879,8 +862,7 @@ impl TextBuffer {
     #[perf_viz::record]
     pub fn find_index<P: Borrow<Position>>(&self, p: P) -> Option<ByteIndex> {
         let rope = &self.rope;
-        pos_to_char_offset(rope, p.borrow())
-            .and_then(|o| rope.char_to_byte(o))
+        pos_to_char_offset(rope, p.borrow()).and_then(|o| rope.char_to_byte(o))
     }
 }
 

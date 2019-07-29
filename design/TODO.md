@@ -39,9 +39,9 @@
   * how does this work when multiple cursors are moved at once?
     * We need to decide which cursor to follow. Wait until more multi cursor
     stuff is implemented, to see what our choices are.
-      * most recently created or moved on it's own seem like the obvious choices,
+      * most recently created or moved on its own seem like the obvious choices,
       but we may end up needing the concept of a `current_cursor` anyway for
-      other reasons .
+      other reasons.
 
 * Ctrl-a select all
 
