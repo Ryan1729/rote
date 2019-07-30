@@ -28,28 +28,38 @@ impl Cursors {
         Cursors { cursors }
     }
 
-    /// This function assumes that the cursors are sorted in reverse order, (positions closer to the
-    /// first position of the buffer have larger indexes).
     fn merge_overlaps(cursors: &mut Vec1<Cursor>) {
+        let mut len;
+
+        while {
+            len = cursors.len();
+            Cursors::merge_overlaps_once(cursors);
+
+            len > cursors.len()
+        } {}
+    }
+
+    fn merge_overlaps_once(cursors: &mut Vec1<Cursor>) {
         let mut keepers: Vec<Cursor> = Vec::with_capacity(cursors.len());
         for cursor in cursors.iter() {
             if let Some(last) = keepers.last_mut() {
-                use std::cmp::Ordering::*;
+                use std::cmp::{max, min, Ordering::*};
+
                 #[derive(Copy, Clone, Debug)]
                 enum MaxWas {
                     P,
-                    H
+                    H,
                 }
 
                 macro_rules! get_tuple {
-                    ($cursor: ident) => ({
+                    ($cursor: ident) => {{
                         let p = $cursor.get_position();
                         let h = $cursor.get_highlight_position().unwrap_or(p.clone());
                         match p.cmp(&h) {
-                            Less | Equal => (p, h, MaxWas::H),
-                            Greater => (h, p, MaxWas::P)
+                            o @ Less | o @ Equal => (p, h, o),
+                            Greater => (h, p, Greater),
                         }
-                    });
+                    }};
                 }
 
                 // We intuitively expect something called `c1` to be <= `c2`. Or at least the
@@ -59,39 +69,41 @@ impl Cursors {
                 let c2: Cursor = (*last).clone();
 
                 match dbg!((get_tuple!(c1), get_tuple!(c2))) {
-                    ((c1_min, c1_max, c1_max_was), (c2_min, c2_max, c2_max_was))
-                    if c1_max >= c2_min => {
-                        // We want the following things to be true about the merged cursor:
-                        // * It should highlight the union of the areas highlighed by the two cursors
-                        // * If a cursor's position and extra state can be maintained, do so.
-                        let mut merged;
-                        // What to do in the `(P, P)` and `(H, H)` cases seems clear.
-                        // But expected behaviour for the other two middle cases is less clear.
-                        // It seems slighlty nicer if half of the 4 cases end up with the
-                        // position on the max edge and the other half end up with the
-                        // position on the min edge. If we have the (H, P) case use the max edge
-                        // we can handle the (_, P) cases the same way which seems like as good a
-                        // reason as any to decide which one uses which edge.
-                        match (c1_max_was, c2_max_was) {
-                             (_, MaxWas::P) => {
-                                 merged = c2.clone();
-                                 merged.set_highlight_position(c1_min);
-                             }
-                             (MaxWas::P, MaxWas::H) => {
-                                 merged = Cursor::new(c1_min);
-                                 merged.set_highlight_position(c2_max);
-                             }
-                             (MaxWas::H, MaxWas::H) => {
-                                 merged = c1.clone();
-                                 merged.set_highlight_position(c2_max);
-                             }
-                         }
-                         *last = merged;
+                    ((c1_min, c1_max, c1_ordering), (c2_min, c2_max, c2_ordering))
+                        // if they overlap
+                        if (c1_min <= c2_min && c1_max >= c2_min)
+                        || (c1_min <= c2_max && c1_max >= c2_max) =>
+                    {
+                        // The merged cursor should highlight the union of the areas highlighed by
+                        // the two cursors.
+
+                        let max_was = match dbg!((c1_max.cmp(&c2_max), c1_ordering, c2_ordering)) {
+                            (Greater, Greater, _) => MaxWas::P,
+                            (Greater, Less, _)|(Greater, Equal, _) => MaxWas::H,
+                            (Less, _, Greater) => MaxWas::P,
+                            (Less, _, Less)|(Less, _, Equal) => MaxWas::H,
+                            (Equal, Greater, _) => MaxWas::P,
+                            // If the two cursors are the same it doesn't matter which one we keep.
+                            (Equal, _, _) => MaxWas::H
+                        };
+
+                        match max_was {
+                            MaxWas::P => {
+                                let mut merged = Cursor::new(max(c1_max, c2_max));
+                                merged.set_highlight_position(min(c1_min, c2_min));
+                                *last = merged;
+                            }
+                            MaxWas::H => {
+                                let mut merged = Cursor::new(min(c1_min, c2_min));
+                                merged.set_highlight_position(max(c1_max, c2_max));
+                                *last = merged;
+                            }
+                        }
                     }
-                    _ => {keepers.push(c1)}
+                    _ => keepers.push(cursor.clone()),
                 }
             } else {
-                keepers.push(cursor.clone());
+                dbg!(keepers.push(cursor.clone()));
             }
         }
 

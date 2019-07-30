@@ -646,14 +646,24 @@ fn adding_a_cursor_inside_a_highlight_does_not_change_the_selection() {
 
     macro_rules! selection_is_unchanged {
         (p right) => {
-            assert_eq!(1, buffer.cursors.len());
+            assert_eq!(
+                1,
+                buffer.cursors.len(),
+                "A cursor didn't get merged: {:#?}",
+                &buffer.cursors
+            );
             let c = buffer.cursors.first();
 
             assert_eq!(c.get_position(), pos! {l 0 o 7});
             assert_eq!(c.get_highlight_position_or_position(), pos! {l 0 o 1});
         };
         (p left) => {
-            assert_eq!(1, buffer.cursors.len());
+            assert_eq!(
+                1,
+                buffer.cursors.len(),
+                "A cursor didn't get merged: {:#?}",
+                &buffer.cursors
+            );
             let c = buffer.cursors.first();
 
             assert_eq!(c.get_position(), pos! {l 0 o 1});
@@ -686,7 +696,6 @@ fn adding_a_cursor_inside_a_highlight_does_not_change_the_selection() {
 
     // Position on left
     buffer.move_all_cursors(Move::Right);
-    buffer.move_all_cursors(Move::Left);
 
     for _ in 0..6 {
         buffer.extend_selection_for_all_cursors(Move::Left);

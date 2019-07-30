@@ -5,7 +5,12 @@ fn insert_with_matching_cursor_and_highlight_sets_highlight_to_none() {
     let mut buffer: TextBuffer = d!();
 
     {
-        let mut c = buffer.cursors.get_cloned_cursors().into_vec().pop().unwrap();
+        let mut c = buffer
+            .cursors
+            .get_cloned_cursors()
+            .into_vec()
+            .pop()
+            .unwrap();
         c.set_highlight_position(c.get_position());
         assert_eq!(c.get_highlight_position(), None);
         buffer.cursors = Cursors::new(Vec1::new(c));
@@ -442,13 +447,17 @@ macro_rules! moving_by_words {
         use Move::*;
         let mut buffer: TextBuffer = t_b!(concat!(
             // non word before and after
-            "(123)", $line_separator,
+            "(123)",
+            $line_separator,
             // has non word before
-            "\"456", $line_separator,
+            "\"456",
+            $line_separator,
             // has non word after
-            "789\"", $line_separator,
+            "789\"",
+            $line_separator,
             // multiple words and tyes of non word charactera
-            "{[(012), (345)]}", $line_separator,
+            "{[(012), (345)]}",
+            $line_separator,
         ));
         cursor_assert! {
             buffer,
@@ -755,7 +764,7 @@ fn moving_by_words_across_carriage_return_line_feeds_works() {
 }
 
 macro_rules! selecting_likely_edit_locations_works_on_a_single_character {
-    ($single_char_str: expr) => (
+    ($single_char_str: expr) => {
         let mut buffer = t_b!($single_char_str);
 
         buffer.select_char_type_grouping(pos! {}, ReplaceOrAdd::Replace);
@@ -774,7 +783,7 @@ macro_rules! selecting_likely_edit_locations_works_on_a_single_character {
             h: pos! {l 0 o 0},
             s: d!()
         }
-    );
+    };
 }
 
 #[test]
@@ -806,27 +815,18 @@ fn selecting_likely_edit_locations_works_on_wrapped_with_braces_example() {
 
         let c = buffer.cursors.first();
 
-        ranges.push((
-            c.get_highlight_position(),
-            c.get_position(),
-        ))
+        ranges.push((c.get_highlight_position(), c.get_position()))
     }
 
-    assert!(
-        ranges.contains(&(Some(pos! {l 0 o 0}), pos!{l 0 o 1}))
-    );
+    assert!(ranges.contains(&(Some(pos! {l 0 o 0}), pos! {l 0 o 1})));
 
-    assert!(
-        ranges.contains(&(Some(pos! {l 0 o 1}), pos!{l 0 o 2}))
-    );
+    assert!(ranges.contains(&(Some(pos! {l 0 o 1}), pos! {l 0 o 2})));
 
-    assert!(
-        ranges.contains(&(Some(pos! {l 0 o 2}), pos!{l 0 o 3}))
-    );
+    assert!(ranges.contains(&(Some(pos! {l 0 o 2}), pos! {l 0 o 3})));
 }
 
 macro_rules! check_select_bounds {
-    ($buffer: expr, ($left_edge: expr, $right_edge: expr)) => (
+    ($buffer: expr, ($left_edge: expr, $right_edge: expr)) => {
         for offset in ($left_edge.offset.0..$right_edge.offset.0).map(CharOffset) {
             let p = Position { offset, ..d!() };
 
@@ -839,7 +839,7 @@ macro_rules! check_select_bounds {
                 s: d!()
             }
         }
-    );
+    };
 }
 
 #[test]
@@ -847,22 +847,28 @@ fn selecting_likely_edit_locations_works_on_this_snake_case_example() {
     let mut buffer = t_b!("{snake_case_example}");
 
     let inner_len = "snake_case_example".len();
-    let inner_left_edge = pos!{l 0 o 1};
-    let inner_right_edge = Position { offset: CharOffset(1 + inner_len), ..d!() };
+    let inner_left_edge = pos! {l 0 o 1};
+    let inner_right_edge = Position {
+        offset: CharOffset(1 + inner_len),
+        ..d!()
+    };
 
-    check_select_bounds!{
+    check_select_bounds! {
         buffer,
         (pos!{}, inner_left_edge)
     }
 
-    check_select_bounds!{
+    check_select_bounds! {
         buffer,
         (inner_left_edge, inner_right_edge)
     }
 
     buffer.select_char_type_grouping(inner_right_edge, ReplaceOrAdd::Replace);
 
-    let last = Position { offset: inner_right_edge.offset + 1, ..d!() };
+    let last = Position {
+        offset: inner_right_edge.offset + 1,
+        ..d!()
+    };
     cursor_assert! {
         buffer,
         p: last,
@@ -884,36 +890,39 @@ fn selecting_likely_edit_locations_works_on_this_snake_case_example() {
 fn selecting_likely_edit_locations_works_on_this_subtraction_example() {
     let mut buffer = t_b!("(this-that)");
 
-    let this_left_edge = pos!{l 0 o 1};
-    let this_right_edge = pos!{l 0 o 5};
+    let this_left_edge = pos! {l 0 o 1};
+    let this_right_edge = pos! {l 0 o 5};
     let minus_left_edge = this_right_edge;
-    let minus_right_edge = pos!{l 0 o 6};
+    let minus_right_edge = pos! {l 0 o 6};
     let that_left_edge = minus_right_edge;
-    let that_right_edge = pos!{l 0 o 10};
+    let that_right_edge = pos! {l 0 o 10};
 
-    check_select_bounds!{
+    check_select_bounds! {
         buffer,
         (pos!{}, this_left_edge)
     }
 
-    check_select_bounds!{
+    check_select_bounds! {
         buffer,
         (this_left_edge, this_right_edge)
     }
 
-    check_select_bounds!{
+    check_select_bounds! {
         buffer,
         (minus_left_edge, minus_right_edge)
     }
 
-    check_select_bounds!{
+    check_select_bounds! {
         buffer,
         (that_left_edge, that_right_edge)
     }
 
     buffer.select_char_type_grouping(that_right_edge, ReplaceOrAdd::Replace);
 
-    let last = Position { offset: that_right_edge.offset + 1, ..d!() };
+    let last = Position {
+        offset: that_right_edge.offset + 1,
+        ..d!()
+    };
     cursor_assert! {
         buffer,
         p: last,
@@ -931,28 +940,32 @@ fn selecting_likely_edit_locations_works_on_this_subtraction_example() {
     }
 }
 
-macro_rules! four_spaces { () => ("    "); }
+macro_rules! four_spaces {
+    () => {
+        "    "
+    };
+}
 
 #[test]
 fn selecting_likely_edit_locations_works_on_this_camel_case_example() {
     let mut buffer = t_b!(concat!("\tcamelCase", four_spaces!()));
 
-    let camel_case_left_edge = pos!{l 0 o 1};
-    let camel_case_right_edge = pos!{l 0 o 10};
+    let camel_case_left_edge = pos! {l 0 o 1};
+    let camel_case_right_edge = pos! {l 0 o 10};
     let four_spaces_left_edge = camel_case_right_edge;
-    let four_spaces_right_edge = pos!{l 0 o 14};
+    let four_spaces_right_edge = pos! {l 0 o 14};
 
-    check_select_bounds!{
+    check_select_bounds! {
         buffer,
         (pos!{}, camel_case_left_edge)
     }
 
-    check_select_bounds!{
+    check_select_bounds! {
         buffer,
         (camel_case_left_edge, camel_case_right_edge)
     }
 
-    check_select_bounds!{
+    check_select_bounds! {
         buffer,
         (four_spaces_left_edge, four_spaces_right_edge)
     }
@@ -961,55 +974,310 @@ fn selecting_likely_edit_locations_works_on_this_camel_case_example() {
 #[test]
 fn get_previous_likely_edit_location_finds_the_first_location_in_the_file_before_a_single_char() {
     assert_eq!(
-        get_previous_selection_point(&r!("a"), pos!{l 0 o 1}),
-        Some(pos!{})
+        get_previous_selection_point(&r!("a"), pos! {l 0 o 1}),
+        Some(pos! {})
     );
 }
 
 #[test]
 fn get_next_selection_point_finds_the_end_of_the_word_before_whitespace() {
     assert_eq!(
-        get_next_selection_point(&r!(concat!("ab", four_spaces!())), pos!{l 0 o 1}),
-        Some(pos!{l 0 o 2})
+        get_next_selection_point(&r!(concat!("ab", four_spaces!())), pos! {l 0 o 1}),
+        Some(pos! {l 0 o 2})
     );
 }
 
 #[test]
 fn get_next_selection_point_finds_the_end_of_the_word_before_punctuation() {
     assert_eq!(
-        get_next_selection_point(&r!("ab..."), pos!{l 0 o 1}),
-        Some(pos!{l 0 o 2})
+        get_next_selection_point(&r!("ab..."), pos! {l 0 o 1}),
+        Some(pos! {l 0 o 2})
     );
 }
 
 #[test]
 fn get_next_selection_point_finds_the_end_of_the_punctuation_before_a_word() {
     assert_eq!(
-        get_next_selection_point(&r!("...ab"), pos!{l 0 o 1}),
-        Some(pos!{l 0 o 3})
+        get_next_selection_point(&r!("...ab"), pos! {l 0 o 1}),
+        Some(pos! {l 0 o 3})
     );
 }
 
 #[test]
 fn get_next_selection_point_finds_the_end_of_the_punctuation_before_whitespace() {
     assert_eq!(
-        get_next_selection_point(&r!(concat!("...", four_spaces!())), pos!{l 0 o 1}),
-        Some(pos!{l 0 o 3})
+        get_next_selection_point(&r!(concat!("...", four_spaces!())), pos! {l 0 o 1}),
+        Some(pos! {l 0 o 3})
     );
 }
 
 #[test]
 fn get_next_selection_point_finds_the_end_of_the_whitespace_before_a_word() {
     assert_eq!(
-        get_next_selection_point(&r!(concat!(four_spaces!(), "ab")), pos!{l 0 o 1}),
-        Some(pos!{l 0 o 4})
+        get_next_selection_point(&r!(concat!(four_spaces!(), "ab")), pos! {l 0 o 1}),
+        Some(pos! {l 0 o 4})
     );
 }
 
 #[test]
 fn get_next_selection_point_finds_the_end_of_the_whitespace_before_punctuation() {
     assert_eq!(
-        get_next_selection_point(&r!(concat!(four_spaces!(), "...")), pos!{l 0 o 1}),
-        Some(pos!{l 0 o 4})
+        get_next_selection_point(&r!(concat!(four_spaces!(), "...")), pos! {l 0 o 1}),
+        Some(pos! {l 0 o 4})
     );
+}
+
+macro_rules! moving_onto_shorter_lines {
+    ($line_separator: literal) => {
+        use Move::*;
+        let mut buffer: TextBuffer = t_b!(concat!($line_separator, "123", $line_separator,));
+
+        cursor_assert! {
+            buffer,
+            p: pos! {l 0 o 0},
+            h: None,
+            s: d!()
+        }
+
+        buffer.move_cursor(0, Down);
+        cursor_assert! {
+            buffer,
+            p: pos! {l 1 o 0},
+            h: None,
+            s: d!()
+        }
+        dbg!(1);
+
+        buffer.move_cursor(0, Right);
+        cursor_assert! {
+            buffer,
+            p: pos! {l 1 o 1},
+            h: None,
+            s: d!()
+        }
+        dbg!(2);
+
+        buffer.move_cursor(0, Up);
+        cursor_assert! {
+            buffer,
+            p: pos! {l 0 o 0},
+            h: None,
+            s: d!()
+        }
+        dbg!(3);
+
+        buffer.move_cursor(0, Down);
+        cursor_assert! {
+            buffer,
+            p: pos! {l 1 o 1},
+            h: None,
+            s: d!()
+        }
+
+        buffer.move_cursor(0, ToLineEnd);
+        cursor_assert! {
+            buffer,
+            p: pos! {l 1 o 3},
+            h: None,
+            s: d!()
+        }
+
+        buffer.move_cursor(0, Up);
+        cursor_assert! {
+            buffer,
+            p: pos! {l 0 o 0},
+            h: None,
+            s: d!()
+        }
+
+        buffer.move_cursor(0, Down);
+        cursor_assert! {
+            buffer,
+            p: pos! {l 1 o 3},
+            h: None,
+            s: d!()
+        }
+
+        buffer.move_cursor(0, ToLineStart);
+        cursor_assert! {
+            buffer,
+            p: pos! {l 1 o 0},
+            h: None,
+            s: d!()
+        }
+
+        buffer.move_cursor(0, Right);
+        cursor_assert! {
+            buffer,
+            p: pos! {l 1 o 1},
+            h: None,
+            s: d!()
+        }
+
+        buffer.move_cursor(0, Down);
+        cursor_assert! {
+            buffer,
+            p: pos! {l 2 o 0},
+            h: None,
+            s: d!()
+        }
+
+        buffer.move_cursor(0, Up);
+        cursor_assert! {
+            buffer,
+            p: pos! {l 1 o 1},
+            h: None,
+            s: d!()
+        }
+
+        buffer.move_cursor(0, ToLineEnd);
+        cursor_assert! {
+            buffer,
+            p: pos! {l 1 o 3},
+            h: None,
+            s: d!()
+        }
+        dbg!(4);
+
+        buffer.move_cursor(0, Down);
+        cursor_assert! {
+            buffer,
+            p: pos! {l 2 o 0},
+            h: None,
+            s: d!()
+        }
+        dbg!(5);
+
+        // longer than one line
+
+        let mut buffer: TextBuffer = t_b!(concat!(
+            "1",
+            $line_separator,
+            "234",
+            $line_separator,
+            "5",
+            $line_separator
+        ));
+
+        cursor_assert! {
+            buffer,
+            p: pos! {l 0 o 0},
+            h: None,
+            s: d!()
+        }
+
+        buffer.move_cursor(0, Down);
+        cursor_assert! {
+            buffer,
+            p: pos! {l 1 o 0},
+            h: None,
+            s: d!()
+        }
+
+        buffer.move_cursor(0, Right);
+        cursor_assert! {
+            buffer,
+            p: pos! {l 1 o 1},
+            h: None,
+            s: d!()
+        }
+
+        buffer.move_cursor(0, Up);
+        cursor_assert! {
+            buffer,
+            p: pos! {l 0 o 1},
+            h: None,
+            s: d!()
+        }
+
+        buffer.move_cursor(0, Down);
+        cursor_assert! {
+            buffer,
+            p: pos! {l 1 o 1},
+            h: None,
+            s: d!()
+        }
+
+        buffer.move_cursor(0, ToLineEnd);
+        cursor_assert! {
+            buffer,
+            p: pos! {l 1 o 3},
+            h: None,
+            s: d!()
+        }
+
+        buffer.move_cursor(0, Up);
+        cursor_assert! {
+            buffer,
+            p: pos! {l 0 o 1},
+            h: None,
+            s: d!()
+        }
+
+        buffer.move_cursor(0, Down);
+        cursor_assert! {
+            buffer,
+            p: pos! {l 1 o 3},
+            h: None,
+            s: d!()
+        }
+
+        buffer.move_cursor(0, ToLineStart);
+        cursor_assert! {
+            buffer,
+            p: pos! {l 1 o 0},
+            h: None,
+            s: d!()
+        }
+
+        buffer.move_cursor(0, Right);
+        cursor_assert! {
+            buffer,
+            p: pos! {l 1 o 1},
+            h: None,
+            s: d!()
+        }
+
+        buffer.move_cursor(0, Down);
+        cursor_assert! {
+            buffer,
+            p: pos! {l 2 o 1},
+            h: None,
+            s: d!()
+        }
+
+        buffer.move_cursor(0, Up);
+        cursor_assert! {
+            buffer,
+            p: pos! {l 1 o 1},
+            h: None,
+            s: d!()
+        }
+
+        buffer.move_cursor(0, ToLineEnd);
+        cursor_assert! {
+            buffer,
+            p: pos! {l 1 o 3},
+            h: None,
+            s: d!()
+        }
+
+        buffer.move_cursor(0, Down);
+        cursor_assert! {
+            buffer,
+            p: pos! {l 2 o 1},
+            h: None,
+            s: d!()
+        }
+    };
+}
+
+#[test]
+fn moving_onto_shorter_lines_across_line_feeds_works() {
+    moving_onto_shorter_lines!("\n");
+}
+
+#[test]
+fn moving_onto_shorter_lines_across_carriage_return_line_feeds_works() {
+    moving_onto_shorter_lines!("\r\n");
 }

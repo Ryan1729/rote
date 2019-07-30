@@ -1,13 +1,16 @@
 // this module is inside `text_buffer`
-use super::{in_cursor_bounds, final_non_newline_offset_for_rope_line};
-use std::borrow::Borrow;
-use editor_types::{SetPositionAction, Cursor, CursorState};
-use panic_safe_rope::{Rope, RopeSliceTrait, RopeLine, LineIndex};
-use macros::{d};
+use super::{
+    final_non_newline_offset_for_rope_line, in_cursor_bounds, nearest_valid_position_on_same_line,
+};
+use editor_types::{Cursor, CursorState, SetPositionAction};
+use macros::d;
+use panic_safe_rope::{LineIndex, Rope, RopeLine, RopeSliceTrait};
 use platform_types::*;
-use std::borrow::Cow;
+use std::borrow::{Borrow, Cow};
+
 use lazy_static::lazy_static;
 use regex::Regex;
+
 
 pub fn or_clear_highlights(rope: &Rope, cursor: &mut Cursor, r#move: Move) {
     if let Some(p) = cursor.get_highlight_position() {
@@ -104,27 +107,16 @@ fn move_to_with_fallback(
     new_position: Position,
     action: SetPositionAction,
 ) -> Moved {
-    let target_line = new_position.line;
     let mut output = move_to(rope, cursor, new_position, action);
     if let Moved::No = output {
-        let mut target_offset = d!();
-        if let Some(count) = nth_line_count(rope, target_line) {
-            target_offset = count;
-        }
-        output = move_to(
-            rope,
-            cursor,
-            Position {
-                line: target_line,
-                offset: target_offset,
-            },
-            action,
-        );
+        if let Some(fallback_position) = nearest_valid_position_on_same_line(rope, new_position) {
+            output = move_to(rope, cursor, fallback_position, action);
 
-        // Moving the position successfully updates the sticky offset, but we
-        // haven't actually moved to where we really wanted to go (offset-wise).
-        // Restore the original desired offset; it might be available on the next try.
-        cursor.sticky_offset = new_position.offset;
+            // Moving the position successfully updates the sticky offset, but we
+            // haven't actually moved to where we really wanted to go (offset-wise).
+            // Restore the original desired offset; it might be available on the next try.
+            cursor.sticky_offset = new_position.offset;
+        }
     }
     output
 }
@@ -142,7 +134,7 @@ fn move_up(rope: &Rope, cursor: &mut Cursor, action: SetPositionAction) -> Moved
         line: target_line,
         offset: cursor.sticky_offset,
     };
-    move_to_with_fallback(rope, cursor, new_position, action)
+    move_to_with_fallback(rope, cursor, dbg!(new_position), action)
 }
 
 #[perf_viz::record]
@@ -204,7 +196,11 @@ pub fn get_previous_selection_point(rope: &Rope, position: Position) -> Option<P
     get_previous_position(rope, position, OffsetKind::SelectionPoint)
 }
 
-fn get_previous_position(rope: &Rope, Position{line, offset}: Position, kind: OffsetKind) -> Option<Position> {
+fn get_previous_position(
+    rope: &Rope,
+    Position { line, offset }: Position,
+    kind: OffsetKind,
+) -> Option<Position> {
     let line_index_and_section = {
         let line_index = LineIndex(line);
 
@@ -213,14 +209,9 @@ fn get_previous_position(rope: &Rope, Position{line, offset}: Position, kind: Of
                 // We want to be able to move to the previous line if possible
                 line_index
                     .checked_sub_one()
-                    .and_then(
-                        |i| rope.line(i).map(|l| (i, l))
-                    )
+                    .and_then(|i| rope.line(i).map(|l| (i, l)))
             } else {
-                rope_line.slice(..offset).map(|l| (
-                    line_index,
-                    l
-                ))
+                rope_line.slice(..offset).map(|l| (line_index, l))
             }
         })
     };
@@ -228,19 +219,25 @@ fn get_previous_position(rope: &Rope, Position{line, offset}: Position, kind: Of
     line_index_and_section.and_then(|(line_index, section)| {
         get_offsets(section, kind, IncludeStringLength::No)
             .last()
-            .map(|offset|
-                Position {
-                    line: line_index.0,
-                    offset
-                }
-            )
+            .map(|offset| Position {
+                line: line_index.0,
+                offset,
+            })
     })
 }
 
 #[perf_viz::record]
-fn move_to_previous_likely_edit_location(rope: &Rope, cursor: &mut Cursor, action: SetPositionAction) -> Moved {
-    move_to(rope, cursor, get_previous_position(rope, cursor.get_position(), OffsetKind::LikelyEditLocation), action)
-
+fn move_to_previous_likely_edit_location(
+    rope: &Rope,
+    cursor: &mut Cursor,
+    action: SetPositionAction,
+) -> Moved {
+    move_to(
+        rope,
+        cursor,
+        get_previous_position(rope, cursor.get_position(), OffsetKind::LikelyEditLocation),
+        action,
+    )
 }
 
 pub fn get_next_selection_point(rope: &Rope, position: Position) -> Option<Position> {
@@ -250,74 +247,75 @@ pub fn get_next_selection_point(rope: &Rope, position: Position) -> Option<Posit
 #[derive(Clone, Copy, Debug)]
 enum OffsetKind {
     LikelyEditLocation,
-    SelectionPoint
+    SelectionPoint,
 }
 
-fn get_next_position(rope: &Rope, Position{line, offset}: Position, kind: OffsetKind) -> Option<Position> {
+fn get_next_position(
+    rope: &Rope,
+    Position { line, offset }: Position,
+    kind: OffsetKind,
+) -> Option<Position> {
     let line_index_and_section = {
         let line_index = LineIndex(line);
         rope.line(line_index).and_then(|rope_line| {
             Some(final_non_newline_offset_for_rope_line(rope_line))
                 // try to move to the next line if there is nothing left on this one
                 .filter(|&final_offset| offset < final_offset)
-                .and_then(|final_offset| rope_line.slice(offset..).map(|l|
-                    (
-                        line_index,
-                        offset,
-                        l,
-                        final_offset
-                    )
-                )).or_else(|| {
-                line_index
-                    .checked_add_one()
-                    .and_then(
+                .and_then(|final_offset| {
+                    rope_line
+                        .slice(offset..)
+                        .map(|l| (line_index, offset, l, final_offset))
+                })
+                .or_else(|| {
+                    line_index.checked_add_one().and_then(
                         // We rely on `d!()` being 0 here.
-                        |i| rope.line(i).map(|l: RopeLine| (
-                            i,
-                            d!(),
-                            l,
-                            final_non_newline_offset_for_rope_line(l)
-                        ))
+                        |i| {
+                            rope.line(i).map(|l: RopeLine| {
+                                (i, d!(), l, final_non_newline_offset_for_rope_line(l))
+                            })
+                        },
                     )
-            })
+                })
         })
     };
 
-    line_index_and_section
-        .and_then(|(line_index, offset, section, final_offset)| {
-            // The variable is needed to cause the `likely_edit_offsets` iterator to be dropped
-            // at the right time.
-            let output = get_offsets(section, kind, IncludeStringLength::No)
-                // So we actually move if we started on a word boundary. This also causes us to
-                // skip the first location on each line going forwards, but many other text
-                // editors do it, and it seems plauible that the second edit location is used
-                // more often than the first edit location. Making the other edit locations
-                // "closer" doesn't seem like a bad thing. I guess we'll keep it.
-                .skip_while(|&o| o == 0)
-                .next()
-                .map(|o|
-                    Position {
-                        line: line_index.0,
-                        offset: std::cmp::min(offset + o, final_offset)
-                    }
-                ).or_else(|| {
-                    Some(Position {
-                        line: line_index.0,
-                        offset: final_offset
-                    })
-                });
+    line_index_and_section.and_then(|(line_index, offset, section, final_offset)| {
+        // The variable is needed to cause the `likely_edit_offsets` iterator to be dropped
+        // at the right time.
+        let output = get_offsets(section, kind, IncludeStringLength::No)
+            // So we actually move if we started on a word boundary. This also causes us to
+            // skip the first location on each line going forwards, but many other text
+            // editors do it, and it seems plauible that the second edit location is used
+            // more often than the first edit location. Making the other edit locations
+            // "closer" doesn't seem like a bad thing. I guess we'll keep it.
+            .skip_while(|&o| o == 0)
+            .next()
+            .map(|o| Position {
+                line: line_index.0,
+                offset: std::cmp::min(offset + o, final_offset),
+            })
+            .or_else(|| {
+                Some(Position {
+                    line: line_index.0,
+                    offset: final_offset,
+                })
+            });
 
-            output
-        })
+        output
+    })
 }
 
 #[perf_viz::record]
-fn move_to_next_likely_edit_location(rope: &Rope, cursor: &mut Cursor, action: SetPositionAction) -> Moved {
+fn move_to_next_likely_edit_location(
+    rope: &Rope,
+    cursor: &mut Cursor,
+    action: SetPositionAction,
+) -> Moved {
     move_to(
         rope,
         cursor,
         get_next_position(rope, cursor.get_position(), OffsetKind::LikelyEditLocation),
-        action
+        action,
     )
 }
 
@@ -329,22 +327,22 @@ fn move_to_next_likely_edit_location(rope: &Rope, cursor: &mut Cursor, action: S
 // We need mulitple regexes here because these matches might overlap, and we want all the matches
 lazy_static! {
     static ref LIKELY_EDIT_REGEXES: Vec<Regex> = vec![
-         Regex::new("\\w[^\\w\\s]").unwrap(),
-         Regex::new("[^\\w\\s]\\w").unwrap(),
-         Regex::new("\\s\\w").unwrap(),
-         Regex::new("\\s[^\\w\\s]").unwrap(),
+        Regex::new("\\w[^\\w\\s]").unwrap(),
+        Regex::new("[^\\w\\s]\\w").unwrap(),
+        Regex::new("\\s\\w").unwrap(),
+        Regex::new("\\s[^\\w\\s]").unwrap(),
     ];
 
     static ref SELECTION_POINT_REGEXES: Vec<Regex> = vec![
-         Regex::new("\\w[^\\w]").unwrap(),
-         Regex::new("[^\\w\\s][\\w\\s]").unwrap(),
-         Regex::new("\\s[^\\s]").unwrap(),
+        Regex::new("\\w[^\\w]").unwrap(),
+        Regex::new("[^\\w\\s][\\w\\s]").unwrap(),
+        Regex::new("\\s[^\\s]").unwrap(),
     ];
 }
 
 enum IncludeStringLength {
     No,
-    Yes
+    Yes,
 }
 d!(for IncludeStringLength: IncludeStringLength::Yes);
 
@@ -365,7 +363,11 @@ d!(for IncludeStringLength: IncludeStringLength::Yes);
 /// Depending upon the value of the `IncludeStringLength` parameter, the iterator will either
 /// include or omit what would be the last one which would always be the length of the string in
 /// chars if included.
-fn get_offsets<'line>(rope_line: RopeLine<'line>, kind: OffsetKind, include: IncludeStringLength) -> Box<dyn Iterator<Item = CharOffset> + 'line> {
+fn get_offsets<'line>(
+    rope_line: RopeLine<'line>,
+    kind: OffsetKind,
+    include: IncludeStringLength,
+) -> Box<dyn Iterator<Item = CharOffset> + 'line> {
     use std::iter::once;
 
     let output = once(CharOffset(0));
@@ -386,27 +388,22 @@ fn get_offsets<'line>(rope_line: RopeLine<'line>, kind: OffsetKind, include: Inc
     // making sure the regexes are maximal while being non-overlapping and taking advantage of the
     // fact that the individual streams are already sorted. But, that currently smells like
     // premature optimization to me.
-    let mut matched_offsets: Vec<_> = regexes.flat_map(|re|
-        re.find_iter(&s).map(|m|
+    let mut matched_offsets: Vec<_> = regexes
+        .flat_map(|re| {
+            re.find_iter(&s).map(|m|
             // We expect only length 2 matches here, and the index we want is in the middle
             // We could divide, but in practice addition of 1 gives the right answer.
-            CharOffset(m.start() + 1)
-        )).collect();
+            CharOffset(m.start() + 1))
+        })
+        .collect();
 
     matched_offsets.sort();
     matched_offsets.dedup();
 
     match include {
-        IncludeStringLength::No => {
-            Box::new(output
-                .chain(matched_offsets.into_iter())
-            )
-        }
+        IncludeStringLength::No => Box::new(output.chain(matched_offsets.into_iter())),
         IncludeStringLength::Yes => {
-            Box::new(output
-                .chain(matched_offsets.into_iter())
-                .chain(once(len))
-            )
+            Box::new(output.chain(matched_offsets.into_iter()).chain(once(len)))
         }
     }
 }
@@ -518,8 +515,9 @@ mod tests {
         let offsets: Vec<_> = get_offsets(
             line,
             OffsetKind::LikelyEditLocation,
-            IncludeStringLength::Yes
-        ).collect();
+            IncludeStringLength::Yes,
+        )
+        .collect();
 
         assert_eq!(
             offsets,
@@ -539,11 +537,8 @@ mod tests {
     fn getting_selection_point_offsets_works_on_this_code_example() {
         let rope = r!("{[(012), (345)]}");
         let line = rope.line(LineIndex(0)).unwrap();
-        let offsets: Vec<_> = get_offsets(
-            line,
-            OffsetKind::SelectionPoint,
-            IncludeStringLength::Yes
-        ).collect();
+        let offsets: Vec<_> =
+            get_offsets(line, OffsetKind::SelectionPoint, IncludeStringLength::Yes).collect();
 
         assert_eq!(
             offsets,
@@ -565,26 +560,19 @@ mod tests {
         let rope = r!("(123)");
         let line = rope.line(LineIndex(0)).unwrap();
 
-        let expected = vec![
-            CharOffset(0),
-            CharOffset(1),
-            CharOffset(4),
-            CharOffset(5)
-        ];
+        let expected = vec![CharOffset(0), CharOffset(1), CharOffset(4), CharOffset(5)];
 
         let likely_edit_locations: Vec<_> = get_offsets(
             line,
             OffsetKind::LikelyEditLocation,
-            IncludeStringLength::Yes
-        ).collect();
+            IncludeStringLength::Yes,
+        )
+        .collect();
 
         assert_eq!(likely_edit_locations, expected);
 
-        let selection_points: Vec<_> = get_offsets(
-            line,
-            OffsetKind::SelectionPoint,
-            IncludeStringLength::Yes
-        ).collect();
+        let selection_points: Vec<_> =
+            get_offsets(line, OffsetKind::SelectionPoint, IncludeStringLength::Yes).collect();
 
         assert_eq!(selection_points, expected);
     }
