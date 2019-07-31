@@ -1,38 +1,30 @@
-use platform_types::ScreenSpaceXY;
-use platform_types::Position;
-use std::collections::VecDeque;
-use editor_types::{CursorState, Vec1};
+use editor_types::{Cursor, CursorState, Vec1};
 use macros::{c, d};
 use platform_types::{
-    position_to_screen_space, push_highlights, screen_space_to_position, BufferView, CharDim, Cmd,
-    Input, PositionRound, UpdateAndRenderOutput, View,
-};
-use text_buffer::TextBuffer;
 
+    position_to_screen_space, push_highlights, screen_space_to_position, BufferView, CharDim, Cmd,
+    Input, Position, PositionRound, ScreenSpaceWH, ScreenSpaceXY, UpdateAndRenderOutput, View,
+};
+
+use std::collections::VecDeque;
+use text_buffer::TextBuffer;
 #[derive(Default)]
 pub struct State {
     buffers: Vec1<TextBuffer>,
-    current_burrer_index: usize,
-    scroll_x: f32,
-    scroll_y: f32,
-    screen_w: f32,
-    screen_h: f32,
+    current_buffer_index: usize,
+    scroll: ScreenSpaceXY,
+    screen: ScreenSpaceWH,
     text_char_dim: CharDim,
     status_char_dim: CharDim,
     clipboard_history: ClipboardHistory,
 }
 
 fn xy_to_pos(state: &State, xy: ScreenSpaceXY, round: PositionRound) -> Position {
-    screen_space_to_position(
-        xy,
-        state.text_char_dim,
-        (state.scroll_x, state.scroll_y),
-        round
-    )
+    screen_space_to_position(xy, state.text_char_dim, state.scroll, round)
 }
 
 #[derive(Default)]
-struct ClipboardHistory{
+struct ClipboardHistory {
     entries: VecDeque<String>,
     index: usize,
 }
@@ -126,17 +118,17 @@ impl From<&str> for State {
 #[perf_viz::record]
 pub fn render_view(state: &State, view: &mut View) {
     use platform_types::BufferViewKind;
-    let status_line_y = state.screen_h - state.status_char_dim.h;
+    let status_line_y = state.screen.h - state.status_char_dim.h;
     view.buffers.clear();
 
     let status_line_view = BufferView {
         kind: BufferViewKind::StatusLine,
         screen_position: (0.0, status_line_y),
-        bounds: (state.screen_w, state.status_char_dim.h),
+        bounds: (state.screen.w, state.status_char_dim.h),
         ..d!()
     };
 
-    match state.buffers.get(state.current_burrer_index) {
+    match state.buffers.get(state.current_buffer_index) {
         Some(buffer) => {
             let cursors = buffer.cursors();
             const AVERAGE_SELECTION_LNES_ESTIMATE: usize = 4;
@@ -146,17 +138,13 @@ pub fn render_view(state: &State, view: &mut View) {
             for c in cursors.iter() {
                 let position = c.get_position();
 
-                let screen_position = position_to_screen_space(
-                    position,
-                    state.text_char_dim,
-                    (state.scroll_x, state.scroll_y),
-                )
-                .into();
+                let screen_position =
+                    position_to_screen_space(position, state.text_char_dim, state.scroll).into();
 
                 view.buffers.push(BufferView {
                     kind: BufferViewKind::Cursor,
                     screen_position,
-                    bounds: (state.screen_w, state.text_char_dim.h),
+                    bounds: (state.screen.w, state.text_char_dim.h),
                     color: match c.state {
                         CursorState::None => c![0.9, 0.3, 0.3],
                         CursorState::PressedAgainstWall => c![0.9, 0.9, 0.3],
@@ -170,7 +158,7 @@ pub fn render_view(state: &State, view: &mut View) {
 
             view.buffers.push(BufferView {
                 kind: BufferViewKind::Edit,
-                screen_position: (state.scroll_x, state.scroll_y),
+                screen_position: state.scroll.into(),
                 bounds: (std::f32::INFINITY, std::f32::INFINITY),
                 color: c![0.3, 0.3, 0.9],
                 chars: buffer.chars().collect::<String>(),
@@ -180,7 +168,7 @@ pub fn render_view(state: &State, view: &mut View) {
             fn display_option_compactly<A: ToString>(op: Option<A>) -> String {
                 match op {
                     None => "N".to_string(),
-                    Some(a) => a.to_string()
+                    Some(a) => a.to_string(),
                 }
             }
 
@@ -188,12 +176,13 @@ pub fn render_view(state: &State, view: &mut View) {
                 color: c![0.3, 0.9, 0.3],
                 chars: {
                     use std::fmt::Write;
-                    let mut chars = String::with_capacity(state.screen_w as usize);
+                    let mut chars = String::with_capacity(state.screen.w as usize);
 
                     let _cannot_actually_fail = write!(
                         chars,
-                        "c{:?} ",
-                        (state.text_char_dim.w, state.text_char_dim.h)
+                        "c{:?} s{:?} ",
+                        (state.text_char_dim.w, state.text_char_dim.h),
+                        (state.scroll.x, state.scroll.y)
                     );
 
                     chars = buffer.cursors().iter().fold(chars, |mut acc, c| {
@@ -201,11 +190,13 @@ pub fn render_view(state: &State, view: &mut View) {
                             acc,
                             "{} ({}|{}), ",
                             c,
-                            display_option_compactly(buffer.find_index(c).and_then(|o| if o == 0 {
-                                None
-                            } else {
-                                Some(o - 1)
-                            })),
+                            display_option_compactly(
+                                buffer.find_index(c).and_then(|o| if o == 0 {
+                                    None
+                                } else {
+                                    Some(o - 1)
+                                })
+                            ),
                             display_option_compactly(buffer.find_index(c)),
                         );
                         acc
@@ -224,6 +215,41 @@ pub fn render_view(state: &State, view: &mut View) {
             });
         }
     };
+}
+
+fn ensure_at_least_one_cursor_is_visible(
+    scroll: &mut ScreenSpaceXY,
+    ScreenSpaceWH { w, h }: ScreenSpaceWH,
+    char_dim: CharDim,
+    cursors: &Vec1<Cursor>,
+) {
+    let target_cursor = dbg!(cursors.last());
+
+    let ScreenSpaceXY { x, y } =
+        position_to_screen_space(target_cursor.get_position(), char_dim, *scroll);
+
+    // if it is off the screen, scroll so it is inside an at least `char_dim` sized apron inside
+    // from the edge of the screen. But if it is inside the apron, then don't bother scrolling.
+    // +-------------------+
+    // | +---------------+ | outer box is what we call the "apron".
+    // | |               | |
+    // | +---------------+ |
+    // +-------------------+
+    if x < scroll.x + char_dim.w {
+        let new_scroll_x = scroll.x - (x + char_dim.w);
+        if new_scroll_x > 0.0 {
+            scroll.x = dbg!(new_scroll_x);
+        }
+    } else if x > scroll.x + w - char_dim.w {
+        scroll.x = dbg!(x - (w - char_dim.w));
+    } else if y > scroll.y - char_dim.h {
+        let new_scroll_y = scroll.y + (y - char_dim.h);
+        if new_scroll_y < 0.0 {
+            scroll.y = dbg!(new_scroll_y);
+        }
+    } else if y < scroll.y - (h + char_dim.h) {
+        scroll.y = dbg!(y + (h + char_dim.h));
+    }
 }
 
 macro_rules! set_if_present {
@@ -248,7 +274,7 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
             buffer_call!($buffer {$buffer.$($method_call)*})
         };
         ($buffer: ident $tokens:block) => {
-            if let Some($buffer) = state.buffers.get_mut(state.current_burrer_index) {
+            if let Some($buffer) = state.buffers.get_mut(state.current_buffer_index) {
                 $tokens;
             }
         }
@@ -269,23 +295,29 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
         Delete => buffer_call!(b.delete()),
         Redo => buffer_call!(b.redo()),
         Undo => buffer_call!(b.undo()),
-        MoveAllCursors(r#move) => buffer_call!(b.move_all_cursors(r#move)),
+        MoveAllCursors(r#move) => {
+            buffer_call!(b{
+                b.move_all_cursors(r#move);
+                ensure_at_least_one_cursor_is_visible(&mut state.scroll, state.screen, state.text_char_dim, &b.cursors());
+            });
+        }
         ExtendSelectionForAllCursors(r#move) => {
-            buffer_call!(b.extend_selection_for_all_cursors(r#move))
+            buffer_call!(b{
+                b.extend_selection_for_all_cursors(r#move);
+                ensure_at_least_one_cursor_is_visible(&mut state.scroll, state.screen, state.text_char_dim, &b.cursors());
+            });
         }
         ScrollVertically(amount) => {
-            state.scroll_y -= amount;
+            state.scroll.y -= amount;
         }
         ScrollHorizontally(amount) => {
-            state.scroll_x += amount;
+            state.scroll.x += amount;
         }
         ResetScroll => {
-            state.scroll_x = 0.0;
-            state.scroll_y = 0.0;
+            state.scroll = d!();
         }
         SetSizes(sizes) => {
-            set_if_present!(sizes => state.screen_w);
-            set_if_present!(sizes => state.screen_h);
+            set_if_present!(sizes => state.screen);
             set_if_present!(sizes => state.text_char_dim);
             set_if_present!(sizes => state.status_char_dim);
         }
@@ -317,9 +349,7 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
             }
         }),
         Paste(op_s) => buffer_call!(b {state.clipboard_history.paste(b, op_s)}),
-        InsertNumbersAtCursors => {
-            buffer_call!(b.insert_at_each_cursor(|i| i.to_string()))
-        },
+        InsertNumbersAtCursors => buffer_call!(b.insert_at_each_cursor(|i| i.to_string())),
     }
 
     let mut view = d!();

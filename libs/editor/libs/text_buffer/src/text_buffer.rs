@@ -141,6 +141,10 @@ impl Cursors {
     pub fn first(&self) -> &Cursor {
         self.cursors.first()
     }
+
+    pub fn last(&self) -> &Cursor {
+        self.cursors.last()
+    }
 }
 
 borrow!(<Vec1<Cursor>> for Cursors : c in &c.cursors);

@@ -12,7 +12,7 @@ use glyph_brush::{
 use macros::d;
 
 use platform_types::{
-    BufferView, BufferViewKind, CharDim, Cmd, Highlight, Input, ReplaceOrAdd, ScreenSpaceXY, Sizes,
+    BufferView, BufferViewKind, CharDim, Cmd, Highlight, Input, ReplaceOrAdd, ScreenSpaceWH, ScreenSpaceXY, Sizes,
     UpdateAndRender, View,
 };
 
@@ -181,8 +181,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
         .to_physical(glutin_context.window().hidpi_factor());
 
     let (mut view, mut cmd) = update_and_render(Input::SetSizes(Sizes! {
-        screen_w: dimensions.width as f32,
-        screen_h: dimensions.height as f32,
+        screen: ScreenSpaceWH { w: dimensions.width as f32, h: dimensions.height as f32 },
         text_char_dim: font_info.text_char_dim,
         status_char_dim: font_info.status_char_dim,
     }));
@@ -361,8 +360,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                             let ls = window.inner_size();
                             dimensions = ls.to_physical(dpi);
                             call_u_and_r!(Input::SetSizes(Sizes! {
-                                screen_w: dimensions.width as f32,
-                                screen_h: dimensions.height as f32,
+                                screen: ScreenSpaceWH { w: dimensions.width as f32, h: dimensions.height as f32 },
                                 text_char_dim: None,
                                 status_char_dim: None,
                             }));

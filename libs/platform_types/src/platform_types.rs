@@ -1,4 +1,4 @@
-use macros::{d, fmt_debug, fmt_display, integer_newtype, usize_newtype, ord};
+use macros::{d, fmt_debug, fmt_display, integer_newtype, ord, usize_newtype};
 use std::ops::{Add, Sub};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -35,22 +35,10 @@ impl std::ops::Not for Move {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct ScreenSpaceXY {
-    pub x: f32,
-    pub y: f32,
-}
-
-impl From<ScreenSpaceXY> for (f32, f32) {
-    fn from(ScreenSpaceXY { x, y }: ScreenSpaceXY) -> Self {
-        (x, y)
-    }
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ReplaceOrAdd {
     Replace,
-    Add
+    Add,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -77,7 +65,33 @@ pub enum Input {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
-///We are currently assuming the font is monospace!
+pub struct ScreenSpaceXY {
+    pub x: f32,
+    pub y: f32,
+}
+
+impl From<ScreenSpaceXY> for (f32, f32) {
+    fn from(ScreenSpaceXY { x, y }: ScreenSpaceXY) -> Self {
+        (x, y)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct ScreenSpaceWH {
+    pub w: f32,
+    pub h: f32,
+}
+
+impl From<ScreenSpaceWH> for (f32, f32) {
+    fn from(ScreenSpaceWH { w, h }: ScreenSpaceWH) -> Self {
+        (w, h)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+/// It's nice for it to be harder to mixup screen dimensions and Character dimension.
+// Plus since `CharDim` came before `ScreenSpaceWH` less code has to change if we keep `CharDim`
+/// We are currently assuming the font is monospace!
 pub struct CharDim {
     pub w: f32,
     pub h: f32,
@@ -95,14 +109,21 @@ pub enum PositionRound {
 }
 
 fn normal_or_zero(x: f32) -> f32 {
-    if x.is_normal() { x } else { 0.0 }
+    if x.is_normal() {
+        x
+    } else {
+        0.0
+    }
 }
 
 pub fn screen_space_to_position(
     ScreenSpaceXY { x, y }: ScreenSpaceXY,
     CharDim { w, h }: CharDim,
-    (scroll_x, scroll_y): (f32, f32),
-    round: PositionRound
+    ScreenSpaceXY {
+        x: scroll_x,
+        y: scroll_y,
+    }: ScreenSpaceXY,
+    round: PositionRound,
 ) -> Position {
     // This is made much more conveinient by the monospace assumption!
 
@@ -111,16 +132,14 @@ pub fn screen_space_to_position(
     // if the value would not fit in a `usize` then the `as usize` is undefiend behaviour.
     // https://github.com/rust-lang/rust/issues/10184
     // https://play.rust-lang.org/?version=stable&mode=debug&edition=2018&gist=21e5f8c502c8e6e16a685449ccc9db82
-    let offset = normal_or_zero(
-        match round {
-            PositionRound::TowardsZero => pre_rounded,
-            PositionRound::Up => {
-                // The right half of a character should correspond to the position to the
-                // right of the character.
-                pre_rounded + 0.5
-            },
+    let offset = normal_or_zero(match round {
+        PositionRound::TowardsZero => pre_rounded,
+        PositionRound::Up => {
+            // The right half of a character should correspond to the position to the
+            // right of the character.
+            pre_rounded + 0.5
         }
-    ) as usize;
+    }) as usize;
     let line = normal_or_zero((y - scroll_y) / h) as usize;
 
     Position {
@@ -132,7 +151,10 @@ pub fn screen_space_to_position(
 pub fn position_to_screen_space(
     Position { offset, line }: Position,
     CharDim { w, h }: CharDim,
-    (scroll_x, scroll_y): (f32, f32),
+    ScreenSpaceXY {
+        x: scroll_x,
+        y: scroll_y,
+    }: ScreenSpaceXY,
 ) -> ScreenSpaceXY {
     // This is made much more conveinient by the monospace assumption!
 
@@ -421,13 +443,13 @@ pub struct BufferView {
     pub highlights: Vec<Highlight>,
 }
 
- // Short form "Command".
- // This is for telling the platform layer that it should do things something in addition to
- // rendering the view.
+// Short form "Command".
+// This is for telling the platform layer that it should do things something in addition to
+// rendering the view.
 #[derive(Debug, Clone)]
 pub enum Cmd {
     NoCmd,
-    SetClipboard(String)
+    SetClipboard(String),
 }
 
 d!(for Cmd : Cmd::NoCmd);
@@ -443,8 +465,7 @@ pub type UpdateAndRender = fn(Input) -> UpdateAndRenderOutput;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Sizes {
-    pub screen_w: Option<f32>,
-    pub screen_h: Option<f32>,
+    pub screen: Option<ScreenSpaceWH>,
     pub text_char_dim: Option<CharDim>,
     pub status_char_dim: Option<CharDim>,
 }
@@ -452,14 +473,12 @@ pub struct Sizes {
 #[macro_export]
 macro_rules! Sizes {
     {
-        screen_w: $screen_w:expr,
-        screen_h: $screen_h:expr,
+        screen: $screen:expr,
         text_char_dim: $text_char_dim:expr,
         status_char_dim: $status_char_dim:expr $(,)?
     } => (
         Sizes {
-            screen_w: $screen_w.into(),
-            screen_h: $screen_h.into(),
+            screen: $screen.into(),
             text_char_dim: $text_char_dim.into(),
             status_char_dim: $status_char_dim.into(),
         }
