@@ -64,6 +64,8 @@ pub enum Input {
     InsertNumbersAtCursors,
 }
 
+d!(for Input : Input::None);
+
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct ScreenSpaceXY {
     pub x: f32,
@@ -167,7 +169,63 @@ pub fn position_to_screen_space(
     }
 }
 
-d!(for Input : Input::None);
+/// This represents the visible portion of the screen. This struct primarily exists to make it
+/// clear that the negtive y direction is used instead of the positive one. That is, the area
+/// where `scroll.x` is between `0.0` and `wh.w` and `scroll.y` is between `-wh.h` and `0.0` is
+/// considered to be on the screen. As a side effect, this struct also allows functions that
+/// operate on the `scroll` to be harder to use incorrectly, by preventing mixing up what would
+/// otherwise be two `ScreenSpaceXY` params.
+#[derive(Default, Debug)]
+pub struct ScrollableScreen {
+    pub scroll: ScreenSpaceXY,
+    pub wh: ScreenSpaceWH,
+}
+
+/// if it is off the screen, scroll so it is inside an at least `char_dim` sized apron inside
+/// from the edge of the screen. But if it is inside the apron, then don't bother scrolling.
+/// ```
+/// +-------------------+
+/// | +---------------+ |
+/// | |               | |
+/// | +---------------+ |
+/// +-------------------+
+/// ```
+/// The outer box is what we call the "apron".
+
+pub fn ensure_xy_is_visible(
+    ScrollableScreen { scroll, wh }: &mut ScrollableScreen,
+    char_dim: CharDim,
+    ScreenSpaceXY { x, y }: ScreenSpaceXY,
+) {
+    let &mut ScreenSpaceWH { w, h } = wh;
+
+
+    if x < scroll.x + char_dim.w {
+        let new_scroll_x = scroll.x - (x + char_dim.w);
+        if new_scroll_x > 0.0 {
+            scroll.x = dbg!(new_scroll_x);
+        }
+    } else if x > scroll.x + w - char_dim.w {
+        scroll.x = dbg!(x - (w - char_dim.w));
+    } else if y > scroll.y - char_dim.h {
+        let new_scroll_y = scroll.y + (y - char_dim.h);
+        if new_scroll_y < 0.0 {
+            scroll.y = dbg!(new_scroll_y);
+        }
+    } else if y < scroll.y - (h + char_dim.h) {
+        scroll.y = dbg!(y + (h + char_dim.h));
+    }
+}
+
+pub fn xy_is_visible(
+    ScrollableScreen {
+        scroll,
+        wh: ScreenSpaceWH { w, h },
+    }: &ScrollableScreen,
+    ScreenSpaceXY { x, y }: ScreenSpaceXY,
+) -> bool {
+    false
+}
 
 /// The nth space between utf8 characters. So in the string "aöc" there are
 /// five possibe `CharOffset`s. (Note that "ö" is two characters: "o\u{308}".)

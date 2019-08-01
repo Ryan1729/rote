@@ -1,27 +1,13 @@
 use editor_types::{Cursor, CursorState, Vec1};
 use macros::{c, d};
 use platform_types::{
-
-    position_to_screen_space, push_highlights, screen_space_to_position, BufferView, CharDim, Cmd,
-    Input, Position, PositionRound, ScreenSpaceWH, ScreenSpaceXY, UpdateAndRenderOutput, View,
+    position_to_screen_space, push_highlights, screen_space_to_position, ensure_xy_is_visible,
+    BufferView, CharDim, Cmd, Input, Position, PositionRound, ScreenSpaceXY, ScrollableScreen,
+    UpdateAndRenderOutput, View,
 };
 
 use std::collections::VecDeque;
 use text_buffer::TextBuffer;
-#[derive(Default)]
-pub struct State {
-    buffers: Vec1<TextBuffer>,
-    current_buffer_index: usize,
-    scroll: ScreenSpaceXY,
-    screen: ScreenSpaceWH,
-    text_char_dim: CharDim,
-    status_char_dim: CharDim,
-    clipboard_history: ClipboardHistory,
-}
-
-fn xy_to_pos(state: &State, xy: ScreenSpaceXY, round: PositionRound) -> Position {
-    screen_space_to_position(xy, state.text_char_dim, state.scroll, round)
-}
 
 #[derive(Default)]
 struct ClipboardHistory {
@@ -85,6 +71,20 @@ impl ClipboardHistory {
     }
 }
 
+#[derive(Default)]
+pub struct State {
+    buffers: Vec1<TextBuffer>,
+    current_buffer_index: usize,
+    screen: ScrollableScreen,
+    text_char_dim: CharDim,
+    status_char_dim: CharDim,
+    clipboard_history: ClipboardHistory,
+}
+
+fn xy_to_pos(state: &State, xy: ScreenSpaceXY, round: PositionRound) -> Position {
+    screen_space_to_position(xy, state.text_char_dim, state.screen.scroll, round)
+}
+
 impl State {
     pub fn new() -> State {
         d!()
@@ -118,13 +118,13 @@ impl From<&str> for State {
 #[perf_viz::record]
 pub fn render_view(state: &State, view: &mut View) {
     use platform_types::BufferViewKind;
-    let status_line_y = state.screen.h - state.status_char_dim.h;
+    let status_line_y = state.screen.wh.h - state.status_char_dim.h;
     view.buffers.clear();
 
     let status_line_view = BufferView {
         kind: BufferViewKind::StatusLine,
         screen_position: (0.0, status_line_y),
-        bounds: (state.screen.w, state.status_char_dim.h),
+        bounds: (state.screen.wh.w, state.status_char_dim.h),
         ..d!()
     };
 
@@ -139,12 +139,16 @@ pub fn render_view(state: &State, view: &mut View) {
                 let position = c.get_position();
 
                 let screen_position =
-                    position_to_screen_space(position, state.text_char_dim, state.scroll).into();
+                    position_to_screen_space(
+                        position,
+                        state.text_char_dim,
+                        state.screen.scroll
+                    ).into();
 
                 view.buffers.push(BufferView {
                     kind: BufferViewKind::Cursor,
                     screen_position,
-                    bounds: (state.screen.w, state.text_char_dim.h),
+                    bounds: (state.screen.wh.w, state.text_char_dim.h),
                     color: match c.state {
                         CursorState::None => c![0.9, 0.3, 0.3],
                         CursorState::PressedAgainstWall => c![0.9, 0.9, 0.3],
@@ -158,7 +162,7 @@ pub fn render_view(state: &State, view: &mut View) {
 
             view.buffers.push(BufferView {
                 kind: BufferViewKind::Edit,
-                screen_position: state.scroll.into(),
+                screen_position: state.screen.scroll.into(),
                 bounds: (std::f32::INFINITY, std::f32::INFINITY),
                 color: c![0.3, 0.3, 0.9],
                 chars: buffer.chars().collect::<String>(),
@@ -176,13 +180,13 @@ pub fn render_view(state: &State, view: &mut View) {
                 color: c![0.3, 0.9, 0.3],
                 chars: {
                     use std::fmt::Write;
-                    let mut chars = String::with_capacity(state.screen.w as usize);
+                    let mut chars = String::with_capacity(state.screen.wh.w as usize);
 
                     let _cannot_actually_fail = write!(
                         chars,
                         "c{:?} s{:?} ",
                         (state.text_char_dim.w, state.text_char_dim.h),
-                        (state.scroll.x, state.scroll.y)
+                        (state.screen.scroll.x, state.screen.scroll.y)
                     );
 
                     chars = buffer.cursors().iter().fold(chars, |mut acc, c| {
@@ -218,38 +222,17 @@ pub fn render_view(state: &State, view: &mut View) {
 }
 
 fn ensure_at_least_one_cursor_is_visible(
-    scroll: &mut ScreenSpaceXY,
-    ScreenSpaceWH { w, h }: ScreenSpaceWH,
+    screen: &mut ScrollableScreen,
     char_dim: CharDim,
     cursors: &Vec1<Cursor>,
 ) {
     let target_cursor = dbg!(cursors.last());
 
-    let ScreenSpaceXY { x, y } =
-        position_to_screen_space(target_cursor.get_position(), char_dim, *scroll);
-
-    // if it is off the screen, scroll so it is inside an at least `char_dim` sized apron inside
-    // from the edge of the screen. But if it is inside the apron, then don't bother scrolling.
-    // +-------------------+
-    // | +---------------+ | outer box is what we call the "apron".
-    // | |               | |
-    // | +---------------+ |
-    // +-------------------+
-    if x < scroll.x + char_dim.w {
-        let new_scroll_x = scroll.x - (x + char_dim.w);
-        if new_scroll_x > 0.0 {
-            scroll.x = dbg!(new_scroll_x);
-        }
-    } else if x > scroll.x + w - char_dim.w {
-        scroll.x = dbg!(x - (w - char_dim.w));
-    } else if y > scroll.y - char_dim.h {
-        let new_scroll_y = scroll.y + (y - char_dim.h);
-        if new_scroll_y < 0.0 {
-            scroll.y = dbg!(new_scroll_y);
-        }
-    } else if y < scroll.y - (h + char_dim.h) {
-        scroll.y = dbg!(y + (h + char_dim.h));
-    }
+    ensure_xy_is_visible(
+        screen,
+        char_dim,
+        position_to_screen_space(target_cursor.get_position(), char_dim, screen.scroll),
+    );
 }
 
 macro_rules! set_if_present {
@@ -298,26 +281,36 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
         MoveAllCursors(r#move) => {
             buffer_call!(b{
                 b.move_all_cursors(r#move);
-                ensure_at_least_one_cursor_is_visible(&mut state.scroll, state.screen, state.text_char_dim, &b.cursors());
+                ensure_at_least_one_cursor_is_visible(
+                    &mut state.screen,
+                    state.text_char_dim,
+                    &b.cursors()
+                );
             });
         }
         ExtendSelectionForAllCursors(r#move) => {
             buffer_call!(b{
                 b.extend_selection_for_all_cursors(r#move);
-                ensure_at_least_one_cursor_is_visible(&mut state.scroll, state.screen, state.text_char_dim, &b.cursors());
+                ensure_at_least_one_cursor_is_visible(
+                    &mut state.screen,
+                    state.text_char_dim,
+                    &b.cursors()
+                );
             });
         }
         ScrollVertically(amount) => {
-            state.scroll.y -= amount;
+            state.screen.scroll.y -= amount;
         }
         ScrollHorizontally(amount) => {
-            state.scroll.x += amount;
+            state.screen.scroll.x += amount;
         }
         ResetScroll => {
-            state.scroll = d!();
+            state.screen.scroll = d!();
         }
         SetSizes(sizes) => {
-            set_if_present!(sizes => state.screen);
+            if let Some(wh) = sizes.screen {
+                state.screen.wh = wh;
+            }
             set_if_present!(sizes => state.text_char_dim);
             set_if_present!(sizes => state.status_char_dim);
         }

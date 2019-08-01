@@ -1,5 +1,5 @@
 use super::*;
-use proptest::{prop_compose, proptest};
+use proptest::{num::f32, prop_compose, proptest};
 use std::cmp::Ordering;
 
 prop_compose! {
@@ -174,9 +174,132 @@ fn multiline_highlights_work() {
 
 #[test]
 fn position_ord_works_as_expected() {
-    assert!(pos!{l 9 o 0} > pos!{l 0 o 0});
-    assert!(pos!{l 0 o 0} < pos!{l 0 o 9});
+    assert!(pos! {l 9 o 0} > pos! {l 0 o 0});
+    assert!(pos! {l 0 o 0} < pos! {l 0 o 9});
 
-    assert!(pos!{l 9 o 0} > pos!{l 0 o 9});
-    assert!(pos!{l 0 o 9} < pos!{l 9 o 0});
+    assert!(pos! {l 9 o 0} > pos! {l 0 o 9});
+    assert!(pos! {l 0 o 9} < pos! {l 9 o 0});
 }
+
+proptest! {
+    #[test]
+    fn xy_is_visible_works(
+        screen in arb::plausible_scrollable_screen()
+    ) {
+        use std::f32::EPSILON;
+        use std::ops::Not;
+
+        assert!(xy_is_visible(
+            &screen,
+            ScreenSpaceXY {
+                x: screen.scroll.x + screen.wh.w / 2.0,
+                // The `y` is flipped so this subtraction is intentiosnal!
+                y: screen.scroll.y - screen.wh.h / 2.0
+            }
+        ));
+        assert!(xy_is_visible(
+            &screen,
+            ScreenSpaceXY {
+                x: screen.scroll.x + screen.wh.w / 2.0,
+                y: screen.scroll.y + screen.wh.h / 2.0
+            }
+        )
+        .not());
+
+        assert!(xy_is_visible(
+            &screen,
+            ScreenSpaceXY {
+                x: screen.scroll.x + screen.wh.w - EPSILON,
+                y: screen.scroll.y - screen.wh.h + EPSILON
+            }
+        ));
+        assert!(xy_is_visible(
+            &screen,
+            ScreenSpaceXY {
+                x: screen.scroll.x + screen.wh.w - EPSILON,
+                y: screen.scroll.y + screen.wh.h - EPSILON
+            }
+        )
+        .not());
+
+        assert!(xy_is_visible(
+            &screen,
+            ScreenSpaceXY {
+                x: screen.scroll.x + screen.wh.w * 3.0 / 2.0,
+                y: screen.scroll.y - screen.wh.h * 3.0 / 2.0
+            }
+        )
+        .not());
+        assert!(xy_is_visible(
+            &screen,
+            ScreenSpaceXY {
+                x: screen.scroll.x + screen.wh.w * 3.0 / 2.0,
+                y: screen.scroll.y + screen.wh.h * 3.0 / 2.0
+            }
+        )
+        .not());
+
+        assert!(xy_is_visible(
+            &screen,
+            ScreenSpaceXY {
+                x: screen.scroll.x,
+                y: screen.scroll.y
+            }
+        ));
+        assert!(xy_is_visible(
+            &screen,
+            ScreenSpaceXY {
+                x: screen.scroll.x,
+                y: screen.scroll.y - EPSILON
+            }
+        )
+        .not());
+
+        assert!(xy_is_visible(
+            &screen,
+            ScreenSpaceXY {
+                x: screen.scroll.x + screen.wh.w,
+                y: screen.scroll.y
+            }
+        ));
+        assert!(xy_is_visible(
+            &screen,
+            ScreenSpaceXY {
+                x: screen.scroll.x + screen.wh.w,
+                y: screen.scroll.y - EPSILON
+            }
+        )
+        .not());
+
+        assert!(xy_is_visible(
+            &screen,
+            ScreenSpaceXY {
+                x: screen.scroll.x,
+                y: screen.scroll.y - screen.wh.h
+            }
+        ));
+        assert!(xy_is_visible(
+            &screen,
+            ScreenSpaceXY {
+                x: screen.scroll.x,
+                y: screen.scroll.y + screen.wh.h
+            }
+        )
+        .not());
+    }
+}
+
+proptest! {
+    #[test]
+    fn ensure_xy_is_visible_works(
+        mut screen in arb::scrollable_screen(f32::ANY),
+        char_dim in arb::char_dim(f32::ANY),
+        xy in arb::xy(arb::usual()),
+    ) {
+        ensure_xy_is_visible(&mut screen, char_dim, xy);
+
+        assert!(xy_is_visible(&screen, xy));
+    }
+}
+
+mod arb;

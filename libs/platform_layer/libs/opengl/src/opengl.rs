@@ -12,8 +12,8 @@ use glyph_brush::{
 use macros::d;
 
 use platform_types::{
-    BufferView, BufferViewKind, CharDim, Cmd, Highlight, Input, ReplaceOrAdd, ScreenSpaceWH, ScreenSpaceXY, Sizes,
-    UpdateAndRender, View,
+    BufferView, BufferViewKind, CharDim, Cmd, Highlight, Input, ReplaceOrAdd, ScreenSpaceWH,
+    ScreenSpaceXY, Sizes, UpdateAndRender, View,
 };
 
 pub struct FontInfo<'a> {
@@ -83,13 +83,15 @@ mod clipboard_layer {
     /// operation, just without system clipboard support.
     pub enum Clipboard {
         System(clipboard::ClipboardContext),
-        Fallback(clipboard::nop_clipboard::NopClipboardContext)
+        Fallback(clipboard::nop_clipboard::NopClipboardContext),
     }
 
     impl clipboard::ClipboardProvider for Clipboard {
         fn new() -> Result<Self, Box<std::error::Error>> {
-            let result: Result<clipboard::ClipboardContext, clipboard::nop_clipboard::NopClipboardContext> =
-            clipboard::ClipboardContext::new().map_err(|err| {
+            let result: Result<
+                clipboard::ClipboardContext,
+                clipboard::nop_clipboard::NopClipboardContext,
+            > = clipboard::ClipboardContext::new().map_err(|err| {
                 eprintln!("System clipboard not supported. {}", err);
                 // `NopClipboardContext::new` always returns an `Ok`
                 clipboard::nop_clipboard::NopClipboardContext::new().unwrap()
@@ -106,13 +108,13 @@ mod clipboard_layer {
         fn get_contents(&mut self) -> Result<String, Box<std::error::Error>> {
             match self {
                 Clipboard::System(ctx) => ctx.get_contents(),
-                Clipboard::Fallback(ctx) => ctx.get_contents()
+                Clipboard::Fallback(ctx) => ctx.get_contents(),
             }
         }
         fn set_contents(&mut self, s: String) -> Result<(), Box<std::error::Error>> {
             match self {
                 Clipboard::System(ctx) => ctx.set_contents(s),
-                Clipboard::Fallback(ctx) => ctx.set_contents(s)
+                Clipboard::Fallback(ctx) => ctx.set_contents(s),
             }
         }
     }
@@ -191,23 +193,17 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
     let mouse_epsilon_radius: f32 = {
         let (w, h) = (font_info.text_char_dim.w, font_info.text_char_dim.h);
 
-        (
-            if w < h {
-                w
-            } else {
-                h
-            }
-        ) / 2.0
+        (if w < h { w } else { h }) / 2.0
     };
 
     let (mut mouse_x, mut mouse_y) = (0.0, 0.0);
     let (mut last_click_x, mut last_click_y) = (std::f32::NAN, std::f32::NAN);
 
     macro_rules! mouse_within_radius {
-        () => (
+        () => {
             (last_click_x - mouse_x).abs() <= mouse_epsilon_radius
-             && (last_click_y - mouse_y).abs() <= mouse_epsilon_radius
-        );
+                && (last_click_y - mouse_y).abs() <= mouse_epsilon_radius
+        };
     }
 
     use std::sync::mpsc::channel;
