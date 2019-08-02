@@ -181,112 +181,286 @@ fn position_ord_works_as_expected() {
     assert!(pos! {l 0 o 9} < pos! {l 9 o 0});
 }
 
+const SIGN_BIT: u32 = 0x8000_0000;
+const ALL_BUT_SIGN_BIT: u32 = 0x7fff_ffff;
+
+// Assumes x is one of the "usual" `f32`s, AKA not sub/denormal, Infinity or NaN.
+// So normal numbers or 0. This does not imply that the output is a usual f32.
+fn usual_f32_minimal_increase(x: f32) -> f32 {
+    let non_sign_bits = x.to_bits() & ALL_BUT_SIGN_BIT;
+    // if is 0 or -0
+    if non_sign_bits == 0 {
+        std::f32::MIN_POSITIVE
+    } else {
+        let sign_bit = x.to_bits() & SIGN_BIT;
+        let sign = if sign_bit == 0 { 1 } else { -1 };
+        f32::from_bits(sign_bit | (non_sign_bits as i32 + sign) as u32)
+    }
+}
+
+// Assumes x is one of the "usual" `f32`s, AKA not sub/denormal, Infinity or NaN.
+// So normal numbers or 0. This does not imply that the output is a usual f32.
+fn usual_f32_minimal_decrease(x: f32) -> f32 {
+    let non_sign_bits = x.to_bits() & ALL_BUT_SIGN_BIT;
+    // if is 0 or -0
+    if non_sign_bits == 0 {
+        -std::f32::MIN_POSITIVE
+    } else {
+        let sign_bit = x.to_bits() & SIGN_BIT;
+        let sign = if sign_bit == 0 { 1 } else { -1 };
+        f32::from_bits(sign_bit | (non_sign_bits as i32 - sign) as u32)
+    }
+}
+
+// meta
+proptest! {
+    #[test]
+    fn usual_f32_minimal_increase_outputs_usual_f32s(
+        x in arb::usual(),
+    ) {
+        use std::num::FpCategory::{Zero, Normal};
+        let category = usual_f32_minimal_increase(x).classify();
+        assert!(
+            category == Zero || category == Normal,
+            "category was {:?}, not Zero or Normal",
+            category
+        );
+    }
+}
+
+proptest! {
+    #[test]
+    fn usual_f32_minimal_decrease_outputs_usual_f32s(
+        x in arb::usual(),
+    ) {
+        use std::num::FpCategory::{Zero, Normal};
+        let category = usual_f32_minimal_decrease(x).classify();
+        assert!(
+            category == Zero || category == Normal,
+            "category was {:?}, not Zero or Normal",
+            category
+        );
+    }
+}
+
+proptest! {
+    #[test]
+    fn usual_f32_minimal_increase_increases(
+        old in arb::usual(),
+    ) {
+        let new = usual_f32_minimal_increase(old);
+        assert!(
+            new > old,
+            "{:?} <= {:?}\n{:b} <= {:b}",
+            new,
+            old,
+            new.to_bits(),
+            old.to_bits()
+        );
+    }
+}
+
+proptest! {
+    #[test]
+    fn usual_f32_minimal_decrease_decreases(
+        old in arb::usual(),
+    ) {
+        let new = usual_f32_minimal_decrease(old);
+        assert!(
+            new < old,
+            "{:?} >= {:?}\n{:b} >= {:b}",
+            new,
+            old,
+            new.to_bits(),
+            old.to_bits()
+        );
+    }
+}
+
+macro_rules! xy_is_visible_assert {
+    (not $screen: expr, $xy: expr) => {{
+        use std::ops::Not;
+        assert!(
+            xy_is_visible(&$screen, $xy).not(),
+            "{} AKA {:?} is incorrectly visible on {:?}",
+            stringify!($xy).escape_default(),
+            ($xy.x, $xy.y),
+            &$screen
+        );
+    }};
+    ($screen: expr, $xy: expr) => {{
+        assert!(
+            xy_is_visible(&$screen, $xy),
+            "{} AKA {:?} is not visible on {:?}",
+            stringify!($xy).escape_default(),
+            ($xy.x, $xy.y),
+            &$screen
+        );
+    }};
+}
+
+
+fn xy_is_visible_works_on_this_passed_in_screen(screen: &ScrollableScreen) {
+    // negated so `NaN` would end up here
+    if !dbg!(screen.wh.w > 0.0 && screen.wh.h > 0.0) {
+        // If we got here the no point should be considered visible!
+        xy_is_visible_assert!(not & screen, ScreenSpaceXY { x: 0.0, y: 0.0 });
+
+        xy_is_visible_assert!(
+            not & screen,
+            ScreenSpaceXY {
+                x: screen.scroll.x,
+                y: 0.0
+            }
+        );
+
+        xy_is_visible_assert!(
+            not & screen,
+            ScreenSpaceXY {
+                x: 0.0,
+                y: screen.scroll.y
+            }
+        );
+
+        xy_is_visible_assert!(
+            not & screen,
+            ScreenSpaceXY {
+                x: screen.scroll.x,
+                y: screen.scroll.y
+            }
+        );
+
+        return;
+    }
+
+    xy_is_visible_assert!(
+        &screen,
+        ScreenSpaceXY {
+            x: screen.scroll.x + screen.wh.w / 2.0,
+
+            y: screen.scroll.y - screen.wh.h / 2.0
+        }
+    );
+    xy_is_visible_assert!(
+        not & screen,
+        ScreenSpaceXY {
+            x: screen.scroll.x + screen.wh.w / 2.0,
+            y: screen.scroll.y + screen.wh.h / 2.0
+        }
+    );
+
+    xy_is_visible_assert!(
+        &screen,
+        ScreenSpaceXY {
+            x: screen.scroll.x + usual_f32_minimal_decrease(screen.wh.w),
+            // The `y` is flipped so this subtraction is intentional!
+            y: screen.scroll.y - usual_f32_minimal_decrease(screen.wh.h)
+        }
+    );
+    xy_is_visible_assert!(
+        not & screen,
+        ScreenSpaceXY {
+            x: screen.scroll.x + usual_f32_minimal_decrease(screen.wh.w),
+            y: screen.scroll.y + usual_f32_minimal_decrease(screen.wh.h)
+        }
+    );
+
+    xy_is_visible_assert!(
+        not & screen,
+        ScreenSpaceXY {
+            x: screen.scroll.x + screen.wh.w * 3.0 / 2.0,
+            y: screen.scroll.y - screen.wh.h * 3.0 / 2.0
+        }
+    );
+    xy_is_visible_assert!(
+        not & screen,
+        ScreenSpaceXY {
+            x: screen.scroll.x + screen.wh.w * 3.0 / 2.0,
+            y: screen.scroll.y + screen.wh.h * 3.0 / 2.0
+        }
+    );
+
+    xy_is_visible_assert!(
+        &screen,
+        ScreenSpaceXY {
+            x: screen.scroll.x,
+            y: screen.scroll.y
+        }
+    );
+    xy_is_visible_assert!(
+        not & screen,
+        ScreenSpaceXY {
+            x: usual_f32_minimal_decrease(screen.scroll.x),
+            y: screen.scroll.y
+        }
+    );
+    xy_is_visible_assert!(
+        not & screen,
+        ScreenSpaceXY {
+            x: screen.scroll.x,
+            y: usual_f32_minimal_increase(screen.scroll.y)
+        }
+    );
+    xy_is_visible_assert!(
+        not & screen,
+        ScreenSpaceXY {
+            x: usual_f32_minimal_decrease(screen.scroll.x),
+            y: usual_f32_minimal_increase(screen.scroll.y)
+        }
+    );
+
+    xy_is_visible_assert!(
+        &screen,
+        ScreenSpaceXY {
+            x: screen.scroll.x + usual_f32_minimal_decrease(screen.wh.w),
+            y: screen.scroll.y
+        }
+    );
+    xy_is_visible_assert!(
+        not & screen,
+        ScreenSpaceXY {
+            x: screen.scroll.x + screen.wh.w,
+            y: screen.scroll.y
+        }
+    );
+
+    xy_is_visible_assert!(
+        &screen,
+        ScreenSpaceXY {
+            x: screen.scroll.x,
+            y: screen.scroll.y - usual_f32_minimal_decrease(screen.wh.h)
+        }
+    );
+    xy_is_visible_assert!(
+        not & screen,
+        ScreenSpaceXY {
+            x: screen.scroll.x,
+            y: screen.scroll.y - screen.wh.h
+        }
+    );
+}
+
 proptest! {
     #[test]
     fn xy_is_visible_works(
         screen in arb::plausible_scrollable_screen()
     ) {
-        use std::f32::EPSILON;
-        use std::ops::Not;
-
-        assert!(xy_is_visible(
-            &screen,
-            ScreenSpaceXY {
-                x: screen.scroll.x + screen.wh.w / 2.0,
-                // The `y` is flipped so this subtraction is intentiosnal!
-                y: screen.scroll.y - screen.wh.h / 2.0
-            }
-        ));
-        assert!(xy_is_visible(
-            &screen,
-            ScreenSpaceXY {
-                x: screen.scroll.x + screen.wh.w / 2.0,
-                y: screen.scroll.y + screen.wh.h / 2.0
-            }
-        )
-        .not());
-
-        assert!(xy_is_visible(
-            &screen,
-            ScreenSpaceXY {
-                x: screen.scroll.x + screen.wh.w - EPSILON,
-                y: screen.scroll.y - screen.wh.h + EPSILON
-            }
-        ));
-        assert!(xy_is_visible(
-            &screen,
-            ScreenSpaceXY {
-                x: screen.scroll.x + screen.wh.w - EPSILON,
-                y: screen.scroll.y + screen.wh.h - EPSILON
-            }
-        )
-        .not());
-
-        assert!(xy_is_visible(
-            &screen,
-            ScreenSpaceXY {
-                x: screen.scroll.x + screen.wh.w * 3.0 / 2.0,
-                y: screen.scroll.y - screen.wh.h * 3.0 / 2.0
-            }
-        )
-        .not());
-        assert!(xy_is_visible(
-            &screen,
-            ScreenSpaceXY {
-                x: screen.scroll.x + screen.wh.w * 3.0 / 2.0,
-                y: screen.scroll.y + screen.wh.h * 3.0 / 2.0
-            }
-        )
-        .not());
-
-        assert!(xy_is_visible(
-            &screen,
-            ScreenSpaceXY {
-                x: screen.scroll.x,
-                y: screen.scroll.y
-            }
-        ));
-        assert!(xy_is_visible(
-            &screen,
-            ScreenSpaceXY {
-                x: screen.scroll.x,
-                y: screen.scroll.y - EPSILON
-            }
-        )
-        .not());
-
-        assert!(xy_is_visible(
-            &screen,
-            ScreenSpaceXY {
-                x: screen.scroll.x + screen.wh.w,
-                y: screen.scroll.y
-            }
-        ));
-        assert!(xy_is_visible(
-            &screen,
-            ScreenSpaceXY {
-                x: screen.scroll.x + screen.wh.w,
-                y: screen.scroll.y - EPSILON
-            }
-        )
-        .not());
-
-        assert!(xy_is_visible(
-            &screen,
-            ScreenSpaceXY {
-                x: screen.scroll.x,
-                y: screen.scroll.y - screen.wh.h
-            }
-        ));
-        assert!(xy_is_visible(
-            &screen,
-            ScreenSpaceXY {
-                x: screen.scroll.x,
-                y: screen.scroll.y + screen.wh.h
-            }
-        )
-        .not());
+        xy_is_visible_works_on_this_passed_in_screen(&screen);
     }
+}
+
+
+#[test]
+fn xy_is_visible_works_on_this_very_short_and_wide_screen() {
+    let screen = ScrollableScreen {
+        scroll: ScreenSpaceXY { x: 0.0, y: -0.5 },
+        wh: ScreenSpaceWH {
+            w: 59579064000.0,
+            h: 0.00000000000000000000025946791,
+        },
+    };
+
+    xy_is_visible_works_on_this_passed_in_screen(&screen);
 }
 
 proptest! {
@@ -298,7 +472,7 @@ proptest! {
     ) {
         ensure_xy_is_visible(&mut screen, char_dim, xy);
 
-        assert!(xy_is_visible(&screen, xy));
+        xy_is_visible_assert!(&screen, xy);
     }
 }
 

@@ -224,7 +224,10 @@ pub fn xy_is_visible(
     }: &ScrollableScreen,
     ScreenSpaceXY { x, y }: ScreenSpaceXY,
 ) -> bool {
-    false
+    dbg!(x >= scroll.x)
+        && dbg!(x < dbg!(scroll.x + w))
+        && dbg!(y <= scroll.y)
+        && dbg!(y > dbg!(scroll.y - h))
 }
 
 /// The nth space between utf8 characters. So in the string "aöc" there are
