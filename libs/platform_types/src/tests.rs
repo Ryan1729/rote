@@ -301,6 +301,8 @@ macro_rules! xy_is_visible_assert {
 
 
 fn xy_is_visible_works_on_this_passed_in_screen(screen: &ScrollableScreen) {
+    // TODO rewrite this with the correct meaning of `scroll` in mind.
+
     // negated so `NaN` would end up here
     if !dbg!(screen.wh.w > 0.0 && screen.wh.h > 0.0) {
         // If we got here the no point should be considered visible!
@@ -333,12 +335,26 @@ fn xy_is_visible_works_on_this_passed_in_screen(screen: &ScrollableScreen) {
         return;
     }
 
+    if screen.scroll.x + screen.wh.w == screen.scroll.x
+        || screen.scroll.y - screen.wh.h == screen.scroll.y
+        || screen.scroll.x + usual_f32_minimal_decrease(screen.wh.w)
+            == screen.scroll.x + screen.wh.w
+        || screen.scroll.y - usual_f32_minimal_decrease(screen.wh.h)
+            == screen.scroll.y - screen.wh.h
+    {
+        // We've hit the limits of f32 precision. If this turns out to be problem in praactice,
+        // we'll need to get more precision from the platform layer somehow.
+        return;
+    }
+
+    // Reminder: the `y` coord is positive down, negative up, so a negative scroll value means
+    // move the screen up, so you can see things that are further down.
+
     xy_is_visible_assert!(
         &screen,
         ScreenSpaceXY {
             x: screen.scroll.x + screen.wh.w / 2.0,
-
-            y: screen.scroll.y - screen.wh.h / 2.0
+            y: screen.scroll.y + screen.wh.h / 2.0
         }
     );
     xy_is_visible_assert!(
@@ -353,7 +369,6 @@ fn xy_is_visible_works_on_this_passed_in_screen(screen: &ScrollableScreen) {
         &screen,
         ScreenSpaceXY {
             x: screen.scroll.x + usual_f32_minimal_decrease(screen.wh.w),
-            // The `y` is flipped so this subtraction is intentional!
             y: screen.scroll.y - usual_f32_minimal_decrease(screen.wh.h)
         }
     );
@@ -453,27 +468,81 @@ proptest! {
 #[test]
 fn xy_is_visible_works_on_this_very_short_and_wide_screen() {
     let screen = ScrollableScreen {
-        scroll: ScreenSpaceXY { x: 0.0, y: -0.5 },
+        scroll: ScreenSpaceXY {
+            x: 0.0,
+            y: 0.04851929,
+        },
         wh: ScreenSpaceWH {
-            w: 59579064000.0,
-            h: 0.00000000000000000000025946791,
+            w: 511087840000000000000000000000000000.0,
+            h: 0.00000006715828,
         },
     };
 
     xy_is_visible_works_on_this_passed_in_screen(&screen);
 }
 
+#[test]
+fn xy_is_visible_works_on_this_realistic_example() {
+    let screen = ScrollableScreen {
+        scroll: ScreenSpaceXY {
+            x: -250.0,
+            y: -440.0,
+        },
+        wh: ScreenSpaceWH { w: 800.0, h: 400.0 },
+    };
+
+    xy_is_visible_assert!(
+        &screen,
+        ScreenSpaceXY {
+            x: 1000.0,
+            y: 480.0
+        }
+    );
+}
+
+
+fn attempt_to_make_xy_visible_works_in_this_scenario(
+    screen: &mut ScrollableScreen,
+    char_dim: CharDim,
+    xy: ScreenSpaceXY,
+) {
+    let attempt = attempt_to_make_xy_visible(screen, char_dim, xy);
+
+    if dbg!(attempt) == VisibilityAttemptResult::Succeeded {
+        xy_is_visible_assert!(&screen, xy);
+    }
+}
+
 proptest! {
     #[test]
-    fn ensure_xy_is_visible_works(
+    fn attempt_to_make_xy_visible_works(
         mut screen in arb::scrollable_screen(f32::ANY),
         char_dim in arb::char_dim(f32::ANY),
         xy in arb::xy(arb::usual()),
     ) {
-        ensure_xy_is_visible(&mut screen, char_dim, xy);
-
-        xy_is_visible_assert!(&screen, xy);
+        attempt_to_make_xy_visible_works_in_this_scenario(&mut screen, char_dim, xy);
     }
+}
+
+#[test]
+fn attempt_to_make_xy_visible_works_on_this_generated_example() {
+    let mut screen = ScrollableScreen {
+        scroll: ScreenSpaceXY { x: 0.0, y: 0.0 },
+        wh: ScreenSpaceWH {
+            w: 1927329000.0,
+            h: 1.4144982,
+        },
+    };
+    let char_dim = CharDim {
+        w: 0.000000000026796234,
+        h: 0.0000000000000000003944164,
+    };
+    let xy = ScreenSpaceXY {
+        x: 0.0,
+        y: 0.0000000000000000000000000006170001,
+    };
+
+    attempt_to_make_xy_visible_works_in_this_scenario(&mut screen, char_dim, xy);
 }
 
 mod arb;

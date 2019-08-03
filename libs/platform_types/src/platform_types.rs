@@ -67,6 +67,9 @@ pub enum Input {
 d!(for Input : Input::None);
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
+/// The top left corner of the screen is `(0.0, 0.0)1, top right corner is `(width, 0.0)`,
+/// the bottom left corner is `(0.0, height)`. In other words, the x-axis point right, the y-axis
+/// points down.
 pub struct ScreenSpaceXY {
     pub x: f32,
     pub y: f32,
@@ -177,44 +180,75 @@ pub fn position_to_screen_space(
 /// otherwise be two `ScreenSpaceXY` params.
 #[derive(Default, Debug)]
 pub struct ScrollableScreen {
+    /// A negative `scroll.x` value means move the screen left, so you can see things that are
+    /// further right. A negative `scroll.y` value means move the screen up, so you can see things
+    /// that are further down.
     pub scroll: ScreenSpaceXY,
     pub wh: ScreenSpaceWH,
 }
 
 /// if it is off the screen, scroll so it is inside an at least `char_dim` sized apron inside
 /// from the edge of the screen. But if it is inside the apron, then don't bother scrolling.
-/// ```
+///
 /// +-------------------+
 /// | +---------------+ |
 /// | |               | |
 /// | +---------------+ |
 /// +-------------------+
-/// ```
+///
 /// The outer box is what we call the "apron".
 
-pub fn ensure_xy_is_visible(
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum VisibilityAttemptResult {
+    Succeeded,
+    ScreenTooSmall,
+    ScreenTooLarge,
+    ScreenTooWeird,
+    CharDimTooSmall,
+    CharDimTooLarge,
+    CharDimTooWeird,
+}
+
+pub fn attempt_to_make_xy_visible(
     ScrollableScreen { scroll, wh }: &mut ScrollableScreen,
     char_dim: CharDim,
     ScreenSpaceXY { x, y }: ScreenSpaceXY,
-) {
+) -> VisibilityAttemptResult {
+    use std::num::FpCategory::*;
+    use VisibilityAttemptResult::*;
+
     let &mut ScreenSpaceWH { w, h } = wh;
 
+    // If these checks ever actually becaoe a bottleneck ,the nthe easy solution is to just make
+    // types that can't represent these cases and enforce them at startup!
+    match (w.classify(), h.classify()) {
+        (Nan, _) | (_, Nan) => return ScreenTooWeird,
+        (Infinite, _) | (_, Infinite) => return ScreenTooLarge,
+        (Zero, _) | (_, Zero) | (Subnormal, _) | (_, Subnormal) => return ScreenTooSmall,
+        (Normal, Normal) if w < 1.0 || h < 1.0 => return ScreenTooSmall,
+        (Normal, Normal) => {}
+    }
+
+    match (char_dim.w.classify(), char_dim.h.classify()) {
+        (Nan, _) | (_, Nan) => return CharDimTooWeird,
+        (Infinite, _) | (_, Infinite) => return CharDimTooLarge,
+        (Zero, _) | (_, Zero) | (Subnormal, _) | (_, Subnormal) => return CharDimTooSmall,
+        (Normal, Normal) if char_dim.w < 1.0 || char_dim.h < 1.0 => return CharDimTooSmall,
+        (Normal, Normal) if char_dim.w > w || char_dim.h > h => return CharDimTooLarge,
+        (Normal, Normal) => {}
+    }
 
     if x < scroll.x + char_dim.w {
-        let new_scroll_x = scroll.x - (x + char_dim.w);
-        if new_scroll_x > 0.0 {
-            scroll.x = dbg!(new_scroll_x);
-        }
+        scroll.x = dbg!(scroll.x - (x + char_dim.w));
     } else if x > scroll.x + w - char_dim.w {
         scroll.x = dbg!(x - (w - char_dim.w));
     } else if y > scroll.y - char_dim.h {
-        let new_scroll_y = scroll.y + (y - char_dim.h);
-        if new_scroll_y < 0.0 {
-            scroll.y = dbg!(new_scroll_y);
-        }
+        scroll.y = dbg!(scroll.y + (y - char_dim.h));
     } else if y < scroll.y - (h + char_dim.h) {
         scroll.y = dbg!(y + (h + char_dim.h));
     }
+
+    Succeeded
 }
 
 pub fn xy_is_visible(

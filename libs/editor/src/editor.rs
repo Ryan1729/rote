@@ -1,9 +1,9 @@
 use editor_types::{Cursor, CursorState, Vec1};
 use macros::{c, d};
 use platform_types::{
-    position_to_screen_space, push_highlights, screen_space_to_position, ensure_xy_is_visible,
-    BufferView, CharDim, Cmd, Input, Position, PositionRound, ScreenSpaceXY, ScrollableScreen,
-    UpdateAndRenderOutput, View,
+    attempt_to_make_xy_visible, position_to_screen_space, push_highlights,
+    screen_space_to_position, BufferView, CharDim, Cmd, Input, Position, PositionRound,
+    ScreenSpaceXY, ScrollableScreen, UpdateAndRenderOutput, View, VisibilityAttemptResult,
 };
 
 use std::collections::VecDeque;
@@ -139,11 +139,8 @@ pub fn render_view(state: &State, view: &mut View) {
                 let position = c.get_position();
 
                 let screen_position =
-                    position_to_screen_space(
-                        position,
-                        state.text_char_dim,
-                        state.screen.scroll
-                    ).into();
+                    position_to_screen_space(position, state.text_char_dim, state.screen.scroll)
+                        .into();
 
                 view.buffers.push(BufferView {
                     kind: BufferViewKind::Cursor,
@@ -221,18 +218,18 @@ pub fn render_view(state: &State, view: &mut View) {
     };
 }
 
-fn ensure_at_least_one_cursor_is_visible(
+fn attempt_to_make_sure_at_least_one_cursor_is_visible(
     screen: &mut ScrollableScreen,
     char_dim: CharDim,
     cursors: &Vec1<Cursor>,
-) {
+) -> VisibilityAttemptResult {
     let target_cursor = dbg!(cursors.last());
 
-    ensure_xy_is_visible(
+    attempt_to_make_xy_visible(
         screen,
         char_dim,
         position_to_screen_space(target_cursor.get_position(), char_dim, screen.scroll),
-    );
+    )
 }
 
 macro_rules! set_if_present {
@@ -281,21 +278,21 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
         MoveAllCursors(r#move) => {
             buffer_call!(b{
                 b.move_all_cursors(r#move);
-                ensure_at_least_one_cursor_is_visible(
+                attempt_to_make_sure_at_least_one_cursor_is_visible(
                     &mut state.screen,
                     state.text_char_dim,
                     &b.cursors()
-                );
+                ); //TODO report non success result
             });
         }
         ExtendSelectionForAllCursors(r#move) => {
             buffer_call!(b{
                 b.extend_selection_for_all_cursors(r#move);
-                ensure_at_least_one_cursor_is_visible(
+                attempt_to_make_sure_at_least_one_cursor_is_visible(
                     &mut state.screen,
                     state.text_char_dim,
                     &b.cursors()
-                );
+                ); //TODO report non success result
             });
         }
         ScrollVertically(amount) => {
