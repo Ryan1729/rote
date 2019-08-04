@@ -53,6 +53,7 @@ pub enum Input {
     SetSizes(Sizes),
     MoveAllCursors(Move),
     ExtendSelectionForAllCursors(Move),
+    SelectAll,
     SetCursor(ScreenSpaceXY, ReplaceOrAdd),
     DragCursors(ScreenSpaceXY),
     SelectCharTypeGrouping(ScreenSpaceXY, ReplaceOrAdd),

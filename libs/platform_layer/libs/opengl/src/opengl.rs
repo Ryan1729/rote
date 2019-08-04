@@ -419,6 +419,9 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                             VirtualKeyCode::Right => {
                                 call_u_and_r!(Input::MoveAllCursors(Move::ToNextLikelyEditLocation));
                             }
+                            VirtualKeyCode::A => {
+                                call_u_and_r!(Input::SelectAll);
+                            }
                             VirtualKeyCode::C => {
                                 call_u_and_r!(Input::Copy);
                             }
@@ -552,7 +555,8 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                         },
                         WindowEvent::ReceivedCharacter(mut c) => {
                             if
-                             c != '\u{3}'       // "end of text" (sent with Ctrl-c)
+                             c != '\u{1}'       // "start of heading" (sent with Ctrl-a)
+                             && c != '\u{3}'    // "end of text" (sent with Ctrl-c)
                              && c != '\u{7f}'   // delete
                              && c != '\u{8}'    // backspace
                              && c != '\u{16}'  // "synchronous idle" (sent with Ctrl-v)
