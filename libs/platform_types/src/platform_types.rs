@@ -76,6 +76,8 @@ pub struct ScreenSpaceXY {
     pub y: f32,
 }
 
+fmt_display!(for ScreenSpaceXY: ScreenSpaceXY {x, y} in "{:?}", (x, y));
+
 impl From<ScreenSpaceXY> for (f32, f32) {
     fn from(ScreenSpaceXY { x, y }: ScreenSpaceXY) -> Self {
         (x, y)
@@ -87,6 +89,8 @@ pub struct ScreenSpaceWH {
     pub w: f32,
     pub h: f32,
 }
+
+fmt_display!(for ScreenSpaceWH: ScreenSpaceWH {w, h} in "{:?}", (w, h));
 
 impl From<ScreenSpaceWH> for (f32, f32) {
     fn from(ScreenSpaceWH { w, h }: ScreenSpaceWH) -> Self {
@@ -102,6 +106,8 @@ pub struct CharDim {
     pub w: f32,
     pub h: f32,
 }
+
+fmt_display!(for CharDim: CharDim {w, h} in "{:?}", (w, h));
 
 impl From<CharDim> for (f32, f32) {
     fn from(CharDim { w, h }: CharDim) -> Self {
@@ -188,12 +194,16 @@ pub struct ScrollableScreen {
     pub wh: ScreenSpaceWH,
 }
 
+fmt_display!(for ScrollableScreen : ScrollableScreen {scroll, wh}
+      in "ScrollableScreen {{ scroll:{}, wh: {} }}", scroll, wh
+ );
+
 /// if it is off the screen, scroll so it is inside an at least `char_dim` sized apron inside
 /// from the edge of the screen. But if it is inside the apron, then don't bother scrolling.
 ///
 /// +-------------------+
 /// | +---------------+ |
-/// | |               | |
+/// | |...............| |
 /// | +---------------+ |
 /// +-------------------+
 ///
@@ -220,7 +230,7 @@ pub fn attempt_to_make_xy_visible(
 
     let &mut ScreenSpaceWH { w, h } = wh;
 
-    // If these checks ever actually becaoe a bottleneck ,the nthe easy solution is to just make
+    // If these checks ever actually become a bottleneck ,the nthe easy solution is to just make
     // types that can't represent these cases and enforce them at startup!
     match (w.classify(), h.classify()) {
         (Nan, _) | (_, Nan) => return ScreenTooWeird,
@@ -239,14 +249,32 @@ pub fn attempt_to_make_xy_visible(
         (Normal, Normal) => {}
     }
 
-    if x < scroll.x + char_dim.w {
-        scroll.x = dbg!(scroll.x - (x + char_dim.w));
-    } else if x > scroll.x + w - char_dim.w {
-        scroll.x = dbg!(x - (w - char_dim.w));
-    } else if y > scroll.y - char_dim.h {
-        scroll.y = dbg!(scroll.y + (y - char_dim.h));
-    } else if y < scroll.y - (h + char_dim.h) {
-        scroll.y = dbg!(y + (h + char_dim.h));
+    // We don't ever want to automatically show space that text can never be inside.
+    macro_rules! stay_below_0 {
+        ($n: expr) => {{
+            let n = dbg!($n);
+            if n > 0.0 {
+                0.0
+            } else {
+                n
+            }
+        }};
+    }
+
+    if x < -scroll.x - char_dim.w {
+        scroll.x = stay_below_0!(-x - char_dim.w);
+    } else if x >= -scroll.x + w - char_dim.w {
+        scroll.x = stay_below_0!(-x + w - char_dim.w);
+    } else {
+        dbg!("x");
+    }
+
+    if y < -scroll.y - char_dim.h {
+        scroll.y = stay_below_0!(-y - char_dim.h);
+    } else if y >= -scroll.y + h - char_dim.h {
+        scroll.y = stay_below_0!(-y + h - char_dim.h);
+    } else {
+        dbg!("y");
     }
 
     Succeeded
@@ -259,10 +287,10 @@ pub fn xy_is_visible(
     }: &ScrollableScreen,
     ScreenSpaceXY { x, y }: ScreenSpaceXY,
 ) -> bool {
-    dbg!(x >= scroll.x)
-        && dbg!(x < dbg!(scroll.x + w))
-        && dbg!(y <= scroll.y)
-        && dbg!(y > dbg!(scroll.y - h))
+    dbg!(x >= -scroll.x)
+        && dbg!(x < dbg!(-scroll.x + w))
+        && dbg!(y >= -scroll.y)
+        && dbg!(y < dbg!(-scroll.y + h))
 }
 
 /// The nth space between utf8 characters. So in the string "aöc" there are

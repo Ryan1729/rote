@@ -68,7 +68,7 @@ impl Cursors {
                 let c1: Cursor = cursor.clone();
                 let c2: Cursor = (*last).clone();
 
-                match dbg!((get_tuple!(c1), get_tuple!(c2))) {
+                match (get_tuple!(c1), get_tuple!(c2)) {
                     ((c1_min, c1_max, c1_ordering), (c2_min, c2_max, c2_ordering))
                         // if they overlap
                         if (c1_min <= c2_min && c1_max >= c2_min)
@@ -103,7 +103,7 @@ impl Cursors {
                     _ => keepers.push(cursor.clone()),
                 }
             } else {
-                dbg!(keepers.push(cursor.clone()));
+                keepers.push(cursor.clone());
             }
         }
 
@@ -485,7 +485,7 @@ where
     let mut cloned_rope = original_rope.clone();
 
     // the index needs to account for the order being from the high positions to the low positions
-    let mut index = dbg!(cloned_cursors.len());
+    let mut index = cloned_cursors.len();
     let range_edits = cloned_cursors.mapped_mut(|c| {
         index -= 1;
         mapper(c, &mut cloned_rope, index)

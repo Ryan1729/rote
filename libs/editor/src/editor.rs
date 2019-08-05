@@ -1,10 +1,10 @@
 use editor_types::{Cursor, CursorState, Vec1};
 use macros::{c, d};
 use platform_types::{
-    attempt_to_make_xy_visible, position_to_screen_space, push_highlights,
-    screen_space_to_position, pos, BufferView, CharDim, Cmd, Input, Position, PositionRound,
-    ScreenSpaceXY, ScrollableScreen, UpdateAndRenderOutput, View, VisibilityAttemptResult,
-    ReplaceOrAdd, Move
+    attempt_to_make_xy_visible, pos, position_to_screen_space, push_highlights,
+    screen_space_to_position, BufferView, CharDim, Cmd, Input, Move, Position, PositionRound,
+    ReplaceOrAdd, ScreenSpaceXY, ScrollableScreen, UpdateAndRenderOutput, View,
+    VisibilityAttemptResult,
 };
 
 use std::collections::VecDeque;
@@ -182,16 +182,20 @@ pub fn render_view(state: &State, view: &mut View) {
 
                     let _cannot_actually_fail = write!(
                         chars,
-                        "c{:?} s{:?} ",
-                        (state.text_char_dim.w, state.text_char_dim.h),
-                        (state.screen.scroll.x, state.screen.scroll.y)
+                        "t{} s{} w{}",
+                        state.text_char_dim, state.screen.scroll, state.screen.wh
                     );
 
                     chars = buffer.cursors().iter().fold(chars, |mut acc, c| {
                         let _cannot_actually_fail = write!(
                             acc,
-                            "{} ({}|{}), ",
+                            "{} {} ({}|{}), ",
                             c,
+                            position_to_screen_space(
+                                c.get_position(),
+                                state.text_char_dim,
+                                state.screen.scroll
+                            ),
                             display_option_compactly(
                                 buffer.find_index(c).and_then(|o| if o == 0 {
                                     None
@@ -224,12 +228,16 @@ fn attempt_to_make_sure_at_least_one_cursor_is_visible(
     char_dim: CharDim,
     cursors: &Vec1<Cursor>,
 ) -> VisibilityAttemptResult {
-    let target_cursor = dbg!(cursors.last());
+    let target_cursor = cursors.last();
 
     attempt_to_make_xy_visible(
         screen,
         char_dim,
-        position_to_screen_space(target_cursor.get_position(), char_dim, screen.scroll),
+        dbg!(position_to_screen_space(
+            target_cursor.get_position(),
+            char_dim,
+            screen.scroll
+        )),
     )
 }
 

@@ -1,5 +1,8 @@
 ## TODO
 
+* fix auto-scroll bug by noting that there are two different spaces going on:
+  * screen-space
+  * text-space
 
 * start allowing multiple cursors to be manipulated
   * Ctrl-click to add cursors
@@ -28,8 +31,6 @@
       * most recently created or moved on its own seem like the obvious choices,
       but we may end up needing the concept of a `current_cursor` anyway for
       other reasons.
-
-* Ctrl-a select all
 
 * make Undo/Redo history into struct containing `VecDeque` which keeps track of total bytes used and automatically pops things off the end when storage would exceed a limit.
   * add max size parameter so we can test with small sizes
