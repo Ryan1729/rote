@@ -306,11 +306,11 @@ fn xy_is_visible_works_on_this_passed_in_screen(screen: &ScrollableScreen) {
     // negated so `NaN` would end up here
     if !dbg!(screen.wh.w > 0.0 && screen.wh.h > 0.0) {
         // If we got here the no point should be considered visible!
-        xy_is_visible_assert!(not & screen, ScreenSpaceXY { x: 0.0, y: 0.0 });
+        xy_is_visible_assert!(not & screen, TextSpaceXY { x: 0.0, y: 0.0 });
 
         xy_is_visible_assert!(
             not & screen,
-            ScreenSpaceXY {
+            TextSpaceXY {
                 x: screen.scroll.x,
                 y: 0.0
             }
@@ -318,7 +318,7 @@ fn xy_is_visible_works_on_this_passed_in_screen(screen: &ScrollableScreen) {
 
         xy_is_visible_assert!(
             not & screen,
-            ScreenSpaceXY {
+            TextSpaceXY {
                 x: 0.0,
                 y: screen.scroll.y
             }
@@ -326,7 +326,7 @@ fn xy_is_visible_works_on_this_passed_in_screen(screen: &ScrollableScreen) {
 
         xy_is_visible_assert!(
             not & screen,
-            ScreenSpaceXY {
+            TextSpaceXY {
                 x: screen.scroll.x,
                 y: screen.scroll.y
             }
@@ -359,106 +359,110 @@ fn xy_is_visible_works_on_this_passed_in_screen(screen: &ScrollableScreen) {
 
     xy_is_visible_assert!(
         &screen,
-        ScreenSpaceXY {
-            x: -screen.scroll.x + screen.wh.w / 2.0,
-            y: -screen.scroll.y + screen.wh.h / 2.0
+        screen.scroll
+            + ScreenSpaceXY {
+                x: screen.wh.w / 2.0,
+                y: screen.wh.h / 2.0
+            }
+    );
+    xy_is_visible_assert!(
+        not & screen,
+        screen.scroll
+            + ScreenSpaceXY {
+                x: -screen.wh.w / 2.0,
+                y: -screen.wh.h / 2.0
+            }
+    );
+
+    xy_is_visible_assert!(
+        &screen,
+        screen.scroll
+            + ScreenSpaceXY {
+                x: usual_f32_minimal_decrease(screen.wh.w),
+                y: usual_f32_minimal_decrease(screen.wh.h)
+            }
+    );
+    xy_is_visible_assert!(
+        not & screen,
+        screen.scroll
+            + ScreenSpaceXY {
+                x: screen.wh.w,
+                y: screen.wh.h
+            }
+    );
+
+    xy_is_visible_assert!(
+        not & screen,
+        screen.scroll
+            + ScreenSpaceXY {
+                x: screen.wh.w * 3.0 / 2.0,
+                y: screen.wh.h * 3.0 / 2.0
+            }
+    );
+    xy_is_visible_assert!(
+        not & screen,
+        screen.scroll
+            + ScreenSpaceXY {
+                x: -screen.wh.w * 3.0 / 2.0,
+                y: -screen.wh.h * 3.0 / 2.0
+            }
+    );
+
+    xy_is_visible_assert!(&screen, screen.scroll + ScreenSpaceXY { x: 0.0, y: 0.0 });
+    xy_is_visible_assert!(
+        not & screen,
+        TextSpaceXY {
+            x: usual_f32_minimal_decrease(screen.scroll.x),
+            y: screen.scroll.y
         }
     );
     xy_is_visible_assert!(
         not & screen,
-        ScreenSpaceXY {
-            x: screen.scroll.x - screen.wh.w / 2.0,
-            y: screen.scroll.y - screen.wh.h / 2.0
+        TextSpaceXY {
+            x: screen.scroll.x,
+            y: usual_f32_minimal_decrease(screen.scroll.y)
+        }
+    );
+    xy_is_visible_assert!(
+        not & screen,
+        TextSpaceXY {
+            x: usual_f32_minimal_decrease(screen.scroll.x),
+            y: usual_f32_minimal_decrease(screen.scroll.y)
         }
     );
 
     xy_is_visible_assert!(
         &screen,
-        ScreenSpaceXY {
-            x: -screen.scroll.x + usual_f32_minimal_decrease(screen.wh.w),
-            y: -screen.scroll.y + usual_f32_minimal_decrease(screen.wh.h)
-        }
+        screen.scroll
+            + ScreenSpaceXY {
+                x: usual_f32_minimal_decrease(screen.wh.w),
+                y: 0.0
+            }
     );
     xy_is_visible_assert!(
         not & screen,
-        ScreenSpaceXY {
-            x: screen.scroll.x - usual_f32_minimal_decrease(screen.wh.w),
-            y: screen.scroll.y - usual_f32_minimal_decrease(screen.wh.h)
-        }
-    );
-
-    xy_is_visible_assert!(
-        not & screen,
-        ScreenSpaceXY {
-            x: -screen.scroll.x + screen.wh.w * 3.0 / 2.0,
-            y: -screen.scroll.y + screen.wh.h * 3.0 / 2.0
-        }
-    );
-    xy_is_visible_assert!(
-        not & screen,
-        ScreenSpaceXY {
-            x: screen.scroll.x - screen.wh.w * 3.0 / 2.0,
-            y: screen.scroll.y - screen.wh.h * 3.0 / 2.0
-        }
+        screen.scroll
+            + ScreenSpaceXY {
+                x: screen.wh.w,
+                y: 0.0
+            }
     );
 
     xy_is_visible_assert!(
         &screen,
-        ScreenSpaceXY {
-            x: -screen.scroll.x,
-            y: -screen.scroll.y
-        }
+        screen.scroll
+            + ScreenSpaceXY {
+                x: 0.0,
+                y: usual_f32_minimal_decrease(screen.wh.h)
+            }
     );
     xy_is_visible_assert!(
         not & screen,
-        ScreenSpaceXY {
-            x: -usual_f32_minimal_increase(screen.scroll.x),
-            y: -screen.scroll.y
-        }
-    );
-    xy_is_visible_assert!(
-        not & screen,
-        ScreenSpaceXY {
-            x: -screen.scroll.x,
-            y: -usual_f32_minimal_increase(screen.scroll.y)
-        }
-    );
-    xy_is_visible_assert!(
-        not & screen,
-        ScreenSpaceXY {
-            x: -usual_f32_minimal_increase(screen.scroll.x),
-            y: -usual_f32_minimal_increase(screen.scroll.y)
-        }
-    );
-
-    xy_is_visible_assert!(
-        &screen,
-        ScreenSpaceXY {
-            x: -screen.scroll.x + usual_f32_minimal_decrease(screen.wh.w),
-            y: -screen.scroll.y
-        }
-    );
-    xy_is_visible_assert!(
-        not & screen,
-        ScreenSpaceXY {
-            x: -screen.scroll.x + screen.wh.w,
-            y: -screen.scroll.y
-        }
-    );
-
-    xy_is_visible_assert!(
-        &screen,
-        ScreenSpaceXY {
-            x: -screen.scroll.x,
-            y: -screen.scroll.y + usual_f32_minimal_decrease(screen.wh.h)
-        }
-    );
-    xy_is_visible_assert!(
-        not & screen,
-        ScreenSpaceXY {
-            x: -screen.scroll.x,
-            y: -screen.scroll.y + screen.wh.h
-        }
+        screen.scroll
+            + ScreenSpaceXY {
+                x: 0.0,
+                y: screen.wh.h
+            }
     );
 }
 
@@ -475,7 +479,7 @@ proptest! {
 #[test]
 fn xy_is_visible_works_on_this_very_short_and_wide_screen() {
     let screen = ScrollableScreen {
-        scroll: ScreenSpaceXY {
+        scroll: ScrollXY {
             x: 0.0,
             y: 0.04851929,
         },
@@ -491,16 +495,13 @@ fn xy_is_visible_works_on_this_very_short_and_wide_screen() {
 #[test]
 fn xy_is_visible_works_on_this_realistic_example() {
     let screen = ScrollableScreen {
-        scroll: ScreenSpaceXY {
-            x: -250.0,
-            y: -440.0,
-        },
+        scroll: ScrollXY { x: 250.0, y: 440.0 },
         wh: ScreenSpaceWH { w: 800.0, h: 400.0 },
     };
 
     xy_is_visible_assert!(
         &screen,
-        ScreenSpaceXY {
+        TextSpaceXY {
             x: 1000.0,
             y: 480.0
         }
@@ -511,11 +512,12 @@ fn xy_is_visible_works_on_this_realistic_example() {
 fn attempt_to_make_xy_visible_works_in_this_scenario(
     screen: &mut ScrollableScreen,
     char_dim: CharDim,
-    xy: ScreenSpaceXY,
+    xy: TextSpaceXY,
 ) {
-    let attempt = attempt_to_make_xy_visible(screen, char_dim, xy);
+    let attempt = attempt_to_make_xy_visible(screen, char_dim.into(), xy);
 
     if dbg!(attempt) == VisibilityAttemptResult::Succeeded {
+        dbg!(&screen);
         xy_is_visible_assert!(&screen, xy);
     }
 }
@@ -525,7 +527,7 @@ proptest! {
     fn attempt_to_make_xy_visible_works(
         mut screen in arb::scrollable_screen(f32::ANY),
         char_dim in arb::char_dim(f32::ANY),
-        xy in arb::xy(f32::POSITIVE | f32::ZERO),
+        xy in arb::text_xy(f32::POSITIVE | f32::ZERO),
     ) {
         attempt_to_make_xy_visible_works_in_this_scenario(&mut screen, char_dim, xy);
     }
@@ -535,7 +537,7 @@ proptest! {
     #[test]
     fn attempt_to_make_xy_visible_works_with_more_realistic_values(
         mut screen in arb::scrollable_screen(arb::usual()),
-        xy in arb::xy(f32::POSITIVE | f32::ZERO),
+        xy in arb::text_xy(f32::POSITIVE | f32::ZERO),
     ) {
         let char_dim = CharDim {
             w: 4.0,
@@ -548,7 +550,7 @@ proptest! {
 #[test]
 fn attempt_to_make_xy_visible_works_on_this_generated_example() {
     let mut screen = ScrollableScreen {
-        scroll: ScreenSpaceXY { x: 0.0, y: 0.0 },
+        scroll: ScrollXY { x: 0.0, y: 0.0 },
         wh: ScreenSpaceWH {
             w: 1927329000.0,
             h: 1.4144982,
@@ -558,10 +560,11 @@ fn attempt_to_make_xy_visible_works_on_this_generated_example() {
         w: 0.000000000026796234,
         h: 0.0000000000000000003944164,
     };
-    let xy = ScreenSpaceXY {
-        x: 0.0,
-        y: 0.0000000000000000000000000006170001,
-    };
+    let xy = screen.scroll
+        + ScreenSpaceXY {
+            x: 0.0,
+            y: 0.0000000000000000000000000006170001,
+        };
 
     attempt_to_make_xy_visible_works_in_this_scenario(&mut screen, char_dim, xy);
 }
@@ -569,14 +572,28 @@ fn attempt_to_make_xy_visible_works_on_this_generated_example() {
 #[test]
 fn attempt_to_make_xy_visible_works_on_this_realistic_example() {
     let mut screen = ScrollableScreen {
-        scroll: ScreenSpaceXY {
-            x: -250.0,
-            y: -440.0,
-        },
+        scroll: ScrollXY { x: 250.0, y: 440.0 },
         wh: ScreenSpaceWH { w: 800.0, h: 400.0 },
     };
     let char_dim = CharDim { w: 4.0, h: 8.0 };
-    let xy = ScreenSpaceXY { x: 0.0, y: 0.0 };
+    let xy = TextSpaceXY { x: 0.0, y: 0.0 };
+
+    xy_is_visible_assert!(not & screen, xy);
+
+    attempt_to_make_xy_visible_works_in_this_scenario(&mut screen, char_dim, xy);
+}
+
+#[test]
+fn attempt_to_make_xy_visible_works_on_this_realistically_sized_example() {
+    let mut screen = ScrollableScreen {
+        scroll: ScrollXY { x: 0.0, y: 0.0 },
+        wh: ScreenSpaceWH {
+            w: 1024.0,
+            h: 576.0,
+        },
+    };
+    let char_dim = CharDim { w: 30.0, h: 60.0 };
+    let xy = TextSpaceXY { x: 60.0, y: 600.0 };
 
     xy_is_visible_assert!(not & screen, xy);
 
@@ -585,34 +602,16 @@ fn attempt_to_make_xy_visible_works_on_this_realistic_example() {
 
 #[test]
 // real as in recovered from an actual run of the program
-fn attempt_to_make_xy_visible_works_on_this_real_example() {
+fn attempt_to_make_xy_visible_works_on_this_vertically_scrolled_realistically_sized_example() {
     let mut screen = ScrollableScreen {
-        scroll: ScreenSpaceXY { x: 0.0, y: 0.0 },
+        scroll: ScrollXY { x: 0.0, y: 180.0 },
         wh: ScreenSpaceWH {
             w: 1024.0,
             h: 576.0,
         },
     };
     let char_dim = CharDim { w: 30.0, h: 60.0 };
-    let xy = ScreenSpaceXY { x: 60.0, y: 600.0 };
-
-    xy_is_visible_assert!(not & screen, xy);
-
-    attempt_to_make_xy_visible_works_in_this_scenario(&mut screen, char_dim, xy);
-}
-
-#[test]
-// real as in recovered from an actual run of the program
-fn attempt_to_make_xy_visible_works_on_this_vertically_scrolled_real_example() {
-    let mut screen = ScrollableScreen {
-        scroll: ScreenSpaceXY { x: 0.0, y: -180.0 },
-        wh: ScreenSpaceWH {
-            w: 1024.0,
-            h: 576.0,
-        },
-    };
-    let char_dim = CharDim { w: 30.0, h: 60.0 };
-    let xy = ScreenSpaceXY { x: 0.0, y: 600.0 };
+    let xy = screen.scroll + ScreenSpaceXY { x: 0.0, y: 600.0 };
 
     xy_is_visible_assert!(not & screen, xy);
 

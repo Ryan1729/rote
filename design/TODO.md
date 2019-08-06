@@ -1,36 +1,9 @@
 ## TODO
 
-* fix auto-scroll bug by noting that there are two different spaces going on:
-  * screen-space
-  * text-space
+* Ctrl-D to select word and find next instance of word and select it and place a cursor there.
 
-* start allowing multiple cursors to be manipulated
-  * Ctrl-click to add cursors
-    * double Ctrl-click to select word with new cursor
-  * Ctrl-D to select word and find next instance of word and select it and place a cursor there.
-  * Allow manipulating a single cursor on its own
-    * store `cursor_index` per buffer
-      * in `editor` or in `text_buffer`?
-      * reflect which cursor is the current one in the view
-        * colour change? shape change? both?
-        * what if that one, and only that one, blinks?
-    * add `Input` variant to increment or decrement it.
-      * wrapping around to keep the index valid is implied. The platform layer should not need to store this
-      * What should the keyboard shortcut be?
-        * given we use a alt below, would tapping alt work?
-        * maybe alt and page up/down?
-    * add `Input` variant to move only the current cursor
-      * What should the keyboard shortcut be?
-        * hold alt so both ctrl and shift are free to use?
-        * a "current cursor mode"?
-
-* scroll into view of cursor if it is moved.
-  * how does this work when multiple cursors are moved at once?
-    * We need to decide which cursor to follow. Wait until more multi cursor
-    stuff is implemented, to see what our choices are.
-      * most recently created or moved on its own seem like the obvious choices,
-      but we may end up needing the concept of a `current_cursor` anyway for
-      other reasons.
+* Saving and loading files.
+  * How easy is it to pop open the system file chooser? Can we get file choosing done with that alone for now?
 
 * make Undo/Redo history into struct containing `VecDeque` which keeps track of total bytes used and automatically pops things off the end when storage would exceed a limit.
   * add max size parameter so we can test with small sizes
@@ -46,13 +19,26 @@
 * Store clipboard history (no persistent storage)
   * Use (parameterized version of?) Undo/Redo struct to store
 
-* Saving and loading files.
-  * How easy is it to pop open the system file chooser? Can we get file choosing done with that alone for now?
-
 * Persistence for Undo/Redo and clipboard history, per file.
   * If a file in the history does not exist any more, and a file with a name which is a short Levenstein distance away is opened, prompt to use the old history and change the key in the stored file.
     * should we just hash the content instead?
     * "Never prompt for this file pair" seems extraneous. Is there a case where we ever not want it checked?
+
+* Allow manipulating a single cursor on its own
+  * store `cursor_index` per buffer
+    * in `editor` or in `text_buffer`?
+    * reflect which cursor is the current one in the view
+      * colour change? shape change? both?
+      * what if that one, and only that one, blinks?
+  * add `Input` variant to increment or decrement it.
+    * wrapping around to keep the index valid is implied. The platform layer should not need to store this
+    * What should the keyboard shortcut be?
+      * given we use a alt below, would tapping alt work?
+      * maybe alt and page up/down?
+  * add `Input` variant to move only the current cursor
+    * What should the keyboard shortcut be?
+      * hold alt so both ctrl and shift are free to use?
+      * a "current cursor mode"?
 
 * figure out why `#[check_or_no_panic]` seems to always report a panic in `panic_safe_rope`
 

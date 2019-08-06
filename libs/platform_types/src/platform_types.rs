@@ -68,6 +68,103 @@ pub enum Input {
 d!(for Input : Input::None);
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
+/// The top left corner of the text is `(0.0, 0.0)1, top right corner is `(width, 0.0)`,
+/// the bottom left corner is `(0.0, height)`. In other words, the x-axis point right, the y-axis
+/// points down.
+pub struct TextSpaceXY {
+    pub x: f32,
+    pub y: f32,
+}
+
+fmt_display!(for TextSpaceXY: TextSpaceXY {x, y} in "{:?}", (x, y));
+
+impl From<TextSpaceXY> for (f32, f32) {
+    fn from(TextSpaceXY { x, y }: TextSpaceXY) -> Self {
+        (x, y)
+    }
+}
+
+impl std::ops::Add for TextSpaceXY {
+    type Output = TextSpaceXY;
+
+    fn add(self, other: TextSpaceXY) -> TextSpaceXY {
+        TextSpaceXY {
+            x: self.x + other.x,
+            y: self.y + other.y,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+/// The top left corner of the text is `(0.0, 0.0)1, top right corner is `(width, 0.0)`,
+/// the bottom left corner is `(0.0, height)`. In other words, the x-axis point right, the y-axis
+/// points down.
+pub struct ScrollXY {
+    pub x: f32,
+    pub y: f32,
+}
+
+fmt_display!(for ScrollXY: ScrollXY {x, y} in "{:?}", (x, y));
+
+impl From<ScrollXY> for (f32, f32) {
+    fn from(ScrollXY { x, y }: ScrollXY) -> Self {
+        (x, y)
+    }
+}
+
+impl std::ops::Add for ScrollXY {
+    type Output = ScrollXY;
+
+    fn add(self, other: ScrollXY) -> ScrollXY {
+        ScrollXY {
+            x: self.x + other.x,
+            y: self.y + other.y,
+        }
+    }
+}
+
+impl std::ops::Add<ScreenSpaceXY> for ScrollXY {
+    type Output = TextSpaceXY;
+
+    fn add(self, other: ScreenSpaceXY) -> TextSpaceXY {
+        TextSpaceXY {
+            x: self.x + other.x,
+            y: self.y + other.y,
+        }
+    }
+}
+
+impl std::ops::Add<ScrollXY> for ScreenSpaceXY {
+    type Output = TextSpaceXY;
+
+    fn add(self, other: ScrollXY) -> TextSpaceXY {
+        TextSpaceXY {
+            x: self.x + other.x,
+            y: self.y + other.y,
+        }
+    }
+}
+
+pub fn screen_to_text(xy: ScreenSpaceXY, scroll: ScrollXY) -> TextSpaceXY {
+    xy + scroll
+}
+
+impl std::ops::Sub<ScrollXY> for TextSpaceXY {
+    type Output = ScreenSpaceXY;
+
+    fn sub(self, other: ScrollXY) -> ScreenSpaceXY {
+        ScreenSpaceXY {
+            x: self.x - other.x,
+            y: self.y - other.y,
+        }
+    }
+}
+
+pub fn text_to_screen(xy: TextSpaceXY, scroll: ScrollXY) -> ScreenSpaceXY {
+    xy - scroll
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 /// The top left corner of the screen is `(0.0, 0.0)1, top right corner is `(width, 0.0)`,
 /// the bottom left corner is `(0.0, height)`. In other words, the x-axis point right, the y-axis
 /// points down.
@@ -81,6 +178,17 @@ fmt_display!(for ScreenSpaceXY: ScreenSpaceXY {x, y} in "{:?}", (x, y));
 impl From<ScreenSpaceXY> for (f32, f32) {
     fn from(ScreenSpaceXY { x, y }: ScreenSpaceXY) -> Self {
         (x, y)
+    }
+}
+
+impl std::ops::Add for ScreenSpaceXY {
+    type Output = ScreenSpaceXY;
+
+    fn add(self, other: ScreenSpaceXY) -> ScreenSpaceXY {
+        ScreenSpaceXY {
+            x: self.x + other.x,
+            y: self.y + other.y,
+        }
     }
 }
 
@@ -131,10 +239,10 @@ fn normal_or_zero(x: f32) -> f32 {
 pub fn screen_space_to_position(
     ScreenSpaceXY { x, y }: ScreenSpaceXY,
     CharDim { w, h }: CharDim,
-    ScreenSpaceXY {
+    ScrollXY {
         x: scroll_x,
         y: scroll_y,
-    }: ScreenSpaceXY,
+    }: ScrollXY,
     round: PositionRound,
 ) -> Position {
     // This is made much more conveinient by the monospace assumption!
@@ -161,21 +269,25 @@ pub fn screen_space_to_position(
 }
 
 pub fn position_to_screen_space(
+    pos: Position,
+    char_dim: CharDim,
+    scroll: ScrollXY,
+) -> ScreenSpaceXY {
+    position_to_text_space(pos, char_dim) - scroll
+}
+
+pub fn position_to_text_space(
     Position { offset, line }: Position,
     CharDim { w, h }: CharDim,
-    ScreenSpaceXY {
-        x: scroll_x,
-        y: scroll_y,
-    }: ScreenSpaceXY,
-) -> ScreenSpaceXY {
+) -> TextSpaceXY {
     // This is made much more conveinient by the monospace assumption!
 
     // Weird *graphical-only* stuff given a >2^24 long line and/or >2^24
     // lines seems better than an error box or something like that.
     #[allow(clippy::cast_precision_loss)]
-    ScreenSpaceXY {
-        x: offset.0 as f32 * w + scroll_x,
-        y: line as f32 * h + scroll_y,
+    TextSpaceXY {
+        x: offset.0 as f32 * w,
+        y: line as f32 * h,
     }
 }
 
@@ -190,13 +302,42 @@ pub struct ScrollableScreen {
     /// A negative `scroll.x` value means move the screen left, so you can see things that are
     /// further right. A negative `scroll.y` value means move the screen up, so you can see things
     /// that are further down.
-    pub scroll: ScreenSpaceXY,
+    pub scroll: ScrollXY,
     pub wh: ScreenSpaceWH,
 }
 
 fmt_display!(for ScrollableScreen : ScrollableScreen {scroll, wh}
       in "ScrollableScreen {{ scroll:{}, wh: {} }}", scroll, wh
  );
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum VisibilityAttemptResult {
+    Succeeded,
+    ScreenTooSmall,
+    ScreenTooLarge,
+    ScreenTooWeird,
+    ApronEdgeTooSmall,
+    ApronEdgeTooLarge,
+    ApronEdgeTooWeird,
+}
+
+pub struct Apron {
+    pub left_w: f32,
+    pub right_w: f32,
+    pub top_h: f32,
+    pub bottom_h: f32,
+}
+
+impl From<CharDim> for Apron {
+    fn from(CharDim { w, h }: CharDim) -> Self {
+        Apron {
+            left_w: w,
+            right_w: w,
+            top_h: h,
+            bottom_h: h,
+        }
+    }
+}
 
 /// if it is off the screen, scroll so it is inside an at least `char_dim` sized apron inside
 /// from the edge of the screen. But if it is inside the apron, then don't bother scrolling.
@@ -208,26 +349,15 @@ fmt_display!(for ScrollableScreen : ScrollableScreen {scroll, wh}
 /// +-------------------+
 ///
 /// The outer box is what we call the "apron".
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum VisibilityAttemptResult {
-    Succeeded,
-    ScreenTooSmall,
-    ScreenTooLarge,
-    ScreenTooWeird,
-    CharDimTooSmall,
-    CharDimTooLarge,
-    CharDimTooWeird,
-}
-
 pub fn attempt_to_make_xy_visible(
-    ScrollableScreen { scroll, wh }: &mut ScrollableScreen,
-    char_dim: CharDim,
-    ScreenSpaceXY { x, y }: ScreenSpaceXY,
+    ScrollableScreen { ref mut scroll, wh }: &mut ScrollableScreen,
+    apron: Apron,
+    text: TextSpaceXY,
 ) -> VisibilityAttemptResult {
     use std::num::FpCategory::*;
     use VisibilityAttemptResult::*;
 
+    let ScreenSpaceXY { x, y } = text_to_screen(text, *scroll);
     let &mut ScreenSpaceWH { w, h } = wh;
 
     // If these checks ever actually become a bottleneck ,the nthe easy solution is to just make
@@ -240,39 +370,50 @@ pub fn attempt_to_make_xy_visible(
         (Normal, Normal) => {}
     }
 
-    match (char_dim.w.classify(), char_dim.h.classify()) {
-        (Nan, _) | (_, Nan) => return CharDimTooWeird,
-        (Infinite, _) | (_, Infinite) => return CharDimTooLarge,
-        (Zero, _) | (_, Zero) | (Subnormal, _) | (_, Subnormal) => return CharDimTooSmall,
-        (Normal, Normal) if char_dim.w < 1.0 || char_dim.h < 1.0 => return CharDimTooSmall,
-        (Normal, Normal) if char_dim.w > w || char_dim.h > h => return CharDimTooLarge,
+    match (apron.left_w.classify(), apron.top_h.classify()) {
+        (Nan, _) | (_, Nan) => return ApronEdgeTooWeird,
+        (Infinite, _) | (_, Infinite) => return ApronEdgeTooLarge,
+        (Zero, _) | (_, Zero) | (Subnormal, _) | (_, Subnormal) => return ApronEdgeTooSmall,
+        (Normal, Normal) if apron.left_w < 1.0 || apron.top_h < 1.0 => return ApronEdgeTooSmall,
+        (Normal, Normal) if apron.left_w > w || apron.top_h > h => return ApronEdgeTooLarge,
+        (Normal, Normal) => {}
+    }
+
+    match (apron.right_w.classify(), apron.bottom_h.classify()) {
+        (Nan, _) | (_, Nan) => return ApronEdgeTooWeird,
+        (Infinite, _) | (_, Infinite) => return ApronEdgeTooLarge,
+        (Zero, _) | (_, Zero) | (Subnormal, _) | (_, Subnormal) => return ApronEdgeTooSmall,
+        (Normal, Normal) if apron.right_w < 1.0 || apron.bottom_h < 1.0 => {
+            return ApronEdgeTooSmall
+        }
+        (Normal, Normal) if apron.right_w > w || apron.bottom_h > h => return ApronEdgeTooLarge,
         (Normal, Normal) => {}
     }
 
     // We don't ever want to automatically show space that text can never be inside.
-    macro_rules! stay_below_0 {
+    macro_rules! stay_positive {
         ($n: expr) => {{
             let n = dbg!($n);
             if n > 0.0 {
-                0.0
-            } else {
                 n
+            } else {
+                0.0
             }
         }};
     }
 
-    if x < -scroll.x - char_dim.w {
-        scroll.x = stay_below_0!(-x - char_dim.w);
-    } else if x >= -scroll.x + w - char_dim.w {
-        scroll.x = stay_below_0!(-x + w - char_dim.w);
+    if x < apron.left_w {
+        scroll.x = stay_positive!(text.x - apron.left_w);
+    } else if x >= w - apron.right_w {
+        scroll.x = stay_positive!(text.x - w + apron.right_w);
     } else {
         dbg!("x");
     }
 
-    if y < -scroll.y - char_dim.h {
-        scroll.y = stay_below_0!(-y - char_dim.h);
-    } else if y >= -scroll.y + h - char_dim.h {
-        scroll.y = stay_below_0!(-y + h - char_dim.h);
+    if y < apron.top_h {
+        scroll.y = stay_positive!(text.y - apron.top_h);
+    } else if y >= h - apron.bottom_h {
+        scroll.y = stay_positive!(text.y - (h - apron.bottom_h));
     } else {
         dbg!("y");
     }
@@ -285,12 +426,10 @@ pub fn xy_is_visible(
         scroll,
         wh: ScreenSpaceWH { w, h },
     }: &ScrollableScreen,
-    ScreenSpaceXY { x, y }: ScreenSpaceXY,
+    text: TextSpaceXY,
 ) -> bool {
-    dbg!(x >= -scroll.x)
-        && dbg!(x < dbg!(-scroll.x + w))
-        && dbg!(y >= -scroll.y)
-        && dbg!(y < dbg!(-scroll.y + h))
+    let ScreenSpaceXY { x, y } = text_to_screen(text, *scroll);
+    dbg!(x >= 0.0) && dbg!(x < *w) && dbg!(y >= 0.0) && dbg!(y < *h)
 }
 
 /// The nth space between utf8 characters. So in the string "aöc" there are
@@ -413,15 +552,6 @@ ord!(and friends for Position: p, other in {
 pub struct View {
     pub buffers: Vec<BufferView>,
 }
-
-#[derive(Copy, Clone, Debug)]
-pub enum BufferViewKind {
-    Edit,
-    StatusLine,
-    Cursor,
-}
-
-d!(for BufferViewKind: BufferViewKind::Cursor);
 
 pub const DEFAULT_HIGHLIGHT_COLOUR: [f32; 4] = [0.0, 0.0, 0.0, 0.6];
 
@@ -559,13 +689,23 @@ pub fn push_highlights<O: Into<Option<Position>>>(
 #[derive(Default, Debug)]
 pub struct BufferView {
     pub kind: BufferViewKind,
-    pub screen_position: (f32, f32),
+    // The position of the buffer view's origin (upper-left) point.
+    pub screen_position: ScreenSpaceXY,
     pub bounds: (f32, f32),
     pub color: [f32; 4],
     //TODO make this a &str or a char iterator
     pub chars: String,
     pub highlights: Vec<Highlight>,
 }
+
+#[derive(Copy, Clone, Debug)]
+pub enum BufferViewKind {
+    Edit,
+    StatusLine,
+    Cursor,
+}
+
+d!(for BufferViewKind: BufferViewKind::Cursor);
 
 // Short form "Command".
 // This is for telling the platform layer that it should do things something in addition to

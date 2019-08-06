@@ -605,7 +605,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                                     for v in view.buffers.iter() {
                                         match v.kind {
                                             BufferViewKind::StatusLine => {
-                                                if mouse_y >= v.screen_position.1 {
+                                                if mouse_y >= v.screen_position.y {
                                                     cursor_icon = d!();
                                                 }
                                             }
@@ -734,7 +734,7 @@ pub fn render_buffer_view<A: Clone>(
     {
         // Without a background the edit buffer(s) show through the status line(s)
         if let BufferViewKind::StatusLine = kind {
-            status_line_position = Some(screen_position);
+            status_line_position = Some(screen_position.into());
         }
 
         perf_viz::record_guard!("glyph_brush.queue");
@@ -760,7 +760,7 @@ pub fn render_buffer_view<A: Clone>(
             } else {
                 *text_scale
             },
-            screen_position,
+            screen_position: screen_position.into(),
             bounds,
             color,
             layout: Layout::default_wrap(),
@@ -777,7 +777,7 @@ pub fn render_buffer_view<A: Clone>(
 
         perf_viz::start_record!("highlight_ranges.extend");
         highlight_ranges.extend(highlights.iter().map(|h| HighlightRange {
-            pixel_coords: highlight_to_pixel_coords(h, screen_position, *text_char_dim),
+            pixel_coords: highlight_to_pixel_coords(h, screen_position.into(), *text_char_dim),
             bounds: rect_bounds,
             color: h.color,
             z: gl_layer::HIGHLIGHT_Z,
@@ -785,7 +785,6 @@ pub fn render_buffer_view<A: Clone>(
         perf_viz::end_record!("highlight_ranges.extend");
     }
     perf_viz::end_record!("for &BufferView");
-    if_changed::println!("{:?}", status_line_position);
 
     RenderExtras {
         status_line_position,

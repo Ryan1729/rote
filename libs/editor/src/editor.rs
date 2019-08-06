@@ -1,10 +1,10 @@
 use editor_types::{Cursor, CursorState, Vec1};
 use macros::{c, d};
 use platform_types::{
-    attempt_to_make_xy_visible, pos, position_to_screen_space, push_highlights,
-    screen_space_to_position, BufferView, CharDim, Cmd, Input, Move, Position, PositionRound,
-    ReplaceOrAdd, ScreenSpaceXY, ScrollableScreen, UpdateAndRenderOutput, View,
-    VisibilityAttemptResult,
+    attempt_to_make_xy_visible, pos, position_to_screen_space, position_to_text_space,
+    push_highlights, screen_space_to_position, Apron, BufferView, CharDim, Cmd, Input, Move,
+    Position, PositionRound, ReplaceOrAdd, ScreenSpaceXY, ScrollableScreen, TextSpaceXY,
+    UpdateAndRenderOutput, View, VisibilityAttemptResult,
 };
 
 use std::collections::VecDeque;
@@ -124,7 +124,10 @@ pub fn render_view(state: &State, view: &mut View) {
 
     let status_line_view = BufferView {
         kind: BufferViewKind::StatusLine,
-        screen_position: (0.0, status_line_y),
+        screen_position: ScreenSpaceXY {
+            x: 0.0,
+            y: status_line_y,
+        },
         bounds: (state.screen.wh.w, state.status_char_dim.h),
         ..d!()
     };
@@ -140,8 +143,7 @@ pub fn render_view(state: &State, view: &mut View) {
                 let position = c.get_position();
 
                 let screen_position =
-                    position_to_screen_space(position, state.text_char_dim, state.screen.scroll)
-                        .into();
+                    position_to_screen_space(position, state.text_char_dim, state.screen.scroll);
 
                 view.buffers.push(BufferView {
                     kind: BufferViewKind::Cursor,
@@ -160,7 +162,7 @@ pub fn render_view(state: &State, view: &mut View) {
 
             view.buffers.push(BufferView {
                 kind: BufferViewKind::Edit,
-                screen_position: state.screen.scroll.into(),
+                screen_position: TextSpaceXY::default() - state.screen.scroll,
                 bounds: (std::f32::INFINITY, std::f32::INFINITY),
                 color: c![0.3, 0.3, 0.9],
                 chars: buffer.chars().collect::<String>(),
@@ -225,18 +227,23 @@ pub fn render_view(state: &State, view: &mut View) {
 
 fn attempt_to_make_sure_at_least_one_cursor_is_visible(
     screen: &mut ScrollableScreen,
-    char_dim: CharDim,
+    text_char_dim: CharDim,
+    status_char_dim: CharDim,
     cursors: &Vec1<Cursor>,
 ) -> VisibilityAttemptResult {
     let target_cursor = cursors.last();
 
+    let mut apron: Apron = text_char_dim.into();
+    // The status line is currently on the bottom, so adding the `h` here keeps the cursors
+    // above it.
+    apron.bottom_h += status_char_dim.h;
+
     attempt_to_make_xy_visible(
         screen,
-        char_dim,
-        dbg!(position_to_screen_space(
+        apron,
+        dbg!(position_to_text_space(
             target_cursor.get_position(),
-            char_dim,
-            screen.scroll
+            text_char_dim
         )),
     )
 }
@@ -276,32 +283,47 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
 
     let mut cmd = Cmd::NoCmd;
 
+    macro_rules! try_to_show_cursors {
+        ($buffer: expr) => {
+            attempt_to_make_sure_at_least_one_cursor_is_visible(
+                &mut state.screen,
+                state.text_char_dim,
+                state.status_char_dim,
+                &$buffer.cursors(),
+            ); //TODO report non success result
+        };
+    }
+
     use Input::*;
     match input {
         Input::None => {}
         Quit => {}
-        Insert(c) => buffer_call!(b.insert(c)),
-        Delete => buffer_call!(b.delete()),
-        Redo => buffer_call!(b.redo()),
-        Undo => buffer_call!(b.undo()),
+        Insert(c) => buffer_call!(b{
+            b.insert(c);
+            try_to_show_cursors!(b);
+        }),
+        Delete => buffer_call!(b {
+            b.delete();
+            try_to_show_cursors!(b);
+        }),
+        Redo => buffer_call!(b {
+            b.redo();
+            try_to_show_cursors!(b);
+        }),
+        Undo => buffer_call!(b {
+            b.undo();
+            try_to_show_cursors!(b);
+        }),
         MoveAllCursors(r#move) => {
             buffer_call!(b{
                 b.move_all_cursors(r#move);
-                attempt_to_make_sure_at_least_one_cursor_is_visible(
-                    &mut state.screen,
-                    state.text_char_dim,
-                    &b.cursors()
-                ); //TODO report non success result
+                try_to_show_cursors!(b);
             });
         }
         ExtendSelectionForAllCursors(r#move) => {
             buffer_call!(b{
                 b.extend_selection_for_all_cursors(r#move);
-                attempt_to_make_sure_at_least_one_cursor_is_visible(
-                    &mut state.screen,
-                    state.text_char_dim,
-                    &b.cursors()
-                ); //TODO report non success result
+                try_to_show_cursors!(b);
             });
         }
         SelectAll => {
@@ -349,14 +371,22 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
             if let Some(s) = state.clipboard_history.cut(b) {
                 cmd = Cmd::SetClipboard(s);
             }
+            try_to_show_cursors!(b);
         }),
         Copy => buffer_call!(b {
             if let Some(s) = state.clipboard_history.copy(b) {
                 cmd = Cmd::SetClipboard(s);
             }
+            try_to_show_cursors!(b);
         }),
-        Paste(op_s) => buffer_call!(b {state.clipboard_history.paste(b, op_s)}),
-        InsertNumbersAtCursors => buffer_call!(b.insert_at_each_cursor(|i| i.to_string())),
+        Paste(op_s) => buffer_call!(b {
+            state.clipboard_history.paste(b, op_s);
+            try_to_show_cursors!(b);
+        }),
+        InsertNumbersAtCursors => buffer_call!(b {
+            b.insert_at_each_cursor(|i| i.to_string());
+            try_to_show_cursors!(b);
+        }),
     }
 
     let mut view = d!();
