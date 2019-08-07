@@ -2,15 +2,18 @@
 // the code is licensed under the Apache 2.0 license, as described in the license file in the
 // opengl folder, to the extent that the code remains as it was
 // (at commit 90e7c7c331e9f991e11de6404b2ca073c0a09e61)
-use gl_layer::RenderExtras;
+
 use glutin::dpi::LogicalPosition;
 use glutin::{Api, GlProfile, GlRequest};
 use glyph_brush::{
     rusttype::Error as FontError, rusttype::Font, rusttype::Scale, Bounds, GlyphBrush,
     GlyphBrushBuilder, HighlightRange, Layout, PixelCoords, Section,
 };
-use macros::d;
+use std::path::PathBuf;
 
+use macros::d;
+use file_chooser;
+use gl_layer::RenderExtras;
 use platform_types::{
     BufferView, BufferViewKind, CharDim, Cmd, Highlight, Input, ReplaceOrAdd, ScreenSpaceWH,
     ScreenSpaceXY, Sizes, UpdateAndRender, View,
@@ -149,7 +152,14 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
 
     let mut clipboard: Clipboard = get_clipboard();
 
-    let events = glutin::event_loop::EventLoop::new();
+    #[derive(Clone, Debug)]
+    enum CustomEvent {
+        OpenFile(PathBuf),
+    }
+
+    use glutin::event_loop::EventLoop;
+    let events: EventLoop<CustomEvent> = glutin::event_loop::EventLoop::new_user_event();
+    let event_proxy = events.create_proxy();
     let title = "rote";
 
     let glutin_context = glutin::ContextBuilder::new()
@@ -233,6 +243,21 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
     {
         events.run(move |event, _, control_flow| {
             use glutin::event::*;
+
+            macro_rules! call_u_and_r {
+                ($input:expr) => {
+                    let _hope_it_gets_there = in_tx.send($input);
+                };
+            }
+
+            // eventually we'll likely want to tell the editor, and have it decide whether/how
+            // to display it to the user.
+            macro_rules! handle_platform_error {
+                ($err: expr) => (
+                    eprintln!("{}", $err);
+                );
+            }
+
             match event {
                 Event::EventsCleared if running => {
                     match out_rx.try_recv() {
@@ -283,7 +308,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                     match cmd.take() {
                         Cmd::SetClipboard(s) => {
                             if let Err(err) = clipboard.set_contents(s) {
-                                eprintln!("{}", err)
+                                handle_platform_error!(err);
                             }
                         }
                         Cmd::NoCmd => {}
@@ -299,18 +324,22 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                     // We want to track the time that the message loop takes too!
                     loop_helper.loop_start();
                 }
+                Event::UserEvent(e) => {
+                    match e {
+                        CustomEvent::OpenFile(p) => {
+                            match std::fs::read_to_string(&p) {
+                                Ok(s) => { call_u_and_r!(Input::LoadedFile(p, s)); }
+                                Err(err) => {handle_platform_error!(err);}
+                            }
+                        }
+                    }
+                }
                 Event::NewEvents(StartCause::Init) => {
                     // At least try to measure the first frame accurately
                     perf_viz::start_record!("main loop");
                     loop_helper.loop_start();
                 }
                 Event::WindowEvent { event, .. } => {
-                    macro_rules! call_u_and_r {
-                        ($input:expr) => {
-                            let _hope_it_gets_there = in_tx.send($input);
-                        };
-                    }
-
                     macro_rules! quit {
                         () => {{
                             perf_viz::end_record!("main loop");
@@ -424,6 +453,14 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                             }
                             VirtualKeyCode::C => {
                                 call_u_and_r!(Input::Copy);
+                            }
+                            VirtualKeyCode::O => {
+                                println!("VirtualKeyCode::O");
+                                let proxy = event_proxy.clone();
+                                file_chooser::single(move |p: PathBuf| {
+                                    println!("file_chooser::single");
+                                    let _bye = proxy.send_event(CustomEvent::OpenFile(p));
+                                })
                             }
                             VirtualKeyCode::V => {
                                 call_u_and_r!(Input::Paste(clipboard.get_contents().ok()));
@@ -557,12 +594,13 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                             if
                              c != '\u{1}'       // "start of heading" (sent with Ctrl-a)
                              && c != '\u{3}'    // "end of text" (sent with Ctrl-c)
-                             && c != '\u{7f}'   // delete
                              && c != '\u{8}'    // backspace
+                             && c != '\u{f}'    // "shift in" AKA use black ink apparently, (sent with Ctrl-o)
                              && c != '\u{16}'  // "synchronous idle" (sent with Ctrl-v)
                              && c != '\u{18}'  // "cancel" (sent with Ctrl-x)
                              && c != '\u{19}'  // "end of medium" (sent with Ctrl-y)
                              && c != '\u{1a}'  // "substitute" (sent with Ctrl-z)
+                             && c != '\u{7f}'   // delete
                             {
                                 if c == '\r' {
                                     c = '\n';

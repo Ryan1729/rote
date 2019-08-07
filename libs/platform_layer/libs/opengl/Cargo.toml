@@ -10,6 +10,7 @@ license = "Apache-2.0"
 path = "./src/opengl.rs"
 
 [dependencies]
+file_chooser = { path = "../file_chooser" }
 platform_types = { path = "../../../platform_types" }
 macros = { path = "../../../macros" }
 if_changed = { path = "../../../if_changed" }

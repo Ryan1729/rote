@@ -387,6 +387,13 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
             b.insert_at_each_cursor(|i| i.to_string());
             try_to_show_cursors!(b);
         }),
+        LoadedFile(_path, str) => buffer_call!(b {
+            // TODO after there is a UI for switching buffers, create a new buffer instead of
+            // inserting into the current one.
+            b.insert_string(str);
+
+            try_to_show_cursors!(b);
+        }),
     }
 
     let mut view = d!();

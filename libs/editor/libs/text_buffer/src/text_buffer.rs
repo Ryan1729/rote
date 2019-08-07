@@ -431,6 +431,7 @@ impl TextBuffer {
     }
 
     fn apply_edit(&mut self, edit: Edit, kind: ApplyKind) {
+        dbg!();
         // we assume that the edits are in the proper order so we won't mess up our indexes with our
         // own inserts and removeals. I'm not positive that there being a single order that works
         // is possible for all possible edits, but in practice I think the edits we will actually
@@ -490,6 +491,7 @@ where
         index -= 1;
         mapper(c, &mut cloned_rope, index)
     });
+    dbg!(&range_edits);
 
     Edit {
         range_edits,

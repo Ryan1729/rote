@@ -1,9 +1,18 @@
 ## TODO
 
-* Ctrl-D to select word and find next instance of word and select it and place a cursor there.
+* make moving the cursor to the right spot after a large sting insert faster.
+  * It seems to be slowing down the further we get into a file.
 
 * Saving and loading files.
   * How easy is it to pop open the system file chooser? Can we get file choosing done with that alone for now?
+    * easy enough apparently. We've dummied in a callback for now.
+
+* Display tabs that allow the user to switch between open buffers
+  * Is it worth it to just display a file count in the status bar and implement switching keyboard shortcuts as a stopgap?
+
+* Ctrl-D to select word and find next instance of word and select it and place a cursor there.
+
+
 
 * make Undo/Redo history into struct containing `VecDeque` which keeps track of total bytes used and automatically pops things off the end when storage would exceed a limit.
   * add max size parameter so we can test with small sizes

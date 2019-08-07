@@ -1,5 +1,6 @@
 use macros::{d, fmt_debug, fmt_display, integer_newtype, ord, usize_newtype};
 use std::ops::{Add, Sub};
+use std::path::{PathBuf};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Move {
@@ -63,6 +64,7 @@ pub enum Input {
     Copy,
     Paste(Option<String>),
     InsertNumbersAtCursors,
+    LoadedFile(PathBuf, String),
 }
 
 d!(for Input : Input::None);

@@ -498,6 +498,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "file_chooser"
+version = "0.1.0"
+
+[[package]]
 name = "flame"
 version = "0.2.1-pre"
 source = "git+https://github.com/TyOverby/flame.git#e72b66c0ee0aea335a3fe061d5c977a8b442dc07"
@@ -1197,6 +1201,7 @@ dependencies = [
  "clipboard 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "criterion 0.2.11 (registry+https://github.com/rust-lang/crates.io-index)",
  "editor 0.1.0",
+ "file_chooser 0.1.0",
  "gl_layer 0.1.0",
  "glutin 0.22.0-alpha1 (registry+https://github.com/rust-lang/crates.io-index)",
  "glyph_brush 0.4.1",
