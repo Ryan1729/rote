@@ -82,6 +82,14 @@ fn arb_rope_and_pos() -> impl Strategy<Value = (Rope, Position)> {
 }
 
 prop_compose! {
+    fn arb_rope_and_pos_and_offset()
+    ((rope, pos) in arb_rope_and_pos())
+    (offset in 0..=rope.len_chars().0, (r, p) in (Just(rope), Just(pos))) -> (Rope, Position, AbsoluteCharOffset) {
+        (r, p, AbsoluteCharOffset(offset))
+    }
+}
+
+prop_compose! {
     fn arb_char_offset(max_len: usize)(offset in 0..=max_len) -> CharOffset {
         CharOffset(offset)
     }
@@ -232,7 +240,7 @@ fn final_non_newline_offset_for_line_works_on_a_string_with_no_newline() {
     let rope = r!("1234");
 
     assert_eq!(
-        final_non_newline_offset_for_line(&rope, 0),
+        final_non_newline_offset_for_line(&rope, LineIndex(0)),
         CharOffset(4).into()
     );
 }
@@ -242,7 +250,7 @@ fn final_non_newline_offset_for_line_works_on_a_string_with_a_line_feed() {
     let rope = r!("1234\n5678");
 
     assert_eq!(
-        final_non_newline_offset_for_line(&rope, 0),
+        final_non_newline_offset_for_line(&rope, LineIndex(0)),
         CharOffset(4).into()
     );
 }
@@ -252,7 +260,7 @@ fn final_non_newline_offset_for_line_works_on_a_string_with_a_carriage_return_li
     let rope = r!("1234\r\n5678");
 
     assert_eq!(
-        final_non_newline_offset_for_line(&rope, 0),
+        final_non_newline_offset_for_line(&rope, LineIndex(0)),
         CharOffset(4).into()
     );
 }
@@ -261,7 +269,7 @@ fn final_non_newline_offset_for_line_works_on_a_string_with_a_carriage_return_li
 fn final_non_newline_offset_for_line_works_if_asked_about_a_non_existant_line() {
     let rope = r!("1234\r\n5678");
 
-    assert_eq!(final_non_newline_offset_for_line(&rope, 2), None);
+    assert_eq!(final_non_newline_offset_for_line(&rope, LineIndex(2)), None);
 }
 
 proptest! {

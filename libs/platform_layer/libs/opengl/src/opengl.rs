@@ -777,19 +777,20 @@ pub fn render_buffer_view<A: Clone>(
 
         perf_viz::record_guard!("glyph_brush.queue");
         let text = {
-            perf_viz::record_guard!("map unprinatbles to symbols for themselves");
-            let s = chars
-                .chars()
-                .map(|c| {
-                    // map unprinatbles to symbols for themselves
-                    // if c < 0x20 as char {
-                    //     std::char::from_u32(c as u32 | 0x2400u32).unwrap_or(c)
-                    // } else {
-                    c
-                    // }
-                })
-                .collect::<String>();
-            s
+            chars
+            // perf_viz::record_guard!("map unprinatbles to symbols for themselves");
+            // let s = chars
+            //     .chars()
+            //     .map(|c| {
+            //         // map unprinatbles to symbols for themselves
+            //         // if c < 0x20 as char {
+            //         //     std::char::from_u32(c as u32 | 0x2400u32).unwrap_or(c)
+            //         // } else {
+            //         c
+            //         // }
+            //     })
+            //     .collect::<String>();
+            // s
         };
         glyph_brush.queue(Section {
             text: &text,

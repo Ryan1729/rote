@@ -1,6 +1,6 @@
 ## TODO
 
-* make moving the cursor to the right spot after a large sting insert faster.
+* make moving the cursor to the right spot after a large string insert faster.
   * It seems to be slowing down the further we get into a file.
 
 * Saving and loading files.

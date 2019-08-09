@@ -471,6 +471,7 @@ name = "editor_types"
 version = "0.1.0"
 dependencies = [
  "macros 0.1.0",
+ "perf_viz 0.1.0",
  "platform_types 0.1.0",
  "vec1 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]

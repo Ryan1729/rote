@@ -57,6 +57,7 @@ impl Cursor {
         self.set_position_custom(position, d!())
     }
 
+    #[perf_viz::record]
     pub fn set_position_custom(&mut self, position: Position, action: SetPositionAction) {
         match action {
             SetPositionAction::ClearHighlight => {

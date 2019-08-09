@@ -515,9 +515,7 @@ where
                 let s = get_string(index);
 
                 rope.insert(o, &s);
-                for _ in 0..s.len() {
-                    move_cursor::directly(&rope, cursor, Move::Right);
-                }
+                move_cursor::right_n_times(&rope, cursor, s.chars().count());
 
                 let range = AbsoluteCharOffsetRange::new(o, o + s.chars().count());
 
@@ -532,9 +530,7 @@ where
                 let range_edit = delete_highlighted(rope, cursor, o1, o2);
 
                 rope.insert(range_edit.range.min(), &s);
-                for _ in 0..s.len() {
-                    move_cursor::directly(&rope, cursor, Move::Right);
-                }
+                move_cursor::right_n_times(&rope, cursor, s.chars().count());
 
                 let range = {
                     let min = range_edit.range.min();
@@ -618,7 +614,7 @@ fn get_cut_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
 fn nearest_valid_position_on_same_line<P: Borrow<Position>>(rope: &Rope, p: P) -> Option<Position> {
     let p = p.borrow();
 
-    final_non_newline_offset_for_line(rope, p.line).map(|final_offset| Position {
+    final_non_newline_offset_for_line(rope, LineIndex(p.line)).map(|final_offset| Position {
         offset: std::cmp::min(p.offset, final_offset),
         ..*p
     })
@@ -642,9 +638,9 @@ fn delete_highlighted(
 }
 
 /// Returns `None` if that line is not in the `Rope`.
-fn final_non_newline_offset_for_line(rope: &Rope, line_index: usize) -> Option<CharOffset> {
-    rope.lines()
-        .nth(line_index)
+#[perf_viz::record]
+fn final_non_newline_offset_for_line(rope: &Rope, line_index: LineIndex) -> Option<CharOffset> {
+    rope.line(line_index)
         .map(final_non_newline_offset_for_rope_line)
 }
 
@@ -700,9 +696,10 @@ fn final_non_newline_offset_for_rope_line(line: RopeLine) -> CharOffset {
     len
 }
 
+#[perf_viz::record]
 fn in_cursor_bounds<P: Borrow<Position>>(rope: &Rope, position: P) -> bool {
     let p = position.borrow();
-    final_non_newline_offset_for_line(rope, p.line)
+    final_non_newline_offset_for_line(rope, LineIndex(p.line))
         .map(|l| p.offset <= l)
         .unwrap_or(false)
 }

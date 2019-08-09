@@ -49,7 +49,7 @@ pub fn directly(rope: &Rope, cursor: &mut Cursor, r#move: Move) {
 }
 pub fn directly_custom(rope: &Rope, cursor: &mut Cursor, r#move: Move, action: SetPositionAction) {
     use Move::*;
-    let new_state = match r#move {
+    let moved = match r#move {
         Up => move_up(rope, cursor, action),
         Down => move_down(rope, cursor, action),
         Left => move_left(rope, cursor, action),
@@ -62,10 +62,71 @@ pub fn directly_custom(rope: &Rope, cursor: &mut Cursor, r#move: Move, action: S
         ToNextLikelyEditLocation => move_to_next_likely_edit_location(rope, cursor, action),
     };
 
-    cursor.state = match new_state {
+    cursor.state = state_from_moved(moved);
+}
+
+fn state_from_moved(moved: Moved) -> CursorState {
+    match moved {
         Moved::No => CursorState::PressedAgainstWall,
         Moved::Yes => CursorState::None,
-    };
+    }
+}
+
+/// This funciton is a fsater version of `move_cursor::directly(rope, cursor, Move::Right)`
+/// for large values of n.
+pub fn right_n_times(rope: &Rope, cursor: &mut Cursor, n: usize) {
+    // TODO really optimize
+
+    if n == 0 {
+        // don't set the state.
+        return;
+    }
+
+    // Ensure the same semantics as `move_cursor::directly`, without needing to do tthe equivalent
+    // in the loop.
+    cursor.set_position_custom(cursor.get_position(), SetPositionAction::ClearHighlight);
+
+    let mut moved = Moved::No;
+    for _ in 0..n {
+        let forward_pos = {
+            let position = cursor.get_position();
+
+            let mut new = Position {
+                offset: position.offset + 1,
+                ..position
+            };
+
+            if !in_cursor_bounds(rope, &new) {
+                new.line += 1;
+                new.offset = d!();
+            }
+
+            if in_cursor_bounds(rope, &new) {
+                Some(new)
+            } else {
+                None
+            }
+        };
+        if let Some(position) = forward_pos {
+            if cursor.get_position() == position {
+                break;
+            }
+
+            cursor.set_position_custom(position, SetPositionAction::ClearHighlight);
+
+            // Remember this offset so that we can try
+            // to maintain it when moving across lines.
+            cursor.sticky_offset = position.offset;
+
+            moved = Moved::Yes;
+            continue;
+        }
+
+        moved = Moved::No;
+        break;
+    }
+
+    cursor.state = state_from_moved(moved);
 }
 
 enum Moved {
@@ -422,6 +483,7 @@ fn last_position(rope: &Rope) -> Option<Position> {
         .map(|(line, offset)| Position { line, offset })
 }
 
+#[perf_viz::record]
 pub fn backward<P>(rope: &Rope, position: P) -> Option<Position>
 where
     P: Borrow<Position>,
@@ -451,6 +513,7 @@ where
     Some(position)
 }
 
+#[perf_viz::record]
 pub fn forward<P>(rope: &Rope, position: P) -> Option<Position>
 where
     P: Borrow<Position>,
