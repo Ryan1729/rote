@@ -74,7 +74,11 @@ fn state_from_moved(moved: Moved) -> CursorState {
 
 /// This funciton is a fsater version of `move_cursor::directly(rope, cursor, Move::Right)`
 /// for large values of n.
+#[perf_viz::record]
 pub fn right_n_times(rope: &Rope, cursor: &mut Cursor, n: usize) {
+    right_n_times_(rope, cursor, n)
+}
+fn right_n_times_(rope: &Rope, cursor: &mut Cursor, n: usize) {
     // TODO really optimize
 
     if n == 0 {
@@ -82,11 +86,18 @@ pub fn right_n_times(rope: &Rope, cursor: &mut Cursor, n: usize) {
         return;
     }
 
+    let orig_position = cursor.get_position();
+
     // Ensure the same semantics as `move_cursor::directly`, without needing to do tthe equivalent
     // in the loop.
-    cursor.set_position_custom(cursor.get_position(), SetPositionAction::ClearHighlight);
+    cursor.set_position_custom(orig_position, SetPositionAction::ClearHighlight);
+
+    let mut lines = rope.lines().skip(orig_position.line);
+    let mut current_line = lines.next();
+    let mut final_non_newline_offset = current_line.map(final_non_newline_offset_for_rope_line);
 
     let mut moved = Moved::No;
+
     for _ in 0..n {
         let forward_pos = {
             let position = cursor.get_position();
@@ -96,12 +107,26 @@ pub fn right_n_times(rope: &Rope, cursor: &mut Cursor, n: usize) {
                 ..position
             };
 
-            if !in_cursor_bounds(rope, &new) {
-                new.line += 1;
-                new.offset = d!();
+            macro_rules! in_bounds {
+                () => {
+                    final_non_newline_offset
+                        .map(|o| new.offset <= o)
+                        .unwrap_or(false)
+                };
             }
 
-            if in_cursor_bounds(rope, &new) {
+            let mut is_in_bounds = in_bounds!();
+
+            if !is_in_bounds {
+                new.line += 1;
+                new.offset = d!();
+
+                current_line = lines.next();
+                final_non_newline_offset = current_line.map(final_non_newline_offset_for_rope_line);
+                is_in_bounds = in_bounds!();
+            }
+
+            if is_in_bounds {
                 Some(new)
             } else {
                 None

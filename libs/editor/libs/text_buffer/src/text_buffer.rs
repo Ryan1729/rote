@@ -126,6 +126,7 @@ impl Cursors {
         self.cursors.mapped_ref(mapper)
     }
 
+    #[perf_viz::record]
     pub fn get_cloned_cursors(&self) -> Vec1<Cursor> {
         self.cursors.clone()
     }
@@ -430,6 +431,7 @@ impl TextBuffer {
         );
     }
 
+    #[perf_viz::record]
     fn apply_edit(&mut self, edit: Edit, kind: ApplyKind) {
         dbg!();
         // we assume that the edits are in the proper order so we won't mess up our indexes with our
@@ -461,6 +463,7 @@ impl TextBuffer {
     }
 }
 
+#[perf_viz::record]
 fn sort_cursors(cursors: Vec1<Cursor>) -> Vec1<Cursor> {
     let mut cursors = cursors.to_vec();
 
@@ -474,25 +477,30 @@ fn sort_cursors(cursors: Vec1<Cursor>) -> Vec1<Cursor> {
 /// Calls the `FnMut` once with a copy of each cursor and a reference to the same clone of the
 /// `Rope`. Then the (potentially) modified cursors and another copy of the `original_cursors`
 /// are wrapped up along with the returned `RangeEdit`s into the Edit.
+#[perf_viz::record]
 fn get_edit<F>(original_rope: &Rope, original_cursors: &Cursors, mut mapper: F) -> Edit
 where
     F: FnMut(&mut Cursor, &mut Rope, usize) -> RangeEdits,
 {
+    perf_viz::start_record!("init cloning + sort");
     // We need to sort cursors, so our `range_edits` are in the right order, so we can go
     // backwards, when we apply them so our indexes don't get messed up but our own inserts
     // and deletes.
     // Should we just always maintin that the cursors in sorted order?
     let mut cloned_cursors = sort_cursors(original_cursors.get_cloned_cursors());
     let mut cloned_rope = original_rope.clone();
+    perf_viz::end_record!("init cloning + sort");
 
     // the index needs to account for the order being from the high positions to the low positions
+    perf_viz::start_record!("range_edits");
     let mut index = cloned_cursors.len();
     let range_edits = cloned_cursors.mapped_mut(|c| {
         index -= 1;
         mapper(c, &mut cloned_rope, index)
     });
-    dbg!(&range_edits);
+    perf_viz::end_record!("range_edits");
 
+    perf_viz::record_guard!("construct result");
     Edit {
         range_edits,
         cursors: Change {
@@ -504,6 +512,7 @@ where
 
 /// Returns an edit that, if applied, after deleting the highlighted region at each cursor if
 /// there is one, inserts the given string at each of the cursors.
+#[perf_viz::record]
 fn get_insert_edit<F>(original_rope: &Rope, original_cursors: &Cursors, get_string: F) -> Edit
 where
     F: Fn(usize) -> String,
@@ -515,9 +524,10 @@ where
                 let s = get_string(index);
 
                 rope.insert(o, &s);
-                move_cursor::right_n_times(&rope, cursor, s.chars().count());
+                let char_count = s.chars().count();
+                move_cursor::right_n_times(&rope, cursor, char_count);
 
-                let range = AbsoluteCharOffsetRange::new(o, o + s.chars().count());
+                let range = AbsoluteCharOffsetRange::new(o, o + char_count);
 
                 RangeEdits {
                     insert_range: Some(RangeEdit { chars: s, range }),
@@ -530,11 +540,12 @@ where
                 let range_edit = delete_highlighted(rope, cursor, o1, o2);
 
                 rope.insert(range_edit.range.min(), &s);
-                move_cursor::right_n_times(&rope, cursor, s.chars().count());
+                let char_count = s.chars().count();
+                move_cursor::right_n_times(&rope, cursor, char_count);
 
                 let range = {
                     let min = range_edit.range.min();
-                    AbsoluteCharOffsetRange::new(min, min + s.chars().count())
+                    AbsoluteCharOffsetRange::new(min, min + char_count)
                 };
 
                 RangeEdits {
@@ -644,7 +655,11 @@ fn final_non_newline_offset_for_line(rope: &Rope, line_index: LineIndex) -> Opti
         .map(final_non_newline_offset_for_rope_line)
 }
 
+#[perf_viz::record]
 fn final_non_newline_offset_for_rope_line(line: RopeLine) -> CharOffset {
+    final_non_newline_offset_for_rope_line_(line)
+}
+fn final_non_newline_offset_for_rope_line_(line: RopeLine) -> CharOffset {
     let mut len = line.len_chars();
     macro_rules! get_char_before_len {
         () => {
