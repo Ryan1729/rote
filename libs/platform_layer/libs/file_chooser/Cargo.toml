@@ -8,3 +8,4 @@ edition = "2018"
 path = "./src/file_chooser.rs"
 
 [dependencies]
+nfd = "0.0.4"

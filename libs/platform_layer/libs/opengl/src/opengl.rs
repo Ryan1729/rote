@@ -11,9 +11,10 @@ use glyph_brush::{
 };
 use std::path::PathBuf;
 
-use macros::d;
+
 use file_chooser;
 use gl_layer::RenderExtras;
+use macros::d;
 use platform_types::{
     BufferView, BufferViewKind, CharDim, Cmd, Highlight, Input, ReplaceOrAdd, ScreenSpaceWH,
     ScreenSpaceXY, Sizes, UpdateAndRender, View,
@@ -156,6 +157,8 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
     enum CustomEvent {
         OpenFile(PathBuf),
     }
+    unsafe impl Send for CustomEvent {}
+    unsafe impl Sync for CustomEvent {}
 
     use glutin::event_loop::EventLoop;
     let events: EventLoop<CustomEvent> = glutin::event_loop::EventLoop::new_user_event();
@@ -456,10 +459,11 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                             }
                             VirtualKeyCode::O => {
                                 println!("VirtualKeyCode::O");
-                                let proxy = event_proxy.clone();
+                                let proxy = std::sync::Arc::new(event_proxy.clone());
+                                let proxy = proxy.clone();
                                 file_chooser::single(move |p: PathBuf| {
                                     println!("file_chooser::single");
-                                    let _bye = proxy.send_event(CustomEvent::OpenFile(p));
+                                    //let _bye = proxy.send_event(CustomEvent::OpenFile(p));
                                 })
                             }
                             VirtualKeyCode::V => {

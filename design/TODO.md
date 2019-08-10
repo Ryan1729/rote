@@ -1,8 +1,5 @@
 ## TODO
 
-* make moving the cursor to the right spot after a large string insert faster.
-  * It seems to be slowing down the further we get into a file.
-
 * Saving and loading files.
   * How easy is it to pop open the system file chooser? Can we get file choosing done with that alone for now?
     * easy enough apparently. We've dummied in a callback for now.
