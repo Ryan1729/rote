@@ -459,11 +459,14 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                             }
                             VirtualKeyCode::O => {
                                 println!("VirtualKeyCode::O");
-                                let proxy = std::sync::Arc::new(event_proxy.clone());
+                                let proxy = std::sync::Arc::new(
+                                    std::sync::Mutex::new(event_proxy.clone())
+                                );
                                 let proxy = proxy.clone();
                                 file_chooser::single(move |p: PathBuf| {
-                                    println!("file_chooser::single");
-                                    //let _bye = proxy.send_event(CustomEvent::OpenFile(p));
+                                    let _bye = proxy.lock()
+                                        .expect("file_chooser thread private mutex locked!?")
+                                        .send_event(CustomEvent::OpenFile(p));
                                 })
                             }
                             VirtualKeyCode::V => {

@@ -7,9 +7,6 @@ pub fn single<F>(callback: F)
 where
     F: Fn(PathBuf) + Send + Sync + 'static,
 {
-    let callback_arc = std::sync::Arc::new(callback);
-    let callback = callback_arc.clone();
-
     let join_handle = std::thread::Builder::new()
         .name("file chooser".to_string())
         .spawn(move || {

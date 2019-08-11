@@ -1,5 +1,7 @@
 ## TODO
 
+* fix scrolling and cursor positioning bugs
+
 * Saving and loading files.
   * How easy is it to pop open the system file chooser? Can we get file choosing done with that alone for now?
     * easy enough apparently. We've dummied in a callback for now.
