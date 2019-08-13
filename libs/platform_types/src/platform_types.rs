@@ -1,6 +1,6 @@
 use macros::{d, fmt_debug, fmt_display, integer_newtype, ord, usize_newtype};
 use std::ops::{Add, Sub};
-use std::path::{PathBuf};
+use std::path::PathBuf;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Move {
@@ -125,36 +125,25 @@ impl std::ops::Add for ScrollXY {
     }
 }
 
-impl std::ops::Add<ScreenSpaceXY> for ScrollXY {
+impl std::ops::Sub<ScrollXY> for ScreenSpaceXY {
     type Output = TextSpaceXY;
 
-    fn add(self, other: ScreenSpaceXY) -> TextSpaceXY {
+    fn sub(self, other: ScrollXY) -> TextSpaceXY {
         TextSpaceXY {
-            x: self.x + other.x,
-            y: self.y + other.y,
-        }
-    }
-}
-
-impl std::ops::Add<ScrollXY> for ScreenSpaceXY {
-    type Output = TextSpaceXY;
-
-    fn add(self, other: ScrollXY) -> TextSpaceXY {
-        TextSpaceXY {
-            x: self.x + other.x,
-            y: self.y + other.y,
+            x: self.x - other.x,
+            y: self.y - other.y,
         }
     }
 }
 
 pub fn screen_to_text(xy: ScreenSpaceXY, scroll: ScrollXY) -> TextSpaceXY {
-    xy + scroll
+    xy - scroll
 }
 
-impl std::ops::Sub<ScrollXY> for TextSpaceXY {
+impl std::ops::Add<ScrollXY> for TextSpaceXY {
     type Output = ScreenSpaceXY;
 
-    fn sub(self, other: ScrollXY) -> ScreenSpaceXY {
+    fn add(self, other: ScrollXY) -> ScreenSpaceXY {
         ScreenSpaceXY {
             x: self.x - other.x,
             y: self.y - other.y,
@@ -163,7 +152,7 @@ impl std::ops::Sub<ScrollXY> for TextSpaceXY {
 }
 
 pub fn text_to_screen(xy: TextSpaceXY, scroll: ScrollXY) -> ScreenSpaceXY {
-    xy - scroll
+    xy + scroll
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -239,19 +228,24 @@ fn normal_or_zero(x: f32) -> f32 {
 }
 
 pub fn screen_space_to_position(
-    ScreenSpaceXY { x, y }: ScreenSpaceXY,
+    xy: ScreenSpaceXY,
+    char_dim: CharDim,
+    scroll: ScrollXY,
+    round: PositionRound,
+) -> Position {
+    text_space_to_position(screen_to_text(xy, scroll), char_dim, round)
+}
+
+pub fn text_space_to_position(
+    TextSpaceXY { x, y }: TextSpaceXY,
     CharDim { w, h }: CharDim,
-    ScrollXY {
-        x: scroll_x,
-        y: scroll_y,
-    }: ScrollXY,
     round: PositionRound,
 ) -> Position {
     // This is made much more conveinient by the monospace assumption!
+    dbg!((x, y));
+    let pre_rounded = x / w;
 
-    let pre_rounded = (x - scroll_x) / w;
-
-    // if the value would not fit in a `usize` then the `as usize` is undefiend behaviour.
+    // if the value would not fit in a `usize` then the `as usize` is undefined behaviour.
     // https://github.com/rust-lang/rust/issues/10184
     // https://play.rust-lang.org/?version=stable&mode=debug&edition=2018&gist=21e5f8c502c8e6e16a685449ccc9db82
     let offset = normal_or_zero(match round {
@@ -262,7 +256,7 @@ pub fn screen_space_to_position(
             pre_rounded + 0.5
         }
     }) as usize;
-    let line = normal_or_zero((y - scroll_y) / h) as usize;
+    let line = normal_or_zero(y / h) as usize;
 
     Position {
         offset: CharOffset(offset),
@@ -275,7 +269,7 @@ pub fn position_to_screen_space(
     char_dim: CharDim,
     scroll: ScrollXY,
 ) -> ScreenSpaceXY {
-    position_to_text_space(pos, char_dim) - scroll
+    text_to_screen(position_to_text_space(pos, char_dim), scroll)
 }
 
 pub fn position_to_text_space(

@@ -2,7 +2,7 @@ use editor_types::{Cursor, CursorState, Vec1};
 use macros::{c, d};
 use platform_types::{
     attempt_to_make_xy_visible, pos, position_to_screen_space, position_to_text_space,
-    push_highlights, screen_space_to_position, Apron, BufferView, CharDim, Cmd, Input, Move,
+    push_highlights, screen_space_to_position, text_to_screen, Apron, BufferView, CharDim, Cmd, Input, Move,
     Position, PositionRound, ReplaceOrAdd, ScreenSpaceXY, ScrollableScreen, TextSpaceXY,
     UpdateAndRenderOutput, View, VisibilityAttemptResult,
 };
@@ -162,7 +162,7 @@ pub fn render_view(state: &State, view: &mut View) {
 
             view.buffers.push(BufferView {
                 kind: BufferViewKind::Edit,
-                screen_position: TextSpaceXY::default() - state.screen.scroll,
+                screen_position: text_to_screen(TextSpaceXY::default(), state.screen.scroll),
                 bounds: (std::f32::INFINITY, std::f32::INFINITY),
                 color: c![0.3, 0.3, 0.9],
                 chars: buffer.chars().collect::<String>(),

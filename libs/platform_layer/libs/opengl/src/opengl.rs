@@ -620,14 +620,14 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                             modifiers: ModifiersState { shift: false, .. },
                             ..
                         } => {
-                            call_u_and_r!(Input::ScrollVertically(-y * scroll_multiplier));
+                            call_u_and_r!(Input::ScrollVertically(y * scroll_multiplier));
                         }
                         WindowEvent::MouseWheel {
                             delta: MouseScrollDelta::LineDelta(_, y),
                             modifiers: ModifiersState { shift: true, .. },
                             ..
                         } => {
-                            call_u_and_r!(Input::ScrollHorizontally(y * scroll_multiplier));
+                            call_u_and_r!(Input::ScrollHorizontally(-y * scroll_multiplier));
                         }
                         WindowEvent::CursorMoved {
                             position: LogicalPosition { x, y },

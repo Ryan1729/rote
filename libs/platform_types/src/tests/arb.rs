@@ -20,9 +20,25 @@ pub fn text_xy(spec: f32::Any) -> impl Strategy<Value = TextSpaceXY> {
     (spec, spec).prop_map(|(x, y)| TextSpaceXY { x, y })
 }
 
+pub fn rounded_non_negative_text_xy() -> impl Strategy<Value = TextSpaceXY> {
+    let spec = 0..(1 << 24);
+    (spec.clone(), spec).prop_map(|(x, y)| TextSpaceXY {
+        x: x as f32,
+        y: y as f32,
+    })
+}
+
 #[allow(dead_code)]
 pub fn screen_xy(spec: f32::Any) -> impl Strategy<Value = ScreenSpaceXY> {
     (spec, spec).prop_map(|(x, y)| ScreenSpaceXY { x, y })
+}
+
+pub fn rounded_non_negative_screen_xy() -> impl Strategy<Value = ScreenSpaceXY> {
+    let spec = 0..(1 << 24);
+    (spec.clone(), spec).prop_map(|(x, y)| ScreenSpaceXY {
+        x: x as f32,
+        y: y as f32,
+    })
 }
 
 #[allow(dead_code)]

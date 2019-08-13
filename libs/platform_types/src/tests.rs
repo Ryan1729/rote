@@ -359,56 +359,72 @@ fn xy_is_visible_works_on_this_passed_in_screen(screen: &ScrollableScreen) {
 
     xy_is_visible_assert!(
         &screen,
-        screen.scroll
-            + ScreenSpaceXY {
+        screen_to_text(
+            ScreenSpaceXY {
                 x: screen.wh.w / 2.0,
                 y: screen.wh.h / 2.0
-            }
+            },
+            screen.scroll
+        )
     );
     xy_is_visible_assert!(
         not & screen,
-        screen.scroll
-            + ScreenSpaceXY {
+        screen_to_text(
+            ScreenSpaceXY {
                 x: -screen.wh.w / 2.0,
                 y: -screen.wh.h / 2.0
-            }
+            },
+            screen.scroll
+        )
     );
 
     xy_is_visible_assert!(
         &screen,
-        screen.scroll
-            + ScreenSpaceXY {
+        screen_to_text(
+            ScreenSpaceXY {
                 x: usual_f32_minimal_decrease(screen.wh.w),
                 y: usual_f32_minimal_decrease(screen.wh.h)
-            }
+            },
+            screen.scroll
+        )
     );
     xy_is_visible_assert!(
         not & screen,
-        screen.scroll
-            + ScreenSpaceXY {
+        screen_to_text(
+            ScreenSpaceXY {
                 x: screen.wh.w,
                 y: screen.wh.h
-            }
+            },
+            screen.scroll
+        )
     );
 
     xy_is_visible_assert!(
         not & screen,
-        screen.scroll
-            + ScreenSpaceXY {
+        screen_to_text(
+            ScreenSpaceXY {
                 x: screen.wh.w * 3.0 / 2.0,
                 y: screen.wh.h * 3.0 / 2.0
-            }
+            },
+            screen.scroll
+        )
     );
     xy_is_visible_assert!(
         not & screen,
-        screen.scroll
-            + ScreenSpaceXY {
+        screen_to_text(
+            ScreenSpaceXY {
                 x: -screen.wh.w * 3.0 / 2.0,
                 y: -screen.wh.h * 3.0 / 2.0
-            }
+            },
+            screen.scroll
+        )
     );
 
-    xy_is_visible_assert!(&screen, screen.scroll + ScreenSpaceXY { x: 0.0, y: 0.0 });
+
+    xy_is_visible_assert!(
+        &screen,
+        screen_to_text(ScreenSpaceXY { x: 0.0, y: 0.0 }, screen.scroll)
+    );
     xy_is_visible_assert!(
         not & screen,
         TextSpaceXY {
@@ -433,36 +449,45 @@ fn xy_is_visible_works_on_this_passed_in_screen(screen: &ScrollableScreen) {
 
     xy_is_visible_assert!(
         &screen,
-        screen.scroll
-            + ScreenSpaceXY {
+        screen_to_text(
+            ScreenSpaceXY {
                 x: usual_f32_minimal_decrease(screen.wh.w),
                 y: 0.0
-            }
+            },
+            screen.scroll
+        )
     );
     xy_is_visible_assert!(
         not & screen,
-        screen.scroll
-            + ScreenSpaceXY {
+        screen_to_text(
+            ScreenSpaceXY {
                 x: screen.wh.w,
                 y: 0.0
-            }
+            },
+            screen.scroll
+        )
     );
 
     xy_is_visible_assert!(
         &screen,
-        screen.scroll
-            + ScreenSpaceXY {
+
+        screen_to_text(
+            ScreenSpaceXY {
                 x: 0.0,
                 y: usual_f32_minimal_decrease(screen.wh.h)
-            }
+            },
+            screen.scroll
+        )
     );
     xy_is_visible_assert!(
         not & screen,
-        screen.scroll
-            + ScreenSpaceXY {
+        screen_to_text(
+            ScreenSpaceXY {
                 x: 0.0,
                 y: screen.wh.h
-            }
+            },
+            screen.scroll
+        )
     );
 }
 
@@ -560,11 +585,13 @@ fn attempt_to_make_xy_visible_works_on_this_generated_example() {
         w: 0.000000000026796234,
         h: 0.0000000000000000003944164,
     };
-    let xy = screen.scroll
-        + ScreenSpaceXY {
+    let xy = screen_to_text(
+        ScreenSpaceXY {
             x: 0.0,
             y: 0.0000000000000000000000000006170001,
-        };
+        },
+        screen.scroll,
+    );
 
     attempt_to_make_xy_visible_works_in_this_scenario(&mut screen, char_dim, xy);
 }
@@ -611,12 +638,99 @@ fn attempt_to_make_xy_visible_works_on_this_vertically_scrolled_realistically_si
         },
     };
     let char_dim = CharDim { w: 30.0, h: 60.0 };
-    let xy = screen.scroll + ScreenSpaceXY { x: 0.0, y: 600.0 };
+    let xy = screen_to_text(ScreenSpaceXY { x: 0.0, y: 600.0 }, screen.scroll);
 
     xy_is_visible_assert!(not & screen, xy);
 
     attempt_to_make_xy_visible_works_in_this_scenario(&mut screen, char_dim, xy);
 }
 
+fn screen_space_to_position_then_position_to_screen_space_is_identity_after_one_conversion_for_these(
+    screen: ScrollableScreen,
+    xy: ScreenSpaceXY,
+) {
+    let scroll = screen.scroll;
+    let char_dim = CharDim { w: 4.0, h: 8.0 };
+
+    let pos = dbg!(screen_space_to_position(
+        xy,
+        char_dim,
+        scroll,
+        PositionRound::TowardsZero
+    ));
+
+    let mut xy = dbg!(position_to_screen_space(pos, char_dim, scroll));
+
+    for _ in 0..8 {
+        let new_xy = position_to_screen_space(
+            dbg!(screen_space_to_position(
+                xy,
+                char_dim,
+                scroll,
+                PositionRound::TowardsZero
+            )),
+            char_dim,
+            scroll
+        );
+
+        assert_eq!(new_xy, xy);
+
+        xy = new_xy;
+    }
+}
+
+proptest! {
+    #[test]
+    fn screen_space_to_position_then_position_to_screen_space_is_identity_after_one_conversion(
+        screen in arb::scrollable_screen(arb::usual()),
+        xy in arb::rounded_non_negative_screen_xy(),
+    ) {
+        screen_space_to_position_then_position_to_screen_space_is_identity_after_one_conversion_for_these(
+            screen, xy
+        )
+    }
+}
+
+#[test]
+fn screen_space_to_position_then_position_to_screen_space_is_identity_after_one_conversion_for_this_generated_example(
+) {
+    screen_space_to_position_then_position_to_screen_space_is_identity_after_one_conversion_for_these(
+        ScrollableScreen { scroll: ScrollXY { x: 0.0, y: -135712.25 }, wh: ScreenSpaceWH { w: 0.0, h: 0.0 } },
+        ScreenSpaceXY { x: 0.0, y: 0.0 }
+    )
+}
+
+fn text_space_to_position_then_position_to_text_space_is_identity_after_one_conversion_for_these(
+    xy: TextSpaceXY,
+) {
+    let char_dim = CharDim { w: 4.0, h: 8.0 };
+
+    let pos = text_space_to_position(xy, char_dim, PositionRound::TowardsZero);
+
+    let mut xy = position_to_text_space(pos, char_dim);
+
+    for _ in 0..8 {
+        let new_xy = position_to_text_space(
+            text_space_to_position(xy, char_dim, PositionRound::TowardsZero),
+            char_dim,
+        );
+
+        assert_eq!(new_xy, xy);
+
+        xy = new_xy;
+    }
+
+}
+
+proptest! {
+    #[test]
+    fn text_space_to_position_then_position_to_text_space_is_identity_after_one_conversion(
+        xy in arb::rounded_non_negative_text_xy(),
+    ) {
+        text_space_to_position_then_position_to_text_space_is_identity_after_one_conversion_for_these(
+            xy
+        )
+    }
+}
 
 mod arb;
