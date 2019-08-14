@@ -9,6 +9,17 @@
 * Display tabs that allow the user to switch between open buffers
   * Is it worth it to just display a file count in the status bar and implement switching keyboard shortcuts as a stopgap?
 
+* handle tab key properly
+  * The logic is complex enough that we will send down a `Tab` input
+    * Besides, hitting tab is different than pasting a `\t`
+  * Features:
+    * for each cursor
+      * if there is not a selection, then insert 4 space characters
+      * If there is a selection, insert four spaces adjacent to the whitespace between the start of the line and the first non-whitespace character.
+        * what if there is non-space whitespace?
+          * convert it all to the equivalent number of spaces, then insert the four spaces.
+
+
 * Ctrl-D to select word and find next instance of word and select it and place a cursor there.
 
 
