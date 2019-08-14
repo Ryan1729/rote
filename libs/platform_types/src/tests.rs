@@ -661,7 +661,11 @@ fn screen_space_to_position_then_position_to_screen_space_is_identity_after_one_
 
     let mut xy = dbg!(position_to_screen_space(pos, char_dim, scroll));
 
-    for _ in 0..8 {
+    const count: usize = 8;
+
+    let mut v = Vec::with_capacity(count);
+
+    for _ in 0..count {
         let new_xy = position_to_screen_space(
             dbg!(screen_space_to_position(
                 xy,
@@ -670,13 +674,15 @@ fn screen_space_to_position_then_position_to_screen_space_is_identity_after_one_
                 PositionRound::TowardsZero
             )),
             char_dim,
-            scroll
+            scroll,
         );
 
-        assert_eq!(new_xy, xy);
+        v.push(new_xy);
 
         xy = new_xy;
     }
+
+    assert_eq!(v, [xy; count].to_vec());
 }
 
 proptest! {
