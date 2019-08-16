@@ -661,11 +661,11 @@ fn screen_space_to_position_then_position_to_screen_space_is_identity_after_one_
 
     let mut xy = dbg!(position_to_screen_space(pos, char_dim, scroll));
 
-    const count: usize = 8;
+    const COUNT: usize = 8;
 
-    let mut v = Vec::with_capacity(count);
+    let mut v = Vec::with_capacity(COUNT);
 
-    for _ in 0..count {
+    for _ in 0..COUNT {
         let new_xy = position_to_screen_space(
             dbg!(screen_space_to_position(
                 xy,
@@ -682,7 +682,7 @@ fn screen_space_to_position_then_position_to_screen_space_is_identity_after_one_
         xy = new_xy;
     }
 
-    assert_eq!(v, [xy; count].to_vec());
+    assert_eq!(v, [xy; COUNT].to_vec());
 }
 
 proptest! {
@@ -738,5 +738,52 @@ proptest! {
         )
     }
 }
+
+fn screen_to_text_then_text_to_screen_is_identity_after_one_conversion_for_these(
+    screen: ScrollableScreen,
+    xy: ScreenSpaceXY,
+) {
+    let scroll = screen.scroll;
+
+    let text_xy = dbg!(screen_to_text(xy, scroll));
+
+    let mut xy = dbg!(text_to_screen(text_xy, scroll));
+
+    const COUNT: usize = 8;
+
+    let mut v = Vec::with_capacity(COUNT);
+
+    for _ in 0..COUNT {
+        let new_xy = text_to_screen(dbg!(screen_to_text(xy, scroll)), scroll);
+
+        v.push(new_xy);
+
+        xy = new_xy;
+    }
+
+    assert_eq!(v, [xy; COUNT].to_vec());
+}
+
+proptest! {
+    #[test]
+    fn screen_to_text_then_text_to_screen_is_identity_after_one_conversion(
+        screen in arb::scrollable_screen(arb::usual()),
+        xy in arb::rounded_non_negative_screen_xy(),
+    ) {
+        screen_to_text_then_text_to_screen_is_identity_after_one_conversion_for_these(
+            screen,
+            xy
+        )
+    }
+}
+
+#[test]
+fn screen_to_text_then_text_to_screen_is_identity_after_one_conversion_for_this_generated_example() {
+    screen_to_text_then_text_to_screen_is_identity_after_one_conversion_for_these(
+        ScrollableScreen { scroll: ScrollXY { x: -75525750000000000.0, y: 0.0 }, wh: ScreenSpaceWH { w: 0.0, h: 0.0 } },
+        ScreenSpaceXY { x: 0.0, y: 0.0 }
+    )
+}
+
 
 mod arb;
