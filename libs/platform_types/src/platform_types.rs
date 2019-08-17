@@ -145,8 +145,8 @@ impl std::ops::Add<ScrollXY> for TextSpaceXY {
 
     fn add(self, other: ScrollXY) -> ScreenSpaceXY {
         ScreenSpaceXY {
-            x: self.x - other.x,
-            y: self.y - other.y,
+            x: self.x + other.x,
+            y: self.y + other.y,
         }
     }
 }
