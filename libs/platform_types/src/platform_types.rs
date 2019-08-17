@@ -125,34 +125,45 @@ impl std::ops::Add for ScrollXY {
     }
 }
 
-impl std::ops::Sub<ScrollXY> for ScreenSpaceXY {
+impl std::ops::Add<ScrollXY> for ScreenSpaceXY {
     type Output = TextSpaceXY;
 
-    fn sub(self, other: ScrollXY) -> TextSpaceXY {
+    fn add(self, other: ScrollXY) -> TextSpaceXY {
         TextSpaceXY {
-            x: self.x - other.x,
-            y: self.y - other.y,
-        }
-    }
-}
-
-pub fn screen_to_text(xy: ScreenSpaceXY, scroll: ScrollXY) -> TextSpaceXY {
-    xy - scroll
-}
-
-impl std::ops::Add<ScrollXY> for TextSpaceXY {
-    type Output = ScreenSpaceXY;
-
-    fn add(self, other: ScrollXY) -> ScreenSpaceXY {
-        ScreenSpaceXY {
             x: self.x + other.x,
             y: self.y + other.y,
         }
     }
 }
 
+impl std::ops::Add<ScreenSpaceXY> for ScrollXY {
+    type Output = TextSpaceXY;
+
+    fn add(self, other: ScreenSpaceXY) -> TextSpaceXY {
+        TextSpaceXY {
+            x: self.x + other.x,
+            y: self.y + other.y,
+        }
+    }
+}
+
+pub fn screen_to_text(xy: ScreenSpaceXY, scroll: ScrollXY) -> TextSpaceXY {
+    scroll + xy
+}
+
+impl std::ops::Sub<ScrollXY> for TextSpaceXY {
+    type Output = ScreenSpaceXY;
+
+    fn sub(self, other: ScrollXY) -> ScreenSpaceXY {
+        ScreenSpaceXY {
+            x: self.x - other.x,
+            y: self.y - other.y,
+        }
+    }
+}
+
 pub fn text_to_screen(xy: TextSpaceXY, scroll: ScrollXY) -> ScreenSpaceXY {
-    xy + scroll
+    xy - scroll
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -425,6 +436,7 @@ pub fn xy_is_visible(
     text: TextSpaceXY,
 ) -> bool {
     let ScreenSpaceXY { x, y } = text_to_screen(text, *scroll);
+    dbg!(((x, y), (w, h)));
     dbg!(x >= 0.0) && dbg!(x < *w) && dbg!(y >= 0.0) && dbg!(y < *h)
 }
 

@@ -785,5 +785,26 @@ fn screen_to_text_then_text_to_screen_is_identity_after_one_conversion_for_this_
     )
 }
 
+#[test]
+fn text_to_screen_works_on_this_realistic_example() {
+    let screen = ScrollableScreen {
+        scroll: ScrollXY { x: 250.0, y: 440.0 },
+        wh: ScreenSpaceWH { w: 800.0, h: 400.0 },
+    };
+
+    assert_eq!(
+        text_to_screen(
+            TextSpaceXY {
+                x: 1000.0,
+                y: 480.0
+            },
+            screen.scroll
+        ),
+        ScreenSpaceXY {
+            x: 750.0,
+            y: 40.0
+        }
+    );
+}
 
 mod arb;
