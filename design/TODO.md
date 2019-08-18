@@ -1,11 +1,12 @@
 ## TODO
 
-* Saving and loading files.
-  * How easy is it to pop open the system file chooser? Can we get file choosing done with that alone for now?
-    * easy enough apparently. We've dummied in a callback for now.
-
 * Display tabs that allow the user to switch between open buffers
   * Is it worth it to just display a file count in the status bar and implement switching keyboard shortcuts as a stopgap?
+    * Ctrl-Tab to move to the right and Ctrl-Shift-Tab to go left seem like they would be useful even with a clickable tab. So, yes.
+
+
+* Saving and loading files.
+  * open into a new buffer
 
 * handle tab key properly
   * The logic is complex enough that we will send down a `Tab` input
@@ -16,11 +17,12 @@
       * If there is a selection, insert four spaces adjacent to the whitespace between the start of the line and the first non-whitespace character.
         * what if there is non-space whitespace?
           * convert it all to the equivalent number of spaces, then insert the four spaces.
+    * what should pasting a tab do? insert four spaces instead?
 
 
 * Ctrl-D to select word and find next instance of word and select it and place a cursor there.
 
-
+* Ctrl-p open a list of open files, with a search box.
 
 * make Undo/Redo history into struct containing `VecDeque` which keeps track of total bytes used and automatically pops things off the end when storage would exceed a limit.
   * add max size parameter so we can test with small sizes

@@ -2,9 +2,9 @@ use editor_types::{Cursor, CursorState, Vec1};
 use macros::{c, d};
 use platform_types::{
     attempt_to_make_xy_visible, pos, position_to_screen_space, position_to_text_space,
-    push_highlights, screen_space_to_position, text_to_screen, Apron, BufferView, CharDim, Cmd, Input, Move,
-    Position, PositionRound, ReplaceOrAdd, ScreenSpaceXY, ScrollableScreen, TextSpaceXY,
-    UpdateAndRenderOutput, View, VisibilityAttemptResult,
+    push_highlights, screen_space_to_position, text_to_screen, Apron, BufferView, CharDim, Cmd,
+    Input, Move, Position, PositionRound, ReplaceOrAdd, ScreenSpaceXY, ScrollableScreen,
+    TextSpaceXY, UpdateAndRenderOutput, View, VisibilityAttemptResult,
 };
 
 use std::collections::VecDeque;
@@ -184,7 +184,15 @@ pub fn render_view(state: &State, view: &mut View) {
 
                     let _cannot_actually_fail = write!(
                         chars,
-                        "t{} s{} w{}",
+                        "{}/{}",
+                        state.current_buffer_index + 1,
+                        state.buffers.len()
+                    );
+
+                    // debugging
+                    let _cannot_actually_fail = write!(
+                        chars,
+                        "  ? t{} s{} w{}",
                         state.text_char_dim, state.screen.scroll, state.screen.wh
                     );
 
