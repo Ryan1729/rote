@@ -1,13 +1,5 @@
 ## TODO
 
-* Display tabs that allow the user to switch between open buffers
-  * Is it worth it to just display a file count in the status bar and implement switching keyboard shortcuts as a stopgap?
-    * Ctrl-Tab to move to the right and Ctrl-Shift-Tab to go left seem like they would be useful even with a clickable tab. So, yes.
-
-
-* Saving and loading files.
-  * open into a new buffer
-
 * handle tab key properly
   * The logic is complex enough that we will send down a `Tab` input
     * Besides, hitting tab is different than pasting a `\t`
@@ -18,11 +10,29 @@
         * what if there is non-space whitespace?
           * convert it all to the equivalent number of spaces, then insert the four spaces.
     * what should pasting a tab do? insert four spaces instead?
+      * Would it be worth it to have a "raw input" mode or window where you can insert Tab characters and all the Ctrl+Letter sequences?
+        * What would be the case where you would need that?
+
+* Display tabs that allow the user to switch between open buffers
+  * Is it worth it to just display a file count in the status bar and implement switching keyboard shortcuts as a stopgap?
+    * Ctrl-Tab to move to the right and Ctrl-Shift-Tab to go left seem like they would be useful even with a clickable tab. So, yes.
+    * we should do the tab handling first then.
+  * Do we want side-by-side visible buffers?
+    * Eventually yes. Having the same buffer visible with two different scroll positions is desirable
+      * should the cursor positions be separate?
+        * that is not necessary. The primary use case for two at the same time would be to look at one of them and type in the other.
+      * Do we want interior screens or separate windows?
+        * Let's try separate windows. That way we don't need to re-invent the OS's window management.
+
+* Saving and loading files.
+  * open into a new buffer
 
 
-* Ctrl-D to select word and find next instance of word and select it and place a cursor there.
+
+* Ctrl-d to select word and find next instance of word and select it and place a cursor there.
 
 * Ctrl-p open a list of open files, with a search box.
+  * is it okay for this to take over the whole screen?
 
 * make Undo/Redo history into struct containing `VecDeque` which keeps track of total bytes used and automatically pops things off the end when storage would exceed a limit.
   * add max size parameter so we can test with small sizes
