@@ -12,8 +12,12 @@
     * what should pasting a tab do? insert four spaces instead?
       * Would it be worth it to have a "raw input" mode or window where you can insert Tab characters and all the Ctrl+Letter sequences?
         * What would be the case where you would need that?
+    * There's this thread talking about "real tabs" helping visually impaired users. Do we want to do something about that? https://www.reddit.com/r/javascript/comments/c8drjo/nobody_talks_about_the_real_reason_to_use_tabs/
+      * Well right now we are in a complexity local minimum regarding mouse positioning which relies on all characters being the same width. If we want to move away from there then I think we should be getting more out of that, like ligature support.
+      * Also, why do the characters used in editor need to be the same as what is on disk? We could just make conversion easier if we ever have any visually impaired users (which at this point implies myself getting further visual impairments beyond needing glasses.)
+        * the algorithm would be something like
 
-* Display tabs that allow the user to switch between open buffers
+* Display file tabs that allow the user to switch between open buffers
   * Is it worth it to just display a file count in the status bar and implement switching keyboard shortcuts as a stopgap?
     * Ctrl-Tab to move to the right and Ctrl-Shift-Tab to go left seem like they would be useful even with a clickable tab. So, yes.
     * we should do the tab handling first then.
@@ -23,6 +27,9 @@
         * that is not necessary. The primary use case for two at the same time would be to look at one of them and type in the other.
       * Do we want interior screens or separate windows?
         * Let's try separate windows. That way we don't need to re-invent the OS's window management.
+  * Ctrl-t to make a new tab
+  * Ctrl-shift-t to restore last tab
+    * We would want a fixed buffer of history like for undo/redo and clipboard history.
 
 * Saving and loading files.
   * open into a new buffer
@@ -33,6 +40,13 @@
 
 * Ctrl-p open a list of open files, with a search box.
   * is it okay for this to take over the whole screen?
+
+* Ctrl-Alt-t to transpose characters like in the `bash` prompt, (where Ctrl-t is used).
+  * we want Ctrl-T as a keyboard shortcut for making a new tab.
+  * I guess doing this at every cursor make sense.
+  * What does this do to selections?
+    * "nothing" (aka leaving them alone) seem sensible here.
+
 
 * make Undo/Redo history into struct containing `VecDeque` which keeps track of total bytes used and automatically pops things off the end when storage would exceed a limit.
   * add max size parameter so we can test with small sizes
