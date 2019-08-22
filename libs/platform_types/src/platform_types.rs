@@ -65,6 +65,10 @@ pub enum Input {
     Paste(Option<String>),
     InsertNumbersAtCursors,
     LoadedFile(PathBuf, String),
+    TabIn,
+    TabOut,
+    NextBuffer,
+    PreviousBuffer,
 }
 
 d!(for Input : Input::None);

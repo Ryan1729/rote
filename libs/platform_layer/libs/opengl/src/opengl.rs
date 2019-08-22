@@ -481,6 +481,9 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                             VirtualKeyCode::Z => {
                                 call_u_and_r!(Input::Undo);
                             }
+                            VirtualKeyCode::Tab => {
+                                call_u_and_r!(Input::NextBuffer);
+                            }
                             _ => (),
                         },
                         WindowEvent::KeyboardInput {
@@ -516,6 +519,9 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                             }
                             VirtualKeyCode::Z => {
                                 call_u_and_r!(Input::Redo);
+                            }
+                            VirtualKeyCode::Tab => {
+                                call_u_and_r!(Input::PreviousBuffer);
                             }
                             _ => (),
                         },
@@ -558,6 +564,9 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                             VirtualKeyCode::End => {
                                 call_u_and_r!(Input::MoveAllCursors(Move::ToLineEnd));
                             }
+                            VirtualKeyCode::Tab => {
+                                call_u_and_r!(Input::TabIn);
+                            }
                             _ => (),
                         },
                         WindowEvent::KeyboardInput {
@@ -595,6 +604,9 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                             VirtualKeyCode::End => {
                                 call_u_and_r!(Input::ExtendSelectionForAllCursors(Move::ToLineEnd));
                             }
+                            VirtualKeyCode::Tab => {
+                                call_u_and_r!(Input::TabOut);
+                            }
                             _ => (),
                         },
                         WindowEvent::ReceivedCharacter(mut c) => {
@@ -602,6 +614,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
                              c != '\u{1}'       // "start of heading" (sent with Ctrl-a)
                              && c != '\u{3}'    // "end of text" (sent with Ctrl-c)
                              && c != '\u{8}'    // backspace
+                             && c != '\u{9}'    // horizontal tab
                              && c != '\u{f}'    // "shift in" AKA use black ink apparently, (sent with Ctrl-o)
                              && c != '\u{16}'  // "synchronous idle" (sent with Ctrl-v)
                              && c != '\u{18}'  // "cancel" (sent with Ctrl-x)

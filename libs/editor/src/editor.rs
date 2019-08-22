@@ -402,6 +402,18 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
 
             try_to_show_cursors!(b);
         }),
+        TabIn => {
+            dbg!("Not implemented.");
+        },
+        TabOut => {
+            dbg!("Not implemented.");
+        }
+        NextBuffer => {
+            dbg!("Not implemented.");
+        }
+        PreviousBuffer => {
+            dbg!("Not implemented.");
+        }
     }
 
     let mut view = d!();
