@@ -17,10 +17,15 @@
       * Also, why do the characters used in editor need to be the same as what is on disk? We could just make conversion easier if we ever have any visually impaired users (which at this point implies myself getting further visual impairments beyond needing glasses.)
         * the algorithm would be something like
 
+* Do we want a way for the editor to show little pop-up messages? Something like "File \"blah.txt\" opened" or "Not implemented"? They would fade away automatically after a period of time.
+  * If so, then we would want a way to see the last several messages. Which means we'd want another limited history buffer.
+  * Eventually I think we will want these since we plan to attempt integrating external programs through LSP or something similar. And they are going to crash or otherwise complain at some point.
+
 * Display file tabs that allow the user to switch between open buffers
   * Is it worth it to just display a file count in the status bar and implement switching keyboard shortcuts as a stopgap?
     * Ctrl-Tab to move to the right and Ctrl-Shift-Tab to go left seem like they would be useful even with a clickable tab. So, yes.
     * we should do the tab handling first then.
+  * show file path on tabs.
   * Do we want side-by-side visible buffers?
     * Eventually yes. Having the same buffer visible with two different scroll positions is desirable
       * should the cursor positions be separate?
