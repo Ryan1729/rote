@@ -1,5 +1,16 @@
 ## TODO
 
+* if a file was already opened, switch to that buffer instead of opening a new version of that file.
+  * Store the path on each buffer.
+    * how should we handle scratch buffers?
+      * ```
+        enum BufferName {
+            Path(Pathbuf),
+            Scratch(u32),
+        }
+        ```
+        
+
 * handle tab key properly
   * The logic is complex enough that we will send down a `Tab` input
     * Besides, hitting tab is different than pasting a `\t`

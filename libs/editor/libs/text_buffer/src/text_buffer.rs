@@ -431,6 +431,18 @@ impl TextBuffer {
         );
     }
 
+
+    pub fn tab_in(&mut self) {
+        self.apply_edit(
+            get_tab_in_edit(&self.rope, &self.cursors),
+            ApplyKind::Record,
+        );
+    }
+
+    pub fn tab_out(&mut self) {
+        dbg!("TabOut not implemented");
+    }
+
     #[perf_viz::record]
     fn apply_edit(&mut self, edit: Edit, kind: ApplyKind) {
         dbg!();
@@ -510,6 +522,24 @@ where
     }
 }
 
+fn get_standard_insert_range_edits(
+    rope: &mut Rope,
+    cursor: &mut Cursor,
+    offset: AbsoluteCharOffset,
+    chars: String,
+    char_count: usize, //we take this a s a paam to support it being a const.
+) -> RangeEdits {
+    rope.insert(offset, &chars);
+    move_cursor::right_n_times(&rope, cursor, char_count);
+
+    let range = AbsoluteCharOffsetRange::new(offset, offset + char_count);
+
+    RangeEdits {
+        insert_range: Some(RangeEdit { chars, range }),
+        ..d!()
+    }
+}
+
 /// Returns an edit that, if applied, after deleting the highlighted region at each cursor if
 /// there is one, inserts the given string at each of the cursors.
 #[perf_viz::record]
@@ -517,22 +547,15 @@ fn get_insert_edit<F>(original_rope: &Rope, original_cursors: &Cursors, get_stri
 where
     F: Fn(usize) -> String,
 {
-    get_edit(original_rope, original_cursors, |cursor, rope, index| {
-        dbg!(index);
-        match offset_pair(original_rope, cursor) {
+    get_edit(
+        original_rope,
+        original_cursors,
+        |cursor, rope, index| match offset_pair(original_rope, cursor) {
             (Some(o), highlight) if highlight.is_none() || Some(o) == highlight => {
                 let s = get_string(index);
-
-                rope.insert(o, &s);
                 let char_count = s.chars().count();
-                move_cursor::right_n_times(&rope, cursor, char_count);
 
-                let range = AbsoluteCharOffsetRange::new(o, o + char_count);
-
-                RangeEdits {
-                    insert_range: Some(RangeEdit { chars: s, range }),
-                    ..d!()
-                }
+                get_standard_insert_range_edits(rope, cursor, o, s, char_count)
             }
             (Some(o1), Some(o2)) => {
                 let s = get_string(index);
@@ -554,9 +577,10 @@ where
                 }
             }
             _ => d!(),
-        }
-    })
+        },
+    )
 }
+
 /// Returns an edit that, if applied, deletes the highlighted region at each cursor if there is one.
 /// Otherwise the applying the edit will delete a single character at each cursor.
 fn get_delete_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
@@ -616,6 +640,48 @@ fn get_cut_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
                 delete_range: Some(delete_highlighted(rope, cursor, o1, o2)),
                 ..d!()
             },
+            _ => d!(),
+        }
+    })
+}
+
+const TAB_STR: &'static str = "    "; //four spaces
+const TAB_STR_CHAR_COUNT: usize = 4; // this isn't const (yet?) TAB_STR.chars().count();
+
+#[perf_viz::record]
+fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
+    get_edit(original_rope, original_cursors, |cursor, rope, index| {
+        match offset_pair(original_rope, cursor) {
+            (Some(o), highlight) if highlight.is_none() || Some(o) == highlight => {
+                get_standard_insert_range_edits(
+                    rope,
+                    cursor,
+                    o,
+                    TAB_STR.to_owned(),
+                    TAB_STR_CHAR_COUNT,
+                )
+            }
+            (Some(o1), Some(o2)) => {
+                dbg!("TabIn for highlights not implemented");
+                d!()
+                // let s = get_string(index);
+                //
+                // let range_edit = delete_highlighted(rope, cursor, o1, o2);
+                //
+                // rope.insert(range_edit.range.min(), &s);
+                // let char_count = s.chars().count();
+                // move_cursor::right_n_times(&rope, cursor, char_count);
+                //
+                // let range = {
+                //     let min = range_edit.range.min();
+                //     AbsoluteCharOffsetRange::new(min, min + char_count)
+                // };
+                //
+                // RangeEdits {
+                //     insert_range: Some(RangeEdit { chars: s, range }),
+                //     delete_range: Some(range_edit),
+                // }
+            }
             _ => d!(),
         }
     })

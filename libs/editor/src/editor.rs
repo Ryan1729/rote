@@ -416,10 +416,10 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
             })
         }
         TabIn => {
-            dbg!("Not implemented.");
+            buffer_call!(b.tab_in());
         }
         TabOut => {
-            dbg!("Not implemented.");
+            buffer_call!(b.tab_out());
         }
         NextBuffer => {
             state.next_buffer();
