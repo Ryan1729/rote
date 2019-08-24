@@ -90,6 +90,18 @@ impl State {
     pub fn new() -> State {
         d!()
     }
+
+    fn next_buffer(&mut self) {
+        self.current_buffer_index = (self.current_buffer_index + 1) % self.buffers.len();
+    }
+
+    fn previous_buffer(&mut self) {
+        self.current_buffer_index = if self.current_buffer_index == 0 {
+            self.buffers.len() - 1
+        } else {
+            self.current_buffer_index - 1
+        };
+    }
 }
 
 pub fn new() -> State {
@@ -395,24 +407,25 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
             b.insert_at_each_cursor(|i| i.to_string());
             try_to_show_cursors!(b);
         }),
-        LoadedFile(_path, str) => buffer_call!(b {
-            // TODO after there is a UI for switching buffers, create a new buffer instead of
-            // inserting into the current one.
-            b.insert_string(str);
-
-            try_to_show_cursors!(b);
-        }),
+        LoadedFile(_path, str) => {
+            let index = state.buffers.len();
+            state.buffers.push(str.into());
+            state.current_buffer_index = index;
+            buffer_call!(b {
+                try_to_show_cursors!(b);
+            })
+        }
         TabIn => {
             dbg!("Not implemented.");
-        },
+        }
         TabOut => {
             dbg!("Not implemented.");
         }
         NextBuffer => {
-            dbg!("Not implemented.");
+            state.next_buffer();
         }
         PreviousBuffer => {
-            dbg!("Not implemented.");
+            state.previous_buffer();
         }
     }
 
