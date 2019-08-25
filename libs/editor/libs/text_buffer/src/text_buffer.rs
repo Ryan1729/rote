@@ -447,7 +447,7 @@ impl TextBuffer {
     fn apply_edit(&mut self, edit: Edit, kind: ApplyKind) {
         dbg!();
         // we assume that the edits are in the proper order so we won't mess up our indexes with our
-        // own inserts and removeals. I'm not positive that there being a single order that works
+        // own inserts and removals. I'm not positive that there being a single order that works
         // is possible for all possible edits, but in practice I think the edits we will actually
         // produce will work out. The tests should tell us if we're wrong!
         for range_edit in edit.range_edits.iter() {
@@ -646,6 +646,7 @@ fn get_cut_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
 }
 
 const TAB_STR: &'static str = "    "; //four spaces
+const TAB_STR_CHAR: char = ' ';
 const TAB_STR_CHAR_COUNT: usize = 4; // this isn't const (yet?) TAB_STR.chars().count();
 
 #[perf_viz::record]
@@ -662,29 +663,49 @@ fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
                 )
             }
             (Some(o1), Some(o2)) => {
-                dbg!("TabIn for highlights not implemented");
-                d!()
-                // let s = get_string(index);
-                //
-                // let range_edit = delete_highlighted(rope, cursor, o1, o2);
-                //
-                // rope.insert(range_edit.range.min(), &s);
-                // let char_count = s.chars().count();
-                // move_cursor::right_n_times(&rope, cursor, char_count);
-                //
-                // let range = {
-                //     let min = range_edit.range.min();
-                //     AbsoluteCharOffsetRange::new(min, min + char_count)
-                // };
-                //
-                // RangeEdits {
-                //     insert_range: Some(RangeEdit { chars: s, range }),
-                //     delete_range: Some(range_edit),
-                // }
+                let range = AbsoluteCharOffsetRange::new(o1, o2);
+
+                let mut chars = String::with_capacity(range.max().0 - range.min().0);
+
+                let line_indicies = line_indicies_covered_by(range);
+
+                for index in line_indicies {
+                    let line = rope.line(index);
+
+                    let first_no_white_space_index: usize = d!(); //TODO
+                    dbg!("first_no_white_space_index not implemented");
+                    for _ in 0..first_no_white_space_index + TAB_STR_CHAR_COUNT {
+                        chars.push(TAB_STR_CHAR);
+                    }
+
+                    let line_after_whitespace: &str = d!(); //TODO
+                    dbg!("line_after_whitespace not implemented");
+                    chars.push_str(line_after_whitespace);
+                }
+
+                let range_edit = delete_highlighted_no_cursor(rope, range);
+
+                rope.insert(range_edit.range.min(), &chars);
+                move_cursor::right_n_times(&rope, cursor, TAB_STR_CHAR_COUNT);
+
+                let range = {
+                    let min = range_edit.range.min();
+                    AbsoluteCharOffsetRange::new(min, min + TAB_STR_CHAR_COUNT)
+                };
+
+                RangeEdits {
+                    insert_range: Some(RangeEdit { chars, range }),
+                    delete_range: Some(range_edit),
+                }
             }
             _ => d!(),
         }
     })
+}
+
+fn line_indicies_covered_by(range: AbsoluteCharOffsetRange) -> Vec<LineIndex> {
+    dbg!("line_indicies_covered_by_offsets not implemented");
+    d!()
 }
 
 /// returns `None` if the input position's line does not refer to a line in the `Rope`.
@@ -706,10 +727,18 @@ fn delete_highlighted(
 ) -> RangeEdit {
     let range = AbsoluteCharOffsetRange::new(o1, o2);
 
+    let output = delete_highlighted_no_cursor(rope, range);
+
+    cursor.set_position(char_offset_to_pos(&rope, range.min()).unwrap_or_default());
+
+    output
+}
+
+/// returns the same thing as `delete_highlighted`
+fn delete_highlighted_no_cursor(rope: &mut Rope, range: AbsoluteCharOffsetRange) -> RangeEdit {
     let chars = copy_string(rope, range);
 
     rope.remove(range.range());
-    cursor.set_position(char_offset_to_pos(&rope, range.min()).unwrap_or_default());
 
     RangeEdit { chars, range }
 }

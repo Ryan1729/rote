@@ -9,7 +9,13 @@
             Scratch(u32),
         }
         ```
-        
+
+* Have tab edits be collected together for the purposes of undo
+  * options
+    * Undo/redo fence
+    * stuff it into one edit
+    * make `Edit` contain a `Vec` of edits
+
 
 * handle tab key properly
   * The logic is complex enough that we will send down a `Tab` input
