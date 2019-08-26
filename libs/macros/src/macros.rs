@@ -278,6 +278,17 @@ macro_rules! some_if {
 }
 
 #[macro_export]
+macro_rules! some_or {
+    ($option: expr, $or: expr) => {{
+        if let Some(thing) = $option {
+            thing
+        } else {
+            $or
+        }
+    }};
+}
+
+#[macro_export]
 macro_rules! dg {
     ($thing:expr) => {
         if cfg!(debug_assertions) {

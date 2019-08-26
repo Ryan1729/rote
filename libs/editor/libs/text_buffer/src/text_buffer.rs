@@ -1,6 +1,6 @@
 use crate::move_cursor::{forward, get_next_selection_point, get_previous_selection_point};
 use editor_types::{Cursor, SetPositionAction, Vec1};
-use macros::{borrow, d};
+use macros::{borrow, d, some_or};
 use panic_safe_rope::{ByteIndex, LineIndex, Rope, RopeLine, RopeSliceTrait};
 use platform_types::{AbsoluteCharOffset, CharOffset, Move, Position, ReplaceOrAdd};
 use std::borrow::Borrow;
@@ -667,19 +667,36 @@ fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
 
                 let mut chars = String::with_capacity(range.max().0 - range.min().0);
 
-                let line_indicies = line_indicies_covered_by(range);
+                let line_indicies = line_indicies_touched_by(range);
 
                 for index in line_indicies {
-                    let line = rope.line(index);
+                    let line = some_or!(rope.line(index), continue);
 
-                    let first_no_white_space_index: usize = d!(); //TODO
-                    dbg!("first_no_white_space_index not implemented");
-                    for _ in 0..first_no_white_space_index + TAB_STR_CHAR_COUNT {
+                    let mut offset: Option<CharOffset> = d!();
+                    for c in line.chars() {
+                        offset = Some(offset.map(|o| o + 1).unwrap_or_default());
+
+                        //FIXME should not count newlines
+                        if !c.is_whitespace() {
+                            break;
+                        }
+                    }
+
+                    let first_no_white_space_offset: CharOffset = some_or!(offset, continue);
+
+                    for _ in 0..first_no_white_space_offset.0 + TAB_STR_CHAR_COUNT {
                         chars.push(TAB_STR_CHAR);
                     }
 
-                    let line_after_whitespace: &str = d!(); //TODO
-                    dbg!("line_after_whitespace not implemented");
+                    let line_after_whitespace: &str = some_or!(
+                        line.slice(
+                            first_no_white_space_offset
+                                ..final_non_newline_offset_for_rope_line(line)
+                        )
+                        .and_then(|l| l.as_str()),
+                        continue
+                    );
+
                     chars.push_str(line_after_whitespace);
                 }
 
@@ -703,8 +720,8 @@ fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
     })
 }
 
-fn line_indicies_covered_by(range: AbsoluteCharOffsetRange) -> Vec<LineIndex> {
-    dbg!("line_indicies_covered_by_offsets not implemented");
+fn line_indicies_touched_by(range: AbsoluteCharOffsetRange) -> Vec<LineIndex> {
+    dbg!("line_indicies_touched_by_offsets not implemented");
     d!()
 }
 
