@@ -500,7 +500,7 @@ fn nth_line_count(rope: &Rope, n: usize) -> Option<CharOffset> {
     rope.lines().nth(n).map(|l| l.len_chars().into())
 }
 
-fn last_position(rope: &Rope) -> Option<Position> {
+pub fn last_position(rope: &Rope) -> Option<Position> {
     rope.lines()
         .map(|l| l.len_chars().into())
         .enumerate()

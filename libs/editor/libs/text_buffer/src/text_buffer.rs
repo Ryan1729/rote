@@ -2,7 +2,7 @@ use crate::move_cursor::{forward, get_next_selection_point, get_previous_selecti
 use editor_types::{Cursor, SetPositionAction, Vec1};
 use macros::{borrow, d, some_or};
 use panic_safe_rope::{ByteIndex, LineIndex, Rope, RopeLine, RopeSliceTrait};
-use platform_types::{AbsoluteCharOffset, CharOffset, Move, Position, ReplaceOrAdd};
+use platform_types::{pos, AbsoluteCharOffset, CharOffset, Move, Position, ReplaceOrAdd};
 use std::borrow::Borrow;
 use std::collections::VecDeque;
 
@@ -311,6 +311,11 @@ impl TextBuffer {
         }
     }
 
+    pub fn select_all(&mut self) {
+        self.set_cursor(pos! {}, ReplaceOrAdd::Replace);
+        self.extend_selection_for_all_cursors(Move::ToBufferEnd);
+    }
+
     fn get_new_cursors<P: Borrow<Position>>(
         &self,
         position: P,
@@ -451,16 +456,7 @@ impl TextBuffer {
         // is possible for all possible edits, but in practice I think the edits we will actually
         // produce will work out. The tests should tell us if we're wrong!
         for range_edit in edit.range_edits.iter() {
-            if let Some(RangeEdit { range, .. }) = range_edit.delete_range {
-                self.rope.remove(range.range());
-            }
-
-            if let Some(RangeEdit {
-                ref chars, range, ..
-            }) = &range_edit.insert_range
-            {
-                self.rope.insert(range.min(), chars);
-            }
+            range_edit.apply(&mut self.rope);
         }
 
         self.cursors = edit.cursors.new.clone();
@@ -651,7 +647,7 @@ const TAB_STR_CHAR_COUNT: usize = 4; // this isn't const (yet?) TAB_STR.chars().
 
 #[perf_viz::record]
 fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
-    get_edit(original_rope, original_cursors, |cursor, rope, index| {
+    get_edit(original_rope, original_cursors, |cursor, rope, _| {
         match offset_pair(original_rope, cursor) {
             (Some(o), highlight) if highlight.is_none() || Some(o) == highlight => {
                 get_standard_insert_range_edits(
@@ -667,37 +663,39 @@ fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
 
                 let mut chars = String::with_capacity(range.max().0 - range.min().0);
 
-                let line_indicies = line_indicies_touched_by(range);
+                let line_indicies_op = line_indicies_touched_by(rope, range);
 
-                for index in line_indicies {
-                    let line = some_or!(rope.line(index), continue);
+                for line_indicies in line_indicies_op {
+                    for index in line_indicies {
+                        let line = some_or!(rope.line(index), continue);
 
-                    let mut offset: Option<CharOffset> = d!();
-                    for c in line.chars() {
-                        offset = Some(offset.map(|o| o + 1).unwrap_or_default());
+                        let mut offset: Option<CharOffset> = d!();
+                        for c in line.chars() {
+                            offset = Some(offset.map(|o| o + 1).unwrap_or_default());
 
-                        //FIXME should not count newlines
-                        if !c.is_whitespace() {
-                            break;
+                            //FIXME should not count newlines
+                            if !c.is_whitespace() {
+                                break;
+                            }
                         }
+
+                        let first_no_white_space_offset: CharOffset = some_or!(offset, continue);
+
+                        for _ in 0..first_no_white_space_offset.0 + TAB_STR_CHAR_COUNT {
+                            chars.push(TAB_STR_CHAR);
+                        }
+
+                        let line_after_whitespace: &str = some_or!(
+                            line.slice(
+                                first_no_white_space_offset
+                                    ..final_non_newline_offset_for_rope_line(line)
+                            )
+                            .and_then(|l| l.as_str()),
+                            continue
+                        );
+
+                        chars.push_str(line_after_whitespace);
                     }
-
-                    let first_no_white_space_offset: CharOffset = some_or!(offset, continue);
-
-                    for _ in 0..first_no_white_space_offset.0 + TAB_STR_CHAR_COUNT {
-                        chars.push(TAB_STR_CHAR);
-                    }
-
-                    let line_after_whitespace: &str = some_or!(
-                        line.slice(
-                            first_no_white_space_offset
-                                ..final_non_newline_offset_for_rope_line(line)
-                        )
-                        .and_then(|l| l.as_str()),
-                        continue
-                    );
-
-                    chars.push_str(line_after_whitespace);
                 }
 
                 let range_edit = delete_highlighted_no_cursor(rope, range);
@@ -720,9 +718,21 @@ fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
     })
 }
 
-fn line_indicies_touched_by(range: AbsoluteCharOffsetRange) -> Vec<LineIndex> {
-    dbg!("line_indicies_touched_by_offsets not implemented");
-    d!()
+fn line_indicies_touched_by(
+    rope: &Rope,
+    range: AbsoluteCharOffsetRange,
+) -> Option<Vec1<LineIndex>> {
+    let min_index = rope.char_to_line(range.min())?;
+    let max_index = rope.char_to_line(range.max())?;
+
+    let mut output = Vec1::new(min_index);
+
+    if min_index == max_index {
+        return Some(output);
+    }
+
+    output.extend((min_index.0 + 1..=max_index.0).map(LineIndex));
+    Some(output)
 }
 
 /// returns `None` if the input position's line does not refer to a line in the `Rope`.
@@ -919,10 +929,31 @@ struct RangeEdit {
     range: AbsoluteCharOffsetRange,
 }
 
+/// Some seemingly redundant information is stored here, for example the insert's range's maximum
+/// is never read. But that information is needed if the edits are ever negated, which swaps the
+/// insert and delete ranges.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct RangeEdits {
+    /// The characters to insert and a range that only the minimum of which is used as the
+    /// insertion point. Applied second.
     insert_range: Option<RangeEdit>,
+    /// The characters to delete and where to delete them from. Applied first.
     delete_range: Option<RangeEdit>,
+}
+
+impl RangeEdits {
+    fn apply(&self, rope: &mut Rope) {
+        if let Some(RangeEdit { range, .. }) = self.delete_range {
+            rope.remove(range.range());
+        }
+
+        if let Some(RangeEdit {
+            ref chars, range, ..
+        }) = self.insert_range
+        {
+            rope.insert(range.min(), chars);
+        }
+    }
 }
 
 impl std::ops::Not for RangeEdits {

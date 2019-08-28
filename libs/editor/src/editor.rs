@@ -1,7 +1,7 @@
 use editor_types::{Cursor, CursorState, Vec1};
 use macros::{c, d};
 use platform_types::{
-    attempt_to_make_xy_visible, pos, position_to_screen_space, position_to_text_space,
+    attempt_to_make_xy_visible, position_to_screen_space, position_to_text_space,
     push_highlights, screen_space_to_position, text_to_screen, Apron, BufferView, CharDim, Cmd,
     Input, Move, Position, PositionRound, ReplaceOrAdd, ScreenSpaceXY, ScrollableScreen,
     TextSpaceXY, UpdateAndRenderOutput, View, VisibilityAttemptResult,
@@ -347,12 +347,9 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
             });
         }
         SelectAll => {
-            buffer_call!(b{
-                b.set_cursor(pos!{}, ReplaceOrAdd::Replace);
-                b.extend_selection_for_all_cursors(Move::ToBufferEnd);
-                // We don't need to make sure a cursor is visible here since the user
-                // will understand where the cursor is.
-            });
+            buffer_call!(b.select_all());
+            // We don't need to make sure a cursor is visible here since the user
+            // will understand where the cursor is.
         }
         ScrollVertically(amount) => {
             state.screen.scroll.y -= amount;

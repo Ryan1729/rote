@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 use super::{cursor_assert, r, t_b, *};
+use crate::move_cursor::last_position;
 
 use editor_types::{vec1, CursorState};
 use platform_types::pos;
@@ -723,6 +724,55 @@ fn adding_a_cursor_inside_a_highlight_does_not_change_the_selection() {
     buffer.set_cursor(pos! {l 0 o 7}, ReplaceOrAdd::Add);
 
     selection_is_unchanged!(p left);
+}
+
+// Non-breaking space =
+const NBSP: char = '\u{A0}';
+
+#[test]
+fn get_tab_in_edit_produces_the_expected_edit_from_this_buffer_with_different_leading_whitespace() {
+    let text = format!("0\n 1\n  2\n   3\n    4\n\n{0}\n{0}1\n {0}2\n", NBSP);
+
+    let mut buffer = t_b!(text.to_owned());
+    buffer.select_all();
+
+    let rope = &buffer.rope;
+
+    let cursors = &buffer.cursors;
+
+    let edit = get_tab_in_edit(rope, cursors);
+
+    let expected = {
+        let mut cursor = Cursor::new(pos! {});
+        cursor.set_highlight_position(last_position(rope));
+
+        let new_chars =
+            "    0\n     1\n      2\n       3\n        4\n    \n     \n     1\n      2\n"
+                .to_owned();
+
+        let insert_range = Some(RangeEdit {
+            range: AbsoluteCharOffsetRange::new(d!(), AbsoluteCharOffset(new_chars.len())),
+            chars: new_chars,
+        });
+
+        let delete_range = Some(RangeEdit {
+            range: AbsoluteCharOffsetRange::new(d!(), AbsoluteCharOffset(text.len())),
+            chars: text,
+        });
+
+        Edit {
+            range_edits: Vec1::new(RangeEdits {
+                insert_range,
+                delete_range,
+            }),
+            cursors: Change {
+                new: Cursors::new(Vec1::new(cursor)),
+                old: cursors.clone(),
+            },
+        }
+    };
+
+    assert_eq!(edit, expected);
 }
 
 mod arb;
