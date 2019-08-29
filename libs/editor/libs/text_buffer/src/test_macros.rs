@@ -1,6 +1,8 @@
 use super::*;
 use macros::fmt_debug;
 
+use pretty_assertions::{assert_eq};
+
 #[macro_export]
 macro_rules! r {
     ($s:expr) => {
@@ -100,6 +102,6 @@ macro_rules! assert_text_buffer_eq_ignoring_history {
 macro_rules! text_buffer_eq_ignoring_history {
     ($left:expr, $right:expr) => {
         $crate::test_macros::IgnoringHistory(&$left)
-         == $crate::test_macros::IgnoringHistory(&$right)
+            == $crate::test_macros::IgnoringHistory(&$right)
     };
 }

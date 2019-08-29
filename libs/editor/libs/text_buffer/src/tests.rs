@@ -8,6 +8,8 @@ use proptest::prelude::*;
 use proptest::{collection, option, prop_compose, proptest};
 use std::fmt::Debug;
 
+use pretty_assertions::{assert_eq, assert_ne};
+
 /// This is expected to be used where the amount does not really matter, except that it must be
 /// enough that the behaviour we want to test has enough space.
 /// Ciode that assumes this is > 1 is known to exist as of this writing.
@@ -743,8 +745,8 @@ fn get_tab_in_edit_produces_the_expected_edit_from_this_buffer_with_different_le
     let edit = get_tab_in_edit(rope, cursors);
 
     let expected = {
-        let mut cursor = Cursor::new(pos! {});
-        cursor.set_highlight_position(last_position(rope));
+        let mut cursor = Cursor::new(last_position(rope).unwrap());
+        cursor.set_highlight_position(pos! {});
 
         let new_chars =
             "    0\n     1\n      2\n       3\n        4\n    \n     \n     1\n      2\n"

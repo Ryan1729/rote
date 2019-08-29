@@ -1,7 +1,7 @@
 // This module is inside `tests`
 use super::{arb::{TestEdit, TestEditSpec}, *};
 
-
+use pretty_assertions::{assert_eq, assert_ne};
 
 fn arb_edit_from_buffer(text_buffer: TextBuffer) -> impl Strategy<Value = Edit> {
     let cs = text_buffer.cursors.clone();

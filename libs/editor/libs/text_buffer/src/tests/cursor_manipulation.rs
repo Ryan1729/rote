@@ -1,5 +1,7 @@
 use super::*;
 
+use pretty_assertions::{assert_eq, assert_ne};
+
 #[test]
 fn insert_with_matching_cursor_and_highlight_sets_highlight_to_none() {
     let mut buffer: TextBuffer = d!();
