@@ -678,6 +678,9 @@ fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
                                 break;
                             }
                         }
+                        offset = offset.map(|o| {
+                            std::cmp::min(final_non_newline_offset_for_rope_line(line), o)
+                        });
 
                         let first_no_white_space_offset: CharOffset = some_or!(offset, continue);
 
@@ -686,11 +689,8 @@ fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
                         }
 
                         let line_after_whitespace: &str = some_or!(
-                            line.slice(
-                                first_no_white_space_offset
-                                    ..final_non_newline_offset_for_rope_line(line)
-                            )
-                            .and_then(|l| l.as_str()),
+                            line.slice(first_no_white_space_offset..)
+                                .and_then(|l| l.as_str()),
                             continue
                         );
 
