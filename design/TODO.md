@@ -1,5 +1,9 @@
 ## TODO
 
+* write test for multiple cursor `tab_in`
+
+* implement `tab_out`
+
 * if a file was already opened, switch to that buffer instead of opening a new version of that file.
   * Store the path on each buffer.
     * how should we handle scratch buffers?

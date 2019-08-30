@@ -1,4 +1,6 @@
-use crate::move_cursor::{forward, get_next_selection_point, get_previous_selection_point};
+use crate::move_cursor::{
+    forward, forward_n, get_next_selection_point, get_previous_selection_point,
+};
 use editor_types::{Cursor, SetPositionAction, Vec1};
 use macros::{borrow, d, some_or};
 use panic_safe_rope::{ByteIndex, LineIndex, Rope, RopeLine, RopeSliceTrait};
@@ -512,7 +514,7 @@ where
     Edit {
         range_edits,
         cursors: Change {
-            new: Cursors::new(cloned_cursors),
+            new: Cursors::new(dbg!(cloned_cursors)),
             old: original_cursors.clone(),
         },
     }
@@ -665,15 +667,18 @@ fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
 
                 let line_indicies_op = line_indicies_touched_by(rope, range);
 
+                let mut tab_insert_count = 0;
                 for line_indicies in line_indicies_op {
                     for index in line_indicies {
+
                         let line = some_or!(rope.line(index), continue);
 
                         let mut offset: Option<CharOffset> = d!();
                         for c in line.chars() {
                             offset = Some(offset.map(|o| o + 1).unwrap_or_default());
 
-                            //FIXME should not count newlines
+                            // If this returned true for newlines, we wouldn't need
+                            // the `min` below
                             if !c.is_whitespace() {
                                 break;
                             }
@@ -687,6 +692,7 @@ fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
                         for _ in 0..first_no_white_space_offset.0 + TAB_STR_CHAR_COUNT {
                             chars.push(TAB_STR_CHAR);
                         }
+                        tab_insert_count += 1;
 
                         let line_after_whitespace: &str = some_or!(
                             line.slice(first_no_white_space_offset..)
@@ -700,13 +706,23 @@ fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
 
                 let range_edit = delete_highlighted_no_cursor(rope, range);
 
-                rope.insert(range_edit.range.min(), &chars);
-                move_cursor::right_n_times(&rope, cursor, TAB_STR_CHAR_COUNT);
+                let range = range_edit
+                    .range
+                    .add_to_max(TAB_STR_CHAR_COUNT * tab_insert_count);
 
-                let range = {
-                    let min = range_edit.range.min();
-                    AbsoluteCharOffsetRange::new(min, min + TAB_STR_CHAR_COUNT)
-                };
+                rope.insert(range.min(), &chars);
+
+                // We want the cursor to have the same orientation it started with.
+                forward_n(rope, cursor.get_position(), TAB_STR_CHAR_COUNT).map(|p| {
+                    cursor.set_position_custom(
+                        p,
+                        SetPositionAction::ClearHighlightOnlyIfItMatchesNewPosition,
+                    )
+                });
+                cursor
+                    .get_highlight_position()
+                    .and_then(|p| forward_n(rope, p, TAB_STR_CHAR_COUNT))
+                    .map(|p| cursor.set_highlight_position(p));
 
                 RangeEdits {
                     insert_range: Some(RangeEdit { chars, range }),
@@ -901,6 +917,20 @@ mod absolute_char_offset_range {
 
         pub fn max(&self) -> AbsoluteCharOffset {
             self.max
+        }
+
+        pub fn add_to_min<A>(&self, min: A) -> Self
+        where
+            AbsoluteCharOffset: std::ops::Add<A, Output = AbsoluteCharOffset>,
+        {
+            Self::new(self.min + min, self.max)
+        }
+
+        pub fn add_to_max<A>(&self, max: A) -> Self
+        where
+            AbsoluteCharOffset: std::ops::Add<A, Output = AbsoluteCharOffset>,
+        {
+            Self::new(self.min, self.max + max)
         }
     }
 }

@@ -562,6 +562,33 @@ where
     }
 }
 
+#[perf_viz::record]
+pub fn backward_n<P>(rope: &Rope, position: P, n: usize) -> Option<Position>
+where
+    P: Borrow<Position>,
+{
+    let mut position = Some(position.borrow().clone());
+    for _ in 0..n {
+        position = backward(rope, position?);
+    }
+
+    return position;
+}
+
+#[perf_viz::record]
+pub fn forward_n<P>(rope: &Rope, position: P, n: usize) -> Option<Position>
+where
+    P: Borrow<Position>,
+{
+    let mut position = Some(position.borrow().clone());
+    for _ in 0..n {
+        position = forward(rope, position?);
+    }
+
+    return position;
+}
+
+
 #[cfg(test)]
 use super::*;
 

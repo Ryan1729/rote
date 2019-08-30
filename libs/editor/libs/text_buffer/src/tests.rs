@@ -746,19 +746,22 @@ fn get_tab_in_edit_produces_the_expected_edit_from_this_buffer_with_different_le
 
     let expected = {
         let mut cursor = Cursor::new(last_position(rope).unwrap());
-        cursor.set_highlight_position(pos! {});
+        cursor.set_highlight_position(Position{
+            offset: CharOffset(TAB_STR_CHAR_COUNT),
+            ..d!()
+        });
 
         let new_chars =
             "    0\n     1\n      2\n       3\n        4\n    \n     \n     1\n      2\n"
                 .to_owned();
 
         let insert_range = Some(RangeEdit {
-            range: AbsoluteCharOffsetRange::new(d!(), AbsoluteCharOffset(new_chars.len())),
+            range: AbsoluteCharOffsetRange::new(d!(), AbsoluteCharOffset(new_chars.chars().count())),
             chars: new_chars,
         });
 
         let delete_range = Some(RangeEdit {
-            range: AbsoluteCharOffsetRange::new(d!(), AbsoluteCharOffset(text.len())),
+            range: AbsoluteCharOffsetRange::new(d!(), AbsoluteCharOffset(text.chars().count())),
             chars: text,
         });
 
