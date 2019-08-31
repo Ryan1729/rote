@@ -704,7 +704,6 @@ fn adding_a_cursor_inside_a_highlight_does_not_change_the_selection() {
 
     selection_is_unchanged!(p right);
 
-
     // Position on left
     buffer.move_all_cursors(Move::Right);
 
@@ -746,7 +745,7 @@ fn get_tab_in_edit_produces_the_expected_edit_from_this_buffer_with_different_le
 
     let expected = {
         let mut cursor = Cursor::new(last_position(rope).unwrap());
-        cursor.set_highlight_position(Position{
+        cursor.set_highlight_position(Position {
             offset: CharOffset(TAB_STR_CHAR_COUNT),
             ..d!()
         });
@@ -756,7 +755,10 @@ fn get_tab_in_edit_produces_the_expected_edit_from_this_buffer_with_different_le
                 .to_owned();
 
         let insert_range = Some(RangeEdit {
-            range: AbsoluteCharOffsetRange::new(d!(), AbsoluteCharOffset(new_chars.chars().count())),
+            range: AbsoluteCharOffsetRange::new(
+                d!(),
+                AbsoluteCharOffset(new_chars.chars().count()),
+            ),
             chars: new_chars,
         });
 
@@ -777,7 +779,99 @@ fn get_tab_in_edit_produces_the_expected_edit_from_this_buffer_with_different_le
         }
     };
 
-    assert_eq!(edit, expected);
+    assert_eq!(expected, edit);
+}
+
+#[test]
+fn get_tab_in_edit_produces_the_expected_edit_from_this_buffer_with_different_leading_whitespace_with_multiple_cursors(
+) {
+    let text = format!("0\n 1\n  2\n   3\n    4\n\n{0}\n{0}1\n {0}2\n", NBSP);
+
+    let mut buffer = t_b!(text.to_owned());
+    buffer.set_cursor(pos! {l 5 o 3}, ReplaceOrAdd::Add);
+    const RIGHT_COUNT: usize = 19;
+    for _ in 0..RIGHT_COUNT {
+        buffer.extend_selection_for_all_cursors(Move::Right);
+    }
+
+    let rope = &buffer.rope;
+
+    let cursors = &buffer.cursors;
+
+    let edit = get_tab_in_edit(rope, cursors);
+
+    let expected = {
+        let mut first_cursor = Cursor::new(pos! {l 5 o 3});
+        for _ in 0..RIGHT_COUNT {
+            move_cursor::and_extend_selection(rope, &mut first_cursor, Move::Right);
+        }
+
+        let mut last_cursor = Cursor::new(last_position(rope).unwrap());
+        last_cursor.set_highlight_position(Position {
+            offset: CharOffset(TAB_STR_CHAR_COUNT),
+            ..d!()
+        });
+
+        // Many things here rely on the example text being ASCII.
+        const EXPECTED_TEXT: &'static str =
+            "    0\n     1\n      2\n       3\n        4\n    \n     \n     1\n      2\n";
+        const EXPECTED_CLEAVE_POINT: usize = RIGHT_COUNT + TAB_STR_CHAR_COUNT * 4;
+
+        let first_range_edits = {
+            let new_chars = (&EXPECTED_TEXT[..EXPECTED_CLEAVE_POINT]).to_owned();
+
+            let insert_range = Some(RangeEdit {
+                range: AbsoluteCharOffsetRange::new(
+                    d!(),
+                    AbsoluteCharOffset(EXPECTED_CLEAVE_POINT),
+                ),
+                chars: new_chars,
+            });
+
+            let delete_range = Some(RangeEdit {
+                range: AbsoluteCharOffsetRange::new(d!(), AbsoluteCharOffset(RIGHT_COUNT)),
+                chars: (&text[..RIGHT_COUNT]).to_owned(),
+            });
+            RangeEdits {
+                insert_range,
+                delete_range,
+            }
+        };
+
+        let last_range_edits = {
+            let new_chars = (&EXPECTED_TEXT[EXPECTED_CLEAVE_POINT..]).to_owned();
+
+            let insert_range = Some(RangeEdit {
+                range: AbsoluteCharOffsetRange::new(
+                    d!(),
+                    AbsoluteCharOffset(new_chars.chars().count()),
+                ),
+                chars: new_chars,
+            });
+
+            let delete_range = Some(RangeEdit {
+                range: AbsoluteCharOffsetRange::new(
+                    AbsoluteCharOffset(EXPECTED_CLEAVE_POINT),
+                    AbsoluteCharOffset(text.chars().count()),
+                ),
+                chars: text,
+            });
+            RangeEdits {
+                insert_range,
+                delete_range,
+            }
+        };
+
+        Edit {
+            range_edits: vec1![last_range_edits, first_range_edits],
+            cursors: Change {
+                new: Cursors::new(vec1![last_cursor, first_cursor]),
+                old: cursors.clone(),
+            },
+        }
+    };
+
+    assert_eq!(expected, edit);
 }
 
 mod arb;
