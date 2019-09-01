@@ -1,12 +1,14 @@
 // This module is inside `tests`
-use super::{arb::{TestEdit, TestEditSpec}, *};
+use super::{
+    arb::{TestEdit, TestEditSpec},
+    *,
+};
 
-use pretty_assertions::{assert_eq, assert_ne};
+use pretty_assertions::assert_eq;
 
 fn arb_edit_from_buffer(text_buffer: TextBuffer) -> impl Strategy<Value = Edit> {
     let cs = text_buffer.cursors.clone();
-    arb::edit()
-    .prop_map(move |mut edit| {
+    arb::edit().prop_map(move |mut edit| {
         edit.cursors.old = cs.clone();
         edit
     })
@@ -80,7 +82,6 @@ proptest! {
 //     )
 // }
 
-
 #[test]
 fn negated_edits_undo_redo_this_edit_that_only_changes_the_sticky_offset() {
     let new_cursor = {
@@ -96,8 +97,9 @@ fn negated_edits_undo_redo_this_edit_that_only_changes_the_sticky_offset() {
         // If the first old change does not correspond to the initial buffer, then undoing to that
         // state can fail to match the initila buffer.
         old: buffer.cursors.clone(),
-        new: Cursors::new(Vec1::new(new_cursor.clone()))
-    }.into();
+        new: Cursors::new(Vec1::new(new_cursor.clone())),
+    }
+    .into();
 
     buffer.apply_edit(edit.clone(), ApplyKind::Record);
 
@@ -184,8 +186,10 @@ proptest! {
     }
 }
 
-
-fn undo_redo_works_on_these_edits_and_index<TestEdits: Borrow<[TestEdit]>>(edits: TestEdits, index: usize) {
+fn undo_redo_works_on_these_edits_and_index<TestEdits: Borrow<[TestEdit]>>(
+    edits: TestEdits,
+    index: usize,
+) {
     let edits = edits.borrow();
 
     //TODO generate initial buffer?
@@ -198,11 +202,11 @@ fn undo_redo_works_on_these_edits_and_index<TestEdits: Borrow<[TestEdit]>>(edits
         // Things like moving cursors that don't exist are, and are expected to be, no-ops
         // that do not get added to the history. So the `edits` len may be different than the
         //  history len.
-        () => (
+        () => {
             if buffer.history.len().checked_sub(1) == Some(index) {
                 expected_buffer_at_index = Some(deep_clone(&buffer));
             }
-        );
+        };
     }
 
     record_if_index_matches!();
@@ -372,11 +376,10 @@ fn undo_redo_works_on_this_previously_panicking_case() {
 }
 
 #[test]
-fn undo_redo_works_on_this_cr_lf_case() { // sigh
+fn undo_redo_works_on_this_cr_lf_case() {
+    // sigh
     undo_redo_works_on_these_edits_and_index(
-        vec![
-            TestEdit::Insert('\r'), TestEdit::Insert('\n')
-        ],
+        vec![TestEdit::Insert('\r'), TestEdit::Insert('\n')],
         0,
     );
 }
@@ -384,7 +387,10 @@ fn undo_redo_works_on_this_cr_lf_case() { // sigh
 #[test]
 fn undo_redo_works_on_this_line_end_case() {
     undo_redo_works_on_these_edits_and_index(
-        vec![TestEdit::Insert('a'), TestEdit::MoveAllCursors(Move::ToLineEnd)],
+        vec![
+            TestEdit::Insert('a'),
+            TestEdit::MoveAllCursors(Move::ToLineEnd),
+        ],
         0,
     );
 }
@@ -419,10 +425,7 @@ fn undo_redo_works_in_this_familiar_scenario() {
 
 #[test]
 fn undo_redo_works_on_this_simple_insert_delete_case() {
-    undo_redo_works_on_these_edits_and_index(
-        vec![TestEdit::Insert('a'), TestEdit::Delete],
-        0,
-    );
+    undo_redo_works_on_these_edits_and_index(vec![TestEdit::Insert('a'), TestEdit::Delete], 0);
 }
 
 #[test]
@@ -439,7 +442,10 @@ fn undo_redo_works_on_this_reduced_simple_insert_delete_case() {
     TestEdit::apply(&mut buffer, TestEdit::Delete);
 
     dbg!();
-    let delete_edit = buffer.history.get(buffer.history_index.checked_sub(1).unwrap()).unwrap();
+    let delete_edit = buffer
+        .history
+        .get(buffer.history_index.checked_sub(1).unwrap())
+        .unwrap();
 
     match &delete_edit.range_edits.first().delete_range {
         Some(r_e) => assert_eq!(r_e.chars, char_to_string(inserted_char)),
@@ -462,7 +468,7 @@ fn undo_redo_works_on_this_move_to_line_start_case() {
         vec![
             TestEdit::Insert('¡'),
             TestEdit::ExtendSelectionForAllCursors(Move::ToLineStart),
-            TestEdit::Delete
+            TestEdit::Delete,
         ],
         0,
     );
@@ -477,13 +483,16 @@ fn undo_redo_works_on_this_reduced_move_to_line_start_case() {
 
     let buffer_after_1 = deep_clone(&buffer);
 
-    TestEdit::apply(&mut buffer, TestEdit::ExtendSelectionForAllCursors(Move::ToLineStart));
+    TestEdit::apply(
+        &mut buffer,
+        TestEdit::ExtendSelectionForAllCursors(Move::ToLineStart),
+    );
 
     let buffer_after_2 = deep_clone(&buffer);
 
     TestEdit::apply(&mut buffer, TestEdit::Delete);
 
-    assert_eq!(buffer.rope.to_string(),  "");
+    assert_eq!(buffer.rope.to_string(), "");
 
     buffer.undo();
 
@@ -501,16 +510,12 @@ fn undo_redo_works_on_this_reduced_move_to_line_start_case() {
 #[test]
 fn undo_redo_works_on_this_case_involving_moving_a_missing_cursor() {
     use TestEdit::*;
-    undo_redo_works_on_these_edits_and_index(
-        [Insert('0'), MoveCursors(1, Move::Up)], 0
-    );
+    undo_redo_works_on_these_edits_and_index([Insert('0'), MoveCursors(1, Move::Up)], 0);
 }
 
 #[test]
 fn undo_redo_works_on_this_case_involving_two_characters_at_once() {
-    undo_redo_works_on_these_edits_and_index(
-        [InsertString!("¡A")], 0
-    );
+    undo_redo_works_on_these_edits_and_index([InsertString!("¡A")], 0);
 }
 
 #[test]
@@ -538,42 +543,53 @@ fn undo_redo_works_on_this_reduced_case_involving_two_characters_at_once() {
 #[test]
 fn undo_redo_works_on_this_case_involving_two_characters_at_once_then_a_newline_then_dragging() {
     undo_redo_works_on_these_edits_and_index(
-        [InsertString!("Aa"), InsertString!("\n"), TestEdit::DragCursors(pos!{l 0 o 0})], 0
+        [
+            InsertString!("Aa"),
+            InsertString!("\n"),
+            TestEdit::DragCursors(pos! {l 0 o 0}),
+        ],
+        0,
     );
 }
 
 #[test]
-fn undo_redo_works_on_this_case_involving_a_select_bewtween_char_type_grouping_and_non_ascii_chars() {
+fn undo_redo_works_on_this_case_involving_a_select_bewtween_char_type_grouping_and_non_ascii_chars()
+{
     undo_redo_works_on_these_edits_and_index(
         [
             InsertString!("ࠀ\u{e000}㐀"),
-            TestEdit::SelectCharTypeGrouping(pos!{l 0 o 0}, ReplaceOrAdd::Add),
-            InsertString!("a¡")
+            TestEdit::SelectCharTypeGrouping(pos! {l 0 o 0}, ReplaceOrAdd::Add),
+            InsertString!("a¡"),
         ],
-        0
+        0,
     );
 }
 
 #[test]
-fn undo_redo_works_on_this_smaller_case_involving_a_select_bewtween_char_type_grouping_and_non_ascii_chars() {
+fn undo_redo_works_on_this_smaller_case_involving_a_select_bewtween_char_type_grouping_and_non_ascii_chars(
+) {
     undo_redo_works_on_these_edits_and_index(
         [
             InsertString!("¡㐀"),
-            TestEdit::SelectCharTypeGrouping(pos!{l 0 o 0}, ReplaceOrAdd::Add),
-            InsertString!("a¡")
+            TestEdit::SelectCharTypeGrouping(pos! {l 0 o 0}, ReplaceOrAdd::Add),
+            InsertString!("a¡"),
         ],
-        0
+        0,
     );
 }
 
 #[test]
-fn undo_redo_works_on_this_reduced_case_involving_a_select_bewtween_char_type_grouping_and_non_ascii_chars() {
+fn undo_redo_works_on_this_reduced_case_involving_a_select_bewtween_char_type_grouping_and_non_ascii_chars(
+) {
     let initial_buffer: TextBuffer = d!();
     let mut buffer: TextBuffer = deep_clone(&initial_buffer);
 
     TestEdit::apply(&mut buffer, InsertString!("¡㐀"));
 
-    TestEdit::apply(&mut buffer, TestEdit::SelectCharTypeGrouping(pos!{l 0 o 0}, ReplaceOrAdd::Add));
+    TestEdit::apply(
+        &mut buffer,
+        TestEdit::SelectCharTypeGrouping(pos! {l 0 o 0}, ReplaceOrAdd::Add),
+    );
 
     let expected_buffer_after_second_edit = deep_clone(&buffer);
 

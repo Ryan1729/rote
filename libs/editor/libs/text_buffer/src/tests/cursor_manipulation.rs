@@ -1,6 +1,6 @@
 use super::*;
 
-use pretty_assertions::{assert_eq, assert_ne};
+use pretty_assertions::assert_eq;
 
 #[test]
 fn insert_with_matching_cursor_and_highlight_sets_highlight_to_none() {

@@ -779,7 +779,7 @@ fn get_tab_in_edit_produces_the_expected_edit_from_this_buffer_with_different_le
         }
     };
 
-    assert_eq!(expected, edit);
+    assert_eq!(edit, expected);
 }
 
 #[test]
@@ -843,8 +843,8 @@ fn get_tab_in_edit_produces_the_expected_edit_from_this_buffer_with_different_le
 
             let insert_range = Some(RangeEdit {
                 range: AbsoluteCharOffsetRange::new(
-                    d!(),
-                    AbsoluteCharOffset(new_chars.chars().count()),
+                    AbsoluteCharOffset(EXPECTED_CLEAVE_POINT),
+                    AbsoluteCharOffset(EXPECTED_CLEAVE_POINT + new_chars.chars().count()),
                 ),
                 chars: new_chars,
             });
@@ -871,7 +871,30 @@ fn get_tab_in_edit_produces_the_expected_edit_from_this_buffer_with_different_le
         }
     };
 
-    assert_eq!(expected, edit);
+    dbg!(&edit);
+
+    assert_eq!(edit, expected);
+}
+
+#[test]
+fn get_tab_in_edit_produces_the_exppected_change_in_this_case() {
+    let text = format!("0\n 1\n");
+
+    let mut buffer = t_b!(text.to_owned());
+    buffer.set_cursor(pos! {l 1 o 1}, ReplaceOrAdd::Add);
+    const RIGHT_COUNT: usize = 2;
+    for _ in 0..RIGHT_COUNT {
+        buffer.extend_selection_for_all_cursors(Move::Right);
+    }
+
+    let edit = get_tab_in_edit(&buffer.rope, &buffer.cursors);
+
+    dbg!(&edit);
+
+    buffer.apply_edit(edit, ApplyKind::Playback);
+
+    let s: String = buffer.rope.into();
+    assert_eq!(s, "    0\n         1\n");
 }
 
 mod arb;

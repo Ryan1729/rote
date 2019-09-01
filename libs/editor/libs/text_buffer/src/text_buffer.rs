@@ -19,7 +19,6 @@ pub struct Cursors {
     cursors: Vec1<Cursor>,
 }
 
-
 impl Cursors {
     pub fn new(mut cursors: Vec1<Cursor>) -> Self {
         cursors.sort();
@@ -79,7 +78,7 @@ impl Cursors {
                         // The merged cursor should highlight the union of the areas highlighed by
                         // the two cursors.
 
-                        let max_was = match dbg!((c1_max.cmp(&c2_max), c1_ordering, c2_ordering)) {
+                        let max_was = match (c1_max.cmp(&c2_max), c1_ordering, c2_ordering) {
                             (Greater, Greater, _) => MaxWas::P,
                             (Greater, Less, _)|(Greater, Equal, _) => MaxWas::H,
                             (Less, _, Greater) => MaxWas::P,
@@ -250,7 +249,6 @@ impl TextBuffer {
             ApplyKind::Record,
         );
     }
-
 
     #[perf_viz::record]
     pub fn delete(&mut self) {
@@ -437,7 +435,6 @@ impl TextBuffer {
             ApplyKind::Record,
         );
     }
-
 
     pub fn tab_in(&mut self) {
         self.apply_edit(
@@ -661,6 +658,7 @@ fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
                 )
             }
             (Some(o1), Some(o2)) => {
+                dbg!(o1, o2);
                 let range = AbsoluteCharOffsetRange::new(o1, o2);
 
                 let mut chars = String::with_capacity(range.max().0 - range.min().0);
@@ -670,10 +668,11 @@ fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
                 let mut tab_insert_count = 0;
                 for line_indicies in line_indicies_op {
                     for index in line_indicies {
-
                         let line = some_or!(rope.line(index), continue);
 
                         let mut offset: Option<CharOffset> = d!();
+                        // FIXME: Problem is that we ar going the full length of the line here.
+                        // we need to stop at `range.max()`
                         for c in line.chars() {
                             offset = Some(offset.map(|o| o + 1).unwrap_or_default());
 
@@ -704,7 +703,7 @@ fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
                     }
                 }
 
-                let range_edit = delete_highlighted_no_cursor(rope, range);
+                let range_edit = dbg!(delete_highlighted_no_cursor(rope, dbg!(range)));
 
                 let range = range_edit
                     .range
@@ -724,10 +723,10 @@ fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
                     .and_then(|p| forward_n(rope, p, TAB_STR_CHAR_COUNT))
                     .map(|p| cursor.set_highlight_position(p));
 
-                RangeEdits {
+                dbg!(RangeEdits {
                     insert_range: Some(RangeEdit { chars, range }),
                     delete_range: Some(range_edit),
-                }
+                })
             }
             _ => d!(),
         }
@@ -935,7 +934,6 @@ mod absolute_char_offset_range {
     }
 }
 use absolute_char_offset_range::AbsoluteCharOffsetRange;
-
 
 #[derive(Clone, Default, Debug, PartialEq, Eq)]
 struct Change<T> {

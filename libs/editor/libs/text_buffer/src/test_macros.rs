@@ -1,8 +1,6 @@
 use super::*;
 use macros::fmt_debug;
 
-use pretty_assertions::{assert_eq};
-
 #[macro_export]
 macro_rules! r {
     ($s:expr) => {
