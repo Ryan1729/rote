@@ -1,8 +1,10 @@
+// Assumes `Add` is already impl'd
 #[macro_export]
 macro_rules! add_assign {
     (for $name: ident) => {
         impl std::ops::AddAssign for $name {
             fn add_assign(&mut self, other: $name) {
+                use std::ops::Add;
                 *self = self.add(other);
             }
         }
@@ -10,7 +12,62 @@ macro_rules! add_assign {
     (<$rhs:ty> for $name: ident) => {
         impl std::ops::AddAssign<$rhs> for $name {
             fn add_assign(&mut self, other: $rhs) {
+                use std::ops::Add;
                 *self = self.add(other);
+            }
+        }
+    };
+}
+
+// Assumes `Sub` is already impl'd
+#[macro_export]
+macro_rules! sub_assign {
+    (for $name: ident) => {
+        impl std::ops::SubAssign for $name {
+            fn sub_assign(&mut self, other: $name) {
+                use std::ops::Sub;
+                *self = self.add(other);
+            }
+        }
+    };
+    (<$rhs:ty> for $name: ident) => {
+        impl std::ops::SubAssign<$rhs> for $name {
+            fn sub_assign(&mut self, other: $rhs) {
+                use std::ops::Sub;
+                *self = self.add(other);
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! ord {
+    (and friends for $name:ty : $self:ident, $other:ident in $code:expr) => {
+        $crate::ord!(for $name : $self, $other in $code);
+
+        impl std::cmp::PartialOrd for $name {
+            fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+                use std::cmp::Ord;
+                Some(self.cmp(other))
+            }
+        }
+
+        impl PartialEq for $name {
+            fn eq(&self, other: &Self) -> bool {
+                use std::cmp::Ord;
+                self.cmp(other) == std::cmp::Ordering::Equal
+            }
+        }
+
+        impl Eq for $name {}
+    };
+    (for $name:ty : $self:ident, $other:ident in $code:expr) => {
+        impl std::cmp::Ord for $name {
+            fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+                use std::cmp::Ord;
+                let $self = self;
+                let $other = other;
+                $code
             }
         }
     };
@@ -27,12 +84,7 @@ macro_rules! usize_newtype {
             }
         }
 
-        //We write this out so you don't need to import `add_assign!` to use this macro
-        impl std::ops::AddAssign<usize> for $name {
-            fn add_assign(&mut self, other: usize) {
-                *self = self.add(other);
-            }
-        }
+        $crate::add_assign!(<usize> for $name);
 
         impl std::ops::Sub<usize> for $name {
             type Output = $name;
@@ -43,11 +95,7 @@ macro_rules! usize_newtype {
             }
         }
 
-        impl std::ops::SubAssign<usize> for $name {
-            fn sub_assign(&mut self, other: usize) {
-                *self = self.sub(other);
-            }
-        }
+        $crate::sub_assign!(<usize> for $name);
 
         impl std::ops::Sub<$name> for usize {
             type Output = $name;
@@ -95,11 +143,7 @@ macro_rules! integer_newtype {
             }
         }
 
-        impl std::ops::AddAssign for $name {
-            fn add_assign(&mut self, other: $name) {
-                *self = self.add(other);
-            }
-        }
+        $crate::add_assign!(for $name);
 
         impl $name {
             pub fn saturating_add(self, other: Self) -> Self {
@@ -124,11 +168,7 @@ macro_rules! integer_newtype {
             }
         }
 
-        impl std::ops::SubAssign for $name {
-            fn sub_assign(&mut self, other: $name) {
-                *self = self.sub(other);
-            }
-        }
+        $crate::sub_assign!(for $name);
 
         impl $name {
             pub fn saturating_sub(self, other: Self) -> Self {
@@ -145,25 +185,7 @@ macro_rules! integer_newtype {
             }
         }
 
-        impl PartialOrd for $name {
-            fn partial_cmp(&self, other: &$name) -> Option<std::cmp::Ordering> {
-                Some(self.cmp(other))
-            }
-        }
-
-        impl Ord for $name {
-            fn cmp(&self, other: &$name) -> std::cmp::Ordering {
-                self.0.cmp(&other.0)
-            }
-        }
-
-        impl PartialEq for $name {
-            fn eq(&self, other: &$name) -> bool {
-                self.0 == (*other).0
-            }
-        }
-
-        impl Eq for $name {}
+        $crate::ord!(and friends for $name: s, other in s.0.cmp(&other.0));
     };
 }
 
@@ -229,37 +251,6 @@ macro_rules! borrow_mut {
         impl std::borrow::BorrowMut<$type> for $name {
             fn borrow_mut(&mut self) -> &mut $type {
                 let $self = self;
-                $code
-            }
-        }
-    };
-}
-
-#[macro_export]
-macro_rules! ord {
-    (and friends for $name:ty : $self:ident, $other:ident in $code:expr) => {
-        ord!(for $name : $self, $other in $code);
-
-        impl std::cmp::PartialOrd for $name {
-            fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-                Some(self.cmp(other))
-            }
-        }
-
-        impl PartialEq for $name {
-            fn eq(&self, other: &Self) -> bool {
-                self.cmp(other) == std::cmp::Ordering::Equal
-            }
-        }
-
-        impl Eq for $name {}
-    };
-
-    (for $name:ty : $self:ident, $other:ident in $code:expr) => {
-        impl std::cmp::Ord for $name {
-            fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-                let $self = self;
-                let $other = other;
                 $code
             }
         }

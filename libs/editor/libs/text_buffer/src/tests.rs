@@ -8,7 +8,7 @@ use proptest::prelude::*;
 use proptest::{collection, option, prop_compose, proptest};
 use std::fmt::Debug;
 
-use pretty_assertions::{assert_eq, assert_ne};
+use pretty_assertions::assert_eq;
 
 /// This is expected to be used where the amount does not really matter, except that it must be
 /// enough that the behaviour we want to test has enough space.
@@ -273,6 +273,27 @@ fn final_non_newline_offset_for_line_works_if_asked_about_a_non_existant_line() 
     let rope = r!("1234\r\n5678");
 
     assert_eq!(final_non_newline_offset_for_line(&rope, LineIndex(2)), None);
+}
+
+#[test]
+fn final_non_newline_offset_for_rope_line_works_when_iterating_over_lines() {
+    let text = format!("0\n 1\n  2\n   3\n    4\n\n{0}\n{0}1\n {0}2\n", NBSP);
+    let rope = r!(text);
+
+    let len = rope.len_lines().0;
+    let mut line_ends = Vec::with_capacity(len);
+
+    for index in (0..len).map(LineIndex) {
+        let line = rope.line(index).unwrap();
+        line_ends.push(final_non_newline_offset_for_rope_line(line));
+    }
+
+    let expected: Vec<_> = [1, 2, 3, 4, 5, 0, 1, 2, 3]
+        .into_iter()
+        .map(|&n| CharOffset(n))
+        .collect();
+
+    assert_eq!(line_ends, expected);
 }
 
 proptest! {
@@ -877,7 +898,7 @@ fn get_tab_in_edit_produces_the_expected_edit_from_this_buffer_with_different_le
 }
 
 #[test]
-fn get_tab_in_edit_produces_the_exppected_change_in_this_case() {
+fn get_tab_in_edit_produces_the_expected_change_in_this_case() {
     let text = format!("0\n 1\n");
 
     let mut buffer = t_b!(text.to_owned());

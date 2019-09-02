@@ -20,27 +20,11 @@ macro_rules! h {
     );
 }
 
-impl Ord for OrdHighlight {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.0
-            .min
-            .cmp(&other.0.min)
-            .then_with(|| self.0.max.cmp(&other.0.max))
-    }
-}
+ord!(and friends for OrdHighlight: s, other in s.0
+    .min
+    .cmp(&other.0.min)
+    .then_with(|| s.0.max.cmp(&other.0.max)));
 
-impl PartialOrd for OrdHighlight {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl PartialEq for OrdHighlight {
-    fn eq(&self, other: &Self) -> bool {
-        self.cmp(other) == Ordering::Equal
-    }
-}
-impl Eq for OrdHighlight {}
 
 fn get_ord_highlights<O: Into<Option<Position>>>(
     position: Position,

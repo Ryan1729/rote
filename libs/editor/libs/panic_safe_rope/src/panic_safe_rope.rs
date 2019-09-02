@@ -1,11 +1,11 @@
-mod slice;
 mod conversion;
+mod slice;
 
+use conversion::{to_chunk, to_rope_line, to_slice_range};
+pub use slice::{RopeLine, RopeSlice, RopeSliceTrait};
 use std::ops::{Add, Sub};
-pub use slice::{RopeSlice, RopeLine, RopeSliceTrait};
-use conversion::{to_rope_line, to_chunk, to_slice_range};
 
-use macros::{fmt_debug, fmt_display, some_if, integer_newtype, usize_newtype};
+use macros::{fmt_debug, fmt_display, integer_newtype, some_if, usize_newtype};
 pub use platform_types::{AbsoluteCharOffset, CharOffset};
 use std::io;
 use std::iter::FromIterator;
@@ -19,9 +19,8 @@ pub struct Rope {
     rope: ropey::Rope,
 }
 
-pub type Lines<'rope> = std::iter::Map<
-    ropey::iter::Lines<'rope>, fn(ropey::RopeSlice<'rope>) -> RopeLine<'rope>
->;
+pub type Lines<'rope> =
+    std::iter::Map<ropey::iter::Lines<'rope>, fn(ropey::RopeSlice<'rope>) -> RopeLine<'rope>>;
 
 pub type Chunk<'rope> = (&'rope str, ByteIndex, AbsoluteCharOffset, LineIndex);
 
@@ -260,7 +259,8 @@ impl Rope {
     pub fn chunk_at_byte(&self, byte_idx: ByteIndex) -> Option<Chunk> {
         macros::some_if!(
             byte_idx <= self.len_bytes().0 => self.rope.chunk_at_byte(byte_idx.0)
-        ).map(to_chunk)
+        )
+        .map(to_chunk)
     }
 
     /// Returns `None` if `char_idx` is out of bounds (i.e. `char_idx > len_chars()`).
@@ -268,18 +268,17 @@ impl Rope {
     pub fn chunk_at_char(&self, char_idx: AbsoluteCharOffset) -> Option<Chunk> {
         macros::some_if!(
             char_idx <= self.len_chars().0 => self.rope.chunk_at_char(char_idx.0)
-        ).map(to_chunk)
+        )
+        .map(to_chunk)
     }
 
     /// Returns `None` if `line_break_idx` is out of bounds (i.e. `line_break_idx > len_lines()`).
     #[inline]
-    pub fn chunk_at_line_break(
-        &self,
-        line_break_idx: usize,
-    ) -> Option<Chunk> {
+    pub fn chunk_at_line_break(&self, line_break_idx: usize) -> Option<Chunk> {
         macros::some_if!(
             line_break_idx <= self.len_lines().0 => self.rope.chunk_at_line_break(line_break_idx)
-        ).map(to_chunk)
+        )
+        .map(to_chunk)
     }
 
     #[inline]
@@ -318,7 +317,7 @@ impl Rope {
         R: RangeBounds<AbsoluteCharOffset>,
     {
         to_slice_range(char_range, self.len_chars()).map(|r| RopeSlice {
-            rope_slice: self.rope.slice(r)
+            rope_slice: self.rope.slice(r),
         })
     }
 }

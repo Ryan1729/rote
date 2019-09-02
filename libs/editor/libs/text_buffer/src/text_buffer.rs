@@ -590,7 +590,7 @@ fn get_delete_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
                 // TODO would it better to just delete both at once? That seems like
                 // it would require a moe comlicated special case elsewhere.
                 let not_deleting_lf_of_cr_lf = {
-                    o.checked_sub(AbsoluteCharOffset(2))
+                    o.checked_sub(CharOffset(2))
                         .and_then(|two_back| {
                             let mut chars = rope.slice(two_back..o)?.chars();
 
@@ -658,7 +658,6 @@ fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
                 )
             }
             (Some(o1), Some(o2)) => {
-                dbg!(o1, o2);
                 let range = AbsoluteCharOffsetRange::new(o1, o2);
 
                 let mut chars = String::with_capacity(range.max().0 - range.min().0);
@@ -670,10 +669,24 @@ fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
                     for index in line_indicies {
                         let line = some_or!(rope.line(index), continue);
 
+                        let line_start = some_or!(rope.line_to_char(index), continue);
+                        let relative_line_end = final_non_newline_offset_for_rope_line(line);
+                        let line_end = line_start + relative_line_end;
+                        let last_usable: CharOffset = if line_end < range.max() {
+                            relative_line_end
+                        } else {
+                            range.max() - line_start
+                        };
+                        dbg!(
+                            line_start,
+                            relative_line_end,
+                            line_end,
+                            range.max(),
+                            last_usable
+                        );
+
                         let mut offset: Option<CharOffset> = d!();
-                        // FIXME: Problem is that we ar going the full length of the line here.
-                        // we need to stop at `range.max()`
-                        for c in line.chars() {
+                        for c in line.chars().take(last_usable.0) {
                             offset = Some(offset.map(|o| o + 1).unwrap_or_default());
 
                             // If this returned true for newlines, we wouldn't need
@@ -682,9 +695,6 @@ fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
                                 break;
                             }
                         }
-                        offset = offset.map(|o| {
-                            std::cmp::min(final_non_newline_offset_for_rope_line(line), o)
-                        });
 
                         let first_no_white_space_offset: CharOffset = some_or!(offset, continue);
 
@@ -703,7 +713,7 @@ fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
                     }
                 }
 
-                let range_edit = dbg!(delete_highlighted_no_cursor(rope, dbg!(range)));
+                let range_edit = delete_highlighted_no_cursor(rope, range);
 
                 let range = range_edit
                     .range
@@ -871,7 +881,7 @@ fn char_offset_to_pos(rope: &Rope, offset: AbsoluteCharOffset) -> Option<Positio
     .and_then(|line_index| {
         let start_of_line = rope.line_to_char(line_index)?;
 
-        offset.checked_sub(start_of_line).map(|o| Position {
+        offset.checked_sub(start_of_line.into()).map(|o| Position {
             line: line_index.0,
             offset: o.into(),
         })

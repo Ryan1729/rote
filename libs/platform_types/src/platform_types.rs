@@ -1,4 +1,4 @@
-use macros::{d, fmt_debug, fmt_display, integer_newtype, ord, usize_newtype};
+use macros::{d, fmt_debug, fmt_display, integer_newtype, add_assign, sub_assign, ord, usize_newtype};
 use std::ops::{Add, Sub};
 use std::path::PathBuf;
 
@@ -468,11 +468,11 @@ usize_newtype! {
     AbsoluteCharOffset
 }
 
-integer_newtype! {
-    AbsoluteCharOffset
+impl From<AbsoluteCharOffset> for CharOffset {
+    fn from(index: AbsoluteCharOffset) -> CharOffset {
+        CharOffset(index.0)
+    }
 }
-
-fmt_display! {for AbsoluteCharOffset : AbsoluteCharOffset(offset) in "{}(abs.)", offset}
 
 impl std::ops::Add<CharOffset> for AbsoluteCharOffset {
     type Output = AbsoluteCharOffset;
@@ -482,11 +482,59 @@ impl std::ops::Add<CharOffset> for AbsoluteCharOffset {
     }
 }
 
-impl From<AbsoluteCharOffset> for CharOffset {
-    fn from(index: AbsoluteCharOffset) -> CharOffset {
-        CharOffset(index.0)
+add_assign!(<CharOffset> for AbsoluteCharOffset);
+
+impl AbsoluteCharOffset {
+    pub fn saturating_add(self, other: CharOffset) -> Self {
+        AbsoluteCharOffset(self.0.saturating_add(other.0))
+    }
+
+    pub fn checked_add(self, other: CharOffset) -> Option<Self> {
+        self.0.checked_add(other.0).map(AbsoluteCharOffset)
+    }
+
+    /// Seems like 99% of the time we want to do a `checked_add` it's with one
+    pub fn checked_add_one(self) -> Option<Self> {
+        self.0.checked_add(1).map(AbsoluteCharOffset)
     }
 }
+
+impl std::ops::Sub<CharOffset> for AbsoluteCharOffset {
+    type Output = AbsoluteCharOffset;
+
+    fn sub(self, other: CharOffset) -> AbsoluteCharOffset {
+        AbsoluteCharOffset(self.0 - other.0)
+    }
+}
+
+sub_assign!(<CharOffset> for AbsoluteCharOffset);
+
+impl std::ops::Sub<AbsoluteCharOffset> for AbsoluteCharOffset {
+    type Output = CharOffset;
+
+    fn sub(self, other: AbsoluteCharOffset) -> CharOffset {
+        CharOffset(self.0 - other.0)
+    }
+}
+
+impl AbsoluteCharOffset {
+    pub fn saturating_sub(self, other: CharOffset) -> Self {
+        AbsoluteCharOffset(self.0.saturating_sub(other.0))
+    }
+
+    pub fn checked_sub(self, other: CharOffset) -> Option<Self> {
+        self.0.checked_sub(other.0).map(AbsoluteCharOffset)
+    }
+
+    /// Seems like 99% of the time we want to do a `checked_sub` it's with one
+    pub fn checked_sub_one(self) -> Option<Self> {
+        self.0.checked_sub(1).map(AbsoluteCharOffset)
+    }
+}
+
+ord!(and friends for AbsoluteCharOffset: s, other in s.0.cmp(&other.0));
+
+fmt_display! {for AbsoluteCharOffset : AbsoluteCharOffset(offset) in "{}(abs.)", offset}
 
 /// `offset` indicates a location before or after characters, not at the charaters.
 #[derive(Copy, Clone, Default, Hash)]
