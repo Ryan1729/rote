@@ -1,5 +1,6 @@
-use macros::{d, fmt_debug, fmt_display, integer_newtype, add_assign, sub_assign, ord, usize_newtype};
-use std::ops::{Add, Sub};
+use macros::{
+    add_assign, d, fmt_debug, fmt_display, integer_newtype, ord, sub_assign, usize_newtype,
+};
 use std::path::PathBuf;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -484,13 +485,16 @@ impl std::ops::Add<CharOffset> for AbsoluteCharOffset {
 
 add_assign!(<CharOffset> for AbsoluteCharOffset);
 
+impl macros::CheckedAdd for AbsoluteCharOffset {
+    type Output = CharOffset;
+    fn checked_add(self, other: Self) -> Option<CharOffset> {
+        self.0.checked_add(other.0).map(CharOffset)
+    }
+}
+
 impl AbsoluteCharOffset {
     pub fn saturating_add(self, other: CharOffset) -> Self {
         AbsoluteCharOffset(self.0.saturating_add(other.0))
-    }
-
-    pub fn checked_add(self, other: CharOffset) -> Option<Self> {
-        self.0.checked_add(other.0).map(AbsoluteCharOffset)
     }
 
     /// Seems like 99% of the time we want to do a `checked_add` it's with one
@@ -517,13 +521,27 @@ impl std::ops::Sub<AbsoluteCharOffset> for AbsoluteCharOffset {
     }
 }
 
+/// If two `AbsoluteCharOffset`s are subtracted the result is the relative diffrence, hence
+/// `Output = CharOffset`
+impl macros::CheckedSub for AbsoluteCharOffset {
+    type Output = CharOffset;
+    fn checked_sub(self, other: Self) -> Option<CharOffset> {
+        self.0.checked_sub(other.0).map(CharOffset)
+    }
+}
+
+/// If an `AbsoluteCharOffset` has a `CharOffset` subtracted from it, the result is an adjustment
+/// of the original offset. hence `Output = AbsoluteCharOffset`
+impl macros::CheckedSub<CharOffset> for AbsoluteCharOffset {
+    type Output = AbsoluteCharOffset;
+    fn checked_sub(self, other: CharOffset) -> Option<AbsoluteCharOffset> {
+        self.0.checked_sub(other.0).map(AbsoluteCharOffset)
+    }
+}
+
 impl AbsoluteCharOffset {
     pub fn saturating_sub(self, other: CharOffset) -> Self {
         AbsoluteCharOffset(self.0.saturating_sub(other.0))
-    }
-
-    pub fn checked_sub(self, other: CharOffset) -> Option<Self> {
-        self.0.checked_sub(other.0).map(AbsoluteCharOffset)
     }
 
     /// Seems like 99% of the time we want to do a `checked_sub` it's with one

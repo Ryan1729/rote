@@ -1,6 +1,7 @@
 // this module is inside `text_buffer`
 use super::{
-    final_non_newline_offset_for_rope_line, in_cursor_bounds, nearest_valid_position_on_same_line,
+    final_non_newline_offset_for_rope_line, in_cursor_bounds, max, min,
+    nearest_valid_position_on_same_line,
 };
 use editor_types::{Cursor, CursorState, SetPositionAction};
 use macros::d;
@@ -11,10 +12,8 @@ use std::borrow::{Borrow, Cow};
 use lazy_static::lazy_static;
 use regex::Regex;
 
-
 pub fn or_clear_highlights(rope: &Rope, cursor: &mut Cursor, r#move: Move) {
     if let Some(p) = cursor.get_highlight_position() {
-        use std::cmp::{max, min};
         use Move::*;
         match r#move {
             Up | Left | ToPreviousLikelyEditLocation => {
@@ -418,7 +417,6 @@ lazy_static! {
         Regex::new("\\s\\w").unwrap(),
         Regex::new("\\s[^\\w\\s]").unwrap(),
     ];
-
     static ref SELECTION_POINT_REGEXES: Vec<Regex> = vec![
         Regex::new("\\w[^\\w]").unwrap(),
         Regex::new("[^\\w\\s][\\w\\s]").unwrap(),
@@ -587,7 +585,6 @@ where
 
     return position;
 }
-
 
 #[cfg(test)]
 use super::*;

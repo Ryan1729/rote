@@ -26,7 +26,7 @@ macro_rules! sub_assign {
         impl std::ops::SubAssign for $name {
             fn sub_assign(&mut self, other: $name) {
                 use std::ops::Sub;
-                *self = self.add(other);
+                *self = self.sub(other);
             }
         }
     };
@@ -34,7 +34,7 @@ macro_rules! sub_assign {
         impl std::ops::SubAssign<$rhs> for $name {
             fn sub_assign(&mut self, other: $rhs) {
                 use std::ops::Sub;
-                *self = self.add(other);
+                *self = self.sub(other);
             }
         }
     };
@@ -71,6 +71,22 @@ macro_rules! ord {
             }
         }
     };
+}
+
+// TODO move these traits into their own crate?
+// that would require users to import that other crate unless we re-export.
+
+/// The versions from num-traits don't allow the operands or the result to be different types.
+pub trait CheckedAdd<Rhs = Self> {
+    type Output;
+
+    fn checked_add(self, rhs: Rhs) -> Option<Self::Output>;
+}
+
+pub trait CheckedSub<Rhs = Self> {
+    type Output;
+
+    fn checked_sub(self, rhs: Rhs) -> Option<Self::Output>;
 }
 
 #[macro_export]
@@ -145,13 +161,16 @@ macro_rules! integer_newtype {
 
         $crate::add_assign!(for $name);
 
+        impl $crate::CheckedAdd for $name {
+            type Output = Self;
+            fn checked_add(self, other: Self) -> Option<Self> {
+                self.0.checked_add(other.0).map($name)
+            }
+        }
+
         impl $name {
             pub fn saturating_add(self, other: Self) -> Self {
                 $name(self.0.saturating_add(other.0))
-            }
-
-            pub fn checked_add(self, other: Self) -> Option<Self> {
-                self.0.checked_add(other.0).map($name)
             }
 
             /// Seems like 99% of the time we want to do a `checked_add` it's with one
@@ -170,13 +189,16 @@ macro_rules! integer_newtype {
 
         $crate::sub_assign!(for $name);
 
+        impl $crate::CheckedSub for $name {
+            type Output = Self;
+            fn checked_sub(self, other: Self) -> Option<Self> {
+                self.0.checked_sub(other.0).map($name)
+            }
+        }
+
         impl $name {
             pub fn saturating_sub(self, other: Self) -> Self {
                 $name(self.0.saturating_sub(other.0))
-            }
-
-            pub fn checked_sub(self, other: Self) -> Option<Self> {
-                self.0.checked_sub(other.0).map($name)
             }
 
             /// Seems like 99% of the time we want to do a `checked_sub` it's with one

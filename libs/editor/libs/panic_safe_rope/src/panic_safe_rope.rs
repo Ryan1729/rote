@@ -3,7 +3,6 @@ mod slice;
 
 use conversion::{to_chunk, to_rope_line, to_slice_range};
 pub use slice::{RopeLine, RopeSlice, RopeSliceTrait};
-use std::ops::{Add, Sub};
 
 use macros::{fmt_debug, fmt_display, integer_newtype, some_if, usize_newtype};
 pub use platform_types::{AbsoluteCharOffset, CharOffset};

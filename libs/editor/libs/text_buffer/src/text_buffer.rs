@@ -2,10 +2,11 @@ use crate::move_cursor::{
     forward, forward_n, get_next_selection_point, get_previous_selection_point,
 };
 use editor_types::{Cursor, SetPositionAction, Vec1};
-use macros::{borrow, d, some_or};
+use macros::{borrow, d, some_or, CheckedSub};
 use panic_safe_rope::{ByteIndex, LineIndex, Rope, RopeLine, RopeSliceTrait};
 use platform_types::{pos, AbsoluteCharOffset, CharOffset, Move, Position, ReplaceOrAdd};
 use std::borrow::Borrow;
+use std::cmp::{max, min};
 use std::collections::VecDeque;
 
 mod move_cursor;
@@ -44,7 +45,7 @@ impl Cursors {
         let mut keepers: Vec<Cursor> = Vec::with_capacity(cursors.len());
         for cursor in cursors.iter() {
             if let Some(last) = keepers.last_mut() {
-                use std::cmp::{max, min, Ordering::*};
+                use std::cmp::Ordering::*;
 
                 #[derive(Copy, Clone, Debug)]
                 enum MaxWas {
@@ -685,26 +686,28 @@ fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
                             last_usable
                         );
 
-                        let mut offset: Option<CharOffset> = d!();
-                        for c in line.chars().take(last_usable.0) {
-                            offset = Some(offset.map(|o| o + 1).unwrap_or_default());
+                        let first_no_white_space_offset: CharOffset = {
+                            let mut offset: Option<CharOffset> = d!();
+                            for c in line.chars().take(last_usable.0) {
+                                offset = Some(offset.map(|o| o + 1).unwrap_or_default());
 
-                            // If this returned true for newlines, we wouldn't need
-                            // the `min` below
-                            if !c.is_whitespace() {
-                                break;
+                                if !c.is_whitespace() {
+                                    break;
+                                }
                             }
-                        }
 
-                        let first_no_white_space_offset: CharOffset = some_or!(offset, continue);
+                            some_or!(offset, continue)
+                        };
 
-                        for _ in 0..first_no_white_space_offset.0 + TAB_STR_CHAR_COUNT {
-                            chars.push(TAB_STR_CHAR);
+                        if let Some(CharOffset(start)) = range.min().checked_sub(line_start) {
+                            for _ in start..first_no_white_space_offset.0 + TAB_STR_CHAR_COUNT {
+                                chars.push(TAB_STR_CHAR);
+                            }
+                            tab_insert_count += 1;
                         }
-                        tab_insert_count += 1;
 
                         let line_after_whitespace: &str = some_or!(
-                            line.slice(first_no_white_space_offset..)
+                            line.slice(min(first_no_white_space_offset, last_usable)..=last_usable)
                                 .and_then(|l| l.as_str()),
                             continue
                         );
@@ -765,7 +768,7 @@ fn nearest_valid_position_on_same_line<P: Borrow<Position>>(rope: &Rope, p: P) -
     let p = p.borrow();
 
     final_non_newline_offset_for_line(rope, LineIndex(p.line)).map(|final_offset| Position {
-        offset: std::cmp::min(p.offset, final_offset),
+        offset: min(p.offset, final_offset),
         ..*p
     })
 }
@@ -808,13 +811,14 @@ fn final_non_newline_offset_for_rope_line(line: RopeLine) -> CharOffset {
 }
 fn final_non_newline_offset_for_rope_line_(line: RopeLine) -> CharOffset {
     let mut len = line.len_chars();
+
     macro_rules! get_char_before_len {
         () => {
             if let Some(c) = line.char(len - 1) {
                 c
             } else {
                 // We know that the index we are passing in is less than `len_chars()`
-                // so this case should not actually happen. But, we have a reasonalble
+                // so this case should not actually happen. But, we have a reasonable
                 // value to return so why no just do that?
                 return CharOffset(0);
             };
@@ -835,6 +839,7 @@ fn final_non_newline_offset_for_rope_line_(line: RopeLine) -> CharOffset {
 
     if last == '\n' {
         len -= 1;
+
         return_if_0!();
 
         let second_last = get_char_before_len!();
@@ -881,10 +886,12 @@ fn char_offset_to_pos(rope: &Rope, offset: AbsoluteCharOffset) -> Option<Positio
     .and_then(|line_index| {
         let start_of_line = rope.line_to_char(line_index)?;
 
-        offset.checked_sub(start_of_line.into()).map(|o| Position {
-            line: line_index.0,
-            offset: o.into(),
-        })
+        offset
+            .checked_sub(start_of_line)
+            .map(|o: CharOffset| Position {
+                line: line_index.0,
+                offset: o.into(),
+            })
     })
 }
 

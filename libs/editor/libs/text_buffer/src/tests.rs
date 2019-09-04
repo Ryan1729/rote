@@ -280,11 +280,12 @@ fn final_non_newline_offset_for_rope_line_works_when_iterating_over_lines() {
     let text = format!("0\n 1\n  2\n   3\n    4\n\n{0}\n{0}1\n {0}2\n", NBSP);
     let rope = r!(text);
 
-    let len = rope.len_lines().0;
-    let mut line_ends = Vec::with_capacity(len);
+    let max_index = rope.len_lines().0 - 1;
+    let mut line_ends = Vec::with_capacity(max_index);
 
-    for index in (0..len).map(LineIndex) {
+    for index in (0..max_index).map(LineIndex) {
         let line = rope.line(index).unwrap();
+        dbg!(line);
         line_ends.push(final_non_newline_offset_for_rope_line(line));
     }
 
@@ -294,6 +295,27 @@ fn final_non_newline_offset_for_rope_line_works_when_iterating_over_lines() {
         .collect();
 
     assert_eq!(line_ends, expected);
+}
+
+#[test]
+fn line_indicies_touched_by_counts_the_line_ahead_if_the_newline_is_included() {
+    let rope = r!("0\n 1\n");
+
+    let range = AbsoluteCharOffsetRange::new(d!(), AbsoluteCharOffset(2));
+
+    let line_indicies = line_indicies_touched_by(&rope, range).unwrap();
+
+    let expected = line_indicies_touched_by(
+        &rope,
+        AbsoluteCharOffsetRange::new(
+            d!(),
+            // Everything but the final `'\n'`.
+            rope.len_chars() - 1,
+        ),
+    )
+    .unwrap();
+
+    assert_eq!(line_indicies, expected);
 }
 
 proptest! {
@@ -898,12 +920,12 @@ fn get_tab_in_edit_produces_the_expected_edit_from_this_buffer_with_different_le
 }
 
 #[test]
-fn get_tab_in_edit_produces_the_expected_change_in_this_case() {
-    let text = format!("0\n 1\n");
+fn get_tab_in_edit_produces_the_expected_change_when_two_cursors_are_on_the_same_line() {
+    let text = format!("0\n  2\n");
 
     let mut buffer = t_b!(text.to_owned());
-    buffer.set_cursor(pos! {l 1 o 1}, ReplaceOrAdd::Add);
-    const RIGHT_COUNT: usize = 2;
+    buffer.set_cursor(pos! {l 1 o 2}, ReplaceOrAdd::Add);
+    const RIGHT_COUNT: usize = 3;
     for _ in 0..RIGHT_COUNT {
         buffer.extend_selection_for_all_cursors(Move::Right);
     }
@@ -915,7 +937,31 @@ fn get_tab_in_edit_produces_the_expected_change_in_this_case() {
     buffer.apply_edit(edit, ApplyKind::Playback);
 
     let s: String = buffer.rope.into();
-    assert_eq!(s, "    0\n         1\n");
+    //2 + (2 * 4) = 10 ___1234567890
+    assert_eq!(s, "    0\n          2\n");
+}
+
+#[test]
+fn get_tab_in_edit_produces_the_expected_change_when_three_cursors_are_on_the_same_line() {
+    let text = format!("0\n       7\n");
+
+    let mut buffer = t_b!(text.to_owned());
+    buffer.set_cursor(pos! {l 1 o 2}, ReplaceOrAdd::Add);
+    buffer.set_cursor(pos! {l 1 o 6}, ReplaceOrAdd::Add);
+    const RIGHT_COUNT: usize = 3;
+    for _ in 0..RIGHT_COUNT {
+        buffer.extend_selection_for_all_cursors(Move::Right);
+    }
+
+    let edit = get_tab_in_edit(&buffer.rope, &buffer.cursors);
+
+    dbg!(&edit);
+
+    buffer.apply_edit(edit, ApplyKind::Playback);
+
+    let s: String = buffer.rope.into();
+    //7 + (3 * 4) = 19 ___1234567890123456789
+    assert_eq!(s, "    0\n                   5\n");
 }
 
 mod arb;
