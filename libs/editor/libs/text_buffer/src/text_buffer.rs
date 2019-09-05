@@ -673,22 +673,21 @@ fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
                         let line_start = some_or!(rope.line_to_char(index), continue);
                         let relative_line_end = final_non_newline_offset_for_rope_line(line);
                         let line_end = line_start + relative_line_end;
-                        let last_usable: CharOffset = if line_end < range.max() {
+
+                        let highlight_start_for_line = max(range.min(), line_start) - line_start;
+                        let highlight_end_for_line = if line_end < range.max() {
                             relative_line_end
                         } else {
                             range.max() - line_start
                         };
-                        dbg!(
-                            line_start,
-                            relative_line_end,
-                            line_end,
-                            range.max(),
-                            last_usable
-                        );
 
-                        let first_no_white_space_offset: CharOffset = {
+                        let first_highlighted_non_white_space_offset: Option<CharOffset> = {
                             let mut offset: Option<CharOffset> = d!();
-                            for c in line.chars().take(last_usable.0) {
+                            for c in line
+                                .chars()
+                                .skip(highlight_start_for_line.0)
+                                .take(highlight_end_for_line.0 - highlight_start_for_line.0)
+                            {
                                 offset = Some(offset.map(|o| o + 1).unwrap_or_default());
 
                                 if !c.is_whitespace() {
@@ -696,23 +695,47 @@ fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
                                 }
                             }
 
-                            some_or!(offset, continue)
+                            offset
                         };
 
-                        if let Some(CharOffset(start)) = range.min().checked_sub(line_start) {
-                            for _ in start..first_no_white_space_offset.0 + TAB_STR_CHAR_COUNT {
-                                chars.push(TAB_STR_CHAR);
-                            }
-                            tab_insert_count += 1;
-                        }
-
-                        let line_after_whitespace: &str = some_or!(
-                            line.slice(min(first_no_white_space_offset, last_usable)..=last_usable)
-                                .and_then(|l| l.as_str()),
-                            continue
+                        dbg!(
+                            line_start,
+                            relative_line_end,
+                            line_end,
+                            range.min(),
+                            range.max(),
+                            highlight_start_for_line,
+                            highlight_end_for_line,
+                            first_highlighted_non_white_space_offset
                         );
 
-                        chars.push_str(line_after_whitespace);
+                        let start = highlight_start_for_line.0;
+                        let end = min(
+                            first_highlighted_non_white_space_offset
+                                .unwrap_or(CharOffset(usize::max_value())),
+                            highlight_end_for_line,
+                        )
+                        .0 + TAB_STR_CHAR_COUNT;
+                        for _ in start..end {
+                            chars.push(TAB_STR_CHAR);
+                        }
+                        tab_insert_count += 1;
+
+                        if let Some(o) = first_highlighted_non_white_space_offset {
+                            let highlighted_line_after_whitespace: &str = some_or!(
+                                line.slice(
+                                    o..if highlight_end_for_line == relative_line_end {
+                                        line.len_chars()
+                                    } else {
+                                        highlight_end_for_line
+                                    }
+                                )
+                                .and_then(|l| l.as_str()),
+                                continue
+                            );
+                            dbg!(highlighted_line_after_whitespace);
+                            chars.push_str(highlighted_line_after_whitespace);
+                        }
                     }
                 }
 
