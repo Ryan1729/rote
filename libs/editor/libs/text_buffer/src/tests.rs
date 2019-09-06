@@ -829,13 +829,27 @@ fn get_tab_in_edit_produces_the_expected_edit_from_this_buffer_with_different_le
 fn get_tab_in_edit_produces_the_expected_edit_from_this_buffer_with_different_leading_whitespace_with_multiple_cursors(
 ) {
     let text = format!("0\n 1\n  2\n   3\n    4\n\n{0}\n{0}1\n {0}2\n", NBSP);
+    let start_of_empty_line = pos! {l 5 o 0};
 
     let mut buffer = t_b!(text.to_owned());
-    buffer.set_cursor(pos! {l 5 o 3}, ReplaceOrAdd::Add);
+    buffer.set_cursor(start_of_empty_line, ReplaceOrAdd::Add);
     const RIGHT_COUNT: usize = 19;
     for _ in 0..RIGHT_COUNT {
         buffer.extend_selection_for_all_cursors(Move::Right);
     }
+
+    //pre-condition
+    assert_eq!(
+        buffer.cursors,
+        Cursors::new(vec1![
+            {
+                let mut c = Cursor::new_with_highlight(pos! {l 9 o 0}, start_of_empty_line);
+                c.state = CursorState::PressedAgainstWall;
+                c
+            },
+            Cursor::new_with_highlight(pos! {l 4 o 5}, pos! {l 0 o 0})
+        ])
+    );
 
     let rope = &buffer.rope;
 
@@ -844,21 +858,28 @@ fn get_tab_in_edit_produces_the_expected_edit_from_this_buffer_with_different_le
     let edit = get_tab_in_edit(rope, cursors);
 
     let expected = {
-        let mut first_cursor = Cursor::new(pos! {l 5 o 3});
-        for _ in 0..RIGHT_COUNT {
-            move_cursor::and_extend_selection(rope, &mut first_cursor, Move::Right);
-        }
-
-        let mut last_cursor = Cursor::new(last_position(rope).unwrap());
-        last_cursor.set_highlight_position(Position {
-            offset: CharOffset(TAB_STR_CHAR_COUNT),
-            ..d!()
-        });
-
         // Many things here rely on the example text being ASCII.
         const EXPECTED_TEXT: &'static str =
-            "    0\n     1\n      2\n       3\n        4\n    \n     \n     1\n      2\n";
-        const EXPECTED_CLEAVE_POINT: usize = RIGHT_COUNT + TAB_STR_CHAR_COUNT * 4;
+            "    0\n     1\n      2\n       3\n        4\n    \n     \n     1\n      2\n    ";
+        const EXPECTED_CLEAVE_POINT: usize = RIGHT_COUNT + TAB_STR_CHAR_COUNT * 5;
+
+        let new_cursors = {
+            let expected_rope = r!(EXPECTED_TEXT.to_owned());
+            let mut first_cursor = Cursor::new(pos! {l 0, o TAB_STR_CHAR_COUNT});
+            let mut last_cursor = Cursor::new(start_of_empty_line);
+            move_cursor::right_n_times(&expected_rope, &mut last_cursor, TAB_STR_CHAR_COUNT);
+
+            for _ in 0..EXPECTED_CLEAVE_POINT - TAB_STR_CHAR_COUNT {
+                move_cursor::and_extend_selection(&expected_rope, &mut first_cursor, Move::Right);
+                // we expect te last cursor to hit the end.
+                move_cursor::and_extend_selection(&expected_rope, &mut last_cursor, Move::Right);
+            }
+
+            Cursors::new(dbg!(vec1![last_cursor.clone(), first_cursor.clone()]))
+        };
+        dbg!(&new_cursors);
+        // precondition
+        assert_eq!(new_cursors.len(), 2);
 
         let first_range_edits = {
             let new_chars = (&EXPECTED_TEXT[..EXPECTED_CLEAVE_POINT]).to_owned();
@@ -882,14 +903,13 @@ fn get_tab_in_edit_produces_the_expected_edit_from_this_buffer_with_different_le
         };
 
         let last_range_edits = {
-            let new_chars = (&EXPECTED_TEXT[EXPECTED_CLEAVE_POINT..]).to_owned();
-
+            let chars = (&EXPECTED_TEXT[EXPECTED_CLEAVE_POINT..]).to_owned();
             let insert_range = Some(RangeEdit {
                 range: AbsoluteCharOffsetRange::new(
                     AbsoluteCharOffset(EXPECTED_CLEAVE_POINT),
-                    AbsoluteCharOffset(EXPECTED_CLEAVE_POINT + new_chars.chars().count()),
+                    AbsoluteCharOffset(EXPECTED_CLEAVE_POINT + chars.chars().count()),
                 ),
-                chars: new_chars,
+                chars,
             });
 
             let delete_range = Some(RangeEdit {
@@ -897,7 +917,7 @@ fn get_tab_in_edit_produces_the_expected_edit_from_this_buffer_with_different_le
                     AbsoluteCharOffset(EXPECTED_CLEAVE_POINT),
                     AbsoluteCharOffset(text.chars().count()),
                 ),
-                chars: text,
+                chars: (&text[RIGHT_COUNT + 1..]).to_owned(),
             });
             RangeEdits {
                 insert_range,
@@ -908,13 +928,11 @@ fn get_tab_in_edit_produces_the_expected_edit_from_this_buffer_with_different_le
         Edit {
             range_edits: vec1![last_range_edits, first_range_edits],
             cursors: Change {
-                new: Cursors::new(vec1![last_cursor, first_cursor]),
+                new: new_cursors,
                 old: cursors.clone(),
             },
         }
     };
-
-    dbg!(&edit);
 
     assert_eq!(edit, expected);
 }
@@ -938,7 +956,7 @@ fn get_tab_in_edit_produces_the_expected_change_when_two_cursors_are_on_the_same
 
     let s: String = buffer.rope.into();
     //2 + (2 * 4) = 10 ___1234567890
-    assert_eq!(s, "    0\n          2\n");
+    assert_eq!(s, "    0\n          2\n    ");
 }
 
 #[test]
@@ -961,7 +979,7 @@ fn get_tab_in_edit_produces_the_expected_change_when_three_cursors_are_on_the_sa
 
     let s: String = buffer.rope.into();
     //7 + (3 * 4) = 19 ___1234567890123456789
-    assert_eq!(s, "    0\n                   5\n");
+    assert_eq!(s, "    0\n                   7\n    ");
 }
 
 mod arb;

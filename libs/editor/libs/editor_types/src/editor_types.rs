@@ -41,10 +41,14 @@ pub struct Cursor {
 
 impl Cursor {
     pub fn new(position: Position) -> Self {
+        Self::new_with_highlight(position, position)
+    }
+
+    pub fn new_with_highlight(position: Position, highlight_position: Position) -> Self {
         Cursor {
             position,
             sticky_offset: position.offset,
-            highlight_position: position,
+            highlight_position,
             state: d!(),
         }
     }

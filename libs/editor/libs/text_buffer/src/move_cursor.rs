@@ -560,6 +560,7 @@ where
     }
 }
 
+#[allow(dead_code)]
 #[perf_viz::record]
 pub fn backward_n<P>(rope: &Rope, position: P, n: usize) -> Option<Position>
 where

@@ -710,12 +710,12 @@ fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
                         );
 
                         let start = highlight_start_for_line.0;
-                        let end = min(
+                        let previous_offset = min(
                             first_highlighted_non_white_space_offset
                                 .unwrap_or(CharOffset(usize::max_value())),
                             highlight_end_for_line,
-                        )
-                        .0 + TAB_STR_CHAR_COUNT;
+                        );
+                        let end = previous_offset.0 + TAB_STR_CHAR_COUNT;
                         for _ in start..end {
                             chars.push(TAB_STR_CHAR);
                         }

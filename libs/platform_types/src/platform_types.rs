@@ -564,6 +564,9 @@ pub struct Position {
 #[macro_export]
 macro_rules! pos {
     (l $line:literal o $offset:literal) => {
+        pos!(l $line, o $offset)
+    };
+    (l $line:expr, o $offset:expr) => {
         Position {
             line: $line,
             offset: CharOffset($offset),
