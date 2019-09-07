@@ -789,16 +789,39 @@ fn get_first_non_white_space_offset_in_range<R: std::ops::RangeBounds<CharOffset
     };
 
     let take = match range.end_bound() {
-        Included(CharOffset(o)) => (*o).saturating_add(1),
-        Excluded(CharOffset(o)) => *o,
+        Included(CharOffset(o)) => *o,
+        Excluded(CharOffset(o)) => (*o).checked_sub(1)?,
         Unbounded => usize::max_value(),
-    } - skip.saturating_add(1);
+    } - skip;
+    let final_offset = final_non_newline_offset_for_rope_line(line);
+    dbg!(
+        line,
+        skip,
+        take,
+        line.chars().skip(skip).take(take).collect::<String>(),
+        final_offset
+    );
 
-    for c in line.chars().skip(skip).take(take) {
-        offset = Some(offset.map(|o| o.saturating_add(CharOffset(1))).unwrap_or_default());
+    for (i, c) in line
+        .chars()
+        .enumerate()
+        .map(|(i, c)| (CharOffset(i), c))
+        .skip(skip)
+        .take(take)
+    {
+        dbg!(i, c);
+        offset = Some(
+            offset
+                .map(|o| o.saturating_add(CharOffset(1)))
+                .unwrap_or_default(),
+        );
 
         if !c.is_whitespace() {
-            break;
+            return offset;
+        }
+
+        if i + 1 > final_offset {
+            return None;
         }
     }
 

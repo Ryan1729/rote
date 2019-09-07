@@ -298,6 +298,27 @@ fn final_non_newline_offset_for_rope_line_works_when_iterating_over_lines() {
 }
 
 #[test]
+fn final_non_newline_offset_for_rope_line_works_on_these_examples() {
+    let rope = r!("\n \n 1\n  \n  2\n");
+
+    let max_index = rope.len_lines().0 - 1;
+    let mut line_ends = Vec::with_capacity(max_index);
+
+    for index in (0..max_index).map(LineIndex) {
+        let line = rope.line(index).unwrap();
+        dbg!(line);
+        line_ends.push(final_non_newline_offset_for_rope_line(line));
+    }
+
+    let expected: Vec<_> = [0, 1, 2, 2, 3]
+        .into_iter()
+        .map(|&n| CharOffset(n))
+        .collect();
+
+    assert_eq!(line_ends, expected);
+}
+
+#[test]
 fn line_indicies_touched_by_counts_the_line_ahead_if_the_newline_is_included() {
     let rope = r!("0\n 1\n");
 
