@@ -681,22 +681,11 @@ fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
                             range.max() - line_start
                         };
 
-                        let first_highlighted_non_white_space_offset: Option<CharOffset> = {
-                            let mut offset: Option<CharOffset> = d!();
-                            for c in line
-                                .chars()
-                                .skip(highlight_start_for_line.0)
-                                .take(highlight_end_for_line.0 - highlight_start_for_line.0)
-                            {
-                                offset = Some(offset.map(|o| o + 1).unwrap_or_default());
-
-                                if !c.is_whitespace() {
-                                    break;
-                                }
-                            }
-
-                            offset
-                        };
+                        let first_highlighted_non_white_space_offset: Option<CharOffset> =
+                            get_first_non_white_space_offset_in_range(
+                                line,
+                                highlight_start_for_line..highlight_start_for_line,
+                            );
 
                         dbg!(
                             line_start,
@@ -721,21 +710,21 @@ fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
                         }
                         tab_insert_count += 1;
 
-                        if let Some(o) = first_highlighted_non_white_space_offset {
-                            let highlighted_line_after_whitespace: &str = some_or!(
-                                line.slice(
-                                    o..if highlight_end_for_line == relative_line_end {
-                                        line.len_chars()
-                                    } else {
-                                        highlight_end_for_line
-                                    }
-                                )
-                                .and_then(|l| l.as_str()),
-                                continue
-                            );
-                            dbg!(highlighted_line_after_whitespace);
-                            chars.push_str(highlighted_line_after_whitespace);
-                        }
+                        let o =
+                            first_highlighted_non_white_space_offset.unwrap_or(relative_line_end);
+                        let highlighted_line_after_whitespace: &str = some_or!(
+                            line.slice(
+                                o..if highlight_end_for_line == relative_line_end {
+                                    line.len_chars()
+                                } else {
+                                    highlight_end_for_line
+                                }
+                            )
+                            .and_then(|l| l.as_str()),
+                            continue
+                        );
+                        dbg!(highlighted_line_after_whitespace);
+                        chars.push_str(highlighted_line_after_whitespace);
                     }
                 }
 
@@ -784,6 +773,36 @@ fn line_indicies_touched_by(
 
     output.extend((min_index.0 + 1..=max_index.0).map(LineIndex));
     Some(output)
+}
+
+fn get_first_non_white_space_offset_in_range<R: std::ops::RangeBounds<CharOffset>>(
+    line: RopeLine,
+    range: R,
+) -> Option<CharOffset> {
+    use std::ops::Bound::*;
+    let mut offset: Option<CharOffset> = d!();
+
+    let skip = match range.start_bound() {
+        Included(CharOffset(o)) => *o,
+        Excluded(CharOffset(o)) => (*o).saturating_add(1),
+        Unbounded => 0,
+    };
+
+    let take = match range.end_bound() {
+        Included(CharOffset(o)) => (*o).saturating_add(1),
+        Excluded(CharOffset(o)) => *o,
+        Unbounded => usize::max_value(),
+    } - skip.saturating_add(1);
+
+    for c in line.chars().skip(skip).take(take) {
+        offset = Some(offset.map(|o| o.saturating_add(CharOffset(1))).unwrap_or_default());
+
+        if !c.is_whitespace() {
+            break;
+        }
+    }
+
+    offset
 }
 
 /// returns `None` if the input position's line does not refer to a line in the `Rope`.

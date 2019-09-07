@@ -982,6 +982,97 @@ fn get_tab_in_edit_produces_the_expected_change_when_three_cursors_are_on_the_sa
     assert_eq!(s, "    0\n                   7\n    ");
 }
 
+#[test]
+fn get_first_non_white_space_offset_in_range_works_on_these_examples() {
+    let rope = r!("\n \n 1\n  \n  2\n");
+
+    let mut lines = rope.lines();
+
+    let empty_line = lines.next().unwrap();
+    assert_eq!(
+        get_first_non_white_space_offset_in_range(
+            empty_line,
+            CharOffset(0)..=CharOffset(usize::max_value())
+        ),
+        None
+    );
+
+    let one_space_line = lines.next().unwrap();
+    assert_eq!(
+        get_first_non_white_space_offset_in_range(
+            one_space_line,
+            CharOffset(0)..=CharOffset(usize::max_value())
+        ),
+        None
+    );
+
+    let one_space_then_non_whitespace_line = lines.next().unwrap();
+    assert_eq!(
+        get_first_non_white_space_offset_in_range(
+            one_space_then_non_whitespace_line,
+            CharOffset(0)..CharOffset(1)
+        ),
+        None
+    );
+    assert_eq!(
+        get_first_non_white_space_offset_in_range(
+            one_space_then_non_whitespace_line,
+            CharOffset(0)..=CharOffset(usize::max_value())
+        ),
+        Some(CharOffset(1))
+    );
+
+    let two_spaces_line = lines.next().unwrap();
+    assert_eq!(
+        get_first_non_white_space_offset_in_range(two_spaces_line, CharOffset(0)..CharOffset(1)),
+        None
+    );
+    assert_eq!(
+        get_first_non_white_space_offset_in_range(
+            two_spaces_line,
+            CharOffset(0)..=CharOffset(usize::max_value())
+        ),
+        None
+    );
+
+    let two_spaces_then_non_whitespace_line = lines.next().unwrap();
+    assert_eq!(
+        get_first_non_white_space_offset_in_range(
+            two_spaces_then_non_whitespace_line,
+            CharOffset(0)..CharOffset(1)
+        ),
+        None
+    );
+    assert_eq!(
+        get_first_non_white_space_offset_in_range(
+            two_spaces_then_non_whitespace_line,
+            CharOffset(0)..CharOffset(2)
+        ),
+        None
+    );
+    assert_eq!(
+        get_first_non_white_space_offset_in_range(
+            two_spaces_then_non_whitespace_line,
+            CharOffset(1)..CharOffset(2)
+        ),
+        None
+    );
+    assert_eq!(
+        get_first_non_white_space_offset_in_range(
+            two_spaces_then_non_whitespace_line,
+            CharOffset(0)..=CharOffset(usize::max_value())
+        ),
+        Some(CharOffset(2))
+    );
+    assert_eq!(
+        get_first_non_white_space_offset_in_range(
+            two_spaces_then_non_whitespace_line,
+            CharOffset(1)..=CharOffset(usize::max_value())
+        ),
+        Some(CharOffset(2))
+    );
+}
+
 mod arb;
 
 mod cursor_manipulation;
