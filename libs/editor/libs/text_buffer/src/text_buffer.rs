@@ -780,7 +780,6 @@ fn get_first_non_white_space_offset_in_range<R: std::ops::RangeBounds<CharOffset
     range: R,
 ) -> Option<CharOffset> {
     use std::ops::Bound::*;
-    let mut offset: Option<CharOffset> = d!();
 
     let skip = match range.start_bound() {
         Included(CharOffset(o)) => *o,
@@ -794,38 +793,24 @@ fn get_first_non_white_space_offset_in_range<R: std::ops::RangeBounds<CharOffset
         Unbounded => usize::max_value(),
     } - skip;
     let final_offset = final_non_newline_offset_for_rope_line(line);
-    dbg!(
-        line,
-        skip,
-        take,
-        line.chars().skip(skip).take(take).collect::<String>(),
-        final_offset
-    );
 
     for (i, c) in line
         .chars()
         .enumerate()
         .map(|(i, c)| (CharOffset(i), c))
         .skip(skip)
-        .take(take)
+        .take(std::cmp::min(take, final_offset.0))
     {
-        dbg!(i, c);
-        offset = Some(
-            offset
-                .map(|o| o.saturating_add(CharOffset(1)))
-                .unwrap_or_default(),
-        );
-
         if !c.is_whitespace() {
-            return offset;
+            return Some(i);
         }
 
         if i + 1 > final_offset {
-            return None;
+            break;
         }
     }
 
-    offset
+    None
 }
 
 /// returns `None` if the input position's line does not refer to a line in the `Rope`.
