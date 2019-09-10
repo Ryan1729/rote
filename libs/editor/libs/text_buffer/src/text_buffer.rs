@@ -684,10 +684,11 @@ fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
                         let first_highlighted_non_white_space_offset: Option<CharOffset> =
                             get_first_non_white_space_offset_in_range(
                                 line,
-                                highlight_start_for_line..highlight_start_for_line,
+                                highlight_start_for_line..=highlight_end_for_line,
                             );
 
                         dbg!(
+                            line,
                             line_start,
                             relative_line_end,
                             line_end,
@@ -741,7 +742,8 @@ fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
                     cursor.set_position_custom(
                         p,
                         SetPositionAction::ClearHighlightOnlyIfItMatchesNewPosition,
-                    )
+                    );
+                    cursor.sticky_offset += TAB_STR_CHAR_COUNT
                 });
                 cursor
                     .get_highlight_position()

@@ -808,15 +808,16 @@ fn get_tab_in_edit_produces_the_expected_edit_from_this_buffer_with_different_le
     let edit = get_tab_in_edit(rope, cursors);
 
     let expected = {
-        let mut cursor = Cursor::new(last_position(rope).unwrap());
+        let new_chars =
+            "    0\n     1\n      2\n       3\n        4\n    \n     \n     1\n      2\n    "
+                .to_owned();
+
+        let new_rope = r!(new_chars);
+        let mut cursor = Cursor::new(last_position(&new_rope).unwrap());
         cursor.set_highlight_position(Position {
             offset: CharOffset(TAB_STR_CHAR_COUNT),
             ..d!()
         });
-
-        let new_chars =
-            "    0\n     1\n      2\n       3\n        4\n    \n     \n     1\n      2\n"
-                .to_owned();
 
         let insert_range = Some(RangeEdit {
             range: AbsoluteCharOffsetRange::new(
@@ -847,7 +848,7 @@ fn get_tab_in_edit_produces_the_expected_edit_from_this_buffer_with_different_le
 }
 
 #[test]
-fn get_tab_in_edit_produces_the_expected_edit_from_this_buffer_with_different_leading_whitespace_with_multiple_cursors(
+fn get_tab_in_edit_produces_the_expected_edit_with_multiple_cursors_in_this_buffer_with_different_leading_whitespace(
 ) {
     let text = format!("0\n 1\n  2\n   3\n    4\n\n{0}\n{0}1\n {0}2\n", NBSP);
     let start_of_empty_line = pos! {l 5 o 0};
