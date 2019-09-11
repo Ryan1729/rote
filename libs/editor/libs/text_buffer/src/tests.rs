@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use super::{cursor_assert, r, t_b, *};
+use super::{cursor_assert, r, t_b, *, edit};
 use crate::move_cursor::last_position;
 
 use editor_types::{vec1, CursorState};
@@ -1097,6 +1097,4 @@ fn get_first_non_white_space_offset_in_range_works_on_these_examples() {
 }
 
 mod arb;
-
 mod cursor_manipulation;
-mod undo_redo;

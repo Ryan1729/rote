@@ -2,6 +2,7 @@
 use super::{
     arb::{TestEdit, TestEditSpec},
     *,
+    edit::*
 };
 
 use pretty_assertions::assert_eq;
