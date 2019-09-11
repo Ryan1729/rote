@@ -667,7 +667,8 @@ fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
 
                 let mut tab_insert_count = 0;
                 for line_indicies in line_indicies_op {
-                    for index in line_indicies {
+                    let last_line_index = line_indicies.len() - 1;
+                    for (i, index) in line_indicies.into_iter().enumerate() {
                         let line = some_or!(rope.line(index), continue);
 
                         let line_start = some_or!(rope.line_to_char(index), continue);
@@ -713,17 +714,19 @@ fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
 
                         let o =
                             first_highlighted_non_white_space_offset.unwrap_or(relative_line_end);
-                        let highlighted_line_after_whitespace: &str = some_or!(
-                            line.slice(
-                                o..if highlight_end_for_line == relative_line_end {
-                                    line.len_chars()
-                                } else {
-                                    highlight_end_for_line
-                                }
-                            )
-                            .and_then(|l| l.as_str()),
-                            continue
-                        );
+
+                        let should_include_newlline =
+                            highlight_end_for_line != relative_line_end || i != last_line_index;
+
+                        let slice_end = if highlight_end_for_line >= relative_line_end
+                            && should_include_newlline
+                        {
+                            line.len_chars()
+                        } else {
+                            highlight_end_for_line
+                        };
+                        let highlighted_line_after_whitespace: &str =
+                            some_or!(line.slice(o..slice_end).and_then(|l| l.as_str()), continue);
                         dbg!(highlighted_line_after_whitespace);
                         chars.push_str(highlighted_line_after_whitespace);
                     }

@@ -925,21 +925,22 @@ fn get_tab_in_edit_produces_the_expected_edit_with_multiple_cursors_in_this_buff
         };
 
         let last_range_edits = {
-            let chars = (&EXPECTED_TEXT[EXPECTED_CLEAVE_POINT..]).to_owned();
+            const START_OF_SECOND_HIGHLIGHT: usize = RIGHT_COUNT + 1;
+            let chars = (&EXPECTED_TEXT[EXPECTED_CLEAVE_POINT + 1..]).to_owned();
             let insert_range = Some(RangeEdit {
                 range: AbsoluteCharOffsetRange::new(
-                    AbsoluteCharOffset(EXPECTED_CLEAVE_POINT),
-                    AbsoluteCharOffset(EXPECTED_CLEAVE_POINT + chars.chars().count()),
+                    AbsoluteCharOffset(START_OF_SECOND_HIGHLIGHT),
+                    AbsoluteCharOffset(START_OF_SECOND_HIGHLIGHT + chars.chars().count()),
                 ),
                 chars,
             });
 
             let delete_range = Some(RangeEdit {
                 range: AbsoluteCharOffsetRange::new(
-                    AbsoluteCharOffset(EXPECTED_CLEAVE_POINT),
+                    AbsoluteCharOffset(START_OF_SECOND_HIGHLIGHT),
                     AbsoluteCharOffset(text.chars().count()),
                 ),
-                chars: (&text[RIGHT_COUNT + 1..]).to_owned(),
+                chars: (&text[START_OF_SECOND_HIGHLIGHT..]).to_owned(),
             });
             RangeEdits {
                 insert_range,
