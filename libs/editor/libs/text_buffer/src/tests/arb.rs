@@ -16,7 +16,7 @@ prop_compose! {
     }
 }
 
-fn vec1<D: Debug>(strat: impl Strategy<Value = D>, max_len: usize) -> impl Strategy<Value = Vec1<D>> {
+pub fn vec1<D: Debug>(strat: impl Strategy<Value = D>, max_len: usize) -> impl Strategy<Value = Vec1<D>> {
     collection::vec(strat, 1..std::cmp::max(2, max_len))
         .prop_map(|v| Vec1::try_from_vec(v).expect("we said at least one!"))
 }
@@ -165,37 +165,6 @@ prop_compose! {
         text_buffer.rope = r;
         text_buffer.cursors = cursors;
         text_buffer
-    }
-}
-
-prop_compose! {
-    pub(crate) fn range_edit(max_len: usize)
-    (chars in ".*", range in arb_absolute_char_offset_range(max_len)) -> RangeEdit {
-        RangeEdit {
-            chars,
-            range
-        }
-    }
-}
-
-prop_compose! {
-    pub(crate) fn range_edits(max_len: usize)
-    (insert_range in option::of(range_edit(max_len)), delete_range in option::of(range_edit(max_len))) -> RangeEdits {
-        RangeEdits {
-            insert_range,
-            delete_range,
-        }
-    }
-}
-
-prop_compose! {
-    pub(crate) fn edit()
-    (len in 1..SOME_AMOUNT)
-    (range_edits in vec1(range_edits(len), len), cursors in arb_change!(arb::cursors(len))) -> Edit {
-        Edit {
-            range_edits,
-            cursors,
-        }
     }
 }
 

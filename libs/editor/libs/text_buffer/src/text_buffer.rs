@@ -9,8 +9,8 @@ use std::borrow::Borrow;
 use std::cmp::{max, min};
 use std::collections::VecDeque;
 
-mod move_cursor;
 mod edit;
+mod move_cursor;
 
 use edit::Edit;
 
@@ -448,7 +448,6 @@ impl TextBuffer {
     }
 }
 
-
 /// returns `None` if the input position's line does not refer to a line in the `Rope`.
 fn nearest_valid_position_on_same_line<P: Borrow<Position>>(rope: &Rope, p: P) -> Option<Position> {
     let p = p.borrow();
@@ -601,6 +600,6 @@ impl TextBuffer {
 
 #[cfg(test)]
 #[macro_use]
-mod test_macros;
+pub mod test_macros;
 #[cfg(test)]
-mod tests;
+pub mod tests;

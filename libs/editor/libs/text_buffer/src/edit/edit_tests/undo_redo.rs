@@ -1,15 +1,11 @@
-// This module is inside `tests`
-use super::{
-    arb::{TestEdit, TestEditSpec},
-    *,
-    edit::*
-};
+use super::*;
 
 use pretty_assertions::assert_eq;
 
+#[allow(dead_code)]
 fn arb_edit_from_buffer(text_buffer: TextBuffer) -> impl Strategy<Value = Edit> {
     let cs = text_buffer.cursors.clone();
-    arb::edit().prop_map(move |mut edit| {
+    edit_arb::edit().prop_map(move |mut edit| {
         edit.cursors.old = cs.clone();
         edit
     })
@@ -34,7 +30,7 @@ prop_compose! {
 /*
 proptest! {
     #[test]
-    fn edits_double_negate_properly(edit in arb::edit()) {
+    fn edits_double_negate_properly(edit in edit_arb::edit()) {
         let initial = edit.clone();
 
         assert_eq!(!!edit, initial);
@@ -42,6 +38,7 @@ proptest! {
 }
 */
 
+#[allow(dead_code)]
 fn negated_edit_undo_redos_properly(initial_buffer: TextBuffer, edit: Edit) {
     let mut buffer: TextBuffer = deep_clone(&initial_buffer);
 

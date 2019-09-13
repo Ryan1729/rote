@@ -87,6 +87,7 @@ impl<'a, 'b> PartialEq<IgnoringHistory<'b>> for IgnoringHistory<'a> {
     }
 }
 
+#[macro_export]
 macro_rules! assert_text_buffer_eq_ignoring_history {
     ($left:expr, $right:expr) => {
         assert_eq!(
@@ -97,6 +98,7 @@ macro_rules! assert_text_buffer_eq_ignoring_history {
     };
 }
 
+#[macro_export]
 macro_rules! text_buffer_eq_ignoring_history {
     ($left:expr, $right:expr) => {
         $crate::test_macros::IgnoringHistory(&$left)

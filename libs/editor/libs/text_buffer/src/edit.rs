@@ -550,6 +550,4 @@ fn copy_string(rope: &Rope, range: AbsoluteCharOffsetRange) -> String {
 }
 
 #[cfg(test)]
-mod tests {
-    mod undo_redo;
-}
+mod edit_tests;
