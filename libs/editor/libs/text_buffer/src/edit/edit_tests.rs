@@ -335,5 +335,101 @@ fn get_first_non_white_space_offset_in_range_works_on_these_examples() {
     );
 }
 
+proptest! {
+    #[test]
+    fn tab_in_preserves_line_count(
+        mut buffer in arb::text_buffer_with_many_cursors(),
+    ) {
+        let line_count = buffer.rope.len_lines();
+
+        for i in 0..SOME_AMOUNT {
+            TestEdit::apply(&mut buffer, TestEdit::TabIn);
+
+            assert_eq!(line_count, buffer.rope.len_lines(), "iteration {}", i);
+        }
+    }
+}
+
+proptest! {
+    #[test]
+    fn tab_out_preserves_line_count(
+        mut buffer in arb::text_buffer_with_many_cursors(),
+    ) {
+        let line_count = buffer.rope.len_lines();
+
+        for i in 0..SOME_AMOUNT {
+            TestEdit::apply(&mut buffer, TestEdit::TabOut);
+
+            assert_eq!(line_count, buffer.rope.len_lines(), "iteration {}", i);
+        }
+    }
+}
+
+proptest! {
+    #[test]
+    fn tab_in_then_tab_out_is_identity(
+        initial_buffer in arb::text_buffer_with_many_cursors(),
+    ) {
+        let mut buffer = deep_clone(&initial_buffer);
+
+        let line_count = buffer.rope.len_lines();
+
+        TestEdit::apply(&mut buffer, TestEdit::TabIn);
+        TestEdit::apply(&mut buffer, TestEdit::TabOut);
+
+        assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
+    }
+}
+
+proptest! {
+    #[test]
+    fn tab_out_then_tab_in_is_identity(
+        initial_buffer in arb::text_buffer_with_many_cursors(),
+    ) {
+        let mut buffer = deep_clone(&initial_buffer);
+
+        let line_count = buffer.rope.len_lines();
+
+        TestEdit::apply(&mut buffer, TestEdit::TabOut);
+        TestEdit::apply(&mut buffer, TestEdit::TabIn);
+
+        assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
+    }
+}
+
+proptest! {
+    #[test]
+    fn tab_in_preserves_non_white_space(
+        mut buffer in arb::text_buffer_with_many_cursors(),
+    ) {
+        let expected: String = buffer.rope.chars().filter(|c| !c.is_whitespace()).collect();
+
+        for i in 0..SOME_AMOUNT {
+            TestEdit::apply(&mut buffer, TestEdit::TabIn);
+
+            let actual: String = buffer.rope.chars().filter(|c| !c.is_whitespace()).collect();
+
+            assert_eq!(actual, expected, "iteration {}", i);
+        }
+    }
+}
+
+proptest! {
+    #[test]
+    fn tab_out_preserves_non_white_space(
+        mut buffer in arb::text_buffer_with_many_cursors(),
+    ) {
+        let expected: String = buffer.rope.chars().filter(|c| !c.is_whitespace()).collect();
+
+        for i in 0..SOME_AMOUNT {
+            TestEdit::apply(&mut buffer, TestEdit::TabOut);
+
+            let actual: String = buffer.rope.chars().filter(|c| !c.is_whitespace()).collect();
+
+            assert_eq!(actual, expected, "iteration {}", i);
+        }
+    }
+}
+
 mod edit_arb;
 mod undo_redo;

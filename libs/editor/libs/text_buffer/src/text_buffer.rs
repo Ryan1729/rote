@@ -602,4 +602,5 @@ impl TextBuffer {
 #[macro_use]
 pub mod test_macros;
 #[cfg(test)]
+#[macro_use]
 pub mod tests;

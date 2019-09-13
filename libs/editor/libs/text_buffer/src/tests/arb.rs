@@ -1,7 +1,6 @@
 // This module is inside `tests`
 use super::*;
 
-
 // TODO move all `arb` fns in here
 
 prop_compose! {
@@ -16,7 +15,10 @@ prop_compose! {
     }
 }
 
-pub fn vec1<D: Debug>(strat: impl Strategy<Value = D>, max_len: usize) -> impl Strategy<Value = Vec1<D>> {
+pub fn vec1<D: Debug>(
+    strat: impl Strategy<Value = D>,
+    max_len: usize,
+) -> impl Strategy<Value = Vec1<D>> {
     collection::vec(strat, 1..std::cmp::max(2, max_len))
         .prop_map(|v| Vec1::try_from_vec(v).expect("we said at least one!"))
 }
@@ -42,7 +44,7 @@ pub fn vec1_of_cursors(max_len: usize) -> impl Strategy<Value = Vec1<Cursor>> {
         // but itmeans we will get many invalid ones.
         cursor(LineIndex(max_len), CharOffset(max_len)),
         // It doesn't semm particularly useful to have more cursors than text positions.
-        max_len
+        max_len,
     )
 }
 
@@ -51,19 +53,16 @@ pub fn cursors(max_len: usize) -> impl Strategy<Value = Cursors> {
 }
 
 pub fn many_cursors(max_len: usize) -> impl Strategy<Value = Cursors> {
-
-
     collection::vec(
         cursor(LineIndex(max_len), CharOffset(max_len)),
-        std::cmp::max(max_len/2, 1)..std::cmp::min(std::cmp::max(2, max_len), max_len)
+        std::cmp::max(max_len / 2, 1)..std::cmp::min(std::cmp::max(2, max_len), max_len),
     )
-        .prop_map(|v| Vec1::try_from_vec(v).expect("we said at least one!"))
-        .prop_map(Cursors::new)
+    .prop_map(|v| Vec1::try_from_vec(v).expect("we said at least one!"))
+    .prop_map(Cursors::new)
 }
 
 pub fn valid_cursors_for_rope(rope: &Rope, max_len: usize) -> impl Strategy<Value = Cursors> {
-    let (max_line, max_offset) =
-        rope
+    let (max_line, max_offset) = rope
         .lines()
         .enumerate()
         .fold((0, CharOffset(0)), |(_, acc_offset), (i, line)| {
@@ -72,13 +71,13 @@ pub fn valid_cursors_for_rope(rope: &Rope, max_len: usize) -> impl Strategy<Valu
 
     vec1(
         cursor(LineIndex(max_line), max_offset),
-        std::cmp::min(max_len, std::cmp::max(max_line * max_offset.0, 1))
-    ).prop_map(Cursors::new)
+        std::cmp::min(max_len, std::cmp::max(max_line * max_offset.0, 1)),
+    )
+    .prop_map(Cursors::new)
 }
 
 pub fn many_valid_cursors_for_rope(rope: &Rope, max_len: usize) -> impl Strategy<Value = Cursors> {
-    let (max_line, max_offset) =
-        rope
+    let (max_line, max_offset) = rope
         .lines()
         .enumerate()
         .fold((0, CharOffset(0)), |(_, acc_offset), (i, line)| {
@@ -88,10 +87,10 @@ pub fn many_valid_cursors_for_rope(rope: &Rope, max_len: usize) -> impl Strategy
 
     collection::vec(
         cursor(LineIndex(max_line), max_offset),
-        std::cmp::max(len/2, 1)..std::cmp::min(std::cmp::max(2, len), max_len)
+        std::cmp::max(len / 2, 1)..std::cmp::min(std::cmp::max(2, len), max_len),
     )
-        .prop_map(|v| Vec1::try_from_vec(v).expect("we said at least one!"))
-        .prop_map(Cursors::new)
+    .prop_map(|v| Vec1::try_from_vec(v).expect("we said at least one!"))
+    .prop_map(Cursors::new)
 }
 
 prop_compose! {
@@ -104,7 +103,6 @@ prop_compose! {
         text_buffer
     }
 }
-
 
 prop_compose! {
     pub fn no_history_text_buffer()
@@ -182,6 +180,8 @@ pub enum TestEdit {
     SelectCharTypeGrouping(Position, ReplaceOrAdd),
     Cut,
     InsertNumbersAtCursors,
+    TabIn,
+    TabOut,
 }
 
 impl TestEdit {
@@ -192,29 +192,23 @@ impl TestEdit {
             InsertString(s) => buffer.insert_string(s),
             Delete => buffer.delete(),
             MoveAllCursors(r#move) => buffer.move_all_cursors(r#move),
-            ExtendSelectionForAllCursors(r#move) => {
-                buffer.extend_selection_for_all_cursors(r#move)
-            },
+            ExtendSelectionForAllCursors(r#move) => buffer.extend_selection_for_all_cursors(r#move),
             MoveCursors(index, r#move) => buffer.move_cursor(index, r#move),
             ExtendSelection(index, r#move) => buffer.extend_selection(index, r#move),
             SetCursor(position, replace_or_add) => buffer.set_cursor(position, replace_or_add),
             DragCursors(position) => buffer.drag_cursors(position),
-            SelectCharTypeGrouping(position, replace_or_add) =>
-                buffer.select_char_type_grouping(position, replace_or_add),
-            Cut => {buffer.cut_selections();},
-            InsertNumbersAtCursors => buffer.insert_at_each_cursor(|i| i.to_string())
+            SelectCharTypeGrouping(position, replace_or_add) => {
+                buffer.select_char_type_grouping(position, replace_or_add)
+            }
+            Cut => {
+                buffer.cut_selections();
+            }
+            InsertNumbersAtCursors => buffer.insert_at_each_cursor(|i| i.to_string()),
+            TabIn => buffer.tab_in(),
+            TabOut => buffer.tab_out(),
         }
     }
 }
-
-
-pub fn replace_or_add() -> impl Strategy<Value = ReplaceOrAdd> {
-    prop_oneof![
-        Just(ReplaceOrAdd::Replace),
-        Just(ReplaceOrAdd::Add),
-    ]
-}
-
 
 pub fn test_edit() -> impl Strategy<Value = TestEdit> {
     use TestEdit::*;
@@ -229,12 +223,26 @@ pub fn test_edit() -> impl Strategy<Value = TestEdit> {
         (0..MORE_THAN_SOME_AMOUNT, arb_move()).prop_map(|(i, m)| ExtendSelection(i, m)),
         // The user can attempt to move the cursor to invalid positions,
         // and their cursor may get snapped to a valid position producing an actual movement.
-        (arb_pos(MORE_THAN_SOME_AMOUNT, MORE_THAN_SOME_AMOUNT), replace_or_add()).prop_map(|(p, r)| SetCursor(p, r)),
+        (
+            arb_pos(MORE_THAN_SOME_AMOUNT, MORE_THAN_SOME_AMOUNT),
+            replace_or_add()
+        )
+            .prop_map(|(p, r)| SetCursor(p, r)),
         arb_pos(MORE_THAN_SOME_AMOUNT, MORE_THAN_SOME_AMOUNT).prop_map(DragCursors),
-        (arb_pos(MORE_THAN_SOME_AMOUNT, MORE_THAN_SOME_AMOUNT), replace_or_add()).prop_map(|(p, r)| SelectCharTypeGrouping(p, r)),
+        (
+            arb_pos(MORE_THAN_SOME_AMOUNT, MORE_THAN_SOME_AMOUNT),
+            replace_or_add()
+        )
+            .prop_map(|(p, r)| SelectCharTypeGrouping(p, r)),
         Just(Cut),
         Just(InsertNumbersAtCursors),
+        Just(TabIn),
+        Just(TabOut),
     ]
+}
+
+pub fn replace_or_add() -> impl Strategy<Value = ReplaceOrAdd> {
+    prop_oneof![Just(ReplaceOrAdd::Replace), Just(ReplaceOrAdd::Add),]
 }
 
 pub fn test_edit_insert() -> impl Strategy<Value = TestEdit> {
@@ -270,7 +278,7 @@ pub fn test_edits(max_len: usize, spec: TestEditSpec) -> impl Strategy<Value = V
             TestEditSpec::RegexInsert(regex) => test_edit_regex_insert(regex).boxed(),
             TestEditSpec::SetCursorHeavy => test_edit_set_cursor_heavy().boxed(),
         },
-        0..max_len
+        0..max_len,
     )
 }
 
