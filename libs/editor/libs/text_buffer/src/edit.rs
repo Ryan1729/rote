@@ -1,4 +1,5 @@
 use super::*;
+use crate::move_cursor::{backward_n, forward_n};
 
 pub fn apply(rope: &mut Rope, cursors: &mut Cursors, edit: &Edit) {
     // we assume that the edits are in the proper order so we won't mess up our indexes with our
@@ -262,7 +263,7 @@ pub fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit
                     }
                 }
 
-                let range_edit = delete_highlighted_no_cursor(rope, range);
+                let range_edit = delete_within_range(rope, range);
 
                 let range = range_edit
                     .range
@@ -286,6 +287,93 @@ pub fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit
                 dbg!(RangeEdits {
                     insert_range: Some(RangeEdit { chars, range }),
                     delete_range: Some(range_edit),
+                })
+            }
+            _ => d!(),
+        }
+    })
+}
+
+pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
+    get_edit(original_rope, original_cursors, |cursor, rope, _| {
+        match offset_pair(original_rope, cursor) {
+            (Some(o1), Some(o2)) => {
+                // TODO extend this rage to cover all of the touched lines
+                let range = AbsoluteCharOffsetRange::new(o1, o2);
+
+                let delete_edit = delete_within_range(rope, range);
+
+                let mut chars = String::with_capacity(range.max().0 - range.min().0);
+
+                let line_indicies_op = line_indicies_touched_by(rope, range);
+
+                let mut char_delete_count = 0;
+                for line_indicies in line_indicies_op {
+                    let last_line_index = line_indicies.len() - 1;
+                    for (i, index) in line_indicies.into_iter().enumerate() {
+                        let line = some_or!(rope.line(index), continue);
+
+                        let line_start = some_or!(rope.line_to_char(index), continue);
+                        let relative_line_end = final_non_newline_offset_for_rope_line(line);
+
+                        let first_non_white_space_offset: Option<CharOffset> =
+                            get_first_non_white_space_offset_in_range(
+                                line,
+                                d!()..=relative_line_end,
+                            );
+
+                        if let Some(offset) = first_non_white_space_offset {
+                            let delete_count = min(offset, CharOffset(TAB_STR_CHAR_COUNT));
+                            char_delete_count += delete_count.0;
+
+                            let line_end = line_start + relative_line_end;
+
+                            let highlight_end_for_line = if line_end < range.max() {
+                                relative_line_end
+                            } else {
+                                range.max() - line_start
+                            };
+
+                            let should_include_newlline =
+                                highlight_end_for_line != relative_line_end || i != last_line_index;
+
+                            let slice_end = if highlight_end_for_line >= relative_line_end
+                                && should_include_newlline
+                            {
+                                line.len_chars()
+                            } else {
+                                highlight_end_for_line
+                            };
+                            chars.push_str(some_or!(
+                                line.slice(delete_count..slice_end).and_then(|l| l.as_str()),
+                                continue
+                            ));
+                        } else {
+                            chars.push_str(some_or!(line.as_str(), continue));
+                        }
+                    }
+                }
+
+                let range = delete_edit.range.sub_from_max(char_delete_count);
+
+                rope.insert(range.min(), &chars);
+
+                // We want the cursor to have the same orientation it started with.
+                backward_n(rope, cursor.get_position(), TAB_STR_CHAR_COUNT).map(|p| {
+                    cursor.set_position_custom(
+                        p,
+                        SetPositionAction::ClearHighlightOnlyIfItMatchesNewPosition,
+                    );
+                    cursor.sticky_offset -= TAB_STR_CHAR_COUNT
+                });
+                cursor
+                    .get_highlight_position()
+                    .and_then(|p| backward_n(rope, p, TAB_STR_CHAR_COUNT))
+                    .map(|p| cursor.set_highlight_position(p));
+
+                dbg!(RangeEdits {
+                    insert_range: Some(RangeEdit { chars, range }),
+                    delete_range: Some(delete_edit),
                 })
             }
             _ => d!(),
@@ -445,6 +533,20 @@ mod absolute_char_offset_range {
         {
             Self::new(self.min, self.max + max)
         }
+
+        pub fn sub_from_min<A>(&self, min: A) -> Self
+        where
+            AbsoluteCharOffset: std::ops::Sub<A, Output = AbsoluteCharOffset>,
+        {
+            Self::new(self.min - min, self.max)
+        }
+
+        pub fn sub_from_max<A>(&self, max: A) -> Self
+        where
+            AbsoluteCharOffset: std::ops::Sub<A, Output = AbsoluteCharOffset>,
+        {
+            Self::new(self.min, self.max - max)
+        }
     }
 }
 use absolute_char_offset_range::AbsoluteCharOffsetRange;
@@ -469,7 +571,7 @@ fn delete_highlighted(
 ) -> RangeEdit {
     let range = AbsoluteCharOffsetRange::new(o1, o2);
 
-    let output = delete_highlighted_no_cursor(rope, range);
+    let output = delete_within_range(rope, range);
 
     cursor.set_position(char_offset_to_pos(&rope, range.min()).unwrap_or_default());
 
@@ -477,7 +579,7 @@ fn delete_highlighted(
 }
 
 /// returns the same thing as `delete_highlighted`
-fn delete_highlighted_no_cursor(rope: &mut Rope, range: AbsoluteCharOffsetRange) -> RangeEdit {
+fn delete_within_range(rope: &mut Rope, range: AbsoluteCharOffsetRange) -> RangeEdit {
     let chars = copy_string(rope, range);
 
     rope.remove(range.range());

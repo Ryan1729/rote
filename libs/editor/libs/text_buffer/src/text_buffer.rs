@@ -1,5 +1,5 @@
 use crate::move_cursor::{
-    forward, forward_n, get_next_selection_point, get_previous_selection_point,
+    forward, get_next_selection_point, get_previous_selection_point,
 };
 use editor_types::{Cursor, SetPositionAction, Vec1};
 use macros::{borrow, d, some_or, CheckedSub};
@@ -431,7 +431,10 @@ impl TextBuffer {
     }
 
     pub fn tab_out(&mut self) {
-        dbg!("TabOut not implemented");
+        self.apply_edit(
+            edit::get_tab_out_edit(&self.rope, &self.cursors),
+            ApplyKind::Record,
+        );
     }
 
     #[perf_viz::record]
