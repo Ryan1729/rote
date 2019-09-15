@@ -350,19 +350,35 @@ proptest! {
     }
 }
 
+fn tab_out_preserves_line_count_on(mut buffer: TextBuffer) {
+    let line_count = buffer.rope.len_lines();
+
+    for i in 0..SOME_AMOUNT {
+        TestEdit::apply(&mut buffer, TestEdit::TabOut);
+
+        assert_eq!(line_count, buffer.rope.len_lines(), "iteration {}", i);
+    }
+}
+
 proptest! {
     #[test]
     fn tab_out_preserves_line_count(
-        mut buffer in arb::text_buffer_with_many_cursors(),
+        buffer in arb::text_buffer_with_many_cursors(),
     ) {
-        let line_count = buffer.rope.len_lines();
-
-        for i in 0..SOME_AMOUNT {
-            TestEdit::apply(&mut buffer, TestEdit::TabOut);
-
-            assert_eq!(line_count, buffer.rope.len_lines(), "iteration {}", i);
-        }
+        tab_out_preserves_line_count_on(buffer);
     }
+}
+
+#[test]
+fn tab_out_preserves_line_count_on_this_gerarated_example() {
+    let mut buffer = t_b!("�<AGL");
+
+    buffer.cursors = Cursors::new(vec1![
+        Cursor::new_with_highlight(pos! {l 1 o 4}, pos! {l 2 o 0}),
+        Cursor::new_with_highlight(pos! {l 1 o 3}, pos! {l 0 o 0})
+    ]);
+
+    tab_out_preserves_line_count_on(buffer);
 }
 
 proptest! {
@@ -371,8 +387,6 @@ proptest! {
         initial_buffer in arb::text_buffer_with_many_cursors(),
     ) {
         let mut buffer = deep_clone(&initial_buffer);
-
-        let line_count = buffer.rope.len_lines();
 
         TestEdit::apply(&mut buffer, TestEdit::TabIn);
         TestEdit::apply(&mut buffer, TestEdit::TabOut);
@@ -387,8 +401,6 @@ proptest! {
         initial_buffer in arb::text_buffer_with_many_cursors(),
     ) {
         let mut buffer = deep_clone(&initial_buffer);
-
-        let line_count = buffer.rope.len_lines();
 
         TestEdit::apply(&mut buffer, TestEdit::TabOut);
         TestEdit::apply(&mut buffer, TestEdit::TabIn);
