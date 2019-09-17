@@ -370,7 +370,7 @@ proptest! {
 }
 
 #[test]
-fn tab_out_preserves_line_count_on_this_gerarated_example() {
+fn tab_out_preserves_line_count_on_this_generated_example() {
     let mut buffer = t_b!("�<AGL");
 
     buffer.cursors = Cursors::new(vec1![
@@ -426,21 +426,36 @@ proptest! {
     }
 }
 
+fn tab_out_preserves_non_white_space_on(mut buffer: TextBuffer) {
+    let expected: String = buffer.rope.chars().filter(|c| !c.is_whitespace()).collect();
+
+    for i in 0..SOME_AMOUNT {
+        TestEdit::apply(&mut buffer, TestEdit::TabOut);
+
+        let actual: String = buffer.rope.chars().filter(|c| !c.is_whitespace()).collect();
+
+        assert_eq!(actual, expected, "iteration {}", i);
+    }
+}
+
 proptest! {
     #[test]
     fn tab_out_preserves_non_white_space(
-        mut buffer in arb::text_buffer_with_many_cursors(),
+        buffer in arb::text_buffer_with_many_cursors(),
     ) {
-        let expected: String = buffer.rope.chars().filter(|c| !c.is_whitespace()).collect();
-
-        for i in 0..SOME_AMOUNT {
-            TestEdit::apply(&mut buffer, TestEdit::TabOut);
-
-            let actual: String = buffer.rope.chars().filter(|c| !c.is_whitespace()).collect();
-
-            assert_eq!(actual, expected, "iteration {}", i);
-        }
+        tab_out_preserves_non_white_space_on(buffer);
     }
+}
+
+#[test]
+fn tab_out_preserves_non_white_space_on_this_generated_example() {
+    let mut buffer = t_b!(" 2b");
+
+    buffer.cursors = Cursors::new(vec1![
+        Cursor::new(pos! {l 2 o 0}),
+        Cursor::new_with_highlight(pos! {l 1 o 24}, pos! {l 0 o 1})
+    ]);
+    tab_out_preserves_non_white_space_on(buffer);
 }
 
 mod edit_arb;

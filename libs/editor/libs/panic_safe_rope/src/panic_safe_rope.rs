@@ -216,6 +216,8 @@ impl Rope {
     /// Returns `None`  if `char_idx` is out of bounds (i.e. `char_idx > len_chars()`).
     #[inline]
     pub fn char_to_line(&self, char_idx: AbsoluteCharOffset) -> Option<LineIndex> {
+        dbg!(char_idx, &self, char_idx <= self.len_chars().0);
+
         macros::some_if!(
             char_idx <= self.len_chars().0 => LineIndex(self.rope.char_to_line(char_idx.0))
         )

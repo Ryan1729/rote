@@ -89,6 +89,18 @@ pub trait CheckedSub<Rhs = Self> {
     fn checked_sub(self, rhs: Rhs) -> Option<Self::Output>;
 }
 
+pub trait SaturatingAdd<Rhs = Self> {
+    type Output;
+
+    fn saturating_add(self, rhs: Rhs) -> Self::Output;
+}
+
+pub trait SaturatingSub<Rhs = Self> {
+    type Output;
+
+    fn saturating_sub(self, rhs: Rhs) -> Self::Output;
+}
+
 #[macro_export]
 macro_rules! usize_newtype {
     ($name: ident) => {
@@ -102,11 +114,18 @@ macro_rules! usize_newtype {
 
         $crate::add_assign!(<usize> for $name);
 
+        impl $crate::SaturatingAdd<usize> for $name {
+            type Output = $name;
+
+            fn saturating_add(self, other: usize) -> $name {
+                $name(self.0.saturating_add(other))
+            }
+        }
+
         impl std::ops::Sub<usize> for $name {
             type Output = $name;
 
             fn sub(self, other: usize) -> $name {
-                //Should this be saturating?
                 $name(self.0 - other)
             }
         }
@@ -117,10 +136,26 @@ macro_rules! usize_newtype {
             type Output = $name;
 
             fn sub(self, other: $name) -> $name {
-                //Should this be saturating?
                 $name(self - other.0)
             }
         }
+
+        impl $crate::SaturatingSub<usize> for $name {
+            type Output = $name;
+
+            fn saturating_sub(self, other: usize) -> $name {
+                $name(self.0.saturating_sub(other))
+            }
+        }
+
+        impl $crate::SaturatingSub<$name> for usize {
+            type Output = $name;
+
+            fn saturating_sub(self, other: $name) -> $name {
+                $name(self.saturating_sub(other.0))
+            }
+        }
+
 
         impl PartialOrd<$name> for usize {
             fn partial_cmp(&self, other: &$name) -> Option<std::cmp::Ordering> {
@@ -168,11 +203,15 @@ macro_rules! integer_newtype {
             }
         }
 
-        impl $name {
-            pub fn saturating_add(self, other: Self) -> Self {
+        impl $crate::SaturatingAdd for $name {
+            type Output = $name;
+
+            fn saturating_add(self, other: Self) -> $name {
                 $name(self.0.saturating_add(other.0))
             }
+        }
 
+        impl $name {
             /// Seems like 99% of the time we want to do a `checked_add` it's with one
             pub fn checked_add_one(self) -> Option<Self> {
                 self.0.checked_add(1).map($name)
@@ -196,11 +235,15 @@ macro_rules! integer_newtype {
             }
         }
 
-        impl $name {
-            pub fn saturating_sub(self, other: Self) -> Self {
+        impl $crate::SaturatingSub for $name {
+            type Output = $name;
+
+            fn saturating_sub(self, other: Self) -> $name {
                 $name(self.0.saturating_sub(other.0))
             }
+        }
 
+        impl $name {
             /// Seems like 99% of the time we want to do a `checked_sub` it's with one
             pub fn checked_sub_one(self) -> Option<Self> {
                 self.0.checked_sub(1).map($name)

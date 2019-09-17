@@ -1,5 +1,6 @@
 use super::*;
 use crate::move_cursor::{backward_n, forward_n};
+use macros::SaturatingSub;
 
 pub fn apply(rope: &mut Rope, cursors: &mut Cursors, edit: &Edit) {
     // we assume that the edits are in the proper order so we won't mess up our indexes with our
@@ -298,9 +299,8 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
     get_edit(original_rope, original_cursors, |cursor, rope, _| {
         match offset_pair(original_rope, cursor) {
             (Some(o1), Some(o2)) => {
-                // TODO extend this rage to cover all of the touched lines
+                // TODO extend this range to cover all of the touched lines
                 let range = AbsoluteCharOffsetRange::new(o1, o2);
-
                 let delete_edit = delete_within_range(rope, range);
 
                 let mut chars = String::with_capacity(range.max().0 - range.min().0);
@@ -310,6 +310,7 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
                 let mut char_delete_count = 0;
                 for line_indicies in line_indicies_op {
                     let last_line_index = line_indicies.len() - 1;
+
                     for (i, index) in line_indicies.into_iter().enumerate() {
                         let line = some_or!(rope.line(index), continue);
 
@@ -364,7 +365,7 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
                         p,
                         SetPositionAction::ClearHighlightOnlyIfItMatchesNewPosition,
                     );
-                    cursor.sticky_offset -= TAB_STR_CHAR_COUNT
+                    cursor.sticky_offset = cursor.sticky_offset.saturating_sub(TAB_STR_CHAR_COUNT);
                 });
                 cursor
                     .get_highlight_position()
@@ -591,8 +592,10 @@ fn line_indicies_touched_by(
     rope: &Rope,
     range: AbsoluteCharOffsetRange,
 ) -> Option<Vec1<LineIndex>> {
+    dbg!();
     let min_index = rope.char_to_line(range.min())?;
     let max_index = rope.char_to_line(range.max())?;
+    dbg!();
 
     let mut output = Vec1::new(min_index);
 
