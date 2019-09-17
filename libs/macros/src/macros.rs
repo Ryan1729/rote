@@ -122,6 +122,14 @@ macro_rules! usize_newtype {
             }
         }
 
+        impl $crate::CheckedAdd<usize> for $name {
+            type Output = $name;
+
+            fn checked_add(self, other: usize) -> Option<$name> {
+                self.0.checked_add(other).map($name)
+            }
+        }
+
         impl std::ops::Sub<usize> for $name {
             type Output = $name;
 
@@ -153,6 +161,22 @@ macro_rules! usize_newtype {
 
             fn saturating_sub(self, other: $name) -> $name {
                 $name(self.saturating_sub(other.0))
+            }
+        }
+
+        impl $crate::CheckedSub<usize> for $name {
+            type Output = $name;
+
+            fn checked_sub(self, other: usize) -> Option<$name> {
+                self.0.checked_sub(other).map($name)
+            }
+        }
+
+        impl $crate::CheckedSub<$name> for usize {
+            type Output = $name;
+
+            fn checked_sub(self, other: $name) -> Option<$name> {
+                self.checked_sub(other.0).map($name)
             }
         }
 

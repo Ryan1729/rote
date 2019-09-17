@@ -1,6 +1,6 @@
 use super::*;
 use crate::move_cursor::{backward_n, forward_n};
-use macros::SaturatingSub;
+use macros::{CheckedSub, SaturatingSub};
 
 pub fn apply(rope: &mut Rope, cursors: &mut Cursors, edit: &Edit) {
     // we assume that the edits are in the proper order so we won't mess up our indexes with our
@@ -195,73 +195,57 @@ pub fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit
 
                 let mut chars = String::with_capacity(range.max().0 - range.min().0);
 
-                let line_indicies_op = line_indicies_touched_by(rope, range);
+                let line_indicies = some_or!(line_indicies_touched_by(rope, range), return d!());
 
                 let mut tab_insert_count = 0;
-                for line_indicies in line_indicies_op {
-                    let last_line_index = line_indicies.len() - 1;
-                    for (i, index) in line_indicies.into_iter().enumerate() {
-                        let line = some_or!(rope.line(index), continue);
+                let last_line_index = line_indicies.len() - 1;
+                for (i, index) in line_indicies.into_iter().enumerate() {
+                    let line = some_or!(rope.line(index), continue);
 
-                        let line_start = some_or!(rope.line_to_char(index), continue);
-                        let relative_line_end = final_non_newline_offset_for_rope_line(line);
-                        let line_end = line_start + relative_line_end;
+                    let line_start = some_or!(rope.line_to_char(index), continue);
+                    let relative_line_end = final_non_newline_offset_for_rope_line(line);
+                    let line_end = line_start + relative_line_end;
 
-                        let highlight_start_for_line = max(range.min(), line_start) - line_start;
-                        let highlight_end_for_line = if line_end < range.max() {
-                            relative_line_end
-                        } else {
-                            range.max() - line_start
-                        };
+                    let highlight_start_for_line = max(range.min(), line_start) - line_start;
+                    let highlight_end_for_line = if line_end < range.max() {
+                        relative_line_end
+                    } else {
+                        range.max() - line_start
+                    };
 
-                        let first_highlighted_non_white_space_offset: Option<CharOffset> =
-                            get_first_non_white_space_offset_in_range(
-                                line,
-                                highlight_start_for_line..=highlight_end_for_line,
-                            );
-
-                        dbg!(
+                    let first_highlighted_non_white_space_offset: Option<CharOffset> =
+                        get_first_non_white_space_offset_in_range(
                             line,
-                            line_start,
-                            relative_line_end,
-                            line_end,
-                            range.min(),
-                            range.max(),
-                            highlight_start_for_line,
-                            highlight_end_for_line,
-                            first_highlighted_non_white_space_offset
+                            highlight_start_for_line..=highlight_end_for_line,
                         );
 
-                        let start = highlight_start_for_line.0;
-                        let previous_offset = min(
-                            first_highlighted_non_white_space_offset
-                                .unwrap_or(CharOffset(usize::max_value())),
-                            highlight_end_for_line,
-                        );
-                        let end = previous_offset.0 + TAB_STR_CHAR_COUNT;
-                        for _ in start..end {
-                            chars.push(TAB_STR_CHAR);
-                        }
-                        tab_insert_count += 1;
+                    let start = highlight_start_for_line.0;
+                    let previous_offset = min(
+                        first_highlighted_non_white_space_offset
+                            .unwrap_or(CharOffset(usize::max_value())),
+                        highlight_end_for_line,
+                    );
+                    let end = previous_offset.0 + TAB_STR_CHAR_COUNT;
+                    for _ in start..end {
+                        chars.push(TAB_STR_CHAR);
+                    }
+                    tab_insert_count += 1;
 
-                        let o =
-                            first_highlighted_non_white_space_offset.unwrap_or(relative_line_end);
+                    let o = first_highlighted_non_white_space_offset.unwrap_or(relative_line_end);
 
-                        let should_include_newlline =
-                            highlight_end_for_line != relative_line_end || i != last_line_index;
+                    let should_include_newlline =
+                        highlight_end_for_line != relative_line_end || i != last_line_index;
 
-                        let slice_end = if highlight_end_for_line >= relative_line_end
-                            && should_include_newlline
-                        {
+                    let slice_end =
+                        if highlight_end_for_line >= relative_line_end && should_include_newlline {
                             line.len_chars()
                         } else {
                             highlight_end_for_line
                         };
-                        let highlighted_line_after_whitespace: &str =
-                            some_or!(line.slice(o..slice_end).and_then(|l| l.as_str()), continue);
-                        dbg!(highlighted_line_after_whitespace);
-                        chars.push_str(highlighted_line_after_whitespace);
-                    }
+                    let highlighted_line_after_whitespace: &str =
+                        some_or!(line.slice(o..slice_end).and_then(|l| l.as_str()), continue);
+                    dbg!(highlighted_line_after_whitespace);
+                    chars.push_str(highlighted_line_after_whitespace);
                 }
 
                 let range_edit = delete_within_range(rope, range);
@@ -285,10 +269,10 @@ pub fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit
                     .and_then(|p| forward_n(rope, p, TAB_STR_CHAR_COUNT))
                     .map(|p| cursor.set_highlight_position(p));
 
-                dbg!(RangeEdits {
+                RangeEdits {
                     insert_range: Some(RangeEdit { chars, range }),
                     delete_range: Some(range_edit),
-                })
+                }
             }
             _ => d!(),
         }
@@ -296,66 +280,83 @@ pub fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit
 }
 
 pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
+    dbg!(original_cursors);
     get_edit(original_rope, original_cursors, |cursor, rope, _| {
         match offset_pair(original_rope, cursor) {
             (Some(o1), Some(o2)) => {
-                // TODO extend this range to cover all of the touched lines
-                let range = AbsoluteCharOffsetRange::new(o1, o2);
-                let delete_edit = delete_within_range(rope, range);
+                let line_indicies = some_or!(
+                    line_indicies_touched_by(rope, AbsoluteCharOffsetRange::new(o1, o2)),
+                    return d!()
+                );
+
+                let last_line_indicies_index = line_indicies.len() - 1;
+                let range = {
+                    let first_line_index = line_indicies[0];
+                    let last_line_index = line_indicies[last_line_indicies_index];
+
+                    AbsoluteCharOffsetRange::new(
+                        some_or!(rope.line_to_char(first_line_index), return d!()),
+                        some_or!(
+                            rope.line(last_line_index).and_then(|line| rope
+                                .line_to_char(last_line_index)
+                                .map(|o| o + line.len_chars())),
+                            return d!()
+                        ),
+                    )
+                };
+                dbg!(AbsoluteCharOffsetRange::new(o1, o2), range);
 
                 let mut chars = String::with_capacity(range.max().0 - range.min().0);
-
-                let line_indicies_op = line_indicies_touched_by(rope, range);
-
                 let mut char_delete_count = 0;
-                for line_indicies in line_indicies_op {
-                    let last_line_index = line_indicies.len() - 1;
 
-                    for (i, index) in line_indicies.into_iter().enumerate() {
-                        let line = some_or!(rope.line(index), continue);
+                for (i, index) in line_indicies.into_iter().enumerate() {
+                    let line = some_or!(rope.line(index), continue);
 
-                        let line_start = some_or!(rope.line_to_char(index), continue);
-                        let relative_line_end = final_non_newline_offset_for_rope_line(line);
+                    let line_start = some_or!(rope.line_to_char(index), continue);
+                    let relative_line_end = final_non_newline_offset_for_rope_line(line);
 
-                        let first_non_white_space_offset: Option<CharOffset> =
-                            get_first_non_white_space_offset_in_range(
-                                line,
-                                d!()..=relative_line_end,
-                            );
+                    let first_non_white_space_offset: Option<CharOffset> =
+                        get_first_non_white_space_offset_in_range(line, d!()..=relative_line_end);
 
-                        if let Some(offset) = first_non_white_space_offset {
-                            let delete_count = min(offset, CharOffset(TAB_STR_CHAR_COUNT));
-                            char_delete_count += delete_count.0;
+                    dbg!(
+                        index,
+                        i,
+                        line,
+                        line_start,
+                        relative_line_end,
+                        first_non_white_space_offset
+                    );
 
-                            let line_end = line_start + relative_line_end;
+                    if let Some(offset) = first_non_white_space_offset {
+                        let delete_count = min(offset, CharOffset(TAB_STR_CHAR_COUNT));
+                        char_delete_count += delete_count.0;
 
-                            let highlight_end_for_line = if line_end < range.max() {
-                                relative_line_end
-                            } else {
-                                range.max() - line_start
-                            };
+                        let should_include_newlline = i != last_line_indicies_index;
 
-                            let should_include_newlline =
-                                highlight_end_for_line != relative_line_end || i != last_line_index;
-
-                            let slice_end = if highlight_end_for_line >= relative_line_end
-                                && should_include_newlline
-                            {
-                                line.len_chars()
-                            } else {
-                                highlight_end_for_line
-                            };
-                            chars.push_str(some_or!(
-                                line.slice(delete_count..slice_end).and_then(|l| l.as_str()),
-                                continue
-                            ));
+                        let slice_end = if should_include_newlline {
+                            line.len_chars()
                         } else {
-                            chars.push_str(some_or!(line.as_str(), continue));
-                        }
+                            relative_line_end
+                        };
+
+                        dbg!(delete_count, should_include_newlline, slice_end,);
+                        chars.push_str(some_or!(
+                            line.slice(delete_count..slice_end).and_then(|l| l.as_str()),
+                            continue
+                        ));
+                    } else {
+                        chars.push_str(some_or!(line.as_str(), continue));
                     }
                 }
 
-                let range = delete_edit.range.sub_from_max(char_delete_count);
+                dbg!(&range);
+                let delete_edit = delete_within_range(rope, range);
+                dbg!(&delete_edit);
+
+                let range = some_or!(
+                    delete_edit.range.checked_sub_from_max(char_delete_count),
+                    return d!()
+                );
 
                 rope.insert(range.min(), &chars);
 
@@ -492,7 +493,7 @@ impl<T> std::ops::Not for Change<T> {
 }
 
 mod absolute_char_offset_range {
-    use super::AbsoluteCharOffset;
+    use super::*;
 
     #[derive(Copy, Clone, Debug, PartialEq, Eq)]
     pub struct AbsoluteCharOffsetRange {
@@ -500,7 +501,6 @@ mod absolute_char_offset_range {
         max: AbsoluteCharOffset,
     }
 
-    #[allow(dead_code)]
     impl AbsoluteCharOffsetRange {
         pub fn new(o1: AbsoluteCharOffset, o2: AbsoluteCharOffset) -> Self {
             let min = std::cmp::min(o1, o2);
@@ -521,6 +521,7 @@ mod absolute_char_offset_range {
             self.max
         }
 
+        #[allow(dead_code)]
         pub fn add_to_min<A>(&self, min: A) -> Self
         where
             AbsoluteCharOffset: std::ops::Add<A, Output = AbsoluteCharOffset>,
@@ -535,6 +536,7 @@ mod absolute_char_offset_range {
             Self::new(self.min, self.max + max)
         }
 
+        #[allow(dead_code)]
         pub fn sub_from_min<A>(&self, min: A) -> Self
         where
             AbsoluteCharOffset: std::ops::Sub<A, Output = AbsoluteCharOffset>,
@@ -542,11 +544,31 @@ mod absolute_char_offset_range {
             Self::new(self.min - min, self.max)
         }
 
+        #[allow(dead_code)]
         pub fn sub_from_max<A>(&self, max: A) -> Self
         where
             AbsoluteCharOffset: std::ops::Sub<A, Output = AbsoluteCharOffset>,
         {
             Self::new(self.min, self.max - max)
+        }
+
+        #[allow(dead_code)]
+        pub fn checked_sub_from_min<A>(&self, min: A) -> Option<Self>
+        where
+            AbsoluteCharOffset: macros::CheckedSub<A, Output = AbsoluteCharOffset>,
+        {
+            self.min
+                .checked_sub(min)
+                .map(|min| Self::new(min, self.max))
+        }
+
+        pub fn checked_sub_from_max<A>(&self, max: A) -> Option<Self>
+        where
+            AbsoluteCharOffset: macros::CheckedSub<A, Output = AbsoluteCharOffset>,
+        {
+            self.max
+                .checked_sub(max)
+                .map(|max| Self::new(self.min, max))
         }
     }
 }
@@ -592,7 +614,7 @@ fn line_indicies_touched_by(
     rope: &Rope,
     range: AbsoluteCharOffsetRange,
 ) -> Option<Vec1<LineIndex>> {
-    dbg!();
+    dbg!(rope, range);
     let min_index = rope.char_to_line(range.min())?;
     let max_index = rope.char_to_line(range.max())?;
     dbg!();

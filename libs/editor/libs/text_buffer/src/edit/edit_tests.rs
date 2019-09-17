@@ -458,5 +458,27 @@ fn tab_out_preserves_non_white_space_on_this_generated_example() {
     tab_out_preserves_non_white_space_on(buffer);
 }
 
+#[test]
+fn tab_out_preserves_non_white_space_on_this_reduced_example() {
+    let mut buffer = t_b!(" 2b");
+
+    buffer.cursors = Cursors::new(vec1![Cursor::new_with_highlight(
+        pos! {l 1 o 1},
+        pos! {l 0 o 1}
+    )]);
+    tab_out_preserves_non_white_space_on(buffer);
+}
+
+#[test]
+fn tab_out_preserves_non_white_space_on_this_reduced_in_a_different_way_example() {
+    let mut buffer = t_b!(" 2b");
+
+    buffer.cursors = Cursors::new(vec1![Cursor::new_with_highlight(
+        pos! {l 1 o 0},
+        pos! {l 0 o 1}
+    )]);
+    tab_out_preserves_non_white_space_on(buffer);
+}
+
 mod edit_arb;
 mod undo_redo;
