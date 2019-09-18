@@ -283,7 +283,8 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
     dbg!(original_cursors);
     get_edit(original_rope, original_cursors, |cursor, rope, _| {
         match offset_pair(original_rope, cursor) {
-            (Some(o1), Some(o2)) => {
+            (Some(o1), offset2) => {
+                let o2 = offset2.unwrap_or(o1);
                 let line_indicies = some_or!(
                     line_indicies_touched_by(rope, AbsoluteCharOffsetRange::new(o1, o2)),
                     return d!()
@@ -291,6 +292,7 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
 
                 let last_line_indicies_index = line_indicies.len() - 1;
                 let range = {
+                    dbg!(&line_indicies);
                     let first_line_index = line_indicies[0];
                     let last_line_index = line_indicies[last_line_indicies_index];
 
@@ -327,26 +329,26 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
                         first_non_white_space_offset
                     );
 
-                    if let Some(offset) = first_non_white_space_offset {
-                        let delete_count = min(offset, CharOffset(TAB_STR_CHAR_COUNT));
-                        char_delete_count += delete_count.0;
+                    let delete_count = min(
+                        first_non_white_space_offset.unwrap_or(relative_line_end),
+                        CharOffset(TAB_STR_CHAR_COUNT)
+                    );
+                    char_delete_count += delete_count.0;
 
-                        let should_include_newlline = i != last_line_indicies_index;
+                    let should_include_newlline = i != last_line_indicies_index;
 
-                        let slice_end = if should_include_newlline {
-                            line.len_chars()
-                        } else {
-                            relative_line_end
-                        };
-
-                        dbg!(delete_count, should_include_newlline, slice_end,);
-                        chars.push_str(some_or!(
-                            line.slice(delete_count..slice_end).and_then(|l| l.as_str()),
-                            continue
-                        ));
+                    let slice_end = if should_include_newlline {
+                        line.len_chars()
                     } else {
-                        chars.push_str(some_or!(line.as_str(), continue));
-                    }
+                        relative_line_end
+                    };
+
+                    dbg!(delete_count, should_include_newlline, slice_end,);
+                    chars.push_str(some_or!(
+                        line.slice(delete_count..slice_end).and_then(|l| l.as_str()),
+                        continue
+                    ));
+
                 }
 
                 dbg!(&range);

@@ -381,32 +381,53 @@ fn tab_out_preserves_line_count_on_this_generated_example() {
     tab_out_preserves_line_count_on(buffer);
 }
 
-proptest! {
-    #[test]
-    fn tab_in_then_tab_out_is_identity(
-        initial_buffer in arb::text_buffer_with_many_cursors(),
-    ) {
-        let mut buffer = deep_clone(&initial_buffer);
+fn tab_in_then_tab_out_is_identity_on_regarding_ropes(initial_buffer: TextBuffer) {
+    let mut buffer = deep_clone(&initial_buffer);
 
-        TestEdit::apply(&mut buffer, TestEdit::TabIn);
-        TestEdit::apply(&mut buffer, TestEdit::TabOut);
+    TestEdit::apply(&mut buffer, TestEdit::TabIn);
+    TestEdit::apply(&mut buffer, TestEdit::TabOut);
 
-        assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
-    }
+    assert_eq!(buffer.rope, initial_buffer.rope);
 }
 
 proptest! {
     #[test]
-    fn tab_out_then_tab_in_is_identity(
-        initial_buffer in arb::text_buffer_with_many_cursors(),
+    fn tab_in_then_tab_out_is_identity_on_all_space_buffers_regarding_ropes(
+        initial_buffer in arb::all_space_text_buffer_with_many_cursors(),
     ) {
-        let mut buffer = deep_clone(&initial_buffer);
-
-        TestEdit::apply(&mut buffer, TestEdit::TabOut);
-        TestEdit::apply(&mut buffer, TestEdit::TabIn);
-
-        assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
+        tab_in_then_tab_out_is_identity_on_regarding_ropes(initial_buffer);
     }
+}
+
+#[test]
+fn tab_in_then_tab_out_is_identity_on_a_single_newline_regarding_ropes() {
+    tab_in_then_tab_out_is_identity_on_regarding_ropes(t_b!("\n"));
+}
+
+#[test]
+fn tab_out_then_tab_in_is_as_expected_on_this_example() {
+    //                     three spaces    vvv
+    let initial_buffer: TextBuffer = t_b!("   ");
+    //                     four spaces      vvvv
+    let expected_buffer: TextBuffer = t_b!("    ");
+    let mut buffer = deep_clone(&initial_buffer);
+
+    TestEdit::apply(&mut buffer, TestEdit::TabOut);
+    TestEdit::apply(&mut buffer, TestEdit::TabIn);
+
+    assert_eq!(buffer.rope, expected_buffer.rope);
+}
+
+#[test]
+fn tab_out_then_tab_in_is_as_expected_on_this_smaller_example() {
+    //                     three spaces    vvv
+    let initial_buffer: TextBuffer = t_b!("   ");
+    let mut buffer = deep_clone(&initial_buffer);
+
+    TestEdit::apply(&mut buffer, TestEdit::TabOut);
+    let middle_buffer = deep_clone(&buffer);
+
+    assert_text_buffer_eq_ignoring_history!(middle_buffer, t_b!(""));
 }
 
 proptest! {
@@ -450,33 +471,33 @@ proptest! {
 #[test]
 fn tab_out_preserves_non_white_space_on_this_generated_example() {
     let mut buffer = t_b!(" 2b");
-
     buffer.cursors = Cursors::new(vec1![
         Cursor::new(pos! {l 2 o 0}),
         Cursor::new_with_highlight(pos! {l 1 o 24}, pos! {l 0 o 1})
     ]);
+
     tab_out_preserves_non_white_space_on(buffer);
 }
 
 #[test]
 fn tab_out_preserves_non_white_space_on_this_reduced_example() {
     let mut buffer = t_b!(" 2b");
-
     buffer.cursors = Cursors::new(vec1![Cursor::new_with_highlight(
         pos! {l 1 o 1},
         pos! {l 0 o 1}
     )]);
+
     tab_out_preserves_non_white_space_on(buffer);
 }
 
 #[test]
 fn tab_out_preserves_non_white_space_on_this_reduced_in_a_different_way_example() {
     let mut buffer = t_b!(" 2b");
-
     buffer.cursors = Cursors::new(vec1![Cursor::new_with_highlight(
         pos! {l 1 o 0},
         pos! {l 0 o 1}
     )]);
+
     tab_out_preserves_non_white_space_on(buffer);
 }
 

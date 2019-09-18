@@ -10,6 +10,12 @@ prop_compose! {
 }
 
 prop_compose! {
+    pub fn all_space_rope()(s in "[ \n]*") -> Rope {
+        r!(s)
+    }
+}
+
+prop_compose! {
     pub fn non_0_to_9_char_rope()(s in "[^0-9]*") -> Rope {
         r!(s)
     }
@@ -96,6 +102,17 @@ pub fn many_valid_cursors_for_rope(rope: &Rope, max_len: usize) -> impl Strategy
 prop_compose! {
     pub fn text_buffer_with_many_cursors()
     (rope in rope())
+    (cursors in many_cursors(MORE_THAN_SOME_AMOUNT), r in Just(rope)) -> TextBuffer {
+        let mut text_buffer: TextBuffer = d!();
+        text_buffer.rope = r;
+        text_buffer.cursors = cursors;
+        text_buffer
+    }
+}
+
+prop_compose! {
+    pub fn all_space_text_buffer_with_many_cursors()
+    (rope in all_space_rope())
     (cursors in many_cursors(MORE_THAN_SOME_AMOUNT), r in Just(rope)) -> TextBuffer {
         let mut text_buffer: TextBuffer = d!();
         text_buffer.rope = r;
