@@ -335,19 +335,28 @@ fn get_first_non_white_space_offset_in_range_works_on_these_examples() {
     );
 }
 
+fn tab_in_preserves_line_count_on(mut buffer: TextBuffer) {
+    let line_count = buffer.rope.len_lines();
+
+    for i in 0..SOME_AMOUNT {
+        TestEdit::apply(&mut buffer, TestEdit::TabIn);
+
+        assert_eq!(line_count, buffer.rope.len_lines(), "iteration {}", i);
+    }
+}
+
 proptest! {
     #[test]
     fn tab_in_preserves_line_count(
-        mut buffer in arb::text_buffer_with_many_cursors(),
+        buffer in arb::text_buffer_with_many_cursors(),
     ) {
-        let line_count = buffer.rope.len_lines();
-
-        for i in 0..SOME_AMOUNT {
-            TestEdit::apply(&mut buffer, TestEdit::TabIn);
-
-            assert_eq!(line_count, buffer.rope.len_lines(), "iteration {}", i);
-        }
+        tab_in_preserves_line_count_on(buffer);
     }
+}
+
+#[test]
+fn tab_in_preserves_line_count_on_the_empty_rope() {
+    tab_in_preserves_line_count_on(t_b!(""));
 }
 
 fn tab_out_preserves_line_count_on(mut buffer: TextBuffer) {
@@ -356,7 +365,13 @@ fn tab_out_preserves_line_count_on(mut buffer: TextBuffer) {
     for i in 0..SOME_AMOUNT {
         TestEdit::apply(&mut buffer, TestEdit::TabOut);
 
-        assert_eq!(line_count, buffer.rope.len_lines(), "iteration {}", i);
+        assert_eq!(
+            line_count,
+            buffer.rope.len_lines(),
+            "iteration {}, rope: {:?}",
+            i,
+            buffer.rope
+        );
     }
 }
 
@@ -370,6 +385,11 @@ proptest! {
 }
 
 #[test]
+fn tab_out_preserves_line_count_on_the_empty_rope() {
+    tab_out_preserves_line_count_on(t_b!(""));
+}
+
+#[test]
 fn tab_out_preserves_line_count_on_this_generated_example() {
     let mut buffer = t_b!("�<AGL");
 
@@ -377,6 +397,17 @@ fn tab_out_preserves_line_count_on_this_generated_example() {
         Cursor::new_with_highlight(pos! {l 1 o 4}, pos! {l 2 o 0}),
         Cursor::new_with_highlight(pos! {l 1 o 3}, pos! {l 0 o 0})
     ]);
+
+    tab_out_preserves_line_count_on(buffer);
+}
+
+#[test]
+fn tab_out_preserves_line_count_on_this_shorter_generated_example() {
+    let mut buffer = t_b!("\u{2028}");
+    buffer.cursors = Cursors::new(vec1![Cursor::new_with_highlight(
+        pos! {l 0 o 0},
+        pos! {l 5 o 10}
+    )]);
 
     tab_out_preserves_line_count_on(buffer);
 }
