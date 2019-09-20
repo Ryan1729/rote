@@ -446,14 +446,47 @@ fn tab_in_then_tab_out_is_identity_on_a_single_newline_regarding_ropes() {
     tab_in_then_tab_out_is_identity_on_regarding_ropes(t_b!("\n"));
 }
 
-#[test]
-fn tab_in_then_tab_out_is_identity_on_2_spaces_then_a_single_newline_and_particular_cursors_regarding_ropes() {
+fn get_2_spaces_then_a_single_newline_and_particular_cursors() -> TextBuffer {
     let mut buffer = t_b!("  \n");
+    // The reson these cursors are interesting is that they result in an offset pair of
+    // `(None, Some(...))` after the first edit. This is not a desirable state, so we may want to
+    // just make that state impossible.
     buffer.cursors = Cursors::new(vec1![
-        Cursor::new_with_highlight(pos!{l 6 o 3}, pos!{l 0 o 4}),
-        Cursor::new_with_highlight(pos!{l 0 o 3}, pos!{l 0 o 0})
+        Cursor::new_with_highlight(pos! {l 6 o 3}, pos! {l 0 o 4}),
+        Cursor::new_with_highlight(pos! {l 0 o 3}, pos! {l 0 o 0})
     ]);
-    tab_in_then_tab_out_is_identity_on_regarding_ropes(buffer);
+    buffer
+}
+
+#[test]
+fn tab_in_then_tab_out_is_identity_on_2_spaces_then_a_single_newline_and_particular_cursors_regarding_ropes(
+) {
+    tab_in_then_tab_out_is_identity_on_regarding_ropes(
+        get_2_spaces_then_a_single_newline_and_particular_cursors(),
+    );
+}
+
+#[test]
+fn tab_in_is_as_expected_on_2_spaces_then_a_single_newline_and_particular_cursors_regarding_ropes()
+{
+    let mut buffer = get_2_spaces_then_a_single_newline_and_particular_cursors();
+
+    TestEdit::apply(&mut buffer, TestEdit::TabIn);
+    // I'm not positive this is actually what we should expect given the cursors are both starting
+    // on the first line
+    assert_eq!(buffer.rope, r!("      \n    "));
+}
+
+#[test]
+fn tab_out_results_in_2_spaces_then_a_single_newline_in_this_case() {
+    let mut buffer = get_2_spaces_then_a_single_newline_and_particular_cursors();
+    TestEdit::apply(&mut buffer, TestEdit::TabIn);
+
+    dbg!(&buffer);
+
+    TestEdit::apply(&mut buffer, TestEdit::TabOut);
+
+    assert_eq!(buffer.rope, r!("  \n"));
 }
 
 #[test]

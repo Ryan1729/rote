@@ -385,7 +385,7 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
                     delete_range: Some(delete_edit),
                 })
             }
-            _ => d!(),
+            (o1, o2) => {dbg!(o1, o2); d!()},
         }
     })
 }
