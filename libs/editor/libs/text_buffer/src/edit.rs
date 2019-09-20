@@ -295,13 +295,19 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
                     dbg!(&line_indicies);
                     let first_line_index = line_indicies[0];
                     let last_line_index = line_indicies[last_line_indicies_index];
+                    dbg!(last_line_index);
 
                     AbsoluteCharOffsetRange::new(
                         some_or!(rope.line_to_char(first_line_index), return d!()),
                         some_or!(
-                            rope.line(last_line_index).and_then(|line| rope
-                                .line_to_char(last_line_index)
-                                .map(|o| o + line.len_chars())),
+                            rope.line(last_line_index).and_then(|line|
+                                dbg!(rope
+                                .line_to_char(last_line_index))
+                                .map(|o|
+                                    o
+                                    + final_non_newline_offset_for_rope_line(line).0
+                                )
+                            ),
                             return d!()
                         ),
                     )
@@ -331,7 +337,7 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
 
                     let delete_count = min(
                         first_non_white_space_offset.unwrap_or(relative_line_end),
-                        CharOffset(TAB_STR_CHAR_COUNT)
+                        CharOffset(TAB_STR_CHAR_COUNT),
                     );
                     char_delete_count += delete_count.0;
 
@@ -348,7 +354,6 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
                         line.slice(delete_count..slice_end).and_then(|l| l.as_str()),
                         continue
                     ));
-
                 }
 
                 dbg!(&range);

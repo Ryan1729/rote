@@ -412,6 +412,17 @@ fn tab_out_preserves_line_count_on_this_shorter_generated_example() {
     tab_out_preserves_line_count_on(buffer);
 }
 
+#[test]
+fn tab_out_preserves_line_count_on_this_reduced_example() {
+    let mut buffer = t_b!("\n");
+    buffer.cursors = Cursors::new(vec1![Cursor::new_with_highlight(
+        pos! {l 0 o 0},
+        pos! {l 3 o 0}
+    )]);
+
+    tab_out_preserves_line_count_on(buffer);
+}
+
 fn tab_in_then_tab_out_is_identity_on_regarding_ropes(initial_buffer: TextBuffer) {
     let mut buffer = deep_clone(&initial_buffer);
 
@@ -433,6 +444,16 @@ proptest! {
 #[test]
 fn tab_in_then_tab_out_is_identity_on_a_single_newline_regarding_ropes() {
     tab_in_then_tab_out_is_identity_on_regarding_ropes(t_b!("\n"));
+}
+
+#[test]
+fn tab_in_then_tab_out_is_identity_on_2_spaces_then_a_single_newline_and_particular_cursors_regarding_ropes() {
+    let mut buffer = t_b!("  \n");
+    buffer.cursors = Cursors::new(vec1![
+        Cursor::new_with_highlight(pos!{l 6 o 3}, pos!{l 0 o 4}),
+        Cursor::new_with_highlight(pos!{l 0 o 3}, pos!{l 0 o 0})
+    ]);
+    tab_in_then_tab_out_is_identity_on_regarding_ropes(buffer);
 }
 
 #[test]
