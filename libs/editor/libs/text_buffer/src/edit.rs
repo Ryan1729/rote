@@ -2,16 +2,16 @@ use super::*;
 use crate::move_cursor::{backward_n, forward_n};
 use macros::{CheckedSub, SaturatingSub};
 
-pub fn apply(rope: &mut Rope, cursors: &mut Cursors, edit: &Edit) {
+pub fn apply<'rope, 'cursors>(mut applier: EditApplier, edit: &Edit) {
     // we assume that the edits are in the proper order so we won't mess up our indexes with our
     // own inserts and removals. I'm not positive that there being a single order that works
     // is possible for all possible edits, but in practice I think the edits we will actually
     // produce will work out. The tests should tell us if we're wrong!
     for range_edit in edit.range_edits.iter() {
-        range_edit.apply(rope);
+        range_edit.apply(applier.rope);
     }
 
-    *cursors = edit.cursors.new.clone();
+    applier.set_cursors(edit.cursors.new.clone());
 }
 
 /// Calls the `FnMut` once with a copy of each cursor and a reference to the same clone of the

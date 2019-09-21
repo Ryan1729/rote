@@ -151,6 +151,13 @@ impl Cursors {
     pub fn last(&self) -> &Cursor {
         self.cursors.last()
     }
+
+    pub fn clamp_to_rope(&mut self, rope: &Rope) {
+        // TODO: make sure bothe edges of all cursors are within the rope's bounds.
+
+        // sketch of algorithm: convert all egdes to absolute offsets, clamp those offsets, then
+        // convert back to positions and call `merge_overlaps`.
+    }
 }
 
 borrow!(<Vec1<Cursor>> for Cursors : c in &c.cursors);
@@ -439,7 +446,8 @@ impl TextBuffer {
 
     #[perf_viz::record]
     fn apply_edit(&mut self, edit: Edit, kind: ApplyKind) {
-        edit::apply(&mut self.rope, &mut self.cursors, &edit);
+        let applier = EditApplier{rope: &mut self.rope, cursors: &mut self.cursors };
+        edit::apply(applier, &edit);
 
         match kind {
             ApplyKind::Record => {
@@ -448,6 +456,26 @@ impl TextBuffer {
             }
             ApplyKind::Playback => {}
         }
+    }
+}
+
+fn set_cursors(rope: &Rope, pointer: &mut Cursors, mut new: Cursors) {
+    new.clamp_to_rope(rope);
+    *pointer = new;
+}
+
+/// We want to ensure that the cursors are always kept within bounds, meaning the whenever they
+/// are changed they need to be clamped to the range of the rope. But we want to have a different
+/// module handle the actual changes. So we give the `edit` module an instance of this struct
+/// which allows editing the rope and cursors in a controlled fashion.
+pub struct EditApplier<'rope, 'cursors> {
+    pub rope: &'rope mut Rope,
+    cursors: &'cursors mut Cursors,
+}
+
+impl<'rope, 'cursors> EditApplier<'rope, 'cursors> {
+    fn set_cursors(&mut self, new: Cursors) {
+        set_cursors(self.rope, self.cursors, new);
     }
 }
 
