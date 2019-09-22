@@ -338,92 +338,6 @@ fn this_multi_cursor_example_produces_the_correct_final_string() {
     assert_eq!(actual, expected);
 }
 
-/*
-
-fn buffer_preserves_this_equality(buffer: &TextBuffer) {
-    let mut buffer = deep_clone(buffer);
-    let cursors_len = buffer.cursors.len();
-
-    // This intentionally may double count, since not doing that will hide bugs.
-    let highlighted_char_count = buffer.cursors.iter().fold(0, |acc, c| {
-        if let (Some(o1), Some(o2)) = offset_pair(&buffer.rope, c) {
-            let range = AbsoluteCharOffsetRange::new(o1, o2);
-
-            acc + range.max().saturating_sub(range.min()).0
-        } else {
-            acc
-        }
-    });
-
-    let initial_len_chars = buffer.rope.len_chars().0;
-
-    buffer.insert('a');
-
-    let final_len_chars = buffer.rope.len_chars().0;
-
-    let expected = dbg!(initial_len_chars) as isize - dbg!(highlighted_char_count) as isize + dbg!(cursors_len) as isize;
-
-    assert_eq!(
-        final_len_chars as isize,
-        expected,
-        "we expected \"{}\" to be {} chars long",
-        {let s: String = buffer.rope.into(); s},
-        expected
-    );
-}
-
-proptest!{
-    #[test]
-    fn multicursor_insertion_should_preserve_this_equality(
-        buffer in arb::text_buffer_with_valid_cursors()
-    ) {
-        buffer_preserves_this_equality(&buffer);
-    }
-}
-
-proptest!{
-    #[test]
-    fn multicursor_insertion_should_preserve_this_equality_even_if_there_are_lots_of_cursors(
-        buffer in arb::text_buffer_with_many_valid_cursors_and_no_0_to_9_chars()
-    ) {
-        buffer_preserves_this_equality(&buffer);
-    }
-}
-
-#[test]
-fn this_buffer_preserves_this_equality() {
-    let mut buffer = t_b!("abcde");
-
-    buffer.set_cursor(pos!{l 0 o 2}, ReplaceOrAdd::Replace);
-    buffer.set_cursor(pos!{l 0 o 4}, ReplaceOrAdd::Add);
-
-    buffer.extend_selection_for_all_cursors(Move::ToBufferStart);
-
-    buffer_preserves_this_equality(&buffer);
-}
-
-#[test]
-fn this_generated_buffer_preserves_this_equality() {
-    let mut buffer = t_b!(":\nA :\n");
-
-    buffer.cursors = Vec1::try_from_vec(vec![
-        {
-            let mut c = Cursor::new(pos!{l 0 o 0});
-            c.set_highlight_position(pos!{l 1 o 0});
-            c
-        },
-        {
-            let mut c = Cursor::new(pos!{l 2 o 0});
-            c.set_highlight_position(pos!{l 0 o 0});
-            c
-        }
-    ]).unwrap();
-
-    buffer_preserves_this_equality(&buffer);
-}
-
-*/
-
 fn buffer_inserts_all_the_requested_numbers_in_order(buffer: &TextBuffer) {
     let mut buffer = deep_clone(buffer);
 
@@ -486,19 +400,16 @@ fn inserting_sequential_numbers_into_a_field_of_non_numbers_inserts_all_the_requ
 ) {
     let mut buffer = t_b!("\n\n");
 
-    buffer.cursors = Cursors::from_vec(vec![
-        {
-            let mut c = Cursor::new(pos! {l 0 o 0});
-            c.set_highlight_position(pos! {l 1 o 0});
-            c
-        },
-        {
-            let mut c = Cursor::new(pos! {l 1 o 0});
-            c.set_highlight_position(pos! {l 0 o 0});
-            c
-        },
-    ])
-    .unwrap();
+    buffer.set_cursors_from_vec1(vec1![
+        Cursor::new_with_highlight(
+            pos! {l 0 o 0},
+            pos! {l 1 o 0}
+        ),
+        Cursor::new_with_highlight(
+            pos! {l 1 o 0},
+            pos! {l 0 o 0}
+        )
+    ]);
 
     buffer_inserts_all_the_requested_numbers_in_order(&buffer);
 }
@@ -517,8 +428,9 @@ fn inserting_sequential_numbers_into_this_buffer_inserts_all_the_requested_numbe
 
 const OUT_OF_ORDER: u8 = 0b1;
 const HAS_OVERLAPS: u8 = 0b10;
+const OUTSIDE_ROPE_BOUNDS: u8 = 0b100;
 
-fn cursor_vec1_maintains_invariants(cursors: &Vec1<Cursor>) -> u8 {
+fn cursor_vec1_maintains_invariants(rope: &Rope, cursors: &Vec1<Cursor>) -> u8 {
     use std::cmp::Ordering;
     let mut spans = cursors
         .mapped_ref(|c| {
@@ -565,15 +477,22 @@ fn cursor_vec1_maintains_invariants(cursors: &Vec1<Cursor>) -> u8 {
         }
     }
 
+    // TODO prodce `OUTSIDE_ROPE_BOUNDS` when appropriate
+
     output
 }
 
 // meta
 #[test]
 fn cursor_vec1_maintains_invariants_detects_invariant_violations() {
+    // I just want some rope large enough for all the tests that precede the reope requirement for
+    // creating cursors to be in bounds.
+    let rope = r!(format!("{0}{0}{0}{0}{0}{0}{0}{0}{0}{0}{0}", "01234567890\n"));
+
     assert_eq!(
         HAS_OVERLAPS,
-        cursor_vec1_maintains_invariants(&vec1![
+        cursor_vec1_maintains_invariants(&rope,
+            &vec1![
             Cursor::new(pos! {l 1 o 2}),
             Cursor::new(pos! {l 1 o 2})
         ])
@@ -581,7 +500,8 @@ fn cursor_vec1_maintains_invariants_detects_invariant_violations() {
 
     assert_eq!(
         OUT_OF_ORDER,
-        cursor_vec1_maintains_invariants(&vec1![
+        cursor_vec1_maintains_invariants(&rope,
+            &vec1![
             Cursor::new(pos! {l 1 o 2}),
             Cursor::new(pos! {l 9 o 0})
         ])
@@ -589,41 +509,68 @@ fn cursor_vec1_maintains_invariants_detects_invariant_violations() {
 
     assert_eq!(
         OUT_OF_ORDER | HAS_OVERLAPS,
-        cursor_vec1_maintains_invariants(&vec1![
-            {
-                let mut c = Cursor::new(pos! {l 1 o 2});
-                c.set_highlight_position(pos! {l 9 o 1});
-                c
-            },
+        cursor_vec1_maintains_invariants(&rope,
+            &vec1![
+            Cursor::new_with_highlight(pos! {l 1 o 2}, pos!{l 9 o 1}),
             Cursor::new(pos! {l 9 o 0})
         ])
     );
 
     assert_eq!(
-        OUT_OF_ORDER | HAS_OVERLAPS,
-        cursor_vec1_maintains_invariants(&vec1![
-            {
-                let mut c = Cursor::new(pos! {l 1 o 2});
-                c.set_highlight_position(pos! {l 9 o 0});
-                c
-            },
+        OUTSIDE_ROPE_BOUNDS,
+        cursor_vec1_maintains_invariants(&rope,
+            &vec1![
+            Cursor::new(pos! {l 20 o 0})
+        ])
+    );
+
+    assert_eq!(
+        OUTSIDE_ROPE_BOUNDS | HAS_OVERLAPS,
+        cursor_vec1_maintains_invariants(&rope,
+            &vec1![
+            Cursor::new(pos! {l 20 o 0}),
+            Cursor::new(pos! {l 1 o 2}),
+            Cursor::new(pos! {l 1 o 2})
+        ])
+    );
+
+    assert_eq!(
+        OUTSIDE_ROPE_BOUNDS | OUT_OF_ORDER,
+        cursor_vec1_maintains_invariants(&rope,
+            &vec1![
+            Cursor::new(pos! {l 1 o 2}),
+            Cursor::new(pos! {l 20 o 0})
+        ])
+    );
+
+    assert_eq!(
+        OUTSIDE_ROPE_BOUNDS | OUT_OF_ORDER | HAS_OVERLAPS,
+        cursor_vec1_maintains_invariants(&rope,
+            &vec1![
+            Cursor::new(pos! {l 20 o 0}),
+            Cursor::new_with_highlight(pos! {l 1 o 2}, pos!{l 9 o 1}),
             Cursor::new(pos! {l 9 o 0})
         ])
     );
 }
 
-fn cursors_maintains_invariants(cursors: &Cursors) -> u8 {
-    cursor_vec1_maintains_invariants(&cursors.cursors)
+fn cursors_maintains_invariants(rope: &Rope, cursors: &Cursors) -> u8 {
+    cursor_vec1_maintains_invariants(rope, &cursors.cursors)
 }
 
 macro_rules! assert_cursor_invarints_maintained {
-    ($cursors: expr) => {{
-        let flags = cursors_maintains_invariants(&$cursors);
+    ($rope:expr, $cursors: expr) => {{
+        let flags = cursors_maintains_invariants(&$rope, &$cursors);
 
         assert_eq!(
             0,
             flags,
-            "{} {}",
+            "{} {} {}",
+            if flags & OUTSIDE_ROPE_BOUNDS == OUTSIDE_ROPE_BOUNDS {
+                "OUTSIDE_ROPE_BOUNDS"
+            } else {
+                ""
+            },
             if flags & OUT_OF_ORDER == OUT_OF_ORDER {
                 "OUT_OF_ORDER"
             } else {
@@ -644,35 +591,36 @@ proptest! {
         mut buffer in arb::text_buffer_with_many_cursors(),
         edits in arb::test_edits(99, arb::TestEditSpec::All)
     ) {
-        assert_cursor_invarints_maintained!(buffer.cursors);
+        assert_cursor_invarints_maintained!(buffer.rope, buffer.cursors);
 
         for edit in edits {
             arb::TestEdit::apply(&mut buffer, edit);
         }
 
-        assert_cursor_invarints_maintained!(buffer.cursors);
+        assert_cursor_invarints_maintained!(buffer.rope, buffer.cursors);
     }
 }
 
 proptest! {
     #[test]
     fn cursors_new_maintains_invariants(
+        rope in arb::rope(),
         vec1_of_cursors in arb::vec1_of_cursors(SOME_AMOUNT)
     ) {
-        assert_cursor_invarints_maintained!(Cursors::new(vec1_of_cursors));
+        assert_cursor_invarints_maintained!(rope, Cursors::new(&rope, vec1_of_cursors));
     }
 }
 
 #[test]
 fn cursors_new_merges_these_cursors() {
-    let cursors = Cursors::new(vec1![d!(), d!(), d!()]);
+    let cursors = Cursors::new(&r!("hi"), vec1![d!(), d!(), d!()]);
 
     assert_eq!(cursors.len(), 1);
 }
 
 #[test]
 fn cursors_new_merges_these_identical_cursors_correctly() {
-    let cursors = Cursors::new(vec1![
+    let cursors = Cursors::new(&r!("long\nenough"), vec1![
         Cursor::new(pos! {l 1 o 2}),
         Cursor::new(pos! {l 1 o 2}),
         d!()

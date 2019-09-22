@@ -27,22 +27,21 @@ prop_compose! {
     }
 }
 
-prop_compose! {
-    pub(crate) fn edit()
-    (len in 1..SOME_AMOUNT)
-    (range_edits in vec1(range_edits(len), len), cursors in arb_change!(arb::cursors(len))) -> Edit {
-        Edit {
-            range_edits,
-            cursors,
-        }
-    }
-}
+pub(crate) fn edit<'rope, R: 'rope + Borrow<Rope>>(rope: R) -> impl Strategy<Value = Edit> + 'rope {
+    let rope = rope.borrow();
+    let rope = rope.clone();
 
-// Because I couldn't figure out the types for this. And it looks like `proptest` ends up making
-// custom structs for each instance of things like this.
-#[macro_export]
-macro_rules! arb_change {
-    ($strat: expr) => {
-        ($strat, $strat).prop_map(|(old, new)| Change { old, new })
-    };
+    (1..SOME_AMOUNT).prop_flat_map(move |len| {
+        let cursor_strat = arb::valid_cursors_for_rope(rope.clone(), len);
+        let cursor_strat2 = arb::valid_cursors_for_rope(rope.clone(), len);
+
+        (
+            vec1(range_edits(len), len),
+            (cursor_strat, cursor_strat2).prop_map(|(old, new)| Change { old, new }),
+        )
+            .prop_map(|(range_edits, cursors)| Edit {
+                range_edits,
+                cursors,
+            })
+    })
 }

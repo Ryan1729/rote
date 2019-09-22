@@ -77,7 +77,7 @@ fn get_tab_in_edit_produces_the_expected_edit_from_this_buffer_with_different_le
                 delete_range,
             }),
             cursors: Change {
-                new: Cursors::new(Vec1::new(cursor)),
+                new: Cursors::new(&new_rope, Vec1::new(cursor)),
                 old: cursors.clone(),
             },
         }
@@ -102,7 +102,7 @@ fn get_tab_in_edit_produces_the_expected_edit_with_multiple_cursors_in_this_buff
     //pre-condition
     assert_eq!(
         buffer.cursors,
-        Cursors::new(vec1![
+        Cursors::new(&buffer.rope, vec1![
             {
                 let mut c = Cursor::new_with_highlight(pos! {l 9 o 0}, start_of_empty_line);
                 c.state = CursorState::PressedAgainstWall;
@@ -136,7 +136,7 @@ fn get_tab_in_edit_produces_the_expected_edit_with_multiple_cursors_in_this_buff
                 move_cursor::and_extend_selection(&expected_rope, &mut last_cursor, Move::Right);
             }
 
-            Cursors::new(dbg!(vec1![last_cursor.clone(), first_cursor.clone()]))
+            Cursors::new(&expected_rope, vec1![last_cursor.clone(), first_cursor.clone()])
         };
         dbg!(&new_cursors);
         // precondition
@@ -393,7 +393,7 @@ fn tab_out_preserves_line_count_on_the_empty_rope() {
 fn tab_out_preserves_line_count_on_this_generated_example() {
     let mut buffer = t_b!("�<AGL");
 
-    buffer.cursors = Cursors::new(vec1![
+    buffer.set_cursors_from_vec1(vec1![
         Cursor::new_with_highlight(pos! {l 1 o 4}, pos! {l 2 o 0}),
         Cursor::new_with_highlight(pos! {l 1 o 3}, pos! {l 0 o 0})
     ]);
@@ -404,7 +404,7 @@ fn tab_out_preserves_line_count_on_this_generated_example() {
 #[test]
 fn tab_out_preserves_line_count_on_this_shorter_generated_example() {
     let mut buffer = t_b!("\u{2028}");
-    buffer.cursors = Cursors::new(vec1![Cursor::new_with_highlight(
+    buffer.set_cursors_from_vec1(vec1![Cursor::new_with_highlight(
         pos! {l 0 o 0},
         pos! {l 5 o 10}
     )]);
@@ -415,7 +415,7 @@ fn tab_out_preserves_line_count_on_this_shorter_generated_example() {
 #[test]
 fn tab_out_preserves_line_count_on_this_reduced_example() {
     let mut buffer = t_b!("\n");
-    buffer.cursors = Cursors::new(vec1![Cursor::new_with_highlight(
+    buffer.set_cursors_from_vec1(vec1![Cursor::new_with_highlight(
         pos! {l 0 o 0},
         pos! {l 3 o 0}
     )]);
@@ -451,7 +451,7 @@ fn get_2_spaces_then_a_single_newline_and_particular_cursors() -> TextBuffer {
     // The reson these cursors are interesting is that they result in an offset pair of
     // `(None, Some(...))` after the first edit. This is not a desirable state, so we may want to
     // just make that state impossible.
-    buffer.cursors = Cursors::new(vec1![
+    buffer.set_cursors_from_vec1(vec1![
         Cursor::new_with_highlight(pos! {l 6 o 3}, pos! {l 0 o 4}),
         Cursor::new_with_highlight(pos! {l 0 o 3}, pos! {l 0 o 0})
     ]);
@@ -556,7 +556,7 @@ proptest! {
 #[test]
 fn tab_out_preserves_non_white_space_on_this_generated_example() {
     let mut buffer = t_b!(" 2b");
-    buffer.cursors = Cursors::new(vec1![
+    buffer.set_cursors_from_vec1(vec1![
         Cursor::new(pos! {l 2 o 0}),
         Cursor::new_with_highlight(pos! {l 1 o 24}, pos! {l 0 o 1})
     ]);
@@ -567,7 +567,7 @@ fn tab_out_preserves_non_white_space_on_this_generated_example() {
 #[test]
 fn tab_out_preserves_non_white_space_on_this_reduced_example() {
     let mut buffer = t_b!(" 2b");
-    buffer.cursors = Cursors::new(vec1![Cursor::new_with_highlight(
+    buffer.set_cursors_from_vec1(vec1![Cursor::new_with_highlight(
         pos! {l 1 o 1},
         pos! {l 0 o 1}
     )]);
@@ -578,7 +578,7 @@ fn tab_out_preserves_non_white_space_on_this_reduced_example() {
 #[test]
 fn tab_out_preserves_non_white_space_on_this_reduced_in_a_different_way_example() {
     let mut buffer = t_b!(" 2b");
-    buffer.cursors = Cursors::new(vec1![Cursor::new_with_highlight(
+    buffer.set_cursors_from_vec1(vec1![Cursor::new_with_highlight(
         pos! {l 1 o 0},
         pos! {l 0 o 1}
     )]);

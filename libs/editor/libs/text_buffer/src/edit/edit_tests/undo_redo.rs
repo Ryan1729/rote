@@ -5,7 +5,7 @@ use pretty_assertions::assert_eq;
 #[allow(dead_code)]
 fn arb_edit_from_buffer(text_buffer: TextBuffer) -> impl Strategy<Value = Edit> {
     let cs = text_buffer.cursors.clone();
-    edit_arb::edit().prop_map(move |mut edit| {
+    edit_arb::edit(text_buffer.rope).prop_map(move |mut edit| {
         edit.cursors.old = cs.clone();
         edit
     })
@@ -95,7 +95,7 @@ fn negated_edits_undo_redo_this_edit_that_only_changes_the_sticky_offset() {
         // If the first old change does not correspond to the initial buffer, then undoing to that
         // state can fail to match the initila buffer.
         old: buffer.cursors.clone(),
-        new: Cursors::new(Vec1::new(new_cursor.clone())),
+        new: Cursors::new(&buffer.rope, Vec1::new(new_cursor.clone())),
     }
     .into();
 

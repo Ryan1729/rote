@@ -24,13 +24,56 @@ pub struct Cursors {
 }
 
 impl Cursors {
-    pub fn new(mut cursors: Vec1<Cursor>) -> Self {
+    /// We require a rope paramter only so we can make sure the cursors are within the given
+    /// rope's bounds.
+    pub fn new(rope: &Rope, mut cursors: Vec1<Cursor>) -> Self {
         cursors.sort();
         cursors.reverse();
 
-        Cursors::merge_overlaps(&mut cursors);
+        Self::clamp_vec_to_rope(&mut cursors, rope);
 
-        Cursors { cursors }
+        Self { cursors }
+    }
+
+    pub fn mapped_ref<F, Out>(&self, mapper: F) -> Vec1<Out>
+    where
+        F: FnMut(&Cursor) -> Out,
+    {
+        self.cursors.mapped_ref(mapper)
+    }
+
+    #[perf_viz::record]
+    pub fn get_cloned_cursors(&self) -> Vec1<Cursor> {
+        self.cursors.clone()
+    }
+
+    pub fn len(&self) -> usize {
+        self.cursors.len()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &Cursor> {
+        self.cursors.iter()
+    }
+
+    pub fn first(&self) -> &Cursor {
+        self.cursors.first()
+    }
+
+    pub fn last(&self) -> &Cursor {
+        self.cursors.last()
+    }
+
+    pub fn clamp_to_rope(&mut self, rope: &Rope) {
+        Self::clamp_vec_to_rope(&mut self.cursors, rope)
+    }
+
+    fn clamp_vec_to_rope(cursors: &mut Vec1<Cursor>, rope: &Rope) {
+        // TODO: make sure both edges of all cursors are within the rope's bounds.
+
+        // sketch of algorithm: convert all egdes to absolute offsets, clamp those offsets, then
+        // convert back to positions and call `merge_overlaps`.
+
+        Self::merge_overlaps(cursors);
     }
 
     fn merge_overlaps(cursors: &mut Vec1<Cursor>) {
@@ -38,7 +81,7 @@ impl Cursors {
 
         while {
             len = cursors.len();
-            Cursors::merge_overlaps_once(cursors);
+            Self::merge_overlaps_once(cursors);
 
             len > cursors.len()
         } {}
@@ -119,45 +162,6 @@ impl Cursors {
         }
     }
 
-    /// Returns `None` iff the vec was empty.
-    pub fn from_vec(cursors: Vec<Cursor>) -> Option<Self> {
-        Vec1::try_from_vec(cursors).ok().map(Cursors::new)
-    }
-
-    pub fn mapped_ref<F, Out>(&self, mapper: F) -> Vec1<Out>
-    where
-        F: FnMut(&Cursor) -> Out,
-    {
-        self.cursors.mapped_ref(mapper)
-    }
-
-    #[perf_viz::record]
-    pub fn get_cloned_cursors(&self) -> Vec1<Cursor> {
-        self.cursors.clone()
-    }
-
-    pub fn len(&self) -> usize {
-        self.cursors.len()
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = &Cursor> {
-        self.cursors.iter()
-    }
-
-    pub fn first(&self) -> &Cursor {
-        self.cursors.first()
-    }
-
-    pub fn last(&self) -> &Cursor {
-        self.cursors.last()
-    }
-
-    pub fn clamp_to_rope(&mut self, rope: &Rope) {
-        // TODO: make sure bothe edges of all cursors are within the rope's bounds.
-
-        // sketch of algorithm: convert all egdes to absolute offsets, clamp those offsets, then
-        // convert back to positions and call `merge_overlaps`.
-    }
 }
 
 borrow!(<Vec1<Cursor>> for Cursors : c in &c.cursors);
@@ -423,7 +427,7 @@ impl TextBuffer {
         self.apply_edit(
             edit::Change {
                 old: self.cursors.clone(),
-                new: Cursors::new(new),
+                new: Cursors::new(&self.rope, new),
             }
             .into(),
             ApplyKind::Record,
@@ -456,6 +460,14 @@ impl TextBuffer {
             }
             ApplyKind::Playback => {}
         }
+    }
+
+    fn set_cursors(&mut self, mut new: Cursors) {
+        set_cursors(&self.rope,&mut self.cursors, new);
+    }
+
+    fn set_cursors_from_vec1(&mut self, cursors: Vec1<Cursor>) {
+        self.cursors = Cursors::new(&self.rope, cursors);
     }
 }
 

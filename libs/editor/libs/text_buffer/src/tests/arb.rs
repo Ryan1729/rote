@@ -54,20 +54,12 @@ pub fn vec1_of_cursors(max_len: usize) -> impl Strategy<Value = Vec1<Cursor>> {
     )
 }
 
-pub fn cursors(max_len: usize) -> impl Strategy<Value = Cursors> {
-    vec1_of_cursors(max_len).prop_map(Cursors::new)
-}
+pub fn valid_cursors_for_rope<'rope, R: 'rope + Borrow<Rope>>(
+    rope: R,
+    max_len: usize,
+) -> impl Strategy<Value = Cursors> + 'rope {
+    let rope = rope.borrow();
 
-pub fn many_cursors(max_len: usize) -> impl Strategy<Value = Cursors> {
-    collection::vec(
-        cursor(LineIndex(max_len), CharOffset(max_len)),
-        std::cmp::max(max_len / 2, 1)..std::cmp::min(std::cmp::max(2, max_len), max_len),
-    )
-    .prop_map(|v| Vec1::try_from_vec(v).expect("we said at least one!"))
-    .prop_map(Cursors::new)
-}
-
-pub fn valid_cursors_for_rope(rope: &Rope, max_len: usize) -> impl Strategy<Value = Cursors> {
     let (max_line, max_offset) = rope
         .lines()
         .enumerate()
@@ -75,14 +67,21 @@ pub fn valid_cursors_for_rope(rope: &Rope, max_len: usize) -> impl Strategy<Valu
             (i, std::cmp::min(line.len_chars(), acc_offset))
         });
 
+    let rope2 = rope.clone();
+
     vec1(
         cursor(LineIndex(max_line), max_offset),
         std::cmp::min(max_len, std::cmp::max(max_line * max_offset.0, 1)),
     )
-    .prop_map(Cursors::new)
+    .prop_map(move |c| Cursors::new(&rope2, c))
 }
 
-pub fn many_valid_cursors_for_rope(rope: &Rope, max_len: usize) -> impl Strategy<Value = Cursors> {
+pub fn many_valid_cursors_for_rope<'rope, R: 'rope + Borrow<Rope>>(
+    rope: R,
+    max_len: usize,
+) -> impl Strategy<Value = Cursors> + 'rope {
+    let rope = rope.borrow();
+
     let (max_line, max_offset) = rope
         .lines()
         .enumerate()
@@ -91,96 +90,114 @@ pub fn many_valid_cursors_for_rope(rope: &Rope, max_len: usize) -> impl Strategy
         });
     let len = max_line + 1;
 
+    let rope2 = rope.clone();
+
     collection::vec(
         cursor(LineIndex(max_line), max_offset),
         std::cmp::max(len / 2, 1)..std::cmp::min(std::cmp::max(2, len), max_len),
     )
     .prop_map(|v| Vec1::try_from_vec(v).expect("we said at least one!"))
-    .prop_map(Cursors::new)
+    .prop_map(move |c| Cursors::new(&rope2, c))
 }
 
-prop_compose! {
-    pub fn text_buffer_with_many_cursors()
-    (rope in rope())
-    (cursors in many_cursors(MORE_THAN_SOME_AMOUNT), r in Just(rope)) -> TextBuffer {
-        let mut text_buffer: TextBuffer = d!();
-        text_buffer.rope = r;
-        text_buffer.cursors = cursors;
-        text_buffer
-    }
+pub fn text_buffer_with_many_cursors() -> impl Strategy<Value = TextBuffer> {
+    rope().prop_flat_map(|rop| {
+        (
+            many_valid_cursors_for_rope(rop.clone(), MORE_THAN_SOME_AMOUNT),
+            Just(rop),
+        )
+            .prop_map(|(cursors, r)| {
+                let mut text_buffer: TextBuffer = d!();
+                text_buffer.rope = r;
+                text_buffer.set_cursors(cursors);
+                text_buffer
+            })
+    })
 }
 
-prop_compose! {
-    pub fn all_space_text_buffer_with_many_cursors()
-    (rope in all_space_rope())
-    (cursors in many_cursors(MORE_THAN_SOME_AMOUNT), r in Just(rope)) -> TextBuffer {
-        let mut text_buffer: TextBuffer = d!();
-        text_buffer.rope = r;
-        text_buffer.cursors = cursors;
-        text_buffer
-    }
+pub fn all_space_text_buffer_with_many_cursors() -> impl Strategy<Value = TextBuffer> {
+    all_space_rope().prop_flat_map(|rop| {
+        (
+            many_valid_cursors_for_rope(rop.clone(), MORE_THAN_SOME_AMOUNT),
+            Just(rop),
+        )
+            .prop_map(|(cursors, r)| {
+                let mut text_buffer: TextBuffer = d!();
+                text_buffer.rope = r.clone();
+                text_buffer.set_cursors(cursors);
+                text_buffer
+            })
+    })
 }
 
-prop_compose! {
-    pub fn no_history_text_buffer()
-    (rope in rope())
-    (cursors in cursors(rope.chars().count()), r in Just(rope)) -> TextBuffer {
-        let mut text_buffer: TextBuffer = d!();
-        text_buffer.rope = r;
-        text_buffer.cursors = cursors;
-        text_buffer
-    }
+pub fn no_history_text_buffer() -> impl Strategy<Value = TextBuffer> {
+    rope().prop_flat_map(|rop| {
+        (
+            many_valid_cursors_for_rope(rop.clone(), rop.chars().count()),
+            Just(rop),
+        )
+            .prop_map(|(cursors, r)| {
+                let mut text_buffer: TextBuffer = d!();
+                text_buffer.rope = r;
+                text_buffer.set_cursors(cursors);
+                text_buffer
+            })
+    })
 }
 
-prop_compose! {
-    pub fn text_buffer_with_valid_cursors()
-    (rope in rope())
-    (
-        cursors in {
-            let (max_line, max_offset) = rope.lines().enumerate().fold((0, CharOffset(0)), |(_, acc_offset), (i, line)| {
-                (i, std::cmp::min(line.len_chars(), acc_offset))
-            });
+pub fn text_buffer_with_valid_cursors() -> impl Strategy<Value = TextBuffer> {
+    rope().prop_flat_map(|rope| {
+        (
+            {
+                let rope = rope.clone();
+                let (max_line, max_offset) = rope
+                    .lines()
+                    .enumerate()
+                    .fold((0, CharOffset(0)), |(_, acc_offset), (i, line)| {
+                        (i, std::cmp::min(line.len_chars(), acc_offset))
+                    });
 
-            vec1(
-                cursor(LineIndex(max_line), max_offset),
-                std::cmp::max(max_line * max_offset.0, 1)
-            ).prop_map(Cursors::new)
-        },
-        r in Just(rope)
-    ) -> TextBuffer {
-        let mut text_buffer: TextBuffer = d!();
-        text_buffer.rope = r;
-        text_buffer.cursors = cursors;
-        text_buffer
-    }
+                vec1(
+                    cursor(LineIndex(max_line), max_offset),
+                    std::cmp::max(max_line * max_offset.0, 1),
+                )
+                .prop_map(move |c| Cursors::new(&rope, c))
+            },
+            Just(rope),
+        )
+            .prop_map(|(cursors, r)| {
+                let mut text_buffer: TextBuffer = d!();
+                text_buffer.rope = r;
+                text_buffer.set_cursors(cursors);
+                text_buffer
+            })
+    })
 }
 
-prop_compose! {
-    pub fn text_buffer_with_valid_cursors_and_no_0_to_9_chars(max_len: usize)
-    (rope in non_0_to_9_char_rope())
-    (
-        cursors in valid_cursors_for_rope(&rope, max_len),
-        r in Just(rope)
-    ) -> TextBuffer {
-        let mut text_buffer: TextBuffer = d!();
-        text_buffer.rope = r;
-        text_buffer.cursors = cursors;
-        text_buffer
-    }
+pub fn text_buffer_with_valid_cursors_and_no_0_to_9_chars(
+    max_len: usize,
+) -> impl Strategy<Value = TextBuffer> {
+    non_0_to_9_char_rope().prop_flat_map(move |rop| {
+        (valid_cursors_for_rope(rop.clone(), max_len), Just(rop)).prop_map(|(cursors, r)| {
+            let mut text_buffer: TextBuffer = d!();
+            text_buffer.rope = r;
+            text_buffer.set_cursors(cursors);
+            text_buffer
+        })
+    })
 }
 
-prop_compose! {
-    pub fn text_buffer_with_many_valid_cursors_and_no_0_to_9_chars(max_len: usize)
-    (rope in non_0_to_9_char_rope())
-    (
-        cursors in many_valid_cursors_for_rope(&rope, max_len),
-        r in Just(rope)
-    ) -> TextBuffer {
-        let mut text_buffer: TextBuffer = d!();
-        text_buffer.rope = r;
-        text_buffer.cursors = cursors;
-        text_buffer
-    }
+pub fn text_buffer_with_many_valid_cursors_and_no_0_to_9_chars(
+    max_len: usize,
+) -> impl Strategy<Value = TextBuffer> {
+    non_0_to_9_char_rope().prop_flat_map(move |rop| {
+        (many_valid_cursors_for_rope(rop.clone(), max_len), Just(rop)).prop_map(|(cursors, r)| {
+            let mut text_buffer: TextBuffer = d!();
+            text_buffer.rope = r;
+            text_buffer.set_cursors(cursors);
+            text_buffer
+        })
+    })
 }
 
 #[derive(Debug, Clone)]

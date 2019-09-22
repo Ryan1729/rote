@@ -44,7 +44,7 @@ where
     Edit {
         range_edits,
         cursors: Change {
-            new: Cursors::new(dbg!(cloned_cursors)),
+            new: Cursors::new(&cloned_rope, dbg!(cloned_cursors)),
             old: original_cursors.clone(),
         },
     }

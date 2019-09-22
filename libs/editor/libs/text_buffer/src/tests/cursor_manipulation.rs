@@ -15,7 +15,7 @@ fn insert_with_matching_cursor_and_highlight_sets_highlight_to_none() {
             .unwrap();
         c.set_highlight_position(c.get_position());
         assert_eq!(c.get_highlight_position(), None);
-        buffer.cursors = Cursors::new(Vec1::new(c));
+        buffer.set_cursors_from_vec1(Vec1::new(c));
     }
 
     buffer.insert('1');
