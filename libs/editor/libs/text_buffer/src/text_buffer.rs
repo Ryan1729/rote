@@ -1,6 +1,4 @@
-use crate::move_cursor::{
-    forward, get_next_selection_point, get_previous_selection_point,
-};
+use crate::move_cursor::{forward, get_next_selection_point, get_previous_selection_point};
 use editor_types::{Cursor, SetPositionAction, Vec1};
 use macros::{borrow, d, some_or, CheckedSub};
 use panic_safe_rope::{ByteIndex, LineIndex, Rope, RopeLine, RopeSliceTrait};
@@ -72,6 +70,20 @@ impl Cursors {
 
         // sketch of algorithm: convert all egdes to absolute offsets, clamp those offsets, then
         // convert back to positions and call `merge_overlaps`.
+
+        for cursor in cursors.iter_mut() {
+            let (p_op, h_op) = offset_pair(rope, cursor);
+
+            if h_op.is_none() {
+                if let Some(h) = cursor.get_highlight_position() {
+                    cursor.set_highlight_position(clamp_position(rope, h));
+                }
+            }
+
+            if p_op.is_none() {
+                cursor.set_position(clamp_position(rope, cursor.get_position()));
+            }
+        }
 
         Self::merge_overlaps(cursors);
     }
@@ -161,7 +173,6 @@ impl Cursors {
             *cursors = cs;
         }
     }
-
 }
 
 borrow!(<Vec1<Cursor>> for Cursors : c in &c.cursors);
@@ -450,7 +461,10 @@ impl TextBuffer {
 
     #[perf_viz::record]
     fn apply_edit(&mut self, edit: Edit, kind: ApplyKind) {
-        let applier = EditApplier{rope: &mut self.rope, cursors: &mut self.cursors };
+        let applier = EditApplier {
+            rope: &mut self.rope,
+            cursors: &mut self.cursors,
+        };
         edit::apply(applier, &edit);
 
         match kind {
@@ -462,10 +476,13 @@ impl TextBuffer {
         }
     }
 
-    fn set_cursors(&mut self, mut new: Cursors) {
-        set_cursors(&self.rope,&mut self.cursors, new);
+    // some of these are convenience methods for tests
+    #[allow(dead_code)]
+    fn set_cursors(&mut self, new: Cursors) {
+        set_cursors(&self.rope, &mut self.cursors, new);
     }
 
+    #[allow(dead_code)]
     fn set_cursors_from_vec1(&mut self, cursors: Vec1<Cursor>) {
         self.cursors = Cursors::new(&self.rope, cursors);
     }
@@ -596,6 +613,21 @@ fn char_offset_to_pos(rope: &Rope, offset: AbsoluteCharOffset) -> Option<Positio
                 offset: o.into(),
             })
     })
+}
+
+fn clamp_position(rope: &Rope, position: Position) -> Position {
+    let last_line_index = rope.len_lines() - 1;
+
+    let line = min(position.line, last_line_index.0);
+
+    let rope_line = rope.line(LineIndex(line));
+
+    let offset = rope_line
+        .map(|r_l| min(position.offset, r_l.len_chars() - 1))
+        // This option should always be `Some` since we have clamped `line` above.
+        .unwrap_or_default();
+
+    Position { line, offset }
 }
 
 impl<'rope> TextBuffer {
