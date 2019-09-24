@@ -401,14 +401,8 @@ fn inserting_sequential_numbers_into_a_field_of_non_numbers_inserts_all_the_requ
     let mut buffer = t_b!("\n\n");
 
     buffer.set_cursors_from_vec1(vec1![
-        Cursor::new_with_highlight(
-            pos! {l 0 o 0},
-            pos! {l 1 o 0}
-        ),
-        Cursor::new_with_highlight(
-            pos! {l 1 o 0},
-            pos! {l 0 o 0}
-        )
+        Cursor::new_with_highlight(pos! {l 0 o 0}, pos! {l 1 o 0}),
+        Cursor::new_with_highlight(pos! {l 1 o 0}, pos! {l 0 o 0})
     ]);
 
     buffer_inserts_all_the_requested_numbers_in_order(&buffer);
@@ -441,6 +435,9 @@ fn cursor_vec1_maintains_invariants(rope: &Rope, cursors: &Vec1<Cursor>) -> u8 {
         })
         .into_vec();
 
+    //
+    // Ordering check
+    //
     let mut output = 0;
 
     for window in spans.windows(2) {
@@ -462,22 +459,36 @@ fn cursor_vec1_maintains_invariants(rope: &Rope, cursors: &Vec1<Cursor>) -> u8 {
         }
     }
 
+    //
+    // Bounds check
+    //
+    for (p1, p2) in spans.iter() {
+        if in_cursor_bounds(rope, p1) && in_cursor_bounds(rope, p2) {
+            continue;
+        }
+
+        output |= OUTSIDE_ROPE_BOUNDS;
+        break;
+    }
+
+    //
+    // Overlap check
+    //
+
     // This prevents false overlap results given things are out of order
     spans.sort_by(|(min1, max1), (min2, max2)| min1.cmp(&min2).then_with(|| max1.cmp(&max2)));
 
-    let mut current = None;
+    let mut previous = None;
 
-    for (span_min, span_max) in dbg!(spans).into_iter().rev() {
-        if let Some((c_min, _c_max)) = current {
-            if span_max >= c_min {
+    for (span_min, span_max) in spans.into_iter().rev() {
+        // Note: we are going in order from starting furthest, to starting earliest
+        if let Some((prev_min, _prev_max)) = previous {
+            if span_max >= prev_min {
                 output |= HAS_OVERLAPS;
             }
-        } else {
-            current = Some((span_min, span_max));
         }
+        previous = Some((span_min, span_max));
     }
-
-    // TODO prodce `OUTSIDE_ROPE_BOUNDS` when appropriate
 
     output
 }
@@ -487,70 +498,73 @@ fn cursor_vec1_maintains_invariants(rope: &Rope, cursors: &Vec1<Cursor>) -> u8 {
 fn cursor_vec1_maintains_invariants_detects_invariant_violations() {
     // I just want some rope large enough for all the tests that precede the reope requirement for
     // creating cursors to be in bounds.
-    let rope = r!(format!("{0}{0}{0}{0}{0}{0}{0}{0}{0}{0}{0}", "01234567890\n"));
+    let rope = r!(format!(
+        "{0}{0}{0}{0}{0}{0}{0}{0}{0}{0}{0}",
+        "01234567890\n"
+    ));
 
     assert_eq!(
         HAS_OVERLAPS,
-        cursor_vec1_maintains_invariants(&rope,
-            &vec1![
-            Cursor::new(pos! {l 1 o 2}),
-            Cursor::new(pos! {l 1 o 2})
-        ])
+        cursor_vec1_maintains_invariants(
+            &rope,
+            &vec1![Cursor::new(pos! {l 1 o 2}), Cursor::new(pos! {l 1 o 2})]
+        )
     );
 
     assert_eq!(
         OUT_OF_ORDER,
-        cursor_vec1_maintains_invariants(&rope,
-            &vec1![
-            Cursor::new(pos! {l 1 o 2}),
-            Cursor::new(pos! {l 9 o 0})
-        ])
+        cursor_vec1_maintains_invariants(
+            &rope,
+            &vec1![Cursor::new(pos! {l 1 o 2}), Cursor::new(pos! {l 9 o 0})]
+        )
     );
 
     assert_eq!(
         OUT_OF_ORDER | HAS_OVERLAPS,
-        cursor_vec1_maintains_invariants(&rope,
+        cursor_vec1_maintains_invariants(
+            &rope,
             &vec1![
-            Cursor::new_with_highlight(pos! {l 1 o 2}, pos!{l 9 o 1}),
-            Cursor::new(pos! {l 9 o 0})
-        ])
+                Cursor::new_with_highlight(pos! {l 1 o 2}, pos! {l 9 o 1}),
+                Cursor::new(pos! {l 9 o 0})
+            ]
+        )
     );
 
     assert_eq!(
         OUTSIDE_ROPE_BOUNDS,
-        cursor_vec1_maintains_invariants(&rope,
-            &vec1![
-            Cursor::new(pos! {l 20 o 0})
-        ])
+        cursor_vec1_maintains_invariants(&rope, &vec1![Cursor::new(pos! {l 20 o 0})])
     );
 
     assert_eq!(
         OUTSIDE_ROPE_BOUNDS | HAS_OVERLAPS,
-        cursor_vec1_maintains_invariants(&rope,
+        cursor_vec1_maintains_invariants(
+            &rope,
             &vec1![
-            Cursor::new(pos! {l 20 o 0}),
-            Cursor::new(pos! {l 1 o 2}),
-            Cursor::new(pos! {l 1 o 2})
-        ])
+                Cursor::new(pos! {l 20 o 0}),
+                Cursor::new(pos! {l 1 o 2}),
+                Cursor::new(pos! {l 1 o 2})
+            ]
+        )
     );
 
     assert_eq!(
         OUTSIDE_ROPE_BOUNDS | OUT_OF_ORDER,
-        cursor_vec1_maintains_invariants(&rope,
-            &vec1![
-            Cursor::new(pos! {l 1 o 2}),
-            Cursor::new(pos! {l 20 o 0})
-        ])
+        cursor_vec1_maintains_invariants(
+            &rope,
+            &vec1![Cursor::new(pos! {l 1 o 2}), Cursor::new(pos! {l 20 o 0})]
+        )
     );
 
     assert_eq!(
         OUTSIDE_ROPE_BOUNDS | OUT_OF_ORDER | HAS_OVERLAPS,
-        cursor_vec1_maintains_invariants(&rope,
+        cursor_vec1_maintains_invariants(
+            &rope,
             &vec1![
-            Cursor::new(pos! {l 20 o 0}),
-            Cursor::new_with_highlight(pos! {l 1 o 2}, pos!{l 9 o 1}),
-            Cursor::new(pos! {l 9 o 0})
-        ])
+                Cursor::new(pos! {l 20 o 0}),
+                Cursor::new_with_highlight(pos! {l 1 o 2}, pos! {l 9 o 1}),
+                Cursor::new(pos! {l 9 o 0})
+            ]
+        )
     );
 }
 
@@ -620,11 +634,14 @@ fn cursors_new_merges_these_cursors() {
 
 #[test]
 fn cursors_new_merges_these_identical_cursors_correctly() {
-    let cursors = Cursors::new(&r!("long\nenough"), vec1![
-        Cursor::new(pos! {l 1 o 2}),
-        Cursor::new(pos! {l 1 o 2}),
-        d!()
-    ]);
+    let cursors = Cursors::new(
+        &r!("long\nenough"),
+        vec1![
+            Cursor::new(pos! {l 1 o 2}),
+            Cursor::new(pos! {l 1 o 2}),
+            d!()
+        ],
+    );
 
     assert_eq!(cursors.cursors, vec1![Cursor::new(pos! {l 1 o 2}), d!()]);
 }
