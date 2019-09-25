@@ -626,6 +626,18 @@ proptest! {
 }
 
 #[test]
+fn cursors_new_maintains_invariants_on_this_out_of_bounds_example() {
+    let rope = r!("");
+    assert_cursor_invarints_maintained!(
+        rope,
+        Cursors::new(
+            &rope,
+            vec1![Cursor::new_with_highlight(pos! {}, pos! {l 0 o 1})]
+        )
+    );
+}
+
+#[test]
 fn cursors_new_merges_these_cursors() {
     let cursors = Cursors::new(&r!("hi"), vec1![d!(), d!(), d!()]);
 

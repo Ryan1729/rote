@@ -66,13 +66,12 @@ impl Cursors {
     }
 
     fn clamp_vec_to_rope(cursors: &mut Vec1<Cursor>, rope: &Rope) {
-        // TODO: make sure both edges of all cursors are within the rope's bounds.
-
         // sketch of algorithm: convert all egdes to absolute offsets, clamp those offsets, then
         // convert back to positions and call `merge_overlaps`.
 
         for cursor in cursors.iter_mut() {
             let (p_op, h_op) = offset_pair(rope, cursor);
+            dbg!(p_op, h_op);
 
             if h_op.is_none() {
                 if let Some(h) = cursor.get_highlight_position() {
@@ -86,6 +85,7 @@ impl Cursors {
         }
 
         Self::merge_overlaps(cursors);
+        dbg!(cursors);
     }
 
     fn merge_overlaps(cursors: &mut Vec1<Cursor>) {
@@ -591,9 +591,19 @@ fn in_cursor_bounds<P: Borrow<Position>>(rope: &Rope, position: P) -> bool {
         .unwrap_or(false)
 }
 
+/// Returns `None` iff the position is not valid for the given rope.
 #[perf_viz::record]
 fn pos_to_char_offset(rope: &Rope, position: &Position) -> Option<AbsoluteCharOffset> {
-    Some(rope.line_to_char(LineIndex(position.line))? + position.offset)
+    let line_index = LineIndex(position.line);
+
+    let line_start = rope.line_to_char(line_index)?;
+    let line = rope.line(line_index)?;
+    let offset = position.offset;
+    if offset == 0 || offset < line.len_chars().checked_sub_one()? {
+        Some(line_start + position.offset)
+    } else {
+        None
+    }
 }
 
 #[perf_viz::record]
@@ -623,7 +633,7 @@ fn clamp_position(rope: &Rope, position: Position) -> Position {
     let rope_line = rope.line(LineIndex(line));
 
     let offset = rope_line
-        .map(|r_l| min(position.offset, r_l.len_chars() - 1))
+        .map(|r_l| min(position.offset, r_l.len_chars().checked_sub_one().unwrap_or_default()))
         // This option should always be `Some` since we have clamped `line` above.
         .unwrap_or_default();
 
