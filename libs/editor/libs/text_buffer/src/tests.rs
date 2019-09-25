@@ -638,6 +638,39 @@ fn cursors_new_maintains_invariants_on_this_out_of_bounds_example() {
 }
 
 #[test]
+fn cursors_new_maintains_invariants_on_this_new_out_of_order_example() {
+    let rope = r!("a 0");
+    assert_cursor_invarints_maintained!(
+        rope,
+        Cursors::new(
+            &rope,
+            vec1![
+                Cursor::new_with_highlight(pos! {l 0 o 2}, pos! {}),
+                Cursor::new_with_highlight(pos! {l 1 o 0}, pos! {})
+            ]
+        )
+    );
+}
+
+#[test]
+fn cursors_new_maintains_invariants_on_this_hat_trick_example() {
+    // This was
+    // OUTSIDE_ROPE_BOUNDS | OUT_OF_ORDER | HAS_OVERLAPS
+    let rope = r!(" ꬑ�a A®®aAa�0");
+    assert_cursor_invarints_maintained!(
+        rope,
+        Cursors::new(
+            &rope,
+            vec1![
+                Cursor::new(pos! {l 0 o 5}),
+                d!(),
+                Cursor::new(pos! {l 1 o 0})
+            ]
+        )
+    );
+}
+
+#[test]
 fn cursors_new_merges_these_cursors() {
     let cursors = Cursors::new(&r!("hi"), vec1![d!(), d!(), d!()]);
 

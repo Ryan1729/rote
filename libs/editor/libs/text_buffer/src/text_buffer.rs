@@ -66,8 +66,7 @@ impl Cursors {
     }
 
     fn clamp_vec_to_rope(cursors: &mut Vec1<Cursor>, rope: &Rope) {
-        // sketch of algorithm: convert all egdes to absolute offsets, clamp those offsets, then
-        // convert back to positions and call `merge_overlaps`.
+        dbg!("pre-clamp", &cursors);
 
         for cursor in cursors.iter_mut() {
             let (p_op, h_op) = offset_pair(rope, cursor);
@@ -80,14 +79,31 @@ impl Cursors {
             }
 
             if p_op.is_none() {
-                cursor.set_position(clamp_position(rope, cursor.get_position()));
+                let clamped = clamp_position(rope, cursor.get_position());
+                cursor.set_position_custom(
+                    clamped,
+                    SetPositionAction::ClearHighlightOnlyIfItMatchesNewPosition,
+                );
+
+                if h_op.is_none() {
+                    cursor.set_highlight_position(clamped);
+                }
             }
         }
+        dbg!("post-clamp", &cursors);
+
+        // TODO justify or remove this
+        // cursors.sort();
+        // cursors.reverse();
+
+        dbg!("post-re-sort", &cursors);
 
         Self::merge_overlaps(cursors);
+
         dbg!(cursors);
     }
 
+    /// Assumes that the cursors are sorted
     fn merge_overlaps(cursors: &mut Vec1<Cursor>) {
         let mut len;
 
@@ -633,7 +649,15 @@ fn clamp_position(rope: &Rope, position: Position) -> Position {
     let rope_line = rope.line(LineIndex(line));
 
     let offset = rope_line
-        .map(|r_l| min(position.offset, r_l.len_chars().checked_sub_one().unwrap_or_default()))
+        .map(|r_l| {
+            // This clamp is bad because it clamps pos!{l 1 o 0} to pos!{l 0 o 0} on a one line
+            // rope, even if the rope has more than one character.
+            // TODO: just use abosolute offsets?
+            min(
+                position.offset,
+                r_l.len_chars().checked_sub_one().unwrap_or_default(),
+            )
+        })
         // This option should always be `Some` since we have clamped `line` above.
         .unwrap_or_default();
 
