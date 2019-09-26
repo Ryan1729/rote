@@ -616,7 +616,7 @@ fn pos_to_char_offset(rope: &Rope, position: &Position) -> Option<AbsoluteCharOf
     let line = rope.line(line_index)?;
     let offset = position.offset;
     if offset == 0 || offset < line.len_chars().checked_sub_one()? {
-        Some(line_start + position.offset)
+        Some(line_start + offset)
     } else {
         None
     }
@@ -642,26 +642,41 @@ fn char_offset_to_pos(rope: &Rope, offset: AbsoluteCharOffset) -> Option<Positio
 }
 
 fn clamp_position(rope: &Rope, position: Position) -> Position {
-    let last_line_index = rope.len_lines() - 1;
+    clamp_position_helper(rope, position)
+        .unwrap_or_else(|| char_offset_to_pos(rope, rope.len_chars()).unwrap_or_default())
+}
 
-    let line = min(position.line, last_line_index.0);
+fn clamp_position_helper(rope: &Rope, position: Position) -> Option<Position> {
+    let line_index = LineIndex(position.line);
 
-    let rope_line = rope.line(LineIndex(line));
+    let line_start = rope.line_to_char(line_index)?;
+    let line = rope.line(line_index)?;
+    let offset = position.offset;
+    let abs_offset = if offset == 0
+    // only the very last line has 0 characters on it. So defaulting to the last line here
+    // makes sense.
+    || offset < line.len_chars().checked_sub_one()?
+    {
+        Some(line_start + offset)
+    } else {
+        None
+    }?;
 
-    let offset = rope_line
-        .map(|r_l| {
-            // This clamp is bad because it clamps pos!{l 1 o 0} to pos!{l 0 o 0} on a one line
-            // rope, even if the rope has more than one character.
-            // TODO: just use abosolute offsets?
-            min(
-                position.offset,
-                r_l.len_chars().checked_sub_one().unwrap_or_default(),
-            )
-        })
-        // This option should always be `Some` since we have clamped `line` above.
-        .unwrap_or_default();
+    if rope.len_chars() == abs_offset {
+        Some(LineIndex(rope.len_lines().0 - 1))
+    } else {
+        rope.char_to_line(abs_offset)
+    }
+    .and_then(|line_index| {
+        let start_of_line = rope.line_to_char(line_index)?;
 
-    Position { line, offset }
+        abs_offset
+            .checked_sub(start_of_line)
+            .map(|o: CharOffset| Position {
+                line: line_index.0,
+                offset: o.into(),
+            })
+    })
 }
 
 impl<'rope> TextBuffer {
