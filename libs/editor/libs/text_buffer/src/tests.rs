@@ -166,6 +166,26 @@ fn offset_in_middle_of_single_line_works() {
     pos_to_to_char_offset_to_pos(&rope, p);
 }
 
+fn char_offset_to_pos_to_char_offset(rope: &Rope, offset: AbsoluteCharOffset) {
+    if let Some(p) = char_offset_to_pos(&rope, offset) {
+        assert_eq!(pos_to_char_offset(&rope, &p), Some(offset))
+    }
+}
+
+proptest! {
+    #[test]
+    fn char_offset_to_pos_to_char_offset_works((rope, offset) in arb_rope_and_offset()) {
+        char_offset_to_pos_to_char_offset(&rope, offset);
+    }
+
+    #[test]
+    fn pos_to_to_char_offset_to_pos_works((rope, pos) in arb_rope_and_pos()) {
+        if let Some(o) = pos_to_char_offset(&rope, &pos) {
+            assert_eq!(char_offset_to_pos(&rope, o), Some(pos))
+        }
+    }
+}
+
 #[test]
 fn char_offset_to_pos_works_on_final_offset() {
     let rope = r!("A");
@@ -177,26 +197,38 @@ fn char_offset_to_pos_works_on_final_offset() {
 }
 
 #[test]
-fn final_offset_works() {
+fn char_offset_to_pos_to_char_offset_works_on_final_offset() {
+    let rope = r!("A");
+    let o = AbsoluteCharOffset(1);
+    char_offset_to_pos_to_char_offset(&rope, o);
+}
+
+#[test]
+fn pos_to_to_char_offset_to_pos_works_on_final_offset() {
     let rope = r!("A");
     let p = pos! {l 0 o 1};
     pos_to_to_char_offset_to_pos(&rope, p);
 }
 
-proptest! {
-    #[test]
-    fn char_offset_to_pos_to_char_offset((rope, offset) in arb_rope_and_offset()) {
-        if let Some(p) = char_offset_to_pos(&rope, offset) {
-            assert_eq!(pos_to_char_offset(&rope, &p), Some(offset))
-        }
-    }
+#[test]
+fn char_offset_to_pos_to_char_offset_on_final_offset_on_non_ascii() {
+    let rope = r!("¡");
+    let o = AbsoluteCharOffset(1);
+    char_offset_to_pos_to_char_offset(&rope, o);
+}
 
-    #[test]
-    fn pos_to_to_char_offset_to_pos_works((rope, pos) in arb_rope_and_pos()) {
-        if let Some(o) = pos_to_char_offset(&rope, &pos) {
-            assert_eq!(char_offset_to_pos(&rope, o), Some(pos))
-        }
-    }
+#[test]
+fn pos_to_to_char_offset_to_pos_works_on_final_offset_on_non_ascii() {
+    let rope = r!("¡");
+    let p = pos! {l 0 o 1};
+    pos_to_to_char_offset_to_pos(&rope, p);
+}
+
+#[test]
+fn pos_to_to_char_offset_works_on_final_offset_on_non_ascii() {
+    let rope = r!("¡");
+    let p = pos! {l 0 o 1};
+    assert_eq!(pos_to_char_offset(&rope, &p), Some(AbsoluteCharOffset(1)))
 }
 
 #[test]

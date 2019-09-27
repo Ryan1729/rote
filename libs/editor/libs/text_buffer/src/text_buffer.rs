@@ -615,11 +615,8 @@ fn pos_to_char_offset(rope: &Rope, position: &Position) -> Option<AbsoluteCharOf
     let line_start = rope.line_to_char(line_index)?;
     let line = rope.line(line_index)?;
     let offset = position.offset;
-    if offset == 0
-    // only the very last line might have 0 characters in it, so we won't hit this early return
-    // inappropiately
-    || offset <= line.len_chars().checked_sub_one()?
-    {
+    dbg!(line_index, line_start, line, offset);
+    if offset == 0 || offset <= line.len_chars() {
         Some(line_start + offset)
     } else {
         None
@@ -660,9 +657,7 @@ fn clamp_position_helper(rope: &Rope, position: Position) -> Option<Position> {
     let abs_offset = line_start
         + min(
             offset,
-            line.len_chars()
-                .checked_sub_one()
-                .unwrap_or(CharOffset(usize::max_value())),
+            final_non_newline_offset_for_rope_line(line)
         );
 
     let line_index = if rope.len_chars() == abs_offset {
