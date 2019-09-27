@@ -199,6 +199,13 @@ proptest! {
     }
 }
 
+#[test]
+fn clamp_position_works_on_this_example() {
+    let rope = r!("\n1234567890");
+    let p = pos! {l 0 o 10};
+    assert_eq!(clamp_position(&rope, p), pos! {l 0 o 0});
+}
+
 fn arb_move() -> impl Strategy<Value = Move> {
     prop_oneof![
         Just(Move::Up),

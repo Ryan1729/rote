@@ -615,7 +615,11 @@ fn pos_to_char_offset(rope: &Rope, position: &Position) -> Option<AbsoluteCharOf
     let line_start = rope.line_to_char(line_index)?;
     let line = rope.line(line_index)?;
     let offset = position.offset;
-    if offset == 0 || offset < line.len_chars().checked_sub_one()? {
+    if offset == 0
+    // only the very last line might have 0 characters in it, so we won't hit this early return
+    // inappropiately
+    || offset <= line.len_chars().checked_sub_one()?
+    {
         Some(line_start + offset)
     } else {
         None
@@ -642,7 +646,7 @@ fn char_offset_to_pos(rope: &Rope, offset: AbsoluteCharOffset) -> Option<Positio
 }
 
 fn clamp_position(rope: &Rope, position: Position) -> Position {
-    clamp_position_helper(rope, position)
+    dbg!(clamp_position_helper(rope, position))
         .unwrap_or_else(|| char_offset_to_pos(rope, rope.len_chars()).unwrap_or_default())
 }
 
@@ -652,22 +656,23 @@ fn clamp_position_helper(rope: &Rope, position: Position) -> Option<Position> {
     let line_start = rope.line_to_char(line_index)?;
     let line = rope.line(line_index)?;
     let offset = position.offset;
-    let abs_offset = if offset == 0
-    // only the very last line has 0 characters on it. So defaulting to the last line here
-    // makes sense.
-    || offset < line.len_chars().checked_sub_one()?
-    {
-        Some(line_start + offset)
-    } else {
-        None
-    }?;
 
-    if rope.len_chars() == abs_offset {
+    let abs_offset = line_start
+        + min(
+            offset,
+            line.len_chars()
+                .checked_sub_one()
+                .unwrap_or(CharOffset(usize::max_value())),
+        );
+
+    let line_index = if rope.len_chars() == abs_offset {
         Some(LineIndex(rope.len_lines().0 - 1))
     } else {
         rope.char_to_line(abs_offset)
-    }
-    .and_then(|line_index| {
+    };
+
+    dbg!(line_index);
+    line_index.and_then(|line_index| {
         let start_of_line = rope.line_to_char(line_index)?;
 
         abs_offset
