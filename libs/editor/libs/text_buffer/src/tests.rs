@@ -638,20 +638,35 @@ macro_rules! assert_cursor_invarints_maintained {
     }};
 }
 
+fn editing_this_buffer_preserves_the_cursors_invariants(mut buffer: TextBuffer, edits: Vec<arb::TestEdit>) {
+    assert_cursor_invarints_maintained!(buffer.rope, buffer.cursors);
+
+    for edit in edits {
+        arb::TestEdit::apply(&mut buffer, edit);
+    }
+
+    assert_cursor_invarints_maintained!(buffer.rope, buffer.cursors);
+}
+
 proptest! {
     #[test]
     fn editing_the_buffer_preserves_the_cursors_invariants(
-        mut buffer in arb::text_buffer_with_many_cursors(),
+        buffer in arb::text_buffer_with_many_cursors(),
         edits in arb::test_edits(99, arb::TestEditSpec::All)
     ) {
-        assert_cursor_invarints_maintained!(buffer.rope, buffer.cursors);
-
-        for edit in edits {
-            arb::TestEdit::apply(&mut buffer, edit);
-        }
-
-        assert_cursor_invarints_maintained!(buffer.rope, buffer.cursors);
+        editing_this_buffer_preserves_the_cursors_invariants(buffer, edits);
     }
+}
+
+#[test]
+fn editing_the_buffer_preserves_the_cursors_invariants_in_this_generated_case() {
+    use arb::TestEdit::*;
+    let buffer = d!();
+    let edits = vec![
+        Insert('\n'), MoveAllCursors(Move::ToBufferStart), Insert('\t'), TabOut
+    ];
+
+    editing_this_buffer_preserves_the_cursors_invariants(buffer, edits);
 }
 
 proptest! {
