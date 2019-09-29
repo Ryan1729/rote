@@ -22,7 +22,7 @@ pub struct State {
     glyph_texture: u32,
 }
 
-pub type Res<T> = Result<T, Box<std::error::Error>>;
+pub type Res<T> = Result<T, Box<dyn std::error::Error>>;
 /// ```text
 /// [
 ///     left_top * 3,

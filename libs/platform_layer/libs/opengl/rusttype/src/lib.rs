@@ -974,7 +974,6 @@ impl<'a> PositionedGlyph<'a> {
     /// }
     /// ```
     pub fn draw<O: FnMut(u32, u32, f32)>(&self, o: O) {
-        use crate::geometry::{Curve, Line};
         use stb_truetype::VertexType;
         let shape = match self.sg.g.inner {
             GlyphInner::Proxy(ref font, id) => {

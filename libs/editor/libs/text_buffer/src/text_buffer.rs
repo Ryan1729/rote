@@ -69,7 +69,7 @@ impl Cursors {
         dbg!("pre-clamp", &cursors);
 
         for cursor in cursors.iter_mut() {
-            let (p_op, h_op) = offset_pair(rope, cursor);
+            let (p_op, h_op) = strict_offset_pair(rope, cursor);
             dbg!(p_op, h_op);
 
             if h_op.is_none() {
@@ -80,6 +80,7 @@ impl Cursors {
 
             if p_op.is_none() {
                 let clamped = clamp_position(rope, cursor.get_position());
+                dbg!(clamped);
                 cursor.set_position_custom(
                     clamped,
                     SetPositionAction::ClearHighlightOnlyIfItMatchesNewPosition,
@@ -91,12 +92,6 @@ impl Cursors {
             }
         }
         dbg!("post-clamp", &cursors);
-
-        // TODO justify or remove this
-        // cursors.sort();
-        // cursors.reverse();
-
-        dbg!("post-re-sort", &cursors);
 
         Self::merge_overlaps(cursors);
 
@@ -225,11 +220,30 @@ borrow!(<Vec1<Cursor>> for TextBuffer : b in b.cursors.borrow());
 
 type OffsetPair = (Option<AbsoluteCharOffset>, Option<AbsoluteCharOffset>);
 
+/// This will return `Some` if the offset is one-past the last index.
+// TODO do we actually need both of these? Specifically, will `strict_offset_pair` work everywhere?
 fn offset_pair(rope: &Rope, cursor: &Cursor) -> OffsetPair {
     (
         pos_to_char_offset(rope, &cursor.get_position()),
         cursor
             .get_highlight_position()
+            .and_then(|p| pos_to_char_offset(rope, &p)),
+    )
+}
+
+/// This will return `None` if the offset is one-past the last index.
+fn strict_offset_pair(rope: &Rope, cursor: &Cursor) -> OffsetPair {
+    let filter_out_of_bounds = |position: Position| {
+        macros::some_if!(in_cursor_bounds(rope, position) => position)
+    };
+
+    (
+        Some(cursor.get_position())
+        .and_then(filter_out_of_bounds)
+        .and_then(|p| pos_to_char_offset(rope, &p)),
+        cursor
+            .get_highlight_position()
+            .and_then(filter_out_of_bounds)
             .and_then(|p| pos_to_char_offset(rope, &p)),
     )
 }
@@ -654,11 +668,7 @@ fn clamp_position_helper(rope: &Rope, position: Position) -> Option<Position> {
     let line = rope.line(line_index)?;
     let offset = position.offset;
 
-    let abs_offset = line_start
-        + min(
-            offset,
-            final_non_newline_offset_for_rope_line(line)
-        );
+    let abs_offset = line_start + min(offset, final_non_newline_offset_for_rope_line(line));
 
     let line_index = if rope.len_chars() == abs_offset {
         Some(LineIndex(rope.len_lines().0 - 1))

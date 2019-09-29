@@ -638,7 +638,10 @@ macro_rules! assert_cursor_invarints_maintained {
     }};
 }
 
-fn editing_this_buffer_preserves_the_cursors_invariants(mut buffer: TextBuffer, edits: Vec<arb::TestEdit>) {
+fn editing_this_buffer_preserves_the_cursors_invariants(
+    mut buffer: TextBuffer,
+    edits: Vec<arb::TestEdit>,
+) {
     assert_cursor_invarints_maintained!(buffer.rope, buffer.cursors);
 
     for edit in edits {
@@ -661,12 +664,21 @@ proptest! {
 #[test]
 fn editing_the_buffer_preserves_the_cursors_invariants_in_this_generated_case() {
     use arb::TestEdit::*;
-    let buffer = d!();
-    let edits = vec![
-        Insert('\n'), MoveAllCursors(Move::ToBufferStart), Insert('\t'), TabOut
-    ];
+    let mut buffer: TextBuffer = d!();
 
-    editing_this_buffer_preserves_the_cursors_invariants(buffer, edits);
+    assert_cursor_invarints_maintained!(buffer.rope, buffer.cursors);
+
+    arb::TestEdit::apply(&mut buffer, Insert('\n'));
+    assert_cursor_invarints_maintained!(buffer.rope, buffer.cursors);
+
+    arb::TestEdit::apply(&mut buffer, MoveAllCursors(Move::ToBufferStart));
+    assert_cursor_invarints_maintained!(buffer.rope, buffer.cursors);
+
+    arb::TestEdit::apply(&mut buffer, Insert('\t'));
+    assert_cursor_invarints_maintained!(buffer.rope, buffer.cursors);
+
+    arb::TestEdit::apply(&mut buffer, TabOut);
+    assert_cursor_invarints_maintained!(buffer.rope, buffer.cursors);
 }
 
 proptest! {
@@ -687,6 +699,18 @@ fn cursors_new_maintains_invariants_on_this_out_of_bounds_example() {
         Cursors::new(
             &rope,
             vec1![Cursor::new_with_highlight(pos! {}, pos! {l 0 o 1})]
+        )
+    );
+}
+
+#[test]
+fn cursors_new_maintains_invariants_on_this_newline_involving_out_of_bounds_example() {
+    let rope = r!("\n");
+    assert_cursor_invarints_maintained!(
+        rope,
+        Cursors::new(
+            &rope,
+            vec1![Cursor::new_with_highlight(pos! {l 0 o 1}, pos! {l 0 o 1})]
         )
     );
 }
