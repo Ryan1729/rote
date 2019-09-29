@@ -1,14 +1,19 @@
-use macros::{d, fmt_display, ord};
+use macros::{d, fmt_debug, fmt_display, ord};
 use platform_types::{CharOffset, Position};
 use std::borrow::Borrow;
 pub use vec1::{vec1, Vec1};
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub enum CursorState {
     None,
     PressedAgainstWall,
 }
 d!(for CursorState: CursorState::None);
+
+fmt_debug!(for CursorState: s in "{}", match s {
+    CursorState::None => "_",
+    CursorState::PressedAgainstWall => "->|"
+});
 
 ord!(and friends for CursorState: state, other in {
     use std::cmp::Ordering::*;
@@ -27,7 +32,7 @@ pub enum SetPositionAction {
 }
 d!(for SetPositionAction: SetPositionAction::ClearHighlight);
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Cursor {
     // These are private so we can make sure whether to clear highlight is considered on each
     // mutation of `position. And we can use a state we don't otherwise want,
@@ -39,11 +44,30 @@ pub struct Cursor {
     pub state: CursorState,
 }
 
+#[macro_export]
+macro_rules! cur {
+    // TODO see if theres a way to avoid this duplication with `pos!`
+    (l $line:literal o $offset:literal) => {
+        Cursor::new(pos! {l $line o $offset})
+    };
+    (l $line:literal o $offset:literal h l $h_line:literal o $h_offset:literal) => {
+        Cursor::new_with_highlight(pos! {l $line o $offset}, pos! {l $h_line o $h_offset})
+    };
+    (h l $h_line:literal o $h_offset:literal) => {
+        Cursor::new_with_highlight(pos! {}, pos! {l $h_line o $h_offset})
+    };
+    (l $line:literal o $offset:literal h) => {
+        Cursor::new_with_highlight(pos! {l $line o $offset}, pos! {})
+    };
+    () => {
+        Cursor::new(pos! {})
+    };
+}
+
 impl Cursor {
     pub fn new(position: Position) -> Self {
         Self::new_with_highlight(position, position)
     }
-
     pub fn new_with_highlight(position: Position, highlight_position: Position) -> Self {
         Cursor {
             position,
@@ -103,6 +127,26 @@ fmt_display! {
         //kind of annoying duplication here.
         Some(highlight_position).filter(|&p| p != position).map(|h| format!("h:{}", h)).unwrap_or_default()
 }
+fmt_debug!(for Cursor : Cursor {
+            position,
+            sticky_offset,
+            highlight_position,
+            state
+        } in "cur!{{l {} o {}{}{}{}}}",
+        position.line,
+        position.offset,
+        Some(highlight_position).filter(|&p| p != position).map(|h| format!(" h l {} o {}", h.line,  h.offset)).unwrap_or_default(),
+        if sticky_offset == &CharOffset::default() {
+            "".to_owned()
+        } else {
+            format!(" sticky_offset: {:?},", sticky_offset)
+        },
+        if state == &CursorState::default() {
+            "".to_owned()
+        } else {
+            format!(" state: {:?},", state)
+        },
+);
 d!(for Cursor: Cursor::new(d!()));
 
 impl Borrow<Position> for Cursor {

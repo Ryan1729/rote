@@ -21,6 +21,13 @@ pub struct Cursors {
     cursors: Vec1<Cursor>,
 }
 
+#[macro_export]
+macro_rules! curs {
+    ($rope: expr, $($cursor_elements: expr),+ $(,)?) => (
+        Cursors::new(&$rope, vec1![$($cursor_elements)+])
+    );
+}
+
 impl Cursors {
     /// We require a rope paramter only so we can make sure the cursors are within the given
     /// rope's bounds.
@@ -233,14 +240,13 @@ fn offset_pair(rope: &Rope, cursor: &Cursor) -> OffsetPair {
 
 /// This will return `None` if the offset is one-past the last index.
 fn strict_offset_pair(rope: &Rope, cursor: &Cursor) -> OffsetPair {
-    let filter_out_of_bounds = |position: Position| {
-        macros::some_if!(in_cursor_bounds(rope, position) => position)
-    };
+    let filter_out_of_bounds =
+        |position: Position| macros::some_if!(in_cursor_bounds(rope, position) => position);
 
     (
         Some(cursor.get_position())
-        .and_then(filter_out_of_bounds)
-        .and_then(|p| pos_to_char_offset(rope, &p)),
+            .and_then(filter_out_of_bounds)
+            .and_then(|p| pos_to_char_offset(rope, &p)),
         cursor
             .get_highlight_position()
             .and_then(filter_out_of_bounds)

@@ -4,7 +4,7 @@ use crate::tests::{
     arb::{TestEdit, TestEditSpec, *},
     deep_clone, SOME_AMOUNT, *,
 };
-use editor_types::{vec1, CursorState};
+use editor_types::{vec1, CursorState, Cursor, cur};
 
 use proptest::prelude::*;
 use proptest::{option, prop_compose, proptest};
@@ -102,14 +102,17 @@ fn get_tab_in_edit_produces_the_expected_edit_with_multiple_cursors_in_this_buff
     //pre-condition
     assert_eq!(
         buffer.cursors,
-        Cursors::new(&buffer.rope, vec1![
-            {
-                let mut c = Cursor::new_with_highlight(pos! {l 9 o 0}, start_of_empty_line);
-                c.state = CursorState::PressedAgainstWall;
-                c
-            },
-            Cursor::new_with_highlight(pos! {l 4 o 5}, pos! {l 0 o 0})
-        ])
+        Cursors::new(
+            &buffer.rope,
+            vec1![
+                {
+                    let mut c = Cursor::new_with_highlight(pos! {l 9 o 0}, start_of_empty_line);
+                    c.state = CursorState::PressedAgainstWall;
+                    c
+                },
+                Cursor::new_with_highlight(pos! {l 4 o 5}, pos! {l 0 o 0})
+            ]
+        )
     );
 
     let rope = &buffer.rope;
@@ -136,7 +139,10 @@ fn get_tab_in_edit_produces_the_expected_edit_with_multiple_cursors_in_this_buff
                 move_cursor::and_extend_selection(&expected_rope, &mut last_cursor, Move::Right);
             }
 
-            Cursors::new(&expected_rope, vec1![last_cursor.clone(), first_cursor.clone()])
+            Cursors::new(
+                &expected_rope,
+                vec1![last_cursor.clone(), first_cursor.clone()],
+            )
         };
         dbg!(&new_cursors);
         // precondition
@@ -584,6 +590,39 @@ fn tab_out_preserves_non_white_space_on_this_reduced_in_a_different_way_example(
     )]);
 
     tab_out_preserves_non_white_space_on(buffer);
+}
+
+fn get_code_like_example() -> TextBuffer {
+    // like this:
+    /*
+    {
+        {
+            A
+        }
+    }
+    */
+    let mut buffer = t_b!("{\n    {\n        A\n    }\n}\n");
+    buffer.set_cursors_from_vec1(vec1![Cursor::new_with_highlight(
+        pos! {l 1 o 0},
+        pos! {l 3 o 5}
+    )]);
+    buffer
+}
+
+#[test]
+fn tab_out_produces_the_expected_string_on_this_code_like_example() {
+    let mut buffer = get_code_like_example();
+
+    TestEdit::apply(&mut buffer, TestEdit::TabOut);
+    assert_eq!(buffer.rope, r!("{\n{\n    A\n}\n}\n"));
+}
+
+#[test]
+fn tab_out_places_the_cursors_correctly_on_this_code_like_example() {
+    let mut buffer = get_code_like_example();
+
+    TestEdit::apply(&mut buffer, TestEdit::TabOut);
+    assert_eq!(buffer.cursors, curs!(buffer.rope, cur!(l 1 o 0 h l 3 o 1)));
 }
 
 mod edit_arb;
