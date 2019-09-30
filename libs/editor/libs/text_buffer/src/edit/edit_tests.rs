@@ -4,7 +4,7 @@ use crate::tests::{
     arb::{TestEdit, TestEditSpec, *},
     deep_clone, SOME_AMOUNT, *,
 };
-use editor_types::{vec1, CursorState, Cursor, cur};
+use editor_types::{cur, vec1, Cursor, CursorState};
 
 use proptest::prelude::*;
 use proptest::{option, prop_compose, proptest};
@@ -623,6 +623,15 @@ fn tab_out_places_the_cursors_correctly_on_this_code_like_example() {
 
     TestEdit::apply(&mut buffer, TestEdit::TabOut);
     assert_eq!(buffer.cursors, curs!(buffer.rope, cur!(l 1 o 0 h l 3 o 1)));
+}
+
+#[test]
+fn tab_in_places_the_cursors_correctly_on_this_edge_case_example() {
+    let mut buffer = t_b!("{\n    A\n}\n");
+    buffer.set_cursors_from_vec1(vec1![cur!(l 1 o 3 h l 2 o 1 ),]);
+
+    TestEdit::apply(&mut buffer, TestEdit::TabIn);
+    assert_eq!(buffer.cursors, curs!(buffer.rope, cur!(l 1 o 7 h l 2 o 5 )));
 }
 
 mod edit_arb;

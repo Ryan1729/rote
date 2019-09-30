@@ -11,7 +11,6 @@ use glyph_brush::{
 };
 use std::path::PathBuf;
 
-
 use file_chooser;
 use gl_layer::RenderExtras;
 use macros::d;
@@ -19,6 +18,7 @@ use platform_types::{
     BufferView, BufferViewKind, CharDim, Cmd, Highlight, Input, ReplaceOrAdd, ScreenSpaceWH,
     ScreenSpaceXY, Sizes, UpdateAndRender, View,
 };
+use shared::Res;
 
 pub struct FontInfo<'a> {
     font: Font<'a>,
@@ -81,6 +81,7 @@ pub fn get_glyph_brush<'font, A: Clone>(font_info: &FontInfo<'font>) -> GlyphBru
 
 mod clipboard_layer {
     pub use clipboard::ClipboardProvider;
+    use shared::Res;
     /// This enum exists so we can do dynamic dispatch on `ClipboardProvider` instances even though
     /// the trait requires `Sized`. The reason  we want to do that, is so that if we try to run this
     /// on a platform where `clipboard::ClipboardContext::new` retirns an `Err` we can continue
@@ -91,7 +92,7 @@ mod clipboard_layer {
     }
 
     impl clipboard::ClipboardProvider for Clipboard {
-        fn new() -> Result<Self, Box<std::error::Error>> {
+        fn new() -> Res<Self> {
             let result: Result<
                 clipboard::ClipboardContext,
                 clipboard::nop_clipboard::NopClipboardContext,
@@ -109,13 +110,13 @@ mod clipboard_layer {
             // `get_clipboard` currently relies on this neer returning `Err`.
             Ok(output)
         }
-        fn get_contents(&mut self) -> Result<String, Box<std::error::Error>> {
+        fn get_contents(&mut self) -> Res<String> {
             match self {
                 Clipboard::System(ctx) => ctx.get_contents(),
                 Clipboard::Fallback(ctx) => ctx.get_contents(),
             }
         }
-        fn set_contents(&mut self, s: String) -> Result<(), Box<std::error::Error>> {
+        fn set_contents(&mut self, s: String) -> Res<()> {
             match self {
                 Clipboard::System(ctx) => ctx.set_contents(s),
                 Clipboard::Fallback(ctx) => ctx.set_contents(s),
@@ -131,14 +132,14 @@ mod clipboard_layer {
 use clipboard_layer::{get_clipboard, Clipboard, ClipboardProvider};
 
 #[perf_viz::record]
-pub fn run(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
+pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
     run_inner(update_and_render)
 }
 
 // This extra fn is a workaround for the record attribute causing a "procedural macros cannot
 // expand to macro definitions" error otherwise.According to issue #54727, this is because there
 // is some worry that all the macro hygiene edge cases may not be handled.
-fn run_inner(update_and_render: UpdateAndRender) -> gl_layer::Res<()> {
+fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
     if cfg!(target_os = "linux") {
         use std::env;
         // winit wayland is currently still wip

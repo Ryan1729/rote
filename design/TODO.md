@@ -1,9 +1,5 @@
 ## TODO
 
-* write test for multiple cursor `tab_in`
-
-* implement `tab_out`
-
 * if a file was already opened, switch to that buffer instead of opening a new version of that file.
   * Store the path on each buffer.
     * how should we handle scratch buffers?
@@ -13,38 +9,7 @@
             Scratch(u32),
         }
         ```
-
-* Have tab edits be collected together for the purposes of undo
-  * options
-    * Undo/redo fence
-    * stuff it into one edit
-    * make `Edit` contain a `Vec` of edits
-
-
-* handle tab key properly
-  * The logic is complex enough that we will send down a `Tab` input
-    * Besides, hitting tab is different than pasting a `\t`
-  * Features:
-    * for each cursor
-      * if there is not a selection, then insert 4 space characters
-      * If there is a selection, insert four spaces adjacent to the whitespace between the start of the line and the first non-whitespace character.
-        * what if there is non-space whitespace?
-          * convert it all to the equivalent number of spaces, then insert the four spaces.
-    * what should pasting a tab do? insert four spaces instead?
-      * Would it be worth it to have a "raw input" mode or window where you can insert Tab characters and all the Ctrl+Letter sequences?
-        * What would be the case where you would need that?
-    * There's this thread talking about "real tabs" helping visually impaired users. Do we want to do something about that? https://www.reddit.com/r/javascript/comments/c8drjo/nobody_talks_about_the_real_reason_to_use_tabs/
-      * Well right now we are in a complexity local minimum regarding mouse positioning which relies on all characters being the same width. If we want to move away from there then I think we should be getting more out of that, like ligature support.
-      * Also, why do the characters used in editor need to be the same as what is on disk? We could just make conversion easier if we ever have any visually impaired users (which at this point implies myself getting further visual impairments beyond needing glasses.)
-
-* Do we want a way for the editor to show little pop-up messages? Something like "File \"blah.txt\" opened" or "Not implemented"? They would fade away automatically after a period of time.
-  * If so, then we would want a way to see the last several messages. Which means we'd want another limited history buffer.
-  * Eventually I think we will want these since we plan to attempt integrating external programs through LSP or something similar. And they are going to crash or otherwise complain at some point.
-
 * Display file tabs that allow the user to switch between open buffers
-  * Is it worth it to just display a file count in the status bar and implement switching keyboard shortcuts as a stopgap?
-    * Ctrl-Tab to move to the right and Ctrl-Shift-Tab to go left seem like they would be useful even with a clickable tab. So, yes.
-    * we should do the tab handling first then.
   * show file path on tabs.
   * Do we want side-by-side visible buffers?
     * Eventually yes. Having the same buffer visible with two different scroll positions is desirable
@@ -52,12 +17,21 @@
         * that is not necessary. The primary use case for two at the same time would be to look at one of them and type in the other.
       * Do we want interior screens or separate windows?
         * Let's try separate windows. That way we don't need to re-invent the OS's window management.
+          * Seems like each of the N windows will need to be able to tell whether they are the last window somehow so we can trigger stuff on close. But I guess we could trigger that stuff on each window close?
+          * how should the processes be laid out? One editor processes and several UI/window threads?
+            * Seems reasonable at the moment. The editor should not need to care about whether there are multiple windows, but it does need to know that two buffers are the same
   * Ctrl-t to make a new tab
   * Ctrl-shift-t to restore last tab
     * We would want a fixed buffer of history like for undo/redo and clipboard history.
 
+* Do we want a way for the editor to show little pop-up messages? Something like "File \"blah.txt\" opened" or "Not implemented"? They would fade away automatically after a period of time.
+  * If so, then we would want a way to see the last several messages. Which means we'd want another limited history buffer.
+  * Eventually I think we will want these since we plan to attempt integrating external programs through LSP or something similar. And they are going to crash or otherwise complain at some point.
+
 * Saving and loading files.
-  * open into a new buffer
+  * saving new files to a new place on disk with ctrl-s
+  * saving pre-existing files to disk on ctrl-s
+    * ctrl-shift-s to save pre-existing file as a new file
 
 
 
@@ -92,6 +66,21 @@
     * should we just hash the content instead?
     * "Never prompt for this file pair" seems extraneous. Is there a case where we ever not want it checked?
 
+* handle tab key properly
+  * Remaining Features:
+    * what should pasting a tab do? insert four spaces instead?
+      * Would it be worth it to have a "raw input" mode or window where you can insert Tab characters and all the Ctrl+Letter sequences?
+        * What would be the case where you would need that?
+    * There's this thread talking about "real tabs" helping visually impaired users. Do we want to do something about that? https://www.reddit.com/r/javascript/comments/c8drjo/nobody_talks_about_the_real_reason_to_use_tabs/
+      * Well right now we are in a complexity local minimum regarding mouse positioning which relies on all characters being the same width. If we want to move away from there then I think we should be getting more out of that, like ligature support.
+      * Also, why do the characters used in editor need to be the same as what is on disk? We could just make conversion easier if we ever have any visually impaired users (which at this point implies myself getting further visual impairments beyond needing glasses.)
+
+* Have tab edits be collected together for the purposes of undo
+  * options
+    * Undo/redo fence
+    * stuff it into one edit
+    * make `Edit` contain a `Vec` of edits
+
 * Allow manipulating a single cursor on its own
   * store `cursor_index` per buffer
     * in `editor` or in `text_buffer`?
@@ -109,6 +98,7 @@
       * a "current cursor mode"?
 
 * figure out why `#[check_or_no_panic]` seems to always report a panic in `panic_safe_rope`
+  * current suspicion: Allocating memory can always panic.
 
 * Measure the timings and perceived latency without the weird `"time-render"` stuff again. A quick check is not showing a perceived difference anymore
   * see https://gamedev.stackexchange.com/a/173730

@@ -73,11 +73,8 @@ impl Cursors {
     }
 
     fn clamp_vec_to_rope(cursors: &mut Vec1<Cursor>, rope: &Rope) {
-        dbg!("pre-clamp", &cursors);
-
         for cursor in cursors.iter_mut() {
             let (p_op, h_op) = strict_offset_pair(rope, cursor);
-            dbg!(p_op, h_op);
 
             if h_op.is_none() {
                 if let Some(h) = cursor.get_highlight_position() {
@@ -87,7 +84,6 @@ impl Cursors {
 
             if p_op.is_none() {
                 let clamped = clamp_position(rope, cursor.get_position());
-                dbg!(clamped);
                 cursor.set_position_custom(
                     clamped,
                     SetPositionAction::ClearHighlightOnlyIfItMatchesNewPosition,
@@ -98,11 +94,8 @@ impl Cursors {
                 }
             }
         }
-        dbg!("post-clamp", &cursors);
 
         Self::merge_overlaps(cursors);
-
-        dbg!(cursors);
     }
 
     /// Assumes that the cursors are sorted
@@ -635,7 +628,6 @@ fn pos_to_char_offset(rope: &Rope, position: &Position) -> Option<AbsoluteCharOf
     let line_start = rope.line_to_char(line_index)?;
     let line = rope.line(line_index)?;
     let offset = position.offset;
-    dbg!(line_index, line_start, line, offset);
     if offset == 0 || offset <= line.len_chars() {
         Some(line_start + offset)
     } else {
@@ -663,7 +655,7 @@ fn char_offset_to_pos(rope: &Rope, offset: AbsoluteCharOffset) -> Option<Positio
 }
 
 fn clamp_position(rope: &Rope, position: Position) -> Position {
-    dbg!(clamp_position_helper(rope, position))
+    clamp_position_helper(rope, position)
         .unwrap_or_else(|| char_offset_to_pos(rope, rope.len_chars()).unwrap_or_default())
 }
 
@@ -682,7 +674,6 @@ fn clamp_position_helper(rope: &Rope, position: Position) -> Option<Position> {
         rope.char_to_line(abs_offset)
     };
 
-    dbg!(line_index);
     line_index.and_then(|line_index| {
         let start_of_line = rope.line_to_char(line_index)?;
 
@@ -711,8 +702,8 @@ impl TextBuffer {
 
     pub fn undo(&mut self) -> Option<()> {
         let new_index = self.history_index.checked_sub(1)?;
-        self.history.get(dbg!(new_index)).cloned().map(|edit| {
-            self.apply_edit(dbg!(!edit), ApplyKind::Playback);
+        self.history.get(new_index).cloned().map(|edit| {
+            self.apply_edit(!edit, ApplyKind::Playback);
             self.history_index = new_index;
         })
     }

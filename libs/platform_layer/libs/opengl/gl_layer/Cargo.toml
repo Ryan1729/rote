@@ -12,6 +12,7 @@ glyph_brush = { path = "../glyph-brush" }
 gl = "0.11"
 perf_viz = { path = "../../../../perf_viz" }
 macros = { path = "../../../../macros" }
+shared = { path = "../shared" }
 
 [features]
 # See comment in "time-render" check in gl_layer.rs for the reason why

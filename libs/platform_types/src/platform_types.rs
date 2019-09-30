@@ -258,7 +258,6 @@ pub fn text_space_to_position(
     round: PositionRound,
 ) -> Position {
     // This is made much more conveinient by the monospace assumption!
-    dbg!((x, y));
     let pre_rounded = x / w;
 
     // if the value would not fit in a `usize` then the `as usize` is undefined behaviour.
@@ -405,7 +404,7 @@ pub fn attempt_to_make_xy_visible(
     // We don't ever want to automatically show space that text can never be inside.
     macro_rules! stay_positive {
         ($n: expr) => {{
-            let n = dbg!($n);
+            let n = $n;
             if n > 0.0 {
                 n
             } else {
@@ -419,7 +418,7 @@ pub fn attempt_to_make_xy_visible(
     } else if x >= w - apron.right_w {
         scroll.x = stay_positive!(text.x - w + apron.right_w);
     } else {
-        dbg!("x");
+        // leave it alone
     }
 
     if y < apron.top_h {
@@ -427,7 +426,7 @@ pub fn attempt_to_make_xy_visible(
     } else if y >= h - apron.bottom_h {
         scroll.y = stay_positive!(text.y - (h - apron.bottom_h));
     } else {
-        dbg!("y");
+        // leave it alone
     }
 
     Succeeded
@@ -441,8 +440,7 @@ pub fn xy_is_visible(
     text: TextSpaceXY,
 ) -> bool {
     let ScreenSpaceXY { x, y } = text_to_screen(text, *scroll);
-    dbg!(((x, y), (w, h)));
-    dbg!(x >= 0.0) && dbg!(x < *w) && dbg!(y >= 0.0) && dbg!(y < *h)
+    x >= 0.0 && x < *w && y >= 0.0 && y < *h
 }
 
 /// The nth space between utf8 characters. So in the string "aöc" there are

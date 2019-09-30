@@ -4,6 +4,7 @@ use glyph_brush::rusttype::Scale;
 use glyph_brush::*;
 use macros::{d, invariants_checked};
 use std::{ffi::CString, mem, ptr, str};
+use shared::Res;
 
 pub const EDIT_Z: f32 = 0.5;
 pub const HIGHLIGHT_Z: f32 = 0.4375;
@@ -22,7 +23,6 @@ pub struct State {
     glyph_texture: u32,
 }
 
-pub type Res<T> = Result<T, Box<dyn std::error::Error>>;
 /// ```text
 /// [
 ///     left_top * 3,

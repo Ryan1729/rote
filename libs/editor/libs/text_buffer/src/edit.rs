@@ -1,6 +1,5 @@
 use super::*;
-use crate::move_cursor::{backward_n, forward_n};
-use macros::{CheckedSub, SaturatingSub};
+use macros::{CheckedSub, SaturatingAdd, SaturatingSub};
 
 pub fn apply<'rope, 'cursors>(mut applier: EditApplier, edit: &Edit) {
     // we assume that the edits are in the proper order so we won't mess up our indexes with our
@@ -44,7 +43,7 @@ where
     Edit {
         range_edits,
         cursors: Change {
-            new: Cursors::new(&cloned_rope, dbg!(cloned_cursors)),
+            new: Cursors::new(&cloned_rope, cloned_cursors),
             old: original_cursors.clone(),
         },
     }
@@ -244,7 +243,6 @@ pub fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit
                         };
                     let highlighted_line_after_whitespace: &str =
                         some_or!(line.slice(o..slice_end).and_then(|l| l.as_str()), continue);
-                    dbg!(highlighted_line_after_whitespace);
                     chars.push_str(highlighted_line_after_whitespace);
                 }
 
@@ -257,17 +255,20 @@ pub fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit
                 rope.insert(range.min(), &chars);
 
                 // We want the cursor to have the same orientation it started with.
-                forward_n(rope, cursor.get_position(), TAB_STR_CHAR_COUNT).map(|p| {
+                {
+                    let mut p = cursor.get_position();
+                    p.offset = p.offset.saturating_add(TAB_STR_CHAR_COUNT);
                     cursor.set_position_custom(
                         p,
                         SetPositionAction::ClearHighlightOnlyIfItMatchesNewPosition,
                     );
-                    cursor.sticky_offset += TAB_STR_CHAR_COUNT
-                });
-                cursor
-                    .get_highlight_position()
-                    .and_then(|p| forward_n(rope, p, TAB_STR_CHAR_COUNT))
-                    .map(|p| cursor.set_highlight_position(p));
+                    cursor.sticky_offset = cursor.sticky_offset.saturating_add(TAB_STR_CHAR_COUNT);
+
+                    if let Some(mut h) = cursor.get_highlight_position() {
+                        h.offset = h.offset.saturating_add(TAB_STR_CHAR_COUNT);
+                        cursor.set_highlight_position(h)
+                    }
+                }
 
                 RangeEdits {
                     insert_range: Some(RangeEdit { chars, range }),
@@ -280,7 +281,6 @@ pub fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit
 }
 
 pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
-    dbg!(original_cursors);
     get_edit(original_rope, original_cursors, |cursor, rope, _| {
         match offset_pair(original_rope, cursor) {
             (Some(o1), offset2) => {
@@ -292,27 +292,19 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
 
                 let last_line_indicies_index = line_indicies.len() - 1;
                 let range = {
-                    dbg!(&line_indicies);
                     let first_line_index = line_indicies[0];
                     let last_line_index = line_indicies[last_line_indicies_index];
-                    dbg!(last_line_index);
 
                     AbsoluteCharOffsetRange::new(
                         some_or!(rope.line_to_char(first_line_index), return d!()),
                         some_or!(
-                            rope.line(last_line_index).and_then(|line|
-                                dbg!(rope
-                                .line_to_char(last_line_index))
-                                .map(|o|
-                                    o
-                                    + final_non_newline_offset_for_rope_line(line).0
-                                )
-                            ),
+                            rope.line(last_line_index).and_then(|line| rope
+                                .line_to_char(last_line_index)
+                                .map(|o| o + final_non_newline_offset_for_rope_line(line).0)),
                             return d!()
                         ),
                     )
                 };
-                dbg!(AbsoluteCharOffsetRange::new(o1, o2), range);
 
                 let mut chars = String::with_capacity(range.max().0 - range.min().0);
                 let mut char_delete_count = 0;
@@ -325,15 +317,6 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
 
                     let first_non_white_space_offset: Option<CharOffset> =
                         get_first_non_white_space_offset_in_range(line, d!()..=relative_line_end);
-
-                    dbg!(
-                        index,
-                        i,
-                        line,
-                        line_start,
-                        relative_line_end,
-                        first_non_white_space_offset
-                    );
 
                     let delete_count = min(
                         first_non_white_space_offset.unwrap_or(relative_line_end),
@@ -349,16 +332,13 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
                         relative_line_end
                     };
 
-                    dbg!(delete_count, should_include_newlline, slice_end,);
                     chars.push_str(some_or!(
                         line.slice(delete_count..slice_end).and_then(|l| l.as_str()),
                         continue
                     ));
                 }
 
-                dbg!(&range);
                 let delete_edit = delete_within_range(rope, range);
-                dbg!(&delete_edit);
 
                 let range = some_or!(
                     delete_edit.range.checked_sub_from_max(char_delete_count),
@@ -368,24 +348,27 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
                 rope.insert(range.min(), &chars);
 
                 // We want the cursor to have the same orientation it started with.
-                backward_n(rope, cursor.get_position(), TAB_STR_CHAR_COUNT).map(|p| {
+                {
+                    let mut p = cursor.get_position();
+                    p.offset = p.offset.saturating_sub(TAB_STR_CHAR_COUNT);
                     cursor.set_position_custom(
                         p,
                         SetPositionAction::ClearHighlightOnlyIfItMatchesNewPosition,
                     );
                     cursor.sticky_offset = cursor.sticky_offset.saturating_sub(TAB_STR_CHAR_COUNT);
-                });
-                cursor
-                    .get_highlight_position()
-                    .and_then(|p| backward_n(rope, p, TAB_STR_CHAR_COUNT))
-                    .map(|p| cursor.set_highlight_position(p));
 
-                dbg!(RangeEdits {
+                    if let Some(mut h) = cursor.get_highlight_position() {
+                        h.offset = h.offset.saturating_sub(TAB_STR_CHAR_COUNT);
+                        cursor.set_highlight_position(h)
+                    }
+                }
+
+                RangeEdits {
                     insert_range: Some(RangeEdit { chars, range }),
                     delete_range: Some(delete_edit),
-                })
+                }
             }
-            (o1, o2) => {dbg!(o1, o2); d!()},
+            (o1, o2) => d!(),
         }
     })
 }
@@ -621,10 +604,8 @@ fn line_indicies_touched_by(
     rope: &Rope,
     range: AbsoluteCharOffsetRange,
 ) -> Option<Vec1<LineIndex>> {
-    dbg!(rope, range);
     let min_index = rope.char_to_line(range.min())?;
     let max_index = rope.char_to_line(range.max())?;
-    dbg!();
 
     let mut output = Vec1::new(min_index);
 

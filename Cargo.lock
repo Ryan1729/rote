@@ -662,6 +662,7 @@ dependencies = [
  "glyph_brush 0.4.1",
  "macros 0.1.0",
  "perf_viz 0.1.0",
+ "shared 0.1.0",
 ]
 
 [[package]]
@@ -1246,6 +1247,7 @@ dependencies = [
  "perf_viz_proc_macro 0.1.0",
  "platform_types 0.1.0",
  "rusttype 0.7.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "shared 0.1.0",
  "spin_sleep 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -1828,6 +1830,10 @@ dependencies = [
  "ryu 0.2.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.89 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
+
+[[package]]
+name = "shared"
+version = "0.1.0"
 
 [[package]]
 name = "shared_library"

@@ -1,10 +1,10 @@
 use editor_types::{Cursor, CursorState, Vec1};
 use macros::{c, d};
 use platform_types::{
-    attempt_to_make_xy_visible, position_to_screen_space, position_to_text_space,
-    push_highlights, screen_space_to_position, text_to_screen, Apron, BufferView, CharDim, Cmd,
-    Input, Move, Position, PositionRound, ReplaceOrAdd, ScreenSpaceXY, ScrollableScreen,
-    TextSpaceXY, UpdateAndRenderOutput, View, VisibilityAttemptResult,
+    attempt_to_make_xy_visible, position_to_screen_space, position_to_text_space, push_highlights,
+    screen_space_to_position, text_to_screen, Apron, BufferView, CharDim, Cmd, Input, Position,
+    PositionRound, ScreenSpaceXY, ScrollableScreen, TextSpaceXY, UpdateAndRenderOutput, View,
+    VisibilityAttemptResult,
 };
 
 use std::collections::VecDeque;
@@ -21,7 +21,6 @@ const AVERAGE_SELECTION_SIZE_ESTIMATE: usize = 32;
 impl ClipboardHistory {
     fn cut(&mut self, buffer: &mut TextBuffer) -> Option<String> {
         self.push_and_join_into_option(buffer.cut_selections())
-
     }
     fn copy(&mut self, buffer: &TextBuffer) -> Option<String> {
         self.push_and_join_into_option(buffer.copy_selections())
@@ -66,7 +65,7 @@ impl ClipboardHistory {
             self.push_if_does_not_match_top(s)
         }
 
-        if let Some(s) = dbg!(&self.entries).get(self.index) {
+        if let Some(s) = self.entries.get(self.index) {
             buffer.insert_string(s.to_owned());
         }
     }
@@ -261,10 +260,7 @@ fn attempt_to_make_sure_at_least_one_cursor_is_visible(
     attempt_to_make_xy_visible(
         screen,
         apron,
-        dbg!(position_to_text_space(
-            target_cursor.get_position(),
-            text_char_dim
-        )),
+        position_to_text_space(target_cursor.get_position(), text_char_dim),
     )
 }
 

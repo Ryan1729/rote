@@ -219,7 +219,7 @@ fn move_up(rope: &Rope, cursor: &mut Cursor, action: SetPositionAction) -> Moved
         line: target_line,
         offset: cursor.sticky_offset,
     };
-    move_to_with_fallback(rope, cursor, dbg!(new_position), action)
+    move_to_with_fallback(rope, cursor, new_position, action)
 }
 
 #[perf_viz::record]
@@ -574,6 +574,7 @@ where
     return position;
 }
 
+#[allow(dead_code)]
 #[perf_viz::record]
 pub fn forward_n<P>(rope: &Rope, position: P, n: usize) -> Option<Position>
 where
