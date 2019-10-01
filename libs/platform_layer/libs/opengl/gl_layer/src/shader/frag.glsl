@@ -13,5 +13,7 @@ void main() {
     if (alpha <= 0.0) {
         discard;
     }
-    out_color = f_color * vec4(1.0, 1.0, 1.0, alpha);
+    vec4 c = f_color.rgba;
+    c.a = max(f_color.a, f_override_alpha);
+    out_color = c * vec4(1.0, 1.0, 1.0, alpha);
 }

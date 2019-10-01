@@ -3,8 +3,8 @@ use gl::types::*;
 use glyph_brush::rusttype::Scale;
 use glyph_brush::*;
 use macros::{d, invariants_checked};
-use std::{ffi::CString, mem, ptr, str};
 use shared::Res;
+use std::{ffi::CString, mem, ptr, str};
 
 pub const EDIT_Z: f32 = 0.5;
 pub const HIGHLIGHT_Z: f32 = 0.4375;
@@ -36,14 +36,12 @@ pub struct State {
 pub type Vertex = [GLfloat; 14];
 
 fn transform_status_line(vertex: &mut Vertex) {
-    let max_x = &mut vertex[3];
-    *max_x = std::f32::MAX;
     vertex[13] = 1.0;
 }
 
 fn extract_tex_coords(vertex: &Vertex) -> TexCoords {
     let mut output: TexCoords = d!();
-    // To compenate for y flipping in to_vertex
+    // To compensate for y flipping in to_vertex
     output.min.x = vertex[5];
     output.max.y = vertex[6];
     output.max.x = vertex[7];
@@ -254,8 +252,6 @@ pub fn set_dimensions(width: i32, height: i32) {
 
 #[derive(Clone)]
 pub struct RenderExtras {
-    pub status_line_position: Option<(f32, f32)>,
-    pub status_scale: Scale,
     pub highlight_ranges: Vec<HighlightRange>,
 }
 
@@ -269,11 +265,7 @@ pub fn render(
     glyph_brush: &mut GlyphBrush<Vertex>,
     width: u32,
     height: u32,
-    RenderExtras {
-        status_line_position,
-        status_scale,
-        highlight_ranges,
-    }: RenderExtras,
+    RenderExtras { highlight_ranges }: RenderExtras,
 ) -> Res<()> {
     let query_ids = [0; 1];
     if cfg!(feature = "time-render") {
@@ -318,11 +310,9 @@ pub fn render(
                 perf_viz::end_record!("|rect, tex_data|");
             },
             to_vertex,
-            status_line_position.map(|status_line_position| AdditionalRects {
+            Some(AdditionalRects {
                 transform_status_line,
                 extract_tex_coords,
-                status_line_position,
-                status_scale,
                 highlight_ranges: highlight_ranges.clone(),
             }),
         );

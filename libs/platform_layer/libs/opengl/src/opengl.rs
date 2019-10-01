@@ -280,10 +280,10 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                     ..
                 } => {
                     let width = dimensions.width as u32;
-                    let height = dimensions.height as f32;
+                    let height = dimensions.height as u32;
 
                     {
-                        let extras = render_buffer_view(&mut glyph_brush, &view, &font_info);
+                        let extras = render_buffer_view(&mut glyph_brush, &view, &font_info, (width, height));
 
                         gl_layer::render(
                             &mut gl_state,
@@ -776,10 +776,11 @@ pub fn render_buffer_view<A: Clone>(
         text_scale,
         text_char_dim,
         status_scale,
+        status_char_dim,
         ..
     }: &FontInfo,
+    (_width, height): (u32, u32),
 ) -> RenderExtras {
-    let mut status_line_position = None;
     let mut highlight_ranges = Vec::new();
     perf_viz::start_record!("for &BufferView");
     for &BufferView {
@@ -793,7 +794,19 @@ pub fn render_buffer_view<A: Clone>(
     {
         // Without a background the edit buffer(s) show through the status line(s)
         if let BufferViewKind::StatusLine = kind {
-            status_line_position = Some(screen_position.into());
+            let mut pixel_coords: PixelCoords = d!();
+            pixel_coords.min.x = 0;
+            pixel_coords.min.y = height as i32 - f32_to_i32_or_max(status_char_dim.h);
+            pixel_coords.max.x = i32::max_value();
+            pixel_coords.max.y = i32::max_value();
+            let mut bounds: Bounds = d!();
+            bounds.max = (std::f32::INFINITY, std::f32::INFINITY).into();
+            highlight_ranges.push(HighlightRange {
+                pixel_coords,
+                bounds,
+                color: [7.0 / 256.0, 7.0 / 256.0, 7.0 / 256.0, 1.0],
+                z: 0.1875, //gl_layer::STATUS_BACKGROUND_Z,
+            });
         }
 
         perf_viz::record_guard!("glyph_brush.queue");
@@ -847,8 +860,6 @@ pub fn render_buffer_view<A: Clone>(
     perf_viz::end_record!("for &BufferView");
 
     RenderExtras {
-        status_line_position,
-        status_scale: *status_scale,
         highlight_ranges,
     }
 }
