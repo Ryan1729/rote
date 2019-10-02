@@ -5,78 +5,23 @@
 
 use glutin::dpi::LogicalPosition;
 use glutin::{Api, GlProfile, GlRequest};
-use glyph_brush::{
-    rusttype::Error as FontError, rusttype::Font, rusttype::Scale, Bounds, GlyphBrush,
-    GlyphBrushBuilder, HighlightRange, Layout, PixelCoords, Section,
-};
-use std::path::PathBuf;
+use std::{path::PathBuf};
 
 use file_chooser;
-use gl_layer::RenderExtras;
+use gl_layer::{TextOrRect, VisualSpec};
 use macros::d;
 use platform_types::{
     BufferView, BufferViewKind, CharDim, Cmd, Highlight, Input, ReplaceOrAdd, ScreenSpaceWH,
     ScreenSpaceXY, Sizes, UpdateAndRender, View,
 };
-use shared::Res;
+use shared::{Res};
 
-pub struct FontInfo<'a> {
-    font: Font<'a>,
-    text_scale: Scale,
-    text_char_dim: CharDim,
-    status_scale: Scale,
-    status_char_dim: CharDim,
-}
+const TEXT_SIZE: f32 = 60.0;
+const STATUS_SIZE: f32 = 22.0;
 
-impl FontInfo<'static> {
-    pub fn new(hidpi_factor: f32) -> Result<Self, FontError> {
-        const FONT_BYTES: &[u8] = include_bytes!("./fonts/FiraCode-Retina-plus-CR-and-LF.ttf");
-        let font: Font<'static> = Font::from_bytes(FONT_BYTES)?;
-        let text_size: f32 = 60.0;
-        let status_size: f32 = 22.0;
-
-        let text_scale = Scale::uniform((text_size * hidpi_factor).round());
-        let status_scale = Scale::uniform((status_size * hidpi_factor).round());
-
-        macro_rules! get_char_dim {
-            ($scale:ident) => {
-                CharDim {
-                    w: {
-                        // We currently assume the font is monospaced.
-                        let em_space_char = '\u{2003}';
-                        let h_metrics = font.glyph(em_space_char).scaled($scale).h_metrics();
-
-                        h_metrics.advance_width
-                    },
-                    h: {
-                        let v_metrics = font.v_metrics($scale);
-
-                        v_metrics.ascent + -v_metrics.descent + v_metrics.line_gap
-                    },
-                }
-            };
-        }
-
-        let text_char_dim = get_char_dim!(text_scale);
-        let status_char_dim = get_char_dim!(status_scale);
-
-        Ok(Self {
-            font,
-            text_scale,
-            text_char_dim,
-            status_scale,
-            status_char_dim,
-        })
-    }
-}
-
-pub fn get_glyph_brush<'font, A: Clone>(font_info: &FontInfo<'font>) -> GlyphBrush<'font, A> {
-    GlyphBrushBuilder::using_font(font_info.font.clone())
-        // Leaving this at the default of 0.1 makes the cache get cleared too often.
-        // Putting this at 1.0 means that the characters are visibly poorly kerned.
-        // This value seems like a happy medium at the moment.
-        .gpu_cache_position_tolerance(0.25)
-        .build()
+pub struct FontInfo {
+    pub text_char_dim: CharDim,
+    pub status_char_dim: CharDim,
 }
 
 mod clipboard_layer {
@@ -180,13 +125,23 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
     let glutin_context = unsafe { glutin_context.make_current().map_err(|(_, e)| e)? };
 
     let scroll_multiplier: f32 = 16.0;
-    let font_info = FontInfo::new(glutin_context.window().hidpi_factor() as f32)?;
 
-    let mut glyph_brush = get_glyph_brush(&font_info);
+    let text_sizes = [TEXT_SIZE, STATUS_SIZE];
 
-    let mut gl_state = gl_layer::init(&glyph_brush, |symbol| {
-        glutin_context.get_proc_address(symbol) as _
-    })?;
+    let (mut gl_state, char_dims) = gl_layer::init(
+        glutin_context.window().hidpi_factor() as f32,
+        &text_sizes,
+        |symbol| {
+            glutin_context.get_proc_address(symbol) as _
+        }
+    )?;
+
+    debug_assert!(char_dims.len() >= text_sizes.len(), "gl_layer::init didn't pass enough sizes");
+
+    let font_info = FontInfo {
+        text_char_dim: char_dims[0],
+        status_char_dim: char_dims[1],
+    };
 
     let mut loop_helper = spin_sleep::LoopHelper::builder().build_with_target_rate(250.0);
 
@@ -279,18 +234,21 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                     event: WindowEvent::RedrawRequested,
                     ..
                 } => {
-                    let width = dimensions.width as u32;
-                    let height = dimensions.height as u32;
+                    let width = dimensions.width;
+                    let height = dimensions.height;
 
                     {
-                        let extras = render_buffer_view(&mut glyph_brush, &view, &font_info, (width, height));
+                        let text_and_rects = render_buffer_view(
+                            &view,
+                            &font_info,
+                            (width as _, height as _)
+                        );
 
                         gl_layer::render(
                             &mut gl_state,
-                            &mut glyph_brush,
+                            text_and_rects,
                             width as _,
                             height as _,
-                            extras,
                         )
                         .expect("gl_layer::render didn't work");
                     }
@@ -384,21 +342,20 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                         WindowEvent::CloseRequested => quit!(),
                         WindowEvent::Resized(size) => {
                             let window = glutin_context.window();
-                            let dpi = window.hidpi_factor();
-                            glutin_context.resize(size.to_physical(dpi));
+                            let hidpi_factor = window.hidpi_factor();
+                            glutin_context.resize(size.to_physical(hidpi_factor));
                             let ls = window.inner_size();
-                            dimensions = ls.to_physical(dpi);
+                            dimensions = ls.to_physical(hidpi_factor);
                             call_u_and_r!(Input::SetSizes(Sizes! {
                                 screen: ScreenSpaceWH { w: dimensions.width as f32, h: dimensions.height as f32 },
                                 text_char_dim: None,
                                 status_char_dim: None,
                             }));
-                            gl_layer::set_dimensions(dimensions.width as _, dimensions.height as _);
-
-                            //if we don't reset the cache like this then we render a stretched
-                            //version of the text on windoe resize.
-                            let (t_w, t_h) = glyph_brush.texture_dimensions();
-                            glyph_brush.resize_texture(t_w, t_h);
+                            gl_layer::set_dimensions(
+                                &mut gl_state,
+                                hidpi_factor as _,
+                                (dimensions.width as _, dimensions.height as _)
+                            );
                         }
                         WindowEvent::KeyboardInput {
                             input:
@@ -617,10 +574,10 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                              && c != '\u{8}'    // backspace
                              && c != '\u{9}'    // horizontal tab
                              && c != '\u{f}'    // "shift in" AKA use black ink apparently, (sent with Ctrl-o)
-                             && c != '\u{16}'  // "synchronous idle" (sent with Ctrl-v)
-                             && c != '\u{18}'  // "cancel" (sent with Ctrl-x)
-                             && c != '\u{19}'  // "end of medium" (sent with Ctrl-y)
-                             && c != '\u{1a}'  // "substitute" (sent with Ctrl-z)
+                             && c != '\u{16}'   // "synchronous idle" (sent with Ctrl-v)
+                             && c != '\u{18}'   // "cancel" (sent with Ctrl-x)
+                             && c != '\u{19}'   // "end of medium" (sent with Ctrl-y)
+                             && c != '\u{1a}'   // "substitute" (sent with Ctrl-z)
                              && c != '\u{7f}'   // delete
                             {
                                 if c == '\r' {
@@ -743,45 +700,16 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
     }
 }
 
-/// As of this writing, casting f32 to i32 is undefined behaviour if the value does not fit!
-/// https://github.com/rust-lang/rust/issues/10184
-fn f32_to_i32_or_max(f: f32) -> i32 {
-    if f >= i32::min_value() as f32 && f <= i32::max_value() as f32 {
-        f as i32
-    } else {
-        // make this the default so NaN etc. end up here
-        i32::max_value()
-    }
-}
-
-fn highlight_to_pixel_coords(
-    &Highlight { min, max, .. }: &Highlight,
-    (x, y): (f32, f32),
-    CharDim { w, h }: CharDim,
-) -> PixelCoords {
-    let mut pixel_coords: PixelCoords = d!();
-
-    pixel_coords.min.x = f32_to_i32_or_max(min.offset.0 as f32 * w + x);
-    pixel_coords.min.y = f32_to_i32_or_max(min.line as f32 * h + y);
-    pixel_coords.max.x = f32_to_i32_or_max(max.offset.0 as f32 * w + x);
-    pixel_coords.max.y = f32_to_i32_or_max((max.line + 1) as f32 * h + y);
-
-    pixel_coords
-}
-
-pub fn render_buffer_view<A: Clone>(
-    glyph_brush: &mut GlyphBrush<A>,
-    view: &View,
+pub fn render_buffer_view<'view>(
+    view: &'view View,
     FontInfo {
-        text_scale,
         text_char_dim,
-        status_scale,
         status_char_dim,
         ..
     }: &FontInfo,
-    (_width, height): (u32, u32),
-) -> RenderExtras {
-    let mut highlight_ranges = Vec::new();
+    (_width, height): (f32, f32),
+) -> Vec<TextOrRect<'view>> {
+    let mut text_or_rects = Vec::with_capacity(view.buffers.len());
     perf_viz::start_record!("for &BufferView");
     for &BufferView {
         kind,
@@ -794,22 +722,14 @@ pub fn render_buffer_view<A: Clone>(
     {
         // Without a background the edit buffer(s) show through the status line(s)
         if let BufferViewKind::StatusLine = kind {
-            let mut pixel_coords: PixelCoords = d!();
-            pixel_coords.min.x = 0;
-            pixel_coords.min.y = height as i32 - f32_to_i32_or_max(status_char_dim.h);
-            pixel_coords.max.x = i32::max_value();
-            pixel_coords.max.y = i32::max_value();
-            let mut bounds: Bounds = d!();
-            bounds.max = (std::f32::INFINITY, std::f32::INFINITY).into();
-            highlight_ranges.push(HighlightRange {
-                pixel_coords,
-                bounds,
+            text_or_rects.push(TextOrRect::Rect(VisualSpec{
+                screen_position: (0.0, height - status_char_dim.h),
                 color: [7.0 / 256.0, 7.0 / 256.0, 7.0 / 256.0, 1.0],
-                z: 0.1875, //gl_layer::STATUS_BACKGROUND_Z,
-            });
+                z: gl_layer::STATUS_BACKGROUND_Z,
+                ..d!()
+            }));
         }
 
-        perf_viz::record_guard!("glyph_brush.queue");
         let text = {
             chars
             // perf_viz::record_guard!("map unprinatbles to symbols for themselves");
@@ -817,51 +737,50 @@ pub fn render_buffer_view<A: Clone>(
             //     .chars()
             //     .map(|c| {
             //         // map unprinatbles to symbols for themselves
-            //         // if c < 0x20 as char {
-            //         //     std::char::from_u32(c as u32 | 0x2400u32).unwrap_or(c)
-            //         // } else {
-            //         c
-            //         // }
+            //         if c < 0x20 as char {
+            //             std::char::from_u32(c as u32 | 0x2400u32).unwrap_or(c)
+            //         } else {
+            //             c
+            //         }
             //     })
             //     .collect::<String>();
             // s
         };
-        glyph_brush.queue(Section {
+        text_or_rects.push(TextOrRect::Text {
             text: &text,
-            scale: if let BufferViewKind::StatusLine = kind {
-                *status_scale
+            size: if let BufferViewKind::StatusLine = kind {
+                STATUS_SIZE
             } else {
-                *text_scale
+                TEXT_SIZE
             },
-            screen_position: screen_position.into(),
-            bounds,
-            color,
-            layout: Layout::default_wrap(),
-            z: match kind {
-                BufferViewKind::Edit => gl_layer::EDIT_Z,
-                BufferViewKind::Cursor => gl_layer::CURSOR_Z,
-                BufferViewKind::StatusLine => gl_layer::STATUS_Z,
-            },
-            ..Section::default()
+            spec: VisualSpec {
+                screen_position: screen_position.into(),
+                bounds,
+                color,
+                z: match kind {
+                    BufferViewKind::Edit => gl_layer::EDIT_Z,
+                    BufferViewKind::Cursor => gl_layer::CURSOR_Z,
+                    BufferViewKind::StatusLine => gl_layer::STATUS_Z,
+                }
+            }
         });
 
-        let mut rect_bounds: Bounds = d!();
-        rect_bounds.max = bounds.into();
-
-        perf_viz::start_record!("highlight_ranges.extend");
-        highlight_ranges.extend(highlights.iter().map(|h| HighlightRange {
-            pixel_coords: highlight_to_pixel_coords(h, screen_position.into(), *text_char_dim),
-            bounds: rect_bounds,
-            color: h.color,
-            z: gl_layer::HIGHLIGHT_Z,
-        }));
-        perf_viz::end_record!("highlight_ranges.extend");
+        perf_viz::start_record!("text_or_rects.extend");
+        let ScreenSpaceXY{x, y} = screen_position;
+        let CharDim { w, h }: CharDim = *text_char_dim;
+        text_or_rects.extend(highlights.iter().map(|Highlight{ min, max, color, ..}|
+            TextOrRect::Rect(VisualSpec {
+                screen_position: (min.offset.0 as f32 * w + x, min.line as f32 * h + y),
+                bounds: (max.offset.0 as f32 * w + x, (max.line + 1) as f32 * h + y),
+                color: *color,
+                z: gl_layer::HIGHLIGHT_Z,
+            })
+        ));
+        perf_viz::end_record!("text_or_rects.extend");
     }
     perf_viz::end_record!("for &BufferView");
 
-    RenderExtras {
-        highlight_ranges,
-    }
+    text_or_rects
 }
 
 #[cfg(test)]

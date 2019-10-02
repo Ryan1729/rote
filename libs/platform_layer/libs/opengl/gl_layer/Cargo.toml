@@ -11,6 +11,7 @@ path = "./src/gl_layer.rs"
 glyph_brush = { path = "../glyph-brush" }
 gl = "0.11"
 perf_viz = { path = "../../../../perf_viz" }
+platform_types = { path = "../../../../platform_types" }
 macros = { path = "../../../../macros" }
 shared = { path = "../shared" }
 

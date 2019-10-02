@@ -116,7 +116,7 @@ pub struct HighlightRange {
 }
 
 pub struct AdditionalRects<V: Clone + 'static> {
-    pub transform_status_line: fn(&mut V),
+    pub set_full_alpha: fn(&mut V),
     pub extract_tex_coords: fn(&V) -> TexCoords,
     pub highlight_ranges: Vec<HighlightRange>,
 }
@@ -295,7 +295,7 @@ impl<'font, V: Clone + 'static, H: BuildHasher> GlyphBrush<'font, V, H> {
             // the previous method that used multiple instances of the character
             let rect_hash = additional_rects.map(
                 |AdditionalRects {
-                     transform_status_line,
+                     set_full_alpha,
                      extract_tex_coords,
                      highlight_ranges,
                  }| {
@@ -321,7 +321,7 @@ impl<'font, V: Clone + 'static, H: BuildHasher> GlyphBrush<'font, V, H> {
                     self.keep_in_cache.insert(section_hash);
 
                     (
-                        transform_status_line,
+                        set_full_alpha,
                         extract_tex_coords,
                         section_hash,
                         highlight_ranges,
@@ -407,7 +407,7 @@ impl<'font, V: Clone + 'static, H: BuildHasher> GlyphBrush<'font, V, H> {
                 // This status line stuff was hacked in here to fix a perf issue arising from
                 // the previous method that used multiple instances of the character
                 if let Some((
-                    transform_status_line,
+                    set_full_alpha,
                     extract_tex_coords,
                     rect_hash,
                     highlight_ranges,
@@ -431,7 +431,7 @@ impl<'font, V: Clone + 'static, H: BuildHasher> GlyphBrush<'font, V, H> {
                             tex_coords
                         };
 
-                        transform_status_line(&mut vertex);
+                        set_full_alpha(&mut vertex);
 
                         verts.push(vertex);
 

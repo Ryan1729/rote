@@ -17,8 +17,6 @@ if_changed = { path = "../../../if_changed" }
 perf_viz = { path = "../../../perf_viz" }
 perf_viz_proc_macro = { path = "../../../perf_viz/libs/perf_viz_proc_macro" }
 gl_layer = { path = "gl_layer" }
-glyph_brush = { path = "glyph-brush" }
-glyph_brush_layout = { path = "glyph-brush-layout" }
 full_rusttype = { version = "0.7.5", features = ["gpu_cache"], package = "rusttype" }
 shared = { path = "shared" }
 glutin = "0.22.0-alpha1"

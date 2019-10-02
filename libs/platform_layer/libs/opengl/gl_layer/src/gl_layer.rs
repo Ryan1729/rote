@@ -1,8 +1,12 @@
 // This file was split off of a file that was part of https://github.com/alexheretic/glyph-brush
 use gl::types::*;
-use glyph_brush::rusttype::Scale;
 use glyph_brush::*;
+use glyph_brush::{
+    rusttype::{Font, Scale},
+    Bounds, GlyphBrush, GlyphBrushBuilder, HighlightRange, Layout, PixelCoords, Section,
+};
 use macros::{d, invariants_checked};
+use platform_types::CharDim;
 use shared::Res;
 use std::{ffi::CString, mem, ptr, str};
 
@@ -12,7 +16,7 @@ pub const CURSOR_Z: f32 = 0.375;
 pub const STATUS_BACKGROUND_Z: f32 = 0.25;
 pub const STATUS_Z: f32 = 0.125;
 
-pub struct State {
+pub struct State<'font> {
     vertex_count: usize,
     vertex_max: usize,
     program: u32,
@@ -20,7 +24,9 @@ pub struct State {
     vs: u32,
     vbo: u32,
     vao: u32,
+    glyph_brush: GlyphBrush<'font, Vertex>,
     glyph_texture: u32,
+    hidpi_factor: f32,
 }
 
 /// ```text
@@ -35,7 +41,7 @@ pub struct State {
 /// ```
 pub type Vertex = [GLfloat; 14];
 
-fn transform_status_line(vertex: &mut Vertex) {
+fn set_full_alpha(vertex: &mut Vertex) {
     vertex[13] = 1.0;
 }
 
@@ -136,10 +142,19 @@ macro_rules! gl_assert_ok {
     }};
 }
 
-pub fn init<F>(glyph_brush: &GlyphBrush<Vertex>, load_fn: F) -> Res<State>
+pub fn init<F>(
+    hidpi_factor: f32,
+    text_sizes: &[f32],
+    load_fn: F,
+) -> Res<(State<'static>, Vec<CharDim>)>
 where
     F: FnMut(&'static str) -> *const GLvoid,
 {
+    const FONT_BYTES: &[u8] = include_bytes!("./fonts/FiraCode-Retina.ttf");
+    let font: Font<'static> = Font::from_bytes(FONT_BYTES)?;
+
+    let glyph_brush = get_glyph_brush(&font);
+
     // Load the OpenGL function pointers
     gl::load_with(load_fn);
 
@@ -232,27 +247,100 @@ where
     let vertex_count = 0;
     let vertex_max = vertex_count;
 
-    Ok(State {
-        vertex_count,
-        vertex_max,
-        program,
-        fs,
-        vs,
-        vbo,
-        vao,
-        glyph_texture,
-    })
+    macro_rules! get_char_dim {
+        ($scale:ident) => {
+            CharDim {
+                w: {
+                    // We currently assume the font is monospaced.
+                    let em_space_char = '\u{2003}';
+                    let h_metrics = font.glyph(em_space_char).scaled($scale).h_metrics();
+
+                    h_metrics.advance_width
+                },
+                h: {
+                    let v_metrics = font.v_metrics($scale);
+
+                    v_metrics.ascent + -v_metrics.descent + v_metrics.line_gap
+                },
+            }
+        };
+    }
+
+    let mut char_dims = Vec::with_capacity(text_sizes.len());
+
+    for size in text_sizes {
+        let scale = Scale::uniform((size * hidpi_factor).round());
+        char_dims.push(get_char_dim!(scale));
+    }
+
+    Ok((
+        State {
+            vertex_count,
+            vertex_max,
+            program,
+            fs,
+            vs,
+            vbo,
+            vao,
+            glyph_brush,
+            glyph_texture,
+            hidpi_factor,
+        },
+        char_dims,
+    ))
 }
 
-pub fn set_dimensions(width: i32, height: i32) {
+pub fn set_dimensions(state: &mut State, hidpi_factor: f32, (width, height): (i32, i32)) {
     unsafe {
         gl::Viewport(0, 0, width, height);
     }
+
+    state.hidpi_factor = hidpi_factor;
+
+    //if we don't reset the cache like this then we render a stretched
+    //version of the text on window resize.
+    let (t_w, t_h) = state.glyph_brush.texture_dimensions();
+    state.glyph_brush.resize_texture(t_w, t_h);
 }
 
-#[derive(Clone)]
-pub struct RenderExtras {
-    pub highlight_ranges: Vec<HighlightRange>,
+#[derive(Clone, Debug)]
+pub struct VisualSpec {
+    /// Position on screen to render, in pixels from top-left. Defaults to (0, 0).
+    pub screen_position: (f32, f32),
+    /// Max (width, height) bounds, in pixels from top-left. Defaults to unbounded.
+    pub bounds: (f32, f32),
+    /// Rgba color of rendered item. Defaults to black.
+    pub color: [f32; 4],
+    /// Z values for use in depth testing. Defaults to 0.0
+    pub z: f32,
+}
+d!(for VisualSpec: VisualSpec{
+    screen_position: (0.0, 0.0),
+    bounds: (std::f32::INFINITY, std::f32::INFINITY),
+    color: [0.0, 0.0, 0.0, 1.0],
+    z: 0.0,
+});
+
+#[derive(Clone, Debug)]
+pub enum TextOrRect<'text> {
+    Text {
+        spec: VisualSpec,
+        text: &'text str,
+        /// The font size
+        size: f32,
+    },
+    Rect(VisualSpec),
+}
+
+/// As of this writing, casting f32 to i32 is undefined behaviour if the value does not fit!
+/// https://github.com/rust-lang/rust/issues/10184
+fn f32_to_i32_or_max(f: f32) -> i32 {
+    if f >= i32::min_value() as f32 && f <= i32::max_value() as f32 {
+        f as i32
+    } else {
+        // make this the default so NaN etc. end up here
+        i32::max_value()
+    }
 }
 
 #[perf_viz::record]
@@ -260,13 +348,62 @@ pub fn render(
     State {
         ref mut vertex_count,
         ref mut vertex_max,
+        ref mut glyph_brush,
         ..
     }: &mut State,
-    glyph_brush: &mut GlyphBrush<Vertex>,
+    text_and_rects: Vec<TextOrRect>,
     width: u32,
     height: u32,
-    RenderExtras { highlight_ranges }: RenderExtras,
 ) -> Res<()> {
+    let mut highlight_ranges = Vec::new();
+    perf_viz::start_record!("for &text_and_rects");
+    for t_or_r in text_and_rects {
+        match t_or_r {
+            TextOrRect::Text {
+                text,
+                size,
+                spec:
+                    VisualSpec {
+                        screen_position,
+                        bounds,
+                        color,
+                        z,
+                    },
+            } => glyph_brush.queue(Section {
+                text: &text,
+                scale: Scale::uniform(size),
+                screen_position,
+                bounds,
+                color,
+                layout: Layout::default_wrap(),
+                z,
+                ..d!()
+            }),
+            TextOrRect::Rect(VisualSpec {
+                screen_position: (min_x, min_y),
+                bounds: (max_x, max_y),
+                color,
+                z,
+            }) => {
+                let mut pixel_coords: PixelCoords = d!();
+                pixel_coords.min.x = f32_to_i32_or_max(min_x);
+                pixel_coords.min.y = f32_to_i32_or_max(min_y);
+                pixel_coords.max.x = f32_to_i32_or_max(max_x);
+                pixel_coords.max.y = f32_to_i32_or_max(max_y);
+
+                let mut bounds: Bounds = d!();
+                bounds.max = (max_x, max_y).into();
+                highlight_ranges.push(HighlightRange {
+                    pixel_coords,
+                    bounds,
+                    color,
+                    z,
+                });
+            }
+        }
+    }
+    perf_viz::end_record!("for &text_and_rects");
+
     let query_ids = [0; 1];
     if cfg!(feature = "time-render") {
         // Adding and then retreving this query for how long the gl rendering took,
@@ -280,7 +417,7 @@ pub fn render(
         // https://gamedev.stackexchange.com/q/172737
         // For the time being, I'm making this feature enabled by default since it is
         // currently faster, but thi may well not be true any more on a future machine/driver
-        // so  it seems worth it to keep it a feature.
+        // so it seems worth it to keep it a feature.
         unsafe {
             gl::GenQueries(1, query_ids.as_ptr() as _);
             gl::BeginQuery(gl::TIME_ELAPSED, query_ids[0])
@@ -311,7 +448,7 @@ pub fn render(
             },
             to_vertex,
             Some(AdditionalRects {
-                transform_status_line,
+                set_full_alpha,
                 extract_tex_coords,
                 highlight_ranges: highlight_ranges.clone(),
             }),
@@ -390,6 +527,15 @@ pub fn render(
     }
 
     Ok(())
+}
+
+fn get_glyph_brush<'font, A: Clone>(font: &Font<'font>) -> GlyphBrush<'font, A> {
+    GlyphBrushBuilder::using_font(font.clone())
+        // Leaving this at the default of 0.1 makes the cache get cleared too often.
+        // Putting this at 1.0 means that the characters are visibly poorly kerned.
+        // This value seems like a happy medium at the moment.
+        .gpu_cache_position_tolerance(0.25)
+        .build()
 }
 
 pub fn cleanup(
