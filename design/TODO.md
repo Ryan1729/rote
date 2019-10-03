@@ -1,14 +1,5 @@
 ## TODO
 
-* if a file was already opened, switch to that buffer instead of opening a new version of that file.
-  * Store the path on each buffer.
-    * how should we handle scratch buffers?
-      * ```
-        enum BufferName {
-            Path(Pathbuf),
-            Scratch(u32),
-        }
-        ```
 * Display file tabs that allow the user to switch between open buffers
   * show file path on tabs.
   * Do we want side-by-side visible buffers?
@@ -21,6 +12,7 @@
           * how should the processes be laid out? One editor processes and several UI/window threads?
             * Seems reasonable at the moment. The editor should not need to care about whether there are multiple windows, but it does need to know that two buffers are the same
   * Ctrl-t to make a new tab
+    * make new scratch buffer, with the next highest number
   * Ctrl-shift-t to restore last tab
     * We would want a fixed buffer of history like for undo/redo and clipboard history.
 

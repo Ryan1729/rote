@@ -782,6 +782,7 @@ pub enum BufferViewKind {
     Edit,
     StatusLine,
     Cursor,
+    Tab
 }
 
 d!(for BufferViewKind: BufferViewKind::Cursor);

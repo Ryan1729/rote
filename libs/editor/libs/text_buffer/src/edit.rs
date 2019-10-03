@@ -312,7 +312,6 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
                 for (i, index) in line_indicies.into_iter().enumerate() {
                     let line = some_or!(rope.line(index), continue);
 
-                    let line_start = some_or!(rope.line_to_char(index), continue);
                     let relative_line_end = final_non_newline_offset_for_rope_line(line);
 
                     let first_non_white_space_offset: Option<CharOffset> =
@@ -368,7 +367,7 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
                     delete_range: Some(delete_edit),
                 }
             }
-            (o1, o2) => d!(),
+            _ => d!(),
         }
     })
 }

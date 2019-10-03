@@ -1,14 +1,15 @@
 use editor_types::{Cursor, CursorState, Vec1};
-use macros::{c, d};
+use macros::{c, d, ok_or};
 use platform_types::{
     attempt_to_make_xy_visible, position_to_screen_space, position_to_text_space, push_highlights,
     screen_space_to_position, text_to_screen, Apron, BufferView, CharDim, Cmd, Input, Position,
     PositionRound, ScreenSpaceXY, ScrollableScreen, TextSpaceXY, UpdateAndRenderOutput, View,
     VisibilityAttemptResult,
 };
+use std::path::Path;
 
 use std::collections::VecDeque;
-use text_buffer::TextBuffer;
+use text_buffer::{BufferName, TextBuffer};
 
 #[derive(Default)]
 struct ClipboardHistory {
@@ -101,6 +102,20 @@ impl State {
             self.current_buffer_index - 1
         };
     }
+
+    fn matching_buffer_index(&self, path: &Path) -> Option<usize> {
+        for (i, buffer) in self.buffers.iter().enumerate() {
+            match &buffer.name {
+                BufferName::Path(p) => {
+                    if ok_or!(p.canonicalize(), continue) == ok_or!(path.canonicalize(), continue) {
+                        return Some(i);
+                    }
+                }
+                _ => {}
+            }
+        }
+        None
+    }
 }
 
 pub fn new() -> State {
@@ -127,11 +142,27 @@ impl From<&str> for State {
     }
 }
 
+const TAB_MIN_W: f32 = 64.0;
+
 #[perf_viz::record]
 pub fn render_view(state: &State, view: &mut View) {
+    use std::cmp::max;
     use platform_types::BufferViewKind;
-    let status_line_y = state.screen.wh.h - state.status_char_dim.h;
+
     view.buffers.clear();
+
+    let tab_y = 0.0;
+    let edit_y = tab_y + state.tab_char_dim.h;
+    let status_line_y = state.screen.wh.h - state.status_char_dim.h;
+
+    let tab_w = state.screen.wh.w / max(state.buffers.len(), 1).into();
+    let tab_w = if tab_w < TAB_MIN_W {
+        tab_w
+    } else {
+        // NaN ends up here
+        TAB_MIN_W
+    };
+
 
     let status_line_view = BufferView {
         kind: BufferViewKind::StatusLine,
@@ -143,6 +174,23 @@ pub fn render_view(state: &State, view: &mut View) {
         ..d!()
     };
 
+    for (i, buffer) in state.buffers.iter().enumerate() {
+        let mut screen_position = text_to_screen(TextSpaceXY::default(), state.screen.scroll);
+        screen_position.y += edit_y;
+
+        view.buffers.push(BufferView {
+            kind: BufferViewKind::Tab,
+            screen_position: ScreenSpaceXY{
+                x: i.into() * tab_w + state.tab_scroll,
+                y: tab_y
+            },
+            bounds: (std::f32::INFINITY, std::f32::INFINITY),
+            color: c![0.9, 0.9, 0.9],
+            chars: buffer.name.into(),
+            ..d!()
+        });
+    }
+
     match state.buffers.get(state.current_buffer_index) {
         Some(buffer) => {
             let cursors = buffer.cursors();
@@ -153,8 +201,9 @@ pub fn render_view(state: &State, view: &mut View) {
             for c in cursors.iter() {
                 let position = c.get_position();
 
-                let screen_position =
+                let mut screen_position =
                     position_to_screen_space(position, state.text_char_dim, state.screen.scroll);
+                screen_position.y += edit_y;
 
                 view.buffers.push(BufferView {
                     kind: BufferViewKind::Cursor,
@@ -400,9 +449,15 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
             b.insert_at_each_cursor(|i| i.to_string());
             try_to_show_cursors!(b);
         }),
-        LoadedFile(_path, str) => {
-            let index = state.buffers.len();
-            state.buffers.push(str.into());
+        LoadedFile(path, str) => {
+            let index = if let Some(index) = state.matching_buffer_index(path.as_ref()) {
+                index
+            } else {
+                let index = state.buffers.len();
+                state.buffers.push((path, str).into());
+                index
+            };
+
             state.current_buffer_index = index;
             buffer_call!(b {
                 try_to_show_cursors!(b);

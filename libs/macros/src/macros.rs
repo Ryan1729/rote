@@ -369,6 +369,17 @@ macro_rules! some_or {
 }
 
 #[macro_export]
+macro_rules! ok_or {
+    ($result: expr, $or: expr) => {{
+        if let Ok(thing) = $result {
+            thing
+        } else {
+            $or
+        }
+    }};
+}
+
+#[macro_export]
 macro_rules! dg {
     ($thing:expr) => {
         if cfg!(debug_assertions) {

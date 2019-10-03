@@ -6,6 +6,7 @@ use platform_types::{pos, AbsoluteCharOffset, CharOffset, Move, Position, Replac
 use std::borrow::Borrow;
 use std::cmp::{max, min};
 use std::collections::VecDeque;
+use std::path::PathBuf;
 
 mod edit;
 mod move_cursor;
@@ -188,12 +189,20 @@ impl Cursors {
 
 borrow!(<Vec1<Cursor>> for Cursors : c in &c.cursors);
 
+#[derive(Clone, Debug)]
+pub enum BufferName {
+    Path(PathBuf),
+    Scratch(u32),
+}
+d!(for BufferName: BufferName::Scratch(d!()));
+
 #[derive(Clone, Debug, Default)]
 pub struct TextBuffer {
     rope: Rope,
     cursors: Cursors,
     history: VecDeque<Edit>,
     history_index: usize,
+    pub name: BufferName,
 }
 
 impl From<String> for TextBuffer {
@@ -211,6 +220,26 @@ impl From<&str> for TextBuffer {
         let mut output: Self = d!();
 
         output.rope = Rope::from(s);
+
+        output
+    }
+}
+
+impl From<(PathBuf, &str)> for TextBuffer {
+    fn from((p, s): (PathBuf, &str)) -> Self {
+        let mut output: Self = s.into();
+
+        output.name = BufferName::Path(p);
+
+        output
+    }
+}
+
+impl From<(PathBuf, String)> for TextBuffer {
+    fn from((p, s): (PathBuf, String)) -> Self {
+        let mut output: Self = s.into();
+
+        output.name = BufferName::Path(p);
 
         output
     }
