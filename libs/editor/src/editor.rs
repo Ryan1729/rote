@@ -2,9 +2,9 @@ use editor_types::{Cursor, CursorState, Vec1};
 use macros::{c, d, ok_or};
 use platform_types::{
     attempt_to_make_xy_visible, position_to_screen_space, position_to_text_space, push_highlights,
-    screen_space_to_position, text_to_screen, Apron, BufferView, CharDim, Cmd, Input, Position,
-    PositionRound, ScreenSpaceXY, ScrollableScreen, TextSpaceXY, UpdateAndRenderOutput, View,
-    VisibilityAttemptResult,
+    screen_space_to_position, text_to_screen, Apron, BufferView, CharDim, Cmd, FontInfo, Input,
+    Position, PositionRound, ScreenSpaceXY, ScrollableScreen, TextSpaceXY, UpdateAndRenderOutput,
+    View, VisibilityAttemptResult,
 };
 use std::convert::TryFrom;
 use std::path::Path;
@@ -79,14 +79,17 @@ pub struct State {
     current_buffer_index: usize,
     screen: ScrollableScreen,
     tab_scroll: f32,
-    text_char_dim: CharDim,
-    status_char_dim: CharDim,
-    tab_char_dim: CharDim,
+    font_info: FontInfo,
     clipboard_history: ClipboardHistory,
 }
 
 fn xy_to_pos(state: &State, xy: ScreenSpaceXY, round: PositionRound) -> Position {
-    screen_space_to_position(xy, state.text_char_dim, state.screen.scroll, round)
+    screen_space_to_position(
+        xy,
+        state.font_info.text_char_dim,
+        state.screen.scroll,
+        round,
+    )
 }
 
 impl State {
@@ -152,18 +155,33 @@ fn usize_to_f32_or_65536(n: usize) -> f32 {
 }
 
 #[perf_viz::record]
-pub fn render_view(state: &State, view: &mut View) {
+pub fn render_view(
+    &State {
+        ref buffers,
+        ref screen,
+        tab_scroll,
+        font_info:
+            FontInfo {
+                text_char_dim,
+                status_char_dim,
+                tab_char_dim,
+            },
+        current_buffer_index,
+        ..
+    }: &State,
+    view: &mut View,
+) {
     use platform_types::BufferViewKind;
     use std::cmp::max;
 
     view.buffers.clear();
 
     let tab_y = 0.0;
-    let edit_y = tab_y + state.tab_char_dim.h;
-    let status_line_y = state.screen.wh.h - state.status_char_dim.h;
+    let edit_y = tab_y + tab_char_dim.h;
+    let status_line_y = screen.wh.h - status_char_dim.h;
 
-    let tab_count: f32 = usize_to_f32_or_65536(max(state.buffers.len(), 1));
-    let tab_w = state.screen.wh.w / tab_count;
+    let tab_count: f32 = usize_to_f32_or_65536(max(buffers.len(), 1));
+    let tab_w = screen.wh.w / tab_count;
     let tab_w = if tab_w < TAB_MIN_W {
         tab_w
     } else {
@@ -177,28 +195,28 @@ pub fn render_view(state: &State, view: &mut View) {
             x: 0.0,
             y: status_line_y,
         },
-        bounds: (state.screen.wh.w, state.status_char_dim.h),
+        bounds: (screen.wh.w, status_char_dim.h),
         ..d!()
     };
 
-    for (i, buffer) in state.buffers.iter().enumerate() {
-        let mut screen_position = text_to_screen(TextSpaceXY::default(), state.screen.scroll);
-        screen_position.y += edit_y;
+    for (i, buffer) in buffers.iter().enumerate() {
+        let mut screen_position = text_to_screen(TextSpaceXY::default(), screen.scroll);
+        screen_position.y -= edit_y;
 
-        let x = usize_to_f32_or_65536(i) * tab_w + state.tab_scroll;
-        let x_plus_1 = usize_to_f32_or_65536(i + 1) * tab_w + state.tab_scroll;
+        let x = usize_to_f32_or_65536(i) * tab_w + tab_scroll;
+        let x_plus_1 = usize_to_f32_or_65536(i + 1) * tab_w + tab_scroll;
 
         view.buffers.push(BufferView {
             kind: BufferViewKind::Tab,
             screen_position: ScreenSpaceXY { x, y: tab_y },
-            bounds: (x_plus_1, state.status_char_dim.h),
+            bounds: (x_plus_1, _char_dim.h),
             color: c![0.9, 0.9, 0.9],
             chars: buffer.name.to_string(),
             ..d!()
         });
     }
 
-    match state.buffers.get(state.current_buffer_index) {
+    match buffers.get(current_buffer_index) {
         Some(buffer) => {
             let cursors = buffer.cursors();
             const AVERAGE_SELECTION_LNES_ESTIMATE: usize = 4;
@@ -209,13 +227,13 @@ pub fn render_view(state: &State, view: &mut View) {
                 let position = c.get_position();
 
                 let mut screen_position =
-                    position_to_screen_space(position, state.text_char_dim, state.screen.scroll);
+                    position_to_screen_space(position, text_char_dim, screen.scroll);
                 screen_position.y += edit_y;
 
                 view.buffers.push(BufferView {
                     kind: BufferViewKind::Cursor,
                     screen_position,
-                    bounds: (state.screen.wh.w, state.text_char_dim.h),
+                    bounds: (screen.wh.w, text_char_dim.h),
                     color: match c.state {
                         CursorState::None => c![0.9, 0.3, 0.3],
                         CursorState::PressedAgainstWall => c![0.9, 0.9, 0.3],
@@ -228,9 +246,9 @@ pub fn render_view(state: &State, view: &mut View) {
             }
 
             {
-                let mut screen_position =
-                    text_to_screen(TextSpaceXY::default(), state.screen.scroll);
+                let mut screen_position = text_to_screen(TextSpaceXY::default(), screen.scroll);
                 screen_position.y += edit_y;
+                if_changed::dbg!(screen_position);
 
                 view.buffers.push(BufferView {
                     kind: BufferViewKind::Edit,
@@ -253,20 +271,16 @@ pub fn render_view(state: &State, view: &mut View) {
                 color: c![0.3, 0.9, 0.3],
                 chars: {
                     use std::fmt::Write;
-                    let mut chars = String::with_capacity(state.screen.wh.w as usize);
+                    let mut chars = String::with_capacity(screen.wh.w as usize);
 
-                    let _cannot_actually_fail = write!(
-                        chars,
-                        "{}/{}",
-                        state.current_buffer_index + 1,
-                        state.buffers.len()
-                    );
+                    let _cannot_actually_fail =
+                        write!(chars, "{}/{}", current_buffer_index + 1, buffers.len());
 
                     // debugging
                     let _cannot_actually_fail = write!(
                         chars,
                         "  ? t{} s{} w{}",
-                        state.text_char_dim, state.screen.scroll, state.screen.wh
+                        text_char_dim, screen.scroll, screen.wh
                     );
 
                     chars = buffer.cursors().iter().fold(chars, |mut acc, c| {
@@ -276,8 +290,8 @@ pub fn render_view(state: &State, view: &mut View) {
                             c,
                             position_to_screen_space(
                                 c.get_position(),
-                                state.text_char_dim,
-                                state.screen.scroll
+                                text_char_dim,
+                                screen.scroll
                             ),
                             display_option_compactly(
                                 buffer.find_index(c).and_then(|o| if o == 0 {
@@ -365,8 +379,8 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
         ($buffer: expr) => {
             attempt_to_make_sure_at_least_one_cursor_is_visible(
                 &mut state.screen,
-                state.text_char_dim,
-                state.status_char_dim,
+                state.font_info.text_char_dim,
+                state.font_info.status_char_dim,
                 &$buffer.cursors(),
             ); //TODO report non success result
         };
@@ -426,8 +440,7 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
             if let Some(wh) = sizes.screen {
                 state.screen.wh = wh;
             }
-            set_if_present!(sizes => state.text_char_dim);
-            set_if_present!(sizes => state.status_char_dim);
+            set_if_present!(sizes => state.font_info);
         }
         SetCursor(xy, replace_or_add) => {
             let position = xy_to_pos(state, xy, PositionRound::Up);

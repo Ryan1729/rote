@@ -808,24 +808,28 @@ impl Cmd {
 pub type UpdateAndRenderOutput = (View, Cmd);
 pub type UpdateAndRender = fn(Input) -> UpdateAndRenderOutput;
 
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct FontInfo {
+    pub text_char_dim: CharDim,
+    pub status_char_dim: CharDim,
+    pub tab_char_dim: CharDim,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Sizes {
     pub screen: Option<ScreenSpaceWH>,
-    pub text_char_dim: Option<CharDim>,
-    pub status_char_dim: Option<CharDim>,
+    pub font_info: Option<FontInfo>,
 }
 
 #[macro_export]
 macro_rules! Sizes {
     {
         screen: $screen:expr,
-        text_char_dim: $text_char_dim:expr,
-        status_char_dim: $status_char_dim:expr $(,)?
+        font_info: $font_info:expr$(,)?
     } => (
         Sizes {
             screen: $screen.into(),
-            text_char_dim: $text_char_dim.into(),
-            status_char_dim: $status_char_dim.into(),
+            font_info: $font_info.into(),
         }
     );
 }

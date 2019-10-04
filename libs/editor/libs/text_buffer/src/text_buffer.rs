@@ -422,6 +422,15 @@ impl TextBuffer {
         }
     }
 
+    /// Selects a grouping oof characters with a single character type, where the character types
+    /// are as follows:
+    /// * Word characters, as defined by the `regex` crate
+    /// * Whitspace characters, again as defined by the `regex` crate
+    /// * everything else, which we will call "Punctuation"
+    /// (see get_offsets in move_cursor.rs for details)
+    ///
+    /// If it helps, you can think of it as "select_word" if the position is on a word, and other
+    /// stuff otherwise
     pub fn select_char_type_grouping<P: Borrow<Position>>(
         &mut self,
         position: P,

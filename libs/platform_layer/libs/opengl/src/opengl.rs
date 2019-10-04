@@ -11,8 +11,8 @@ use file_chooser;
 use gl_layer::{TextLayout, TextOrRect, VisualSpec};
 use macros::d;
 use platform_types::{
-    BufferView, BufferViewKind, CharDim, Cmd, Highlight, Input, ReplaceOrAdd, ScreenSpaceWH,
-    ScreenSpaceXY, Sizes, UpdateAndRender, View,
+    BufferView, BufferViewKind, CharDim, Cmd, FontInfo, Highlight, Input, ReplaceOrAdd,
+    ScreenSpaceWH, ScreenSpaceXY, Sizes, UpdateAndRender, View,
 };
 use shared::Res;
 
@@ -30,11 +30,6 @@ const STATUS_BACKGROUND_Z: f32 = 0.25;
 const TAB_BACKGROUND_Z: f32 = 0.25;
 const STATUS_Z: f32 = 0.125;
 const TAB_Z: f32 = 0.125;
-
-pub struct FontInfo {
-    pub text_char_dim: CharDim,
-    pub status_char_dim: CharDim,
-}
 
 mod clipboard_layer {
     pub use clipboard::ClipboardProvider;
@@ -138,7 +133,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
 
     let scroll_multiplier: f32 = 16.0;
 
-    let text_sizes = [TEXT_SIZE, STATUS_SIZE];
+    let text_sizes = [TEXT_SIZE, STATUS_SIZE, TAB_SIZE];
 
     let (mut gl_state, char_dims) = gl_layer::init(
         glutin_context.window().hidpi_factor() as f32,
@@ -154,6 +149,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
     let font_info = FontInfo {
         text_char_dim: char_dims[0],
         status_char_dim: char_dims[1],
+        tab_char_dim: char_dims[2],
     };
 
     let mut loop_helper = spin_sleep::LoopHelper::builder().build_with_target_rate(250.0);
@@ -166,8 +162,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
 
     let (mut view, mut cmd) = update_and_render(Input::SetSizes(Sizes! {
         screen: ScreenSpaceWH { w: dimensions.width as f32, h: dimensions.height as f32 },
-        text_char_dim: font_info.text_char_dim,
-        status_char_dim: font_info.status_char_dim,
+        font_info: font_info
     }));
 
     // If you didn't click on the same symbol, counting that as a double click seems like it
@@ -361,8 +356,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                             dimensions = ls.to_physical(hidpi_factor);
                             call_u_and_r!(Input::SetSizes(Sizes! {
                                 screen: ScreenSpaceWH { w: dimensions.width as f32, h: dimensions.height as f32 },
-                                text_char_dim: None,
-                                status_char_dim: None,
+                                font_info: None,
                             }));
                             gl_layer::set_dimensions(
                                 &mut gl_state,
