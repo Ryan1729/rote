@@ -1,6 +1,6 @@
 use crate::move_cursor::{forward, get_next_selection_point, get_previous_selection_point};
 use editor_types::{Cursor, SetPositionAction, Vec1};
-use macros::{borrow, d, some_or, CheckedSub};
+use macros::{borrow, d, fmt_display, some_or, CheckedSub};
 use panic_safe_rope::{ByteIndex, LineIndex, Rope, RopeLine, RopeSliceTrait};
 use platform_types::{pos, AbsoluteCharOffset, CharOffset, Move, Position, ReplaceOrAdd};
 use std::borrow::Borrow;
@@ -195,6 +195,15 @@ pub enum BufferName {
     Scratch(u32),
 }
 d!(for BufferName: BufferName::Scratch(d!()));
+fmt_display!(for BufferName: name in "{}",
+    match name {
+        BufferName::Path(p) => p
+            .file_name()
+            .map(|s| s.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "?Unknown Path?".to_string()),
+        BufferName::Scratch(n) => format!("*scratch {}*", n),
+    }
+ );
 
 #[derive(Clone, Debug, Default)]
 pub struct TextBuffer {

@@ -6,6 +6,7 @@ use platform_types::{
     PositionRound, ScreenSpaceXY, ScrollableScreen, TextSpaceXY, UpdateAndRenderOutput, View,
     VisibilityAttemptResult,
 };
+use std::convert::TryFrom;
 use std::path::Path;
 
 use std::collections::VecDeque;
@@ -77,8 +78,10 @@ pub struct State {
     buffers: Vec1<TextBuffer>,
     current_buffer_index: usize,
     screen: ScrollableScreen,
+    tab_scroll: f32,
     text_char_dim: CharDim,
     status_char_dim: CharDim,
+    tab_char_dim: CharDim,
     clipboard_history: ClipboardHistory,
 }
 
@@ -144,10 +147,14 @@ impl From<&str> for State {
 
 const TAB_MIN_W: f32 = 64.0;
 
+fn usize_to_f32_or_65536(n: usize) -> f32 {
+    u16::try_from(n).unwrap_or(u16::max_value()).into()
+}
+
 #[perf_viz::record]
 pub fn render_view(state: &State, view: &mut View) {
-    use std::cmp::max;
     use platform_types::BufferViewKind;
+    use std::cmp::max;
 
     view.buffers.clear();
 
@@ -155,14 +162,14 @@ pub fn render_view(state: &State, view: &mut View) {
     let edit_y = tab_y + state.tab_char_dim.h;
     let status_line_y = state.screen.wh.h - state.status_char_dim.h;
 
-    let tab_w = state.screen.wh.w / max(state.buffers.len(), 1).into();
+    let tab_count: f32 = usize_to_f32_or_65536(max(state.buffers.len(), 1));
+    let tab_w = state.screen.wh.w / tab_count;
     let tab_w = if tab_w < TAB_MIN_W {
         tab_w
     } else {
         // NaN ends up here
         TAB_MIN_W
     };
-
 
     let status_line_view = BufferView {
         kind: BufferViewKind::StatusLine,
@@ -178,15 +185,15 @@ pub fn render_view(state: &State, view: &mut View) {
         let mut screen_position = text_to_screen(TextSpaceXY::default(), state.screen.scroll);
         screen_position.y += edit_y;
 
+        let x = usize_to_f32_or_65536(i) * tab_w + state.tab_scroll;
+        let x_plus_1 = usize_to_f32_or_65536(i + 1) * tab_w + state.tab_scroll;
+
         view.buffers.push(BufferView {
             kind: BufferViewKind::Tab,
-            screen_position: ScreenSpaceXY{
-                x: i.into() * tab_w + state.tab_scroll,
-                y: tab_y
-            },
-            bounds: (std::f32::INFINITY, std::f32::INFINITY),
+            screen_position: ScreenSpaceXY { x, y: tab_y },
+            bounds: (x_plus_1, state.status_char_dim.h),
             color: c![0.9, 0.9, 0.9],
-            chars: buffer.name.into(),
+            chars: buffer.name.to_string(),
             ..d!()
         });
     }
@@ -220,14 +227,20 @@ pub fn render_view(state: &State, view: &mut View) {
                 push_highlights(&mut highlights, position, c.get_highlight_position());
             }
 
-            view.buffers.push(BufferView {
-                kind: BufferViewKind::Edit,
-                screen_position: text_to_screen(TextSpaceXY::default(), state.screen.scroll),
-                bounds: (std::f32::INFINITY, std::f32::INFINITY),
-                color: c![0.3, 0.3, 0.9],
-                chars: buffer.chars().collect::<String>(),
-                highlights,
-            });
+            {
+                let mut screen_position =
+                    text_to_screen(TextSpaceXY::default(), state.screen.scroll);
+                screen_position.y += edit_y;
+
+                view.buffers.push(BufferView {
+                    kind: BufferViewKind::Edit,
+                    screen_position,
+                    bounds: (std::f32::INFINITY, std::f32::INFINITY),
+                    color: c![0.3, 0.3, 0.9],
+                    chars: buffer.chars().collect::<String>(),
+                    highlights,
+                });
+            }
 
             fn display_option_compactly<A: ToString>(op: Option<A>) -> String {
                 match op {
@@ -403,7 +416,11 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
             state.screen.scroll.x += amount;
         }
         ResetScroll => {
+            // Junp to tab should allivate the need for resetting the tab scroll.
             state.screen.scroll = d!();
+        }
+        ScrollTabs(amount) => {
+            state.tab_scroll += amount;
         }
         SetSizes(sizes) => {
             if let Some(wh) = sizes.screen {

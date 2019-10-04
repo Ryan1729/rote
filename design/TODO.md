@@ -1,7 +1,7 @@
 ## TODO
 
 * Display file tabs that allow the user to switch between open buffers
-  * show file path on tabs.
+  * truncate tab names that are too long with `...`
   * Do we want side-by-side visible buffers?
     * Eventually yes. Having the same buffer visible with two different scroll positions is desirable
       * should the cursor positions be separate?

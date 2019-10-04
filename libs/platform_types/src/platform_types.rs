@@ -52,6 +52,7 @@ pub enum Input {
     ResetScroll,
     ScrollVertically(f32),
     ScrollHorizontally(f32),
+    ScrollTabs(f32),
     SetSizes(Sizes),
     MoveAllCursors(Move),
     ExtendSelectionForAllCursors(Move),
@@ -782,7 +783,7 @@ pub enum BufferViewKind {
     Edit,
     StatusLine,
     Cursor,
-    Tab
+    Tab,
 }
 
 d!(for BufferViewKind: BufferViewKind::Cursor);

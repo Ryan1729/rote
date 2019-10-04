@@ -10,12 +10,6 @@ use platform_types::CharDim;
 use shared::Res;
 use std::{ffi::CString, mem, ptr, str};
 
-pub const EDIT_Z: f32 = 0.5;
-pub const HIGHLIGHT_Z: f32 = 0.4375;
-pub const CURSOR_Z: f32 = 0.375;
-pub const STATUS_BACKGROUND_Z: f32 = 0.25;
-pub const STATUS_Z: f32 = 0.125;
-
 pub struct State<'font> {
     vertex_count: usize,
     vertex_max: usize,
@@ -322,12 +316,19 @@ d!(for VisualSpec: VisualSpec{
 });
 
 #[derive(Clone, Debug)]
+pub enum TextLayout {
+    Wrap,
+    SingleLine,
+}
+
+#[derive(Clone, Debug)]
 pub enum TextOrRect<'text> {
     Text {
         spec: VisualSpec,
         text: &'text str,
         /// The font size
         size: f32,
+        layout: TextLayout,
     },
     Rect(VisualSpec),
 }
@@ -362,6 +363,7 @@ pub fn render(
             TextOrRect::Text {
                 text,
                 size,
+                layout,
                 spec:
                     VisualSpec {
                         screen_position,
@@ -375,7 +377,10 @@ pub fn render(
                 screen_position,
                 bounds,
                 color,
-                layout: Layout::default_wrap(),
+                layout: match layout {
+                    TextLayout::SingleLine => Layout::default_single_line(),
+                    TextLayout::Wrap => Layout::default_wrap(),
+                },
                 z,
                 ..d!()
             }),

@@ -5,19 +5,31 @@
 
 use glutin::dpi::LogicalPosition;
 use glutin::{Api, GlProfile, GlRequest};
-use std::{path::PathBuf};
+use std::path::PathBuf;
 
 use file_chooser;
-use gl_layer::{TextOrRect, VisualSpec};
+use gl_layer::{TextLayout, TextOrRect, VisualSpec};
 use macros::d;
 use platform_types::{
     BufferView, BufferViewKind, CharDim, Cmd, Highlight, Input, ReplaceOrAdd, ScreenSpaceWH,
     ScreenSpaceXY, Sizes, UpdateAndRender, View,
 };
-use shared::{Res};
+use shared::Res;
+
+const CHROME_BACKGROUND_COLOUR: [f32; 4] = [7.0 / 256.0, 7.0 / 256.0, 7.0 / 256.0, 1.0];
 
 const TEXT_SIZE: f32 = 60.0;
 const STATUS_SIZE: f32 = 22.0;
+const TAB_SIZE: f32 = 16.0;
+
+// Reminder: smaller means closer
+const EDIT_Z: f32 = 0.5;
+const HIGHLIGHT_Z: f32 = 0.4375;
+const CURSOR_Z: f32 = 0.375;
+const STATUS_BACKGROUND_Z: f32 = 0.25;
+const TAB_BACKGROUND_Z: f32 = 0.25;
+const STATUS_Z: f32 = 0.125;
+const TAB_Z: f32 = 0.125;
 
 pub struct FontInfo {
     pub text_char_dim: CharDim,
@@ -131,12 +143,13 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
     let (mut gl_state, char_dims) = gl_layer::init(
         glutin_context.window().hidpi_factor() as f32,
         &text_sizes,
-        |symbol| {
-            glutin_context.get_proc_address(symbol) as _
-        }
+        |symbol| glutin_context.get_proc_address(symbol) as _,
     )?;
 
-    debug_assert!(char_dims.len() >= text_sizes.len(), "gl_layer::init didn't pass enough sizes");
+    debug_assert!(
+        char_dims.len() >= text_sizes.len(),
+        "gl_layer::init didn't pass enough sizes"
+    );
 
     let font_info = FontInfo {
         text_char_dim: char_dims[0],
@@ -722,10 +735,18 @@ pub fn render_buffer_view<'view>(
     {
         // Without a background the edit buffer(s) show through the status line(s)
         if let BufferViewKind::StatusLine = kind {
-            text_or_rects.push(TextOrRect::Rect(VisualSpec{
-                screen_position: (0.0, height - status_char_dim.h),
-                color: [7.0 / 256.0, 7.0 / 256.0, 7.0 / 256.0, 1.0],
-                z: gl_layer::STATUS_BACKGROUND_Z,
+            text_or_rects.push(TextOrRect::Rect(VisualSpec {
+                screen_position: screen_position.into(),
+                color: CHROME_BACKGROUND_COLOUR,
+                z: STATUS_BACKGROUND_Z,
+                ..d!()
+            }));
+        } else if let BufferViewKind::Tab = kind {
+            text_or_rects.push(TextOrRect::Rect(VisualSpec {
+                screen_position: screen_position.into(),
+                color: [7.0 / 256.0, 140.0 / 256.0, 140.0 / 256.0, 0.4], //CHROME_BACKGROUND_COLOUR,
+                z: TAB_BACKGROUND_Z,
+                bounds,
                 ..d!()
             }));
         }
@@ -750,31 +771,43 @@ pub fn render_buffer_view<'view>(
             text: &text,
             size: if let BufferViewKind::StatusLine = kind {
                 STATUS_SIZE
+            } else if let BufferViewKind::Tab = kind {
+                TAB_SIZE
             } else {
                 TEXT_SIZE
+            },
+            layout: if let BufferViewKind::Edit = kind {
+                TextLayout::Wrap
+            } else {
+                TextLayout::SingleLine
             },
             spec: VisualSpec {
                 screen_position: screen_position.into(),
                 bounds,
                 color,
                 z: match kind {
-                    BufferViewKind::Edit => gl_layer::EDIT_Z,
-                    BufferViewKind::Cursor => gl_layer::CURSOR_Z,
-                    BufferViewKind::StatusLine => gl_layer::STATUS_Z,
-                }
-            }
+                    BufferViewKind::Edit => EDIT_Z,
+                    BufferViewKind::Cursor => CURSOR_Z,
+                    BufferViewKind::StatusLine => STATUS_Z,
+                    BufferViewKind::Tab => TAB_Z,
+                },
+            },
         });
 
         perf_viz::start_record!("text_or_rects.extend");
-        let ScreenSpaceXY{x, y} = screen_position;
+        let ScreenSpaceXY { x, y } = screen_position;
         let CharDim { w, h }: CharDim = *text_char_dim;
-        text_or_rects.extend(highlights.iter().map(|Highlight{ min, max, color, ..}|
-            TextOrRect::Rect(VisualSpec {
-                screen_position: (min.offset.0 as f32 * w + x, min.line as f32 * h + y),
-                bounds: (max.offset.0 as f32 * w + x, (max.line + 1) as f32 * h + y),
-                color: *color,
-                z: gl_layer::HIGHLIGHT_Z,
-            })
+        text_or_rects.extend(highlights.iter().map(
+            |Highlight {
+                 min, max, color, ..
+             }| {
+                TextOrRect::Rect(VisualSpec {
+                    screen_position: (min.offset.0 as f32 * w + x, min.line as f32 * h + y),
+                    bounds: (max.offset.0 as f32 * w + x, (max.line + 1) as f32 * h + y),
+                    color: *color,
+                    z: HIGHLIGHT_Z,
+                })
+            },
         ));
         perf_viz::end_record!("text_or_rects.extend");
     }
