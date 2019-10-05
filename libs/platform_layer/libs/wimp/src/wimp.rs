@@ -5,18 +5,16 @@
 
 use glutin::dpi::LogicalPosition;
 use glutin::{Api, GlProfile, GlRequest};
+use std::cmp::max;
 use std::path::PathBuf;
 
 use file_chooser;
 use gl_layer::{TextLayout, TextOrRect, VisualSpec};
-use macros::d;
-use platform_types::{
-    BufferView, BufferViewKind, CharDim, Cmd, FontInfo, Highlight, Input, ReplaceOrAdd,
-    ScreenSpaceWH, ScreenSpaceXY, Sizes, UpdateAndRender, View,
-};
+use macros::{c, d};
+use platform_types::*;
 use shared::Res;
 
-const CHROME_BACKGROUND_COLOUR: [f32; 4] = [7.0 / 256.0, 7.0 / 256.0, 7.0 / 256.0, 1.0];
+const CHROME_BACKGROUND_COLOUR: [f32; 4] = c![7.0 / 256.0, 7.0 / 256.0, 7.0 / 256.0];
 
 const TEXT_SIZE: f32 = 60.0;
 const STATUS_SIZE: f32 = 22.0;
@@ -245,25 +243,36 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                     let width = dimensions.width;
                     let height = dimensions.height;
 
-                    {
-                        let text_and_rects = render_buffer_view(
-                            &view,
-                            &font_info,
-                            (width as _, height as _)
-                        );
+                    let (text_and_rects, input) = render_buffer_view(
+                        &view,
+                        &font_info,
+                        (width as _, height as _)
+                    );
 
-                        gl_layer::render(
-                            &mut gl_state,
-                            text_and_rects,
-                            width as _,
-                            height as _,
-                        )
-                        .expect("gl_layer::render didn't work");
-                    }
+                    gl_layer::render(
+                        &mut gl_state,
+                        text_and_rects,
+                        width as _,
+                        height as _,
+                    )
+                    .expect("gl_layer::render didn't work");
 
                     glutin_context
                         .swap_buffers()
                         .expect("swap_buffers didn't work!");
+
+                    match cmd.take() {
+                        Cmd::SetClipboard(s) => {
+                            if let Err(err) = clipboard.set_contents(s) {
+                                handle_platform_error!(err);
+                            }
+                        }
+                        Cmd::NoCmd => {}
+                    }
+
+                    if let Some(input) = input{
+                        call_u_and_r!(input);
+                    }
 
                     if let Some(rate) = loop_helper.report_rate() {
                         glutin_context.window().set_title(&format!(
@@ -273,15 +282,6 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                             (mouse_x, mouse_y),
                             (last_click_x, last_click_y),
                         ));
-                    }
-
-                    match cmd.take() {
-                        Cmd::SetClipboard(s) => {
-                            if let Err(err) = clipboard.set_contents(s) {
-                                handle_platform_error!(err);
-                            }
-                        }
-                        Cmd::NoCmd => {}
                     }
 
                     perf_viz::start_record!("sleepin'");
@@ -621,19 +621,8 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                                     ctrl: false, shift: false, ..
                                 } => {
                                     let mut cursor_icon = glutin::window::CursorIcon::Text;
-                                    // If there were more than two kinds of cursor this would be more
-                                    // complicated. This might be an argument for changing the view to
-                                    // arrays of structs of each type instead. Or maybe some form that has
-                                    // no order to it at all.
-                                    for v in view.buffers.iter() {
-                                        match v.kind {
-                                            BufferViewKind::StatusLine => {
-                                                if mouse_y >= v.screen_position.y {
-                                                    cursor_icon = d!();
-                                                }
-                                            }
-                                            _ => {}
-                                        }
+                                    if mouse_y >= status_line_y(font_info.status_char_dim, dimensions.height as _) {
+                                        cursor_icon = d!();
                                     }
 
                                     glutin_context.window().set_cursor_icon(cursor_icon);
@@ -707,44 +696,76 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
     }
 }
 
+const TAB_MIN_W: f32 = 128.0;
+const TAB_PADDING_RATIO: f32 = 1.0 / 128.0;
+
+fn usize_to_f32_or_65536(n: usize) -> f32 {
+    use std::convert::TryFrom;
+    u16::try_from(n).unwrap_or(u16::max_value()).into()
+}
+
 pub fn render_buffer_view<'view>(
     view: &'view View,
     FontInfo {
         text_char_dim,
         status_char_dim,
-        ..
+        tab_char_dim,
     }: &FontInfo,
-    (_width, height): (f32, f32),
-) -> Vec<TextOrRect<'view>> {
-    let mut text_or_rects = Vec::with_capacity(view.buffers.len());
-    perf_viz::start_record!("for &BufferView");
-    for &BufferView {
-        kind,
-        bounds,
-        color,
-        ref chars,
-        screen_position,
-        ref highlights,
-    } in view.buffers.iter()
-    {
-        // Without a background the edit buffer(s) show through the status line(s)
-        if let BufferViewKind::StatusLine = kind {
-            text_or_rects.push(TextOrRect::Rect(VisualSpec {
-                screen_position: screen_position.into(),
-                color: CHROME_BACKGROUND_COLOUR,
-                z: STATUS_BACKGROUND_Z,
-                ..d!()
-            }));
-        } else if let BufferViewKind::Tab = kind {
-            text_or_rects.push(TextOrRect::Rect(VisualSpec {
-                screen_position: screen_position.into(),
-                color: [7.0 / 256.0, 140.0 / 256.0, 140.0 / 256.0, 0.4], //CHROME_BACKGROUND_COLOUR,
-                z: TAB_BACKGROUND_Z,
-                bounds,
-                ..d!()
-            }));
-        }
+    (width, height): (f32, f32),
+) -> (Vec<TextOrRect<'view>>, Option<Input>) {
+    let tab_y = 0.0;
+    let edit_y = tab_y + tab_char_dim.h;
 
+    let tab_count: f32 = usize_to_f32_or_65536(max(view.buffers.len(), 1));
+    let tab_w = width / tab_count;
+    let tab_w = if tab_w < TAB_MIN_W {
+        tab_w
+    } else {
+        // NaN ends up here
+        TAB_MIN_W
+    };
+    let tab_padding = tab_w * TAB_PADDING_RATIO;
+
+    let mut text_or_rects = Vec::with_capacity(view.buffers.len());
+    let mut input = None;
+    perf_viz::start_record!("for &BufferView");
+    for (i, BufferView { name, .. }) in view.buffers.iter().enumerate() {
+        let mut screen_position = text_to_screen(TextSpaceXY::default(), view.scroll);
+        screen_position.y -= edit_y;
+        let min_x = usize_to_f32_or_65536(i) * tab_w + tab_padding + view.tab_scroll;
+        let max_x = usize_to_f32_or_65536(i + 1) * tab_w - tab_padding + view.tab_scroll;
+
+        text_or_rects.push(TextOrRect::Rect(VisualSpec {
+            rect: ScreenSpaceRect {
+                min: (min_x, tab_y),
+                max: (max_x, tab_char_dim.h),
+            },
+            color: CHROME_BACKGROUND_COLOUR,
+            z: TAB_BACKGROUND_Z,
+        }));
+
+        text_or_rects.push(TextOrRect::Text {
+            text: &name,
+            size: TAB_SIZE,
+            layout: TextLayout::SingleLine,
+            spec: VisualSpec {
+                rect: ScreenSpaceRect {
+                    min: (min_x, tab_y),
+                    max: (max_x, tab_char_dim.h),
+                },
+                color: c![0.6, 0.6, 0.6],
+                z: TAB_Z,
+            },
+        });
+    }
+
+    if let Some(BufferView {
+        chars,
+        highlights,
+        cursors,
+        ..
+    }) = view.visible_buffers[0].and_then(|i| view.buffers.get(i))
+    {
         let text = {
             chars
             // perf_viz::record_guard!("map unprinatbles to symbols for themselves");
@@ -761,53 +782,94 @@ pub fn render_buffer_view<'view>(
             //     .collect::<String>();
             // s
         };
+
+        let ScreenSpaceXY { x, mut y } = text_to_screen(TextSpaceXY::default(), view.scroll);
+        y += edit_y;
         text_or_rects.push(TextOrRect::Text {
             text: &text,
-            size: if let BufferViewKind::StatusLine = kind {
-                STATUS_SIZE
-            } else if let BufferViewKind::Tab = kind {
-                TAB_SIZE
-            } else {
-                TEXT_SIZE
-            },
-            layout: if let BufferViewKind::Edit = kind {
-                TextLayout::Wrap
-            } else {
-                TextLayout::SingleLine
-            },
+            size: TEXT_SIZE,
+            layout: TextLayout::Wrap,
             spec: VisualSpec {
-                screen_position: screen_position.into(),
-                bounds,
-                color,
-                z: match kind {
-                    BufferViewKind::Edit => EDIT_Z,
-                    BufferViewKind::Cursor => CURSOR_Z,
-                    BufferViewKind::StatusLine => STATUS_Z,
-                    BufferViewKind::Tab => TAB_Z,
+                rect: ScreenSpaceRect {
+                    min: (x, y),
+                    ..d!()
                 },
+                color: c![0.3, 0.3, 0.9],
+                z: EDIT_Z,
             },
         });
 
         perf_viz::start_record!("text_or_rects.extend");
-        let ScreenSpaceXY { x, y } = screen_position;
         let CharDim { w, h }: CharDim = *text_char_dim;
         text_or_rects.extend(highlights.iter().map(
             |Highlight {
                  min, max, color, ..
              }| {
                 TextOrRect::Rect(VisualSpec {
-                    screen_position: (min.offset.0 as f32 * w + x, min.line as f32 * h + y),
-                    bounds: (max.offset.0 as f32 * w + x, (max.line + 1) as f32 * h + y),
+                    rect: ScreenSpaceRect {
+                        min: (min.offset.0 as f32 * w + x, min.line as f32 * h + y),
+                        max: (max.offset.0 as f32 * w + x, (max.line + 1) as f32 * h + y),
+                    },
                     color: *color,
                     z: HIGHLIGHT_Z,
                 })
             },
         ));
         perf_viz::end_record!("text_or_rects.extend");
+
+        for c in cursors.iter() {
+            let mut screen_xy = position_to_screen_space(c.position, *text_char_dim, view.scroll);
+            screen_xy.y += edit_y;
+            text_or_rects.push(TextOrRect::Text {
+                text: "▏",
+                size: TEXT_SIZE,
+                layout: TextLayout::SingleLine,
+                spec: VisualSpec {
+                    rect: ScreenSpaceRect {
+                        min: screen_xy.into(),
+                        max: (width, text_char_dim.h),
+                    },
+                    color: match c.state {
+                        CursorState::None => c![0.9, 0.3, 0.3],
+                        CursorState::PressedAgainstWall => c![0.9, 0.9, 0.3],
+                    },
+                    z: CURSOR_Z,
+                },
+            });
+        }
     }
     perf_viz::end_record!("for &BufferView");
 
-    text_or_rects
+    //
+    //   Status line
+    //
+    let rect = ScreenSpaceRect {
+        min: (0.0, status_line_y(*status_char_dim, height)),
+        max: (width, height),
+    };
+
+    text_or_rects.push(TextOrRect::Rect(VisualSpec {
+        rect,
+        color: CHROME_BACKGROUND_COLOUR,
+        z: STATUS_BACKGROUND_Z,
+    }));
+
+    text_or_rects.push(TextOrRect::Text {
+        text: &view.status_line.chars,
+        size: STATUS_SIZE,
+        layout: TextLayout::SingleLine,
+        spec: VisualSpec {
+            rect,
+            color: c![0.3, 0.9, 0.3],
+            z: STATUS_Z,
+        },
+    });
+
+    (text_or_rects, input)
+}
+
+fn status_line_y(status_char_dim: CharDim, height: f32) -> f32 {
+    height - status_char_dim.h
 }
 
 #[cfg(test)]

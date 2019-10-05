@@ -628,11 +628,6 @@ ord!(and friends for Position: p, other in {
         .then_with(|| p.offset.cmp(&other.offset))
 });
 
-#[derive(Default, Debug)]
-pub struct View {
-    pub buffers: Vec<BufferView>,
-}
-
 pub const DEFAULT_HIGHLIGHT_COLOUR: [f32; 4] = [0.0, 0.0, 0.0, 0.6];
 
 #[derive(Debug)]
@@ -692,9 +687,9 @@ pub fn push_highlights<O: Into<Option<Position>>>(
                 return;
             }
 
-            //This early return is merely an optimization from three rectangles to two.
+            // This early return is merely an optimization from three rectangles to two.
             // TODO Is this optimization actually worth it? The sticky cursor offset does make this
-            // more likely that it would otherwise be.
+            // more likely than it would otherwise be.
             if min.offset != 0 && min.offset == max.offset {
                 let min_middle = min.line + if min.offset == 0 { 0 } else { 1 };
                 // Since We know the lines must be different, we know `max.line > 0`
@@ -766,27 +761,61 @@ pub fn push_highlights<O: Into<Option<Position>>>(
     }
 }
 
+#[derive(Clone, Copy)]
+pub enum CursorState {
+    None,
+    PressedAgainstWall,
+}
+d!(for CursorState: CursorState::None);
+
+fmt_debug!(for CursorState: s in "{}", match s {
+    CursorState::None => "_",
+    CursorState::PressedAgainstWall => "->|"
+});
+
+ord!(and friends for CursorState: state, other in {
+    use std::cmp::Ordering::*;
+    match (state, other) {
+        (CursorState::None, CursorState::None) | (CursorState::PressedAgainstWall, CursorState::PressedAgainstWall) => Equal,
+        (CursorState::None, CursorState::PressedAgainstWall) => Less,
+        (CursorState::PressedAgainstWall, CursorState::None) => Greater
+    }
+});
+
+#[derive(Debug)]
+pub struct CursorView {
+    pub position: Position,
+    pub state: CursorState,
+}
+
+#[derive(Debug)]
+pub struct StatusLineView {
+    pub chars: String,
+}
+
+pub const DEFAULT_STATUS_LINE_CHARS: &'static str = "No buffer selected.";
+d!(for StatusLineView: StatusLineView {chars: DEFAULT_STATUS_LINE_CHARS.to_owned()});
+
+pub type VisibleBuffers = [Option<usize>; 2];
+
+#[derive(Default, Debug)]
+pub struct View {
+    pub visible_buffers: VisibleBuffers,
+    pub buffers: Vec<BufferView>,
+    pub status_line: StatusLineView,
+    pub scroll: ScrollXY,
+    pub tab_scroll: f32,
+}
+
 #[derive(Default, Debug)]
 pub struct BufferView {
-    pub kind: BufferViewKind,
-    // The position of the buffer view's origin (upper-left) point.
-    pub screen_position: ScreenSpaceXY,
-    pub bounds: (f32, f32),
-    pub color: [f32; 4],
+    // TODO this could be truncated to a fixed length and on the stack
+    pub name: String,
     //TODO make this a &str or a char iterator
     pub chars: String,
+    pub cursors: Vec<CursorView>,
     pub highlights: Vec<Highlight>,
 }
-
-#[derive(Copy, Clone, Debug)]
-pub enum BufferViewKind {
-    Edit,
-    StatusLine,
-    Cursor,
-    Tab,
-}
-
-d!(for BufferViewKind: BufferViewKind::Cursor);
 
 // Short form "Command".
 // This is for telling the platform layer that it should do things something in addition to
@@ -807,6 +836,17 @@ impl Cmd {
 
 pub type UpdateAndRenderOutput = (View, Cmd);
 pub type UpdateAndRender = fn(Input) -> UpdateAndRenderOutput;
+
+#[derive(Copy, Clone, Debug)]
+pub struct ScreenSpaceRect {
+    /// min: Position on screen to render, in pixels from top-left. Defaults to (0, 0).
+    pub min: (f32, f32),
+    /// max: Max (width, height) bounds, in pixels from top-left. Defaults to unbounded.
+    pub max: (f32, f32),
+}
+d!(for ScreenSpaceRect : ScreenSpaceRect{
+    min: (0.0, 0.0), max: (std::f32::INFINITY, std::f32::INFINITY)
+});
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct FontInfo {

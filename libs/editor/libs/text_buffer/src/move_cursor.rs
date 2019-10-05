@@ -3,7 +3,7 @@ use super::{
     final_non_newline_offset_for_rope_line, in_cursor_bounds, max, min,
     nearest_valid_position_on_same_line,
 };
-use editor_types::{Cursor, CursorState, SetPositionAction};
+use editor_types::{Cursor, SetPositionAction};
 use macros::d;
 use panic_safe_rope::{LineIndex, Rope, RopeLine, RopeSliceTrait};
 use platform_types::*;

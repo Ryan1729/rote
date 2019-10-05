@@ -6,7 +6,7 @@ use glyph_brush::{
     Bounds, GlyphBrush, GlyphBrushBuilder, HighlightRange, Layout, PixelCoords, Section,
 };
 use macros::{d, invariants_checked};
-use platform_types::CharDim;
+use platform_types::{CharDim, ScreenSpaceRect};
 use shared::Res;
 use std::{ffi::CString, mem, ptr, str};
 
@@ -299,18 +299,14 @@ pub fn set_dimensions(state: &mut State, hidpi_factor: f32, (width, height): (i3
 
 #[derive(Clone, Debug)]
 pub struct VisualSpec {
-    /// Position on screen to render, in pixels from top-left. Defaults to (0, 0).
-    pub screen_position: (f32, f32),
-    /// Max (width, height) bounds, in pixels from top-left. Defaults to unbounded.
-    pub bounds: (f32, f32),
+    pub rect: ScreenSpaceRect,
     /// Rgba color of rendered item. Defaults to black.
     pub color: [f32; 4],
     /// Z values for use in depth testing. Defaults to 0.0
     pub z: f32,
 }
 d!(for VisualSpec: VisualSpec{
-    screen_position: (0.0, 0.0),
-    bounds: (std::f32::INFINITY, std::f32::INFINITY),
+    rect: d!(),
     color: [0.0, 0.0, 0.0, 1.0],
     z: 0.0,
 });
@@ -364,18 +360,12 @@ pub fn render(
                 text,
                 size,
                 layout,
-                spec:
-                    VisualSpec {
-                        screen_position,
-                        bounds,
-                        color,
-                        z,
-                    },
+                spec: VisualSpec { rect, color, z },
             } => glyph_brush.queue(Section {
                 text: &text,
                 scale: Scale::uniform(size),
-                screen_position,
-                bounds,
+                screen_position: rect.min,
+                bounds: rect.max,
                 color,
                 layout: match layout {
                     TextLayout::SingleLine => Layout::default_single_line(),
@@ -385,8 +375,11 @@ pub fn render(
                 ..d!()
             }),
             TextOrRect::Rect(VisualSpec {
-                screen_position: (min_x, min_y),
-                bounds: (max_x, max_y),
+                rect:
+                    ScreenSpaceRect {
+                        min: (min_x, min_y),
+                        max: (max_x, max_y),
+                    },
                 color,
                 z,
             }) => {

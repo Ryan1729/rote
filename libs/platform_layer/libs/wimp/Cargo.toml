@@ -1,13 +1,13 @@
 [package]
-name = "opengl"
+name = "wimp"
 version = "0.0.1"
 authors = ["Ryan1729 <Ryan1729@gmail.com>", "Alex Butler <alexheretic@gmail.com>"]
 edition = "2018"
-description = "platform layer for rote, using opengl, based on a glyph_brush example"
+description = "Windows, Icons, Menus, Pointer platform layer for rote, using opengl, based on a glyph_brush example"
 license = "Apache-2.0"
 
 [lib]
-path = "./src/opengl.rs"
+path = "./src/wimp.rs"
 
 [dependencies]
 file_chooser = { path = "../file_chooser" }

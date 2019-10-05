@@ -1,28 +1,7 @@
 use macros::{d, fmt_debug, fmt_display, ord};
-use platform_types::{CharOffset, Position};
+use platform_types::{CharOffset, CursorState, Position};
 use std::borrow::Borrow;
 pub use vec1::{vec1, Vec1};
-
-#[derive(Clone)]
-pub enum CursorState {
-    None,
-    PressedAgainstWall,
-}
-d!(for CursorState: CursorState::None);
-
-fmt_debug!(for CursorState: s in "{}", match s {
-    CursorState::None => "_",
-    CursorState::PressedAgainstWall => "->|"
-});
-
-ord!(and friends for CursorState: state, other in {
-    use std::cmp::Ordering::*;
-    match (state, other) {
-        (CursorState::None, CursorState::None) | (CursorState::PressedAgainstWall, CursorState::PressedAgainstWall) => Equal,
-        (CursorState::None, CursorState::PressedAgainstWall) => Less,
-        (CursorState::PressedAgainstWall, CursorState::None) => Greater
-    }
-});
 
 #[derive(Clone, Copy, Debug)]
 pub enum SetPositionAction {
