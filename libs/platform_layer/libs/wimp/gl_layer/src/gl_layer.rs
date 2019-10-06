@@ -318,14 +318,17 @@ pub enum TextLayout {
 }
 
 #[derive(Clone, Debug)]
+pub struct TextSpec<'text> {
+    pub spec: VisualSpec,
+    pub text: &'text str,
+    /// The font size
+    pub size: f32,
+    pub layout: TextLayout,
+}
+
+#[derive(Clone, Debug)]
 pub enum TextOrRect<'text> {
-    Text {
-        spec: VisualSpec,
-        text: &'text str,
-        /// The font size
-        size: f32,
-        layout: TextLayout,
-    },
+    Text(TextSpec<'text>),
     Rect(VisualSpec),
 }
 
@@ -356,12 +359,12 @@ pub fn render(
     perf_viz::start_record!("for &text_and_rects");
     for t_or_r in text_and_rects {
         match t_or_r {
-            TextOrRect::Text {
+            TextOrRect::Text(TextSpec {
                 text,
                 size,
                 layout,
                 spec: VisualSpec { rect, color, z },
-            } => glyph_brush.queue(Section {
+            }) => glyph_brush.queue(Section {
                 text: &text,
                 scale: Scale::uniform(size),
                 screen_position: rect.min,

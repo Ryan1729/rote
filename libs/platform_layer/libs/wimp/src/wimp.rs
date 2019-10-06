@@ -3,18 +3,19 @@
 // opengl folder, to the extent that the code remains as it was
 // (at commit 90e7c7c331e9f991e11de6404b2ca073c0a09e61)
 
-use glutin::dpi::LogicalPosition;
-use glutin::{Api, GlProfile, GlRequest};
+use glutin::{dpi::LogicalPosition, event::ElementState, Api, GlProfile, GlRequest};
 use std::cmp::max;
 use std::path::PathBuf;
 
 use file_chooser;
-use gl_layer::{TextLayout, TextOrRect, VisualSpec};
+use gl_layer::{TextLayout, TextOrRect, TextSpec, VisualSpec};
 use macros::{c, d};
 use platform_types::*;
 use shared::Res;
 
-const CHROME_BACKGROUND_COLOUR: [f32; 4] = c![7.0 / 256.0, 7.0 / 256.0, 7.0 / 256.0];
+type Colour = [f32; 4];
+
+const CHROME_BACKGROUND_COLOUR: Colour = c![7.0 / 256.0, 7.0 / 256.0, 7.0 / 256.0];
 
 const TEXT_SIZE: f32 = 60.0;
 const STATUS_SIZE: f32 = 22.0;
@@ -171,13 +172,14 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
         (if w < h { w } else { h }) / 2.0
     };
 
-    let (mut mouse_x, mut mouse_y) = (0.0, 0.0);
     let (mut last_click_x, mut last_click_y) = (std::f32::NAN, std::f32::NAN);
+
+    let mut ui: UIState = d!();
 
     macro_rules! mouse_within_radius {
         () => {
-            (last_click_x - mouse_x).abs() <= mouse_epsilon_radius
-                && (last_click_y - mouse_y).abs() <= mouse_epsilon_radius
+            (last_click_x - ui.mouse_pos.x).abs() <= mouse_epsilon_radius
+                && (last_click_y - ui.mouse_pos.y).abs() <= mouse_epsilon_radius
         };
     }
 
@@ -204,7 +206,6 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
             .expect("Could not start editor thread!"),
     );
 
-    let mut mouse_state = glutin::event::ElementState::Released;
     {
         events.run(move |event, _, control_flow| {
             use glutin::event::*;
@@ -215,7 +216,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                 };
             }
 
-            // eventually we'll likely want to tell the editor, and have it decide whether/how
+            // eventually we'll likely want to tell  the editor, and have it decide whether/how
             // to display it to the user.
             macro_rules! handle_platform_error {
                 ($err: expr) => (
@@ -240,14 +241,20 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                     event: WindowEvent::RedrawRequested,
                     ..
                 } => {
+                    dbg!("ui.frame_init();");
+                    ui.frame_init();
+
                     let width = dimensions.width;
                     let height = dimensions.height;
 
                     let (text_and_rects, input) = render_buffer_view(
+                        &mut ui,
                         &view,
                         &font_info,
                         (width as _, height as _)
                     );
+
+                    dbg!(&text_and_rects);
 
                     gl_layer::render(
                         &mut gl_state,
@@ -279,7 +286,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                             "{} {:.0} FPS {:?} click {:?}",
                             title,
                             rate,
-                            (mouse_x, mouse_y),
+                            (ui.mouse_pos.x, ui.mouse_pos.y),
                             (last_click_x, last_click_y),
                         ));
                     }
@@ -345,7 +352,6 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                         }
                     }
 
-                    use platform_types::Move;
                     match event {
                         WindowEvent::CloseRequested => quit!(),
                         WindowEvent::Resized(size) => {
@@ -612,26 +618,21 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                             modifiers,
                             ..
                         } => {
-                            mouse_x = x as f32;
-                            mouse_y = y as f32;
-
+                            ui.mouse_pos = ScreenSpaceXY { x: x as f32, y: y as f32};
 
                             match modifiers {
                                 ModifiersState {
                                     ctrl: false, shift: false, ..
                                 } => {
                                     let mut cursor_icon = glutin::window::CursorIcon::Text;
-                                    if mouse_y >= status_line_y(font_info.status_char_dim, dimensions.height as _) {
+                                    if ui.mouse_pos.y >= status_line_y(font_info.status_char_dim, dimensions.height as _) {
                                         cursor_icon = d!();
                                     }
 
                                     glutin_context.window().set_cursor_icon(cursor_icon);
 
-                                    if mouse_state == ElementState::Pressed && !mouse_within_radius!() {
-                                        call_u_and_r!(Input::DragCursors(ScreenSpaceXY {
-                                            x: mouse_x,
-                                            y: mouse_y
-                                        }));
+                                    if ui.left_mouse_state == ElementState::Pressed && !mouse_within_radius!() {
+                                        call_u_and_r!(Input::DragCursors(ui.mouse_pos));
                                     }
                                 }
                                 _ => {}
@@ -650,7 +651,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                                 },
                             ..
                         } => {
-                            mouse_state = ElementState::Pressed;
+                            ui.left_mouse_state = ElementState::Pressed;
 
                             let replace_or_add = if ctrl {
                                 ReplaceOrAdd::Add
@@ -660,18 +661,12 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
 
                             let input = if mouse_within_radius!() {
                                 Input::SelectCharTypeGrouping(
-                                    ScreenSpaceXY {
-                                        x: mouse_x,
-                                        y: mouse_y
-                                    },
+                                    ui.mouse_pos,
                                     replace_or_add
                                 )
                             } else {
                                 Input::SetCursor(
-                                    ScreenSpaceXY {
-                                        x: mouse_x,
-                                        y: mouse_y
-                                    },
+                                    ui.mouse_pos,
                                     replace_or_add
                                 )
                             };
@@ -683,9 +678,9 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                             state: ElementState::Released,
                             ..
                         } => {
-                            mouse_state = ElementState::Released;
-                            last_click_x = mouse_x;
-                            last_click_y = mouse_y;
+                            ui.left_mouse_state = ElementState::Released;
+                            last_click_x = ui.mouse_pos.x;
+                            last_click_y = ui.mouse_pos.y;
                         }
                         _ => {}
                     }
@@ -696,6 +691,168 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
     }
 }
 
+// This is probably excessive. We can make this smaller if there is a measuarable perf impact
+// but given this goes on the stack, that seems unlikely?
+type UIId = [u64; 32];
+
+macro_rules! id {
+    ($thing: expr) => {{
+        let mut id: UIId = [0; 32];
+        // TODO is the compilier smart enough to avoid the allocation here?
+        let s = format!(
+            "{:p}{}",
+            &$thing,
+            concat!("?", column!(), "?", line!(), "?", file!(), "?padding")
+        );
+        let slice = s.as_bytes();
+
+        let mut i = 0;
+        for chunk in slice.chunks_exact(8) {
+            let mut value = 0u64;
+            value |= (chunk[0] as u64) << 56;
+            value |= (chunk[1] as u64) << 48;
+            value |= (chunk[2] as u64) << 40;
+            value |= (chunk[3] as u64) << 32;
+            value |= (chunk[4] as u64) << 24;
+            value |= (chunk[5] as u64) << 16;
+            value |= (chunk[6] as u64) << 8;
+            value |= (chunk[7] as u64) << 0;
+            id[i] = value;
+            i += 1;
+            if i >= id.len() {
+                break;
+            }
+        }
+
+        id
+    }};
+}
+
+struct UIState {
+    mouse_pos: ScreenSpaceXY,
+    left_mouse_state: ElementState,
+    active: UIId,
+    hot: UIId,
+    next_hot: UIId,
+}
+
+const UI_ID_ZERO: UIId = [0; 32];
+
+d!(for UIState: UIState {
+    mouse_pos: d!(),
+    left_mouse_state: ElementState::Released,
+    hot: UI_ID_ZERO,
+    active: UI_ID_ZERO,
+    next_hot: UI_ID_ZERO,
+});
+
+impl UIState {
+    pub fn set_not_active(&mut self) {
+        self.active = UI_ID_ZERO;
+    }
+    pub fn set_active(&mut self, id: UIId) {
+        self.active = id;
+    }
+    pub fn set_next_hot(&mut self, id: UIId) {
+        self.next_hot = id;
+    }
+    #[allow(dead_code)]
+    pub fn set_not_hot(&mut self) {
+        self.hot = UI_ID_ZERO;
+    }
+    pub fn frame_init(&mut self) {
+        if self.active == UI_ID_ZERO {
+            self.hot = self.next_hot;
+        }
+        self.next_hot = UI_ID_ZERO;
+    }
+}
+
+fn inside_rect(
+    ScreenSpaceXY { x, y }: ScreenSpaceXY,
+    ScreenSpaceRect { min, max }: ScreenSpaceRect,
+) -> bool {
+    x > min.0 && x <= max.0 && y > min.1 && y <= max.1
+}
+
+/// calling this once will swallow multiple clicks on the button. We could either
+/// pass in and return the number of clicks to fix that, or this could simply be
+/// called multiple times per frame (once for each click).
+fn do_button<'view>(
+    ui: &mut UIState,
+    text_or_rects: &mut Vec<TextOrRect<'view>>,
+    id: UIId,
+    rect: VisualSpec,
+    text: TextSpec<'view>,
+) -> bool {
+    let mut output = false;
+
+    let mouse_pos = ui.mouse_pos;
+    let mouse_state = ui.left_mouse_state;
+
+    let inside = inside_rect(if_changed::dbg!(mouse_pos), rect.rect);
+
+    if ui.active == id {
+        if mouse_state == ElementState::Released {
+            output = ui.hot == id && inside;
+            dbg!("set_not_active");
+            ui.set_not_active();
+        }
+    } else if ui.hot == id {
+        if mouse_state == ElementState::Pressed {
+            dbg!("set_active");
+            ui.set_active(id);
+        }
+    }
+
+    if inside {
+        dbg!("set_next_hot");
+        ui.set_next_hot(id);
+    }
+
+    if ui.active == id && mouse_state == ElementState::Pressed {
+        dbg!("yellow");
+        text_or_rects.push(TextOrRect::Rect(VisualSpec {
+            rect: ScreenSpaceRect {
+                min: text.spec.rect.min,
+                ..rect.rect
+            },
+            color: c![0.9, 0.9, 0.0],
+            ..rect
+        }));
+        text_or_rects.push(TextOrRect::Text(text));
+    } else if ui.hot == id {
+        dbg!("magenta");
+        // text_or_rects.push(TextOrRect::Rect(VisualSpec {
+        //     rect: ScreenSpaceRect {
+        //         max: text.spec.rect.max,
+        //         ..rect.rect
+        //     },
+        //     color: c![0.9, 0.0, 0.9],
+        //     ..rect
+        // }));
+        text_or_rects.push(TextOrRect::Rect(VisualSpec {
+            // rect: ScreenSpaceRect {
+            //     max: text.spec.rect.min,
+            //     ..rect.rect
+            // },
+            color: c![0.9, 0.0, 0.9],
+            ..rect
+        }));
+        text_or_rects.push(TextOrRect::Text(text));
+    } else {
+        dbg!("white");
+        // text_or_rects.push(TextOrRect::Rect(rect));
+        text_or_rects.push(TextOrRect::Rect(VisualSpec {
+            color: c![0.9, 0.9, 0.9],
+            ..rect
+        }));
+        text_or_rects.push(TextOrRect::Text(text));
+    }
+
+    output
+}
+
 const TAB_MIN_W: f32 = 128.0;
 const TAB_PADDING_RATIO: f32 = 1.0 / 128.0;
 
@@ -704,7 +861,8 @@ fn usize_to_f32_or_65536(n: usize) -> f32 {
     u16::try_from(n).unwrap_or(u16::max_value()).into()
 }
 
-pub fn render_buffer_view<'view>(
+fn render_buffer_view<'view>(
+    ui: &mut UIState,
     view: &'view View,
     FontInfo {
         text_char_dim,
@@ -735,28 +893,34 @@ pub fn render_buffer_view<'view>(
         let min_x = usize_to_f32_or_65536(i) * tab_w + tab_padding + view.tab_scroll;
         let max_x = usize_to_f32_or_65536(i + 1) * tab_w - tab_padding + view.tab_scroll;
 
-        text_or_rects.push(TextOrRect::Rect(VisualSpec {
-            rect: ScreenSpaceRect {
-                min: (min_x, tab_y),
-                max: (max_x, tab_char_dim.h),
-            },
-            color: CHROME_BACKGROUND_COLOUR,
-            z: TAB_BACKGROUND_Z,
-        }));
-
-        text_or_rects.push(TextOrRect::Text {
-            text: &name,
-            size: TAB_SIZE,
-            layout: TextLayout::SingleLine,
-            spec: VisualSpec {
+        if do_button(
+            ui,
+            &mut text_or_rects,
+            id!(name),
+            VisualSpec {
                 rect: ScreenSpaceRect {
                     min: (min_x, tab_y),
                     max: (max_x, tab_char_dim.h),
                 },
-                color: c![0.6, 0.6, 0.6],
-                z: TAB_Z,
+                color: CHROME_BACKGROUND_COLOUR,
+                z: TAB_BACKGROUND_Z,
             },
-        });
+            TextSpec {
+                text: &name,
+                size: TAB_SIZE,
+                layout: TextLayout::SingleLine,
+                spec: VisualSpec {
+                    rect: ScreenSpaceRect {
+                        min: (min_x, tab_y),
+                        max: (max_x, tab_char_dim.h),
+                    },
+                    color: c![0.6, 0.6, 0.6],
+                    z: TAB_Z,
+                },
+            },
+        ) {
+            input = Some(Input::SelectBuffer(i))
+        }
     }
 
     if let Some(BufferView {
@@ -785,7 +949,7 @@ pub fn render_buffer_view<'view>(
 
         let ScreenSpaceXY { x, mut y } = text_to_screen(TextSpaceXY::default(), view.scroll);
         y += edit_y;
-        text_or_rects.push(TextOrRect::Text {
+        text_or_rects.push(TextOrRect::Text(TextSpec {
             text: &text,
             size: TEXT_SIZE,
             layout: TextLayout::Wrap,
@@ -797,7 +961,7 @@ pub fn render_buffer_view<'view>(
                 color: c![0.3, 0.3, 0.9],
                 z: EDIT_Z,
             },
-        });
+        }));
 
         perf_viz::start_record!("text_or_rects.extend");
         let CharDim { w, h }: CharDim = *text_char_dim;
@@ -820,7 +984,7 @@ pub fn render_buffer_view<'view>(
         for c in cursors.iter() {
             let mut screen_xy = position_to_screen_space(c.position, *text_char_dim, view.scroll);
             screen_xy.y += edit_y;
-            text_or_rects.push(TextOrRect::Text {
+            text_or_rects.push(TextOrRect::Text(TextSpec {
                 text: "▏",
                 size: TEXT_SIZE,
                 layout: TextLayout::SingleLine,
@@ -835,7 +999,7 @@ pub fn render_buffer_view<'view>(
                     },
                     z: CURSOR_Z,
                 },
-            });
+            }));
         }
     }
     perf_viz::end_record!("for &BufferView");
@@ -854,7 +1018,7 @@ pub fn render_buffer_view<'view>(
         z: STATUS_BACKGROUND_Z,
     }));
 
-    text_or_rects.push(TextOrRect::Text {
+    text_or_rects.push(TextOrRect::Text(TextSpec {
         text: &view.status_line.chars,
         size: STATUS_SIZE,
         layout: TextLayout::SingleLine,
@@ -863,7 +1027,7 @@ pub fn render_buffer_view<'view>(
             color: c![0.3, 0.9, 0.3],
             z: STATUS_Z,
         },
-    });
+    }));
 
     (text_or_rects, input)
 }

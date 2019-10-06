@@ -3,6 +3,7 @@
 * Display file tabs that allow the user to switch between open buffers
   * add a little padding to tabs
   * implement clicking on tabs
+  * implement tab scrolling
   * Either give the tabs an overall background or make a single tab take the entire width.
   * truncate tab names that are too long with `...`
   * Do we want side-by-side visible buffers?

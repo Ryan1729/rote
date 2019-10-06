@@ -105,6 +105,12 @@ impl State {
         };
     }
 
+    fn select_buffer(&mut self, i: usize) {
+        if self.current_buffer_index < self.buffers.len() {
+            self.current_buffer_index = i;
+        }
+    }
+
     fn matching_buffer_index(&self, path: &Path) -> Option<usize> {
         for (i, buffer) in self.buffers.iter().enumerate() {
             match &buffer.name {
@@ -417,6 +423,9 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
         }
         PreviousBuffer => {
             state.previous_buffer();
+        }
+        SelectBuffer(i) => {
+            state.select_buffer(i);
         }
     }
 

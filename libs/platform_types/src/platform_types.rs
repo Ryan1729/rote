@@ -71,6 +71,7 @@ pub enum Input {
     TabOut,
     NextBuffer,
     PreviousBuffer,
+    SelectBuffer(usize),
 }
 
 d!(for Input : Input::None);
