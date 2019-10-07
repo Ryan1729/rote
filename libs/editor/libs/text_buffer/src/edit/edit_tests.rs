@@ -4,7 +4,8 @@ use crate::tests::{
     arb::{TestEdit, TestEditSpec, *},
     deep_clone, SOME_AMOUNT, *,
 };
-use editor_types::{cur, vec1, Cursor, CursorState};
+use editor_types::{cur, vec1, Cursor};
+use platform_types::CursorState;
 
 use proptest::prelude::*;
 use proptest::{option, prop_compose, proptest};

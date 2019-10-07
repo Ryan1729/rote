@@ -1,4 +1,5 @@
 use super::*;
+use crate::floating_point::*;
 use proptest::{num::f32, prop_compose, proptest};
 use std::cmp::Ordering;
 
@@ -24,7 +25,6 @@ ord!(and friends for OrdHighlight: s, other in s.0
     .min
     .cmp(&other.0.min)
     .then_with(|| s.0.max.cmp(&other.0.max)));
-
 
 fn get_ord_highlights<O: Into<Option<Position>>>(
     position: Position,
@@ -165,102 +165,6 @@ fn position_ord_works_as_expected() {
     assert!(pos! {l 0 o 9} < pos! {l 9 o 0});
 }
 
-const SIGN_BIT: u32 = 0x8000_0000;
-const ALL_BUT_SIGN_BIT: u32 = 0x7fff_ffff;
-
-// Assumes x is one of the "usual" `f32`s, AKA not sub/denormal, Infinity or NaN.
-// So normal numbers or 0. This does not imply that the output is a usual f32.
-fn usual_f32_minimal_increase(x: f32) -> f32 {
-    let non_sign_bits = x.to_bits() & ALL_BUT_SIGN_BIT;
-    // if is 0 or -0
-    if non_sign_bits == 0 {
-        std::f32::MIN_POSITIVE
-    } else {
-        let sign_bit = x.to_bits() & SIGN_BIT;
-        let sign = if sign_bit == 0 { 1 } else { -1 };
-        f32::from_bits(sign_bit | (non_sign_bits as i32 + sign) as u32)
-    }
-}
-
-// Assumes x is one of the "usual" `f32`s, AKA not sub/denormal, Infinity or NaN.
-// So normal numbers or 0. This does not imply that the output is a usual f32.
-fn usual_f32_minimal_decrease(x: f32) -> f32 {
-    let non_sign_bits = x.to_bits() & ALL_BUT_SIGN_BIT;
-    // if is 0 or -0
-    if non_sign_bits == 0 {
-        -std::f32::MIN_POSITIVE
-    } else {
-        let sign_bit = x.to_bits() & SIGN_BIT;
-        let sign = if sign_bit == 0 { 1 } else { -1 };
-        f32::from_bits(sign_bit | (non_sign_bits as i32 - sign) as u32)
-    }
-}
-
-// meta
-proptest! {
-    #[test]
-    fn usual_f32_minimal_increase_outputs_usual_f32s(
-        x in arb::usual(),
-    ) {
-        use std::num::FpCategory::{Zero, Normal};
-        let category = usual_f32_minimal_increase(x).classify();
-        assert!(
-            category == Zero || category == Normal,
-            "category was {:?}, not Zero or Normal",
-            category
-        );
-    }
-}
-
-proptest! {
-    #[test]
-    fn usual_f32_minimal_decrease_outputs_usual_f32s(
-        x in arb::usual(),
-    ) {
-        use std::num::FpCategory::{Zero, Normal};
-        let category = usual_f32_minimal_decrease(x).classify();
-        assert!(
-            category == Zero || category == Normal,
-            "category was {:?}, not Zero or Normal",
-            category
-        );
-    }
-}
-
-proptest! {
-    #[test]
-    fn usual_f32_minimal_increase_increases(
-        old in arb::usual(),
-    ) {
-        let new = usual_f32_minimal_increase(old);
-        assert!(
-            new > old,
-            "{:?} <= {:?}\n{:b} <= {:b}",
-            new,
-            old,
-            new.to_bits(),
-            old.to_bits()
-        );
-    }
-}
-
-proptest! {
-    #[test]
-    fn usual_f32_minimal_decrease_decreases(
-        old in arb::usual(),
-    ) {
-        let new = usual_f32_minimal_decrease(old);
-        assert!(
-            new < old,
-            "{:?} >= {:?}\n{:b} >= {:b}",
-            new,
-            old,
-            new.to_bits(),
-            old.to_bits()
-        );
-    }
-}
-
 macro_rules! xy_is_visible_assert {
     (not $screen: expr, $xy: expr) => {{
         use std::ops::Not;
@@ -282,7 +186,6 @@ macro_rules! xy_is_visible_assert {
         );
     }};
 }
-
 
 fn xy_is_visible_works_on_this_passed_in_screen(screen: &ScrollableScreen) {
     // TODO rewrite this with the correct meaning of `scroll` in mind.
@@ -404,7 +307,6 @@ fn xy_is_visible_works_on_this_passed_in_screen(screen: &ScrollableScreen) {
         )
     );
 
-
     xy_is_visible_assert!(
         &screen,
         screen_to_text(ScreenSpaceXY { x: 0.0, y: 0.0 }, screen.scroll)
@@ -454,7 +356,6 @@ fn xy_is_visible_works_on_this_passed_in_screen(screen: &ScrollableScreen) {
 
     xy_is_visible_assert!(
         &screen,
-
         screen_to_text(
             ScreenSpaceXY {
                 x: 0.0,
@@ -483,7 +384,6 @@ proptest! {
         xy_is_visible_works_on_this_passed_in_screen(&screen);
     }
 }
-
 
 #[test]
 fn xy_is_visible_works_on_this_very_short_and_wide_screen() {
@@ -516,7 +416,6 @@ fn xy_is_visible_works_on_this_realistic_example() {
         }
     );
 }
-
 
 fn attempt_to_make_xy_visible_works_in_this_scenario(
     screen: &mut ScrollableScreen,
@@ -709,7 +608,6 @@ fn text_space_to_position_then_position_to_text_space_is_identity_after_one_conv
 
         xy = new_xy;
     }
-
 }
 
 proptest! {
@@ -762,10 +660,17 @@ proptest! {
 }
 
 #[test]
-fn screen_to_text_then_text_to_screen_is_identity_after_one_conversion_for_this_generated_example() {
+fn screen_to_text_then_text_to_screen_is_identity_after_one_conversion_for_this_generated_example()
+{
     screen_to_text_then_text_to_screen_is_identity_after_one_conversion_for_these(
-        ScrollableScreen { scroll: ScrollXY { x: -75525750000000000.0, y: 0.0 }, wh: ScreenSpaceWH { w: 0.0, h: 0.0 } },
-        ScreenSpaceXY { x: 0.0, y: 0.0 }
+        ScrollableScreen {
+            scroll: ScrollXY {
+                x: -75525750000000000.0,
+                y: 0.0,
+            },
+            wh: ScreenSpaceWH { w: 0.0, h: 0.0 },
+        },
+        ScreenSpaceXY { x: 0.0, y: 0.0 },
     )
 }
 
@@ -784,11 +689,8 @@ fn text_to_screen_works_on_this_realistic_example() {
             },
             screen.scroll
         ),
-        ScreenSpaceXY {
-            x: 750.0,
-            y: 40.0
-        }
+        ScreenSpaceXY { x: 750.0, y: 40.0 }
     );
 }
 
-mod arb;
+pub mod arb;

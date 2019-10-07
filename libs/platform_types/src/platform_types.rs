@@ -3,6 +3,8 @@ use macros::{
 };
 use std::path::PathBuf;
 
+pub mod floating_point;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Move {
     Up,

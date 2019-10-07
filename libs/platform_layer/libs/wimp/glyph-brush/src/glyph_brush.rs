@@ -276,9 +276,32 @@ impl<'font, V: Clone + 'static, H: BuildHasher> GlyphBrush<'font, V, H> {
     {
         let current_text_state = {
             let mut s = self.section_hasher.build_hasher();
-            self.section_buffer.hash(&mut s);
-            screen_w.hash(&mut s);
-            screen_h.hash(&mut s);
+            let s_ref = &mut s;
+            self.section_buffer.hash(s_ref);
+            screen_w.hash(s_ref);
+            screen_h.hash(s_ref);
+            if let Some(AdditionalRects {
+                highlight_ranges, ..
+            }) = additional_rects.as_ref()
+            {
+                for HighlightRange {
+                    pixel_coords,
+                    bounds,
+                    color,
+                    z,
+                } in highlight_ranges.iter()
+                {
+                    pixel_coords.hash(s_ref);
+                    bounds.min.x.to_bits().hash(s_ref);
+                    bounds.min.y.to_bits().hash(s_ref);
+                    bounds.max.x.to_bits().hash(s_ref);
+                    bounds.max.y.to_bits().hash(s_ref);
+                    for n in color {
+                        n.to_bits().hash(s_ref);
+                    }
+                    z.to_bits().hash(s_ref);
+                }
+            }
             s.finish()
         };
 
@@ -406,12 +429,8 @@ impl<'font, V: Clone + 'static, H: BuildHasher> GlyphBrush<'font, V, H> {
 
                 // This status line stuff was hacked in here to fix a perf issue arising from
                 // the previous method that used multiple instances of the character
-                if let Some((
-                    set_full_alpha,
-                    extract_tex_coords,
-                    rect_hash,
-                    highlight_ranges,
-                )) = rect_hash
+                if let Some((set_full_alpha, extract_tex_coords, rect_hash, highlight_ranges)) =
+                    rect_hash
                 {
                     let glyphed = self.calculate_glyph_cache.get_mut(&rect_hash).unwrap();
                     glyphed.ensure_vertices(&self.texture_cache, screen_dims, to_vertex);

@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use file_chooser;
 use gl_layer::{TextLayout, TextOrRect, TextSpec, VisualSpec};
 use macros::{c, d};
-use platform_types::*;
+use platform_types::{floating_point::next_smallest_f32_if_normal_or_0, *};
 use shared::Res;
 
 type Colour = [f32; 4];
@@ -206,6 +206,16 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
             .expect("Could not start editor thread!"),
     );
 
+    let mut test_rect = ScreenSpaceRect {
+        min: (
+            dimensions.width as f32 / 2.0f32,
+            dimensions.height as f32 / 2.0f32,
+        ),
+        max: (
+            dimensions.width as f32 / 2.0f32 + 100.0,
+            dimensions.height as f32 / 2.0f32 + 100.0,
+        ),
+    };
     {
         events.run(move |event, _, control_flow| {
             use glutin::event::*;
@@ -241,7 +251,6 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                     event: WindowEvent::RedrawRequested,
                     ..
                 } => {
-                    dbg!("ui.frame_init();");
                     ui.frame_init();
 
                     let width = dimensions.width;
@@ -253,8 +262,6 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                         &font_info,
                         (width as _, height as _)
                     );
-
-                    dbg!(&text_and_rects);
 
                     gl_layer::render(
                         &mut gl_state,
@@ -775,26 +782,27 @@ fn inside_rect(
     x > min.0 && x <= max.0 && y > min.1 && y <= max.1
 }
 
+enum ButtonState {
+    Usual,
+    Hover,
+    Pressed,
+}
+
 /// calling this once will swallow multiple clicks on the button. We could either
 /// pass in and return the number of clicks to fix that, or this could simply be
 /// called multiple times per frame (once for each click).
-fn do_button<'view>(
-    ui: &mut UIState,
-    text_or_rects: &mut Vec<TextOrRect<'view>>,
-    id: UIId,
-    rect: VisualSpec,
-    text: TextSpec<'view>,
-) -> bool {
-    let mut output = false;
+fn do_button_logic(ui: &mut UIState, id: UIId, rect: ScreenSpaceRect) -> (bool, ButtonState) {
+    use ButtonState::*;
+    let mut clicked = false;
 
     let mouse_pos = ui.mouse_pos;
     let mouse_state = ui.left_mouse_state;
 
-    let inside = inside_rect(if_changed::dbg!(mouse_pos), rect.rect);
+    let inside = inside_rect(if_changed::dbg!(mouse_pos), rect);
 
     if ui.active == id {
         if mouse_state == ElementState::Released {
-            output = ui.hot == id && inside;
+            clicked = ui.hot == id && inside;
             dbg!("set_not_active");
             ui.set_not_active();
         }
@@ -810,51 +818,51 @@ fn do_button<'view>(
         ui.set_next_hot(id);
     }
 
-    if ui.active == id && mouse_state == ElementState::Pressed {
-        dbg!("yellow");
-        text_or_rects.push(TextOrRect::Rect(VisualSpec {
-            rect: ScreenSpaceRect {
-                min: text.spec.rect.min,
-                ..rect.rect
-            },
-            color: c![0.9, 0.9, 0.0],
-            ..rect
-        }));
-        text_or_rects.push(TextOrRect::Text(text));
+    let state = if ui.active == id && mouse_state == ElementState::Pressed {
+        Pressed
     } else if ui.hot == id {
-        dbg!("magenta");
-        // text_or_rects.push(TextOrRect::Rect(VisualSpec {
-        //     rect: ScreenSpaceRect {
-        //         max: text.spec.rect.max,
-        //         ..rect.rect
-        //     },
-        //     color: c![0.9, 0.0, 0.9],
-        //     ..rect
-        // }));
-        text_or_rects.push(TextOrRect::Rect(VisualSpec {
-            // rect: ScreenSpaceRect {
-            //     max: text.spec.rect.min,
-            //     ..rect.rect
-            // },
-            color: c![0.9, 0.0, 0.9],
-            ..rect
-        }));
-        text_or_rects.push(TextOrRect::Text(text));
+        Hover
     } else {
-        dbg!("white");
-        // text_or_rects.push(TextOrRect::Rect(rect));
-        text_or_rects.push(TextOrRect::Rect(VisualSpec {
-            color: c![0.9, 0.9, 0.9],
-            ..rect
-        }));
-        text_or_rects.push(TextOrRect::Text(text));
-    }
+        Usual
+    };
 
-    output
+    (clicked, state)
+}
+
+struct OutlineButtonSpec<'text> {
+    text: &'text str,
+    char_dim: CharDim,
+    layout: TextLayout,
+    padding: f32,
+    margin: f32,
+    rect: ScreenSpaceRect,
+    background_colour: Colour,
+    text_colour: Colour,
+    highlight_colour: Colour,
+    z: f32,
+}
+
+fn do_outline_button<'view>(
+    ui: &mut UIState,
+    id: UIId,
+    text_or_rects: &mut Vec<TextOrRect<'view>>,
+    spec: OutlineButtonSpec,
+) -> bool {
+    use ButtonState::*;
+    let (clicked, state) = do_button_logic(ui, id, spec.rect);
+    //
+    // match state {
+    //     Pressed =>
+    //     Hover =>
+    //     Usual =>
+    // }
+
+    clicked
 }
 
 const TAB_MIN_W: f32 = 128.0;
-const TAB_PADDING_RATIO: f32 = 1.0 / 128.0;
+const TAB_MARGIN_RATIO: f32 = 1.0 / 128.0;
+const TAB_PADDING_RATIO: f32 = 1.0 / 64.0;
 
 fn usize_to_f32_or_65536(n: usize) -> f32 {
     use std::convert::TryFrom;
@@ -883,6 +891,7 @@ fn render_buffer_view<'view>(
         TAB_MIN_W
     };
     let tab_padding = tab_w * TAB_PADDING_RATIO;
+    let tab_margin = tab_w * TAB_MARGIN_RATIO;
 
     let mut text_or_rects = Vec::with_capacity(view.buffers.len());
     let mut input = None;
@@ -893,30 +902,24 @@ fn render_buffer_view<'view>(
         let min_x = usize_to_f32_or_65536(i) * tab_w + tab_padding + view.tab_scroll;
         let max_x = usize_to_f32_or_65536(i + 1) * tab_w - tab_padding + view.tab_scroll;
 
-        if do_button(
+        if do_outline_button(
             ui,
-            &mut text_or_rects,
             id!(name),
-            VisualSpec {
+            &mut text_or_rects,
+            OutlineButtonSpec {
+                text: &name,
+                char_dim: *tab_char_dim,
+                layout: TextLayout::SingleLine,
+                padding: tab_padding,
+                margin: tab_margin,
                 rect: ScreenSpaceRect {
                     min: (min_x, tab_y),
                     max: (max_x, tab_char_dim.h),
                 },
-                color: CHROME_BACKGROUND_COLOUR,
+                background_colour: CHROME_BACKGROUND_COLOUR,
+                text_colour: c![0.6, 0.6, 0.6],
+                highlight_colour: c![0.6, 0.6, 0.0],
                 z: TAB_BACKGROUND_Z,
-            },
-            TextSpec {
-                text: &name,
-                size: TAB_SIZE,
-                layout: TextLayout::SingleLine,
-                spec: VisualSpec {
-                    rect: ScreenSpaceRect {
-                        min: (min_x, tab_y),
-                        max: (max_x, tab_char_dim.h),
-                    },
-                    color: c![0.6, 0.6, 0.6],
-                    z: TAB_Z,
-                },
             },
         ) {
             input = Some(Input::SelectBuffer(i))
@@ -1035,6 +1038,3 @@ fn render_buffer_view<'view>(
 fn status_line_y(status_char_dim: CharDim, height: f32) -> f32 {
     height - status_char_dim.h
 }
-
-#[cfg(test)]
-mod tests;

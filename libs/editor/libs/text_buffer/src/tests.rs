@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 use super::{cursor_assert, r, t_b, *};
 
-use editor_types::{vec1, CursorState};
-use platform_types::pos;
+use editor_types::vec1;
+use platform_types::{pos, CursorState};
 use proptest::prelude::*;
 use proptest::{collection, option, prop_compose, proptest};
 use std::fmt::Debug;
