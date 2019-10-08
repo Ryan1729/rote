@@ -170,7 +170,7 @@ where
         gl::GenBuffers(1, &mut vbo);
         gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
 
-        // Enamble Depth testing so we can occlude things while sending them down in any order
+        // Enable depth testing so we can occlude things while sending them down in any order
         gl::Enable(gl::DEPTH_TEST);
 
         {

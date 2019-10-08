@@ -10,7 +10,10 @@ use std::path::PathBuf;
 use file_chooser;
 use gl_layer::{TextLayout, TextOrRect, TextSpec, VisualSpec};
 use macros::{c, d};
-use platform_types::{floating_point::next_smallest_f32_if_normal_or_0, *};
+use platform_types::{
+    floating_point::{next_largest_f32_if_normal_or_0, next_smallest_f32_if_normal_or_0},
+    *,
+};
 use shared::Res;
 
 type Colour = [f32; 4];
@@ -20,15 +23,13 @@ const CHROME_BACKGROUND_COLOUR: Colour = c![7.0 / 256.0, 7.0 / 256.0, 7.0 / 256.
 const TEXT_SIZE: f32 = 60.0;
 const STATUS_SIZE: f32 = 22.0;
 const TAB_SIZE: f32 = 16.0;
-
 // Reminder: smaller means closer
 const EDIT_Z: f32 = 0.5;
 const HIGHLIGHT_Z: f32 = 0.4375;
 const CURSOR_Z: f32 = 0.375;
 const STATUS_BACKGROUND_Z: f32 = 0.25;
-const TAB_BACKGROUND_Z: f32 = 0.25;
+const TAB_Z: f32 = 0.25;
 const STATUS_Z: f32 = 0.125;
-const TAB_Z: f32 = 0.125;
 
 mod clipboard_layer {
     pub use clipboard::ClipboardProvider;
@@ -206,16 +207,6 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
             .expect("Could not start editor thread!"),
     );
 
-    let mut test_rect = ScreenSpaceRect {
-        min: (
-            dimensions.width as f32 / 2.0f32,
-            dimensions.height as f32 / 2.0f32,
-        ),
-        max: (
-            dimensions.width as f32 / 2.0f32 + 100.0,
-            dimensions.height as f32 / 2.0f32 + 100.0,
-        ),
-    };
     {
         events.run(move |event, _, control_flow| {
             use glutin::event::*;
@@ -831,7 +822,7 @@ fn do_button_logic(ui: &mut UIState, id: UIId, rect: ScreenSpaceRect) -> (bool, 
 
 struct OutlineButtonSpec<'text> {
     text: &'text str,
-    char_dim: CharDim,
+    size: f32,
     layout: TextLayout,
     padding: f32,
     margin: f32,
@@ -842,20 +833,113 @@ struct OutlineButtonSpec<'text> {
     z: f32,
 }
 
+fn enlarge_by(
+    ScreenSpaceRect {
+        min: (min_x, min_y),
+        max: (max_x, max_y),
+    }: ScreenSpaceRect,
+    enlarge_amount: f32,
+) -> ScreenSpaceRect {
+    ScreenSpaceRect {
+        min: (min_x - enlarge_amount, min_y - enlarge_amount),
+        max: (max_x + enlarge_amount, max_y + enlarge_amount),
+    }
+}
+
+fn shrink_by(
+    ScreenSpaceRect {
+        min: (min_x, min_y),
+        max: (max_x, max_y),
+    }: ScreenSpaceRect,
+    shrink_amount: f32,
+) -> ScreenSpaceRect {
+    ScreenSpaceRect {
+        min: (min_x + shrink_amount, min_y + shrink_amount),
+        max: (max_x - shrink_amount, max_y - shrink_amount),
+    }
+}
+
 fn do_outline_button<'view>(
     ui: &mut UIState,
     id: UIId,
     text_or_rects: &mut Vec<TextOrRect<'view>>,
-    spec: OutlineButtonSpec,
+    OutlineButtonSpec {
+        text,
+        size,
+        layout,
+        padding,
+        margin,
+        rect,
+        background_colour,
+        text_colour,
+        highlight_colour,
+        z,
+    }: OutlineButtonSpec<'view>,
 ) -> bool {
     use ButtonState::*;
-    let (clicked, state) = do_button_logic(ui, id, spec.rect);
-    //
-    // match state {
-    //     Pressed =>
-    //     Hover =>
-    //     Usual =>
-    // }
+    let (clicked, state) = do_button_logic(ui, id, rect);
+
+    macro_rules! push_text {
+        () => {
+            text_or_rects.push(TextOrRect::Text(TextSpec {
+                text,
+                size,
+                layout,
+                spec: VisualSpec {
+                    rect: shrink_by(rect, padding),
+                    color: text_colour,
+                    z: next_smallest_f32_if_normal_or_0(z),
+                },
+            }));
+        };
+    }
+
+    match state {
+        Pressed => {
+            text_or_rects.push(TextOrRect::Rect(VisualSpec {
+                rect,
+                color: highlight_colour,
+                z,
+            }));
+            push_text!();
+        }
+        Hover => {
+            // outline
+            println!(
+                "{:?}, {:?}, {:?}, {:?}",
+                next_largest_f32_if_normal_or_0(z),
+                next_largest_f32_if_normal_or_0(next_largest_f32_if_normal_or_0(z)),
+                next_largest_f32_if_normal_or_0(next_largest_f32_if_normal_or_0(
+                    next_largest_f32_if_normal_or_0(z)
+                ),),
+                next_largest_f32_if_normal_or_0(next_largest_f32_if_normal_or_0(
+                    next_largest_f32_if_normal_or_0(next_largest_f32_if_normal_or_0(z)),
+                ))
+            );
+            text_or_rects.push(TextOrRect::Rect(VisualSpec {
+                rect: enlarge_by(rect, margin),
+                color: highlight_colour,
+                z: next_largest_f32_if_normal_or_0(next_largest_f32_if_normal_or_0(
+                    next_largest_f32_if_normal_or_0(next_largest_f32_if_normal_or_0(z)),
+                )),
+            }));
+
+            text_or_rects.push(TextOrRect::Rect(VisualSpec {
+                rect,
+                color: background_colour,
+                z,
+            }));
+            push_text!();
+        }
+        Usual => {
+            text_or_rects.push(TextOrRect::Rect(VisualSpec {
+                rect,
+                color: background_colour,
+                z,
+            }));
+            push_text!();
+        }
+    }
 
     clicked
 }
@@ -908,7 +992,7 @@ fn render_buffer_view<'view>(
             &mut text_or_rects,
             OutlineButtonSpec {
                 text: &name,
-                char_dim: *tab_char_dim,
+                size: TAB_SIZE,
                 layout: TextLayout::SingleLine,
                 padding: tab_padding,
                 margin: tab_margin,
@@ -919,7 +1003,7 @@ fn render_buffer_view<'view>(
                 background_colour: CHROME_BACKGROUND_COLOUR,
                 text_colour: c![0.6, 0.6, 0.6],
                 highlight_colour: c![0.6, 0.6, 0.0],
-                z: TAB_BACKGROUND_Z,
+                z: TAB_Z,
             },
         ) {
             input = Some(Input::SelectBuffer(i))
