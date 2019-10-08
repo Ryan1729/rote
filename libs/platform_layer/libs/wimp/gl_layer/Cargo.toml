@@ -9,11 +9,16 @@ path = "./src/gl_layer.rs"
 
 [dependencies]
 glyph_brush = { path = "../glyph-brush" }
-gl = "0.11"
+gl = "0.14"
 perf_viz = { path = "../../../../perf_viz" }
 platform_types = { path = "../../../../platform_types" }
 macros = { path = "../../../../macros" }
 shared = { path = "../shared" }
+
+[dev-dependencies]
+# for the example(s)
+glutin = "0.22.0-alpha1"
+spin_sleep = "0.3"
 
 [features]
 # See comment in "time-render" check in gl_layer.rs for the reason why
