@@ -19,5 +19,6 @@ fn update_and_render(input: Input) -> UpdateAndRenderOutput {
 }
 
 fn main() {
+    println!("{} v{}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
     platform_layer::run(update_and_render);
 }

@@ -9,7 +9,7 @@ use std::path::PathBuf;
 
 use file_chooser;
 use gl_layer::{TextLayout, TextOrRect, TextSpec, VisualSpec};
-use macros::{c, d};
+use macros::{c, d, ord};
 use platform_types::*;
 use shared::Res;
 
@@ -294,6 +294,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                         ));
                     }
 
+                    ui.frame_end();
                     perf_viz::start_record!("sleepin'");
                     loop_helper.loop_sleep();
                     perf_viz::end_record!("sleepin'");
@@ -634,7 +635,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
 
                                     glutin_context.window().set_cursor_icon(cursor_icon);
 
-                                    if ui.left_mouse_state == ElementState::Pressed && !mouse_within_radius!() {
+                                    if ui.left_mouse_state.is_pressed() && !mouse_within_radius!() {
                                         call_u_and_r!(Input::DragCursors(ui.mouse_pos));
                                     }
                                 }
@@ -654,7 +655,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                                 },
                             ..
                         } => {
-                            ui.left_mouse_state = ElementState::Pressed;
+                            ui.left_mouse_state = PhysicalButtonState::PressedThisFrame;
 
                             let replace_or_add = if ctrl {
                                 ReplaceOrAdd::Add
@@ -681,7 +682,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                             state: ElementState::Released,
                             ..
                         } => {
-                            ui.left_mouse_state = ElementState::Released;
+                            ui.left_mouse_state = PhysicalButtonState::ReleasedThisFrame;
                             last_click_x = ui.mouse_pos.x;
                             last_click_y = ui.mouse_pos.y;
                         }
@@ -704,7 +705,9 @@ macro_rules! id {
         // TODO is the compilier smart enough to avoid the allocation here?
         let s = format!(
             "{:p}{}",
-            &$thing,
+            // Take advantage of the auto-deref behaviour to get the furthest down reference,
+            // which is the one that is most likely to be different.
+            &*$thing,
             concat!("?", column!(), "?", line!(), "?", file!(), "?padding")
         );
         let slice = s.as_bytes();
@@ -731,9 +734,71 @@ macro_rules! id {
     }};
 }
 
+macro_rules! dbg_id {
+    ($id: expr) => {{
+        // let mut s = String::with_capacity(32 * 4);
+        // 'outer: for n in $id.iter() {
+        //     let bytes = n.to_be_bytes();
+        //     for &byte in bytes.iter() {
+        //         if byte == 0 {
+        //             break 'outer;
+        //         }
+        //         s.push(byte as char);
+        //     }
+        // }
+        // dbg!(s);
+        // $id
+    }};
+}
+
+#[derive(Clone, Copy, Debug)]
+enum PhysicalButtonState {
+    Released,
+    Pressed,
+    ReleasedThisFrame,
+    PressedThisFrame,
+}
+ord!(and friends for PhysicalButtonState: s, other in {
+    use PhysicalButtonState::*;
+    let s = match s {
+        Released => 0,
+        Pressed => 1,
+        ReleasedThisFrame => 2,
+        PressedThisFrame => 3,
+    };
+
+    let other = match other {
+        Released => 0,
+        Pressed => 1,
+        ReleasedThisFrame => 2,
+        PressedThisFrame => 3,
+    };
+
+    s.cmp(&other)
+});
+
+d!(for PhysicalButtonState: PhysicalButtonState::Released);
+
+impl PhysicalButtonState {
+    fn decay(&mut self) {
+        *self = match *self {
+            Self::ReleasedThisFrame => Self::Released,
+            Self::PressedThisFrame => Self::Pressed,
+            other => other,
+        }
+    }
+
+    fn is_pressed(&self) -> bool {
+        match *self {
+            Self::ReleasedThisFrame | Self::Released => false,
+            Self::PressedThisFrame | Self::Pressed => true,
+        }
+    }
+}
+
 struct UIState {
     mouse_pos: ScreenSpaceXY,
-    left_mouse_state: ElementState,
+    left_mouse_state: PhysicalButtonState,
     active: UIId,
     hot: UIId,
     next_hot: UIId,
@@ -743,7 +808,7 @@ const UI_ID_ZERO: UIId = [0; 32];
 
 d!(for UIState: UIState {
     mouse_pos: d!(),
-    left_mouse_state: ElementState::Released,
+    left_mouse_state: d!(),
     hot: UI_ID_ZERO,
     active: UI_ID_ZERO,
     next_hot: UI_ID_ZERO,
@@ -768,6 +833,15 @@ impl UIState {
             self.hot = self.next_hot;
         }
         self.next_hot = UI_ID_ZERO;
+        // dbg!("frame_init");
+        // dbg!(self.active != UI_ID_ZERO);
+        // dbg!(self.hot != UI_ID_ZERO);
+        // dbg!(self.next_hot != UI_ID_ZERO);
+    }
+    pub fn frame_end(&mut self) {
+        // This needs to go here instead of in int, so that we actually see the undecayed state
+        // for the first frame after the input event.
+        self.left_mouse_state.decay();
     }
 }
 
@@ -778,43 +852,65 @@ fn inside_rect(
     x > min.0 && x <= max.0 && y > min.1 && y <= max.1
 }
 
+#[derive(Clone, Copy, Debug)]
 enum ButtonState {
     Usual,
     Hover,
     Pressed,
 }
+ord!(and friends for ButtonState: s, other in {
+    use ButtonState::*;
+    let s = match s {
+        Usual => 0,
+        Hover => 1,
+        Pressed => 2,
+    };
+
+    let other = match other {
+        Usual => 0,
+        Hover => 1,
+        Pressed => 2,
+    };
+
+    s.cmp(&other)
+});
+
+type DoButtonResult = (bool, ButtonState);
 
 /// calling this once will swallow multiple clicks on the button. We could either
 /// pass in and return the number of clicks to fix that, or this could simply be
 /// called multiple times per frame (once for each click).
-fn do_button_logic(ui: &mut UIState, id: UIId, rect: ScreenSpaceRect) -> (bool, ButtonState) {
+fn do_button_logic(ui: &mut UIState, id: UIId, rect: ScreenSpaceRect) -> DoButtonResult {
     use ButtonState::*;
     let mut clicked = false;
 
     let mouse_pos = ui.mouse_pos;
     let mouse_state = ui.left_mouse_state;
 
-    let inside = inside_rect(if_changed::dbg!(mouse_pos), rect);
+    let inside = inside_rect(mouse_pos, rect);
 
     if ui.active == id {
-        if mouse_state == ElementState::Released {
+        if mouse_state == PhysicalButtonState::ReleasedThisFrame {
             clicked = ui.hot == id && inside;
-            dbg!("set_not_active");
+            dbg!("ui.set_not_active();", clicked);
+            dbg_id!(id);
             ui.set_not_active();
         }
     } else if ui.hot == id {
-        if mouse_state == ElementState::Pressed {
-            dbg!("set_active");
+        if mouse_state == PhysicalButtonState::PressedThisFrame {
+            dbg!("ui.set_active(id);");
+            dbg_id!(id);
             ui.set_active(id);
         }
     }
 
     if inside {
-        dbg!("set_next_hot");
+        dbg!("ui.set_next_hot(id);");
+        dbg_id!(id);
         ui.set_next_hot(id);
     }
 
-    let state = if ui.active == id && mouse_state == ElementState::Pressed {
+    let state = if ui.active == id && mouse_state.is_pressed() {
         Pressed
     } else if ui.hot == id {
         Hover
@@ -825,6 +921,50 @@ fn do_button_logic(ui: &mut UIState, id: UIId, rect: ScreenSpaceRect) -> (bool, 
     (clicked, state)
 }
 
+#[test]
+fn do_button_logic_does_not_flash_like_it_used_to() {
+    use std::f32::INFINITY;
+    use ButtonState::*;
+
+    let mut ui: UIState = d!();
+    let id = id!(&0);
+    let rect = ScreenSpaceRect {
+        min: (-INFINITY, -INFINITY),
+        max: (INFINITY, INFINITY),
+    };
+
+    ui.frame_init();
+    assert_eq!(do_button_logic(&mut ui, id, rect), (false, Hover));
+    ui.frame_end();
+
+    ui.left_mouse_state = PhysicalButtonState::PressedThisFrame;
+
+    ui.frame_init();
+    assert_eq!(do_button_logic(&mut ui, id, rect), (false, Pressed));
+    ui.frame_end();
+
+    ui.frame_init();
+    assert_eq!(do_button_logic(&mut ui, id, rect), (false, Pressed));
+    ui.frame_end();
+
+    ui.frame_init();
+    assert_eq!(do_button_logic(&mut ui, id, rect), (false, Pressed));
+    ui.frame_end();
+
+    ui.left_mouse_state = PhysicalButtonState::ReleasedThisFrame;
+
+    ui.frame_init();
+    assert_eq!(do_button_logic(&mut ui, id, rect), (true, Hover));
+    ui.frame_end();
+
+    ui.frame_init();
+    assert_eq!(do_button_logic(&mut ui, id, rect), (false, Hover));
+    ui.frame_end();
+
+    ui.frame_init();
+    assert_eq!(do_button_logic(&mut ui, id, rect), (false, Hover));
+    ui.frame_end();
+}
 struct OutlineButtonSpec<'text> {
     text: &'text str,
     size: f32,
