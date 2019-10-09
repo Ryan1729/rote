@@ -64,6 +64,8 @@ mod floating_point_tests {
     use super::*;
     use crate::tests::arb;
     use proptest::proptest;
+    use std::f32::{MAX, MIN};
+    use std::num::FpCategory::{Infinite, Normal, Zero};
     // note, the following tests demostates that prop testing is not the same thing as testing every
     // case!
     proptest! {
@@ -71,7 +73,6 @@ mod floating_point_tests {
         fn usual_f32_minimal_increase_outputs_usual_f32s(
             x in arb::usual(),
         ) {
-            use std::num::FpCategory::{Zero, Normal};
             let category = usual_f32_minimal_increase(x).classify();
             assert!(
                 category == Zero || category == Normal,
@@ -85,7 +86,6 @@ mod floating_point_tests {
         fn usual_f32_minimal_decrease_outputs_usual_f32s(
             x in arb::usual(),
         ) {
-            use std::num::FpCategory::{Zero, Normal};
             let category = usual_f32_minimal_decrease(x).classify();
             assert!(
                 category == Zero || category == Normal,
@@ -128,8 +128,6 @@ mod floating_point_tests {
     }
     #[test]
     fn how_usual_f32_minimal_decrease_works_at_the_edge() {
-        use std::f32::MIN;
-        use std::num::FpCategory::{Infinite, Normal};
         // precondition
         assert_eq!(Normal, MIN.classify());
         let category = usual_f32_minimal_decrease(MIN).classify();
@@ -137,11 +135,18 @@ mod floating_point_tests {
     }
     #[test]
     fn how_usual_f32_minimal_increase_works_at_the_edge() {
-        use std::f32::MAX;
-        use std::num::FpCategory::{Infinite, Normal};
         // precondition
         assert_eq!(Normal, MAX.classify());
         let category = usual_f32_minimal_increase(MAX).classify();
         assert_eq!(Infinite, category);
+    }
+
+    #[test]
+    fn how_usual_f32_minimal_decrease_works_around_zero() {
+        assert_eq!(usual_f32_minimal_decrease(0.0), -MIN);
+    }
+    #[test]
+    fn how_usual_f32_minimal_increase_works_around_zero() {
+        assert_eq!(usual_f32_minimal_increase(0.0), MIN);
     }
 }

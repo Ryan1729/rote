@@ -6,7 +6,7 @@ use glyph_brush::{
     Bounds, GlyphBrush, GlyphBrushBuilder, HighlightRange, Layout, PixelCoords, Section,
 };
 use macros::{d, invariants_checked};
-use platform_types::{CharDim, ScreenSpaceRect};
+use platform_types::{floating_point::next_largest_f32_if_normal_or_0, CharDim, ScreenSpaceRect};
 use shared::Res;
 use std::{ffi::CString, mem, ptr, str};
 
@@ -136,6 +136,60 @@ macro_rules! gl_assert_ok {
     }};
 }
 
+/// We use thses values so that the default 24 bit depth buffer contains at least 2^16
+/// mutually distinct values which are *continuous* which makes mapping them from a u16 easier.
+/// Normally, the z values are clamped to be inside [0.0, 1.0], but given only 24 bits of
+/// precision, even values within that smaller range are not alwasys distinguishable.
+const DEPTH_MIN: f32 = 0.3125; // AKA z_to_f32(0)
+const DEPTH_MAX: f32 = 0.6249924; // AKA z_to_f32(65535)
+
+pub fn z_to_f32(z: u16) -> f32 {
+    // for some bizarre reason OpenGL maps most of the depth precision to the middle of the range
+    // see https://developer.nvidia.com/content/depth-precision-visualized
+    // so we map the u16 to be within the range [0.25, 0.75] in the following way:
+    //          s: sign, e: exponent, f: fraction
+    //          seee eeee  efff ffff  ffff ffff  ffff ffff
+    // `0.25 == 0011_1110__1000_0000__0000_0000__0000_0000`
+    // `0.75 == 0011_1111__0100_0000__0000_0000__0000_0000`
+    let minimum_bits: u32 = 0.25f32.to_bits();
+    // iteratively arrived at to shift the ends of the range towards the middle.
+    let shift_towards_middle = 1 << 21;
+    f32::from_bits(minimum_bits + ((z as u32) << 7) + shift_towards_middle)
+}
+
+#[test]
+fn z_to_f32_produces_different_values_for_each_z() {
+    use std::collections::HashMap;
+    // f32's don't implement Ord.
+    let mut map: HashMap<u32, u16> = HashMap::with_capacity(65536);
+
+    for i in 0..=65535u16 {
+        let z_f32 = z_to_f32(i);
+        let bits = z_f32.to_bits();
+
+        if let Some(old_i) = map.get(&bits) {
+            panic!("both {} and {} map to {}", old_i, i, z_f32);
+        }
+        map.insert(bits, i);
+    }
+}
+
+/// Once `to_bits` and `from_bits` are stabilized as const, these will be unnecessary, since then
+/// we can just define the consts to be what we are checking they are here.
+#[cfg(test)]
+mod z_depth_tests {
+    use super::*;
+    #[test]
+    fn depth_min_is_correct() {
+        assert_eq!(DEPTH_MIN, z_to_f32(0))
+    }
+
+    #[test]
+    fn depth_max_is_correct() {
+        assert_eq!(DEPTH_MAX, z_to_f32(65535))
+    }
+}
+
 pub fn init<F>(
     hidpi_factor: f32,
     text_sizes: &[f32],
@@ -172,6 +226,7 @@ where
 
         // Enable depth testing so we can occlude things while sending them down in any order
         gl::Enable(gl::DEPTH_TEST);
+        gl::DepthRangef(DEPTH_MIN, DEPTH_MAX);
 
         {
             // Create a texture for the glyphs
@@ -236,6 +291,10 @@ where
         // Use srgb for consistency with other examples
         gl::Enable(gl::FRAMEBUFFER_SRGB);
         gl::ClearColor(0.02, 0.02, 0.02, 1.0);
+
+        let mut depth_bits = 0;
+        gl::GetIntegerv(3414, &mut depth_bits);
+        dbg!(depth_bits);
     }
 
     let vertex_count = 0;
@@ -302,13 +361,13 @@ pub struct VisualSpec {
     pub rect: ScreenSpaceRect,
     /// Rgba color of rendered item. Defaults to black.
     pub color: [f32; 4],
-    /// Z values for use in depth testing. Defaults to 0.0
-    pub z: f32,
+    /// Z values for use in depth testing. Defaults to 32768
+    pub z: u16,
 }
 d!(for VisualSpec: VisualSpec{
     rect: d!(),
     color: [0.0, 0.0, 0.0, 1.0],
-    z: 0.0,
+    z: 32768,
 });
 
 #[derive(Clone, Debug)]
@@ -374,7 +433,7 @@ pub fn render(
                     TextLayout::SingleLine => Layout::default_single_line(),
                     TextLayout::Wrap => Layout::default_wrap(),
                 },
-                z,
+                z: z_to_f32(z),
                 ..d!()
             }),
             TextOrRect::Rect(VisualSpec {
@@ -398,7 +457,7 @@ pub fn render(
                     pixel_coords,
                     bounds,
                     color,
-                    z,
+                    z: z_to_f32(z),
                 });
             }
         }

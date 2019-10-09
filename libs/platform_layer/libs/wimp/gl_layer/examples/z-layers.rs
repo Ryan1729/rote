@@ -4,10 +4,7 @@
 /// sceene with this crate.
 use gl_layer::{TextLayout, TextOrRect, TextSpec, VisualSpec};
 use glutin::{Api, GlProfile, GlRequest};
-use platform_types::{
-    floating_point::{next_largest_f32_if_normal_or_0, next_smallest_f32_if_normal_or_0},
-    *,
-};
+use platform_types::*;
 use shared::Res;
 
 fn main() -> Res<()> {
@@ -17,6 +14,7 @@ fn main() -> Res<()> {
         //As of now we only need 3.3 for GL_TIME_ELAPSED. Otherwise we could use 3.2.
         .with_gl(GlRequest::Specific(Api::OpenGl, (3, 3)))
         .with_srgb(true)
+        .with_depth_buffer(24)
         .build_windowed(
             glutin::window::WindowBuilder::new()
                 .with_inner_size((683, 393).into())
@@ -49,12 +47,20 @@ fn main() -> Res<()> {
     let second_colour = [0.6, 0.6, 0.0, 1.0];
 
     // User manipulatable state
-    let mut first_z: f32 = 0.25;
-    let mut second_z: f32 = next_largest_f32_if_normal_or_0(first_z);
+    let mut first_z: u16 = 0;
+    let mut second_z: u16 = first_z + 1;
+    let mut auto_advance = false;
 
     {
         events.run(move |event, _, control_flow| {
             use glutin::event::*;
+
+            macro_rules! advance {
+                () => {
+                    second_z = second_z.saturating_add(1);
+                    first_z = first_z.saturating_add(1);
+                };
+            }
 
             match event {
                 Event::EventsCleared if running => {
@@ -65,6 +71,10 @@ fn main() -> Res<()> {
                     event: WindowEvent::RedrawRequested,
                     ..
                 } => {
+                    if auto_advance {
+                        advance!();
+                    }
+
                     let width = dimensions.width as f32;
                     let height = dimensions.height as f32;
 
@@ -76,6 +86,7 @@ fn main() -> Res<()> {
                     let x1 = width / 4.0;
                     let y1 = height / 4.0;
 
+                    #[allow(unused_variables)]
                     let x2 = x1 * 2.0;
                     let y2 = y1 * 2.0;
 
@@ -93,8 +104,9 @@ fn main() -> Res<()> {
                             max: (x3, y3),
                         },
                         color: first_colour,
-                        z: next_smallest_f32_if_normal_or_0(first_z),
+                        z: first_z,
                     }));
+                    let first_z_sub_1 = first_z.saturating_sub(1);
                     text_and_rects.push(TextOrRect::Text(TextSpec {
                         text: "first",
                         size: TEXT_SIZE,
@@ -104,10 +116,11 @@ fn main() -> Res<()> {
                                 max: (x3, y3),
                             },
                             color: text_colour,
-                            z: next_smallest_f32_if_normal_or_0(first_z),
+                            z: first_z_sub_1,
                         },
                         layout: TextLayout::Wrap,
                     }));
+                    let first_z_sub_2 = first_z.saturating_sub(2);
                     text_and_rects.push(TextOrRect::Text(TextSpec {
                         text: "1st",
                         size: TEXT_SIZE,
@@ -117,9 +130,7 @@ fn main() -> Res<()> {
                                 max: (x3, y3),
                             },
                             color: text_colour,
-                            z: next_smallest_f32_if_normal_or_0(next_smallest_f32_if_normal_or_0(
-                                first_z,
-                            )),
+                            z: first_z_sub_2,
                         },
                         layout: TextLayout::Wrap,
                     }));
@@ -130,8 +141,9 @@ fn main() -> Res<()> {
                             max: (x4, y4),
                         },
                         color: second_colour,
-                        z: next_smallest_f32_if_normal_or_0(second_z),
+                        z: second_z,
                     }));
+                    let second_z_sub_1 = second_z.saturating_sub(1);
                     text_and_rects.push(TextOrRect::Text(TextSpec {
                         text: "second",
                         size: TEXT_SIZE,
@@ -141,10 +153,11 @@ fn main() -> Res<()> {
                                 max: (x4, y4),
                             },
                             color: text_colour,
-                            z: next_smallest_f32_if_normal_or_0(second_z),
+                            z: second_z_sub_1,
                         },
                         layout: TextLayout::Wrap,
                     }));
+                    let second_z_sub_2 = second_z.saturating_sub(2);
                     text_and_rects.push(TextOrRect::Text(TextSpec {
                         text: "2nd",
                         size: TEXT_SIZE,
@@ -154,14 +167,21 @@ fn main() -> Res<()> {
                                 max: (x4, y4),
                             },
                             color: text_colour,
-                            z: next_smallest_f32_if_normal_or_0(next_smallest_f32_if_normal_or_0(
-                                second_z,
-                            )),
+                            z: second_z_sub_2,
                         },
                         layout: TextLayout::Wrap,
                     }));
 
-                    let z_text = format!("{:#?}", (first_z, second_z));
+                    let z_text = format!(
+                        "{},{},{}\n{},{},{}{:#?}",
+                        first_z,
+                        first_z_sub_1,
+                        first_z_sub_2,
+                        second_z,
+                        second_z_sub_1,
+                        second_z_sub_2,
+                        (gl_layer::z_to_f32(first_z), gl_layer::z_to_f32(second_z))
+                    );
                     text_and_rects.push(TextOrRect::Text(TextSpec {
                         text: &z_text,
                         size: HELP_SIZE,
@@ -171,9 +191,7 @@ fn main() -> Res<()> {
                                 max: (x4, y1),
                             },
                             color: text_colour,
-                            z: next_smallest_f32_if_normal_or_0(next_smallest_f32_if_normal_or_0(
-                                second_z,
-                            )),
+                            z: 32768,
                         },
                         layout: TextLayout::Wrap,
                     }));
@@ -187,9 +205,7 @@ fn main() -> Res<()> {
                                 max: (x1, y4),
                             },
                             color: text_colour,
-                            z: next_smallest_f32_if_normal_or_0(next_smallest_f32_if_normal_or_0(
-                                second_z,
-                            )),
+                            z: 32768,
                         },
                         layout: TextLayout::Wrap,
                     }));
@@ -240,6 +256,45 @@ fn main() -> Res<()> {
                                 KeyboardInput {
                                     state: ElementState::Pressed,
                                     virtual_keycode: Some(keypress),
+                                    modifiers:
+                                        ModifiersState {
+                                            shift: true,
+                                            ..
+                                        },
+                                    ..
+                                },
+                            ..
+                        } => {
+                            const SHIFT: u16 = 65535 / 16;
+                            match keypress {
+                                VirtualKeyCode::Escape => {
+                                    quit!();
+                                }
+                                VirtualKeyCode::Up => {
+                                    second_z = second_z.saturating_sub(SHIFT);
+                                }
+                                VirtualKeyCode::Down => {
+                                    second_z = second_z.saturating_add(SHIFT);
+                                }
+                                VirtualKeyCode::Left => {
+                                    first_z = first_z.saturating_sub(SHIFT);
+                                }
+                                VirtualKeyCode::Right => {
+                                    first_z = first_z.saturating_add(SHIFT);
+                                }
+                                _ => {}
+                            }
+                        },
+                        WindowEvent::KeyboardInput {
+                            input:
+                                KeyboardInput {
+                                    state: ElementState::Pressed,
+                                    virtual_keycode: Some(keypress),
+                                    modifiers:
+                                        ModifiersState {
+                                            shift: false,
+                                            ..
+                                        },
                                     ..
                                 },
                             ..
@@ -249,33 +304,27 @@ fn main() -> Res<()> {
                                     quit!();
                                 }
                                 VirtualKeyCode::Up => {
-                                    //second_z = second_z.saturating_sub(1);
-                                    second_z = next_smallest_f32_if_normal_or_0(second_z);
+                                    second_z = second_z.saturating_sub(1);
                                 }
                                 VirtualKeyCode::Down => {
-                                    //second_z = second_z.saturating_add(1);
-                                    second_z = next_largest_f32_if_normal_or_0(second_z);
+                                    second_z = second_z.saturating_add(1);
                                 }
                                 VirtualKeyCode::Left => {
-                                    //first_z = first_z.saturating_sub(1);
-                                    first_z = next_smallest_f32_if_normal_or_0(first_z);
+                                    first_z = first_z.saturating_sub(1);
                                 }
                                 VirtualKeyCode::Right => {
-                                    //first_z = first_z.saturating_add(1);
-                                    first_z = next_largest_f32_if_normal_or_0(first_z);
+                                    first_z = first_z.saturating_add(1);
                                 }
                                 // AKA plus
                                 VirtualKeyCode::Equals => {
-                                    //second_z = second_z.saturating_add(1);
-                                    second_z = next_largest_f32_if_normal_or_0(second_z);
-                                    //first_z = first_z.saturating_add(1);
-                                    first_z = next_largest_f32_if_normal_or_0(first_z);
+                                    advance!();
                                 }
                                 VirtualKeyCode::Minus => {
-                                    //second_z = second_z.saturating_sub(1);
-                                    second_z = next_smallest_f32_if_normal_or_0(second_z);
-                                    //first_z = first_z.saturating_sub(1);
-                                    first_z = next_smallest_f32_if_normal_or_0(first_z);
+                                    second_z = second_z.saturating_sub(1);
+                                    first_z = first_z.saturating_sub(1);
+                                }
+                                VirtualKeyCode::Space => {
+                                    auto_advance = !auto_advance;
                                 }
                                 _ => (),
                             };
@@ -288,6 +337,4 @@ fn main() -> Res<()> {
             }
         });
     }
-
-    Ok(())
 }

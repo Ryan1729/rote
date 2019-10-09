@@ -10,10 +10,7 @@ use std::path::PathBuf;
 use file_chooser;
 use gl_layer::{TextLayout, TextOrRect, TextSpec, VisualSpec};
 use macros::{c, d};
-use platform_types::{
-    floating_point::{next_largest_f32_if_normal_or_0, next_smallest_f32_if_normal_or_0},
-    *,
-};
+use platform_types::*;
 use shared::Res;
 
 type Colour = [f32; 4];
@@ -23,13 +20,20 @@ const CHROME_BACKGROUND_COLOUR: Colour = c![7.0 / 256.0, 7.0 / 256.0, 7.0 / 256.
 const TEXT_SIZE: f32 = 60.0;
 const STATUS_SIZE: f32 = 22.0;
 const TAB_SIZE: f32 = 16.0;
+
+/// You can use any u8 as a base, and this function will make a z that allows UI widgets to use
+/// some more layers for other stuff by adding small numbers to it. Say 1, 2, 3 etc.
+const fn z_from_base(base: u8) -> u16 {
+    (base as u16) << 8
+}
+
 // Reminder: smaller means closer
-const EDIT_Z: f32 = 0.5;
-const HIGHLIGHT_Z: f32 = 0.4375;
-const CURSOR_Z: f32 = 0.375;
-const STATUS_BACKGROUND_Z: f32 = 0.25;
-const TAB_Z: f32 = 0.25;
-const STATUS_Z: f32 = 0.125;
+const EDIT_Z: u16 = z_from_base(1 << 7);
+const HIGHLIGHT_Z: u16 = z_from_base(0b11 << 6);
+const CURSOR_Z: u16 = z_from_base(1 << 6);
+const STATUS_BACKGROUND_Z: u16 = z_from_base(1 << 5);
+const TAB_Z: u16 = STATUS_BACKGROUND_Z;
+const STATUS_Z: u16 = z_from_base(1 << 4);
 
 mod clipboard_layer {
     pub use clipboard::ClipboardProvider;
@@ -123,6 +127,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
         //As of now we only need 3.3 for GL_TIME_ELAPSED. Otherwise we could use 3.2.
         .with_gl(GlRequest::Specific(Api::OpenGl, (3, 3)))
         .with_srgb(true)
+        .with_depth_buffer(24)
         .build_windowed(
             glutin::window::WindowBuilder::new()
                 .with_inner_size((1024, 576).into())
@@ -830,7 +835,7 @@ struct OutlineButtonSpec<'text> {
     background_colour: Colour,
     text_colour: Colour,
     highlight_colour: Colour,
-    z: f32,
+    z: u16,
 }
 
 fn enlarge_by(
@@ -888,7 +893,7 @@ fn do_outline_button<'view>(
                 spec: VisualSpec {
                     rect: shrink_by(rect, padding),
                     color: text_colour,
-                    z: next_smallest_f32_if_normal_or_0(z),
+                    z: z.saturating_sub(1),
                 },
             }));
         };
@@ -905,23 +910,10 @@ fn do_outline_button<'view>(
         }
         Hover => {
             // outline
-            println!(
-                "{:?}, {:?}, {:?}, {:?}",
-                next_largest_f32_if_normal_or_0(z),
-                next_largest_f32_if_normal_or_0(next_largest_f32_if_normal_or_0(z)),
-                next_largest_f32_if_normal_or_0(next_largest_f32_if_normal_or_0(
-                    next_largest_f32_if_normal_or_0(z)
-                ),),
-                next_largest_f32_if_normal_or_0(next_largest_f32_if_normal_or_0(
-                    next_largest_f32_if_normal_or_0(next_largest_f32_if_normal_or_0(z)),
-                ))
-            );
             text_or_rects.push(TextOrRect::Rect(VisualSpec {
                 rect: enlarge_by(rect, margin),
                 color: highlight_colour,
-                z: next_largest_f32_if_normal_or_0(next_largest_f32_if_normal_or_0(
-                    next_largest_f32_if_normal_or_0(next_largest_f32_if_normal_or_0(z)),
-                )),
+                z: z.saturating_add(1),
             }));
 
             text_or_rects.push(TextOrRect::Rect(VisualSpec {
