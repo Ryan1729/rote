@@ -22,6 +22,7 @@ shared = { path = "shared" }
 glutin = "0.22.0-alpha1"
 spin_sleep = "0.3"
 clipboard = "0.5.0"
+wimp_render = { path = "wimp_render" }
 
 [features]
 default = []

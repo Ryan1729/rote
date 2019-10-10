@@ -24,12 +24,15 @@ macro_rules! print {
 
 #[macro_export]
 macro_rules! dbg {
+    () => {
+        $crate::println!("[{}:{}]", file!(), line!());
+    };
     (
         $value:expr
     ) => {
         match $value {
             temp => {
-                if_changed::println!(
+                $crate::println!(
                     "[{}:{}] {} = {:#?}",
                     file!(),
                     line!(),

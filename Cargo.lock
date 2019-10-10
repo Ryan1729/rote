@@ -2243,6 +2243,18 @@ dependencies = [
  "rusttype 0.7.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "shared 0.1.0",
  "spin_sleep 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wimp_render 0.1.0",
+]
+
+[[package]]
+name = "wimp_render"
+version = "0.1.0"
+dependencies = [
+ "gl_layer 0.1.0",
+ "if_changed 0.1.0",
+ "macros 0.1.0",
+ "perf_viz 0.1.0",
+ "platform_types 0.1.0",
 ]
 
 [[package]]
