@@ -1,7 +1,6 @@
 use super::*;
 use crate::floating_point::*;
 use proptest::{num::f32, prop_compose, proptest};
-use std::cmp::Ordering;
 
 prop_compose! {
     fn arb_pos(max_line: usize, max_offset: usize)

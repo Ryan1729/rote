@@ -850,6 +850,55 @@ pub struct ScreenSpaceRect {
 d!(for ScreenSpaceRect : ScreenSpaceRect{
     min: (0.0, 0.0), max: (std::f32::INFINITY, std::f32::INFINITY)
 });
+ord!(and friends for ScreenSpaceRect : r, other in {
+    // I don't care if this is the best ordering, I just want an ordering,
+    r.min.0.to_bits().cmp(&other.min.0.to_bits())
+        .then_with(|| r.min.1.to_bits().cmp(&other.min.1.to_bits()))
+        .then_with(|| r.max.0.to_bits().cmp(&other.max.0.to_bits()))
+        .then_with(|| r.max.1.to_bits().cmp(&other.max.1.to_bits()))
+});
+
+#[macro_export]
+macro_rules! ssr {
+    ($min_x: expr, $min_y: expr, $max_x: expr, $max_y: expr) => {
+        ScreenSpaceRect {
+            min: ($min_x, $min_y),
+            max: ($max_x, $max_y),
+        }
+    };
+    ($min: expr, $max: expr) => {
+        ScreenSpaceRect {
+            min: $min,
+            max: $max,
+        }
+    };
+    ($min: expr) => {
+        ScreenSpaceRect {
+            min: $min,
+            ..ScreenSpaceRect::default()
+        }
+    };
+    () => {
+        ScreenSpaceRect::default()
+    };
+}
+
+impl ScreenSpaceRect {
+    pub fn width(&self) -> f32 {
+        self.max.0 - self.min.0
+    }
+
+    pub fn height(&self) -> f32 {
+        self.max.1 - self.min.1
+    }
+
+    pub fn middle(&self) -> (f32, f32) {
+        (
+            (self.min.0 + self.max.0) / 2.0,
+            (self.min.1 + self.max.1) / 2.0,
+        )
+    }
+}
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct FontInfo {

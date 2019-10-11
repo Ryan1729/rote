@@ -131,8 +131,17 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
         .inner_size()
         .to_physical(glutin_context.window().hidpi_factor());
 
+    macro_rules! screen_wh {
+        () => {
+            ScreenSpaceWH {
+                w: dimensions.width as f32,
+                h: dimensions.height as f32,
+            }
+        };
+    }
+
     let (mut view, mut cmd) = update_and_render(Input::SetSizes(Sizes! {
-        screen: ScreenSpaceWH { w: dimensions.width as f32, h: dimensions.height as f32 },
+        screen: screen_wh!(),
         font_info: font_info
     }));
 
@@ -191,9 +200,9 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
             // eventually we'll likely want to tell  the editor, and have it decide whether/how
             // to display it to the user.
             macro_rules! handle_platform_error {
-                ($err: expr) => (
+                ($err: expr) => {
                     eprintln!("{}", $err);
-                );
+                };
             }
 
             match event {
@@ -218,20 +227,11 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                     let width = dimensions.width;
                     let height = dimensions.height;
 
-                    let (text_and_rects, input) = wimp_render::view(
-                        &mut ui,
-                        &view,
-                        &font_info,
-                        (width as _, height as _)
-                    );
+                    let (text_and_rects, input) =
+                        wimp_render::view(&mut ui, &view, &font_info, (width as _, height as _));
 
-                    gl_layer::render(
-                        &mut gl_state,
-                        text_and_rects,
-                        width as _,
-                        height as _,
-                    )
-                    .expect("gl_layer::render didn't work");
+                    gl_layer::render(&mut gl_state, text_and_rects, width as _, height as _)
+                        .expect("gl_layer::render didn't work");
 
                     glutin_context
                         .swap_buffers()
@@ -246,7 +246,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                         Cmd::NoCmd => {}
                     }
 
-                    if let Some(input) = input{
+                    if let Some(input) = input {
                         call_u_and_r!(input);
                     }
 
@@ -271,16 +271,16 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                     // We want to track the time that the message loop takes too!
                     loop_helper.loop_start();
                 }
-                Event::UserEvent(e) => {
-                    match e {
-                        CustomEvent::OpenFile(p) => {
-                            match std::fs::read_to_string(&p) {
-                                Ok(s) => { call_u_and_r!(Input::LoadedFile(p, s)); }
-                                Err(err) => {handle_platform_error!(err);}
-                            }
+                Event::UserEvent(e) => match e {
+                    CustomEvent::OpenFile(p) => match std::fs::read_to_string(&p) {
+                        Ok(s) => {
+                            call_u_and_r!(Input::LoadedFile(p, s));
                         }
-                    }
-                }
+                        Err(err) => {
+                            handle_platform_error!(err);
+                        }
+                    },
+                },
                 Event::NewEvents(StartCause::Init) => {
                     // At least try to measure the first frame accurately
                     perf_viz::start_record!("main loop");
@@ -331,13 +331,13 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                             let ls = window.inner_size();
                             dimensions = ls.to_physical(hidpi_factor);
                             call_u_and_r!(Input::SetSizes(Sizes! {
-                                screen: ScreenSpaceWH { w: dimensions.width as f32, h: dimensions.height as f32 },
+                                screen: screen_wh!(),
                                 font_info: None,
                             }));
                             gl_layer::set_dimensions(
                                 &mut gl_state,
                                 hidpi_factor as _,
-                                (dimensions.width as _, dimensions.height as _)
+                                (dimensions.width as _, dimensions.height as _),
                             );
                         }
                         WindowEvent::KeyboardInput {
@@ -387,10 +387,14 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                                 call_u_and_r!(Input::MoveAllCursors(Move::ToBufferEnd));
                             }
                             VirtualKeyCode::Left => {
-                                call_u_and_r!(Input::MoveAllCursors(Move::ToPreviousLikelyEditLocation));
+                                call_u_and_r!(Input::MoveAllCursors(
+                                    Move::ToPreviousLikelyEditLocation
+                                ));
                             }
                             VirtualKeyCode::Right => {
-                                call_u_and_r!(Input::MoveAllCursors(Move::ToNextLikelyEditLocation));
+                                call_u_and_r!(Input::MoveAllCursors(
+                                    Move::ToNextLikelyEditLocation
+                                ));
                             }
                             VirtualKeyCode::A => {
                                 call_u_and_r!(Input::SelectAll);
@@ -400,12 +404,12 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                             }
                             VirtualKeyCode::O => {
                                 println!("VirtualKeyCode::O");
-                                let proxy = std::sync::Arc::new(
-                                    std::sync::Mutex::new(event_proxy.clone())
-                                );
+                                let proxy =
+                                    std::sync::Arc::new(std::sync::Mutex::new(event_proxy.clone()));
                                 let proxy = proxy.clone();
                                 file_chooser::single(move |p: PathBuf| {
-                                    let _bye = proxy.lock()
+                                    let _bye = proxy
+                                        .lock()
                                         .expect("file_chooser thread private mutex locked!?")
                                         .send_event(CustomEvent::OpenFile(p));
                                 })
@@ -453,10 +457,14 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                                 ));
                             }
                             VirtualKeyCode::Left => {
-                                call_u_and_r!(Input::ExtendSelectionForAllCursors(Move::ToPreviousLikelyEditLocation));
+                                call_u_and_r!(Input::ExtendSelectionForAllCursors(
+                                    Move::ToPreviousLikelyEditLocation
+                                ));
                             }
                             VirtualKeyCode::Right => {
-                                call_u_and_r!(Input::ExtendSelectionForAllCursors(Move::ToNextLikelyEditLocation));
+                                call_u_and_r!(Input::ExtendSelectionForAllCursors(
+                                    Move::ToNextLikelyEditLocation
+                                ));
                             }
                             VirtualKeyCode::Z => {
                                 call_u_and_r!(Input::Redo);
@@ -551,8 +559,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                             _ => (),
                         },
                         WindowEvent::ReceivedCharacter(mut c) => {
-                            if
-                             c != '\u{1}'       // "start of heading" (sent with Ctrl-a)
+                            if c != '\u{1}'       // "start of heading" (sent with Ctrl-a)
                              && c != '\u{3}'    // "end of text" (sent with Ctrl-c)
                              && c != '\u{8}'    // backspace
                              && c != '\u{9}'    // horizontal tab
@@ -561,7 +568,8 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                              && c != '\u{18}'   // "cancel" (sent with Ctrl-x)
                              && c != '\u{19}'   // "end of medium" (sent with Ctrl-y)
                              && c != '\u{1a}'   // "substitute" (sent with Ctrl-z)
-                             && c != '\u{7f}'   // delete
+                             && c != '\u{7f}'
+                            // delete
                             {
                                 if c == '\r' {
                                     c = '\n';
@@ -574,50 +582,71 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                             modifiers: ModifiersState { shift: false, .. },
                             ..
                         } => {
-                            call_u_and_r!(Input::ScrollVertically(y * scroll_multiplier));
+                            let scroll_y = y * scroll_multiplier;
+                            let input = if wimp_render::inside_tab_area(ui.mouse_pos, font_info) {
+                                Input::ScrollTabs(scroll_y)
+                            } else {
+                                Input::ScrollVertically(scroll_y)
+                            };
+                            call_u_and_r!(input);
                         }
                         WindowEvent::MouseWheel {
                             delta: MouseScrollDelta::LineDelta(_, y),
                             modifiers: ModifiersState { shift: true, .. },
                             ..
                         } => {
-                            call_u_and_r!(Input::ScrollHorizontally(-y * scroll_multiplier));
+                            let scroll_y = y * scroll_multiplier;
+                            let input = if wimp_render::inside_tab_area(ui.mouse_pos, font_info) {
+                                Input::ScrollTabs(scroll_y)
+                            } else {
+                                Input::ScrollHorizontally(scroll_y)
+                            };
+                            call_u_and_r!(input);
                         }
                         WindowEvent::CursorMoved {
                             position: LogicalPosition { x, y },
                             modifiers,
                             ..
                         } => {
-                            ui.mouse_pos = ScreenSpaceXY { x: x as f32, y: y as f32};
+                            ui.mouse_pos = ScreenSpaceXY {
+                                x: x as f32,
+                                y: y as f32,
+                            };
 
                             match modifiers {
                                 ModifiersState {
-                                    ctrl: false, shift: false, ..
+                                    ctrl: false,
+                                    shift: false,
+                                    ..
                                 } => {
-                                    let mut cursor_icon = glutin::window::CursorIcon::Text;
-                                    if ui.mouse_pos.y >= wimp_render::status_line_y(font_info.status_char_dim, dimensions.height as _) {
-                                        cursor_icon = d!();
-                                    }
+                                    let cursor_icon = if wimp_render::inside_edit_area(
+                                        ui.mouse_pos,
+                                        font_info,
+                                        screen_wh!(),
+                                    ) {
+                                        glutin::window::CursorIcon::Text
+                                    } else {
+                                        d!()
+                                    };
 
                                     glutin_context.window().set_cursor_icon(cursor_icon);
 
-                                    if ui.left_mouse_state.is_pressed() && !mouse_within_radius!() {
+                                    if cursor_icon == glutin::window::CursorIcon::Text
+                                        && ui.left_mouse_state.is_pressed()
+                                        && !mouse_within_radius!()
+                                    {
                                         call_u_and_r!(Input::DragCursors(ui.mouse_pos));
                                     }
                                 }
                                 _ => {}
                             }
-
-
                         }
                         WindowEvent::MouseInput {
                             button: MouseButton::Left,
                             state: ElementState::Pressed,
                             modifiers:
                                 ModifiersState {
-                                    ctrl,
-                                    shift: false,
-                                    ..
+                                    ctrl, shift: false, ..
                                 },
                             ..
                         } => {
@@ -630,15 +659,9 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                             };
 
                             let input = if mouse_within_radius!() {
-                                Input::SelectCharTypeGrouping(
-                                    ui.mouse_pos,
-                                    replace_or_add
-                                )
+                                Input::SelectCharTypeGrouping(ui.mouse_pos, replace_or_add)
                             } else {
-                                Input::SetCursor(
-                                    ui.mouse_pos,
-                                    replace_or_add
-                                )
+                                Input::SetCursor(ui.mouse_pos, replace_or_add)
                             };
 
                             call_u_and_r!(input);

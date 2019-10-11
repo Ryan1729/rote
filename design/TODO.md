@@ -2,8 +2,6 @@
 
 * Display file tabs that allow the user to switch between open buffers
   * implement tab scrolling
-  * Give the tabs an overall background.
-    * Make sure that clicks on the tab background/tabs are not propagated to the edit buffer.
   * truncate tab names that are too long  with `...`
   * Do we want side-by-side visible buffers?
     * Eventually yes. Having the same buffer visible with two different scroll positions is desirable

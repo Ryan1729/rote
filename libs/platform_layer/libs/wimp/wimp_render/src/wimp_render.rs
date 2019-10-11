@@ -72,6 +72,7 @@ macro_rules! id {
 type Colour = [f32; 4];
 
 const CHROME_BACKGROUND_COLOUR: Colour = c![7.0 / 256.0, 7.0 / 256.0, 7.0 / 256.0];
+const TAB_BACKGROUND_COLOUR: Colour = c![3.0 / 256.0, 3.0 / 256.0, 3.0 / 256.0];
 
 const TEXT_SIZE: f32 = 60.0;
 const STATUS_SIZE: f32 = 22.0;
@@ -90,8 +91,9 @@ const EDIT_Z: u16 = z_from_base(1 << 7);
 const HIGHLIGHT_Z: u16 = z_from_base(0b11 << 6);
 const CURSOR_Z: u16 = z_from_base(1 << 6);
 const STATUS_BACKGROUND_Z: u16 = z_from_base(1 << 5);
-const TAB_Z: u16 = STATUS_BACKGROUND_Z;
+const TAB_BACKGROUND_Z: u16 = STATUS_BACKGROUND_Z;
 const STATUS_Z: u16 = z_from_base(1 << 4);
+const TAB_Z: u16 = STATUS_Z;
 
 const TAB_MARGIN_RATIO: f32 = 1.0 / 128.0;
 const TAB_PADDING_RATIO: f32 = 1.0 / 64.0;
@@ -148,8 +150,13 @@ pub fn view<'view>(
     }: &FontInfo,
     (width, height): (f32, f32),
 ) -> (Vec<TextOrRect<'view>>, Option<Input>) {
-    let tab_v_padding = TAB_MIN_PADDING;
-    let tab_v_margin = TAB_MIN_MARGIN;
+    const PER_BUFFER_TEXT_OR_RECT_ESTIMATE: usize =
+        3   // 2-3 per tab
+    ;
+    let mut text_or_rects =
+        Vec::with_capacity(view.buffers.len() * PER_BUFFER_TEXT_OR_RECT_ESTIMATE);
+    let mut input = None;
+
     let tab_count: f32 = usize_to_f32_or_65536(max(view.buffers.len(), 1));
     let tab_w = width / tab_count;
     let tab_w = if tab_w > TAB_MIN_W {
@@ -161,11 +168,19 @@ pub fn view<'view>(
     let tab_padding = tab_w * TAB_PADDING_RATIO;
     let tab_margin = tab_w * TAB_MARGIN_RATIO;
 
-    let tab_y = tab_v_margin;
-    let edit_y = tab_y + tab_v_padding * 2.0 + tab_char_dim.h + tab_v_margin;
+    let UpperPositionInfo {
+        tab_v_padding,
+        tab_v_margin,
+        tab_y,
+        edit_y,
+    } = upper_position_info(tab_char_dim);
 
-    let mut text_or_rects = Vec::with_capacity(view.buffers.len());
-    let mut input = None;
+    text_or_rects.push(TextOrRect::Rect(VisualSpec {
+        rect: ssr!(0.0, 0.0, width, edit_y),
+        color: TAB_BACKGROUND_COLOUR,
+        z: TAB_BACKGROUND_Z,
+    }));
+
     perf_viz::start_record!("for &BufferView");
     for (i, BufferView { name, .. }) in view.buffers.iter().enumerate() {
         let min_x = usize_to_f32_or_65536(i) * tab_w + tab_padding + view.tab_scroll;
@@ -173,7 +188,6 @@ pub fn view<'view>(
             break;
         }
         let max_x = usize_to_f32_or_65536(i + 1) * tab_w - tab_padding + view.tab_scroll;
-
         if do_outline_button(
             ui,
             id!(i),
@@ -181,13 +195,11 @@ pub fn view<'view>(
             OutlineButtonSpec {
                 text: &name,
                 size: TAB_SIZE,
+                char_dim: *tab_char_dim,
                 layout: TextLayout::SingleLine,
                 padding: Spacing::Axis(tab_padding, tab_v_padding),
                 margin: Spacing::Axis(tab_margin, tab_v_margin),
-                rect: ScreenSpaceRect {
-                    min: (min_x, tab_y),
-                    max: (max_x, tab_char_dim.h),
-                },
+                rect: ssr!((min_x, tab_y), (max_x, tab_y + tab_char_dim.h)),
                 background_colour: CHROME_BACKGROUND_COLOUR,
                 text_colour: c![0.6, 0.6, 0.6],
                 highlight_colour: c![0.6, 0.6, 0.0],
@@ -229,10 +241,7 @@ pub fn view<'view>(
             size: TEXT_SIZE,
             layout: TextLayout::Wrap,
             spec: VisualSpec {
-                rect: ScreenSpaceRect {
-                    min: (x, y),
-                    ..d!()
-                },
+                rect: ssr!((x, y)),
                 color: c![0.3, 0.3, 0.9],
                 z: EDIT_Z,
             },
@@ -483,6 +492,7 @@ fn do_button_logic(ui: &mut UIState, id: UIId, rect: ScreenSpaceRect) -> DoButto
 struct OutlineButtonSpec<'text> {
     text: &'text str,
     size: f32,
+    char_dim: CharDim,
     layout: TextLayout,
     padding: Spacing,
     margin: Spacing,
@@ -533,11 +543,21 @@ fn do_outline_button<'view>(
     text_or_rects: &mut Vec<TextOrRect<'view>>,
     spec: OutlineButtonSpec<'view>,
 ) -> bool {
-    let (clicked, state) = do_button_logic(ui, id, rect);
+    let (clicked, state) = do_button_logic(ui, id, spec.rect);
 
     render_outline_button(text_or_rects, spec, state);
 
     clicked
+}
+
+/// returns a rectangle with the passed width and height centered inside the passed rectangle.
+fn center_within((w, h): (f32, f32), rect: ScreenSpaceRect) -> ScreenSpaceRect {
+    let (middle_x, middle_y) = rect.middle();
+    let min = (middle_x - (w / 2.0), middle_y - (h / 2.0));
+    ScreenSpaceRect {
+        min,
+        max: (min.0 + w, min.1 + h),
+    }
 }
 
 fn render_outline_button<'view>(
@@ -545,6 +565,7 @@ fn render_outline_button<'view>(
     OutlineButtonSpec {
         text,
         size,
+        char_dim,
         layout,
         padding,
         margin,
@@ -560,12 +581,14 @@ fn render_outline_button<'view>(
 
     macro_rules! push_text {
         () => {
+            let text_w = usize_to_f32_or_65536(text.chars().count()) * char_dim.w;
+            let text_rect = center_within((text_w, char_dim.h), shrink_by(rect, padding));
             text_or_rects.push(TextOrRect::Text(TextSpec {
                 text,
                 size,
                 layout,
                 spec: VisualSpec {
-                    rect: shrink_by(rect, padding),
+                    rect: text_rect,
                     color: text_colour,
                     z: z.saturating_sub(1),
                 },
@@ -613,8 +636,50 @@ fn usize_to_f32_or_65536(n: usize) -> f32 {
     u16::try_from(n).unwrap_or(u16::max_value()).into()
 }
 
-pub fn status_line_y(status_char_dim: CharDim, height: f32) -> f32 {
+struct UpperPositionInfo {
+    tab_v_padding: f32,
+    tab_v_margin: f32,
+    tab_y: f32,
+    edit_y: f32,
+}
+
+fn upper_position_info(tab_char_dim: &CharDim) -> UpperPositionInfo {
+    let tab_v_padding = TAB_MIN_PADDING;
+    let tab_v_margin = TAB_MIN_MARGIN;
+    let tab_y = tab_v_margin + tab_v_padding;
+    let edit_y = tab_y + tab_char_dim.h + tab_v_padding + tab_v_margin;
+
+    UpperPositionInfo {
+        tab_v_padding,
+        tab_v_margin,
+        tab_y,
+        edit_y,
+    }
+}
+
+fn status_line_y(status_char_dim: CharDim, height: f32) -> f32 {
     height - status_char_dim.h
+}
+
+pub fn inside_edit_area(
+    ScreenSpaceXY { x: _, y }: ScreenSpaceXY,
+    FontInfo {
+        status_char_dim,
+        ref tab_char_dim,
+        ..
+    }: FontInfo,
+    ScreenSpaceWH { w: _, h }: ScreenSpaceWH,
+) -> bool {
+    y < status_line_y(status_char_dim, h) && y > upper_position_info(tab_char_dim).edit_y
+}
+
+pub fn inside_tab_area(
+    ScreenSpaceXY { x: _, y }: ScreenSpaceXY,
+    FontInfo {
+        ref tab_char_dim, ..
+    }: FontInfo,
+) -> bool {
+    y < upper_position_info(tab_char_dim).edit_y
 }
 
 #[cfg(test)]
@@ -665,7 +730,96 @@ mod tests {
     }
 
     #[test]
-    fn render_outline_button_centers_things_properly() {
-        unimplemented!()
+    fn render_outline_button_centers_this_example_properly() {
+        let mut text_or_rects = Vec::new();
+
+        let x_padding = 4.0;
+        let y_padding = 6.0;
+
+        let x_margin = 5.0;
+        let y_margin = 7.0;
+
+        let rect = ScreenSpaceRect {
+            min: (8.0, 3.0),
+            max: (128.0, 17.0),
+        };
+
+        let char_dim = CharDim { w: 4.0, h: 8.0 };
+
+        let text = "test";
+
+        let text_length = text.chars().count();
+
+        let spec = OutlineButtonSpec {
+            text: "test",
+            size: 8.0,
+            char_dim,
+            layout: TextLayout::SingleLine,
+            padding: Spacing::Axis(x_padding, y_padding),
+            margin: Spacing::Axis(x_margin, y_margin),
+            rect,
+            background_colour: c![0.0, 0.0, 0.0],
+            text_colour: c![0.6, 0.6, 0.6],
+            highlight_colour: c![0.6, 0.6, 0.0],
+            z: TAB_Z,
+        };
+        render_outline_button(&mut text_or_rects, spec, ButtonState::Usual);
+
+        let background_rect = text_or_rects
+            .iter()
+            .find_map(|e| match e {
+                TextOrRect::Rect(r) => Some(r),
+                _ => None,
+            })
+            .unwrap();
+
+        let text_spec = text_or_rects
+            .iter()
+            .find_map(|e| match e {
+                TextOrRect::Text(t) => Some(t),
+                _ => None,
+            })
+            .unwrap();
+
+        let b_rect = background_rect.rect;
+        let b_middle_x = (b_rect.min.0 + b_rect.max.0) / 2.0;
+        let b_middle_y = (b_rect.min.1 + b_rect.max.1) / 2.0;
+
+        let t_rect = text_spec.spec.rect;
+        let t_middle_x = (t_rect.min.0 + t_rect.max.0) / 2.0;
+        let t_middle_y = (t_rect.min.1 + t_rect.max.1) / 2.0;
+
+        assert_eq!(
+            t_middle_x, b_middle_x,
+            "t_rect: {:?} b_rect: {:?}",
+            t_rect, b_rect
+        );
+        assert_eq!(
+            t_middle_y, b_middle_y,
+            "t_rect: {:?} b_rect: {:?}",
+            t_rect, b_rect
+        );
+
+        let text_w = char_dim.w * text_length as f32;
+        assert_eq!(t_rect.width(), text_w);
+    }
+
+    #[test]
+    fn center_within_centers_this_no_edge_cases_example_properly() {
+        let rect = center_within(
+            (13.0, 17.0),
+            ScreenSpaceRect {
+                min: (10.0, 20.0),
+                max: (25.0, 40.0),
+            },
+        );
+
+        assert_eq!(
+            rect,
+            ScreenSpaceRect {
+                min: (11.0, 21.5),
+                max: (11.0 + 13.0, 21.5 + 17.0),
+            }
+        );
     }
 }
