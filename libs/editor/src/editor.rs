@@ -2,6 +2,7 @@ use editor_types::{Cursor, Vec1};
 use macros::{d, ok_or};
 use platform_types::*;
 use std::path::Path;
+use std::path::PathBuf;
 
 use std::collections::VecDeque;
 use text_buffer::{BufferName, TextBuffer};
@@ -69,12 +70,11 @@ impl ClipboardHistory {
 
 #[derive(Default)]
 pub struct State {
-    // TODO
+    // TODO side by side visible buffers
     // visible_buffers: VisibleBuffers,
     buffers: Vec1<TextBuffer>,
     current_buffer_index: usize,
     screen: ScrollableScreen,
-    tab_scroll: f32,
     font_info: FontInfo,
     clipboard_history: ClipboardHistory,
 }
@@ -111,6 +111,18 @@ impl State {
         }
     }
 
+    fn add_or_select_buffer(&mut self, path: PathBuf, str: String) {
+        let index = if let Some(index) = self.matching_buffer_index(path.as_ref()) {
+            index
+        } else {
+            let index = self.buffers.len();
+            self.buffers.push((BufferName::Path(path), str).into());
+            index
+        };
+
+        self.current_buffer_index = index;
+    }
+
     fn matching_buffer_index(&self, path: &Path) -> Option<usize> {
         for (i, buffer) in self.buffers.iter().enumerate() {
             match &buffer.name {
@@ -123,6 +135,19 @@ impl State {
             }
         }
         None
+    }
+
+    fn next_scratch_buffer_number(&self) -> u32 {
+        let mut output = 0;
+        for b in self.buffers.iter() {
+            match b.name {
+                BufferName::Path(_) => continue,
+                BufferName::Scratch(n) => {
+                    output = std::cmp::max(output, n);
+                }
+            }
+        }
+        output + 1
     }
 }
 
@@ -155,7 +180,6 @@ pub fn render_view(
     &State {
         ref buffers,
         ref screen,
-        tab_scroll,
         font_info: FontInfo { text_char_dim, .. },
         current_buffer_index,
         ..
@@ -236,7 +260,6 @@ pub fn render_view(
     };
 
     view.scroll = screen.scroll;
-    view.tab_scroll = tab_scroll;
 }
 
 fn attempt_to_make_sure_at_least_one_cursor_is_visible(
@@ -349,11 +372,7 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
             state.screen.scroll.x += amount;
         }
         ResetScroll => {
-            // Junp to tab should allivate the need for resetting the tab scroll.
             state.screen.scroll = d!();
-        }
-        ScrollTabs(amount) => {
-            state.tab_scroll += amount;
         }
         SetSizes(sizes) => {
             if let Some(wh) = sizes.screen {
@@ -399,18 +418,18 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
             try_to_show_cursors!(b);
         }),
         LoadedFile(path, str) => {
-            let index = if let Some(index) = state.matching_buffer_index(path.as_ref()) {
-                index
-            } else {
-                let index = state.buffers.len();
-                state.buffers.push((path, str).into());
-                index
-            };
-
-            state.current_buffer_index = index;
+            state.add_or_select_buffer(path, str);
             buffer_call!(b {
                 try_to_show_cursors!(b);
             })
+        }
+        NewScratchBuffer => {
+            let index = state.buffers.len();
+            state
+                .buffers
+                .push((BufferName::Scratch(state.next_scratch_buffer_number()), "").into());
+
+            state.current_buffer_index = index;
         }
         TabIn => {
             buffer_call!(b.tab_in());

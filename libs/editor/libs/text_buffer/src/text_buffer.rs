@@ -234,21 +234,21 @@ impl From<&str> for TextBuffer {
     }
 }
 
-impl From<(PathBuf, &str)> for TextBuffer {
-    fn from((p, s): (PathBuf, &str)) -> Self {
+impl From<(BufferName, &str)> for TextBuffer {
+    fn from((name, s): (BufferName, &str)) -> Self {
         let mut output: Self = s.into();
 
-        output.name = BufferName::Path(p);
+        output.name = name;
 
         output
     }
 }
 
-impl From<(PathBuf, String)> for TextBuffer {
-    fn from((p, s): (PathBuf, String)) -> Self {
+impl From<(BufferName, String)> for TextBuffer {
+    fn from((name, s): (BufferName, String)) -> Self {
         let mut output: Self = s.into();
 
-        output.name = BufferName::Path(p);
+        output.name = name;
 
         output
     }

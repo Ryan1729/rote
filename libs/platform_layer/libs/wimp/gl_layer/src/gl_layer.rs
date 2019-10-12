@@ -364,10 +364,13 @@ pub struct VisualSpec {
     /// Z values for use in depth testing. Defaults to 32768
     pub z: u16,
 }
+
+pub const DEFAULT_Z: u16 = 32768;
+
 d!(for VisualSpec: VisualSpec{
     rect: d!(),
     color: [0.0, 0.0, 0.0, 1.0],
-    z: 32768,
+    z: DEFAULT_Z,
 });
 
 #[derive(Clone, Debug)]

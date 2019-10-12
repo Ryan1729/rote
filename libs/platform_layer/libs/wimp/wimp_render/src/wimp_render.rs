@@ -72,6 +72,7 @@ macro_rules! id {
 type Colour = [f32; 4];
 
 const CHROME_BACKGROUND_COLOUR: Colour = c![7.0 / 256.0, 7.0 / 256.0, 7.0 / 256.0];
+const TEXT_COLOUR: Colour = c![0.3, 0.3, 0.9];
 const TAB_BACKGROUND_COLOUR: Colour = c![3.0 / 256.0, 3.0 / 256.0, 3.0 / 256.0];
 
 const TEXT_SIZE: f32 = 60.0;
@@ -121,6 +122,7 @@ enum Spacing {
     Vertical(f32),
     Axis(f32, f32),
 }
+d!(for Spacing: Spacing::All(0.0));
 
 impl Spacing {
     /// This rect represents the space that the spacing would take up if it were around nothing.
@@ -139,6 +141,51 @@ impl Spacing {
         }
     }
 }
+struct SpacedRect {
+    rect: ScreenSpaceRect,
+    padding: Spacing,
+    margin: Spacing,
+}
+
+impl SpacedRect {
+    fn width(&self) -> f32 {
+        enlarge_by(self.rect, self.margin).width()
+    }
+}
+
+fn get_tab_spaced_rect(
+    ui: &UIState,
+    &UpperPositionInfo {
+        tab_v_padding,
+        tab_v_margin,
+        tab_y,
+        ..
+    }: &UpperPositionInfo,
+    tab_char_dim: CharDim,
+    tab_index: usize,
+    tab_count: usize,
+    width: f32,
+) -> SpacedRect {
+    let tab_count: f32 = usize_to_f32_or_65536(max(tab_count, 1));
+    let tab_w = width / tab_count;
+    let tab_w = if tab_w > TAB_MIN_W {
+        tab_w
+    } else {
+        // NaN ends up here
+        TAB_MIN_W
+    };
+    let tab_padding = tab_w * TAB_PADDING_RATIO;
+    let tab_margin = tab_w * TAB_MARGIN_RATIO;
+
+    let min_x = usize_to_f32_or_65536(tab_index) * tab_w + tab_padding + ui.tab_scroll;
+    let max_x = usize_to_f32_or_65536(tab_index + 1) * tab_w - tab_padding + ui.tab_scroll;
+
+    SpacedRect {
+        padding: Spacing::Axis(tab_padding, tab_v_padding),
+        margin: Spacing::Axis(tab_margin, tab_v_margin),
+        rect: ssr!((min_x, tab_y), (max_x, tab_y + tab_char_dim.h)),
+    }
+}
 
 pub fn view<'view>(
     ui: &mut UIState,
@@ -151,43 +198,42 @@ pub fn view<'view>(
     (width, height): (f32, f32),
 ) -> (Vec<TextOrRect<'view>>, Option<Input>) {
     const PER_BUFFER_TEXT_OR_RECT_ESTIMATE: usize =
-        3   // 2-3 per tab
+        4   // 2-4 per tab, usually 2
     ;
     let mut text_or_rects =
         Vec::with_capacity(view.buffers.len() * PER_BUFFER_TEXT_OR_RECT_ESTIMATE);
     let mut input = None;
 
-    let tab_count: f32 = usize_to_f32_or_65536(max(view.buffers.len(), 1));
-    let tab_w = width / tab_count;
-    let tab_w = if tab_w > TAB_MIN_W {
-        tab_w
-    } else {
-        // NaN ends up here
-        TAB_MIN_W
-    };
-    let tab_padding = tab_w * TAB_PADDING_RATIO;
-    let tab_margin = tab_w * TAB_MARGIN_RATIO;
-
-    let UpperPositionInfo {
-        tab_v_padding,
-        tab_v_margin,
-        tab_y,
-        edit_y,
-    } = upper_position_info(tab_char_dim);
+    let u_pos_info = upper_position_info(tab_char_dim);
+    let edit_y = u_pos_info.edit_y;
+    let mouse_in_tab_area = ui.mouse_pos.y < edit_y;
 
     text_or_rects.push(TextOrRect::Rect(VisualSpec {
         rect: ssr!(0.0, 0.0, width, edit_y),
-        color: TAB_BACKGROUND_COLOUR,
+        color: if mouse_in_tab_area {
+            c![
+                TAB_BACKGROUND_COLOUR[0],
+                TAB_BACKGROUND_COLOUR[1],
+                CHROME_BACKGROUND_COLOUR[2]
+            ]
+        } else {
+            TAB_BACKGROUND_COLOUR
+        },
         z: TAB_BACKGROUND_Z,
     }));
 
+    let visible_index_or_max = view.visible_buffers[0].unwrap_or(usize::max_value());
     perf_viz::start_record!("for &BufferView");
+    let tab_count = view.buffers.len();
     for (i, BufferView { name, .. }) in view.buffers.iter().enumerate() {
-        let min_x = usize_to_f32_or_65536(i) * tab_w + tab_padding + view.tab_scroll;
-        if min_x > width {
+        let SpacedRect {
+            padding,
+            margin,
+            rect,
+        } = get_tab_spaced_rect(&ui, &u_pos_info, *tab_char_dim, i, tab_count, width);
+        if rect.min.0 > width {
             break;
         }
-        let max_x = usize_to_f32_or_65536(i + 1) * tab_w - tab_padding + view.tab_scroll;
         if do_outline_button(
             ui,
             id!(i),
@@ -197,12 +243,17 @@ pub fn view<'view>(
                 size: TAB_SIZE,
                 char_dim: *tab_char_dim,
                 layout: TextLayout::SingleLine,
-                padding: Spacing::Axis(tab_padding, tab_v_padding),
-                margin: Spacing::Axis(tab_margin, tab_v_margin),
-                rect: ssr!((min_x, tab_y), (max_x, tab_y + tab_char_dim.h)),
+                padding,
+                margin,
+                rect,
                 background_colour: CHROME_BACKGROUND_COLOUR,
                 text_colour: c![0.6, 0.6, 0.6],
                 highlight_colour: c![0.6, 0.6, 0.0],
+                extra_highlight: if i == visible_index_or_max {
+                    ExtraHighlight::Underline(TEXT_COLOUR)
+                } else {
+                    ExtraHighlight::None
+                },
                 z: TAB_Z,
             },
         ) {
@@ -242,7 +293,7 @@ pub fn view<'view>(
             layout: TextLayout::Wrap,
             spec: VisualSpec {
                 rect: ssr!((x, y)),
-                color: c![0.3, 0.3, 0.9],
+                color: TEXT_COLOUR,
                 z: EDIT_Z,
             },
         }));
@@ -316,6 +367,48 @@ pub fn view<'view>(
     (text_or_rects, input)
 }
 
+pub fn make_active_tab_visible<'view>(
+    ui: &mut UIState,
+    view: &'view View,
+    FontInfo { tab_char_dim, .. }: &FontInfo,
+    (screen_width, _): (f32, f32),
+    buffer_side: usize,
+) {
+    let target_index_or_max = view.visible_buffers[buffer_side].unwrap_or(usize::max_value());
+    let tab_count = view.buffers.len();
+    let tab_layout = get_tab_spaced_rect(
+        &ui,
+        &upper_position_info(tab_char_dim),
+        *tab_char_dim,
+        0,
+        tab_count,
+        screen_width,
+    );
+    let tab_width = tab_layout.width();
+
+    make_nth_tab_visible_if_present(ui, target_index_or_max, tab_count, tab_width, screen_width);
+}
+
+fn make_nth_tab_visible_if_present(
+    ui: &mut UIState,
+    target_index: usize,
+    tab_count: usize,
+    tab_width: f32,
+    screen_width: f32,
+) {
+    let mut max_x_so_far = 0.0;
+    for i in 0..tab_count {
+        max_x_so_far += tab_width;
+
+        if i == target_index {
+            if max_x_so_far + tab_width > screen_width {
+                ui.tab_scroll -= max_x_so_far - (screen_width - tab_width);
+            }
+            break;
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub enum PhysicalButtonState {
     Released,
@@ -365,6 +458,7 @@ impl PhysicalButtonState {
 pub struct UIState {
     pub mouse_pos: ScreenSpaceXY,
     pub left_mouse_state: PhysicalButtonState,
+    pub tab_scroll: f32,
     active: UIId,
     hot: UIId,
     next_hot: UIId,
@@ -373,6 +467,7 @@ pub struct UIState {
 d!(for UIState: UIState {
     mouse_pos: d!(),
     left_mouse_state: d!(),
+    tab_scroll: d!(),
     hot: UI_ID_ZERO,
     active: UI_ID_ZERO,
     next_hot: UI_ID_ZERO,
@@ -456,21 +551,15 @@ fn do_button_logic(ui: &mut UIState, id: UIId, rect: ScreenSpaceRect) -> DoButto
     if ui.active == id {
         if mouse_state == PhysicalButtonState::ReleasedThisFrame {
             clicked = ui.hot == id && inside;
-            //dbg!("ui.set_not_active();", clicked);
-            //dbg_id!(id);
             ui.set_not_active();
         }
     } else if ui.hot == id {
         if mouse_state == PhysicalButtonState::PressedThisFrame {
-            //dbg!("ui.set_active(id);");
-            //dbg_id!(id);
             ui.set_active(id);
         }
     }
 
     if inside {
-        //dbg!("ui.set_next_hot(id);");
-        //dbg_id!(id);
         ui.set_next_hot(id);
     }
 
@@ -482,12 +571,14 @@ fn do_button_logic(ui: &mut UIState, id: UIId, rect: ScreenSpaceRect) -> DoButto
         Usual
     };
 
-    if_changed::dbg!(&ui);
-    if_changed::dbg!(clicked);
-    if_changed::dbg!(state);
-
     (clicked, state)
 }
+
+enum ExtraHighlight {
+    None,
+    Underline(Colour),
+}
+d!(for ExtraHighlight: ExtraHighlight::None);
 
 struct OutlineButtonSpec<'text> {
     text: &'text str,
@@ -500,8 +591,23 @@ struct OutlineButtonSpec<'text> {
     background_colour: Colour,
     text_colour: Colour,
     highlight_colour: Colour,
+    extra_highlight: ExtraHighlight,
     z: u16,
 }
+d!(for OutlineButtonSpec<'static>: OutlineButtonSpec {
+    text: "OutlineButtonSpec default",
+    size: 16.0,
+    char_dim: CharDim { w: 16.0, h: 16.0 },
+    layout: TextLayout::SingleLine,
+    padding: d!(),
+    margin: d!(),
+    rect: d!(),
+    background_colour: c![1.0, 0.0, 0.0],
+    text_colour: c![0.0, 1.0, 0.0],
+    highlight_colour: c![0.0, 0.0, 1.0],
+    extra_highlight: d!(),
+    z: gl_layer::DEFAULT_Z,
+});
 
 fn enlarge_by(
     ScreenSpaceRect {
@@ -573,16 +679,19 @@ fn render_outline_button<'view>(
         background_colour,
         text_colour,
         highlight_colour,
+        extra_highlight,
         z,
     }: OutlineButtonSpec<'view>,
     state: ButtonState,
 ) {
     use ButtonState::*;
 
+    let text_w = usize_to_f32_or_65536(text.chars().count()) * char_dim.w;
+    let shrunk_rect = shrink_by(rect, padding);
+    let text_rect = center_within((text_w, char_dim.h), shrunk_rect);
+
     macro_rules! push_text {
         () => {
-            let text_w = usize_to_f32_or_65536(text.chars().count()) * char_dim.w;
-            let text_rect = center_within((text_w, char_dim.h), shrink_by(rect, padding));
             text_or_rects.push(TextOrRect::Text(TextSpec {
                 text,
                 size,
@@ -628,6 +737,20 @@ fn render_outline_button<'view>(
             }));
             push_text!();
         }
+    }
+
+    match extra_highlight {
+        ExtraHighlight::Underline(color) => {
+            text_or_rects.push(TextOrRect::Rect(VisualSpec {
+                rect: ScreenSpaceRect {
+                    min: (rect.min.0, shrunk_rect.max.1),
+                    ..rect
+                },
+                color,
+                z: z.saturating_sub(2),
+            }));
+        }
+        _ => {}
     }
 }
 
@@ -754,7 +877,6 @@ mod tests {
             text: "test",
             size: 8.0,
             char_dim,
-            layout: TextLayout::SingleLine,
             padding: Spacing::Axis(x_padding, y_padding),
             margin: Spacing::Axis(x_margin, y_margin),
             rect,
@@ -762,6 +884,7 @@ mod tests {
             text_colour: c![0.6, 0.6, 0.6],
             highlight_colour: c![0.6, 0.6, 0.0],
             z: TAB_Z,
+            ..d!()
         };
         render_outline_button(&mut text_or_rects, spec, ButtonState::Usual);
 

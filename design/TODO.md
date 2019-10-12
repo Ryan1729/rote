@@ -1,25 +1,7 @@
 ## TODO
-
-* Display file tabs that allow the user to switch between open buffers
-  * implement tab scrolling
-  * truncate tab names that are too long  with `...`
-  * Do we want side-by-side visible buffers?
-    * Eventually yes. Having the same buffer visible with two different scroll positions is desirable
-      * should the cursor positions be separate?
-        * that is not necessary. The primary use case for two at the same time would be to look at one of them and type in the other.
-      * Do we want interior screens or separate windows?
-        * Let's try separate windows. That way we don't need to re-invent the OS's window management.
-          * Seems like each of the N windows will need to be able to tell whether they are the last window somehow so we can trigger stuff on close. But I guess we could trigger that stuff on each window close?
-          * how should the processes be laid out? One editor processes and several UI/window threads?
-            * Seems reasonable at the moment. The editor should not need to care about whether there are multiple windows, but it does need to know that two buffers are the same
-  * Ctrl-t to make a new tab
-    * make new scratch buffer, with the next highest number
-  * Ctrl-shift-t to restore last tab
-    * We would want a fixed buffer of history like for undo/redo and clipboard history.
-
-* Do we want a way for the editor to show little pop-up messages? Something like "File \"blah.txt\" opened" or "Not implemented"? They would fade away automatically after a period of time.
-  * If so, then we would want a way to see the last several messages. Which means we'd want another limited history buffer.
-  * Eventually I think we will want these since we plan to attempt integrating external programs through LSP or something similar. And they are going to crash or otherwise complain at some point.
+ 
+* implement tab scrolling
+  * auto scroll to currently selected tab
 
 * Saving and loading files.
   * saving new files to a new place on disk with ctrl-s
@@ -32,6 +14,29 @@
 
 * Ctrl-p open a list of open files, with a search box.
   * is it okay for this to take over the whole screen?
+  * seems like the string search algorithm we would want is "Two-way string matching": http://www-igm.univ-mlv.fr/~lecroq/string/node26.html
+
+* Display file tabs that allow the user to switch between open buffers
+  * truncate tab names that are too long  with `...`
+  * Do we want side-by-side visible buffers?
+    * Eventually yes. Having the same buffer visible with two different scroll positions is desirable
+      * should the cursor positions be separate (if they are the same buffer)?
+        * that is not necessary. The primary use case for two at the same time would be to look at one of them and type in the other.
+      * Do we want interior screens or separate windows?
+        * Let's try separate windows. That way we don't need to re-invent the OS's window management.
+          * Seems like each of the N windows will need to be able to tell whether they are the last window somehow so we can trigger stuff on close. But I guess we could trigger that stuff on each window close?
+          * how should the processes be laid out? One editor processes and several UI/window threads?
+            * Seems reasonable at the moment. The editor should not need to care about whether there are multiple windows, but it does need to know that two buffers are the same
+  * Ctrl-shift-t to restore last tab
+    * We would want a fixed buffer of history like for undo/redo and clipboard history.
+
+* don't allow scrolling emptyness into view?
+  * for tabs?
+  * for edit text?
+
+* Do we want a way for the editor to show little pop-up messages? Something like "File \"blah.txt\" opened" or "Not implemented"? They would fade away automatically after a period of time.
+  * If so, then we would want a way to see the last several messages. Which means we'd want another limited history buffer.
+  * Eventually I think we will want these since we plan to attempt integrating external programs through LSP or something similar. And they are going to crash or otherwise complain at some point.
 
 * Ctrl-Alt-t to transpose characters like in the `bash` prompt, (where Ctrl-t is used).
   * we want Ctrl-T as a keyboard shortcut for making a new tab.

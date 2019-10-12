@@ -378,7 +378,20 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                             ..
                         } => match keypress {
                             VirtualKeyCode::Key0 => {
-                                call_u_and_r!(Input::ResetScroll);
+                                if wimp_render::inside_tab_area(ui.mouse_pos, font_info) {
+                                    let width = dimensions.width;
+                                    let height = dimensions.height;
+
+                                    wimp_render::make_active_tab_visible(
+                                        &mut ui,
+                                        &view,
+                                        &font_info,
+                                        (width as _, height as _),
+                                        0,
+                                    );
+                                } else {
+                                    call_u_and_r!(Input::ResetScroll);
+                                }
                             }
                             VirtualKeyCode::Home => {
                                 call_u_and_r!(Input::MoveAllCursors(Move::ToBufferStart));
@@ -413,6 +426,9 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                                         .expect("file_chooser thread private mutex locked!?")
                                         .send_event(CustomEvent::OpenFile(p));
                                 })
+                            }
+                            VirtualKeyCode::T => {
+                                call_u_and_r!(Input::NewScratchBuffer);
                             }
                             VirtualKeyCode::V => {
                                 call_u_and_r!(Input::Paste(clipboard.get_contents().ok()));
@@ -564,6 +580,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                              && c != '\u{8}'    // backspace
                              && c != '\u{9}'    // horizontal tab
                              && c != '\u{f}'    // "shift in" AKA use black ink apparently, (sent with Ctrl-o)
+                             && c != '\u{14}'   // "device control 4" (sent with Ctrl-t)
                              && c != '\u{16}'   // "synchronous idle" (sent with Ctrl-v)
                              && c != '\u{18}'   // "cancel" (sent with Ctrl-x)
                              && c != '\u{19}'   // "end of medium" (sent with Ctrl-y)
@@ -583,12 +600,11 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                             ..
                         } => {
                             let scroll_y = y * scroll_multiplier;
-                            let input = if wimp_render::inside_tab_area(ui.mouse_pos, font_info) {
-                                Input::ScrollTabs(scroll_y)
+                            if wimp_render::inside_tab_area(ui.mouse_pos, font_info) {
+                                ui.tab_scroll += scroll_y;
                             } else {
-                                Input::ScrollVertically(scroll_y)
-                            };
-                            call_u_and_r!(input);
+                                call_u_and_r!(Input::ScrollVertically(scroll_y));
+                            }
                         }
                         WindowEvent::MouseWheel {
                             delta: MouseScrollDelta::LineDelta(_, y),
@@ -596,12 +612,11 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                             ..
                         } => {
                             let scroll_y = y * scroll_multiplier;
-                            let input = if wimp_render::inside_tab_area(ui.mouse_pos, font_info) {
-                                Input::ScrollTabs(scroll_y)
+                            if wimp_render::inside_tab_area(ui.mouse_pos, font_info) {
+                                ui.tab_scroll += scroll_y;
                             } else {
-                                Input::ScrollHorizontally(scroll_y)
-                            };
-                            call_u_and_r!(input);
+                                call_u_and_r!(Input::ScrollHorizontally(scroll_y));
+                            }
                         }
                         WindowEvent::CursorMoved {
                             position: LogicalPosition { x, y },

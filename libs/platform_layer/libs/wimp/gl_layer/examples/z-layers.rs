@@ -191,7 +191,7 @@ fn main() -> Res<()> {
                                 max: (x4, y1),
                             },
                             color: text_colour,
-                            z: 32768,
+                            ..d!()
                         },
                         layout: TextLayout::Wrap,
                     }));
@@ -205,7 +205,7 @@ fn main() -> Res<()> {
                                 max: (x1, y4),
                             },
                             color: text_colour,
-                            z: 32768,
+                            ..d!()
                         },
                         layout: TextLayout::Wrap,
                     }));

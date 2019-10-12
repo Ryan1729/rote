@@ -54,7 +54,6 @@ pub enum Input {
     ResetScroll,
     ScrollVertically(f32),
     ScrollHorizontally(f32),
-    ScrollTabs(f32),
     SetSizes(Sizes),
     MoveAllCursors(Move),
     ExtendSelectionForAllCursors(Move),
@@ -69,6 +68,7 @@ pub enum Input {
     Paste(Option<String>),
     InsertNumbersAtCursors,
     LoadedFile(PathBuf, String),
+    NewScratchBuffer,
     TabIn,
     TabOut,
     NextBuffer,
@@ -375,7 +375,7 @@ pub fn attempt_to_make_xy_visible(
     let ScreenSpaceXY { x, y } = text_to_screen(text, *scroll);
     let &mut ScreenSpaceWH { w, h } = wh;
 
-    // If these checks ever actually become a bottleneck ,the nthe easy solution is to just make
+    // If these checks ever actually become a bottleneck ,then the easy solution is to just make
     // types that can't represent these cases and enforce them at startup!
     match (w.classify(), h.classify()) {
         (Nan, _) | (_, Nan) => return ScreenTooWeird,
@@ -807,7 +807,6 @@ pub struct View {
     pub buffers: Vec<BufferView>,
     pub status_line: StatusLineView,
     pub scroll: ScrollXY,
-    pub tab_scroll: f32,
 }
 
 #[derive(Default, Debug)]
