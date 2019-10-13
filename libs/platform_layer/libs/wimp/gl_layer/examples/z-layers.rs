@@ -7,6 +7,12 @@ use glutin::{Api, GlProfile, GlRequest};
 use platform_types::*;
 use shared::Res;
 
+macro_rules! d {
+    () => {
+        Default::default()
+    };
+}
+
 fn main() -> Res<()> {
     let events = glutin::event_loop::EventLoop::new();
     let glutin_context = glutin::ContextBuilder::new()

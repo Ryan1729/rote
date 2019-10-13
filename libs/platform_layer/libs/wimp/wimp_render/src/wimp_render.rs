@@ -386,7 +386,7 @@ pub fn make_active_tab_visible<'view>(
     );
     let tab_width = tab_layout.width();
 
-    make_nth_tab_visible_if_present(ui, target_index_or_max, tab_count, tab_width, screen_width);
+    make_nth_tab_visible_if_present(ui, target_index_or_max, tab_count, tab_width);
 }
 
 fn make_nth_tab_visible_if_present(
@@ -394,18 +394,9 @@ fn make_nth_tab_visible_if_present(
     target_index: usize,
     tab_count: usize,
     tab_width: f32,
-    screen_width: f32,
 ) {
-    let mut max_x_so_far = 0.0;
-    for i in 0..tab_count {
-        max_x_so_far += tab_width;
-
-        if i == target_index {
-            if max_x_so_far + tab_width > screen_width {
-                ui.tab_scroll -= max_x_so_far - (screen_width - tab_width);
-            }
-            break;
-        }
+    if target_index < tab_count {
+        ui.tab_scroll = -(target_index as f32 * tab_width);
     }
 }
 
@@ -806,143 +797,4 @@ pub fn inside_tab_area(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn do_button_logic_does_not_flash_like_it_used_to() {
-        use std::f32::INFINITY;
-        use ButtonState::*;
-        let mut ui: UIState = d!();
-        let id = id!(&0);
-        let rect = ScreenSpaceRect {
-            min: (-INFINITY, -INFINITY),
-            max: (INFINITY, INFINITY),
-        };
-        ui.frame_init();
-        assert_eq!(do_button_logic(&mut ui, id, rect), (false, Usual));
-        ui.frame_end();
-        ui.frame_init();
-        assert_eq!(do_button_logic(&mut ui, id, rect), (false, Hover));
-        ui.frame_end();
-        ui.left_mouse_state = PhysicalButtonState::PressedThisFrame;
-        for i in 0..16 {
-            ui.frame_init();
-            assert_eq!(
-                do_button_logic(&mut ui, id, rect),
-                (false, Pressed),
-                "iteration {}",
-                i
-            );
-            ui.frame_end();
-        }
-        ui.left_mouse_state = PhysicalButtonState::ReleasedThisFrame;
-        ui.frame_init();
-        assert_eq!(do_button_logic(&mut ui, id, rect), (true, Hover));
-        ui.frame_end();
-        for i in 0..16 {
-            ui.frame_init();
-            assert_eq!(
-                do_button_logic(&mut ui, id, rect),
-                (false, Hover),
-                "iteration {}",
-                i
-            );
-            ui.frame_end();
-        }
-    }
-
-    #[test]
-    fn render_outline_button_centers_this_example_properly() {
-        let mut text_or_rects = Vec::new();
-
-        let x_padding = 4.0;
-        let y_padding = 6.0;
-
-        let x_margin = 5.0;
-        let y_margin = 7.0;
-
-        let rect = ScreenSpaceRect {
-            min: (8.0, 3.0),
-            max: (128.0, 17.0),
-        };
-
-        let char_dim = CharDim { w: 4.0, h: 8.0 };
-
-        let text = "test";
-
-        let text_length = text.chars().count();
-
-        let spec = OutlineButtonSpec {
-            text: "test",
-            size: 8.0,
-            char_dim,
-            padding: Spacing::Axis(x_padding, y_padding),
-            margin: Spacing::Axis(x_margin, y_margin),
-            rect,
-            background_colour: c![0.0, 0.0, 0.0],
-            text_colour: c![0.6, 0.6, 0.6],
-            highlight_colour: c![0.6, 0.6, 0.0],
-            z: TAB_Z,
-            ..d!()
-        };
-        render_outline_button(&mut text_or_rects, spec, ButtonState::Usual);
-
-        let background_rect = text_or_rects
-            .iter()
-            .find_map(|e| match e {
-                TextOrRect::Rect(r) => Some(r),
-                _ => None,
-            })
-            .unwrap();
-
-        let text_spec = text_or_rects
-            .iter()
-            .find_map(|e| match e {
-                TextOrRect::Text(t) => Some(t),
-                _ => None,
-            })
-            .unwrap();
-
-        let b_rect = background_rect.rect;
-        let b_middle_x = (b_rect.min.0 + b_rect.max.0) / 2.0;
-        let b_middle_y = (b_rect.min.1 + b_rect.max.1) / 2.0;
-
-        let t_rect = text_spec.spec.rect;
-        let t_middle_x = (t_rect.min.0 + t_rect.max.0) / 2.0;
-        let t_middle_y = (t_rect.min.1 + t_rect.max.1) / 2.0;
-
-        assert_eq!(
-            t_middle_x, b_middle_x,
-            "t_rect: {:?} b_rect: {:?}",
-            t_rect, b_rect
-        );
-        assert_eq!(
-            t_middle_y, b_middle_y,
-            "t_rect: {:?} b_rect: {:?}",
-            t_rect, b_rect
-        );
-
-        let text_w = char_dim.w * text_length as f32;
-        assert_eq!(t_rect.width(), text_w);
-    }
-
-    #[test]
-    fn center_within_centers_this_no_edge_cases_example_properly() {
-        let rect = center_within(
-            (13.0, 17.0),
-            ScreenSpaceRect {
-                min: (10.0, 20.0),
-                max: (25.0, 40.0),
-            },
-        );
-
-        assert_eq!(
-            rect,
-            ScreenSpaceRect {
-                min: (11.0, 21.5),
-                max: (11.0 + 13.0, 21.5 + 17.0),
-            }
-        );
-    }
-}
+mod wimp_render_tests;

@@ -1,13 +1,9 @@
 ## TODO
- 
-* implement tab scrolling
-  * auto scroll to currently selected tab
 
 * Saving and loading files.
   * saving new files to a new place on disk with ctrl-s
   * saving pre-existing files to disk on ctrl-s
     * ctrl-shift-s to save pre-existing file as a new file
-
 
 
 * Ctrl-d to select word and find next instance of word and select it and place a cursor there.

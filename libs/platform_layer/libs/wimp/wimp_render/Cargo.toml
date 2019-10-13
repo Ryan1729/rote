@@ -13,3 +13,6 @@ perf_viz = { path = "../../../../perf_viz" }
 if_changed = { path = "../../../../if_changed" }
 platform_types = { path = "../../../../platform_types" }
 macros = { path = "../../../../macros" }
+
+[dev-dependencies]
+proptest = "0.9.3"
