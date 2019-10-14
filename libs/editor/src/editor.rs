@@ -5,7 +5,7 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use std::collections::VecDeque;
-use text_buffer::{BufferName, TextBuffer};
+use text_buffer::TextBuffer;
 
 #[derive(Default)]
 struct ClipboardHistory {
@@ -147,7 +147,7 @@ impl State {
                 }
             }
         }
-        output + 1
+        output.wrapping_add(1)
     }
 }
 
@@ -207,7 +207,8 @@ pub fn render_view(
         }
 
         view.buffers.push(BufferView {
-            name: buffer.name.to_string(),
+            name: buffer.name.clone(),
+            name_string: buffer.name.to_string(),
             chars: buffer.chars().collect::<String>(),
             cursors,
             highlights,
@@ -396,6 +397,11 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
             // right side of a character, we select that character rather than the next character.
             let position = xy_to_pos(state, xy, PositionRound::TowardsZero);
             buffer_call!(b.select_char_type_grouping(position, replace_or_add));
+        }
+        SetBufferPath(buffer_index, path) => {
+            if let Some(b) = state.buffers.get_mut(buffer_index) {
+                (*b).name = BufferName::Path(path);
+            }
         }
         Cut => buffer_call!(b {
             if let Some(s) = state.clipboard_history.cut(b) {

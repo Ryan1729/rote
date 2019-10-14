@@ -61,6 +61,7 @@ pub enum Input {
     SetCursor(ScreenSpaceXY, ReplaceOrAdd),
     DragCursors(ScreenSpaceXY),
     SelectCharTypeGrouping(ScreenSpaceXY, ReplaceOrAdd),
+    SetBufferPath(usize, PathBuf),
     Undo,
     Redo,
     Cut,
@@ -764,6 +765,22 @@ pub fn push_highlights<O: Into<Option<Position>>>(
     }
 }
 
+#[derive(Clone, Debug)]
+pub enum BufferName {
+    Path(PathBuf),
+    Scratch(u32),
+}
+d!(for BufferName: BufferName::Scratch(d!()));
+fmt_display!(for BufferName: name in "{}",
+    match name {
+        BufferName::Path(p) => p
+            .file_name()
+            .map(|s| s.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "?Unknown Path?".to_string()),
+        BufferName::Scratch(n) => format!("*scratch {}*", n),
+    }
+ );
+
 #[derive(Clone, Copy)]
 pub enum CursorState {
     None,
@@ -811,8 +828,9 @@ pub struct View {
 
 #[derive(Default, Debug)]
 pub struct BufferView {
-    // TODO this could be truncated to a fixed length and on the stack
-    pub name: String,
+    pub name: BufferName,
+    // TODO this could be truncated to a fixed length/on the stack
+    pub name_string: String,
     //TODO make this a &str or a char iterator
     pub chars: String,
     pub cursors: Vec<CursorView>,

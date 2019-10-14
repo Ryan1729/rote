@@ -1,12 +1,11 @@
 use crate::move_cursor::{forward, get_next_selection_point, get_previous_selection_point};
 use editor_types::{Cursor, SetPositionAction, Vec1};
-use macros::{borrow, d, fmt_display, some_or, CheckedSub};
+use macros::{borrow, d, some_or, CheckedSub};
 use panic_safe_rope::{ByteIndex, LineIndex, Rope, RopeLine, RopeSliceTrait};
-use platform_types::{pos, AbsoluteCharOffset, CharOffset, Move, Position, ReplaceOrAdd};
+use platform_types::*;
 use std::borrow::Borrow;
 use std::cmp::{max, min};
 use std::collections::VecDeque;
-use std::path::PathBuf;
 
 mod edit;
 mod move_cursor;
@@ -188,22 +187,6 @@ impl Cursors {
 }
 
 borrow!(<Vec1<Cursor>> for Cursors : c in &c.cursors);
-
-#[derive(Clone, Debug)]
-pub enum BufferName {
-    Path(PathBuf),
-    Scratch(u32),
-}
-d!(for BufferName: BufferName::Scratch(d!()));
-fmt_display!(for BufferName: name in "{}",
-    match name {
-        BufferName::Path(p) => p
-            .file_name()
-            .map(|s| s.to_string_lossy().into_owned())
-            .unwrap_or_else(|| "?Unknown Path?".to_string()),
-        BufferName::Scratch(n) => format!("*scratch {}*", n),
-    }
- );
 
 #[derive(Clone, Debug, Default)]
 pub struct TextBuffer {

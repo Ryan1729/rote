@@ -1,16 +1,14 @@
 ## TODO
 
-* Saving and loading files.
-  * saving new files to a new place on disk with ctrl-s
-  * saving pre-existing files to disk on ctrl-s
-    * ctrl-shift-s to save pre-existing file as a new file
-
+* Ctrl-f to open a current file search
+  * seems like the string search algorithm we would want is "Two-way string matching": http://www-igm.univ-mlv.fr/~lecroq/string/node26.html
 
 * Ctrl-d to select word and find next instance of word and select it and place a cursor there.
 
 * Ctrl-p open a list of open files, with a search box.
+  * searching files by name
   * is it okay for this to take over the whole screen?
-  * seems like the string search algorithm we would want is "Two-way string matching": http://www-igm.univ-mlv.fr/~lecroq/string/node26.html
+
 
 * Display file tabs that allow the user to switch between open buffers
   * truncate tab names that are too long  with `...`
@@ -23,8 +21,14 @@
           * Seems like each of the N windows will need to be able to tell whether they are the last window somehow so we can trigger stuff on close. But I guess we could trigger that stuff on each window close?
           * how should the processes be laid out? One editor processes and several UI/window threads?
             * Seems reasonable at the moment. The editor should not need to care about whether there are multiple windows, but it does need to know that two buffers are the same
+  * closable tabs
+    * button on tabs
+    * ctrl-w to close current tabs
+    * closing multiple tabs
+      * right click menu like in browsers?
   * Ctrl-shift-t to restore last tab
     * We would want a fixed buffer of history like for undo/redo and clipboard history.
+
 
 * don't allow scrolling emptyness into view?
   * for tabs?
@@ -33,6 +37,7 @@
 * Do we want a way for the editor to show little pop-up messages? Something like "File \"blah.txt\" opened" or "Not implemented"? They would fade away automatically after a period of time.
   * If so, then we would want a way to see the last several messages. Which means we'd want another limited history buffer.
   * Eventually I think we will want these since we plan to attempt integrating external programs through LSP or something similar. And they are going to crash or otherwise complain at some point.
+  * go through `wimp.rs` for places that could show an error message but don't. Say everywhere there is an unused `Result` or an `if let Some(...)`
 
 * Ctrl-Alt-t to transpose characters like in the `bash` prompt, (where Ctrl-t is used).
   * we want Ctrl-T as a keyboard shortcut for making a new tab.
@@ -58,7 +63,7 @@
 * Persistence for Undo/Redo and clipboard history, per file.
   * If a file in the history does not exist any more, and a file with a name which is a short Levenstein distance away is opened, prompt to use the old history and change the key in the stored file.
     * should we just hash the content instead?
-    * "Never prompt for this file pair" seems extraneous. Is there a case where we ever not want it checked?
+    * "Never prompt for this file pair" seems  extraneous. Is there a case where we ever not want it checked?
 
 * handle tab key properly
   * Remaining Features:

@@ -90,6 +90,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
     #[derive(Clone, Debug)]
     enum CustomEvent {
         OpenFile(PathBuf),
+        SaveNewFile(PathBuf, usize),
     }
     unsafe impl Send for CustomEvent {}
     unsafe impl Sync for CustomEvent {}
@@ -205,6 +206,19 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                 };
             }
 
+            macro_rules! save_to_disk {
+                ($path: expr, $str: expr, $buffer_index: expr) => {
+                    match std::fs::write($path, $str) {
+                        Ok(_) => {
+                            call_u_and_r!(Input::SetBufferPath($buffer_index, $path.to_path_buf()));
+                        }
+                        Err(err) => {
+                            handle_platform_error!(err);
+                        }
+                    }
+                };
+            }
+
             match event {
                 Event::EventsCleared if running => {
                     match out_rx.try_recv() {
@@ -280,6 +294,11 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                             handle_platform_error!(err);
                         }
                     },
+                    CustomEvent::SaveNewFile(ref p, index) => {
+                        if let Some(b) = view.buffers.get(index) {
+                            save_to_disk!(p, &b.chars, index);
+                        }
+                    }
                 },
                 Event::NewEvents(StartCause::Init) => {
                     // At least try to measure the first frame accurately
@@ -305,6 +324,20 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
 
                             *control_flow = glutin::event_loop::ControlFlow::Exit;
                         }};
+                    }
+
+                    macro_rules! file_chooser_call {
+                        ($func: ident, $path: ident in $event: expr) => {
+                            let proxy =
+                                std::sync::Arc::new(std::sync::Mutex::new(event_proxy.clone()));
+                            let proxy = proxy.clone();
+                            file_chooser::$func(move |$path: PathBuf| {
+                                let _bye = proxy
+                                    .lock()
+                                    .expect("file_chooser thread private mutex locked!?")
+                                    .send_event($event);
+                            })
+                        };
                     }
 
                     if cfg!(feature = "print-raw-input") {
@@ -416,16 +449,24 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                                 call_u_and_r!(Input::Copy);
                             }
                             VirtualKeyCode::O => {
-                                println!("VirtualKeyCode::O");
-                                let proxy =
-                                    std::sync::Arc::new(std::sync::Mutex::new(event_proxy.clone()));
-                                let proxy = proxy.clone();
-                                file_chooser::single(move |p: PathBuf| {
-                                    let _bye = proxy
-                                        .lock()
-                                        .expect("file_chooser thread private mutex locked!?")
-                                        .send_event(CustomEvent::OpenFile(p));
-                                })
+                                file_chooser_call!(single, p in CustomEvent::OpenFile(p));
+                            }
+                            VirtualKeyCode::S => {
+                                if let Some((buffer, i)) = view.visible_buffers[0]
+                                    .and_then(|i| view.buffers.get(i).map(|b| (b, i)))
+                                {
+                                    match buffer.name {
+                                        BufferName::Scratch(_) => {
+                                            file_chooser_call!(
+                                                save,
+                                                p in CustomEvent::SaveNewFile(p, i)
+                                            );
+                                        }
+                                        BufferName::Path(ref p) => {
+                                            save_to_disk!(p, &buffer.chars, i);
+                                        }
+                                    }
+                                }
                             }
                             VirtualKeyCode::T => {
                                 call_u_and_r!(Input::NewScratchBuffer);
@@ -481,6 +522,14 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                                 call_u_and_r!(Input::ExtendSelectionForAllCursors(
                                     Move::ToNextLikelyEditLocation
                                 ));
+                            }
+                            VirtualKeyCode::S => {
+                                if let Some(i) = view.visible_buffers[0] {
+                                    file_chooser_call!(
+                                        save,
+                                        p in CustomEvent::SaveNewFile(p, i)
+                                    );
+                                }
                             }
                             VirtualKeyCode::Z => {
                                 call_u_and_r!(Input::Redo);
@@ -580,6 +629,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                              && c != '\u{8}'    // backspace
                              && c != '\u{9}'    // horizontal tab
                              && c != '\u{f}'    // "shift in" AKA use black ink apparently, (sent with Ctrl-o)
+                             && c != '\u{13}'   // "device control 4" (sent with Ctrl-s)
                              && c != '\u{14}'   // "device control 4" (sent with Ctrl-t)
                              && c != '\u{16}'   // "synchronous idle" (sent with Ctrl-v)
                              && c != '\u{18}'   // "cancel" (sent with Ctrl-x)

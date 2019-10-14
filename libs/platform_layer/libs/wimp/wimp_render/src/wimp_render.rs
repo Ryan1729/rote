@@ -225,7 +225,7 @@ pub fn view<'view>(
     let visible_index_or_max = view.visible_buffers[0].unwrap_or(usize::max_value());
     perf_viz::start_record!("for &BufferView");
     let tab_count = view.buffers.len();
-    for (i, BufferView { name, .. }) in view.buffers.iter().enumerate() {
+    for (i, BufferView { name_string, .. }) in view.buffers.iter().enumerate() {
         let SpacedRect {
             padding,
             margin,
@@ -239,7 +239,7 @@ pub fn view<'view>(
             id!(i),
             &mut text_or_rects,
             OutlineButtonSpec {
-                text: &name,
+                text: &name_string,
                 size: TAB_SIZE,
                 char_dim: *tab_char_dim,
                 layout: TextLayout::SingleLine,
