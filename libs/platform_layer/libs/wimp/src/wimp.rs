@@ -296,7 +296,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                     },
                     CustomEvent::SaveNewFile(ref p, index) => {
                         if let Some(b) = view.buffers.get(index) {
-                            save_to_disk!(p, &b.chars, index);
+                            save_to_disk!(p, &b.data.chars, index);
                         }
                     }
                 },
@@ -448,6 +448,11 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                             VirtualKeyCode::C => {
                                 call_u_and_r!(Input::Copy);
                             }
+                            VirtualKeyCode::F => {
+                                call_u_and_r!(Input::SetFindReplaceMode(
+                                    FindReplaceMode::CurrentFile
+                                ));
+                            }
                             VirtualKeyCode::O => {
                                 file_chooser_call!(single, p in CustomEvent::OpenFile(p));
                             }
@@ -463,7 +468,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                                             );
                                         }
                                         BufferName::Path(ref p) => {
-                                            save_to_disk!(p, &buffer.chars, i);
+                                            save_to_disk!(p, &buffer.data.chars, i);
                                         }
                                     }
                                 }
@@ -555,7 +560,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                             ..
                         } => match keypress {
                             VirtualKeyCode::Escape => {
-                                quit!();
+                                call_u_and_r!(Input::CloseMenuIfAny);
                             }
                             VirtualKeyCode::Back => {
                                 call_u_and_r!(Input::Delete);
@@ -626,15 +631,17 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                         WindowEvent::ReceivedCharacter(mut c) => {
                             if c != '\u{1}'       // "start of heading" (sent with Ctrl-a)
                              && c != '\u{3}'    // "end of text" (sent with Ctrl-c)
-                             && c != '\u{8}'    // backspace
-                             && c != '\u{9}'    // horizontal tab
+                             && c != '\u{6}'    // "acknowledge" (sent with Ctrl-f)
+                             && c != '\u{8}'    // backspace (sent with Ctrl-h)
+                             && c != '\u{9}'    // horizontal tab (sent with Ctrl-i)
                              && c != '\u{f}'    // "shift in" AKA use black ink apparently, (sent with Ctrl-o)
-                             && c != '\u{13}'   // "device control 4" (sent with Ctrl-s)
+                             && c != '\u{13}'   // "device control 3" (sent with Ctrl-s)
                              && c != '\u{14}'   // "device control 4" (sent with Ctrl-t)
                              && c != '\u{16}'   // "synchronous idle" (sent with Ctrl-v)
                              && c != '\u{18}'   // "cancel" (sent with Ctrl-x)
                              && c != '\u{19}'   // "end of medium" (sent with Ctrl-y)
                              && c != '\u{1a}'   // "substitute" (sent with Ctrl-z)
+                             && c != '\u{1b}'   // escape
                              && c != '\u{7f}'
                             // delete
                             {

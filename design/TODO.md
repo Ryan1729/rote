@@ -1,7 +1,18 @@
 ## TODO
 
-* Ctrl-f to open a current file search
+* Ctrl-f to open a within current file search
   * seems like the string search algorithm we would want is "Two-way string matching": http://www-igm.univ-mlv.fr/~lecroq/string/node26.html
+
+* Ctrl-shift-f to open a within current project folder search
+  * implies some way to know what the project is. Options:
+    * custom file format that specifies the paths. Open one of those at startup
+    * parse each programming languages files to figure this out where possible
+  * fallback to open files search if there is no project info
+    * Ctrl-alt-f for always open files search?
+
+* allow switching between search modes with mouse
+
+* replace for all find modes
 
 * Ctrl-d to select word and find next instance of word and select it and place a cursor there.
 

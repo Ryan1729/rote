@@ -76,31 +76,11 @@ const TEXT_COLOUR: Colour = c![0.3, 0.3, 0.9];
 const TAB_BACKGROUND_COLOUR: Colour = c![3.0 / 256.0, 3.0 / 256.0, 3.0 / 256.0];
 
 const TEXT_SIZE: f32 = 60.0;
+const FIND_REPLACE_SIZE: f32 = 26.0;
 const STATUS_SIZE: f32 = 22.0;
 const TAB_SIZE: f32 = 16.0;
 
-pub const TEXT_SIZES: [f32; 3] = [TEXT_SIZE, STATUS_SIZE, TAB_SIZE];
-
-/// You can use any u8 as a base, and this function will make a z that allows UI widgets to use
-/// some more layers for other stuff by adding small numbers to it. Say 1, 2, 3 etc.
-const fn z_from_base(base: u8) -> u16 {
-    (base as u16) << 8
-}
-
-// Reminder: smaller means closer
-const EDIT_Z: u16 = z_from_base(1 << 7);
-const HIGHLIGHT_Z: u16 = z_from_base(0b11 << 6);
-const CURSOR_Z: u16 = z_from_base(1 << 6);
-const STATUS_BACKGROUND_Z: u16 = z_from_base(1 << 5);
-const TAB_BACKGROUND_Z: u16 = STATUS_BACKGROUND_Z;
-const STATUS_Z: u16 = z_from_base(1 << 4);
-const TAB_Z: u16 = STATUS_Z;
-
-const TAB_MARGIN_RATIO: f32 = 1.0 / 128.0;
-const TAB_PADDING_RATIO: f32 = 1.0 / 64.0;
-const TAB_MIN_W: f32 = 128.0;
-const TAB_MIN_PADDING: f32 = TAB_MIN_W * TAB_PADDING_RATIO;
-const TAB_MIN_MARGIN: f32 = TAB_MIN_W * TAB_MARGIN_RATIO;
+pub const TEXT_SIZES: [f32; 4] = [TEXT_SIZE, STATUS_SIZE, TAB_SIZE, FIND_REPLACE_SIZE];
 
 pub fn get_font_info(char_dims: &[CharDim]) -> FontInfo {
     debug_assert!(
@@ -112,8 +92,33 @@ pub fn get_font_info(char_dims: &[CharDim]) -> FontInfo {
         text_char_dim: char_dims[0],
         status_char_dim: char_dims[1],
         tab_char_dim: char_dims[2],
+        find_replace_char_dim: char_dims[3],
     }
 }
+
+/// You can use any u8 as a base, and this function will make a z that allows UI widgets to use
+/// some more layers for other stuff by adding small numbers to it. Say 1, 2, 3 etc.
+const fn z_from_base(base: u8) -> u16 {
+    (base as u16) << 8
+}
+
+// Reminder: smaller means closer
+const EDIT_Z: u16 = z_from_base(128);
+const HIGHLIGHT_Z: u16 = z_from_base(64 + 32);
+const CURSOR_Z: u16 = z_from_base(64);
+const FIND_REPLACE_BACKGROUND_Z: u16 = z_from_base(32 + 16);
+const FIND_REPLACE_Z: u16 = z_from_base(32 + 8);
+const STATUS_BACKGROUND_Z: u16 = z_from_base(32);
+const TAB_BACKGROUND_Z: u16 = STATUS_BACKGROUND_Z;
+const STATUS_Z: u16 = z_from_base(16);
+const TAB_Z: u16 = STATUS_Z;
+
+/// Ratios to tab width
+const TAB_MARGIN_RATIO: f32 = 1.0 / 128.0;
+const TAB_PADDING_RATIO: f32 = 1.0 / 64.0;
+const TAB_MIN_W: f32 = 128.0;
+const TAB_MIN_PADDING: f32 = TAB_MIN_W * TAB_PADDING_RATIO;
+const TAB_MIN_MARGIN: f32 = TAB_MIN_W * TAB_MARGIN_RATIO;
 
 #[derive(Clone, Copy)]
 enum Spacing {
@@ -190,13 +195,15 @@ fn get_tab_spaced_rect(
 pub fn view<'view>(
     ui: &mut UIState,
     view: &'view View,
-    FontInfo {
+    font_info: &FontInfo,
+    (width, height): (f32, f32),
+) -> (Vec<TextOrRect<'view>>, Option<Input>) {
+    let FontInfo {
         text_char_dim,
         status_char_dim,
         tab_char_dim,
-    }: &FontInfo,
-    (width, height): (f32, f32),
-) -> (Vec<TextOrRect<'view>>, Option<Input>) {
+        ..
+    } = font_info;
     const PER_BUFFER_TEXT_OR_RECT_ESTIMATE: usize =
         4   // 2-4 per tab, usually 2
     ;
@@ -262,9 +269,12 @@ pub fn view<'view>(
     }
 
     if let Some(BufferView {
-        chars,
-        highlights,
-        cursors,
+        data:
+            BufferViewData {
+                chars,
+                highlights,
+                cursors,
+            },
         ..
     }) = view.visible_buffers[0].and_then(|i| view.buffers.get(i))
     {
@@ -339,11 +349,43 @@ pub fn view<'view>(
     }
     perf_viz::end_record!("for &BufferView");
 
+    let status_line_y = get_status_line_y(*status_char_dim, height);
+
     //
-    //   Status line
+    //    Find/Replace
     //
+
+    match view.find_replace.mode {
+        FindReplaceMode::Hidden => {}
+        FindReplaceMode::CurrentFile => {
+            let rect = ScreenSpaceRect {
+                min: (0.0, get_find_replace_y(*font_info, height)),
+                max: (width, status_line_y),
+            };
+            text_or_rects.push(TextOrRect::Rect(VisualSpec {
+                rect,
+                color: CHROME_BACKGROUND_COLOUR,
+                z: FIND_REPLACE_BACKGROUND_Z,
+            }));
+            text_or_rects.push(TextOrRect::Text(TextSpec {
+                text: "FIND_REPLACE_TEST", //&view.find_replace.find.chars,
+                size: FIND_REPLACE_SIZE,
+                layout: TextLayout::SingleLine,
+                spec: VisualSpec {
+                    rect,
+                    color: c![0.3, 0.9, 0.9],
+                    z: FIND_REPLACE_Z,
+                },
+            }));
+        }
+    }
+
+    //
+    //    Status line
+    //
+
     let rect = ScreenSpaceRect {
-        min: (0.0, status_line_y(*status_char_dim, height)),
+        min: (0.0, status_line_y),
         max: (width, height),
     };
 
@@ -771,10 +813,47 @@ fn upper_position_info(tab_char_dim: &CharDim) -> UpperPositionInfo {
     }
 }
 
-fn status_line_y(status_char_dim: CharDim, height: f32) -> f32 {
+/// Ratios to screen height
+const FIND_REPLACE_MARGIN_RATIO: f32 = 1.0 / 16.0;
+const FIND_REPLACE_PADDING_RATIO: f32 = 1.0 / 32.0;
+
+const FIND_REPLACE_MIN_MARGIN: f32 = FIND_REPLACE_MARGIN_RATIO * 256.0;
+const FIND_REPLACE_MIN_PADDING: f32 = FIND_REPLACE_PADDING_RATIO * 256.0;
+
+fn get_find_replace_y(
+    FontInfo {
+        status_char_dim,
+        find_replace_char_dim,
+        ..
+    }: FontInfo,
+    height: f32,
+) -> f32 {
+    let mut margin = FIND_REPLACE_MARGIN_RATIO * height;
+    margin = if margin > FIND_REPLACE_MIN_MARGIN {
+        margin
+    } else {
+        //NaN ends up here
+        FIND_REPLACE_MIN_MARGIN
+    };
+    let mut padding = FIND_REPLACE_PADDING_RATIO * height;
+    padding = if padding > FIND_REPLACE_MIN_PADDING {
+        padding
+    } else {
+        //NaN ends up here
+        FIND_REPLACE_MIN_PADDING
+    };
+
+    get_status_line_y(status_char_dim, height)
+    // assuming that there are two text buffers and a heading, each with th e same margin and
+    //padding
+        - (margin * 6.0 + padding * 6.0 + find_replace_char_dim.h * 3.0)
+}
+
+fn get_status_line_y(status_char_dim: CharDim, height: f32) -> f32 {
     height - status_char_dim.h
 }
 
+// TODO have these handle the find/repalce menu properly
 pub fn inside_edit_area(
     ScreenSpaceXY { x: _, y }: ScreenSpaceXY,
     FontInfo {
@@ -784,7 +863,7 @@ pub fn inside_edit_area(
     }: FontInfo,
     ScreenSpaceWH { w: _, h }: ScreenSpaceWH,
 ) -> bool {
-    y < status_line_y(status_char_dim, h) && y > upper_position_info(tab_char_dim).edit_y
+    y < get_status_line_y(status_char_dim, h) && y > upper_position_info(tab_char_dim).edit_y
 }
 
 pub fn inside_tab_area(

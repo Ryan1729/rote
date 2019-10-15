@@ -49,6 +49,7 @@ pub enum ReplaceOrAdd {
 pub enum Input {
     None,
     Quit,
+    CloseMenuIfAny,
     Insert(char),
     Delete,
     ResetScroll,
@@ -75,8 +76,8 @@ pub enum Input {
     NextBuffer,
     PreviousBuffer,
     SelectBuffer(usize),
+    SetFindReplaceMode(FindReplaceMode),
 }
-
 d!(for Input : Input::None);
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -816,12 +817,27 @@ pub struct StatusLineView {
 pub const DEFAULT_STATUS_LINE_CHARS: &'static str = "No buffer selected.";
 d!(for StatusLineView: StatusLineView {chars: DEFAULT_STATUS_LINE_CHARS.to_owned()});
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum FindReplaceMode {
+    Hidden,
+    CurrentFile,
+}
+d!(for FindReplaceMode: FindReplaceMode::Hidden);
+
+#[derive(Default, Debug)]
+pub struct FindReplaceView {
+    pub mode: FindReplaceMode,
+    pub find: BufferViewData,
+    pub replace: BufferViewData,
+}
+
 pub type VisibleBuffers = [Option<usize>; 2];
 
 #[derive(Default, Debug)]
 pub struct View {
     pub visible_buffers: VisibleBuffers,
     pub buffers: Vec<BufferView>,
+    pub find_replace: FindReplaceView,
     pub status_line: StatusLineView,
     pub scroll: ScrollXY,
 }
@@ -831,6 +847,11 @@ pub struct BufferView {
     pub name: BufferName,
     // TODO this could be truncated to a fixed length/on the stack
     pub name_string: String,
+    pub data: BufferViewData,
+}
+
+#[derive(Default, Debug)]
+pub struct BufferViewData {
     //TODO make this a &str or a char iterator
     pub chars: String,
     pub cursors: Vec<CursorView>,
@@ -838,7 +859,7 @@ pub struct BufferView {
 }
 
 // Short form "Command".
-// This is for telling the platform layer that it should do things something in addition to
+// This is for telling the platform layer that it should do something in addition to
 // rendering the view.
 #[derive(Debug, Clone)]
 pub enum Cmd {
@@ -922,6 +943,7 @@ pub struct FontInfo {
     pub text_char_dim: CharDim,
     pub status_char_dim: CharDim,
     pub tab_char_dim: CharDim,
+    pub find_replace_char_dim: CharDim,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

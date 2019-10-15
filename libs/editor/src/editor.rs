@@ -74,6 +74,9 @@ pub struct State {
     // visible_buffers: VisibleBuffers,
     buffers: Vec1<TextBuffer>,
     current_buffer_index: usize,
+    find_replace_mode: FindReplaceMode,
+    find: TextBuffer,
+    replace: TextBuffer,
     screen: ScrollableScreen,
     font_info: FontInfo,
     clipboard_history: ClipboardHistory,
@@ -175,6 +178,31 @@ impl From<&str> for State {
     }
 }
 
+const AVERAGE_SELECTION_LNES_ESTIMATE: usize = 4;
+
+fn to_buffer_view_data(buffer: &TextBuffer, selection_lines_estimate: usize) -> BufferViewData {
+    let buffer_cursors = buffer.cursors();
+    let cursors_len = buffer_cursors.len();
+    let mut cursors = Vec::with_capacity(cursors_len);
+    let mut highlights = Vec::with_capacity(cursors.len() * selection_lines_estimate);
+
+    for c in buffer_cursors.iter() {
+        let position = c.get_position();
+
+        cursors.push(CursorView {
+            position,
+            state: c.state,
+        });
+
+        push_highlights(&mut highlights, position, c.get_highlight_position());
+    }
+    BufferViewData {
+        chars: buffer.chars().collect::<String>(),
+        cursors,
+        highlights,
+    }
+}
+
 #[perf_viz::record]
 pub fn render_view(
     &State {
@@ -182,6 +210,9 @@ pub fn render_view(
         ref screen,
         font_info: FontInfo { text_char_dim, .. },
         current_buffer_index,
+        find_replace_mode,
+        ref find,
+        ref replace,
         ..
     }: &State,
     view: &mut View,
@@ -189,29 +220,10 @@ pub fn render_view(
     view.buffers.clear();
 
     for buffer in buffers.iter() {
-        let buffer_cursors = buffer.cursors();
-        let cursors_len = buffer_cursors.len();
-        const AVERAGE_SELECTION_LNES_ESTIMATE: usize = 4;
-        let mut cursors = Vec::with_capacity(cursors_len);
-        let mut highlights = Vec::with_capacity(cursors.len() * AVERAGE_SELECTION_LNES_ESTIMATE);
-
-        for c in buffer_cursors.iter() {
-            let position = c.get_position();
-
-            cursors.push(CursorView {
-                position,
-                state: c.state,
-            });
-
-            push_highlights(&mut highlights, position, c.get_highlight_position());
-        }
-
         view.buffers.push(BufferView {
             name: buffer.name.clone(),
             name_string: buffer.name.to_string(),
-            chars: buffer.chars().collect::<String>(),
-            cursors,
-            highlights,
+            data: to_buffer_view_data(&buffer, AVERAGE_SELECTION_LNES_ESTIMATE),
         });
     }
 
@@ -260,6 +272,13 @@ pub fn render_view(
         }
     };
 
+    const FIND_REPLACE_AVERAGE_SELECTION_LNES_ESTIMATE: usize = 1;
+
+    view.find_replace = FindReplaceView {
+        mode: find_replace_mode,
+        find: to_buffer_view_data(&find, FIND_REPLACE_AVERAGE_SELECTION_LNES_ESTIMATE),
+        replace: to_buffer_view_data(&replace, FIND_REPLACE_AVERAGE_SELECTION_LNES_ESTIMATE),
+    };
     view.scroll = screen.scroll;
 }
 
@@ -333,6 +352,12 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
     match input {
         Input::None => {}
         Quit => {}
+        CloseMenuIfAny => match state.find_replace_mode {
+            FindReplaceMode::CurrentFile => {
+                state.find_replace_mode = FindReplaceMode::Hidden;
+            }
+            FindReplaceMode::Hidden => {}
+        },
         Insert(c) => buffer_call!(b{
             b.insert(c);
             try_to_show_cursors!(b);
@@ -451,6 +476,9 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
         }
         SelectBuffer(i) => {
             state.select_buffer(i);
+        }
+        SetFindReplaceMode(mode) => {
+            state.find_replace_mode = mode;
         }
     }
 
