@@ -193,6 +193,7 @@ mod z_depth_tests {
 pub fn init<F>(
     hidpi_factor: f32,
     text_sizes: &[f32],
+    clear_colour: [f32; 4],
     load_fn: F,
 ) -> Res<(State<'static>, Vec<CharDim>)>
 where
@@ -290,7 +291,12 @@ where
         gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
         // Use srgb for consistency with other examples
         gl::Enable(gl::FRAMEBUFFER_SRGB);
-        gl::ClearColor(0.02, 0.02, 0.02, 1.0);
+        gl::ClearColor(
+            clear_colour[0],
+            clear_colour[1],
+            clear_colour[2],
+            clear_colour[3],
+        );
 
         let mut depth_bits = 0;
         gl::GetIntegerv(3414, &mut depth_bits);

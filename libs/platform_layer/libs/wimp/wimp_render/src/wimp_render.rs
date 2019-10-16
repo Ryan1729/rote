@@ -71,14 +71,18 @@ macro_rules! id {
 
 type Colour = [f32; 4];
 
-const CHROME_BACKGROUND_COLOUR: Colour = c![7.0 / 256.0, 7.0 / 256.0, 7.0 / 256.0];
+pub const TEXT_BACKGROUND_COLOUR: Colour = c![0.02, 0.02, 0.02];
 const TEXT_COLOUR: Colour = c![0.3, 0.3, 0.9];
+const FIND_REPLACE_TEXT_COLOUR: Colour = c![0.3, 0.9, 0.9];
+const CHROME_BACKGROUND_COLOUR: Colour = c![7.0 / 256.0, 7.0 / 256.0, 7.0 / 256.0];
 const TAB_BACKGROUND_COLOUR: Colour = c![3.0 / 256.0, 3.0 / 256.0, 3.0 / 256.0];
 
 const TEXT_SIZE: f32 = 60.0;
 const FIND_REPLACE_SIZE: f32 = 26.0;
 const STATUS_SIZE: f32 = 22.0;
 const TAB_SIZE: f32 = 16.0;
+
+const SEPARATOR_LINE_THICKNESS: f32 = 2.0;
 
 pub const TEXT_SIZES: [f32; 4] = [TEXT_SIZE, STATUS_SIZE, TAB_SIZE, FIND_REPLACE_SIZE];
 
@@ -202,6 +206,7 @@ pub fn view<'view>(
         text_char_dim,
         status_char_dim,
         tab_char_dim,
+        find_replace_char_dim,
         ..
     } = font_info;
     const PER_BUFFER_TEXT_OR_RECT_ESTIMATE: usize =
@@ -349,34 +354,86 @@ pub fn view<'view>(
     }
     perf_viz::end_record!("for &BufferView");
 
-    let status_line_y = get_status_line_y(*status_char_dim, height);
-
     //
     //    Find/Replace
     //
 
+    let FindReplaceInfo {
+        margin,
+        padding,
+        top_y,
+        bottom_y,
+    } = get_find_replace_info(*font_info, height);
+
     match view.find_replace.mode {
         FindReplaceMode::Hidden => {}
         FindReplaceMode::CurrentFile => {
-            let rect = ScreenSpaceRect {
-                min: (0.0, get_find_replace_y(*font_info, height)),
-                max: (width, status_line_y),
+            let outer_rect = ScreenSpaceRect {
+                min: (0.0, top_y),
+                max: (width, bottom_y),
             };
             text_or_rects.push(TextOrRect::Rect(VisualSpec {
-                rect,
+                rect: outer_rect,
                 color: CHROME_BACKGROUND_COLOUR,
                 z: FIND_REPLACE_BACKGROUND_Z,
             }));
+
+            let mut current_y = top_y + margin;
+            let text_height = 2.0 * padding + find_replace_char_dim.h;
+
+            macro_rules! text_rect {
+                () => {
+                    text_rect!(padding)
+                };
+                ($h_padding: expr) => {
+                    ScreenSpaceRect {
+                        min: (margin + $h_padding, current_y + padding),
+                        max: (
+                            width - (margin + $h_padding),
+                            current_y + text_height - padding,
+                        ),
+                    }
+                };
+            }
+
             text_or_rects.push(TextOrRect::Text(TextSpec {
-                text: "FIND_REPLACE_TEST", //&view.find_replace.find.chars,
+                text: "In current file",
                 size: FIND_REPLACE_SIZE,
                 layout: TextLayout::SingleLine,
                 spec: VisualSpec {
-                    rect,
-                    color: c![0.3, 0.9, 0.9],
+                    rect: text_rect!(0.0),
+                    color: FIND_REPLACE_TEXT_COLOUR,
                     z: FIND_REPLACE_Z,
                 },
             }));
+
+            macro_rules! spaced_text_in_rect {
+                ($text: expr) => {{
+                    current_y += text_height + margin;
+                    let rect = ScreenSpaceRect {
+                        min: (margin, current_y),
+                        max: (width - margin, current_y + text_height),
+                    };
+                    text_or_rects.push(TextOrRect::Rect(VisualSpec {
+                        rect,
+                        color: TEXT_BACKGROUND_COLOUR,
+                        z: FIND_REPLACE_Z.saturating_add(1),
+                    }));
+                    text_or_rects.push(TextOrRect::Text(TextSpec {
+                        text: $text,
+                        size: FIND_REPLACE_SIZE,
+                        layout: TextLayout::SingleLine,
+                        spec: VisualSpec {
+                            rect: text_rect!(),
+                            color: FIND_REPLACE_TEXT_COLOUR,
+                            z: FIND_REPLACE_Z,
+                        },
+                    }));
+                }};
+            }
+
+            spaced_text_in_rect!(&view.find_replace.find.chars);
+            spaced_text_in_rect!(&view.find_replace.replace.chars);
         }
     }
 
@@ -384,8 +441,19 @@ pub fn view<'view>(
     //    Status line
     //
 
+    let status_line_y = get_status_line_y(*status_char_dim, height);
+
+    text_or_rects.push(TextOrRect::Rect(VisualSpec {
+        rect: ScreenSpaceRect {
+            min: (0.0, status_line_y),
+            max: (width, status_line_y + SEPARATOR_LINE_THICKNESS),
+        },
+        color: TAB_BACKGROUND_COLOUR,
+        z: STATUS_BACKGROUND_Z,
+    }));
+
     let rect = ScreenSpaceRect {
-        min: (0.0, status_line_y),
+        min: (0.0, status_line_y + SEPARATOR_LINE_THICKNESS),
         max: (width, height),
     };
 
@@ -400,7 +468,7 @@ pub fn view<'view>(
         size: STATUS_SIZE,
         layout: TextLayout::SingleLine,
         spec: VisualSpec {
-            rect,
+            rect: rect.with_min_y(status_line_y + 2.0 * SEPARATOR_LINE_THICKNESS),
             color: c![0.3, 0.9, 0.3],
             z: STATUS_Z,
         },
@@ -775,10 +843,7 @@ fn render_outline_button<'view>(
     match extra_highlight {
         ExtraHighlight::Underline(color) => {
             text_or_rects.push(TextOrRect::Rect(VisualSpec {
-                rect: ScreenSpaceRect {
-                    min: (rect.min.0, shrunk_rect.max.1),
-                    ..rect
-                },
+                rect: rect.with_min_y(shrunk_rect.max.1),
                 color,
                 z: z.saturating_sub(2),
             }));
@@ -820,14 +885,21 @@ const FIND_REPLACE_PADDING_RATIO: f32 = 1.0 / 32.0;
 const FIND_REPLACE_MIN_MARGIN: f32 = FIND_REPLACE_MARGIN_RATIO * 256.0;
 const FIND_REPLACE_MIN_PADDING: f32 = FIND_REPLACE_PADDING_RATIO * 256.0;
 
-fn get_find_replace_y(
+struct FindReplaceInfo {
+    margin: f32,
+    padding: f32,
+    top_y: f32,
+    bottom_y: f32,
+}
+
+fn get_find_replace_info(
     FontInfo {
         status_char_dim,
         find_replace_char_dim,
         ..
     }: FontInfo,
     height: f32,
-) -> f32 {
+) -> FindReplaceInfo {
     let mut margin = FIND_REPLACE_MARGIN_RATIO * height;
     margin = if margin > FIND_REPLACE_MIN_MARGIN {
         margin
@@ -843,17 +915,24 @@ fn get_find_replace_y(
         FIND_REPLACE_MIN_PADDING
     };
 
-    get_status_line_y(status_char_dim, height)
-    // assuming that there are two text buffers and a heading, each with th e same margin and
-    //padding
-        - (margin * 6.0 + padding * 6.0 + find_replace_char_dim.h * 3.0)
+    let bottom_y = get_status_line_y(status_char_dim, height);
+    // assuming that there are two text buffers and a heading, each with the same margin and
+    //padding, without the margins being duplicated
+    let top_y = bottom_y - (margin * 4.0 + padding * 6.0 + find_replace_char_dim.h * 3.0);
+
+    FindReplaceInfo {
+        margin,
+        padding,
+        top_y,
+        bottom_y,
+    }
 }
 
 fn get_status_line_y(status_char_dim: CharDim, height: f32) -> f32 {
-    height - status_char_dim.h
+    height - (status_char_dim.h + 2.0 * SEPARATOR_LINE_THICKNESS)
 }
 
-// TODO have these handle the find/repalce menu properly
+// TODO have these handle the find/replace menu properly
 pub fn inside_edit_area(
     ScreenSpaceXY { x: _, y }: ScreenSpaceXY,
     FontInfo {

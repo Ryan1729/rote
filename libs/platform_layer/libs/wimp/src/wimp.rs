@@ -119,6 +119,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
     let (mut gl_state, char_dims) = gl_layer::init(
         glutin_context.window().hidpi_factor() as f32,
         &wimp_render::TEXT_SIZES,
+        wimp_render::TEXT_BACKGROUND_COLOUR,
         |symbol| glutin_context.get_proc_address(symbol) as _,
     )?;
 

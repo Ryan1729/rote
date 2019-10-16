@@ -896,6 +896,22 @@ ord!(and friends for ScreenSpaceRect : r, other in {
         .then_with(|| r.max.1.to_bits().cmp(&other.max.1.to_bits()))
 });
 
+impl ScreenSpaceRect {
+    #[allow(dead_code)]
+    pub fn with_min_x(&self, min_x: f32) -> Self {
+        ScreenSpaceRect {
+            min: (min_x, self.min.1),
+            ..*self
+        }
+    }
+    pub fn with_min_y(&self, min_y: f32) -> Self {
+        ScreenSpaceRect {
+            min: (self.min.0, min_y),
+            ..*self
+        }
+    }
+}
+
 #[macro_export]
 macro_rules! ssr {
     ($min_x: expr, $min_y: expr, $max_x: expr, $max_y: expr) => {
