@@ -6,7 +6,7 @@ use glyph_brush::{
     Bounds, GlyphBrush, GlyphBrushBuilder, HighlightRange, Layout, PixelCoords, Section,
 };
 use macros::{d, invariants_checked};
-use platform_types::{CharDim, ScreenSpaceRect};
+use platform_types::{ssr, CharDim, ScreenSpaceRect};
 use shared::Res;
 use std::{ffi::CString, mem, ptr, str};
 
@@ -446,11 +446,7 @@ pub fn render(
                 ..d!()
             }),
             TextOrRect::Rect(VisualSpec {
-                rect:
-                    ScreenSpaceRect {
-                        min: (min_x, min_y),
-                        max: (max_x, max_y),
-                    },
+                rect: ssr!(min_x, min_y, max_x, max_y),
                 color,
                 z,
             }) => {

@@ -69,14 +69,61 @@ impl ClipboardHistory {
 }
 
 #[derive(Default)]
+struct EditorBuffer {
+    text_buffer: TextBuffer,
+    scroll: ScrollXY,
+    name: BufferName,
+}
+
+impl From<&str> for EditorBuffer {
+    fn from(s: &str) -> Self {
+        Self {
+            name: d!(),
+            scroll: d!(),
+            text_buffer: s.into(),
+        }
+    }
+}
+
+impl From<String> for EditorBuffer {
+    fn from(s: String) -> Self {
+        Self {
+            name: d!(),
+            scroll: d!(),
+            text_buffer: s.into(),
+        }
+    }
+}
+
+impl From<(BufferName, &str)> for EditorBuffer {
+    fn from((name, s): (BufferName, &str)) -> Self {
+        Self {
+            name,
+            scroll: d!(),
+            text_buffer: s.into(),
+        }
+    }
+}
+
+impl From<(BufferName, String)> for EditorBuffer {
+    fn from((name, s): (BufferName, String)) -> Self {
+        Self {
+            name,
+            scroll: d!(),
+            text_buffer: s.into(),
+        }
+    }
+}
+
+#[derive(Default)]
 pub struct State {
     // TODO side by side visible buffers
     // visible_buffers: VisibleBuffers,
-    buffers: Vec1<TextBuffer>,
-    current_buffer_index: usize,
+    buffers: Vec1<EditorBuffer>,
+    current_buffer_id: BufferId,
     find_replace_mode: FindReplaceMode,
-    find: TextBuffer,
-    replace: TextBuffer,
+    find: EditorBuffer,
+    replace: EditorBuffer,
     screen: ScrollableScreen,
     font_info: FontInfo,
     clipboard_history: ClipboardHistory,
@@ -97,20 +144,31 @@ impl State {
     }
 
     fn next_buffer(&mut self) {
-        self.current_buffer_index = (self.current_buffer_index + 1) % self.buffers.len();
+        if let Some(current_buffer_index) = self.current_buffer_id.get_index() {
+            self.set_index_id((current_buffer_index + 1) % self.buffers.len());
+        }
     }
 
     fn previous_buffer(&mut self) {
-        self.current_buffer_index = if self.current_buffer_index == 0 {
-            self.buffers.len() - 1
-        } else {
-            self.current_buffer_index - 1
-        };
+        if let Some(current_buffer_index) = self.current_buffer_id.get_index() {
+            self.set_index_id(if current_buffer_index == 0 {
+                self.buffers.len() - 1
+            } else {
+                current_buffer_index - 1
+            });
+        }
     }
 
-    fn select_buffer(&mut self, i: usize) {
-        if self.current_buffer_index < self.buffers.len() {
-            self.current_buffer_index = i;
+    fn set_index_id(&mut self, i: usize) {
+        if i < self.buffers.len() {
+            self.current_buffer_id = BufferId::Index(i);
+        }
+    }
+
+    fn set_id(&mut self, id: BufferId) {
+        match id {
+            BufferId::Index(i) => self.set_index_id(i),
+            other => self.current_buffer_id = id,
         }
     }
 
@@ -123,7 +181,7 @@ impl State {
             index
         };
 
-        self.current_buffer_index = index;
+        self.set_index_id(index);
     }
 
     fn matching_buffer_index(&self, path: &Path) -> Option<usize> {
@@ -162,7 +220,7 @@ impl From<String> for State {
     fn from(s: String) -> Self {
         let mut output: Self = d!();
 
-        output.buffers = Vec1::new(TextBuffer::from(s));
+        output.buffers = Vec1::new(EditorBuffer::from(s));
 
         output
     }
@@ -172,7 +230,7 @@ impl From<&str> for State {
     fn from(s: &str) -> Self {
         let mut output: Self = d!();
 
-        output.buffers = Vec1::new(TextBuffer::from(s));
+        output.buffers = Vec1::new(EditorBuffer::from(s));
 
         output
     }
@@ -180,7 +238,11 @@ impl From<&str> for State {
 
 const AVERAGE_SELECTION_LNES_ESTIMATE: usize = 4;
 
-fn to_buffer_view_data(buffer: &TextBuffer, selection_lines_estimate: usize) -> BufferViewData {
+fn to_buffer_view_data(
+    editor_buffer: &EditorBuffer,
+    selection_lines_estimate: usize,
+) -> BufferViewData {
+    let buffer = &editor_buffer.text_buffer;
     let buffer_cursors = buffer.cursors();
     let cursors_len = buffer_cursors.len();
     let mut cursors = Vec::with_capacity(cursors_len);
@@ -197,6 +259,7 @@ fn to_buffer_view_data(buffer: &TextBuffer, selection_lines_estimate: usize) -> 
         push_highlights(&mut highlights, position, c.get_highlight_position());
     }
     BufferViewData {
+        scroll: editor_buffer.scroll,
         chars: buffer.chars().collect::<String>(),
         cursors,
         highlights,
@@ -207,9 +270,8 @@ fn to_buffer_view_data(buffer: &TextBuffer, selection_lines_estimate: usize) -> 
 pub fn render_view(
     &State {
         ref buffers,
-        ref screen,
         font_info: FontInfo { text_char_dim, .. },
-        current_buffer_index,
+        current_buffer_id,
         find_replace_mode,
         ref find,
         ref replace,
@@ -219,18 +281,30 @@ pub fn render_view(
 ) {
     view.buffers.clear();
 
-    for buffer in buffers.iter() {
+    for editor_buffer in buffers.iter() {
+        let name = &editor_buffer.name;
         view.buffers.push(BufferView {
-            name: buffer.name.clone(),
-            name_string: buffer.name.to_string(),
-            data: to_buffer_view_data(&buffer, AVERAGE_SELECTION_LNES_ESTIMATE),
+            name: name.clone(),
+            name_string: name.to_string(),
+            data: to_buffer_view_data(&editor_buffer, AVERAGE_SELECTION_LNES_ESTIMATE),
         });
     }
 
     view.status_line.chars.clear();
     view.visible_buffers = d!();
-    match buffers.get(current_buffer_index) {
-        Some(buffer) => {
+    match current_buffer_id
+        .get_index()
+        .and_then(|i| buffers.get(i).map(|b| (i, b)))
+    {
+        Some((
+            current_buffer_index,
+            EditorBuffer {
+                text_buffer: buffer,
+                scroll,
+                ..
+            },
+        )) => {
+            let scroll = *scroll;
             view.visible_buffers[0] = Some(current_buffer_index);
             fn display_option_compactly<A: ToString>(op: Option<A>) -> String {
                 match op {
@@ -246,18 +320,14 @@ pub fn render_view(
                 write!(chars, "{}/{}", current_buffer_index + 1, buffers.len());
 
             // debugging
-            let _cannot_actually_fail = write!(
-                chars,
-                "  ? t{} s{} w{}",
-                text_char_dim, screen.scroll, screen.wh
-            );
+            let _cannot_actually_fail = write!(chars, "  ? t{} s{}", text_char_dim, scroll);
 
             for c in buffer.cursors().iter() {
                 let _cannot_actually_fail = write!(
                     chars,
                     "{} {} ({}|{}), ",
                     c,
-                    position_to_screen_space(c.get_position(), text_char_dim, screen.scroll),
+                    position_to_screen_space(c.get_position(), text_char_dim, scroll),
                     display_option_compactly(buffer.find_index(c).and_then(|o| if o == 0 {
                         None
                     } else {
@@ -279,7 +349,6 @@ pub fn render_view(
         find: to_buffer_view_data(&find, FIND_REPLACE_AVERAGE_SELECTION_LNES_ESTIMATE),
         replace: to_buffer_view_data(&replace, FIND_REPLACE_AVERAGE_SELECTION_LNES_ESTIMATE),
     };
-    view.scroll = screen.scroll;
 }
 
 fn attempt_to_make_sure_at_least_one_cursor_is_visible(
@@ -319,19 +388,33 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
 // expand to macro definitions" error otherwise.According to issue #54727, this is because there
 // is some worry that all the macro hygiene edge cases may not be handled.
 fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOutput {
-    macro_rules! buffer_call {
+    macro_rules! text_buffer_call {
         ($buffer: ident . $($method_call:tt)*) => {
-            buffer_call!($buffer {$buffer.$($method_call)*})
+            text_buffer_call!($buffer {$buffer.$($method_call)*})
         };
         ($buffer: ident $tokens:block) => {
-            if let Some($buffer) = state.buffers.get_mut(state.current_buffer_index) {
-                $tokens;
+            match state.current_buffer_id {
+                BufferId::Index(i) => {
+                    if let Some(editor_buffer) = state.buffers.get_mut(i) {
+                        let $buffer =  &mut editor_buffer.text_buffer;
+                        $tokens;
+                    }
+                }
+                BufferId::Find => {
+                    let $buffer = &mut state.find.text_buffer;
+                    $tokens;
+                }
+                BufferId::Replace => {
+                    let $buffer = &mut state.replace.text_buffer;
+                    $tokens;
+                }
             }
         }
     }
     perf_viz::record_guard!("update_and_render");
 
-    if cfg!(debug_assertions) {
+    //if cfg!(debug_assertions)
+    {
         if_changed::dbg!(&input);
     }
 
@@ -358,36 +441,36 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
             }
             FindReplaceMode::Hidden => {}
         },
-        Insert(c) => buffer_call!(b{
+        Insert(c) => text_buffer_call!(b{
             b.insert(c);
             try_to_show_cursors!(b);
         }),
-        Delete => buffer_call!(b {
+        Delete => text_buffer_call!(b {
             b.delete();
             try_to_show_cursors!(b);
         }),
-        Redo => buffer_call!(b {
+        Redo => text_buffer_call!(b {
             b.redo();
             try_to_show_cursors!(b);
         }),
-        Undo => buffer_call!(b {
+        Undo => text_buffer_call!(b {
             b.undo();
             try_to_show_cursors!(b);
         }),
         MoveAllCursors(r#move) => {
-            buffer_call!(b{
+            text_buffer_call!(b{
                 b.move_all_cursors(r#move);
                 try_to_show_cursors!(b);
             });
         }
         ExtendSelectionForAllCursors(r#move) => {
-            buffer_call!(b{
+            text_buffer_call!(b{
                 b.extend_selection_for_all_cursors(r#move);
                 try_to_show_cursors!(b);
             });
         }
         SelectAll => {
-            buffer_call!(b.select_all());
+            text_buffer_call!(b.select_all());
             // We don't need to make sure a cursor is visible here since the user
             // will understand where the cursor is.
         }
@@ -408,49 +491,49 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
         }
         SetCursor(xy, replace_or_add) => {
             let position = xy_to_pos(state, xy, PositionRound::Up);
-            buffer_call!(b.set_cursor(position, replace_or_add))
+            text_buffer_call!(b.set_cursor(position, replace_or_add))
         }
         DragCursors(xy) => {
             let position = xy_to_pos(state, xy, PositionRound::Up);
             // In practice we currently expect this to be sent only immeadately after an
             // `Input::SetCursors` input, so there will be only one cursor. But it seems like
             // we might as well just do it to all the cursors
-            buffer_call!(b.drag_cursors(position))
+            text_buffer_call!(b.drag_cursors(position))
         }
         SelectCharTypeGrouping(xy, replace_or_add) => {
             // We want different rounding for selections so that if we trigger a selection on the
             // right side of a character, we select that character rather than the next character.
             let position = xy_to_pos(state, xy, PositionRound::TowardsZero);
-            buffer_call!(b.select_char_type_grouping(position, replace_or_add));
+            text_buffer_call!(b.select_char_type_grouping(position, replace_or_add));
         }
         SetBufferPath(buffer_index, path) => {
             if let Some(b) = state.buffers.get_mut(buffer_index) {
                 (*b).name = BufferName::Path(path);
             }
         }
-        Cut => buffer_call!(b {
+        Cut => text_buffer_call!(b {
             if let Some(s) = state.clipboard_history.cut(b) {
                 cmd = Cmd::SetClipboard(s);
             }
             try_to_show_cursors!(b);
         }),
-        Copy => buffer_call!(b {
+        Copy => text_buffer_call!(b {
             if let Some(s) = state.clipboard_history.copy(b) {
                 cmd = Cmd::SetClipboard(s);
             }
             try_to_show_cursors!(b);
         }),
-        Paste(op_s) => buffer_call!(b {
+        Paste(op_s) => text_buffer_call!(b {
             state.clipboard_history.paste(b, op_s);
             try_to_show_cursors!(b);
         }),
-        InsertNumbersAtCursors => buffer_call!(b {
+        InsertNumbersAtCursors => text_buffer_call!(b {
             b.insert_at_each_cursor(|i| i.to_string());
             try_to_show_cursors!(b);
         }),
         LoadedFile(path, str) => {
             state.add_or_select_buffer(path, str);
-            buffer_call!(b {
+            text_buffer_call!(b {
                 try_to_show_cursors!(b);
             })
         }
@@ -460,13 +543,13 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
                 .buffers
                 .push((BufferName::Scratch(state.next_scratch_buffer_number()), "").into());
 
-            state.current_buffer_index = index;
+            state.set_index_id(index);
         }
         TabIn => {
-            buffer_call!(b.tab_in());
+            text_buffer_call!(b.tab_in());
         }
         TabOut => {
-            buffer_call!(b.tab_out());
+            text_buffer_call!(b.tab_out());
         }
         NextBuffer => {
             state.next_buffer();
@@ -474,8 +557,8 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
         PreviousBuffer => {
             state.previous_buffer();
         }
-        SelectBuffer(i) => {
-            state.select_buffer(i);
+        SelectBuffer(id) => {
+            state.set_id(id);
         }
         SetFindReplaceMode(mode) => {
             state.find_replace_mode = mode;

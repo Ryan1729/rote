@@ -194,7 +194,6 @@ pub struct TextBuffer {
     cursors: Cursors,
     history: VecDeque<Edit>,
     history_index: usize,
-    pub name: BufferName,
 }
 
 impl From<String> for TextBuffer {
@@ -212,26 +211,6 @@ impl From<&str> for TextBuffer {
         let mut output: Self = d!();
 
         output.rope = Rope::from(s);
-
-        output
-    }
-}
-
-impl From<(BufferName, &str)> for TextBuffer {
-    fn from((name, s): (BufferName, &str)) -> Self {
-        let mut output: Self = s.into();
-
-        output.name = name;
-
-        output
-    }
-}
-
-impl From<(BufferName, String)> for TextBuffer {
-    fn from((name, s): (BufferName, String)) -> Self {
-        let mut output: Self = s.into();
-
-        output.name = name;
 
         output
     }

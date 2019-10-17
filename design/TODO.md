@@ -1,12 +1,20 @@
 ## TODO
 
+* make higher z mean closer.
+  * I keep messing that up.
+
+* make auto-tab-scroll happen when a new tab is created
+  * fix auto-scroll drifting as the amount of tabs increase.
+
+* don't stop showing the buffer when the find/replace text boxes are selected
+
 * Ctrl-f to open a within current file search
   * seems like the string search algorithm we would want is "Two-way string matching": http://www-igm.univ-mlv.fr/~lecroq/string/node26.html
 
 * Ctrl-shift-f to open a within current project folder search
   * implies some way to know what the project is. Options:
     * custom file format that specifies the paths. Open one of those at startup
-    * parse each programming languages files to figure this out where possible
+    * parse each programming languages files' to figure this out where possible
   * fallback to open files search if there is no project info
     * Ctrl-alt-f for always open files search?
 

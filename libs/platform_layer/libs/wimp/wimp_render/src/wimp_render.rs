@@ -71,7 +71,9 @@ macro_rules! id {
 
 type Colour = [f32; 4];
 
-pub const TEXT_BACKGROUND_COLOUR: Colour = c![0.02, 0.02, 0.02];
+pub const TEXT_BACKGROUND_COLOUR: Colour = c![3.0 / 256.0, 3.0 / 256.0, 3.0 / 256.0];
+pub const TEXT_HOVER_BACKGROUND_COLOUR: Colour = c![5.0 / 256.0, 5.0 / 256.0, 5.0 / 256.0];
+pub const TEXT_PRESSED_BACKGROUND_COLOUR: Colour = c![0.0, 0.0, 0.0];
 const TEXT_COLOUR: Colour = c![0.3, 0.3, 0.9];
 const FIND_REPLACE_TEXT_COLOUR: Colour = c![0.3, 0.9, 0.9];
 const CHROME_BACKGROUND_COLOUR: Colour = c![7.0 / 256.0, 7.0 / 256.0, 7.0 / 256.0];
@@ -269,88 +271,45 @@ pub fn view<'view>(
                 z: TAB_Z,
             },
         ) {
-            input = Some(Input::SelectBuffer(i))
+            input = Some(Input::SelectBuffer(BufferId::Index(i)))
         }
     }
 
-    if let Some(BufferView {
-        data:
-            BufferViewData {
-                chars,
-                highlights,
-                cursors,
-            },
-        ..
-    }) = view.visible_buffers[0].and_then(|i| view.buffers.get(i))
+    if let Some((index, BufferView { data, .. })) =
+        view.visible_buffers[0].and_then(|i| view.buffers.get(i).map(|b| (i, b)))
     {
-        let text = {
-            chars
-            // perf_viz::record_guard!("map unprinatbles to symbols for themselves");
-            // let s = chars
-            //     .chars()
-            //     .map(|c| {
-            //         // map unprinatbles to symbols for themselves
-            //         if c < 0x20 as char {
-            //             std::char::from_u32(c as u32 | 0x2400u32).unwrap_or(c)
-            //         } else {
-            //             c
-            //         }
-            //     })
-            //     .collect::<String>();
-            // s
-        };
+        // let text = {
+        //     chars
+        //     // perf_viz::record_guard!("map unprinatbles to symbols for themselves");
+        //     // let s = chars
+        //     //     .chars()
+        //     //     .map(|c| {
+        //     //         // map unprinatbles to symbols for themselves
+        //     //         if c < 0x20 as char {
+        //     //             std::char::from_u32(c as u32 | 0x2400u32).unwrap_or(c)
+        //     //         } else {
+        //     //             c
+        //     //         }
+        //     //     })
+        //     //     .collect::<String>();
+        //     // s
+        // };
 
-        let ScreenSpaceXY { x, mut y } = text_to_screen(TextSpaceXY::default(), view.scroll);
-        y += edit_y;
-        text_or_rects.push(TextOrRect::Text(TextSpec {
-            text: &text,
-            size: TEXT_SIZE,
-            layout: TextLayout::Wrap,
-            spec: VisualSpec {
-                rect: ssr!((x, y)),
-                color: TEXT_COLOUR,
-                z: EDIT_Z,
-            },
-        }));
+        let rect = ssr!((0.0, edit_y));
 
-        perf_viz::start_record!("text_or_rects.extend");
-        let CharDim { w, h }: CharDim = *text_char_dim;
-        text_or_rects.extend(highlights.iter().map(
-            |Highlight {
-                 min, max, color, ..
-             }| {
-                TextOrRect::Rect(VisualSpec {
-                    rect: ScreenSpaceRect {
-                        min: (min.offset.0 as f32 * w + x, min.line as f32 * h + y),
-                        max: (max.offset.0 as f32 * w + x, (max.line + 1) as f32 * h + y),
-                    },
-                    color: *color,
-                    z: HIGHLIGHT_Z,
-                })
-            },
-        ));
-        perf_viz::end_record!("text_or_rects.extend");
-
-        for c in cursors.iter() {
-            let mut screen_xy = position_to_screen_space(c.position, *text_char_dim, view.scroll);
-            screen_xy.y += edit_y;
-            text_or_rects.push(TextOrRect::Text(TextSpec {
-                text: "▏",
-                size: TEXT_SIZE,
-                layout: TextLayout::SingleLine,
-                spec: VisualSpec {
-                    rect: ScreenSpaceRect {
-                        min: screen_xy.into(),
-                        max: (width, text_char_dim.h),
-                    },
-                    color: match c.state {
-                        CursorState::None => c![0.9, 0.3, 0.3],
-                        CursorState::PressedAgainstWall => c![0.9, 0.9, 0.3],
-                    },
-                    z: CURSOR_Z,
-                },
-            }));
-        }
+        input = text_box(
+            ui,
+            &mut text_or_rects,
+            rect,
+            rect,
+            *text_char_dim,
+            TEXT_SIZE,
+            TEXT_COLOUR,
+            &data,
+            BufferId::Index(index),
+            EDIT_Z,
+        )
+        .or(input);
     }
     perf_viz::end_record!("for &BufferView");
 
@@ -386,13 +345,12 @@ pub fn view<'view>(
                     text_rect!(padding)
                 };
                 ($h_padding: expr) => {
-                    ScreenSpaceRect {
-                        min: (margin + $h_padding, current_y + padding),
-                        max: (
-                            width - (margin + $h_padding),
-                            current_y + text_height - padding,
-                        ),
-                    }
+                    ssr!(
+                        margin + $h_padding,
+                        current_y + padding,
+                        width - (margin + $h_padding),
+                        current_y + text_height - padding
+                    )
                 };
             }
 
@@ -407,33 +365,31 @@ pub fn view<'view>(
                 },
             }));
 
-            macro_rules! spaced_text_in_rect {
-                ($text: expr) => {{
+            macro_rules! spaced_input_box {
+                ($data: expr, $input: expr) => {{
                     current_y += text_height + margin;
-                    let rect = ScreenSpaceRect {
-                        min: (margin, current_y),
-                        max: (width - margin, current_y + text_height),
-                    };
-                    text_or_rects.push(TextOrRect::Rect(VisualSpec {
-                        rect,
-                        color: TEXT_BACKGROUND_COLOUR,
-                        z: FIND_REPLACE_Z.saturating_add(1),
-                    }));
-                    text_or_rects.push(TextOrRect::Text(TextSpec {
-                        text: $text,
-                        size: FIND_REPLACE_SIZE,
-                        layout: TextLayout::SingleLine,
-                        spec: VisualSpec {
-                            rect: text_rect!(),
-                            color: FIND_REPLACE_TEXT_COLOUR,
-                            z: FIND_REPLACE_Z,
-                        },
-                    }));
+
+                    input = text_box(
+                        ui,
+                        &mut text_or_rects,
+                        ssr!(
+                            (margin, current_y),
+                            (width - margin, current_y + text_height)
+                        ),
+                        text_rect!(),
+                        *find_replace_char_dim,
+                        FIND_REPLACE_SIZE,
+                        FIND_REPLACE_TEXT_COLOUR,
+                        $data,
+                        $input,
+                        FIND_REPLACE_Z,
+                    )
+                    .or(input);
                 }};
             }
 
-            spaced_text_in_rect!(&view.find_replace.find.chars);
-            spaced_text_in_rect!(&view.find_replace.replace.chars);
+            spaced_input_box!(&view.find_replace.find, BufferId::Find);
+            spaced_input_box!(&view.find_replace.replace, BufferId::Replace);
         }
     }
 
@@ -475,6 +431,98 @@ pub fn view<'view>(
     }));
 
     (text_or_rects, input)
+}
+
+fn text_box<'view>(
+    ui: &mut UIState,
+    text_or_rects: &mut Vec<TextOrRect<'view>>,
+    outer_rect: ScreenSpaceRect,
+    text_rect: ScreenSpaceRect,
+    char_dim: CharDim,
+    size: f32,
+    // TODO if we need more colour customization we should probably make a struct for it
+    text_color: Colour,
+    BufferViewData {
+        highlights,
+        cursors,
+        scroll,
+        chars,
+    }: &'view BufferViewData,
+    buffer_id: BufferId,
+    z: u16,
+) -> Option<Input> {
+    let mut input = None;
+    let scroll = *scroll;
+    let ssxy!(x, y) = text_to_screen(TextSpaceXY::default(), scroll);
+
+    let rect = outer_rect + ssxy!(x, y);
+
+    let (clicked, button_state) = do_button_logic(ui, id!(format!("{:?}", buffer_id)), rect);
+    if clicked {
+        input = Some(Input::SelectBuffer(buffer_id));
+    }
+
+    let color = match button_state {
+        ButtonState::Usual => TEXT_BACKGROUND_COLOUR,
+        ButtonState::Hover => TEXT_HOVER_BACKGROUND_COLOUR,
+        ButtonState::Pressed => TEXT_PRESSED_BACKGROUND_COLOUR,
+    };
+
+    text_or_rects.push(TextOrRect::Rect(VisualSpec {
+        rect,
+        color,
+        z: z.saturating_add(1),
+    }));
+
+    text_or_rects.push(TextOrRect::Text(TextSpec {
+        text: &chars,
+        size,
+        layout: TextLayout::Wrap,
+        spec: VisualSpec {
+            rect: text_rect,
+            color: text_color,
+            z,
+        },
+    }));
+
+    for c in cursors.iter() {
+        let screen_xy = position_to_screen_space(c.position, char_dim, scroll);
+        let cursor_rect = text_rect + screen_xy;
+        text_or_rects.push(TextOrRect::Text(TextSpec {
+            text: "▏",
+            size,
+            layout: TextLayout::SingleLine,
+            spec: VisualSpec {
+                rect: cursor_rect,
+                color: match c.state {
+                    CursorState::None => c![0.9, 0.3, 0.3],
+                    CursorState::PressedAgainstWall => c![0.9, 0.9, 0.3],
+                },
+                z: z.saturating_sub(3),
+            },
+        }));
+    }
+
+    let (x, y) = text_rect.min;
+    let CharDim { w, h } = char_dim;
+    text_or_rects.extend(highlights.iter().map(
+        |Highlight {
+             min, max, color, ..
+         }| {
+            TextOrRect::Rect(VisualSpec {
+                rect: ssr!(
+                    min.offset.0 as f32 * w + x,
+                    min.line as f32 * h + y,
+                    max.offset.0 as f32 * w + x,
+                    (max.line + 1) as f32 * h + y
+                ),
+                color: *color,
+                z: z.saturating_sub(4),
+            })
+        },
+    ));
+
+    input
 }
 
 pub fn make_active_tab_visible<'view>(
@@ -711,37 +759,29 @@ d!(for OutlineButtonSpec<'static>: OutlineButtonSpec {
 });
 
 fn enlarge_by(
-    ScreenSpaceRect {
-        min: (min_x, min_y),
-        max: (max_x, max_y),
-    }: ScreenSpaceRect,
+    ssr!(min_x, min_y, max_x, max_y): ScreenSpaceRect,
     enlarge_amount: Spacing,
 ) -> ScreenSpaceRect {
-    let ScreenSpaceRect {
-        min: (min_x_e, min_y_e),
-        max: (max_x_e, max_y_e),
-    } = enlarge_amount.into_rect();
-    ScreenSpaceRect {
-        min: (min_x - min_x_e, min_y - min_y_e),
-        max: (max_x + max_x_e, max_y + max_y_e),
-    }
+    let ssr!(min_x_e, min_y_e, max_x_e, max_y_e) = enlarge_amount.into_rect();
+    ssr!(
+        min_x - min_x_e,
+        min_y - min_y_e,
+        max_x + max_x_e,
+        max_y + max_y_e
+    )
 }
 
 fn shrink_by(
-    ScreenSpaceRect {
-        min: (min_x, min_y),
-        max: (max_x, max_y),
-    }: ScreenSpaceRect,
+    ssr!(min_x, min_y, max_x, max_y): ScreenSpaceRect,
     shrink_amount: Spacing,
 ) -> ScreenSpaceRect {
-    let ScreenSpaceRect {
-        min: (min_x_s, min_y_s),
-        max: (max_x_s, max_y_s),
-    } = shrink_amount.into_rect();
-    ScreenSpaceRect {
-        min: (min_x + min_x_s, min_y + min_y_s),
-        max: (max_x - max_x_s, max_y - max_y_s),
-    }
+    let ssr!(min_x_s, min_y_s, max_x_s, max_y_s) = shrink_amount.into_rect();
+    ssr!(
+        min_x + min_x_s,
+        min_y + min_y_s,
+        max_x - max_x_s,
+        max_y - max_y_s
+    )
 }
 
 fn do_outline_button<'view>(
@@ -761,10 +801,7 @@ fn do_outline_button<'view>(
 fn center_within((w, h): (f32, f32), rect: ScreenSpaceRect) -> ScreenSpaceRect {
     let (middle_x, middle_y) = rect.middle();
     let min = (middle_x - (w / 2.0), middle_y - (h / 2.0));
-    ScreenSpaceRect {
-        min,
-        max: (min.0 + w, min.1 + h),
-    }
+    ssr!(min, (min.0 + w, min.1 + h))
 }
 
 fn render_outline_button<'view>(

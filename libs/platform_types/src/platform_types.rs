@@ -75,10 +75,39 @@ pub enum Input {
     TabOut,
     NextBuffer,
     PreviousBuffer,
-    SelectBuffer(usize),
+    SelectBuffer(BufferId),
     SetFindReplaceMode(FindReplaceMode),
 }
 d!(for Input : Input::None);
+
+#[derive(Clone, Copy, Debug)]
+pub enum BufferId {
+    Index(usize),
+    Find,
+    Replace,
+}
+d!(for BufferId: BufferId::Index(0));
+ord!(and friends for BufferId: id, other in {
+    use BufferId::*;
+    use std::cmp::Ordering::*;
+    match (id, other) {
+        (Index(i1), Index(i2)) => i1.cmp(&i2),
+        (Index(_), _) => Less,
+        (_, Index(_)) => Greater,
+        (Find, Replace) => Less,
+        (Replace, Find) => Greater,
+        (Find, Find)|(Replace, Replace) => Equal,
+    }
+});
+
+impl BufferId {
+    pub fn get_index(&self) -> Option<usize> {
+        match self {
+            BufferId::Index(i) => Some(*i),
+            _ => None,
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 /// The top left corner of the text is `(0.0, 0.0)1, top right corner is `(width, 0.0)`,
@@ -188,6 +217,25 @@ pub struct ScreenSpaceXY {
 
 fmt_display!(for ScreenSpaceXY: ScreenSpaceXY {x, y} in "{:?}", (x, y));
 
+#[macro_export]
+macro_rules! ssxy {
+    //
+    // Pattern matching
+    //
+    ($x: ident, $y: ident) => {
+        ScreenSpaceXY { x: $x, y: $y }
+    };
+    //
+    // Initialization
+    //
+    ($x: expr, $y: expr) => {
+        ScreenSpaceXY { x: $x, y: $y }
+    };
+    () => {
+        ScreenSpaceXY::default()
+    };
+}
+
 impl From<ScreenSpaceXY> for (f32, f32) {
     fn from(ScreenSpaceXY { x, y }: ScreenSpaceXY) -> Self {
         (x, y)
@@ -204,6 +252,27 @@ impl std::ops::Add for ScreenSpaceXY {
         }
     }
 }
+
+impl std::ops::Add<(f32, f32)> for ScreenSpaceXY {
+    type Output = ScreenSpaceXY;
+
+    fn add(self, (x, y): (f32, f32)) -> ScreenSpaceXY {
+        ScreenSpaceXY {
+            x: self.x + x,
+            y: self.y + y,
+        }
+    }
+}
+add_assign!(<(f32, f32)> for ScreenSpaceXY);
+
+impl std::ops::Add<ScreenSpaceXY> for (f32, f32) {
+    type Output = (f32, f32);
+
+    fn add(self, ScreenSpaceXY { x, y }: ScreenSpaceXY) -> (f32, f32) {
+        (self.0 + x, self.1 + y)
+    }
+}
+add_assign!(<ScreenSpaceXY> for (f32, f32));
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct ScreenSpaceWH {
@@ -305,6 +374,114 @@ pub fn position_to_text_space(
     TextSpaceXY {
         x: offset.0 as f32 * w,
         y: line as f32 * h,
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct ScreenSpaceRect {
+    /// min: Position on screen to render, in pixels from top-left. Defaults to (0, 0).
+    pub min: (f32, f32),
+    /// max: Max (width, height) bounds, in pixels from top-left. Defaults to unbounded.
+    pub max: (f32, f32),
+}
+d!(for ScreenSpaceRect : ScreenSpaceRect{
+    min: (0.0, 0.0), max: (std::f32::INFINITY, std::f32::INFINITY)
+});
+ord!(and friends for ScreenSpaceRect : r, other in {
+    // I don't care if this is the best ordering, I just want an ordering,
+    r.min.0.to_bits().cmp(&other.min.0.to_bits())
+        .then_with(|| r.min.1.to_bits().cmp(&other.min.1.to_bits()))
+        .then_with(|| r.max.0.to_bits().cmp(&other.max.0.to_bits()))
+        .then_with(|| r.max.1.to_bits().cmp(&other.max.1.to_bits()))
+});
+
+#[macro_export]
+macro_rules! ssr {
+    //
+    // Pattern matching
+    //
+    ($min_x: ident, $min_y: ident, $max_x: ident, $max_y: ident) => {
+        ScreenSpaceRect {
+            min: ($min_x, $min_y),
+            max: ($max_x, $max_y),
+        }
+    };
+    ($min: ident, $max: ident) => {
+        ScreenSpaceRect {
+            min: $min,
+            max: $max,
+        }
+    };
+    ($min: ident) => {
+        ScreenSpaceRect {
+            min: $min,
+            max: _
+        }
+    };
+    //
+    // Initialization
+    //
+    ($min_x: expr, $min_y: expr, $max_x: expr, $max_y: expr) => {
+        ScreenSpaceRect {
+            min: ($min_x, $min_y),
+            max: ($max_x, $max_y),
+        }
+    };
+    ($min: expr, $max: expr) => {
+        ScreenSpaceRect {
+            min: $min,
+            max: $max,
+        }
+    };
+    ($min: expr) => {
+        ScreenSpaceRect {
+            min: $min,
+            ..ScreenSpaceRect::default()
+        }
+    };
+    () => {
+        ScreenSpaceRect::default()
+    };
+}
+
+impl std::ops::Add<ScreenSpaceXY> for ScreenSpaceRect {
+    type Output = ScreenSpaceRect;
+
+    fn add(mut self, other: ScreenSpaceXY) -> ScreenSpaceRect {
+        self.min += other;
+        self.max += other;
+        self
+    }
+}
+
+impl ScreenSpaceRect {
+    #[allow(dead_code)]
+    pub fn with_min_x(&self, min_x: f32) -> Self {
+        ScreenSpaceRect {
+            min: (min_x, self.min.1),
+            ..*self
+        }
+    }
+    pub fn with_min_y(&self, min_y: f32) -> Self {
+        ScreenSpaceRect {
+            min: (self.min.0, min_y),
+            ..*self
+        }
+    }
+
+    pub fn width(&self) -> f32 {
+        self.max.0 - self.min.0
+    }
+
+    pub fn height(&self) -> f32 {
+        self.max.1 - self.min.1
+    }
+
+    pub fn middle(&self) -> (f32, f32) {
+        (
+            (self.min.0 + self.max.0) / 2.0,
+            (self.min.1 + self.max.1) / 2.0,
+        )
     }
 }
 
@@ -839,7 +1016,6 @@ pub struct View {
     pub buffers: Vec<BufferView>,
     pub find_replace: FindReplaceView,
     pub status_line: StatusLineView,
-    pub scroll: ScrollXY,
 }
 
 #[derive(Default, Debug)]
@@ -854,6 +1030,7 @@ pub struct BufferView {
 pub struct BufferViewData {
     //TODO make this a &str or a char iterator
     pub chars: String,
+    pub scroll: ScrollXY,
     pub cursors: Vec<CursorView>,
     pub highlights: Vec<Highlight>,
 }
@@ -877,82 +1054,6 @@ impl Cmd {
 
 pub type UpdateAndRenderOutput = (View, Cmd);
 pub type UpdateAndRender = fn(Input) -> UpdateAndRenderOutput;
-
-#[derive(Copy, Clone, Debug)]
-pub struct ScreenSpaceRect {
-    /// min: Position on screen to render, in pixels from top-left. Defaults to (0, 0).
-    pub min: (f32, f32),
-    /// max: Max (width, height) bounds, in pixels from top-left. Defaults to unbounded.
-    pub max: (f32, f32),
-}
-d!(for ScreenSpaceRect : ScreenSpaceRect{
-    min: (0.0, 0.0), max: (std::f32::INFINITY, std::f32::INFINITY)
-});
-ord!(and friends for ScreenSpaceRect : r, other in {
-    // I don't care if this is the best ordering, I just want an ordering,
-    r.min.0.to_bits().cmp(&other.min.0.to_bits())
-        .then_with(|| r.min.1.to_bits().cmp(&other.min.1.to_bits()))
-        .then_with(|| r.max.0.to_bits().cmp(&other.max.0.to_bits()))
-        .then_with(|| r.max.1.to_bits().cmp(&other.max.1.to_bits()))
-});
-
-impl ScreenSpaceRect {
-    #[allow(dead_code)]
-    pub fn with_min_x(&self, min_x: f32) -> Self {
-        ScreenSpaceRect {
-            min: (min_x, self.min.1),
-            ..*self
-        }
-    }
-    pub fn with_min_y(&self, min_y: f32) -> Self {
-        ScreenSpaceRect {
-            min: (self.min.0, min_y),
-            ..*self
-        }
-    }
-}
-
-#[macro_export]
-macro_rules! ssr {
-    ($min_x: expr, $min_y: expr, $max_x: expr, $max_y: expr) => {
-        ScreenSpaceRect {
-            min: ($min_x, $min_y),
-            max: ($max_x, $max_y),
-        }
-    };
-    ($min: expr, $max: expr) => {
-        ScreenSpaceRect {
-            min: $min,
-            max: $max,
-        }
-    };
-    ($min: expr) => {
-        ScreenSpaceRect {
-            min: $min,
-            ..ScreenSpaceRect::default()
-        }
-    };
-    () => {
-        ScreenSpaceRect::default()
-    };
-}
-
-impl ScreenSpaceRect {
-    pub fn width(&self) -> f32 {
-        self.max.0 - self.min.0
-    }
-
-    pub fn height(&self) -> f32 {
-        self.max.1 - self.min.1
-    }
-
-    pub fn middle(&self) -> (f32, f32) {
-        (
-            (self.min.0 + self.max.0) / 2.0,
-            (self.min.1 + self.max.1) / 2.0,
-        )
-    }
-}
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct FontInfo {

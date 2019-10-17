@@ -1,7 +1,7 @@
 // Assumes `Add` is already impl'd
 #[macro_export]
 macro_rules! add_assign {
-    (for $name: ident) => {
+    (for $name: ty) => {
         impl std::ops::AddAssign for $name {
             fn add_assign(&mut self, other: $name) {
                 use std::ops::Add;
@@ -9,7 +9,7 @@ macro_rules! add_assign {
             }
         }
     };
-    (<$rhs:ty> for $name: ident) => {
+    (<$rhs:ty> for $name: ty) => {
         impl std::ops::AddAssign<$rhs> for $name {
             fn add_assign(&mut self, other: $rhs) {
                 use std::ops::Add;
@@ -22,7 +22,7 @@ macro_rules! add_assign {
 // Assumes `Sub` is already impl'd
 #[macro_export]
 macro_rules! sub_assign {
-    (for $name: ident) => {
+    (for $name: ty) => {
         impl std::ops::SubAssign for $name {
             fn sub_assign(&mut self, other: $name) {
                 use std::ops::Sub;
@@ -30,7 +30,7 @@ macro_rules! sub_assign {
             }
         }
     };
-    (<$rhs:ty> for $name: ident) => {
+    (<$rhs:ty> for $name: ty) => {
         impl std::ops::SubAssign<$rhs> for $name {
             fn sub_assign(&mut self, other: $rhs) {
                 use std::ops::Sub;
