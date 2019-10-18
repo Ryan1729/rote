@@ -108,15 +108,13 @@ const fn z_from_base(base: u8) -> u16 {
     (base as u16) << 8
 }
 
-// Reminder: smaller means closer
-const EDIT_Z: u16 = z_from_base(128);
-const HIGHLIGHT_Z: u16 = z_from_base(64 + 32);
-const CURSOR_Z: u16 = z_from_base(64);
-const FIND_REPLACE_BACKGROUND_Z: u16 = z_from_base(32 + 16);
-const FIND_REPLACE_Z: u16 = z_from_base(32 + 8);
-const STATUS_BACKGROUND_Z: u16 = z_from_base(32);
+// Reminder: smaller means farther away.
+const EDIT_Z: u16 = z_from_base(32);
+const FIND_REPLACE_BACKGROUND_Z: u16 = z_from_base(32 + 8);
+const FIND_REPLACE_Z: u16 = z_from_base(32 + 16);
+const STATUS_BACKGROUND_Z: u16 = z_from_base(64);
 const TAB_BACKGROUND_Z: u16 = STATUS_BACKGROUND_Z;
-const STATUS_Z: u16 = z_from_base(16);
+const STATUS_Z: u16 = z_from_base(128);
 const TAB_Z: u16 = STATUS_Z;
 
 /// Ratios to tab width
@@ -471,7 +469,7 @@ fn text_box<'view>(
     text_or_rects.push(TextOrRect::Rect(VisualSpec {
         rect,
         color,
-        z: z.saturating_add(1),
+        z: z.saturating_sub(1), //z-flip done
     }));
 
     text_or_rects.push(TextOrRect::Text(TextSpec {
@@ -498,7 +496,7 @@ fn text_box<'view>(
                     CursorState::None => c![0.9, 0.3, 0.3],
                     CursorState::PressedAgainstWall => c![0.9, 0.9, 0.3],
                 },
-                z: z.saturating_sub(3),
+                z: z.saturating_add(3), //z-flip done
             },
         }));
     }
@@ -517,7 +515,7 @@ fn text_box<'view>(
                     (max.line + 1) as f32 * h + y
                 ),
                 color: *color,
-                z: z.saturating_sub(4),
+                z: z.saturating_add(4), //z-flip done
             })
         },
     ));
@@ -837,7 +835,7 @@ fn render_outline_button<'view>(
                 spec: VisualSpec {
                     rect: text_rect,
                     color: text_colour,
-                    z: z.saturating_sub(1),
+                    z: z.saturating_add(1), //z-flip done
                 },
             }));
         };
@@ -857,7 +855,7 @@ fn render_outline_button<'view>(
             text_or_rects.push(TextOrRect::Rect(VisualSpec {
                 rect: enlarge_by(rect, margin),
                 color: highlight_colour,
-                z: z.saturating_add(1),
+                z: z.saturating_sub(1), //z-flip done
             }));
 
             text_or_rects.push(TextOrRect::Rect(VisualSpec {
@@ -882,7 +880,7 @@ fn render_outline_button<'view>(
             text_or_rects.push(TextOrRect::Rect(VisualSpec {
                 rect: rect.with_min_y(shrunk_rect.max.1),
                 color,
-                z: z.saturating_sub(2),
+                z: z.saturating_add(2), //z-flip done
             }));
         }
         _ => {}

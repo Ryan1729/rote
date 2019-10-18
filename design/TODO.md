@@ -1,7 +1,8 @@
 ## TODO
 
-* make higher z mean closer.
-  * I keep messing that up.
+* fix scroll not working
+
+* make ctrl-f auto focus on find text box and select the whole text if any.
 
 * make auto-tab-scroll happen when a new tab is created
   * fix auto-scroll drifting as the amount of tabs increase.

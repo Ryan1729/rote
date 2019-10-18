@@ -152,9 +152,12 @@ pub fn z_to_f32(z: u16) -> f32 {
     // `0.25 == 0011_1110__1000_0000__0000_0000__0000_0000`
     // `0.75 == 0011_1111__0100_0000__0000_0000__0000_0000`
     let minimum_bits: u32 = 0.25f32.to_bits();
+    // bitwise negation to make larger incoming z mean closer rather than farther away.
+    let z_bits = ((!z) as u32) << 7;
     // iteratively arrived at to shift the ends of the range towards the middle.
     let shift_towards_middle = 1 << 21;
-    f32::from_bits(minimum_bits + ((z as u32) << 7) + shift_towards_middle)
+
+    f32::from_bits(minimum_bits + z_bits + shift_towards_middle)
 }
 
 #[test]
