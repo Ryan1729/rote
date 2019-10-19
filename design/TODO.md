@@ -1,6 +1,9 @@
 ## TODO
 
 * fix scroll not working
+  * fix the text and cursors not staying together
+  * fix scroll doing the wrong thing on the find and replace text boxes
+  * make the highlighted scroll rectangle stay in place
 
 * make ctrl-f auto focus on find text box and select the whole text if any.
 

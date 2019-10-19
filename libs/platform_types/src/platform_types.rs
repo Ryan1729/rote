@@ -59,6 +59,8 @@ pub enum Input {
     MoveAllCursors(Move),
     ExtendSelectionForAllCursors(Move),
     SelectAll,
+    /// For these two the `ScreenSpaceXY` should be the top left of the selected text box,
+    /// without any padding
     SetCursor(ScreenSpaceXY, ReplaceOrAdd),
     DragCursors(ScreenSpaceXY),
     SelectCharTypeGrouping(ScreenSpaceXY, ReplaceOrAdd),
@@ -485,25 +487,6 @@ impl ScreenSpaceRect {
     }
 }
 
-/// This represents the visible portion of the screen. This struct primarily exists to make it
-/// clear that the negtive y direction is used instead of the positive one. That is, the area
-/// where `scroll.x` is between `0.0` and `wh.w` and `scroll.y` is between `-wh.h` and `0.0` is
-/// considered to be on the screen. As a side effect, this struct also allows functions that
-/// operate on the `scroll` to be harder to use incorrectly, by preventing mixing up what would
-/// otherwise be two `ScreenSpaceXY` params.
-#[derive(Default, Debug)]
-pub struct ScrollableScreen {
-    /// A negative `scroll.x` value means move the screen left, so you can see things that are
-    /// further right. A negative `scroll.y` value means move the screen up, so you can see things
-    /// that are further down.
-    pub scroll: ScrollXY,
-    pub wh: ScreenSpaceWH,
-}
-
-fmt_display!(for ScrollableScreen : ScrollableScreen {scroll, wh}
-      in "ScrollableScreen {{ scroll:{}, wh: {} }}", scroll, wh
- );
-
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum VisibilityAttemptResult {
     Succeeded,
@@ -544,7 +527,8 @@ impl From<CharDim> for Apron {
 ///
 /// The outer box is what we call the "apron".
 pub fn attempt_to_make_xy_visible(
-    ScrollableScreen { ref mut scroll, wh }: &mut ScrollableScreen,
+    scroll: &mut ScrollXY,
+    ScreenSpaceWH { w, h }: ScreenSpaceWH,
     apron: Apron,
     text: TextSpaceXY,
 ) -> VisibilityAttemptResult {
@@ -552,7 +536,6 @@ pub fn attempt_to_make_xy_visible(
     use VisibilityAttemptResult::*;
 
     let ScreenSpaceXY { x, y } = text_to_screen(text, *scroll);
-    let &mut ScreenSpaceWH { w, h } = wh;
 
     // If these checks ever actually become a bottleneck ,then the easy solution is to just make
     // types that can't represent these cases and enforce them at startup!
@@ -613,17 +596,6 @@ pub fn attempt_to_make_xy_visible(
     }
 
     Succeeded
-}
-
-pub fn xy_is_visible(
-    ScrollableScreen {
-        scroll,
-        wh: ScreenSpaceWH { w, h },
-    }: &ScrollableScreen,
-    text: TextSpaceXY,
-) -> bool {
-    let ScreenSpaceXY { x, y } = text_to_screen(text, *scroll);
-    x >= 0.0 && x < *w && y >= 0.0 && y < *h
 }
 
 /// The nth space between utf8 characters. So in the string "aöc" there are

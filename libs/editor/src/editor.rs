@@ -75,38 +75,8 @@ struct EditorBuffer {
     name: BufferName,
 }
 
-impl From<&str> for EditorBuffer {
-    fn from(s: &str) -> Self {
-        Self {
-            name: d!(),
-            scroll: d!(),
-            text_buffer: s.into(),
-        }
-    }
-}
-
-impl From<String> for EditorBuffer {
-    fn from(s: String) -> Self {
-        Self {
-            name: d!(),
-            scroll: d!(),
-            text_buffer: s.into(),
-        }
-    }
-}
-
-impl From<(BufferName, &str)> for EditorBuffer {
-    fn from((name, s): (BufferName, &str)) -> Self {
-        Self {
-            name,
-            scroll: d!(),
-            text_buffer: s.into(),
-        }
-    }
-}
-
-impl From<(BufferName, String)> for EditorBuffer {
-    fn from((name, s): (BufferName, String)) -> Self {
+impl EditorBuffer {
+    fn new<I: Into<TextBuffer>>(name: BufferName, s: I) -> Self {
         Self {
             name,
             scroll: d!(),
@@ -120,22 +90,27 @@ pub struct State {
     // TODO side by side visible buffers
     // visible_buffers: VisibleBuffers,
     buffers: Vec1<EditorBuffer>,
+    buffer_wh: ScreenSpaceWH,
     current_buffer_id: BufferId,
     find_replace_mode: FindReplaceMode,
     find: EditorBuffer,
+    find_wh: ScreenSpaceWH,
     replace: EditorBuffer,
-    screen: ScrollableScreen,
+    replace_wh: ScreenSpaceWH,
     font_info: FontInfo,
     clipboard_history: ClipboardHistory,
 }
 
-fn xy_to_pos(state: &State, xy: ScreenSpaceXY, round: PositionRound) -> Position {
-    screen_space_to_position(
-        xy,
-        state.font_info.text_char_dim,
-        state.screen.scroll,
-        round,
-    )
+// this macro helps the borrow checker figure out that borrows are valid.
+macro_rules! current_editor_buffer_mut {
+    /* -> Option<&mut EditorBuffer> */
+    ($state: expr) => {
+        match $state.current_buffer_id {
+            BufferId::Index(i) => $state.buffers.get_mut(i),
+            BufferId::Find => Some(&mut $state.find),
+            BufferId::Replace => Some(&mut $state.replace),
+        }
+    };
 }
 
 impl State {
@@ -177,7 +152,8 @@ impl State {
             index
         } else {
             let index = self.buffers.len();
-            self.buffers.push((BufferName::Path(path), str).into());
+            self.buffers
+                .push(EditorBuffer::new(BufferName::Path(path), str));
             index
         };
 
@@ -210,6 +186,38 @@ impl State {
         }
         output.wrapping_add(1)
     }
+
+    fn get_current_char_dim(&self) -> CharDim {
+        match self.current_buffer_id {
+            BufferId::Index(_) => self.font_info.text_char_dim,
+            BufferId::Find | BufferId::Replace => self.font_info.find_replace_char_dim,
+        }
+    }
+
+    fn try_to_show_cursors_on_current_buffer(&mut self) -> Option<()> {
+        let buffer = current_editor_buffer_mut!(self)?;
+        let wh = match self.current_buffer_id {
+            BufferId::Index(_) => self.buffer_wh,
+            BufferId::Find => self.find_wh,
+            BufferId::Replace => self.replace_wh,
+        };
+
+        let attempt_result = attempt_to_make_sure_at_least_one_cursor_is_visible(
+            &mut buffer.scroll,
+            wh,
+            match self.current_buffer_id {
+                BufferId::Index(_) => self.font_info.text_char_dim,
+                BufferId::Find | BufferId::Replace => self.font_info.find_replace_char_dim,
+            },
+            self.font_info.status_char_dim,
+            &buffer.text_buffer.cursors(),
+        );
+
+        match attempt_result {
+            VisibilityAttemptResult::Succeeded => Some(()),
+            _ => None,
+        }
+    }
 }
 
 pub fn new() -> State {
@@ -220,7 +228,7 @@ impl From<String> for State {
     fn from(s: String) -> Self {
         let mut output: Self = d!();
 
-        output.buffers = Vec1::new(EditorBuffer::from(s));
+        output.buffers = Vec1::new(EditorBuffer::new(d!(), s));
 
         output
     }
@@ -230,7 +238,7 @@ impl From<&str> for State {
     fn from(s: &str) -> Self {
         let mut output: Self = d!();
 
-        output.buffers = Vec1::new(EditorBuffer::from(s));
+        output.buffers = Vec1::new(EditorBuffer::new(d!(), s));
 
         output
     }
@@ -352,7 +360,8 @@ pub fn render_view(
 }
 
 fn attempt_to_make_sure_at_least_one_cursor_is_visible(
-    screen: &mut ScrollableScreen,
+    scroll: &mut ScrollXY,
+    wh: ScreenSpaceWH,
     text_char_dim: CharDim,
     status_char_dim: CharDim,
     cursors: &Vec1<Cursor>,
@@ -365,7 +374,8 @@ fn attempt_to_make_sure_at_least_one_cursor_is_visible(
     apron.bottom_h += status_char_dim.h;
 
     attempt_to_make_xy_visible(
-        screen,
+        scroll,
+        wh,
         apron,
         position_to_text_space(target_cursor.get_position(), text_char_dim),
     )
@@ -388,28 +398,25 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
 // expand to macro definitions" error otherwise.According to issue #54727, this is because there
 // is some worry that all the macro hygiene edge cases may not be handled.
 fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOutput {
+    macro_rules! buffer_call {
+        ($buffer: ident . $($method_call:tt)*) => {
+            buffer_call!($buffer {$buffer.$($method_call)*})
+        };
+        ($buffer: ident $tokens:block) => {{
+            if let Some($buffer) = current_editor_buffer_mut!(state) {
+                $tokens;
+            }
+        }}
+    }
     macro_rules! text_buffer_call {
         ($buffer: ident . $($method_call:tt)*) => {
             text_buffer_call!($buffer {$buffer.$($method_call)*})
         };
-        ($buffer: ident $tokens:block) => {
-            match state.current_buffer_id {
-                BufferId::Index(i) => {
-                    if let Some(editor_buffer) = state.buffers.get_mut(i) {
-                        let $buffer =  &mut editor_buffer.text_buffer;
-                        $tokens;
-                    }
-                }
-                BufferId::Find => {
-                    let $buffer = &mut state.find.text_buffer;
-                    $tokens;
-                }
-                BufferId::Replace => {
-                    let $buffer = &mut state.replace.text_buffer;
-                    $tokens;
-                }
+        ($buffer: ident $tokens:block) => {{
+            if let Some($buffer) = current_editor_buffer_mut!(state).map(|b| &mut b.text_buffer) {
+                $tokens;
             }
-        }
+        }}
     }
     perf_viz::record_guard!("update_and_render");
 
@@ -421,13 +428,9 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
     let mut cmd = Cmd::NoCmd;
 
     macro_rules! try_to_show_cursors {
-        ($buffer: expr) => {
-            attempt_to_make_sure_at_least_one_cursor_is_visible(
-                &mut state.screen,
-                state.font_info.text_char_dim,
-                state.font_info.status_char_dim,
-                &$buffer.cursors(),
-            ); //TODO report non success result
+        () => {
+            state.try_to_show_cursors_on_current_buffer();
+            // TODO trigger error popup based on result?
         };
     }
 
@@ -441,32 +444,32 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
             }
             FindReplaceMode::Hidden => {}
         },
-        Insert(c) => text_buffer_call!(b{
-            b.insert(c);
-            try_to_show_cursors!(b);
+        Insert(c) => buffer_call!(b{
+            b.text_buffer.insert(c);
+            try_to_show_cursors!();
         }),
-        Delete => text_buffer_call!(b {
-            b.delete();
-            try_to_show_cursors!(b);
+        Delete => buffer_call!(b {
+            b.text_buffer.delete();
+            try_to_show_cursors!();
         }),
-        Redo => text_buffer_call!(b {
-            b.redo();
-            try_to_show_cursors!(b);
+        Redo => buffer_call!(b {
+            b.text_buffer.redo();
+            try_to_show_cursors!();
         }),
-        Undo => text_buffer_call!(b {
-            b.undo();
-            try_to_show_cursors!(b);
+        Undo => buffer_call!(b {
+            b.text_buffer.undo();
+            try_to_show_cursors!();
         }),
         MoveAllCursors(r#move) => {
-            text_buffer_call!(b{
-                b.move_all_cursors(r#move);
-                try_to_show_cursors!(b);
+            buffer_call!(b{
+                b.text_buffer.move_all_cursors(r#move);
+                try_to_show_cursors!();
             });
         }
         ExtendSelectionForAllCursors(r#move) => {
-            text_buffer_call!(b{
-                b.extend_selection_for_all_cursors(r#move);
-                try_to_show_cursors!(b);
+            buffer_call!(b{
+                b.text_buffer.extend_selection_for_all_cursors(r#move);
+                try_to_show_cursors!();
             });
         }
         SelectAll => {
@@ -474,74 +477,86 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
             // We don't need to make sure a cursor is visible here since the user
             // will understand where the cursor is.
         }
-        ScrollVertically(amount) => {
-            state.screen.scroll.y -= amount;
-        }
-        ScrollHorizontally(amount) => {
-            state.screen.scroll.x += amount;
-        }
-        ResetScroll => {
-            state.screen.scroll = d!();
-        }
+        ScrollVertically(amount) => buffer_call!(b{
+            b.scroll.y -= amount;
+        }),
+        ScrollHorizontally(amount) => buffer_call!(b{
+            b.scroll.x += amount;
+        }),
+        ResetScroll => buffer_call!(b{
+            b.scroll = d!();
+        }),
         SetSizes(sizes) => {
-            if let Some(wh) = sizes.screen {
-                state.screen.wh = wh;
-            }
+            // TODO stop requiring this to be sent
+            // if let Some(wh) = sizes.screen {
+            //     state.screen.wh = wh;
+            // }
             set_if_present!(sizes => state.font_info);
         }
         SetCursor(xy, replace_or_add) => {
-            let position = xy_to_pos(state, xy, PositionRound::Up);
-            text_buffer_call!(b.set_cursor(position, replace_or_add))
+            let char_dim = state.get_current_char_dim();
+            buffer_call!(b{
+                let position = screen_space_to_position(xy, char_dim, b.scroll, PositionRound::Up);
+
+                b.text_buffer.set_cursor(position, replace_or_add);
+            })
         }
         DragCursors(xy) => {
-            let position = xy_to_pos(state, xy, PositionRound::Up);
-            // In practice we currently expect this to be sent only immeadately after an
-            // `Input::SetCursors` input, so there will be only one cursor. But it seems like
-            // we might as well just do it to all the cursors
-            text_buffer_call!(b.drag_cursors(position))
+            let char_dim = state.get_current_char_dim();
+            buffer_call!(b{
+                let position = screen_space_to_position(xy, char_dim, b.scroll, PositionRound::Up);
+
+                // In practice we currently expect this to be sent only immeadately after an
+                // `Input::SetCursors` input, so there will be only one cursor. But it seems like
+                // we might as well just do it to all the cursors
+                b.text_buffer.drag_cursors(position);
+            })
         }
         SelectCharTypeGrouping(xy, replace_or_add) => {
-            // We want different rounding for selections so that if we trigger a selection on the
-            // right side of a character, we select that character rather than the next character.
-            let position = xy_to_pos(state, xy, PositionRound::TowardsZero);
-            text_buffer_call!(b.select_char_type_grouping(position, replace_or_add));
+            let char_dim = state.get_current_char_dim();
+            buffer_call!(b{
+                // We want different rounding for selections so that if we trigger a selection on the
+                // right side of a character, we select that character rather than the next character.
+                let position = screen_space_to_position(xy, char_dim, b.scroll, PositionRound::TowardsZero);
+
+                b.text_buffer.select_char_type_grouping(position, replace_or_add)
+            })
         }
         SetBufferPath(buffer_index, path) => {
             if let Some(b) = state.buffers.get_mut(buffer_index) {
                 (*b).name = BufferName::Path(path);
             }
         }
-        Cut => text_buffer_call!(b {
-            if let Some(s) = state.clipboard_history.cut(b) {
+        Cut => buffer_call!(b {
+            if let Some(s) = state.clipboard_history.cut(&mut b.text_buffer) {
                 cmd = Cmd::SetClipboard(s);
             }
-            try_to_show_cursors!(b);
+            try_to_show_cursors!();
         }),
-        Copy => text_buffer_call!(b {
-            if let Some(s) = state.clipboard_history.copy(b) {
+        Copy => buffer_call!(b {
+            if let Some(s) = state.clipboard_history.copy(&mut b.text_buffer) {
                 cmd = Cmd::SetClipboard(s);
             }
-            try_to_show_cursors!(b);
+            try_to_show_cursors!();
         }),
-        Paste(op_s) => text_buffer_call!(b {
-            state.clipboard_history.paste(b, op_s);
-            try_to_show_cursors!(b);
+        Paste(op_s) => buffer_call!(b {
+            state.clipboard_history.paste(&mut b.text_buffer, op_s);
+            try_to_show_cursors!();
         }),
-        InsertNumbersAtCursors => text_buffer_call!(b {
-            b.insert_at_each_cursor(|i| i.to_string());
-            try_to_show_cursors!(b);
+        InsertNumbersAtCursors => buffer_call!(b {
+            b.text_buffer.insert_at_each_cursor(|i| i.to_string());
+            try_to_show_cursors!();
         }),
         LoadedFile(path, str) => {
             state.add_or_select_buffer(path, str);
-            text_buffer_call!(b {
-                try_to_show_cursors!(b);
-            })
+            try_to_show_cursors!();
         }
         NewScratchBuffer => {
             let index = state.buffers.len();
-            state
-                .buffers
-                .push((BufferName::Scratch(state.next_scratch_buffer_number()), "").into());
+            state.buffers.push(EditorBuffer::new(
+                BufferName::Scratch(state.next_scratch_buffer_number()),
+                "",
+            ));
 
             state.set_index_id(index);
         }

@@ -164,6 +164,40 @@ fn position_ord_works_as_expected() {
     assert!(pos! {l 0 o 9} < pos! {l 9 o 0});
 }
 
+// Turns out that we only need this in the tests anymore!
+fn xy_is_visible(
+    ScrollableScreen {
+        scroll,
+        wh: ScreenSpaceWH { w, h },
+    }: &ScrollableScreen,
+    text: TextSpaceXY,
+) -> bool {
+    let ScreenSpaceXY { x, y } = text_to_screen(text, *scroll);
+    x >= 0.0 && x < *w && y >= 0.0 && y < *h
+}
+
+// It turns out this is also needed int he tests and in fact, it's kind of in the way since we now
+// want to store the pieces separately. I'll leave the original comments here for posterity.
+
+/// This represents the visible portion of the screen. This struct primarily exists to make it
+/// clear that the negtive y direction is used instead of the positive one. That is, the area
+/// where `scroll.x` is between `0.0` and `wh.w` and `scroll.y` is between `-wh.h` and `0.0` is
+/// considered to be on the screen. As a side effect, this struct also allows functions that
+/// operate on the `scroll` to be harder to use incorrectly, by preventing mixing up what would
+/// otherwise be two `ScreenSpaceXY` params.
+#[derive(Default, Debug)]
+pub struct ScrollableScreen {
+    /// A negative `scroll.x` value means move the screen left, so you can see things that are
+    /// further right. A negative `scroll.y` value means move the screen up, so you can see things
+    /// that are further down.
+    pub scroll: ScrollXY,
+    pub wh: ScreenSpaceWH,
+}
+
+fmt_display!(for ScrollableScreen : ScrollableScreen {scroll, wh}
+      in "ScrollableScreen {{ scroll:{}, wh: {} }}", scroll, wh
+ );
+
 macro_rules! xy_is_visible_assert {
     (not $screen: expr, $xy: expr) => {{
         use std::ops::Not;
@@ -421,7 +455,7 @@ fn attempt_to_make_xy_visible_works_in_this_scenario(
     char_dim: CharDim,
     xy: TextSpaceXY,
 ) {
-    let attempt = attempt_to_make_xy_visible(screen, char_dim.into(), xy);
+    let attempt = attempt_to_make_xy_visible(&mut screen.scroll, screen.wh, char_dim.into(), xy);
 
     if dbg!(attempt) == VisibilityAttemptResult::Succeeded {
         dbg!(&screen);
