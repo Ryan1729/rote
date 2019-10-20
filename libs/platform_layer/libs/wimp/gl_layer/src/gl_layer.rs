@@ -386,7 +386,83 @@ d!(for VisualSpec: VisualSpec{
 pub enum TextLayout {
     Wrap,
     SingleLine,
+    WrapInRect(ScreenSpaceRect),
 }
+mod wrap_in_rect {
+    use super::ScreenSpaceRect;
+    use glyph_brush::{
+        rusttype::{PositionedGlyph, Rect},
+        *,
+    };
+    use std::borrow::Cow;
+    pub struct WrapInRect {
+        pub rect: ScreenSpaceRect,
+    }
+    impl std::hash::Hash for WrapInRect {
+        fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+            self.rect.min.0.to_bits().hash(state);
+            self.rect.min.1.to_bits().hash(state);
+            self.rect.max.0.to_bits().hash(state);
+            self.rect.max.1.to_bits().hash(state);
+        }
+    }
+
+    impl GlyphPositioner for WrapInRect {
+        fn calculate_glyphs<'font, F>(
+            &self,
+            fonts: &F,
+            geometry: &SectionGeometry,
+            sections: &[SectionText],
+        ) -> Vec<(PositionedGlyph<'font>, [f32; 4], FontId)>
+        where
+            F: FontMap<'font>,
+        {
+            Layout::default_wrap().calculate_glyphs(fonts, geometry, sections)
+        }
+        fn bounds_rect(&self, geometry: &SectionGeometry) -> Rect<f32> {
+            let rect = self.rect;
+            let mut wide_bounds = Layout::default_wrap().bounds_rect(geometry);
+
+            wide_bounds.min.x = if wide_bounds.min.x < rect.min.0 {
+                rect.min.0
+            } else {
+                wide_bounds.min.x
+            };
+            wide_bounds.min.y = if wide_bounds.min.y < rect.min.1 {
+                rect.min.1
+            } else {
+                wide_bounds.min.y
+            };
+
+            wide_bounds.max.x = if wide_bounds.max.x > rect.max.0 {
+                rect.max.0
+            } else {
+                wide_bounds.max.x
+            };
+            wide_bounds.max.y = if wide_bounds.max.y > rect.max.1 {
+                rect.max.1
+            } else {
+                wide_bounds.max.y
+            };
+            dbg!(wide_bounds)
+        }
+
+        fn recalculate_glyphs<'font, F>(
+            &self,
+            previous: Cow<Vec<(PositionedGlyph<'font>, [f32; 4], FontId)>>,
+            change: GlyphChange,
+            fonts: &F,
+            geometry: &SectionGeometry,
+            sections: &[SectionText],
+        ) -> Vec<(PositionedGlyph<'font>, [f32; 4], FontId)>
+        where
+            F: FontMap<'font>,
+        {
+            Layout::default_wrap().recalculate_glyphs(previous, change, fonts, geometry, sections)
+        }
+    }
+}
+use wrap_in_rect::WrapInRect;
 
 #[derive(Clone, Debug)]
 pub struct TextSpec<'text> {
@@ -435,19 +511,28 @@ pub fn render(
                 size,
                 layout,
                 spec: VisualSpec { rect, color, z },
-            }) => glyph_brush.queue(Section {
-                text: &text,
-                scale: Scale::uniform(size),
-                screen_position: rect.min,
-                bounds: rect.max,
-                color,
-                layout: match layout {
-                    TextLayout::SingleLine => Layout::default_single_line(),
-                    TextLayout::Wrap => Layout::default_wrap(),
-                },
-                z: z_to_f32(z),
-                ..d!()
-            }),
+            }) => {
+                let section = Section {
+                    text: &text,
+                    scale: Scale::uniform(size),
+                    screen_position: rect.min,
+                    bounds: rect.max,
+                    color,
+                    layout: match layout {
+                        TextLayout::SingleLine => Layout::default_single_line(),
+                        TextLayout::Wrap | TextLayout::WrapInRect(_) => Layout::default_wrap(),
+                    },
+                    z: z_to_f32(z),
+                    ..d!()
+                };
+
+                match layout {
+                    TextLayout::Wrap | TextLayout::SingleLine => glyph_brush.queue(section),
+                    TextLayout::WrapInRect(rect) => {
+                        glyph_brush.queue_custom_layout(section, &WrapInRect { rect })
+                    }
+                };
+            }
             TextOrRect::Rect(VisualSpec {
                 rect: ssr!(min_x, min_y, max_x, max_y),
                 color,

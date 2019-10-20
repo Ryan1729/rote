@@ -450,12 +450,8 @@ fn text_box<'view>(
     z: u16,
 ) -> Option<Input> {
     let mut input = None;
-    let scroll = *scroll;
-    let ssxy!(x, y) = text_to_screen(TextSpaceXY::default(), scroll);
 
-    let rect = outer_rect + ssxy!(x, y);
-
-    let (clicked, button_state) = do_button_logic(ui, id!(format!("{:?}", buffer_id)), rect);
+    let (clicked, button_state) = do_button_logic(ui, id!(format!("{:?}", buffer_id)), outer_rect);
     if clicked {
         input = Some(Input::SelectBuffer(buffer_id));
     }
@@ -467,17 +463,20 @@ fn text_box<'view>(
     };
 
     text_or_rects.push(TextOrRect::Rect(VisualSpec {
-        rect,
+        rect: outer_rect,
         color,
         z: z.saturating_sub(1), //z-flip done
     }));
 
+    let scroll = *scroll;
+    let scroll_offset = text_to_screen(TextSpaceXY::default(), scroll);
+    let offset_text_rect = text_rect + scroll_offset;
     text_or_rects.push(TextOrRect::Text(TextSpec {
         text: &chars,
         size,
-        layout: TextLayout::Wrap,
+        layout: TextLayout::WrapInRect(outer_rect),
         spec: VisualSpec {
-            rect: text_rect,
+            rect: offset_text_rect,
             color: text_color,
             z,
         },
@@ -489,7 +488,7 @@ fn text_box<'view>(
         text_or_rects.push(TextOrRect::Text(TextSpec {
             text: "▏",
             size,
-            layout: TextLayout::SingleLine,
+            layout: TextLayout::WrapInRect(outer_rect),
             spec: VisualSpec {
                 rect: cursor_rect,
                 color: match c.state {
@@ -501,7 +500,7 @@ fn text_box<'view>(
         }));
     }
 
-    let (x, y) = text_rect.min;
+    let (x, y) = offset_text_rect.min;
     let CharDim { w, h } = char_dim;
     text_or_rects.extend(highlights.iter().map(
         |Highlight {

@@ -1,16 +1,12 @@
 ## TODO
 
-* fix scroll not working
-  * fix the text and cursors not staying together
-  * fix scroll doing the wrong thing on the find and replace text boxes
-  * make the highlighted scroll rectangle stay in place
+* get multiple cursors and dragging working again, including the find and replace text boxes.
+  * maybe make the highlight colour dependent on the button state?
 
 * make ctrl-f auto focus on find text box and select the whole text if any.
 
-* make auto-tab-scroll happen when a new tab is created
-  * fix auto-scroll drifting as the amount of tabs increase.
-
 * don't stop showing the buffer when the find/replace text boxes are selected
+  * possibly this would be the time to get multiple `VisibleBuffers` working?
 
 * Ctrl-f to open a within current file search
   * seems like the string search algorithm we would want is "Two-way string matching": http://www-igm.univ-mlv.fr/~lecroq/string/node26.html
@@ -22,11 +18,15 @@
   * fallback to open files search if there is no project info
     * Ctrl-alt-f for always open files search?
 
+* make auto-tab-scroll happen when a new tab is created
+  * fix auto-scroll drifting as the amount of tabs increases.
+
 * allow switching between search modes with mouse
 
 * replace for all find modes
 
 * Ctrl-d to select word and find next instance of word and select it and place a cursor there.
+  * maybe make ctrl-alt-n unconditionally select the next word, just to break this into steps?
 
 * Ctrl-p open a list of open files, with a search box.
   * searching files by name
