@@ -1,12 +1,29 @@
 ## TODO
 
+* does this still seem like a good idea? I'm not sure.
+  * refactor to place the responsibility to know which `TextBuffer`(s) should be selected to be on the "client" AKA the platform layer.
+    * This will make having multiple windows later much nicer, and it allows the client to do things the editor did not expect.
+      * Do this also seems like it would clear up the find/replace cursor dragging and main-buffer-selection-while-in-find/replace issues.
+    * Concretely, this means making all the `Input` variants that care about which buffer is used require an additional `BufferId` parameter. Also, the `current_buffer_id` field on the editor `State` will be removed.
+      * does it make sense to allow all these "endpoints" to take multiple `BufferId`s?
+        * we can make the `out_rx.try_recv()` bit into a loop over, say `0..16` that keeps the latest view and which breaks out of the loop on `TryRecvError::Empty`
+          * how should we handle `TryRecvError::Disconnected`? An error message maybe? See item talking about "little pop-up messages".
+
 * get multiple cursors and dragging working again, including the find and replace text boxes.
   * maybe make the highlight colour dependent on the button state?
 
-* make ctrl-f auto focus on find text box and select the whole text if any.
-
 * don't stop showing the buffer when the find/replace text boxes are selected
   * possibly this would be the time to get multiple `VisibleBuffers` working?
+
+* write test for the following multi-cursor scenario (| represents a cursor)
+  * "a|b|c|d|e|f|g"
+  * insert "1" to get "a1|b1|c1|d1|e1|f1|g"
+  * insert "2" to get "a12|b12|c12|d12|e12|f12|g"
+  * delete to get "a1|b1|c1|d1|e1|f1|g" again
+  * delete to get "a|b|c|d|e|f|g" again
+    * property based version of this too.
+
+* make ctrl-f auto focus on find text box and select the whole text if any.
 
 * Ctrl-f to open a within current file search
   * seems like the string search algorithm we would want is "Two-way string matching": http://www-igm.univ-mlv.fr/~lecroq/string/node26.html
