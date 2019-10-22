@@ -5,10 +5,14 @@
 
 use glutin::{dpi::LogicalPosition, Api, GlProfile, GlRequest};
 use std::path::PathBuf;
+use wimp_render::get_find_replace_info;
 
 use file_chooser;
 use macros::d;
-use platform_types::*;
+use platform_types::{
+    screen_positioning::{screen_to_text_box, TextBoxPos},
+    *,
+};
 use shared::Res;
 use wimp_render::{PhysicalButtonState, UIState};
 
@@ -339,6 +343,19 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                                     .send_event($event);
                             })
                         };
+                    }
+
+                    macro_rules! text_box_xy {
+                        () => {{
+                            let width = dimensions.width as _;
+                            let height = dimensions.height as _;
+                            // To test this assume we are in the find text box
+                            let (x, y) = get_find_replace_info(font_info, (width, height))
+                                .find_text_rect
+                                .min;
+
+                            screen_to_text_box(ui.mouse_pos, TextBoxPos { x, y })
+                        }};
                     }
 
                     if cfg!(feature = "print-raw-input") {
@@ -708,7 +725,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                                         && ui.left_mouse_state.is_pressed()
                                         && !mouse_within_radius!()
                                     {
-                                        call_u_and_r!(Input::DragCursors(ui.mouse_pos));
+                                        call_u_and_r!(Input::DragCursors(text_box_xy!()));
                                     }
                                 }
                                 _ => {}
@@ -732,9 +749,9 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                             };
 
                             let input = if mouse_within_radius!() {
-                                Input::SelectCharTypeGrouping(ui.mouse_pos, replace_or_add)
+                                Input::SelectCharTypeGrouping(text_box_xy!(), replace_or_add)
                             } else {
-                                Input::SetCursor(ui.mouse_pos, replace_or_add)
+                                Input::SetCursor(text_box_xy!(), replace_or_add)
                             };
 
                             call_u_and_r!(input);

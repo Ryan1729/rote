@@ -1,6 +1,6 @@
 use gl_layer::{TextLayout, TextOrRect, TextSpec, VisualSpec};
 use macros::{c, d, fmt_debug, ord};
-use platform_types::*;
+use platform_types::{screen_positioning::*, *};
 use std::cmp::max;
 
 // This is probably excessive. We can make this smaller if there is a measuarable perf impact
@@ -316,11 +316,15 @@ pub fn view<'view>(
     //
 
     let FindReplaceInfo {
-        margin,
-        padding,
         top_y,
         bottom_y,
-    } = get_find_replace_info(*font_info, height);
+        label_rect,
+        find_outer_rect,
+        find_text_rect,
+        replace_outer_rect,
+        replace_text_rect,
+        ..
+    } = get_find_replace_info(*font_info, (width, height));
 
     match view.find_replace.mode {
         FindReplaceMode::Hidden => {}
@@ -335,46 +339,24 @@ pub fn view<'view>(
                 z: FIND_REPLACE_BACKGROUND_Z,
             }));
 
-            let mut current_y = top_y + margin;
-            let text_height = 2.0 * padding + find_replace_char_dim.h;
-
-            macro_rules! text_rect {
-                () => {
-                    text_rect!(padding)
-                };
-                ($h_padding: expr) => {
-                    ssr!(
-                        margin + $h_padding,
-                        current_y + padding,
-                        width - (margin + $h_padding),
-                        current_y + text_height - padding
-                    )
-                };
-            }
-
             text_or_rects.push(TextOrRect::Text(TextSpec {
                 text: "In current file",
                 size: FIND_REPLACE_SIZE,
                 layout: TextLayout::SingleLine,
                 spec: VisualSpec {
-                    rect: text_rect!(0.0),
+                    rect: label_rect,
                     color: FIND_REPLACE_TEXT_COLOUR,
                     z: FIND_REPLACE_Z,
                 },
             }));
 
             macro_rules! spaced_input_box {
-                ($data: expr, $input: expr) => {{
-                    current_y += text_height + margin;
-
+                ($data: expr, $input: expr, $outer_rect: expr, $text_rect:expr) => {{
                     input = text_box(
                         ui,
                         &mut text_or_rects,
-                        ssr!(
-                            (margin, current_y),
-                            (width - margin, current_y + text_height)
-                        ),
-                        text_rect!(),
+                        $outer_rect,
+                        $text_rect,
                         *find_replace_char_dim,
                         FIND_REPLACE_SIZE,
                         FIND_REPLACE_TEXT_COLOUR,
@@ -386,8 +368,18 @@ pub fn view<'view>(
                 }};
             }
 
-            spaced_input_box!(&view.find_replace.find, BufferId::Find);
-            spaced_input_box!(&view.find_replace.replace, BufferId::Replace);
+            spaced_input_box!(
+                &view.find_replace.find,
+                BufferId::Find,
+                find_outer_rect,
+                find_text_rect
+            );
+            spaced_input_box!(
+                &view.find_replace.replace,
+                BufferId::Replace,
+                replace_outer_rect,
+                replace_text_rect
+            );
         }
     }
 
@@ -469,7 +461,14 @@ fn text_box<'view>(
     }));
 
     let scroll = *scroll;
-    let scroll_offset = text_to_screen(TextSpaceXY::default(), scroll);
+    let text_box_pos = TextBoxPos {
+        x: outer_rect.min.0,
+        y: outer_rect.min.1,
+    };
+    let scroll_offset = text_box_to_screen(
+        text_to_text_box(TextSpaceXY::default(), scroll),
+        text_box_pos,
+    );
     let offset_text_rect = text_rect + scroll_offset;
     text_or_rects.push(TextOrRect::Text(TextSpec {
         text: &chars,
@@ -483,7 +482,7 @@ fn text_box<'view>(
     }));
 
     for c in cursors.iter() {
-        let screen_xy = position_to_screen_space(c.position, char_dim, scroll);
+        let screen_xy = position_to_screen_space(c.position, char_dim, scroll, text_box_pos);
         let cursor_rect = text_rect + screen_xy;
         text_or_rects.push(TextOrRect::Text(TextSpec {
             text: "▏",
@@ -919,20 +918,23 @@ const FIND_REPLACE_PADDING_RATIO: f32 = 1.0 / 32.0;
 const FIND_REPLACE_MIN_MARGIN: f32 = FIND_REPLACE_MARGIN_RATIO * 256.0;
 const FIND_REPLACE_MIN_PADDING: f32 = FIND_REPLACE_PADDING_RATIO * 256.0;
 
-struct FindReplaceInfo {
-    margin: f32,
-    padding: f32,
-    top_y: f32,
-    bottom_y: f32,
+pub struct FindReplaceInfo {
+    pub top_y: f32,
+    pub bottom_y: f32,
+    pub label_rect: ScreenSpaceRect,
+    pub find_outer_rect: ScreenSpaceRect,
+    pub find_text_rect: ScreenSpaceRect,
+    pub replace_outer_rect: ScreenSpaceRect,
+    pub replace_text_rect: ScreenSpaceRect,
 }
 
-fn get_find_replace_info(
+pub fn get_find_replace_info(
     FontInfo {
         status_char_dim,
         find_replace_char_dim,
         ..
     }: FontInfo,
-    height: f32,
+    (width, height): (f32, f32),
 ) -> FindReplaceInfo {
     let mut margin = FIND_REPLACE_MARGIN_RATIO * height;
     margin = if margin > FIND_REPLACE_MIN_MARGIN {
@@ -954,11 +956,47 @@ fn get_find_replace_info(
     //padding, without the margins being duplicated
     let top_y = bottom_y - (margin * 4.0 + padding * 6.0 + find_replace_char_dim.h * 3.0);
 
+    let mut current_y = top_y + margin;
+    let text_height = 2.0 * padding + find_replace_char_dim.h;
+
+    macro_rules! text_rect {
+        () => {
+            text_rect!(padding)
+        };
+        ($h_padding: expr) => {
+            ssr!(
+                margin + $h_padding,
+                current_y + padding,
+                width - (margin + $h_padding),
+                current_y + text_height - padding
+            )
+        };
+    }
+
+    let label_rect = text_rect!(0.0);
+
+    current_y += text_height + margin;
+    let find_outer_rect = ssr!(
+        (margin, current_y),
+        (width - margin, current_y + text_height)
+    );
+    let find_text_rect = text_rect!();
+
+    current_y += text_height + margin;
+    let replace_outer_rect = ssr!(
+        (margin, current_y),
+        (width - margin, current_y + text_height)
+    );
+    let replace_text_rect = text_rect!();
+
     FindReplaceInfo {
-        margin,
-        padding,
         top_y,
         bottom_y,
+        label_rect,
+        find_outer_rect,
+        find_text_rect,
+        replace_outer_rect,
+        replace_text_rect,
     }
 }
 

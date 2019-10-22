@@ -1,6 +1,6 @@
 use editor_types::{Cursor, Vec1};
 use macros::{d, ok_or};
-use platform_types::*;
+use platform_types::{screen_positioning::*, *};
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -90,12 +90,15 @@ pub struct State {
     // TODO side by side visible buffers
     // visible_buffers: VisibleBuffers,
     buffers: Vec1<EditorBuffer>,
+    buffer_pos: TextBoxPos, // TODO: maybe _pos and _wh should be a struct.
     buffer_wh: ScreenSpaceWH,
     current_buffer_id: BufferId,
     find_replace_mode: FindReplaceMode,
     find: EditorBuffer,
+    find_pos: TextBoxPos,
     find_wh: ScreenSpaceWH,
     replace: EditorBuffer,
+    replace_pos: TextBoxPos,
     replace_wh: ScreenSpaceWH,
     font_info: FontInfo,
     clipboard_history: ClipboardHistory,
@@ -143,7 +146,7 @@ impl State {
     fn set_id(&mut self, id: BufferId) {
         match id {
             BufferId::Index(i) => self.set_index_id(i),
-            other => self.current_buffer_id = id,
+            _ => self.current_buffer_id = id,
         }
     }
 
@@ -201,6 +204,11 @@ impl State {
             BufferId::Find => self.find_wh,
             BufferId::Replace => self.replace_wh,
         };
+        let text_box_pos = match self.current_buffer_id {
+            BufferId::Index(_) => self.buffer_pos,
+            BufferId::Find => self.find_pos,
+            BufferId::Replace => self.replace_pos,
+        };
 
         let attempt_result = attempt_to_make_sure_at_least_one_cursor_is_visible(
             &mut buffer.scroll,
@@ -210,6 +218,7 @@ impl State {
                 BufferId::Find | BufferId::Replace => self.font_info.find_replace_char_dim,
             },
             self.font_info.status_char_dim,
+            text_box_pos,
             &buffer.text_buffer.cursors(),
         );
 
@@ -283,6 +292,7 @@ pub fn render_view(
         find_replace_mode,
         ref find,
         ref replace,
+        buffer_pos: text_box_pos,
         ..
     }: &State,
     view: &mut View,
@@ -335,7 +345,7 @@ pub fn render_view(
                     chars,
                     "{} {} ({}|{}), ",
                     c,
-                    position_to_screen_space(c.get_position(), text_char_dim, scroll),
+                    position_to_screen_space(c.get_position(), text_char_dim, scroll, text_box_pos),
                     display_option_compactly(buffer.find_index(c).and_then(|o| if o == 0 {
                         None
                     } else {
@@ -364,6 +374,7 @@ fn attempt_to_make_sure_at_least_one_cursor_is_visible(
     wh: ScreenSpaceWH,
     text_char_dim: CharDim,
     status_char_dim: CharDim,
+    text_box_pos: TextBoxPos,
     cursors: &Vec1<Cursor>,
 ) -> VisibilityAttemptResult {
     let target_cursor = cursors.last();
@@ -378,6 +389,7 @@ fn attempt_to_make_sure_at_least_one_cursor_is_visible(
         wh,
         apron,
         position_to_text_space(target_cursor.get_position(), text_char_dim),
+        text_box_pos,
     )
 }
 
@@ -496,7 +508,11 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
         SetCursor(xy, replace_or_add) => {
             let char_dim = state.get_current_char_dim();
             buffer_call!(b{
-                let position = screen_space_to_position(xy, char_dim, b.scroll, PositionRound::Up);
+                let position = text_space_to_position(
+                    text_box_to_text(xy, b.scroll),
+                    char_dim,
+                    PositionRound::Up,
+                );
 
                 b.text_buffer.set_cursor(position, replace_or_add);
             })
@@ -504,8 +520,11 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
         DragCursors(xy) => {
             let char_dim = state.get_current_char_dim();
             buffer_call!(b{
-                let position = screen_space_to_position(xy, char_dim, b.scroll, PositionRound::Up);
-
+                let position = text_space_to_position(
+                    text_box_to_text(xy, b.scroll),
+                    char_dim,
+                    PositionRound::Up,
+                );
                 // In practice we currently expect this to be sent only immeadately after an
                 // `Input::SetCursors` input, so there will be only one cursor. But it seems like
                 // we might as well just do it to all the cursors
@@ -517,7 +536,11 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
             buffer_call!(b{
                 // We want different rounding for selections so that if we trigger a selection on the
                 // right side of a character, we select that character rather than the next character.
-                let position = screen_space_to_position(xy, char_dim, b.scroll, PositionRound::TowardsZero);
+                let position = text_space_to_position(
+                    text_box_to_text(xy, b.scroll),
+                    char_dim,
+                    PositionRound::TowardsZero,
+                );
 
                 b.text_buffer.select_char_type_grouping(position, replace_or_add)
             })
