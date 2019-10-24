@@ -1,13 +1,13 @@
 ## TODO
 
-* get multiple cursors and dragging working again, including the find and replace text boxes.
-  * send down current buffer id with view and use it in `text_box_xy`
-  * figure out why the find/repalce scroll positions are off and fix that
-  * maybe make the highlight colour dependent on the button state?
-  * make highlights only be within the textboxes
-
 * don't stop showing the buffer when the find/replace text boxes are selected
-  * possibly this would be the time to get multiple `VisibleBuffers` working?
+  * possibly this would be the time to get multiple `VisibleBuffers` working? Assuming so:
+    * refactor to place the responsibility to know which `TextBuffer`(s) should be selected to be on the "client" AKA the platform layer.
+      * This will make having multiple windows much nicer, and it allows the client to do things the editor did not expect.
+      * Concretely, this means making all the `Input` variants that care about which buffer is used require an additional `BufferId` parameter. Also, the `current_buffer_id` field on the editor `State` will be removed.
+        * does it make sense to allow all these "endpoints" to take multiple `BufferId`s?
+          * we can make the `out_rx.try_recv()` bit into a loop over, say `0..16` that keeps the latest view and which breaks out of the loop on `TryRecvError::Empty`
+            * how should we handle `TryRecvError::Disconnected`? An error message maybe? See item talking about "little pop-up messages".
 
 * write test for the following multi-cursor scenario (| represents a cursor)
   * "a|b|c|d|e|f|g"
@@ -131,16 +131,7 @@
       * a "current cursor mode"?
 
 * figure out why `#[check_or_no_panic]` seems to always report a panic in `panic_safe_rope`
-  * current suspicion: Allocating memory can always panic.
-
-* does this still seem like a good idea? I'm not sure.
-  * refactor to place the responsibility to know which `TextBuffer`(s) should be selected to be on the "client" AKA the platform layer.
-    * This will make having multiple windows later much nicer, and it allows the client to do things the editor did not expect.
-      * Do this also seems like it would clear up the find/replace cursor dragging and main-buffer-selection-while-in-find/replace issues.
-    * Concretely, this means making all the `Input` variants that care about which buffer is used require an additional `BufferId` parameter. Also, the `current_buffer_id` field on the editor `State` will be removed.
-      * does it make sense to allow all these "endpoints" to take multiple `BufferId`s?
-        * we can make the `out_rx.try_recv()` bit into a loop over, say `0..16` that keeps the latest view and which breaks out of the loop on `TryRecvError::Empty`
-          * how should we handle `TryRecvError::Disconnected`? An error message maybe? See item talking about "little pop-up messages".
+  * current suspicion: Allocating memory can always panic.  
 
 * Measure the timings and perceived latency without the weird `"time-render"` stuff again. A quick check is not showing a perceived difference anymore
   * see https://gamedev.stackexchange.com/a/173730

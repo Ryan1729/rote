@@ -292,7 +292,7 @@ pub fn view<'view>(
         //     // s
         // };
 
-        let mut rect: ScreenSpaceRect = edit_buffer_text_rect.into();
+        let rect: ScreenSpaceRect = edit_buffer_text_rect.into();
         input = text_box(
             ui,
             &mut text_or_rects,
@@ -304,6 +304,7 @@ pub fn view<'view>(
             &data,
             BufferId::Index(index),
             EDIT_Z,
+            &view.current_buffer_id,
         )
         .or(input);
     }
@@ -360,6 +361,7 @@ pub fn view<'view>(
                         $data,
                         $input,
                         FIND_REPLACE_Z,
+                        &view.current_buffer_id,
                     )
                     .or(input);
                 }};
@@ -431,6 +433,7 @@ fn text_box<'view>(
     }: &'view BufferViewData,
     buffer_id: BufferId,
     z: u16,
+    current_buffer_id: &BufferId,
 ) -> Option<Input> {
     let mut input = None;
 
@@ -439,10 +442,14 @@ fn text_box<'view>(
         input = Some(Input::SelectBuffer(buffer_id));
     }
 
-    let color = match button_state {
-        ButtonState::Usual => TEXT_BACKGROUND_COLOUR,
-        ButtonState::Hover => TEXT_HOVER_BACKGROUND_COLOUR,
-        ButtonState::Pressed => TEXT_PRESSED_BACKGROUND_COLOUR,
+    let color = if *current_buffer_id == buffer_id {
+        TEXT_BACKGROUND_COLOUR
+    } else {
+        match button_state {
+            ButtonState::Usual => TEXT_BACKGROUND_COLOUR,
+            ButtonState::Hover => TEXT_HOVER_BACKGROUND_COLOUR,
+            ButtonState::Pressed => TEXT_PRESSED_BACKGROUND_COLOUR,
+        }
     };
 
     text_or_rects.push(TextOrRect::Rect(VisualSpec {
@@ -492,20 +499,28 @@ fn text_box<'view>(
 
     let (x, y) = offset_text_rect.min;
     let CharDim { w, h } = char_dim;
-    text_or_rects.extend(highlights.iter().map(
+    text_or_rects.extend(highlights.iter().filter_map(
         |Highlight {
              min, max, color, ..
          }| {
-            TextOrRect::Rect(VisualSpec {
-                rect: ssr!(
-                    min.offset.0 as f32 * w + x,
-                    min.line as f32 * h + y,
-                    max.offset.0 as f32 * w + x,
-                    (max.line + 1) as f32 * h + y
-                ),
-                color: *color,
-                z: z.saturating_add(4),
-            })
+            let mut rect = ssr!(
+                min.offset.0 as f32 * w + x,
+                min.line as f32 * h + y,
+                max.offset.0 as f32 * w + x,
+                (max.line + 1) as f32 * h + y
+            );
+
+            clamp_within(&mut rect, outer_rect);
+
+            if rect.has_any_area() {
+                Some(TextOrRect::Rect(VisualSpec {
+                    rect,
+                    color: *color,
+                    z: z.saturating_add(4),
+                }))
+            } else {
+                None
+            }
         },
     ));
 
@@ -638,6 +653,30 @@ fn inside_rect(
     ScreenSpaceRect { min, max }: ScreenSpaceRect,
 ) -> bool {
     x > min.0 && x <= max.0 && y > min.1 && y <= max.1
+}
+
+fn clamp_within(rect: &mut ScreenSpaceRect, ScreenSpaceRect { min, max }: ScreenSpaceRect) {
+    if rect.min.0 < min.0 {
+        rect.min.0 = min.0
+    } else {
+        // NaN ends up here
+    };
+    if rect.min.1 < min.1 {
+        rect.min.1 = min.1
+    } else {
+        // NaN ends up here
+    };
+
+    if rect.max.0 > max.0 {
+        rect.max.0 = max.0
+    } else {
+        // NaN ends up here
+    };
+    if rect.max.1 > max.1 {
+        rect.max.1 = max.1
+    } else {
+        // NaN ends up here
+    };
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -1017,13 +1056,44 @@ pub fn get_edit_buffer_xywh(
     }
 }
 
-pub fn inside_edit_area(
+pub fn get_current_buffer_rect(
+    current_buffer_id: BufferId,
+    mode: FindReplaceMode,
+    font_info: FontInfo,
+    wh: ScreenSpaceWH,
+) -> TextBoxXYWH {
+    match current_buffer_id {
+        BufferId::Index(_) => get_edit_buffer_xywh(mode, font_info, wh),
+        BufferId::Find => get_find_replace_info(font_info, wh).find_text_xywh,
+        BufferId::Replace => get_find_replace_info(font_info, wh).replace_text_xywh,
+    }
+}
+
+pub fn should_show_text_cursor(
     xy: ScreenSpaceXY,
+    current_buffer_id: BufferId,
     mode: FindReplaceMode,
     font_info: FontInfo,
     wh: ScreenSpaceWH,
 ) -> bool {
-    inside_rect(xy, get_edit_buffer_xywh(mode, font_info, wh).into())
+    match mode {
+        FindReplaceMode::Hidden => inside_rect(
+            xy,
+            get_current_buffer_rect(current_buffer_id, mode, font_info, wh).into(),
+        ),
+        _ => {
+            inside_rect(xy, get_edit_buffer_xywh(mode, font_info, wh).into()) || {
+                let FindReplaceInfo {
+                    find_outer_rect,
+                    replace_outer_rect,
+                    ..
+                } = get_find_replace_info(font_info, wh);
+
+                inside_rect(xy, find_outer_rect.into())
+                    || inside_rect(xy, replace_outer_rect.into())
+            }
+        }
+    }
 }
 
 pub fn inside_tab_area(

@@ -617,6 +617,10 @@ impl ScreenSpaceRect {
             (self.min.1 + self.max.1) / 2.0,
         )
     }
+
+    pub fn has_any_area(&self) -> bool {
+        self.min.0 < self.max.0 && self.min.1 < self.max.1
+    }
 }
 
 #[derive(Copy, Clone, Debug)]

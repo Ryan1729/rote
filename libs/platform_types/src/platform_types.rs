@@ -498,6 +498,7 @@ pub type VisibleBuffers = [Option<usize>; 2];
 
 #[derive(Default, Debug)]
 pub struct View {
+    pub current_buffer_id: BufferId,
     pub visible_buffers: VisibleBuffers,
     pub buffers: Vec<BufferView>,
     pub find_replace: FindReplaceView,

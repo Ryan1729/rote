@@ -5,6 +5,7 @@
 
 use glutin::{dpi::LogicalPosition, Api, GlProfile, GlRequest};
 use std::path::PathBuf;
+use wimp_render::get_edit_buffer_xywh;
 use wimp_render::{get_find_replace_info, FindReplaceInfo};
 
 use file_chooser;
@@ -352,10 +353,13 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
 
                     macro_rules! text_box_xy {
                         () => {{
-                            // To test this assume we are in the find text box
-                            let xy = get_find_replace_info(font_info, screen_wh!())
-                                .find_text_xywh
-                                .xy;
+                            let xy = wimp_render::get_current_buffer_rect(
+                                view.current_buffer_id,
+                                view.find_replace.mode,
+                                font_info,
+                                screen_wh!(),
+                            )
+                            .xy;
 
                             screen_to_text_box(ui.mouse_pos, xy)
                         }};
@@ -724,8 +728,9 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                                     shift: false,
                                     ..
                                 } => {
-                                    let cursor_icon = if wimp_render::inside_edit_area(
+                                    let cursor_icon = if wimp_render::should_show_text_cursor(
                                         ui.mouse_pos,
+                                        view.current_buffer_id,
                                         view.find_replace.mode,
                                         font_info,
                                         screen_wh!(),
@@ -737,10 +742,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
 
                                     glutin_context.window().set_cursor_icon(cursor_icon);
 
-                                    if cursor_icon == glutin::window::CursorIcon::Text
-                                        && ui.left_mouse_state.is_pressed()
-                                        && !mouse_within_radius!()
-                                    {
+                                    if ui.left_mouse_state.is_pressed() && !mouse_within_radius!() {
                                         call_u_and_r!(Input::DragCursors(text_box_xy!()));
                                     }
                                 }

@@ -360,6 +360,8 @@ pub fn render_view(
         find: to_buffer_view_data(&find, FIND_REPLACE_AVERAGE_SELECTION_LNES_ESTIMATE),
         replace: to_buffer_view_data(&replace, FIND_REPLACE_AVERAGE_SELECTION_LNES_ESTIMATE),
     };
+
+    view.current_buffer_id = current_buffer_id;
 }
 
 fn attempt_to_make_sure_at_least_one_cursor_is_visible(
