@@ -76,6 +76,25 @@ pub struct ScreenSpaceWH {
 
 fmt_display!(for ScreenSpaceWH: ScreenSpaceWH {w, h} in "{:?}", (w, h));
 
+#[macro_export]
+macro_rules! sswh {
+    //
+    // Pattern matching
+    //
+    ($w: ident, $h: ident) => {
+        ScreenSpaceWH { w: $w, h: $h }
+    };
+    //
+    // Initialization
+    //
+    ($w: expr, $h: expr) => {
+        ScreenSpaceWH { w: $w, h: $h }
+    };
+    () => {
+        ScreenSpaceWH::default()
+    };
+}
+
 impl From<ScreenSpaceWH> for (f32, f32) {
     fn from(ScreenSpaceWH { w, h }: ScreenSpaceWH) -> Self {
         (w, h)
@@ -101,16 +120,43 @@ impl From<CharDim> for (f32, f32) {
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 /// A postion in screen space which represents the top left corner of a text box
-pub struct TextBoxPos {
+/// Not to be confused with a `TextBoxSpaceXY`.
+pub struct TextBoxXY {
     pub x: f32,
     pub y: f32,
 }
 
-fmt_display!(for TextBoxPos: TextBoxPos {x, y} in "{:?}", (x, y));
+fmt_display!(for TextBoxXY: TextBoxXY {x, y} in "{:?}", (x, y));
 
-impl From<TextBoxPos> for (f32, f32) {
-    fn from(TextBoxPos { x, y }: TextBoxPos) -> Self {
+#[macro_export]
+macro_rules! tbxy {
+    //
+    // Pattern matching
+    //
+    ($x: ident, $y: ident) => {
+        TextBoxXY { x: $x, y: $y }
+    };
+    //
+    // Initialization
+    //
+    ($x: expr, $y: expr) => {
+        TextBoxXY { x: $x, y: $y }
+    };
+    () => {
+        TextBoxXY::default()
+    };
+}
+
+impl From<TextBoxXY> for (f32, f32) {
+    fn from(TextBoxXY { x, y }: TextBoxXY) -> Self {
         (x, y)
+    }
+}
+
+/// All `TextBoxXY` are screen space positions but the recerse is not true.
+impl From<TextBoxXY> for ScreenSpaceXY {
+    fn from(TextBoxXY { x, y }: TextBoxXY) -> Self {
+        ScreenSpaceXY { x, y }
     }
 }
 
@@ -132,10 +178,10 @@ impl From<TextBoxSpaceXY> for (f32, f32) {
     }
 }
 
-impl std::ops::Add<TextBoxPos> for TextBoxSpaceXY {
+impl std::ops::Add<TextBoxXY> for TextBoxSpaceXY {
     type Output = ScreenSpaceXY;
 
-    fn add(self, other: TextBoxPos) -> ScreenSpaceXY {
+    fn add(self, other: TextBoxXY) -> ScreenSpaceXY {
         ScreenSpaceXY {
             x: self.x + other.x,
             y: self.y + other.y,
@@ -143,7 +189,7 @@ impl std::ops::Add<TextBoxPos> for TextBoxSpaceXY {
     }
 }
 
-impl std::ops::Add<TextBoxSpaceXY> for TextBoxPos {
+impl std::ops::Add<TextBoxSpaceXY> for TextBoxXY {
     type Output = ScreenSpaceXY;
 
     fn add(self, other: TextBoxSpaceXY) -> ScreenSpaceXY {
@@ -154,14 +200,14 @@ impl std::ops::Add<TextBoxSpaceXY> for TextBoxPos {
     }
 }
 
-pub fn text_box_to_screen(xy: TextBoxSpaceXY, pos: TextBoxPos) -> ScreenSpaceXY {
+pub fn text_box_to_screen(xy: TextBoxSpaceXY, pos: TextBoxXY) -> ScreenSpaceXY {
     xy + pos
 }
 
-impl std::ops::Sub<TextBoxPos> for ScreenSpaceXY {
+impl std::ops::Sub<TextBoxXY> for ScreenSpaceXY {
     type Output = TextBoxSpaceXY;
 
-    fn sub(self, other: TextBoxPos) -> TextBoxSpaceXY {
+    fn sub(self, other: TextBoxXY) -> TextBoxSpaceXY {
         TextBoxSpaceXY {
             x: self.x - other.x,
             y: self.y - other.y,
@@ -169,7 +215,7 @@ impl std::ops::Sub<TextBoxPos> for ScreenSpaceXY {
     }
 }
 
-pub fn screen_to_text_box(xy: ScreenSpaceXY, pos: TextBoxPos) -> TextBoxSpaceXY {
+pub fn screen_to_text_box(xy: ScreenSpaceXY, pos: TextBoxXY) -> TextBoxSpaceXY {
     xy - pos
 }
 
@@ -277,7 +323,7 @@ pub enum PositionRound {
 
 pub fn screen_space_to_position(
     xy: ScreenSpaceXY,
-    text_box_pos: TextBoxPos,
+    text_box_pos: TextBoxXY,
     scroll: ScrollXY,
     char_dim: CharDim,
     round: PositionRound,
@@ -328,7 +374,7 @@ pub fn position_to_screen_space(
     pos: Position,
     char_dim: CharDim,
     scroll: ScrollXY,
-    text_box_pos: TextBoxPos,
+    text_box_pos: TextBoxXY,
 ) -> ScreenSpaceXY {
     text_box_to_screen(
         text_to_text_box(position_to_text_space(pos, char_dim), scroll),
@@ -392,16 +438,17 @@ impl From<CharDim> for Apron {
 /// The outer box is what we call the "apron".
 pub fn attempt_to_make_xy_visible(
     scroll: &mut ScrollXY,
-    ScreenSpaceWH { w, h }: ScreenSpaceWH,
+    TextBoxXYWH {
+        xy,
+        wh: ScreenSpaceWH { w, h },
+    }: TextBoxXYWH,
     apron: Apron,
     text: TextSpaceXY,
-    // TODO can we make this not need to know about `text_bax_pos`?
-    text_box_pos: TextBoxPos,
 ) -> VisibilityAttemptResult {
     use std::num::FpCategory::*;
     use VisibilityAttemptResult::*;
 
-    let ScreenSpaceXY { x, y } = text_box_to_screen(text_to_text_box(text, *scroll), text_box_pos);
+    let ScreenSpaceXY { x, y } = text_box_to_screen(text_to_text_box(text, *scroll), xy);
 
     // If these checks ever actually become a bottleneck ,then the easy solution is to just make
     // types that can't represent these cases and enforce them at startup!
@@ -484,51 +531,51 @@ r.min.0.to_bits().cmp(&other.min.0.to_bits())
 
 #[macro_export]
 macro_rules! ssr {
-//
-// Pattern matching
-//
-($min_x: ident, $min_y: ident, $max_x: ident, $max_y: ident) => {
-    ScreenSpaceRect {
-        min: ($min_x, $min_y),
-        max: ($max_x, $max_y),
-    }
-};
-($min: ident, $max: ident) => {
-    ScreenSpaceRect {
-        min: $min,
-        max: $max,
-    }
-};
-($min: ident) => {
-    ScreenSpaceRect {
-        min: $min,
-        max: _
-    }
-};
-//
-// Initialization
-//
-($min_x: expr, $min_y: expr, $max_x: expr, $max_y: expr) => {
-    ScreenSpaceRect {
-        min: ($min_x, $min_y),
-        max: ($max_x, $max_y),
-    }
-};
-($min: expr, $max: expr) => {
-    ScreenSpaceRect {
-        min: $min,
-        max: $max,
-    }
-};
-($min: expr) => {
-    ScreenSpaceRect {
-        min: $min,
-        ..ScreenSpaceRect::default()
-    }
-};
-() => {
-    ScreenSpaceRect::default()
-};
+    //
+    // Pattern matching
+    //
+    ($min_x: ident, $min_y: ident, $max_x: ident, $max_y: ident) => {
+        ScreenSpaceRect {
+            min: ($min_x, $min_y),
+            max: ($max_x, $max_y),
+        }
+    };
+    ($min: ident, $max: ident) => {
+        ScreenSpaceRect {
+            min: $min,
+            max: $max,
+        }
+    };
+    ($min: ident) => {
+        ScreenSpaceRect {
+            min: $min,
+            max: _
+        }
+    };
+    //
+    // Initialization
+    //
+    ($min_x: expr, $min_y: expr, $max_x: expr, $max_y: expr) => {
+        ScreenSpaceRect {
+            min: ($min_x, $min_y),
+            max: ($max_x, $max_y),
+        }
+    };
+    ($min: expr, $max: expr) => {
+        ScreenSpaceRect {
+            min: $min,
+            max: $max,
+        }
+    };
+    ($min: expr) => {
+        ScreenSpaceRect {
+            min: $min,
+            ..ScreenSpaceRect::default()
+        }
+    };
+    () => {
+        ScreenSpaceRect::default()
+    };
 }
 
 impl std::ops::Add<ScreenSpaceXY> for ScreenSpaceRect {
@@ -570,4 +617,116 @@ impl ScreenSpaceRect {
             (self.min.1 + self.max.1) / 2.0,
         )
     }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct ScreenSpaceXYWH {
+    pub xy: ScreenSpaceXY,
+    pub wh: ScreenSpaceWH,
+}
+
+impl From<ScreenSpaceXYWH> for ScreenSpaceRect {
+    fn from(
+        ScreenSpaceXYWH {
+            xy: ScreenSpaceXY { x, y },
+            wh: ScreenSpaceWH { w, h },
+        }: ScreenSpaceXYWH,
+    ) -> Self {
+        ssr!(x, y, x + w, y + h)
+    }
+}
+
+impl From<(ScreenSpaceXY, ScreenSpaceWH)> for ScreenSpaceRect {
+    fn from(
+        (ScreenSpaceXY { x, y }, ScreenSpaceWH { w, h }): (ScreenSpaceXY, ScreenSpaceWH),
+    ) -> Self {
+        ssr!(x, y, x + w, y + h)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Default)]
+pub struct TextBoxXYWH {
+    pub xy: TextBoxXY,
+    pub wh: ScreenSpaceWH,
+}
+
+impl From<TextBoxXYWH> for ScreenSpaceXYWH {
+    fn from(TextBoxXYWH { xy, wh }: TextBoxXYWH) -> Self {
+        Self { xy: xy.into(), wh }
+    }
+}
+
+impl From<TextBoxXYWH> for ScreenSpaceRect {
+    fn from(xywh: TextBoxXYWH) -> Self {
+        let ssxywh: ScreenSpaceXYWH = xywh.into();
+        ssxywh.into()
+    }
+}
+
+#[macro_export]
+macro_rules! tbxywh {
+    //
+    // Pattern matching
+    //
+    ($x: ident, $y: ident, $w: ident, $h: ident) => {
+        TextBoxXYWH {
+            xy: tbxy!($x, $y),
+            wh: sswh!($w, $h),
+        }
+    };
+    ($xy: ident, $wh: ident) => {
+        TextBoxXYWH {
+            xy: $xy,
+            wh: $wh,
+        }
+    };
+    ($xy: ident) => {
+        TextBoxXYWH {
+            xy: $xy,
+            wh: _
+        }
+    };
+    //
+    // Initialization
+    //
+    ($x: expr, $y: expr, $w: expr, $h: expr) => {
+        TextBoxXYWH {
+            xy: tbxy!($x, $y),
+            wh: sswh!($w, $h),
+        }
+    };
+    ($xy: expr, $wh: expr) => {
+        TextBoxXYWH {
+            xy: $xy,
+            wh: $wh,
+        }
+    };
+    ($xy: expr) => {
+        TextBoxXYWH {
+            xy: $xy,
+            ..TextBoxXYWH::default()
+        }
+    };
+    () => {
+        TextBoxXYWH::default()
+    };
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct FontInfo {
+    pub text_char_dim: CharDim,
+    pub status_char_dim: CharDim,
+    pub tab_char_dim: CharDim,
+    pub find_replace_char_dim: CharDim,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Default)]
+/// Things that the editor needs to know which (may) depend on the size of the screen.
+/// In a given `SetSizeDependents` call any of these are optional, but they should all be set
+/// initially. Otherwise the defaults will be used.
+pub struct SizeDependents {
+    pub font_info: Option<FontInfo>,
+    pub buffer_xywh: Option<TextBoxXYWH>,
+    pub find_xywh: Option<TextBoxXYWH>,
+    pub replace_xywh: Option<TextBoxXYWH>,
 }

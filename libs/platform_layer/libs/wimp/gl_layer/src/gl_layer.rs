@@ -6,7 +6,10 @@ use glyph_brush::{
     Bounds, GlyphBrush, GlyphBrushBuilder, HighlightRange, Layout, PixelCoords, Section,
 };
 use macros::{d, invariants_checked};
-use platform_types::{ssr, CharDim, ScreenSpaceRect};
+use platform_types::{
+    screen_positioning::{CharDim, ScreenSpaceRect, ScreenSpaceWH},
+    ssr,
+};
 use shared::Res;
 use std::{ffi::CString, mem, ptr, str};
 

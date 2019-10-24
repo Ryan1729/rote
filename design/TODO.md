@@ -1,14 +1,10 @@
 ## TODO
 
-* clearly separate `ScreenSpaceXY`, `TextBoxXY` and `TextSpaceXY`
-  * `ScreenSpaceXY`: origin is top left of window
-  * `TextBoxXY`: origin is top left of given text box
-  * `TextSpaceXY`: origin is top left of rendered text. Different than `TextBoxXY` due to scroll.
-
-* set editor state `_pos` and `_wh` fields instead of always leaving them at 0.
-
 * get multiple cursors and dragging working again, including the find and replace text boxes.
+  * send down current buffer id with view and use it in `text_box_xy`
+  * figure out why the find/repalce scroll positions are off and fix that
   * maybe make the highlight colour dependent on the button state?
+  * make highlights only be within the textboxes
 
 * don't stop showing the buffer when the find/replace text boxes are selected
   * possibly this would be the time to get multiple `VisibleBuffers` working?

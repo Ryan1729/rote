@@ -5,14 +5,11 @@
 
 use glutin::{dpi::LogicalPosition, Api, GlProfile, GlRequest};
 use std::path::PathBuf;
-use wimp_render::get_find_replace_info;
+use wimp_render::{get_find_replace_info, FindReplaceInfo};
 
 use file_chooser;
 use macros::d;
-use platform_types::{
-    screen_positioning::{screen_to_text_box, TextBoxPos},
-    *,
-};
+use platform_types::{screen_positioning::screen_to_text_box, *};
 use shared::Res;
 use wimp_render::{PhysicalButtonState, UIState};
 
@@ -146,10 +143,19 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
         };
     }
 
-    let (mut view, mut cmd) = update_and_render(Input::SetSizes(Sizes! {
-        screen: screen_wh!(),
-        font_info: font_info
-    }));
+    let (mut view, mut cmd) = {
+        let FindReplaceInfo {
+            find_text_xywh,
+            replace_text_xywh,
+            ..
+        } = get_find_replace_info(font_info, screen_wh!());
+        update_and_render(Input::SetSizeDependents(SizeDependents {
+            buffer_xywh: wimp_render::get_edit_buffer_xywh(d!(), font_info, screen_wh!()).into(),
+            find_xywh: find_text_xywh.into(),
+            replace_xywh: replace_text_xywh.into(),
+            font_info: font_info.into(),
+        }))
+    };
 
     // If you didn't click on the same symbol, counting that as a double click seems like it
     // would be annoying.
@@ -243,11 +249,10 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                 } => {
                     ui.frame_init();
 
+                    let (text_and_rects, input) =
+                        wimp_render::view(&mut ui, &view, &font_info, screen_wh!());
                     let width = dimensions.width;
                     let height = dimensions.height;
-
-                    let (text_and_rects, input) =
-                        wimp_render::view(&mut ui, &view, &font_info, (width as _, height as _));
 
                     gl_layer::render(&mut gl_state, text_and_rects, width as _, height as _)
                         .expect("gl_layer::render didn't work");
@@ -347,14 +352,12 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
 
                     macro_rules! text_box_xy {
                         () => {{
-                            let width = dimensions.width as _;
-                            let height = dimensions.height as _;
                             // To test this assume we are in the find text box
-                            let (x, y) = get_find_replace_info(font_info, (width, height))
-                                .find_text_rect
-                                .min;
+                            let xy = get_find_replace_info(font_info, screen_wh!())
+                                .find_text_xywh
+                                .xy;
 
-                            screen_to_text_box(ui.mouse_pos, TextBoxPos { x, y })
+                            screen_to_text_box(ui.mouse_pos, xy)
                         }};
                     }
 
@@ -381,8 +384,20 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                             glutin_context.resize(size.to_physical(hidpi_factor));
                             let ls = window.inner_size();
                             dimensions = ls.to_physical(hidpi_factor);
-                            call_u_and_r!(Input::SetSizes(Sizes! {
-                                screen: screen_wh!(),
+                            let FindReplaceInfo {
+                                find_text_xywh,
+                                replace_text_xywh,
+                                ..
+                            } = get_find_replace_info(font_info, screen_wh!());
+                            call_u_and_r!(Input::SetSizeDependents(SizeDependents {
+                                buffer_xywh: wimp_render::get_edit_buffer_xywh(
+                                    view.find_replace.mode,
+                                    font_info,
+                                    screen_wh!()
+                                )
+                                .into(),
+                                find_xywh: find_text_xywh.into(),
+                                replace_xywh: replace_text_xywh.into(),
                                 font_info: None,
                             }));
                             gl_layer::set_dimensions(
@@ -711,6 +726,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                                 } => {
                                     let cursor_icon = if wimp_render::inside_edit_area(
                                         ui.mouse_pos,
+                                        view.find_replace.mode,
                                         font_info,
                                         screen_wh!(),
                                     ) {

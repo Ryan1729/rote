@@ -125,7 +125,7 @@ const TAB_MIN_PADDING: f32 = TAB_MIN_W * TAB_PADDING_RATIO;
 const TAB_MIN_MARGIN: f32 = TAB_MIN_W * TAB_MARGIN_RATIO;
 
 #[derive(Clone, Copy)]
-enum Spacing {
+pub enum Spacing {
     All(f32),
     Horizontal(f32),
     Vertical(f32),
@@ -164,17 +164,17 @@ impl SpacedRect {
 
 fn get_tab_spaced_rect(
     ui: &UIState,
-    &UpperPositionInfo {
-        tab_v_padding,
-        tab_v_margin,
-        tab_y,
-        ..
-    }: &UpperPositionInfo,
     tab_char_dim: CharDim,
     tab_index: usize,
     tab_count: usize,
     width: f32,
 ) -> SpacedRect {
+    let UpperPositionInfo {
+        tab_v_padding,
+        tab_v_margin,
+        tab_y,
+        ..
+    } = upper_position_info(&tab_char_dim);
     let tab_count: f32 = usize_to_f32_or_65536(max(tab_count, 1));
     let tab_w = width / tab_count;
     let tab_w = if tab_w > TAB_MIN_W {
@@ -200,8 +200,9 @@ pub fn view<'view>(
     ui: &mut UIState,
     view: &'view View,
     font_info: &FontInfo,
-    (width, height): (f32, f32),
+    wh: ScreenSpaceWH,
 ) -> (Vec<TextOrRect<'view>>, Option<Input>) {
+    let sswh!(width, height) = wh;
     let FontInfo {
         text_char_dim,
         status_char_dim,
@@ -216,13 +217,11 @@ pub fn view<'view>(
         Vec::with_capacity(view.buffers.len() * PER_BUFFER_TEXT_OR_RECT_ESTIMATE);
     let mut input = None;
 
-    let u_pos_info = upper_position_info(tab_char_dim);
-    let edit_y = u_pos_info.edit_y;
-    let mouse_in_tab_area = ui.mouse_pos.y < edit_y;
+    let edit_buffer_text_rect = get_edit_buffer_xywh(view.find_replace.mode, *font_info, wh);
 
     text_or_rects.push(TextOrRect::Rect(VisualSpec {
-        rect: ssr!(0.0, 0.0, width, edit_y),
-        color: if mouse_in_tab_area {
+        rect: ssr!(0.0, 0.0, width, edit_buffer_text_rect.xy.y),
+        color: if inside_tab_area(ui.mouse_pos, *font_info) {
             c![
                 TAB_BACKGROUND_COLOUR[0],
                 TAB_BACKGROUND_COLOUR[1],
@@ -242,7 +241,7 @@ pub fn view<'view>(
             padding,
             margin,
             rect,
-        } = get_tab_spaced_rect(&ui, &u_pos_info, *tab_char_dim, i, tab_count, width);
+        } = get_tab_spaced_rect(&ui, *tab_char_dim, i, tab_count, width);
         if rect.min.0 > width {
             break;
         }
@@ -293,13 +292,12 @@ pub fn view<'view>(
         //     // s
         // };
 
-        let rect = ssr!((0.0, edit_y));
-
+        let mut rect: ScreenSpaceRect = edit_buffer_text_rect.into();
         input = text_box(
             ui,
             &mut text_or_rects,
             rect,
-            rect,
+            d!(),
             *text_char_dim,
             TEXT_SIZE,
             TEXT_COLOUR,
@@ -316,15 +314,14 @@ pub fn view<'view>(
     //
 
     let FindReplaceInfo {
+        padding,
         top_y,
         bottom_y,
         label_rect,
         find_outer_rect,
-        find_text_rect,
         replace_outer_rect,
-        replace_text_rect,
         ..
-    } = get_find_replace_info(*font_info, (width, height));
+    } = get_find_replace_info(*font_info, wh);
 
     match view.find_replace.mode {
         FindReplaceMode::Hidden => {}
@@ -351,12 +348,12 @@ pub fn view<'view>(
             }));
 
             macro_rules! spaced_input_box {
-                ($data: expr, $input: expr, $outer_rect: expr, $text_rect:expr) => {{
+                ($data: expr, $input: expr, $outer_rect: expr) => {{
                     input = text_box(
                         ui,
                         &mut text_or_rects,
                         $outer_rect,
-                        $text_rect,
+                        padding,
                         *find_replace_char_dim,
                         FIND_REPLACE_SIZE,
                         FIND_REPLACE_TEXT_COLOUR,
@@ -368,17 +365,11 @@ pub fn view<'view>(
                 }};
             }
 
-            spaced_input_box!(
-                &view.find_replace.find,
-                BufferId::Find,
-                find_outer_rect,
-                find_text_rect
-            );
+            spaced_input_box!(&view.find_replace.find, BufferId::Find, find_outer_rect);
             spaced_input_box!(
                 &view.find_replace.replace,
                 BufferId::Replace,
-                replace_outer_rect,
-                replace_text_rect
+                replace_outer_rect
             );
         }
     }
@@ -427,7 +418,7 @@ fn text_box<'view>(
     ui: &mut UIState,
     text_or_rects: &mut Vec<TextOrRect<'view>>,
     outer_rect: ScreenSpaceRect,
-    text_rect: ScreenSpaceRect,
+    padding: Spacing,
     char_dim: CharDim,
     size: f32,
     // TODO if we need more colour customization we should probably make a struct for it
@@ -457,11 +448,11 @@ fn text_box<'view>(
     text_or_rects.push(TextOrRect::Rect(VisualSpec {
         rect: outer_rect,
         color,
-        z: z.saturating_sub(1), //z-flip done
+        z: z.saturating_sub(1),
     }));
 
     let scroll = *scroll;
-    let text_box_pos = TextBoxPos {
+    let text_box_pos = TextBoxXY {
         x: outer_rect.min.0,
         y: outer_rect.min.1,
     };
@@ -469,7 +460,7 @@ fn text_box<'view>(
         text_to_text_box(TextSpaceXY::default(), scroll),
         text_box_pos,
     );
-    let offset_text_rect = text_rect + scroll_offset;
+    let offset_text_rect = shrink_by(ssr!(scroll_offset.into(), outer_rect.max), padding);
     text_or_rects.push(TextOrRect::Text(TextSpec {
         text: &chars,
         size,
@@ -483,7 +474,7 @@ fn text_box<'view>(
 
     for c in cursors.iter() {
         let screen_xy = position_to_screen_space(c.position, char_dim, scroll, text_box_pos);
-        let cursor_rect = text_rect + screen_xy;
+        let cursor_rect = shrink_by(ssr!(screen_xy.into(), outer_rect.max), padding);
         text_or_rects.push(TextOrRect::Text(TextSpec {
             text: "▏",
             size,
@@ -494,7 +485,7 @@ fn text_box<'view>(
                     CursorState::None => c![0.9, 0.3, 0.3],
                     CursorState::PressedAgainstWall => c![0.9, 0.9, 0.3],
                 },
-                z: z.saturating_add(3), //z-flip done
+                z: z.saturating_add(3),
             },
         }));
     }
@@ -513,7 +504,7 @@ fn text_box<'view>(
                     (max.line + 1) as f32 * h + y
                 ),
                 color: *color,
-                z: z.saturating_add(4), //z-flip done
+                z: z.saturating_add(4),
             })
         },
     ));
@@ -530,14 +521,7 @@ pub fn make_active_tab_visible<'view>(
 ) {
     let target_index_or_max = view.visible_buffers[buffer_side].unwrap_or(usize::max_value());
     let tab_count = view.buffers.len();
-    let tab_layout = get_tab_spaced_rect(
-        &ui,
-        &upper_position_info(tab_char_dim),
-        *tab_char_dim,
-        0,
-        tab_count,
-        screen_width,
-    );
+    let tab_layout = get_tab_spaced_rect(&ui, *tab_char_dim, 0, tab_count, screen_width);
     let tab_width = tab_layout.width();
 
     make_nth_tab_visible_if_present(ui, target_index_or_max, tab_count, tab_width);
@@ -833,7 +817,7 @@ fn render_outline_button<'view>(
                 spec: VisualSpec {
                     rect: text_rect,
                     color: text_colour,
-                    z: z.saturating_add(1), //z-flip done
+                    z: z.saturating_add(1),
                 },
             }));
         };
@@ -853,7 +837,7 @@ fn render_outline_button<'view>(
             text_or_rects.push(TextOrRect::Rect(VisualSpec {
                 rect: enlarge_by(rect, margin),
                 color: highlight_colour,
-                z: z.saturating_sub(1), //z-flip done
+                z: z.saturating_sub(1),
             }));
 
             text_or_rects.push(TextOrRect::Rect(VisualSpec {
@@ -878,7 +862,7 @@ fn render_outline_button<'view>(
             text_or_rects.push(TextOrRect::Rect(VisualSpec {
                 rect: rect.with_min_y(shrunk_rect.max.1),
                 color,
-                z: z.saturating_add(2), //z-flip done
+                z: z.saturating_add(2),
             }));
         }
         _ => {}
@@ -919,13 +903,15 @@ const FIND_REPLACE_MIN_MARGIN: f32 = FIND_REPLACE_MARGIN_RATIO * 256.0;
 const FIND_REPLACE_MIN_PADDING: f32 = FIND_REPLACE_PADDING_RATIO * 256.0;
 
 pub struct FindReplaceInfo {
+    pub margin: Spacing,
+    pub padding: Spacing,
     pub top_y: f32,
     pub bottom_y: f32,
     pub label_rect: ScreenSpaceRect,
     pub find_outer_rect: ScreenSpaceRect,
-    pub find_text_rect: ScreenSpaceRect,
+    pub find_text_xywh: TextBoxXYWH,
     pub replace_outer_rect: ScreenSpaceRect,
-    pub replace_text_rect: ScreenSpaceRect,
+    pub replace_text_xywh: TextBoxXYWH,
 }
 
 pub fn get_find_replace_info(
@@ -934,7 +920,7 @@ pub fn get_find_replace_info(
         find_replace_char_dim,
         ..
     }: FontInfo,
-    (width, height): (f32, f32),
+    sswh!(width, height): ScreenSpaceWH,
 ) -> FindReplaceInfo {
     let mut margin = FIND_REPLACE_MARGIN_RATIO * height;
     margin = if margin > FIND_REPLACE_MIN_MARGIN {
@@ -964,39 +950,41 @@ pub fn get_find_replace_info(
             text_rect!(padding)
         };
         ($h_padding: expr) => {
-            ssr!(
+            tbxywh!(
                 margin + $h_padding,
                 current_y + padding,
-                width - (margin + $h_padding),
-                current_y + text_height - padding
+                width - 2.0 * (margin + $h_padding),
+                text_height - 2.0 * padding
             )
         };
     }
 
-    let label_rect = text_rect!(0.0);
+    let label_rect = text_rect!(0.0).into();
 
     current_y += text_height + margin;
     let find_outer_rect = ssr!(
         (margin, current_y),
         (width - margin, current_y + text_height)
     );
-    let find_text_rect = text_rect!();
+    let find_text_xywh = text_rect!();
 
     current_y += text_height + margin;
     let replace_outer_rect = ssr!(
         (margin, current_y),
         (width - margin, current_y + text_height)
     );
-    let replace_text_rect = text_rect!();
+    let replace_text_xywh = text_rect!();
 
     FindReplaceInfo {
+        margin: Spacing::All(margin),
+        padding: Spacing::All(padding),
         top_y,
         bottom_y,
         label_rect,
         find_outer_rect,
-        find_text_rect,
+        find_text_xywh,
         replace_outer_rect,
-        replace_text_rect,
+        replace_text_xywh,
     }
 }
 
@@ -1004,17 +992,38 @@ fn get_status_line_y(status_char_dim: CharDim, height: f32) -> f32 {
     height - (status_char_dim.h + 2.0 * SEPARATOR_LINE_THICKNESS)
 }
 
-// TODO have these handle the find/replace menu properly
-pub fn inside_edit_area(
-    ScreenSpaceXY { x: _, y }: ScreenSpaceXY,
-    FontInfo {
+pub fn get_edit_buffer_xywh(
+    mode: FindReplaceMode,
+    font_info: FontInfo,
+    wh: ScreenSpaceWH,
+) -> TextBoxXYWH {
+    let sswh!(width, height) = wh;
+    let FontInfo {
         status_char_dim,
         ref tab_char_dim,
         ..
-    }: FontInfo,
-    ScreenSpaceWH { w: _, h }: ScreenSpaceWH,
+    } = font_info;
+    let max_y = match mode {
+        FindReplaceMode::Hidden => get_status_line_y(status_char_dim, height),
+        FindReplaceMode::CurrentFile => get_find_replace_info(font_info, wh).top_y,
+    };
+    let y = upper_position_info(tab_char_dim).edit_y;
+    TextBoxXYWH {
+        xy: TextBoxXY { x: 0.0, y },
+        wh: ScreenSpaceWH {
+            w: width,
+            h: max_y - y,
+        },
+    }
+}
+
+pub fn inside_edit_area(
+    xy: ScreenSpaceXY,
+    mode: FindReplaceMode,
+    font_info: FontInfo,
+    wh: ScreenSpaceWH,
 ) -> bool {
-    y < get_status_line_y(status_char_dim, h) && y > upper_position_info(tab_char_dim).edit_y
+    inside_rect(xy, get_edit_buffer_xywh(mode, font_info, wh).into())
 }
 
 pub fn inside_tab_area(

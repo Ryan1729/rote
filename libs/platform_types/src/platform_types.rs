@@ -6,9 +6,7 @@ use std::path::PathBuf;
 pub mod floating_point;
 
 pub mod screen_positioning;
-pub use screen_positioning::{
-    CharDim, ScreenSpaceRect, ScreenSpaceWH, ScreenSpaceXY, ScrollXY, TextBoxSpaceXY, TextSpaceXY,
-};
+pub use screen_positioning::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Move {
@@ -60,7 +58,7 @@ pub enum Input {
     ResetScroll,
     ScrollVertically(f32),
     ScrollHorizontally(f32),
-    SetSizes(Sizes),
+    SetSizeDependents(SizeDependents),
     MoveAllCursors(Move),
     ExtendSelectionForAllCursors(Move),
     SelectAll,
@@ -542,33 +540,6 @@ impl Cmd {
 
 pub type UpdateAndRenderOutput = (View, Cmd);
 pub type UpdateAndRender = fn(Input) -> UpdateAndRenderOutput;
-
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub struct FontInfo {
-    pub text_char_dim: CharDim,
-    pub status_char_dim: CharDim,
-    pub tab_char_dim: CharDim,
-    pub find_replace_char_dim: CharDim,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Sizes {
-    pub screen: Option<ScreenSpaceWH>,
-    pub font_info: Option<FontInfo>,
-}
-
-#[macro_export]
-macro_rules! Sizes {
-    {
-        screen: $screen:expr,
-        font_info: $font_info:expr$(,)?
-    } => (
-        Sizes {
-            screen: $screen.into(),
-            font_info: $font_info.into(),
-        }
-    );
-}
 
 #[cfg(test)]
 mod tests;

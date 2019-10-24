@@ -90,16 +90,13 @@ pub struct State {
     // TODO side by side visible buffers
     // visible_buffers: VisibleBuffers,
     buffers: Vec1<EditorBuffer>,
-    buffer_pos: TextBoxPos, // TODO: maybe _pos and _wh should be a struct.
-    buffer_wh: ScreenSpaceWH,
+    buffer_xywh: TextBoxXYWH,
     current_buffer_id: BufferId,
     find_replace_mode: FindReplaceMode,
     find: EditorBuffer,
-    find_pos: TextBoxPos,
-    find_wh: ScreenSpaceWH,
+    find_xywh: TextBoxXYWH,
     replace: EditorBuffer,
-    replace_pos: TextBoxPos,
-    replace_wh: ScreenSpaceWH,
+    replace_xywh: TextBoxXYWH,
     font_info: FontInfo,
     clipboard_history: ClipboardHistory,
 }
@@ -199,26 +196,20 @@ impl State {
 
     fn try_to_show_cursors_on_current_buffer(&mut self) -> Option<()> {
         let buffer = current_editor_buffer_mut!(self)?;
-        let wh = match self.current_buffer_id {
-            BufferId::Index(_) => self.buffer_wh,
-            BufferId::Find => self.find_wh,
-            BufferId::Replace => self.replace_wh,
-        };
-        let text_box_pos = match self.current_buffer_id {
-            BufferId::Index(_) => self.buffer_pos,
-            BufferId::Find => self.find_pos,
-            BufferId::Replace => self.replace_pos,
+        let xywh = match self.current_buffer_id {
+            BufferId::Index(_) => self.buffer_xywh,
+            BufferId::Find => self.find_xywh,
+            BufferId::Replace => self.replace_xywh,
         };
 
         let attempt_result = attempt_to_make_sure_at_least_one_cursor_is_visible(
             &mut buffer.scroll,
-            wh,
+            xywh,
             match self.current_buffer_id {
                 BufferId::Index(_) => self.font_info.text_char_dim,
                 BufferId::Find | BufferId::Replace => self.font_info.find_replace_char_dim,
             },
             self.font_info.status_char_dim,
-            text_box_pos,
             &buffer.text_buffer.cursors(),
         );
 
@@ -292,7 +283,9 @@ pub fn render_view(
         find_replace_mode,
         ref find,
         ref replace,
-        buffer_pos: text_box_pos,
+        buffer_xywh: TextBoxXYWH {
+            xy: text_box_pos, ..
+        },
         ..
     }: &State,
     view: &mut View,
@@ -371,10 +364,9 @@ pub fn render_view(
 
 fn attempt_to_make_sure_at_least_one_cursor_is_visible(
     scroll: &mut ScrollXY,
-    wh: ScreenSpaceWH,
+    xywh: TextBoxXYWH,
     text_char_dim: CharDim,
     status_char_dim: CharDim,
-    text_box_pos: TextBoxPos,
     cursors: &Vec1<Cursor>,
 ) -> VisibilityAttemptResult {
     let target_cursor = cursors.last();
@@ -386,10 +378,9 @@ fn attempt_to_make_sure_at_least_one_cursor_is_visible(
 
     attempt_to_make_xy_visible(
         scroll,
-        wh,
+        xywh,
         apron,
         position_to_text_space(target_cursor.get_position(), text_char_dim),
-        text_box_pos,
     )
 }
 
@@ -498,12 +489,11 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
         ResetScroll => buffer_call!(b{
             b.scroll = d!();
         }),
-        SetSizes(sizes) => {
-            // TODO stop requiring this to be sent
-            // if let Some(wh) = sizes.screen {
-            //     state.screen.wh = wh;
-            // }
-            set_if_present!(sizes => state.font_info);
+        SetSizeDependents(sds) => {
+            set_if_present!(sds => state.font_info);
+            set_if_present!(sds => state.buffer_xywh);
+            set_if_present!(sds => state.find_xywh);
+            set_if_present!(sds => state.replace_xywh);
         }
         SetCursor(xy, replace_or_add) => {
             let char_dim = state.get_current_char_dim();
