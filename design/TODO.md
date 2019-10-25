@@ -1,14 +1,5 @@
 ## TODO
 
-* don't stop showing the buffer when the find/replace text boxes are selected
-  * possibly this would be the time to get multiple `VisibleBuffers` working? Assuming so:
-    * refactor to place the responsibility to know which `TextBuffer`(s) should be selected to be on the "client" AKA the platform layer.
-      * This will make having multiple windows much nicer, and it allows the client to do things the editor did not expect.
-      * Concretely, this means making all the `Input` variants that care about which buffer is used require an additional `BufferId` parameter. Also, the `current_buffer_id` field on the editor `State` will be removed.
-        * does it make sense to allow all these "endpoints" to take multiple `BufferId`s?
-          * we can make the `out_rx.try_recv()` bit into a loop over, say `0..16` that keeps the latest view and which breaks out of the loop on `TryRecvError::Empty`
-            * how should we handle `TryRecvError::Disconnected`? An error message maybe? See item talking about "little pop-up messages".
-
 * write test for the following multi-cursor scenario (| represents a cursor)
   * "a|b|c|d|e|f|g"
   * insert "1" to get "a1|b1|c1|d1|e1|f1|g"
@@ -22,20 +13,6 @@
 * Ctrl-f to open a within current file search
   * seems like the string search algorithm we would want is "Two-way string matching": http://www-igm.univ-mlv.fr/~lecroq/string/node26.html
 
-* Ctrl-shift-f to open a within current project folder search
-  * implies some way to know what the project is. Options:
-    * custom file format that specifies the paths. Open one of those at startup
-    * parse each programming languages files' to figure this out where possible
-  * fallback to open files search if there is no project info
-    * Ctrl-alt-f for always open files search?
-
-* make auto-tab-scroll happen when a new tab is created
-  * fix auto-scroll drifting as the amount of tabs increases.
-
-* allow switching between search modes with mouse
-
-* replace for all find modes
-
 * Ctrl-d to select word and find next instance of word and select it and place a cursor there.
   * maybe make ctrl-alt-n unconditionally select the next word, just to break this into steps?
 
@@ -43,6 +20,46 @@
   * searching files by name
   * is it okay for this to take over the whole screen?
 
+* automatically save edited text files to disk in temp files.
+  * there should be no data lost earlier than say 5 minutes ago if the power to the machine goes out.
+
+Once everything above this line is done we can start bootstrapping, (using this editor to edit itself.)
+
+----------------------------
+
+* make auto-tab-scroll happen when a new tab is created
+  * fix auto-scroll drifting as the amount of tabs increases.
+
+* embark on the journey to get multiple `VisibleBuffers` working
+  * fix text rendering bug: background appears to be the clear colour always
+    * see if changing the clear colour actually changes things in the way we would expect
+  * separate out `gl_layer` into re-usable crate
+  * experiment with multiple windows a bit in a separate repo, just to make sure there are no surprises there.
+    so we should have things that are shared between the n windows and things that are not.
+  * allow multiple different windows
+    * each window should have a view onto the same set of open files
+      * so, changes in a file that has two different views visible should update immediately
+      * refactor to place the responsibility to know which `TextBuffer`(s) should be selected to be on the "client" AKA the platform layer.
+        * This will make having multiple windows much nicer, and it allows the client to do things the editor did not expect.
+        * Concretely, this means making all the `Input` variants that care about which buffer is used require an additional `BufferId` parameter. Also, the `current_buffer_id` field on the editor `State` will be removed.
+          * does it make sense to allow all these "endpoints" to take multiple `BufferId`s?
+            * we can make the `out_rx.try_recv()` bit into a loop over, say `0..16` that keeps the latest view and which breaks out of the loop on `TryRecvError::Empty`
+              * how should we handle `TryRecvError::Disconnected`? An error message maybe? See item talking about "little pop-up messages".
+    * should we make the find and replace its own window?
+    * keyboard shortcut to detach current tab into its own window
+    * make sure typing works
+    * allow dragging tabs outside the window to detach them.
+
+* Ctrl-shift-f to open a within current project folder search
+  * implies some way to know what the project is. Options:
+    * custom file format that specifies the paths. Open one of those at startup
+    * parse each programming languages files' to figure this out where possible
+  * fallback to open files search if there is no project info
+    * Ctrl-alt-f for always open files search?
+
+* allow switching between search modes with mouse
+
+* replace for all find modes
 
 * Display file tabs that allow the user to switch between open buffers
   * truncate tab names that are too long  with `...`

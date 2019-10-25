@@ -234,7 +234,6 @@ pub fn view<'view>(
     }));
 
     let visible_index_or_max = view.visible_buffers[0].unwrap_or(usize::max_value());
-    perf_viz::start_record!("for &BufferView");
     let tab_count = view.buffers.len();
     for (i, BufferView { name_string, .. }) in view.buffers.iter().enumerate() {
         let SpacedRect {
@@ -307,72 +306,71 @@ pub fn view<'view>(
             &view.current_buffer_id,
         )
         .or(input);
-    }
-    perf_viz::end_record!("for &BufferView");
 
-    //
-    //    Find/Replace
-    //
+        //
+        //    Find/Replace
+        //
+        let FindReplaceInfo {
+            padding,
+            top_y,
+            bottom_y,
+            label_rect,
+            find_outer_rect,
+            replace_outer_rect,
+            ..
+        } = get_find_replace_info(*font_info, wh);
+        match view.find_replace.mode {
+            FindReplaceMode::Hidden => {}
+            FindReplaceMode::CurrentFile => {
+                let outer_rect = ScreenSpaceRect {
+                    min: (0.0, top_y),
+                    max: (width, bottom_y),
+                };
+                text_or_rects.push(TextOrRect::Rect(VisualSpec {
+                    rect: outer_rect,
+                    color: CHROME_BACKGROUND_COLOUR,
+                    z: FIND_REPLACE_BACKGROUND_Z,
+                }));
+                text_or_rects.push(TextOrRect::Text(TextSpec {
+                    text: "In current file",
+                    size: FIND_REPLACE_SIZE,
+                    layout: TextLayout::SingleLine,
+                    spec: VisualSpec {
+                        rect: label_rect,
+                        color: FIND_REPLACE_TEXT_COLOUR,
+                        z: FIND_REPLACE_Z,
+                    },
+                }));
+                macro_rules! spaced_input_box {
+                    ($data: expr, $input: expr, $outer_rect: expr) => {{
+                        input = text_box(
+                            ui,
+                            &mut text_or_rects,
+                            $outer_rect,
+                            padding,
+                            *find_replace_char_dim,
+                            FIND_REPLACE_SIZE,
+                            FIND_REPLACE_TEXT_COLOUR,
+                            $data,
+                            $input,
+                            FIND_REPLACE_Z,
+                            &view.current_buffer_id,
+                        )
+                        .or(input);
+                    }};
+                }
 
-    let FindReplaceInfo {
-        padding,
-        top_y,
-        bottom_y,
-        label_rect,
-        find_outer_rect,
-        replace_outer_rect,
-        ..
-    } = get_find_replace_info(*font_info, wh);
-
-    match view.find_replace.mode {
-        FindReplaceMode::Hidden => {}
-        FindReplaceMode::CurrentFile => {
-            let outer_rect = ScreenSpaceRect {
-                min: (0.0, top_y),
-                max: (width, bottom_y),
-            };
-            text_or_rects.push(TextOrRect::Rect(VisualSpec {
-                rect: outer_rect,
-                color: CHROME_BACKGROUND_COLOUR,
-                z: FIND_REPLACE_BACKGROUND_Z,
-            }));
-
-            text_or_rects.push(TextOrRect::Text(TextSpec {
-                text: "In current file",
-                size: FIND_REPLACE_SIZE,
-                layout: TextLayout::SingleLine,
-                spec: VisualSpec {
-                    rect: label_rect,
-                    color: FIND_REPLACE_TEXT_COLOUR,
-                    z: FIND_REPLACE_Z,
-                },
-            }));
-
-            macro_rules! spaced_input_box {
-                ($data: expr, $input: expr, $outer_rect: expr) => {{
-                    input = text_box(
-                        ui,
-                        &mut text_or_rects,
-                        $outer_rect,
-                        padding,
-                        *find_replace_char_dim,
-                        FIND_REPLACE_SIZE,
-                        FIND_REPLACE_TEXT_COLOUR,
-                        $data,
-                        $input,
-                        FIND_REPLACE_Z,
-                        &view.current_buffer_id,
-                    )
-                    .or(input);
-                }};
+                spaced_input_box!(
+                    &view.find_replace.find,
+                    BufferId::Find(index),
+                    find_outer_rect
+                );
+                spaced_input_box!(
+                    &view.find_replace.replace,
+                    BufferId::Replace(index),
+                    replace_outer_rect
+                );
             }
-
-            spaced_input_box!(&view.find_replace.find, BufferId::Find, find_outer_rect);
-            spaced_input_box!(
-                &view.find_replace.replace,
-                BufferId::Replace,
-                replace_outer_rect
-            );
         }
     }
 
@@ -1064,8 +1062,8 @@ pub fn get_current_buffer_rect(
 ) -> TextBoxXYWH {
     match current_buffer_id {
         BufferId::Index(_) => get_edit_buffer_xywh(mode, font_info, wh),
-        BufferId::Find => get_find_replace_info(font_info, wh).find_text_xywh,
-        BufferId::Replace => get_find_replace_info(font_info, wh).replace_text_xywh,
+        BufferId::Find(_) => get_find_replace_info(font_info, wh).find_text_xywh,
+        BufferId::Replace(_) => get_find_replace_info(font_info, wh).replace_text_xywh,
     }
 }
 

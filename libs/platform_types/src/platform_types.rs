@@ -86,28 +86,26 @@ d!(for Input : Input::None);
 #[derive(Clone, Copy, Debug)]
 pub enum BufferId {
     Index(usize),
-    Find,
-    Replace,
+    Find(usize),
+    Replace(usize),
 }
 d!(for BufferId: BufferId::Index(0));
 ord!(and friends for BufferId: id, other in {
     use BufferId::*;
     use std::cmp::Ordering::*;
     match (id, other) {
-        (Index(i1), Index(i2)) => i1.cmp(&i2),
+        (Index(i1), Index(i2))|(Find(i1), Find(i2))|(Replace(i1), Replace(i2)) => i1.cmp(&i2),
         (Index(_), _) => Less,
         (_, Index(_)) => Greater,
-        (Find, Replace) => Less,
-        (Replace, Find) => Greater,
-        (Find, Find)|(Replace, Replace) => Equal,
+        (Find(_), Replace(_)) => Less,
+        (Replace(_), Find(_)) => Greater,
     }
 });
 
 impl BufferId {
-    pub fn get_index(&self) -> Option<usize> {
+    pub fn get_index(&self) -> usize {
         match self {
-            BufferId::Index(i) => Some(*i),
-            _ => None,
+            BufferId::Index(i) | BufferId::Find(i) | BufferId::Replace(i) => *i,
         }
     }
 }

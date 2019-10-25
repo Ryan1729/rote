@@ -164,18 +164,6 @@ fn position_ord_works_as_expected() {
     assert!(pos! {l 0 o 9} < pos! {l 9 o 0});
 }
 
-// Turns out that we only need this in the tests anymore!
-fn xy_is_visible(
-    ScrollableScreen {
-        scroll,
-        wh: ScreenSpaceWH { w, h },
-    }: &ScrollableScreen,
-    text: TextSpaceXY,
-) -> bool {
-    let ScreenSpaceXY { x, y } = text_to_screen(text, *scroll);
-    x >= 0.0 && x < *w && y >= 0.0 && y < *h
-}
-
 // It turns out this is also needed int he tests and in fact, it's kind of in the way since we now
 // want to store the pieces separately. I'll leave the original comments here for posterity.
 
@@ -193,6 +181,21 @@ pub struct ScrollableScreen {
     pub scroll: ScrollXY,
     pub wh: ScreenSpaceWH,
 }
+
+/* We can revive these tests if the tested functions need to change further
+// Turns out that we only need this in the tests anymore!
+fn xy_is_visible(
+    ScrollableScreen {
+        scroll,
+        wh: ScreenSpaceWH { w, h },
+    }: &ScrollableScreen,
+    text: TextBoxSpaceXY,
+) -> bool {
+    let ScreenSpaceXY { x, y } = text_box_to_screen(text, *scroll);
+    x >= 0.0 && x < *w && y >= 0.0 && y < *h
+}
+
+
 
 fmt_display!(for ScrollableScreen : ScrollableScreen {scroll, wh}
       in "ScrollableScreen {{ scroll:{}, wh: {} }}", scroll, wh
@@ -279,7 +282,7 @@ fn xy_is_visible_works_on_this_passed_in_screen(screen: &ScrollableScreen) {
 
     xy_is_visible_assert!(
         &screen,
-        screen_to_text(
+        screen_to_text_box(
             ScreenSpaceXY {
                 x: screen.wh.w / 2.0,
                 y: screen.wh.h / 2.0
@@ -289,7 +292,7 @@ fn xy_is_visible_works_on_this_passed_in_screen(screen: &ScrollableScreen) {
     );
     xy_is_visible_assert!(
         not & screen,
-        screen_to_text(
+        screen_to_text_box(
             ScreenSpaceXY {
                 x: -screen.wh.w / 2.0,
                 y: -screen.wh.h / 2.0
@@ -300,7 +303,7 @@ fn xy_is_visible_works_on_this_passed_in_screen(screen: &ScrollableScreen) {
 
     xy_is_visible_assert!(
         &screen,
-        screen_to_text(
+        screen_to_text_box(
             ScreenSpaceXY {
                 x: usual_f32_minimal_decrease(screen.wh.w),
                 y: usual_f32_minimal_decrease(screen.wh.h)
@@ -310,7 +313,7 @@ fn xy_is_visible_works_on_this_passed_in_screen(screen: &ScrollableScreen) {
     );
     xy_is_visible_assert!(
         not & screen,
-        screen_to_text(
+        screen_to_text_box(
             ScreenSpaceXY {
                 x: screen.wh.w,
                 y: screen.wh.h
@@ -321,7 +324,7 @@ fn xy_is_visible_works_on_this_passed_in_screen(screen: &ScrollableScreen) {
 
     xy_is_visible_assert!(
         not & screen,
-        screen_to_text(
+        screen_to_text_box(
             ScreenSpaceXY {
                 x: screen.wh.w * 3.0 / 2.0,
                 y: screen.wh.h * 3.0 / 2.0
@@ -331,7 +334,7 @@ fn xy_is_visible_works_on_this_passed_in_screen(screen: &ScrollableScreen) {
     );
     xy_is_visible_assert!(
         not & screen,
-        screen_to_text(
+        screen_to_text_box(
             ScreenSpaceXY {
                 x: -screen.wh.w * 3.0 / 2.0,
                 y: -screen.wh.h * 3.0 / 2.0
@@ -342,7 +345,7 @@ fn xy_is_visible_works_on_this_passed_in_screen(screen: &ScrollableScreen) {
 
     xy_is_visible_assert!(
         &screen,
-        screen_to_text(ScreenSpaceXY { x: 0.0, y: 0.0 }, screen.scroll)
+        screen_to_text_box(ScreenSpaceXY { x: 0.0, y: 0.0 }, screen.scroll)
     );
     xy_is_visible_assert!(
         not & screen,
@@ -368,7 +371,7 @@ fn xy_is_visible_works_on_this_passed_in_screen(screen: &ScrollableScreen) {
 
     xy_is_visible_assert!(
         &screen,
-        screen_to_text(
+        screen_to_text_box(
             ScreenSpaceXY {
                 x: usual_f32_minimal_decrease(screen.wh.w),
                 y: 0.0
@@ -378,7 +381,7 @@ fn xy_is_visible_works_on_this_passed_in_screen(screen: &ScrollableScreen) {
     );
     xy_is_visible_assert!(
         not & screen,
-        screen_to_text(
+        screen_to_text_box(
             ScreenSpaceXY {
                 x: screen.wh.w,
                 y: 0.0
@@ -389,7 +392,7 @@ fn xy_is_visible_works_on_this_passed_in_screen(screen: &ScrollableScreen) {
 
     xy_is_visible_assert!(
         &screen,
-        screen_to_text(
+        screen_to_text_box(
             ScreenSpaceXY {
                 x: 0.0,
                 y: usual_f32_minimal_decrease(screen.wh.h)
@@ -399,7 +402,7 @@ fn xy_is_visible_works_on_this_passed_in_screen(screen: &ScrollableScreen) {
     );
     xy_is_visible_assert!(
         not & screen,
-        screen_to_text(
+        screen_to_text_box(
             ScreenSpaceXY {
                 x: 0.0,
                 y: screen.wh.h
@@ -501,12 +504,12 @@ fn attempt_to_make_xy_visible_works_on_this_generated_example() {
         w: 0.000000000026796234,
         h: 0.0000000000000000003944164,
     };
-    let xy = screen_to_text(
+    let xy = screen_to_text_box(
         ScreenSpaceXY {
             x: 0.0,
             y: 0.0000000000000000000000000006170001,
         },
-        screen.scroll,
+        d!(),
     );
 
     attempt_to_make_xy_visible_works_in_this_scenario(&mut screen, char_dim, xy);
@@ -546,15 +549,11 @@ fn attempt_to_make_xy_visible_works_on_this_realistically_sized_example() {
 #[test]
 // real as in recovered from an actual run of the program
 fn attempt_to_make_xy_visible_works_on_this_vertically_scrolled_realistically_sized_example() {
-    let mut screen = ScrollableScreen {
-        scroll: ScrollXY { x: 0.0, y: 180.0 },
-        wh: ScreenSpaceWH {
-            w: 1024.0,
-            h: 576.0,
-        },
-    };
     let char_dim = CharDim { w: 30.0, h: 60.0 };
-    let xy = screen_to_text(ScreenSpaceXY { x: 0.0, y: 600.0 }, screen.scroll);
+    let xy = screen_to_text_box(
+        ScreenSpaceXY { x: 0.0, y: 600.0 },
+        TextBoxXY { x: 0.0, y: 180.0 },
+    );
 
     xy_is_visible_assert!(not & screen, xy);
 
@@ -564,18 +563,25 @@ fn attempt_to_make_xy_visible_works_on_this_vertically_scrolled_realistically_si
 fn screen_space_to_position_then_position_to_screen_space_is_identity_after_one_conversion_for_these(
     screen: ScrollableScreen,
     xy: ScreenSpaceXY,
+    text_box_pos: TextBoxXY,
 ) {
     let scroll = screen.scroll;
     let char_dim = CharDim { w: 4.0, h: 8.0 };
 
-    let pos = dbg!(screen_space_to_position(
+    let pos = screen_space_to_position(
         xy,
+        text_box_pos,
+        scroll,
+        char_dim,
+        PositionRound::TowardsZero,
+    );
+
+    let mut xy = dbg!(position_to_screen_space(
+        pos,
         char_dim,
         scroll,
-        PositionRound::TowardsZero
+        text_box_pos
     ));
-
-    let mut xy = dbg!(position_to_screen_space(pos, char_dim, scroll));
 
     const COUNT: usize = 8;
 
@@ -583,14 +589,16 @@ fn screen_space_to_position_then_position_to_screen_space_is_identity_after_one_
 
     for _ in 0..COUNT {
         let new_xy = position_to_screen_space(
-            dbg!(screen_space_to_position(
+            screen_space_to_position(
                 xy,
-                char_dim,
+                text_box_pos,
                 scroll,
-                PositionRound::TowardsZero
-            )),
+                char_dim,
+                PositionRound::TowardsZero,
+            ),
             char_dim,
             scroll,
+            text_box_pos,
         );
 
         v.push(new_xy);
@@ -606,9 +614,10 @@ proptest! {
     fn screen_space_to_position_then_position_to_screen_space_is_identity_after_one_conversion(
         screen in arb::scrollable_screen(arb::usual()),
         xy in arb::rounded_non_negative_screen_xy(),
+        ScreenSpaceXY{x, y} in arb::rounded_non_negative_screen_xy(),
     ) {
         screen_space_to_position_then_position_to_screen_space_is_identity_after_one_conversion_for_these(
-            screen, xy
+            screen, xy, TextBoxXY{x, y}
         )
     }
 }
@@ -618,7 +627,8 @@ fn screen_space_to_position_then_position_to_screen_space_is_identity_after_one_
 ) {
     screen_space_to_position_then_position_to_screen_space_is_identity_after_one_conversion_for_these(
         ScrollableScreen { scroll: ScrollXY { x: 0.0, y: -135712.25 }, wh: ScreenSpaceWH { w: 0.0, h: 0.0 } },
-        ScreenSpaceXY { x: 0.0, y: 0.0 }
+        ScreenSpaceXY { x: 0.0, y: 0.0 },
+        TextBoxXY { x: 0.0, y: 0.0 }
     )
 }
 
@@ -654,22 +664,20 @@ proptest! {
     }
 }
 
-fn screen_to_text_then_text_to_screen_is_identity_after_one_conversion_for_these(
-    screen: ScrollableScreen,
+fn screen_to_text_box_then_text_box_to_screen_is_identity_after_one_conversion_for_these(
+    text_box_xy: TextBoxXY,
     xy: ScreenSpaceXY,
 ) {
-    let scroll = screen.scroll;
+    let text_xy = dbg!(screen_to_text_box(xy, text_box_xy));
 
-    let text_xy = dbg!(screen_to_text(xy, scroll));
-
-    let mut xy = dbg!(text_to_screen(text_xy, scroll));
+    let mut xy = dbg!(text_box_to_screen(text_xy, text_box_xy));
 
     const COUNT: usize = 8;
 
     let mut v = Vec::with_capacity(COUNT);
 
     for _ in 0..COUNT {
-        let new_xy = text_to_screen(dbg!(screen_to_text(xy, scroll)), scroll);
+        let new_xy = text_box_to_screen(dbg!(screen_to_text_box(xy, text_box_xy)), text_box_xy);
 
         v.push(new_xy);
 
@@ -681,49 +689,42 @@ fn screen_to_text_then_text_to_screen_is_identity_after_one_conversion_for_these
 
 proptest! {
     #[test]
-    fn screen_to_text_then_text_to_screen_is_identity_after_one_conversion(
-        screen in arb::scrollable_screen(arb::usual()),
+    fn screen_to_text_box_then_text_box_to_screen_is_identity_after_one_conversion(
+        text_box_xy in arb::text_box_xy(arb::usual()),
         xy in arb::rounded_non_negative_screen_xy(),
     ) {
-        screen_to_text_then_text_to_screen_is_identity_after_one_conversion_for_these(
-            screen,
+        screen_to_text_box_then_text_box_to_screen_is_identity_after_one_conversion_for_these(
+            text_box_xy,
             xy
         )
     }
 }
 
 #[test]
-fn screen_to_text_then_text_to_screen_is_identity_after_one_conversion_for_this_generated_example()
-{
-    screen_to_text_then_text_to_screen_is_identity_after_one_conversion_for_these(
-        ScrollableScreen {
-            scroll: ScrollXY {
-                x: -75525750000000000.0,
-                y: 0.0,
-            },
-            wh: ScreenSpaceWH { w: 0.0, h: 0.0 },
+fn screen_to_text_box_then_text_box_to_screen_is_identity_after_one_conversion_for_this_generated_example(
+) {
+    screen_to_text_box_then_text_box_to_screen_is_identity_after_one_conversion_for_these(
+        TextBoxXY {
+            x: -75525750000000000.0,
+            y: 0.0,
         },
         ScreenSpaceXY { x: 0.0, y: 0.0 },
     )
 }
 
 #[test]
-fn text_to_screen_works_on_this_realistic_example() {
-    let screen = ScrollableScreen {
-        scroll: ScrollXY { x: 250.0, y: 440.0 },
-        wh: ScreenSpaceWH { w: 800.0, h: 400.0 },
-    };
-
+fn text_box_to_screen_works_on_this_realistic_example() {
     assert_eq!(
-        text_to_screen(
-            TextSpaceXY {
+        text_box_to_screen(
+            TextBoxSpaceXY {
                 x: 1000.0,
                 y: 480.0
             },
-            screen.scroll
+            TextBoxXY { x: 250.0, y: 440.0 }
         ),
         ScreenSpaceXY { x: 750.0, y: 40.0 }
     );
 }
+*/
 
 pub mod arb;

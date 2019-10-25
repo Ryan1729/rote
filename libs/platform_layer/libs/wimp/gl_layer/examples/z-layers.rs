@@ -37,6 +37,7 @@ fn main() -> Res<()> {
     let (mut gl_state, _) = gl_layer::init(
         glutin_context.window().hidpi_factor() as f32,
         &text_sizes,
+        [0.3, 0.3, 0.3, 1.0],
         |symbol| glutin_context.get_proc_address(symbol) as _,
     )?;
 

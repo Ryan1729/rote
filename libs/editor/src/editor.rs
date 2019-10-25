@@ -107,8 +107,8 @@ macro_rules! current_editor_buffer_mut {
     ($state: expr) => {
         match $state.current_buffer_id {
             BufferId::Index(i) => $state.buffers.get_mut(i),
-            BufferId::Find => Some(&mut $state.find),
-            BufferId::Replace => Some(&mut $state.replace),
+            BufferId::Find(_) => Some(&mut $state.find),
+            BufferId::Replace(_) => Some(&mut $state.replace),
         }
     };
 }
@@ -119,19 +119,17 @@ impl State {
     }
 
     fn next_buffer(&mut self) {
-        if let Some(current_buffer_index) = self.current_buffer_id.get_index() {
-            self.set_index_id((current_buffer_index + 1) % self.buffers.len());
-        }
+        let current_buffer_index = self.current_buffer_id.get_index();
+        self.set_index_id((current_buffer_index + 1) % self.buffers.len());
     }
 
     fn previous_buffer(&mut self) {
-        if let Some(current_buffer_index) = self.current_buffer_id.get_index() {
-            self.set_index_id(if current_buffer_index == 0 {
-                self.buffers.len() - 1
-            } else {
-                current_buffer_index - 1
-            });
-        }
+        let current_buffer_index = self.current_buffer_id.get_index();
+        self.set_index_id(if current_buffer_index == 0 {
+            self.buffers.len() - 1
+        } else {
+            current_buffer_index - 1
+        });
     }
 
     fn set_index_id(&mut self, i: usize) {
@@ -190,7 +188,7 @@ impl State {
     fn get_current_char_dim(&self) -> CharDim {
         match self.current_buffer_id {
             BufferId::Index(_) => self.font_info.text_char_dim,
-            BufferId::Find | BufferId::Replace => self.font_info.find_replace_char_dim,
+            BufferId::Find(_) | BufferId::Replace(_) => self.font_info.find_replace_char_dim,
         }
     }
 
@@ -198,8 +196,8 @@ impl State {
         let buffer = current_editor_buffer_mut!(self)?;
         let xywh = match self.current_buffer_id {
             BufferId::Index(_) => self.buffer_xywh,
-            BufferId::Find => self.find_xywh,
-            BufferId::Replace => self.replace_xywh,
+            BufferId::Find(_) => self.find_xywh,
+            BufferId::Replace(_) => self.replace_xywh,
         };
 
         let attempt_result = attempt_to_make_sure_at_least_one_cursor_is_visible(
@@ -207,7 +205,7 @@ impl State {
             xywh,
             match self.current_buffer_id {
                 BufferId::Index(_) => self.font_info.text_char_dim,
-                BufferId::Find | BufferId::Replace => self.font_info.find_replace_char_dim,
+                BufferId::Find(_) | BufferId::Replace(_) => self.font_info.find_replace_char_dim,
             },
             self.font_info.status_char_dim,
             &buffer.text_buffer.cursors(),
@@ -303,18 +301,13 @@ pub fn render_view(
 
     view.status_line.chars.clear();
     view.visible_buffers = d!();
-    match current_buffer_id
-        .get_index()
-        .and_then(|i| buffers.get(i).map(|b| (i, b)))
-    {
-        Some((
-            current_buffer_index,
-            EditorBuffer {
-                text_buffer: buffer,
-                scroll,
-                ..
-            },
-        )) => {
+    let current_buffer_index = current_buffer_id.get_index();
+    match buffers.get(current_buffer_index) {
+        Some(EditorBuffer {
+            text_buffer: buffer,
+            scroll,
+            ..
+        }) => {
             let scroll = *scroll;
             view.visible_buffers[0] = Some(current_buffer_index);
             fn display_option_compactly<A: ToString>(op: Option<A>) -> String {

@@ -20,6 +20,10 @@ pub fn text_xy(spec: f32::Any) -> impl Strategy<Value = TextSpaceXY> {
     (spec, spec).prop_map(|(x, y)| TextSpaceXY { x, y })
 }
 
+pub fn text_box_xy(spec: f32::Any) -> impl Strategy<Value = TextBoxXY> {
+    (spec, spec).prop_map(|(x, y)| TextBoxXY { x, y })
+}
+
 pub fn rounded_non_negative_text_xy() -> impl Strategy<Value = TextSpaceXY> {
     let spec = 0..(1 << 24);
     (spec.clone(), spec).prop_map(|(x, y)| TextSpaceXY {

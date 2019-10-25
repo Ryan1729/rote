@@ -681,6 +681,46 @@ fn editing_the_buffer_preserves_the_cursors_invariants_in_this_generated_case() 
     assert_cursor_invarints_maintained!(buffer.rope, buffer.cursors);
 }
 
+macro_rules! buffer_str_assert_eq {
+    ($buffer: expr, $s: expr) => {
+        let string: String = $buffer.rope.clone().into();
+        assert_eq!(&string, $s);
+    };
+}
+
+#[test]
+fn editing_the_buffer_with_multiple_coursors_works_in_this_example() {
+    use arb::TestEdit::*;
+    // | represents a cursor
+    //                              "a|b|c|d|e|f|g"
+    let mut buffer: TextBuffer = t_b!("abcdefg");
+
+    buffer.set_cursor(pos! {l 0 o 1}, ReplaceOrAdd::Replace);
+    buffer.set_cursor(pos! {l 0 o 2}, ReplaceOrAdd::Add);
+    buffer.set_cursor(pos! {l 0 o 3}, ReplaceOrAdd::Add);
+    buffer.set_cursor(pos! {l 0 o 4}, ReplaceOrAdd::Add);
+    buffer.set_cursor(pos! {l 0 o 5}, ReplaceOrAdd::Add);
+    buffer.set_cursor(pos! {l 0 o 6}, ReplaceOrAdd::Add);
+
+    buffer_str_assert_eq!(buffer, "abcdefg");
+
+    arb::TestEdit::apply(&mut buffer, Insert('1'));
+    //                        "a1|b1|c1|d1|e1|f1|g"
+    buffer_str_assert_eq!(buffer, "a1b1c1d1e1f1g");
+
+    arb::TestEdit::apply(&mut buffer, Insert('2'));
+    //                        "a12|b12|c12|d12|e12|f12|g"
+    buffer_str_assert_eq!(buffer, "a12b12c12d12e12f12g");
+
+    arb::TestEdit::apply(&mut buffer, Delete);
+    //                        "a1|b1|c1|d1|e1|f1|g" again
+    buffer_str_assert_eq!(buffer, "a1b1c1d1e1f1g");
+
+    arb::TestEdit::apply(&mut buffer, Delete);
+    //                              "a|b|c|d|e|f|g" again
+    buffer_str_assert_eq!(buffer, "abcdefg");
+}
+
 proptest! {
     #[test]
     fn cursors_new_maintains_invariants(

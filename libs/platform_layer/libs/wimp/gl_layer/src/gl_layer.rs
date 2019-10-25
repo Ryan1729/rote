@@ -187,12 +187,12 @@ mod z_depth_tests {
     use super::*;
     #[test]
     fn depth_min_is_correct() {
-        assert_eq!(DEPTH_MIN, z_to_f32(0))
+        assert_eq!(DEPTH_MIN, z_to_f32(65535))
     }
 
     #[test]
     fn depth_max_is_correct() {
-        assert_eq!(DEPTH_MAX, z_to_f32(65535))
+        assert_eq!(DEPTH_MAX, z_to_f32(0))
     }
 }
 
