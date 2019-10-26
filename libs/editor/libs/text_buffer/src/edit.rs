@@ -76,12 +76,12 @@ where
 {
     get_edit(
         original_rope,
-        original_cursors,
+        dbg!(original_cursors),
         |cursor, rope, index| match offset_pair(original_rope, cursor) {
             (Some(o), highlight) if highlight.is_none() || Some(o) == highlight => {
                 let s = get_string(index);
                 let char_count = s.chars().count();
-
+                dbg!(&rope, &cursor, &o, &s, &char_count);
                 get_standard_insert_range_edits(rope, cursor, o, s, char_count)
             }
             (Some(o1), Some(o2)) => {
@@ -113,31 +113,38 @@ where
 pub fn get_delete_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
     get_edit(original_rope, original_cursors, |cursor, rope, _| {
         let offsets = offset_pair(original_rope, cursor);
-
         match offsets {
             (Some(o), None) if o > 0 => {
-                // Deleting the LF ('\n') of a CRLF ("\r\n") pair is a special case
-                // where the cursor should not be moved backwards. Thsi is because
-                // CR ('\r') and CRLF ("\r\n") both count as a single newline.
-                // TODO would it better to just delete both at once? That seems like
-                // it would require a moe comlicated special case elsewhere.
-                let not_deleting_lf_of_cr_lf = {
-                    o.checked_sub(CharOffset(2))
-                        .and_then(|two_back| {
-                            let mut chars = rope.slice(two_back..o)?.chars();
-
-                            Some((chars.next()?, chars.next()?) != ('\r', '\n'))
-                        })
-                        .unwrap_or(true)
-                };
+                // // Deleting the LF ('\n') of a CRLF ("\r\n") pair is a special case
+                // // where the cursor should not be moved backwards. Thsi is because
+                // // CR ('\r') and CRLF ("\r\n") both count as a single newline.
+                // // TODO would it better to just delete both at once? That seems like
+                // // it would require a moe comlicated special case elsewhere.
+                // let not_deleting_lf_of_cr_lf = {
+                //     o.checked_sub(CharOffset(2))
+                //         .and_then(|two_back| {
+                //             let mut chars = rope.slice(two_back..o)?.chars();
+                //
+                //             Some((chars.next()?, chars.next()?) != ('\r', '\n'))
+                //         })
+                //         .unwrap_or(true)
+                // };
+                //
+                // let delete_offset_range = AbsoluteCharOffsetRange::new(o - 1, o);
+                // let chars = copy_string(&rope, delete_offset_range);
+                // rope.remove(delete_offset_range.range());
+                //
+                // if not_deleting_lf_of_cr_lf {
+                //     dbg!(&rope, &cursor);
+                //     move_cursor::directly(&rope, cursor, Move::Left);
+                //     dbg!(&cursor);
+                // }
 
                 let delete_offset_range = AbsoluteCharOffsetRange::new(o - 1, o);
                 let chars = copy_string(&rope, delete_offset_range);
                 rope.remove(delete_offset_range.range());
 
-                if not_deleting_lf_of_cr_lf {
-                    move_cursor::directly(&rope, cursor, Move::Left);
-                }
+                move_cursor::to_absolute_offset(&rope, cursor, delete_offset_range.min());
 
                 RangeEdits {
                     delete_range: Some(RangeEdit {

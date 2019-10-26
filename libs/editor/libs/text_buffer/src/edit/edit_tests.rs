@@ -7,6 +7,7 @@ use crate::tests::{
 use editor_types::{cur, vec1, Cursor};
 use platform_types::CursorState;
 
+use pretty_assertions::assert_eq;
 use proptest::prelude::*;
 use proptest::{option, prop_compose, proptest};
 
@@ -633,6 +634,164 @@ fn tab_in_places_the_cursors_correctly_on_this_edge_case_example() {
 
     TestEdit::apply(&mut buffer, TestEdit::TabIn);
     assert_eq!(buffer.cursors, curs!(buffer.rope, cur!(l 1 o 7 h l 2 o 5 )));
+}
+
+#[test]
+fn get_delete_edit_produces_the_expected_edit_on_this_newline_edit_example() {
+    // Arrange
+    let mut buffer = t_b!("0");
+
+    arb::TestEdit::apply(&mut buffer, TestEdit::Insert('\n'));
+
+    let rope = &buffer.rope;
+
+    let cursors = &buffer.cursors;
+
+    // Act
+    let edit = get_delete_edit(rope, cursors);
+
+    // Assert
+    let expected = {
+        let new_cursors = {
+            let expected_rope = r!("0".to_owned());
+            let cursor = Cursor::new(pos! {l 0, o 0});
+
+            Cursors::new(&expected_rope, vec1![cursor])
+        };
+
+        let range_edits = {
+            let insert_range = None;
+
+            let delete_range = Some(RangeEdit {
+                range: AbsoluteCharOffsetRange::new(d!(), AbsoluteCharOffset(1)),
+                chars: "\n".to_owned(),
+            });
+            RangeEdits {
+                insert_range,
+                delete_range,
+            }
+        };
+
+        Edit {
+            range_edits: vec1![range_edits],
+            cursors: Change {
+                new: new_cursors,
+                old: cursors.clone(),
+            },
+        }
+    };
+
+    assert_eq!(edit, expected);
+}
+
+#[test]
+fn get_insert_edit_produces_the_expected_edit_on_this_cr_lf_edit_example() {
+    let mut buffer = t_b!("\rA");
+    buffer.set_cursors_from_vec1(vec1![Cursor::new(pos! {l 0 o 1})]);
+    let new_cursors = Cursors::new(&buffer.rope, vec1![Cursor::new(pos! {l 0 o 1})]);
+    //pre-condition
+    assert_eq!(
+        new_cursors.get_cloned_cursors(),
+        vec1![Cursor::new(pos! {l 0 o 1})]
+    );
+    //pre-condition
+    assert_eq!(buffer.cursors, new_cursors);
+
+    let rope = &buffer.rope;
+
+    let cursors = &buffer.cursors;
+
+    // Act
+    let edit = get_insert_edit(rope, cursors, |_| "\n".to_owned());
+
+    // Assert
+    let expected = {
+        let new_cursors = {
+            let expected_rope = r!("\r\nA".to_owned());
+            let cursor = Cursor::new(pos! {l 1 o 0});
+
+            Cursors::new(&expected_rope, vec1![cursor])
+        };
+
+        let range_edits = {
+            let insert_range = Some(RangeEdit {
+                range: AbsoluteCharOffsetRange::new(AbsoluteCharOffset(1), AbsoluteCharOffset(2)),
+                chars: "\n".to_owned(),
+            });
+
+            let delete_range = None;
+            RangeEdits {
+                insert_range,
+                delete_range,
+            }
+        };
+
+        Edit {
+            range_edits: vec1![range_edits],
+            cursors: Change {
+                new: new_cursors,
+                old: cursors.clone(),
+            },
+        }
+    };
+
+    assert_eq!(edit, expected);
+}
+
+// this was based on a generated test about the  effect of inserts and deletes
+#[test]
+fn get_delete_edit_produces_the_expected_edit_on_this_cr_lf_edit_example() {
+    // Arrange
+    let mut buffer = t_b!("A");
+
+    arb::TestEdit::apply(&mut buffer, TestEdit::Insert('\r'));
+    arb::TestEdit::apply(&mut buffer, TestEdit::Insert('\n'));
+
+    let rope = &buffer.rope;
+
+    let cursors = &buffer.cursors;
+
+    //pre-condition
+    assert_eq!(
+        buffer.cursors,
+        Cursors::new(&buffer.rope, vec1![Cursor::new(pos! {l 1 o 0})])
+    );
+
+    // Act
+    let edit = get_delete_edit(rope, cursors);
+
+    // Assert
+    let expected = {
+        let new_cursors = {
+            let expected_rope = r!("\rA".to_owned());
+            let cursor = Cursor::new(pos! {l 0 o 1});
+
+            Cursors::new(&expected_rope, vec1![cursor])
+        };
+
+        let range_edits = {
+            let insert_range = None;
+
+            let delete_range = Some(RangeEdit {
+                range: AbsoluteCharOffsetRange::new(d!(), AbsoluteCharOffset(1)),
+                chars: "\n".to_owned(),
+            });
+            RangeEdits {
+                insert_range,
+                delete_range,
+            }
+        };
+
+        Edit {
+            range_edits: vec1![range_edits],
+            cursors: Change {
+                new: new_cursors,
+                old: cursors.clone(),
+            },
+        }
+    };
+
+    assert_eq!(edit, expected);
 }
 
 mod edit_arb;

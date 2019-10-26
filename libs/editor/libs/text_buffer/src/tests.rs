@@ -1,13 +1,13 @@
 #![allow(dead_code)]
 use super::{cursor_assert, r, t_b, *};
 
-use editor_types::vec1;
+use arb::TestEdit;
+use editor_types::{cur, vec1};
 use platform_types::{pos, CursorState};
+use pretty_assertions::assert_eq;
 use proptest::prelude::*;
 use proptest::{collection, option, prop_compose, proptest};
 use std::fmt::Debug;
-
-use pretty_assertions::assert_eq;
 
 /// This is expected to be used where the amount does not really matter, except that it must be
 /// enough that the behaviour we want to test has enough space.
@@ -640,12 +640,12 @@ macro_rules! assert_cursor_invarints_maintained {
 
 fn editing_this_buffer_preserves_the_cursors_invariants(
     mut buffer: TextBuffer,
-    edits: Vec<arb::TestEdit>,
+    edits: Vec<TestEdit>,
 ) {
     assert_cursor_invarints_maintained!(buffer.rope, buffer.cursors);
 
     for edit in edits {
-        arb::TestEdit::apply(&mut buffer, edit);
+        TestEdit::apply(&mut buffer, edit);
     }
 
     assert_cursor_invarints_maintained!(buffer.rope, buffer.cursors);
@@ -668,16 +668,16 @@ fn editing_the_buffer_preserves_the_cursors_invariants_in_this_generated_case() 
 
     assert_cursor_invarints_maintained!(buffer.rope, buffer.cursors);
 
-    arb::TestEdit::apply(&mut buffer, Insert('\n'));
+    TestEdit::apply(&mut buffer, Insert('\n'));
     assert_cursor_invarints_maintained!(buffer.rope, buffer.cursors);
 
-    arb::TestEdit::apply(&mut buffer, MoveAllCursors(Move::ToBufferStart));
+    TestEdit::apply(&mut buffer, MoveAllCursors(Move::ToBufferStart));
     assert_cursor_invarints_maintained!(buffer.rope, buffer.cursors);
 
-    arb::TestEdit::apply(&mut buffer, Insert('\t'));
+    TestEdit::apply(&mut buffer, Insert('\t'));
     assert_cursor_invarints_maintained!(buffer.rope, buffer.cursors);
 
-    arb::TestEdit::apply(&mut buffer, TabOut);
+    TestEdit::apply(&mut buffer, TabOut);
     assert_cursor_invarints_maintained!(buffer.rope, buffer.cursors);
 }
 
@@ -688,8 +688,124 @@ macro_rules! buffer_str_assert_eq {
     };
 }
 
+fn inserting_then_deleting_with_multiple_cursors_works_on(
+    mut buffer: TextBuffer,
+    inserts: Vec<arb::TestEdit>,
+) {
+    let len = inserts.len();
+
+    let mut expecteds = Vec::with_capacity(len);
+
+    for insert in inserts {
+        expecteds.push(buffer.clone());
+        arb::TestEdit::apply(&mut buffer, insert);
+    }
+
+    for i in (0..len).rev() {
+        arb::TestEdit::apply(&mut buffer, arb::TestEdit::Delete);
+        assert_text_buffer_eq_ignoring_history!(&buffer, &expecteds[i]);
+    }
+}
+
+proptest! {
+    #[test]
+    fn inserting_then_deleting_with_multiple_cursors_works(
+        buffer in arb::text_buffer_with_many_cursors(),
+        inserts in arb::test_edits(SOME_AMOUNT, arb::TestEditSpec::Insert)
+    ) {
+        inserting_then_deleting_with_multiple_cursors_works_on(buffer, inserts);
+    }
+}
+
 #[test]
-fn editing_the_buffer_with_multiple_coursors_works_in_this_example() {
+fn inserting_then_deleting_with_multiple_cursors_works_on_this_smaller_generated_example() {
+    inserting_then_deleting_with_multiple_cursors_works_on(t_b!("0"), vec![TestEdit::Insert('\n')]);
+}
+
+#[test]
+fn inserting_then_deleting_with_multiple_cursors_works_on_this_smaller_splayed_example() {
+    let mut buffer = t_b!("0");
+
+    let expected = buffer.clone();
+    arb::TestEdit::apply(&mut buffer, TestEdit::Insert('\n'));
+
+    dbg!(&buffer);
+
+    arb::TestEdit::apply(&mut buffer, arb::TestEdit::Delete);
+    assert_text_buffer_eq_ignoring_history!(&buffer, &expected);
+}
+
+#[test]
+fn inserting_then_deleting_with_multiple_cursors_works_on_this_generated_example() {
+    inserting_then_deleting_with_multiple_cursors_works_on(
+        t_b!("0"),
+        vec![TestEdit::Insert('A'), TestEdit::Insert('\n')],
+    );
+}
+
+#[test]
+fn inserting_then_deleting_with_multiple_cursors_works_on_this_cr_lf_example() {
+    inserting_then_deleting_with_multiple_cursors_works_on(
+        t_b!("A"),
+        vec![TestEdit::Insert('\r'), TestEdit::Insert('\n')],
+    );
+}
+
+#[test]
+fn inserting_then_deleting_with_multiple_cursors_works_on_this_splayed_cr_lf_example() {
+    let mut buffer = t_b!("A");
+
+    let mut expecteds = Vec::with_capacity(2);
+
+    expecteds.push(buffer.clone());
+    arb::TestEdit::apply(&mut buffer, TestEdit::Insert('\r'));
+    expecteds.push(buffer.clone());
+    arb::TestEdit::apply(&mut buffer, TestEdit::Insert('\n'));
+
+    arb::TestEdit::apply(&mut buffer, arb::TestEdit::Delete);
+    assert_text_buffer_eq_ignoring_history!(&buffer, &expecteds[1]);
+    arb::TestEdit::apply(&mut buffer, arb::TestEdit::Delete);
+    assert_text_buffer_eq_ignoring_history!(&buffer, &expecteds[0]);
+}
+
+#[test]
+fn inserting_then_deleting_with_multiple_cursors_works_on_this_splayed_example() {
+    let mut buffer = t_b!("0");
+
+    let mut expecteds = Vec::with_capacity(2);
+
+    expecteds.push(buffer.clone());
+    arb::TestEdit::apply(&mut buffer, TestEdit::Insert('A'));
+    expecteds.push(buffer.clone());
+    arb::TestEdit::apply(&mut buffer, TestEdit::Insert('\n'));
+
+    arb::TestEdit::apply(&mut buffer, arb::TestEdit::Delete);
+    assert_text_buffer_eq_ignoring_history!(&buffer, &expecteds[1]);
+    arb::TestEdit::apply(&mut buffer, arb::TestEdit::Delete);
+    assert_text_buffer_eq_ignoring_history!(&buffer, &expecteds[0]);
+}
+
+proptest! {
+    #[test]
+    fn inserting_then_deleting_with_all_but_end_cursors_works(
+        buffer in arb::text_buffer_with_all_but_end_cursors(),
+        inserts in arb::test_edits(SOME_AMOUNT, arb::TestEditSpec::Insert)
+    ) {
+        inserting_then_deleting_with_multiple_cursors_works_on(buffer, inserts);
+    }
+}
+
+#[test]
+fn inserting_then_deleting_with_all_but_end_cursors_works_on_this_generated_example() {
+    let mut buffer = t_b!("Aa 0");
+
+    buffer.set_cursors_from_vec1(vec1![cur! {l 0 o 2}, cur! {l 0 o 1}]);
+
+    inserting_then_deleting_with_multiple_cursors_works_on(buffer, vec![TestEdit::Insert('¡')]);
+}
+
+#[test]
+fn inserting_then_deleting_with_multiple_cursors_works_on_this_motivating_example() {
     use arb::TestEdit::*;
     // | represents a cursor
     //                              "a|b|c|d|e|f|g"

@@ -1,6 +1,6 @@
 // this module is inside `text_buffer`
 use super::{
-    final_non_newline_offset_for_rope_line, in_cursor_bounds, max, min,
+    char_offset_to_pos, final_non_newline_offset_for_rope_line, in_cursor_bounds, max, min,
     nearest_valid_position_on_same_line,
 };
 use editor_types::{Cursor, SetPositionAction};
@@ -490,6 +490,13 @@ fn get_offsets<'line>(
             Box::new(output.chain(matched_offsets.into_iter()).chain(once(len)))
         }
     }
+}
+
+#[perf_viz::record]
+pub fn to_absolute_offset(rope: &Rope, cursor: &mut Cursor, offset: AbsoluteCharOffset) {
+    let moved = move_to(rope, cursor, char_offset_to_pos(rope, offset), d!());
+
+    cursor.state = state_from_moved(moved);
 }
 
 // utils

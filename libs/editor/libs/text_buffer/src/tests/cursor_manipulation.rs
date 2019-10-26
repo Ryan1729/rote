@@ -1301,3 +1301,28 @@ proptest! {
         assert_eq!(c1, c2);
     }
 }
+
+#[test]
+fn moving_left_across_a_newline_works_on_this_example() {
+    use Move::*;
+    let mut buffer = t_b!("\n0");
+
+    buffer.move_cursor(0, Right);
+
+    //precondition
+    cursor_assert! {
+        buffer,
+        p: pos! {l 1 o 0},
+        h: None,
+        s: d!(),
+    }
+
+    buffer.move_cursor(0, Left);
+
+    cursor_assert! {
+        buffer,
+        p: pos! {l 0 o 0},
+        h: None,
+        s: d!(),
+    }
+}

@@ -100,6 +100,23 @@ pub fn many_valid_cursors_for_rope<'rope, R: 'rope + Borrow<Rope>>(
     .prop_map(move |c| Cursors::new(&rope2, c))
 }
 
+fn all_but_end_cursors_for_rope(rope: &Rope) -> Vec<Cursor> {
+    let len = rope.len_chars().0;
+    let mut output = Vec::with_capacity(len);
+    if len > 1 {
+        for i in 1..(len - 1) {
+            let offset = AbsoluteCharOffset(i);
+            if let Some(position) = char_offset_to_pos(rope, offset) {
+                output.push(Cursor::new(position));
+            } else {
+                break;
+            }
+        }
+    }
+
+    output
+}
+
 pub fn text_buffer_with_many_cursors() -> impl Strategy<Value = TextBuffer> {
     rope().prop_flat_map(|rop| {
         (
@@ -112,6 +129,20 @@ pub fn text_buffer_with_many_cursors() -> impl Strategy<Value = TextBuffer> {
                 text_buffer.set_cursors(cursors);
                 text_buffer
             })
+    })
+}
+
+pub fn text_buffer_with_all_but_end_cursors() -> impl Strategy<Value = TextBuffer> {
+    rope().prop_map(|r| {
+        let cursors = all_but_end_cursors_for_rope(&r);
+
+        let mut text_buffer: TextBuffer = d!();
+        text_buffer.rope = r;
+
+        if let Ok(cs) = Vec1::try_from_vec(cursors) {
+            text_buffer.set_cursors(Cursors::new(&text_buffer.rope, cs));
+        }
+        text_buffer
     })
 }
 
