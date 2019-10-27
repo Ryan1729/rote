@@ -1,5 +1,5 @@
 use super::*;
-use macros::{CheckedSub, SaturatingAdd, SaturatingSub};
+use macros::{CheckedAdd, CheckedSub, SaturatingAdd, SaturatingSub};
 
 pub fn apply<'rope, 'cursors>(mut applier: EditApplier, edit: &Edit) {
     // we assume that the edits are in the proper order so we won't mess up our indexes with our
@@ -13,13 +13,32 @@ pub fn apply<'rope, 'cursors>(mut applier: EditApplier, edit: &Edit) {
     applier.set_cursors(edit.cursors.new.clone());
 }
 
+#[derive(Debug)]
+enum SpecialHandling {
+    //This should be
+    // None,
+    // HighlightOnLeftShiftedBy(usize),
+    // HighlightOnRightPositionLeftShiftedBy((usize),
+    None,
+    HighlightLeftOf(usize),
+    HighlightRightOf(usize),
+}
+d!(for SpecialHandling: SpecialHandling::None);
+
+#[derive(Debug, Default)]
+struct CursorPlacementSpec {
+    offset: AbsoluteCharOffset,
+    delta: isize,
+    special_handling: SpecialHandling,
+}
+
 /// Calls the `FnMut` once with a copy of each cursor and a reference to the same clone of the
 /// `Rope`. Then the (potentially) modified cursors and another copy of the `original_cursors`
 /// are wrapped up along with the returned `RangeEdit`s into the Edit.
 #[perf_viz::record]
 fn get_edit<F>(original_rope: &Rope, original_cursors: &Cursors, mut mapper: F) -> Edit
 where
-    F: FnMut(&mut Cursor, &mut Rope, usize) -> RangeEdits,
+    F: FnMut(&Cursor, &mut Rope, usize) -> (RangeEdits, CursorPlacementSpec),
 {
     perf_viz::start_record!("init cloning + sort");
     // We need to sort cursors, so our `range_edits` are in the right order, so we can go
@@ -33,10 +52,59 @@ where
     // the index needs to account for the order being from the high positions to the low positions
     perf_viz::start_record!("range_edits");
     let mut index = cloned_cursors.len();
-    let range_edits = cloned_cursors.mapped_mut(|c| {
+    let mut specs = Vec::with_capacity(index);
+    let range_edits = cloned_cursors.mapped_ref(|c| {
         index -= 1;
-        mapper(c, &mut cloned_rope, index)
+        let (edits, spec) = mapper(c, &mut cloned_rope, index);
+
+        specs.push(spec);
+        edits
     });
+
+    let mut total_delta: isize = 0;
+    for (
+        i,
+        CursorPlacementSpec {
+            offset,
+            delta,
+            special_handling,
+        },
+    ) in dbg!(specs).into_iter().enumerate().rev()
+    {
+        total_delta = total_delta.saturating_add(delta);
+
+        // This is only correct if the `offset` doesn't have the sign bit set.
+        // Plus overflow and so forth, but these are probably 64 bits so who cares?
+        let signed_offset = offset.0 as isize + total_delta;
+        let o = AbsoluteCharOffset(if signed_offset > 0 {
+            signed_offset as usize
+        } else {
+            0
+        });
+
+        let cursor = &mut cloned_cursors[i];
+        move_cursor::to_absolute_offset(&cloned_rope, cursor, o);
+        match special_handling {
+            SpecialHandling::None => {}
+            SpecialHandling::HighlightLeftOf(len) => {
+                if let Some(h) = o
+                    .checked_sub(len)
+                    .and_then(|o| char_offset_to_pos(&cloned_rope, o))
+                {
+                    cursor.set_highlight_position(h)
+                }
+            }
+            SpecialHandling::HighlightRightOf(len) => {
+                if let Some(h) = o
+                    .checked_add(len)
+                    .and_then(|o| char_offset_to_pos(&cloned_rope, o))
+                {
+                    cursor.set_highlight_position(h)
+                }
+            }
+        }
+    }
+
     perf_viz::end_record!("range_edits");
 
     perf_viz::record_guard!("construct result");
@@ -51,20 +119,25 @@ where
 
 fn get_standard_insert_range_edits(
     rope: &mut Rope,
-    cursor: &mut Cursor,
+    cursor: &Cursor,
     offset: AbsoluteCharOffset,
     chars: String,
-    char_count: usize, //we take this a s a paam to support it being a const.
-) -> RangeEdits {
+    char_count: usize, //we take this as a param to support it being a const.
+) -> (RangeEdits, CursorPlacementSpec) {
     rope.insert(offset, &chars);
-    move_cursor::right_n_times(&rope, cursor, char_count);
-
     let range = AbsoluteCharOffsetRange::new(offset, offset + char_count);
 
-    RangeEdits {
-        insert_range: Some(RangeEdit { chars, range }),
-        ..d!()
-    }
+    (
+        RangeEdits {
+            insert_range: Some(RangeEdit { chars, range }),
+            ..d!()
+        },
+        CursorPlacementSpec {
+            offset: pos_to_char_offset(&rope, &cursor.get_position()).unwrap_or_default(),
+            delta: char_count as isize,
+            ..d!()
+        },
+    )
 }
 
 /// Returns an edit that, if applied, after deleting the highlighted region at each cursor if
@@ -87,21 +160,26 @@ where
             (Some(o1), Some(o2)) => {
                 let s = get_string(index);
 
-                let range_edit = delete_highlighted(rope, cursor, o1, o2);
+                let (range_edit, delete_offset, delete_delta) =
+                    delete_highlighted(rope, cursor, o1, o2);
 
-                rope.insert(range_edit.range.min(), &s);
+                let min = range_edit.range.min();
+                rope.insert(min, &s);
                 let char_count = s.chars().count();
-                move_cursor::right_n_times(&rope, cursor, char_count);
 
-                let range = {
-                    let min = range_edit.range.min();
-                    AbsoluteCharOffsetRange::new(min, min + char_count)
-                };
+                let range = AbsoluteCharOffsetRange::new(min, min + char_count);
 
-                RangeEdits {
-                    insert_range: Some(RangeEdit { chars: s, range }),
-                    delete_range: Some(range_edit),
-                }
+                (
+                    RangeEdits {
+                        insert_range: Some(RangeEdit { chars: s, range }),
+                        delete_range: Some(range_edit),
+                    },
+                    CursorPlacementSpec {
+                        offset: delete_offset,
+                        delta: char_count as isize + delete_delta,
+                        ..d!()
+                    },
+                )
             }
             _ => d!(),
         },
@@ -115,49 +193,42 @@ pub fn get_delete_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit
         let offsets = offset_pair(original_rope, cursor);
         match offsets {
             (Some(o), None) if o > 0 => {
-                // // Deleting the LF ('\n') of a CRLF ("\r\n") pair is a special case
-                // // where the cursor should not be moved backwards. Thsi is because
-                // // CR ('\r') and CRLF ("\r\n") both count as a single newline.
-                // // TODO would it better to just delete both at once? That seems like
-                // // it would require a moe comlicated special case elsewhere.
-                // let not_deleting_lf_of_cr_lf = {
-                //     o.checked_sub(CharOffset(2))
-                //         .and_then(|two_back| {
-                //             let mut chars = rope.slice(two_back..o)?.chars();
-                //
-                //             Some((chars.next()?, chars.next()?) != ('\r', '\n'))
-                //         })
-                //         .unwrap_or(true)
-                // };
-                //
-                // let delete_offset_range = AbsoluteCharOffsetRange::new(o - 1, o);
-                // let chars = copy_string(&rope, delete_offset_range);
-                // rope.remove(delete_offset_range.range());
-                //
-                // if not_deleting_lf_of_cr_lf {
-                //     dbg!(&rope, &cursor);
-                //     move_cursor::directly(&rope, cursor, Move::Left);
-                //     dbg!(&cursor);
-                // }
-
                 let delete_offset_range = AbsoluteCharOffsetRange::new(o - 1, o);
                 let chars = copy_string(&rope, delete_offset_range);
                 rope.remove(delete_offset_range.range());
 
-                move_cursor::to_absolute_offset(&rope, cursor, delete_offset_range.min());
-
-                RangeEdits {
-                    delete_range: Some(RangeEdit {
-                        chars,
-                        range: delete_offset_range,
-                    }),
-                    ..d!()
-                }
+                let min = delete_offset_range.min();
+                let max = delete_offset_range.max();
+                (
+                    RangeEdits {
+                        delete_range: Some(RangeEdit {
+                            chars,
+                            range: delete_offset_range,
+                        }),
+                        ..d!()
+                    },
+                    CursorPlacementSpec {
+                        offset: max,
+                        delta: min.0 as isize - max.0 as isize,
+                        ..d!()
+                    },
+                )
             }
-            (Some(o1), Some(o2)) if o1 > 0 || o2 > 0 => RangeEdits {
-                delete_range: Some(delete_highlighted(rope, cursor, o1, o2)),
-                ..d!()
-            },
+            (Some(o1), Some(o2)) if o1 > 0 || o2 > 0 => {
+                let (range_edit, delete_offset, delete_delta) =
+                    delete_highlighted(rope, cursor, o1, o2);
+                (
+                    RangeEdits {
+                        delete_range: Some(range_edit),
+                        ..d!()
+                    },
+                    CursorPlacementSpec {
+                        offset: delete_offset,
+                        delta: delete_delta,
+                        ..d!()
+                    },
+                )
+            }
             _ => d!(),
         }
     })
@@ -170,10 +241,21 @@ pub fn get_cut_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
         let offsets = offset_pair(original_rope, cursor);
 
         match offsets {
-            (Some(o1), Some(o2)) if o1 > 0 || o2 > 0 => RangeEdits {
-                delete_range: Some(delete_highlighted(rope, cursor, o1, o2)),
-                ..d!()
-            },
+            (Some(o1), Some(o2)) if o1 > 0 || o2 > 0 => {
+                let (range_edit, delete_offset, delete_delta) =
+                    delete_highlighted(rope, cursor, o1, o2);
+                (
+                    RangeEdits {
+                        delete_range: Some(range_edit),
+                        ..d!()
+                    },
+                    CursorPlacementSpec {
+                        offset: delete_offset,
+                        delta: delete_delta,
+                        ..d!()
+                    },
+                )
+            }
             _ => d!(),
         }
     })
@@ -185,8 +267,10 @@ const TAB_STR_CHAR_COUNT: usize = 4; // this isn't const (yet?) TAB_STR.chars().
 
 #[perf_viz::record]
 pub fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
-    get_edit(original_rope, original_cursors, |cursor, rope, _| {
-        match offset_pair(original_rope, cursor) {
+    get_edit(
+        original_rope,
+        original_cursors,
+        |cursor, rope, _| match offset_pair(original_rope, cursor) {
             (Some(o), highlight) if highlight.is_none() || Some(o) == highlight => {
                 get_standard_insert_range_edits(
                     rope,
@@ -253,43 +337,65 @@ pub fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit
                     chars.push_str(highlighted_line_after_whitespace);
                 }
 
-                let range_edit = delete_within_range(rope, range);
+                let (range_edit, delete_offset, delete_delta) = delete_within_range(rope, range);
 
                 let range = range_edit
                     .range
                     .add_to_max(TAB_STR_CHAR_COUNT * tab_insert_count);
 
+                let char_count = chars.chars().count();
+                dbg!(char_count);
                 rope.insert(range.min(), &chars);
 
-                // We want the cursor to have the same orientation it started with.
-                {
-                    let mut p = cursor.get_position();
-                    p.offset = p.offset.saturating_add(TAB_STR_CHAR_COUNT);
-                    cursor.set_position_custom(
-                        p,
-                        SetPositionAction::ClearHighlightOnlyIfItMatchesNewPosition,
-                    );
-                    cursor.sticky_offset = cursor.sticky_offset.saturating_add(TAB_STR_CHAR_COUNT);
+                let special_handling = get_special_handling(&original_rope, cursor, char_count);
 
-                    if let Some(mut h) = cursor.get_highlight_position() {
-                        h.offset = h.offset.saturating_add(TAB_STR_CHAR_COUNT);
-                        cursor.set_highlight_position(h)
-                    }
-                }
-
-                RangeEdits {
-                    insert_range: Some(RangeEdit { chars, range }),
-                    delete_range: Some(range_edit),
-                }
+                (
+                    RangeEdits {
+                        insert_range: Some(RangeEdit { chars, range }),
+                        delete_range: Some(range_edit),
+                    },
+                    CursorPlacementSpec {
+                        offset: delete_offset,
+                        delta: char_count as isize + delete_delta,
+                        special_handling,
+                    },
+                )
             }
             _ => d!(),
+        },
+    )
+}
+
+fn get_special_handling(
+    original_rope: &Rope,
+    cursor: &Cursor,
+    highlight_length: usize,
+) -> SpecialHandling {
+    dbg!(&original_rope);
+    let p = cursor.get_position();
+    dbg!(&p);
+    if let Some(h) = cursor.get_highlight_position() {
+        dbg!(&h);
+        if let (Some(h_abs), Some(p_abs)) = dbg!(
+            pos_to_char_offset(original_rope, &h),
+            pos_to_char_offset(original_rope, &p)
+        ) {
+            dbg!();
+            return if h_abs > p_abs {
+                SpecialHandling::HighlightRightOf(highlight_length)
+            } else {
+                SpecialHandling::HighlightLeftOf(highlight_length)
+            };
         }
-    })
+    }
+    d!()
 }
 
 pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
-    get_edit(original_rope, original_cursors, |cursor, rope, _| {
-        match offset_pair(original_rope, cursor) {
+    get_edit(
+        original_rope,
+        original_cursors,
+        |cursor, rope, _| match offset_pair(original_rope, cursor) {
             (Some(o1), offset2) => {
                 let o2 = offset2.unwrap_or(o1);
                 let line_indicies = some_or!(
@@ -344,39 +450,33 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
                     ));
                 }
 
-                let delete_edit = delete_within_range(rope, range);
+                let (delete_edit, delete_offset, delete_delta) = delete_within_range(rope, range);
 
                 let range = some_or!(
                     delete_edit.range.checked_sub_from_max(char_delete_count),
                     return d!()
                 );
 
+                let char_count = chars.chars().count();
                 rope.insert(range.min(), &chars);
 
-                // We want the cursor to have the same orientation it started with.
-                {
-                    let mut p = cursor.get_position();
-                    p.offset = p.offset.saturating_sub(TAB_STR_CHAR_COUNT);
-                    cursor.set_position_custom(
-                        p,
-                        SetPositionAction::ClearHighlightOnlyIfItMatchesNewPosition,
-                    );
-                    cursor.sticky_offset = cursor.sticky_offset.saturating_sub(TAB_STR_CHAR_COUNT);
+                let special_handling = get_special_handling(&original_rope, cursor, char_count);
 
-                    if let Some(mut h) = cursor.get_highlight_position() {
-                        h.offset = h.offset.saturating_sub(TAB_STR_CHAR_COUNT);
-                        cursor.set_highlight_position(h)
-                    }
-                }
-
-                RangeEdits {
-                    insert_range: Some(RangeEdit { chars, range }),
-                    delete_range: Some(delete_edit),
-                }
+                (
+                    RangeEdits {
+                        insert_range: Some(RangeEdit { chars, range }),
+                        delete_range: Some(delete_edit),
+                    },
+                    CursorPlacementSpec {
+                        offset: delete_offset,
+                        delta: char_count as isize + delete_delta,
+                        special_handling,
+                    },
+                )
             }
             _ => d!(),
-        }
-    })
+        },
+    )
 }
 
 /// `range_edits` and the two `Vec1`s in `cursors` must all be the same length.
@@ -581,29 +681,35 @@ fn sort_cursors(cursors: Vec1<Cursor>) -> Vec1<Cursor> {
     Vec1::try_from_vec(cursors).unwrap()
 }
 
-/// returns a `RangeEdit` representing the deletion.
+/// returns a `RangeEdit` representing the deletion. and the relevant cursor positioning info
 fn delete_highlighted(
     rope: &mut Rope,
-    cursor: &mut Cursor,
+    cursor: &Cursor,
     o1: AbsoluteCharOffset,
     o2: AbsoluteCharOffset,
-) -> RangeEdit {
+) -> (RangeEdit, AbsoluteCharOffset, isize) {
     let range = AbsoluteCharOffsetRange::new(o1, o2);
 
-    let output = delete_within_range(rope, range);
-
-    cursor.set_position(char_offset_to_pos(&rope, range.min()).unwrap_or_default());
-
-    output
+    delete_within_range(rope, range)
 }
 
 /// returns the same thing as `delete_highlighted`
-fn delete_within_range(rope: &mut Rope, range: AbsoluteCharOffsetRange) -> RangeEdit {
+fn delete_within_range(
+    rope: &mut Rope,
+    range: AbsoluteCharOffsetRange,
+) -> (RangeEdit, AbsoluteCharOffset, isize) {
+    dbg!(&rope, &range);
     let chars = copy_string(rope, range);
 
     rope.remove(range.range());
 
-    RangeEdit { chars, range }
+    let min = range.min();
+    let max = range.max();
+    (
+        RangeEdit { chars, range },
+        max,
+        min.0 as isize - max.0 as isize,
+    )
 }
 
 fn line_indicies_touched_by(

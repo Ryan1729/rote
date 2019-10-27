@@ -137,7 +137,7 @@ fn get_tab_in_edit_produces_the_expected_edit_with_multiple_cursors_in_this_buff
 
             for _ in 0..EXPECTED_CLEAVE_POINT - TAB_STR_CHAR_COUNT {
                 move_cursor::and_extend_selection(&expected_rope, &mut first_cursor, Move::Right);
-                // we expect te last cursor to hit the end.
+                // we expect the last cursor to hit the end.
                 move_cursor::and_extend_selection(&expected_rope, &mut last_cursor, Move::Right);
             }
 
@@ -435,6 +435,7 @@ fn tab_in_then_tab_out_is_identity_on_regarding_ropes(initial_buffer: TextBuffer
     let mut buffer = deep_clone(&initial_buffer);
 
     TestEdit::apply(&mut buffer, TestEdit::TabIn);
+    dbg!(&buffer);
     TestEdit::apply(&mut buffer, TestEdit::TabOut);
 
     assert_eq!(buffer.rope, initial_buffer.rope);
@@ -452,6 +453,41 @@ proptest! {
 #[test]
 fn tab_in_then_tab_out_is_identity_on_a_single_newline_regarding_ropes() {
     tab_in_then_tab_out_is_identity_on_regarding_ropes(t_b!("\n"));
+}
+
+#[test]
+fn tab_in_then_tab_out_is_identity_on_this_generated_example_regarding_ropes() {
+    let mut buffer = t_b!("\n   \n\n");
+    buffer.set_cursors_from_vec1(vec1![cur! {l 3 o 0}, cur! {l 2 o 0 h l 0 o 0}]);
+    tab_in_then_tab_out_is_identity_on_regarding_ropes(buffer);
+}
+
+#[test]
+fn tab_in_acts_as_expected_on_this_example_based_on_the_above_generated_test() {
+    let mut buffer = t_b!("\n   \n\n");
+    buffer.set_cursors_from_vec1(vec1![cur! {l 3 o 0}, cur! {l 2 o 0 h l 0 o 0}]);
+
+    TestEdit::apply(&mut buffer, TestEdit::TabIn);
+
+    assert_eq!(&buffer.rope.to_string(), "    \n       \n    \n    ");
+    assert_eq!(
+        buffer.cursors,
+        Cursors::new(
+            &buffer.rope,
+            vec1![cur! {l 3 o 4}, cur! {l 2 o 4 h l 0 o 4}]
+        )
+    );
+}
+
+#[test]
+fn tab_out_acts_as_expected_on_this_example_based_on_the_above_generated_test() {
+    let mut buffer = t_b!("    \n       \n    \n    ");
+    // These cursors are close enough, but not exactly what we would expect from the above.
+    buffer.set_cursors_from_vec1(vec1![cur! {l 3 o 4}, cur! {l 2 o 4 h l 0 o 4}]);
+
+    TestEdit::apply(&mut buffer, TestEdit::TabOut);
+
+    assert_eq!(&buffer.rope.to_string(), "\n   \n\n");
 }
 
 fn get_2_spaces_then_a_single_newline_and_particular_cursors() -> TextBuffer {
@@ -684,19 +720,11 @@ fn get_delete_edit_produces_the_expected_edit_on_this_newline_edit_example() {
     assert_eq!(edit, expected);
 }
 
+// several of the next tests were based on a generated test about the effect of n inserts and then n deletes
 #[test]
 fn get_insert_edit_produces_the_expected_edit_on_this_cr_lf_edit_example() {
     let mut buffer = t_b!("\rA");
-    buffer.set_cursors_from_vec1(vec1![Cursor::new(pos! {l 0 o 1})]);
-    let new_cursors = Cursors::new(&buffer.rope, vec1![Cursor::new(pos! {l 0 o 1})]);
-    //pre-condition
-    assert_eq!(
-        new_cursors.get_cloned_cursors(),
-        vec1![Cursor::new(pos! {l 0 o 1})]
-    );
-    //pre-condition
-    assert_eq!(buffer.cursors, new_cursors);
-
+    buffer.set_cursors_from_vec1(vec1![Cursor::new(pos! {l 1 o 0})]);
     let rope = &buffer.rope;
 
     let cursors = &buffer.cursors;
@@ -708,7 +736,9 @@ fn get_insert_edit_produces_the_expected_edit_on_this_cr_lf_edit_example() {
     let expected = {
         let new_cursors = {
             let expected_rope = r!("\r\nA".to_owned());
-            let cursor = Cursor::new(pos! {l 1 o 0});
+            let mut cursor = Cursor::new(pos! {l 1 o 0});
+            // This does not seem like a big deal either way.
+            cursor.state = CursorState::PressedAgainstWall;
 
             Cursors::new(&expected_rope, vec1![cursor])
         };
@@ -738,7 +768,7 @@ fn get_insert_edit_produces_the_expected_edit_on_this_cr_lf_edit_example() {
     assert_eq!(edit, expected);
 }
 
-// this was based on a generated test about the  effect of inserts and deletes
+// this was based on a generated test about the effect of n inserts and then n deletes
 #[test]
 fn get_delete_edit_produces_the_expected_edit_on_this_cr_lf_edit_example() {
     // Arrange
@@ -751,12 +781,6 @@ fn get_delete_edit_produces_the_expected_edit_on_this_cr_lf_edit_example() {
 
     let cursors = &buffer.cursors;
 
-    //pre-condition
-    assert_eq!(
-        buffer.cursors,
-        Cursors::new(&buffer.rope, vec1![Cursor::new(pos! {l 1 o 0})])
-    );
-
     // Act
     let edit = get_delete_edit(rope, cursors);
 
@@ -764,7 +788,9 @@ fn get_delete_edit_produces_the_expected_edit_on_this_cr_lf_edit_example() {
     let expected = {
         let new_cursors = {
             let expected_rope = r!("\rA".to_owned());
-            let cursor = Cursor::new(pos! {l 0 o 1});
+            let mut cursor = Cursor::new(pos! {l 1 o 0});
+            // This does not seem like a big deal either way.
+            cursor.state = CursorState::PressedAgainstWall;
 
             Cursors::new(&expected_rope, vec1![cursor])
         };
@@ -773,7 +799,7 @@ fn get_delete_edit_produces_the_expected_edit_on_this_cr_lf_edit_example() {
             let insert_range = None;
 
             let delete_range = Some(RangeEdit {
-                range: AbsoluteCharOffsetRange::new(d!(), AbsoluteCharOffset(1)),
+                range: AbsoluteCharOffsetRange::new(AbsoluteCharOffset(1), AbsoluteCharOffset(2)),
                 chars: "\n".to_owned(),
             });
             RangeEdits {
@@ -784,6 +810,67 @@ fn get_delete_edit_produces_the_expected_edit_on_this_cr_lf_edit_example() {
 
         Edit {
             range_edits: vec1![range_edits],
+            cursors: Change {
+                new: new_cursors,
+                old: cursors.clone(),
+            },
+        }
+    };
+
+    assert_eq!(edit, expected);
+}
+
+#[test]
+fn get_insert_edit_produces_the_expected_edit_on_this_multi_byte_char_example() {
+    let mut buffer = t_b!("Aa 0");
+    buffer.set_cursors_from_vec1(vec1![cur! {l 0 o 2}, cur! {l 0 o 1}]);
+
+    let rope = &buffer.rope;
+
+    let cursors = &buffer.cursors;
+
+    // Act
+    let edit = get_insert_edit(rope, cursors, |_| "¡".to_owned());
+
+    // Assert
+    let expected = {
+        let new_cursors = {
+            //                     "A¡|a¡| 0"
+            let expected_rope = r!("A¡a¡ 0".to_owned());
+
+            Cursors::new(
+                &expected_rope,
+                vec1![Cursor::new(pos! {l 0 o 4}), Cursor::new(pos! {l 0 o 2})],
+            )
+        };
+
+        let range_edits = {
+            vec1![
+                RangeEdits {
+                    insert_range: Some(RangeEdit {
+                        range: AbsoluteCharOffsetRange::new(
+                            AbsoluteCharOffset(2),
+                            AbsoluteCharOffset(3)
+                        ),
+                        chars: "¡".to_owned(),
+                    }),
+                    delete_range: None,
+                },
+                RangeEdits {
+                    insert_range: Some(RangeEdit {
+                        range: AbsoluteCharOffsetRange::new(
+                            AbsoluteCharOffset(1),
+                            AbsoluteCharOffset(2)
+                        ),
+                        chars: "¡".to_owned(),
+                    }),
+                    delete_range: None,
+                }
+            ]
+        };
+
+        Edit {
+            range_edits,
             cursors: Change {
                 new: new_cursors,
                 old: cursors.clone(),

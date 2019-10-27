@@ -729,8 +729,6 @@ fn inserting_then_deleting_with_multiple_cursors_works_on_this_smaller_splayed_e
     let expected = buffer.clone();
     arb::TestEdit::apply(&mut buffer, TestEdit::Insert('\n'));
 
-    dbg!(&buffer);
-
     arb::TestEdit::apply(&mut buffer, arb::TestEdit::Delete);
     assert_text_buffer_eq_ignoring_history!(&buffer, &expected);
 }
@@ -798,10 +796,14 @@ proptest! {
 #[test]
 fn inserting_then_deleting_with_all_but_end_cursors_works_on_this_generated_example() {
     let mut buffer = t_b!("Aa 0");
-
     buffer.set_cursors_from_vec1(vec1![cur! {l 0 o 2}, cur! {l 0 o 1}]);
 
-    inserting_then_deleting_with_multiple_cursors_works_on(buffer, vec![TestEdit::Insert('¡')]);
+    let expected = buffer.clone();
+    arb::TestEdit::apply(&mut buffer, TestEdit::Insert('¡'));
+
+    dbg!(&buffer);
+    arb::TestEdit::apply(&mut buffer, arb::TestEdit::Delete);
+    assert_text_buffer_eq_ignoring_history!(&buffer, &expected);
 }
 
 #[test]

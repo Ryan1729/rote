@@ -115,7 +115,7 @@ fmt_debug!(for Cursor : Cursor {
         position.line,
         position.offset,
         Some(highlight_position).filter(|&p| p != position).map(|h| format!(" h l {} o {}", h.line,  h.offset)).unwrap_or_default(),
-        if sticky_offset == &CharOffset::default() {
+        if sticky_offset == &Cursor::new(*position).sticky_offset {
             "".to_owned()
         } else {
             format!(" sticky_offset: {:?},", sticky_offset)
