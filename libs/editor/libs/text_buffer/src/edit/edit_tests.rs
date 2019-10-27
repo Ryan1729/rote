@@ -107,12 +107,10 @@ fn get_tab_in_edit_produces_the_expected_edit_with_multiple_cursors_in_this_buff
         Cursors::new(
             &buffer.rope,
             vec1![
-                {
-                    let mut c = Cursor::new_with_highlight(pos! {l 9 o 0}, start_of_empty_line);
-                    c.state = CursorState::PressedAgainstWall;
-                    c
+                cur! {
+                    l 9 o 0 h start_of_empty_line, ->|
                 },
-                Cursor::new_with_highlight(pos! {l 4 o 5}, pos! {l 0 o 0})
+                cur!(l 4 o 5 h l 0 o 0)
             ]
         )
     );
@@ -137,9 +135,11 @@ fn get_tab_in_edit_produces_the_expected_edit_with_multiple_cursors_in_this_buff
 
             for _ in 0..EXPECTED_CLEAVE_POINT - TAB_STR_CHAR_COUNT {
                 move_cursor::and_extend_selection(&expected_rope, &mut first_cursor, Move::Right);
-                // we expect the last cursor to hit the end.
+                // we expect the last cursor to hit the end here.
                 move_cursor::and_extend_selection(&expected_rope, &mut last_cursor, Move::Right);
             }
+            // but we don't actually want to require that
+            last_cursor.state = d!();
 
             Cursors::new(
                 &expected_rope,
@@ -660,7 +660,10 @@ fn tab_out_places_the_cursors_correctly_on_this_code_like_example() {
     let mut buffer = get_code_like_example();
 
     TestEdit::apply(&mut buffer, TestEdit::TabOut);
-    assert_eq!(buffer.cursors, curs!(buffer.rope, cur!(l 1 o 0 h l 3 o 1)));
+    assert_eq!(
+        buffer.cursors,
+        curs!(buffer.rope, cur!(l 1 o 0 h l 3 o 1 ->|))
+    );
 }
 
 #[test]

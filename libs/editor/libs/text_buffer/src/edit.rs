@@ -15,15 +15,36 @@ pub fn apply<'rope, 'cursors>(mut applier: EditApplier, edit: &Edit) {
 
 #[derive(Debug)]
 enum SpecialHandling {
-    //This should be
-    // None,
-    // HighlightOnLeftShiftedBy(usize),
-    // HighlightOnRightPositionLeftShiftedBy((usize),
     None,
-    HighlightLeftOf(usize),
-    HighlightRightOf(usize),
+    HighlightOnLeftShiftedLeftBy(usize),
+    HighlightOnRightPositionShiftedLeftBy(usize),
 }
 d!(for SpecialHandling: SpecialHandling::None);
+
+fn get_special_handling(
+    original_rope: &Rope,
+    cursor: &Cursor,
+    highlight_length: usize,
+) -> SpecialHandling {
+    dbg!(&original_rope);
+    let p = cursor.get_position();
+    dbg!(&p);
+    if let Some(h) = cursor.get_highlight_position() {
+        dbg!(&h);
+        if let (Some(h_abs), Some(p_abs)) = dbg!(
+            pos_to_char_offset(original_rope, &h),
+            pos_to_char_offset(original_rope, &p)
+        ) {
+            dbg!();
+            return if h_abs > p_abs {
+                SpecialHandling::HighlightOnRightPositionShiftedLeftBy(highlight_length)
+            } else {
+                SpecialHandling::HighlightOnLeftShiftedLeftBy(highlight_length)
+            };
+        }
+    }
+    d!()
+}
 
 #[derive(Debug, Default)]
 struct CursorPlacementSpec {
@@ -83,23 +104,26 @@ where
         });
 
         let cursor = &mut cloned_cursors[i];
-        move_cursor::to_absolute_offset(&cloned_rope, cursor, o);
+
         match special_handling {
-            SpecialHandling::None => {}
-            SpecialHandling::HighlightLeftOf(len) => {
+            SpecialHandling::None => {
+                move_cursor::to_absolute_offset(&cloned_rope, cursor, o);
+            }
+            SpecialHandling::HighlightOnLeftShiftedLeftBy(len) => {
+                move_cursor::to_absolute_offset(&cloned_rope, cursor, o);
                 if let Some(h) = o
                     .checked_sub(len)
                     .and_then(|o| char_offset_to_pos(&cloned_rope, o))
                 {
-                    cursor.set_highlight_position(h)
+                    cursor.set_highlight_position(h);
                 }
             }
-            SpecialHandling::HighlightRightOf(len) => {
-                if let Some(h) = o
-                    .checked_add(len)
-                    .and_then(|o| char_offset_to_pos(&cloned_rope, o))
-                {
-                    cursor.set_highlight_position(h)
+            SpecialHandling::HighlightOnRightPositionShiftedLeftBy(len) => {
+                if let Some(p) = o.checked_add(len) {
+                    move_cursor::to_absolute_offset(&cloned_rope, cursor, p);
+                }
+                if let Some(h) = char_offset_to_pos(&cloned_rope, o) {
+                    cursor.set_highlight_position(h);
                 }
             }
         }
@@ -347,7 +371,11 @@ pub fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit
                 dbg!(char_count);
                 rope.insert(range.min(), &chars);
 
-                let special_handling = get_special_handling(&original_rope, cursor, char_count);
+                let special_handling = get_special_handling(
+                    &original_rope,
+                    cursor,
+                    char_count.saturating_sub(TAB_STR_CHAR_COUNT),
+                );
 
                 (
                     RangeEdits {
@@ -364,31 +392,6 @@ pub fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit
             _ => d!(),
         },
     )
-}
-
-fn get_special_handling(
-    original_rope: &Rope,
-    cursor: &Cursor,
-    highlight_length: usize,
-) -> SpecialHandling {
-    dbg!(&original_rope);
-    let p = cursor.get_position();
-    dbg!(&p);
-    if let Some(h) = cursor.get_highlight_position() {
-        dbg!(&h);
-        if let (Some(h_abs), Some(p_abs)) = dbg!(
-            pos_to_char_offset(original_rope, &h),
-            pos_to_char_offset(original_rope, &p)
-        ) {
-            dbg!();
-            return if h_abs > p_abs {
-                SpecialHandling::HighlightRightOf(highlight_length)
-            } else {
-                SpecialHandling::HighlightLeftOf(highlight_length)
-            };
-        }
-    }
-    d!()
 }
 
 pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
