@@ -119,12 +119,11 @@ where
                 }
             }
             SpecialHandling::HighlightOnRightPositionShiftedLeftBy(len) => {
-                if let Some(p) = o.checked_add(len) {
-                    move_cursor::to_absolute_offset(&cloned_rope, cursor, p);
-                }
-                if let Some(h) = char_offset_to_pos(&cloned_rope, o) {
-                    cursor.set_highlight_position(h);
-                }
+                let p = o.checked_sub(len).unwrap_or_default();
+                move_cursor::to_absolute_offset(&cloned_rope, cursor, p);
+                let h =
+                    char_offset_to_pos(&cloned_rope, o).unwrap_or_else(|| cursor.get_position());
+                cursor.set_highlight_position(h);
             }
         }
     }
@@ -146,10 +145,18 @@ fn get_standard_insert_range_edits(
     cursor: &Cursor,
     offset: AbsoluteCharOffset,
     chars: String,
-    char_count: usize, //we take this as a param to support it being a const.
+    mut char_count: usize, //we take this as a param to support it being a const.
 ) -> (RangeEdits, CursorPlacementSpec) {
     rope.insert(offset, &chars);
     let range = AbsoluteCharOffsetRange::new(offset, offset + char_count);
+
+    if chars.starts_with("\n") {
+        if let Some(char_before_insert) = offset.checked_sub_one().and_then(|o| rope.char(o)) {
+            if char_before_insert == '\r' {
+                char_count -= 1;
+            }
+        }
+    }
 
     (
         RangeEdits {
@@ -188,22 +195,15 @@ where
                     delete_highlighted(rope, cursor, o1, o2);
 
                 let min = range_edit.range.min();
-                rope.insert(min, &s);
                 let char_count = s.chars().count();
 
-                let range = AbsoluteCharOffsetRange::new(min, min + char_count);
+                let mut edits = get_standard_insert_range_edits(rope, cursor, min, s, char_count);
 
-                (
-                    RangeEdits {
-                        insert_range: Some(RangeEdit { chars: s, range }),
-                        delete_range: Some(range_edit),
-                    },
-                    CursorPlacementSpec {
-                        offset: delete_offset,
-                        delta: char_count as isize + delete_delta,
-                        ..d!()
-                    },
-                )
+                edits.0.delete_range = Some(range_edit);
+                edits.1.offset = delete_offset;
+                edits.1.delta += delete_delta;
+
+                edits
             }
             _ => d!(),
         },
@@ -369,7 +369,6 @@ pub fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit
 
                 let char_count = chars.chars().count();
                 dbg!(char_count);
-                rope.insert(range.min(), &chars);
 
                 let special_handling = get_special_handling(
                     &original_rope,
@@ -377,17 +376,22 @@ pub fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit
                     char_count.saturating_sub(TAB_STR_CHAR_COUNT),
                 );
 
-                (
-                    RangeEdits {
-                        insert_range: Some(RangeEdit { chars, range }),
-                        delete_range: Some(range_edit),
-                    },
-                    CursorPlacementSpec {
-                        offset: delete_offset,
-                        delta: char_count as isize + delete_delta,
-                        special_handling,
-                    },
-                )
+                let min = range.min();
+
+                let mut edits = get_standard_insert_range_edits(
+                    rope,
+                    cursor,
+                    min,
+                    chars,
+                    range.max().0 - min.0, //TODO: why isn't this just `char_count`?
+                );
+
+                edits.0.delete_range = Some(range_edit);
+                edits.1.offset = delete_offset;
+                edits.1.delta += delete_delta;
+                edits.1.special_handling = special_handling;
+
+                edits
             }
             _ => d!(),
         },
