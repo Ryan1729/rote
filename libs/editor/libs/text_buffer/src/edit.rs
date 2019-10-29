@@ -1,5 +1,5 @@
 use super::*;
-use macros::{CheckedAdd, CheckedSub, SaturatingAdd, SaturatingSub};
+use macros::CheckedSub;
 
 pub fn apply<'rope, 'cursors>(mut applier: EditApplier, edit: &Edit) {
     // we assume that the edits are in the proper order so we won't mess up our indexes with our
@@ -46,11 +46,19 @@ fn get_special_handling(
     d!()
 }
 
+#[derive(Debug)]
+enum PostDeltaShift {
+    None,
+    Left,
+}
+d!(for PostDeltaShift: PostDeltaShift::None);
+
 #[derive(Debug, Default)]
 struct CursorPlacementSpec {
     offset: AbsoluteCharOffset,
     delta: isize,
     special_handling: SpecialHandling,
+    post_delta_shift: PostDeltaShift,
 }
 
 /// Calls the `FnMut` once with a copy of each cursor and a reference to the same clone of the
@@ -89,6 +97,7 @@ where
             offset,
             delta,
             special_handling,
+            post_delta_shift,
         },
     ) in dbg!(specs).into_iter().enumerate().rev()
     {
@@ -96,7 +105,13 @@ where
 
         // This is only correct if the `offset` doesn't have the sign bit set.
         // Plus overflow and so forth, but these are probably 64 bits so who cares?
-        let signed_offset = offset.0 as isize + total_delta;
+        let mut signed_offset = offset.0 as isize + total_delta;
+        match post_delta_shift {
+            PostDeltaShift::None => {}
+            PostDeltaShift::Left => {
+                signed_offset -= 1;
+            }
+        }
         let o = AbsoluteCharOffset(if signed_offset > 0 {
             signed_offset as usize
         } else {
@@ -105,12 +120,15 @@ where
 
         let cursor = &mut cloned_cursors[i];
 
+        let action = SetPositionAction::ClearHighlight;
         match special_handling {
             SpecialHandling::None => {
-                move_cursor::to_absolute_offset(&cloned_rope, cursor, o);
+                dbg!(&cursor);
+                move_cursor::to_absolute_offset(&cloned_rope, cursor, o, action);
+                dbg!(&cursor);
             }
             SpecialHandling::HighlightOnLeftShiftedLeftBy(len) => {
-                move_cursor::to_absolute_offset(&cloned_rope, cursor, o);
+                move_cursor::to_absolute_offset(&cloned_rope, cursor, o, action);
                 if let Some(h) = o
                     .checked_sub(len)
                     .and_then(|o| char_offset_to_pos(&cloned_rope, o))
@@ -120,7 +138,7 @@ where
             }
             SpecialHandling::HighlightOnRightPositionShiftedLeftBy(len) => {
                 let p = o.checked_sub(len).unwrap_or_default();
-                move_cursor::to_absolute_offset(&cloned_rope, cursor, p);
+                move_cursor::to_absolute_offset(&cloned_rope, cursor, p, action);
                 let h =
                     char_offset_to_pos(&cloned_rope, o).unwrap_or_else(|| cursor.get_position());
                 cursor.set_highlight_position(h);
@@ -145,15 +163,16 @@ fn get_standard_insert_range_edits(
     cursor: &Cursor,
     offset: AbsoluteCharOffset,
     chars: String,
-    mut char_count: usize, //we take this as a param to support it being a const.
+    char_count: usize, //we take this as a param to support it being a const.
 ) -> (RangeEdits, CursorPlacementSpec) {
     rope.insert(offset, &chars);
     let range = AbsoluteCharOffsetRange::new(offset, offset + char_count);
 
+    let mut post_delta_shift = d!();
     if chars.starts_with("\n") {
         if let Some(char_before_insert) = offset.checked_sub_one().and_then(|o| rope.char(o)) {
             if char_before_insert == '\r' {
-                char_count -= 1;
+                post_delta_shift = PostDeltaShift::Left;
             }
         }
     }
@@ -166,6 +185,7 @@ fn get_standard_insert_range_edits(
         CursorPlacementSpec {
             offset: pos_to_char_offset(&rope, &cursor.get_position()).unwrap_or_default(),
             delta: char_count as isize,
+            post_delta_shift,
             ..d!()
         },
     )
@@ -478,6 +498,7 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
                         offset: delete_offset,
                         delta: char_count as isize + delete_delta,
                         special_handling,
+                        ..d!()
                     },
                 )
             }

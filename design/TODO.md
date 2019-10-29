@@ -1,13 +1,5 @@
 ## TODO
 
-* write test for the following multi-cursor scenario (| represents a cursor)
-  * "a|b|c|d|e|f|g"
-  * insert "1" to get "a1|b1|c1|d1|e1|f1|g"
-  * insert "2" to get "a12|b12|c12|d12|e12|f12|g"
-  * delete to get "a1|b1|c1|d1|e1|f1|g" again
-  * delete to get "a|b|c|d|e|f|g" again
-    * property based version of this too.
-
 * make ctrl-f auto focus on find text box and select the whole text if any.
 
 * Ctrl-f to open a within current file search

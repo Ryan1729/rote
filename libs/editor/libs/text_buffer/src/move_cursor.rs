@@ -165,6 +165,7 @@ fn move_to<OptionPos: Into<Option<Position>>>(
     position: OptionPos,
     action: SetPositionAction,
 ) -> Moved {
+    dbg!("cursor.get_position() == position");
     if let Some(position) = position.into() {
         if cursor.get_position() == position {
             // We might need to clear the highlight cursor, depending on the action, even though
@@ -493,10 +494,16 @@ fn get_offsets<'line>(
 }
 
 #[perf_viz::record]
-pub fn to_absolute_offset(rope: &Rope, cursor: &mut Cursor, offset: AbsoluteCharOffset) {
-    let moved = move_to(rope, cursor, char_offset_to_pos(rope, offset), d!());
-
-    cursor.state = state_from_moved(moved);
+pub fn to_absolute_offset(
+    rope: &Rope,
+    cursor: &mut Cursor,
+    offset: AbsoluteCharOffset,
+    action: SetPositionAction,
+) {
+    move_to(rope, cursor, char_offset_to_pos(rope, offset), action);
+    // Moving to an absolute offset should never cause a cursor to be pressed against a wall,
+    // and if it was previously pushed, it should not be anymore.
+    cursor.state = d!();
 }
 
 // utils

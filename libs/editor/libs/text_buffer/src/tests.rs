@@ -688,7 +688,7 @@ macro_rules! buffer_str_assert_eq {
     };
 }
 
-fn inserting_then_deleting_with_multiple_cursors_works_on(
+fn inserting_then_deleting_with_multiple_non_highlight_cursors_works_on(
     mut buffer: TextBuffer,
     inserts: Vec<arb::TestEdit>,
 ) {
@@ -709,21 +709,35 @@ fn inserting_then_deleting_with_multiple_cursors_works_on(
 
 proptest! {
     #[test]
-    fn inserting_then_deleting_with_multiple_cursors_works(
-        buffer in arb::text_buffer_with_many_cursors(),
+    fn inserting_then_deleting_with_multiple_non_highlight_cursors_works(
+        buffer in arb::text_buffer_with_many_non_highlight_cursors(),
         inserts in arb::test_edits(SOME_AMOUNT, arb::TestEditSpec::Insert)
     ) {
-        inserting_then_deleting_with_multiple_cursors_works_on(buffer, inserts);
+        inserting_then_deleting_with_multiple_non_highlight_cursors_works_on(buffer, inserts);
     }
 }
 
 #[test]
-fn inserting_then_deleting_with_multiple_cursors_works_on_this_smaller_generated_example() {
-    inserting_then_deleting_with_multiple_cursors_works_on(t_b!("0"), vec![TestEdit::Insert('\n')]);
+fn inserting_then_deleting_with_multiple_non_highlight_cursors_works_on_this_trivial_generated_example(
+) {
+    inserting_then_deleting_with_multiple_non_highlight_cursors_works_on(
+        t_b!(""),
+        vec![TestEdit::Insert('0')],
+    );
 }
 
 #[test]
-fn inserting_then_deleting_with_multiple_cursors_works_on_this_smaller_splayed_example() {
+fn inserting_then_deleting_with_multiple_non_highlight_cursors_works_on_this_smaller_generated_example(
+) {
+    inserting_then_deleting_with_multiple_non_highlight_cursors_works_on(
+        t_b!("0"),
+        vec![TestEdit::Insert('\n')],
+    );
+}
+
+#[test]
+fn inserting_then_deleting_with_multiple_non_highlight_cursors_works_on_this_smaller_splayed_example(
+) {
     let mut buffer = t_b!("0");
 
     let expected = buffer.clone();
@@ -734,23 +748,24 @@ fn inserting_then_deleting_with_multiple_cursors_works_on_this_smaller_splayed_e
 }
 
 #[test]
-fn inserting_then_deleting_with_multiple_cursors_works_on_this_generated_example() {
-    inserting_then_deleting_with_multiple_cursors_works_on(
+fn inserting_then_deleting_with_multiple_non_highlight_cursors_works_on_this_generated_example() {
+    inserting_then_deleting_with_multiple_non_highlight_cursors_works_on(
         t_b!("0"),
         vec![TestEdit::Insert('A'), TestEdit::Insert('\n')],
     );
 }
 
 #[test]
-fn inserting_then_deleting_with_multiple_cursors_works_on_this_cr_lf_example() {
-    inserting_then_deleting_with_multiple_cursors_works_on(
+fn inserting_then_deleting_with_multiple_non_highlight_cursors_works_on_this_cr_lf_example() {
+    inserting_then_deleting_with_multiple_non_highlight_cursors_works_on(
         t_b!("A"),
         vec![TestEdit::Insert('\r'), TestEdit::Insert('\n')],
     );
 }
 
 #[test]
-fn inserting_then_deleting_with_multiple_cursors_works_on_this_splayed_cr_lf_example() {
+fn inserting_then_deleting_with_multiple_non_highlight_cursors_works_on_this_splayed_cr_lf_example()
+{
     let mut buffer = t_b!("A");
 
     let mut expecteds = Vec::with_capacity(2);
@@ -767,7 +782,7 @@ fn inserting_then_deleting_with_multiple_cursors_works_on_this_splayed_cr_lf_exa
 }
 
 #[test]
-fn inserting_then_deleting_with_multiple_cursors_works_on_this_splayed_example() {
+fn inserting_then_deleting_with_multiple_non_highlight_cursors_works_on_this_splayed_example() {
     let mut buffer = t_b!("0");
 
     let mut expecteds = Vec::with_capacity(2);
@@ -789,7 +804,7 @@ proptest! {
         buffer in arb::text_buffer_with_all_but_end_cursors(),
         inserts in arb::test_edits(SOME_AMOUNT, arb::TestEditSpec::Insert)
     ) {
-        inserting_then_deleting_with_multiple_cursors_works_on(buffer, inserts);
+        inserting_then_deleting_with_multiple_non_highlight_cursors_works_on(buffer, inserts);
     }
 }
 
@@ -807,7 +822,37 @@ fn inserting_then_deleting_with_all_but_end_cursors_works_on_this_generated_exam
 }
 
 #[test]
-fn inserting_then_deleting_with_multiple_cursors_works_on_this_motivating_example() {
+fn inserting_then_deleting_with_all_but_end_cursors_works_on_this_larger_generated_example() {
+    let mut buffer = t_b!("\u{dcf}aAAୟ");
+    buffer.set_cursors_from_vec1(vec1![cur! {l 0 o 3}, cur! {l 0 o 2}, cur! {l 0 o 1}]);
+    inserting_then_deleting_with_multiple_non_highlight_cursors_works_on(
+        buffer,
+        vec![TestEdit::Insert('\r'), TestEdit::Insert('\n')],
+    );
+}
+
+#[test]
+fn inserting_then_deleting_with_all_but_end_cursors_works_on_this_reduced_larger_generated_example()
+{
+    let mut buffer = t_b!("1234"); // was "\u{dcf}aAAୟ"
+    buffer.set_cursors_from_vec1(vec1![cur! {l 0 o 3}, cur! {l 0 o 2}, cur! {l 0 o 1}]);
+
+    let mut expecteds = Vec::with_capacity(2);
+
+    expecteds.push(buffer.clone());
+    arb::TestEdit::apply(&mut buffer, TestEdit::Insert('\r'));
+    dbg!(&buffer);
+    expecteds.push(buffer.clone());
+    arb::TestEdit::apply(&mut buffer, TestEdit::Insert('\n'));
+
+    arb::TestEdit::apply(&mut buffer, arb::TestEdit::Delete);
+    assert_text_buffer_eq_ignoring_history!(&buffer, &expecteds[1]);
+    arb::TestEdit::apply(&mut buffer, arb::TestEdit::Delete);
+    assert_text_buffer_eq_ignoring_history!(&buffer, &expecteds[0]);
+}
+
+#[test]
+fn inserting_then_deleting_with_multiple_non_highlight_cursors_works_on_this_motivating_example() {
     use arb::TestEdit::*;
     // | represents a cursor
     //                              "a|b|c|d|e|f|g"
