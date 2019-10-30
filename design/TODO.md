@@ -1,9 +1,11 @@
 ## TODO
 
-* make ctrl-f auto focus on find text box and select the whole text if any.
-
 * Ctrl-f to open a within current file search
   * seems like the string search algorithm we would want is "Two-way string matching": http://www-igm.univ-mlv.fr/~lecroq/string/node26.html
+    * add find results to view: an array of character ranges and a current index. The find button scrolls to the current result if it is off-screen and advances to the next and scrolls to it if it is on-screen.
+      * highlight the current one at least, maybe the other ones as well.
+      * the highlights could be sent down through the existing channels. And the scrolling is already handled in the editor thread. Can this be done without any changes needed to client code instead?
+    * actually implement function that returns find results.
 
 * Ctrl-d to select word and find next instance of word and select it and place a cursor there.
   * maybe make ctrl-alt-n unconditionally select the next word, just to break this into steps?
@@ -21,6 +23,11 @@ Once everything above this line is done we can start bootstrapping, (using this 
 
 * make auto-tab-scroll happen when a new tab is created
   * fix auto-scroll drifting as the amount of tabs increases.
+
+* get line wrapping working better
+  * re-enable using `WrapInRect`
+  * the cursor positions are off
+  * is there anything else to this?
 
 * embark on the journey to get multiple `VisibleBuffers` working
   * fix text rendering bug: background appears to be the clear colour always

@@ -389,15 +389,163 @@ d!(for VisualSpec: VisualSpec{
 pub enum TextLayout {
     Wrap,
     SingleLine,
+    //TODO get wrapping working properly with cursors etc. or get rid of the unused variants here.
     WrapInRect(ScreenSpaceRect),
+    Unbounded,
 }
-mod wrap_in_rect {
-    use super::ScreenSpaceRect;
+
+mod text_layouts {
+    use super::*;
     use glyph_brush::{
-        rusttype::{PositionedGlyph, Rect},
-        *,
+        get_lines_iter,
+        rusttype::{point, vector, Point, PositionedGlyph, Rect},
     };
     use std::borrow::Cow;
+    #[derive(Hash)]
+    pub struct Wrap {}
+
+    //
+    // Most of this is copied from the  <L: LineBreaker> GlyphPositioner for Layout<L> impl in
+    // `glyph-brush-layout`. The one part I wanted to change is noted below, but while I was at it
+    // I simplified it by removing support for layout options I have yet to have a need for.
+    //
+    fn calculate_glyphs<'font, F: FontMap<'font>>(
+        font_map: &F,
+        mut caret: (f32, f32),
+        bound_w: f32,
+        sections: &[SectionText<'_>],
+    ) -> Vec<(PositionedGlyph<'font>, Color, FontId)> {
+        let mut out = vec![];
+
+        let lines = get_lines_iter(font_map, sections, bound_w);
+
+        for line in lines {
+            // This is the part that needed to be changed.
+            /*
+            // top align can bound check & exit early
+            if v_align_top && caret.1 >= screen_position.1 + bound_h {
+                break;
+            }
+            */
+
+            let line_height = line.line_height();
+            out.extend(line.aligned_on_screen(caret, HorizontalAlign::Left, VerticalAlign::Top));
+            caret.1 += line_height;
+        }
+
+        out
+    }
+
+    /// This is a macro since traits with generics can't be made into objects.
+    macro_rules! recalculate_glyphs_body {
+        (
+            $positioner: expr, $previous: expr, $change: expr, $fonts: expr, $geometry: expr, $sections: expr
+        ) => {{
+            let positioner = $positioner;
+            let previous = $previous;
+            let change = $change;
+            let fonts = $fonts;
+            let geometry = $geometry;
+            let sections = $sections;
+            match change {
+                GlyphChange::Geometry(old) if old.bounds == geometry.bounds => {
+                    // position change
+                    let adjustment = vector(
+                        geometry.screen_position.0 - old.screen_position.0,
+                        geometry.screen_position.1 - old.screen_position.1,
+                    );
+
+                    let mut glyphs = previous.into_owned();
+                    for (glyph, ..) in &mut glyphs {
+                        let new_pos = glyph.position() + adjustment;
+                        glyph.set_position(new_pos);
+                    }
+
+                    glyphs
+                }
+                GlyphChange::Color if !sections.is_empty() && !previous.is_empty() => {
+                    let new_color = sections[0].color;
+                    if sections.iter().all(|s| s.color == new_color) {
+                        // if only the color changed, but the new section only use a single color
+                        // we can simply set all the olds to the new color
+                        let mut glyphs = previous.into_owned();
+                        for (_, color, ..) in &mut glyphs {
+                            *color = new_color;
+                        }
+                        glyphs
+                    } else {
+                        positioner.calculate_glyphs(fonts, geometry, sections)
+                    }
+                }
+                GlyphChange::Alpha if !sections.is_empty() && !previous.is_empty() => {
+                    let new_alpha = sections[0].color[3];
+                    if sections.iter().all(|s| s.color[3] == new_alpha) {
+                        // if only the alpha changed, but the new section only uses a single alpha
+                        // we can simply set all the olds to the new alpha
+                        let mut glyphs = previous.into_owned();
+                        for (_, color, ..) in &mut glyphs {
+                            color[3] = new_alpha;
+                        }
+                        glyphs
+                    } else {
+                        positioner.calculate_glyphs(fonts, geometry, sections)
+                    }
+                }
+                _ => positioner.calculate_glyphs(fonts, geometry, sections),
+            }
+        }};
+    }
+    //
+    //
+    //
+    impl GlyphPositioner for Wrap {
+        fn calculate_glyphs<'font, F: FontMap<'font>>(
+            &self,
+            font_map: &F,
+            geometry: &SectionGeometry,
+            sections: &[SectionText<'_>],
+        ) -> Vec<(PositionedGlyph<'font>, Color, FontId)> {
+            let SectionGeometry {
+                screen_position,
+                bounds: (bound_w, _),
+                ..
+            } = *geometry;
+
+            calculate_glyphs(font_map, screen_position, bound_w, sections)
+        }
+
+        fn bounds_rect(&self, geometry: &SectionGeometry) -> Rect<f32> {
+            let SectionGeometry {
+                screen_position: (screen_x, screen_y),
+                bounds: (bound_w, bound_h),
+            } = *geometry;
+
+            let (x_min, x_max) = HorizontalAlign::Left.x_bounds(screen_x, bound_w);
+            let (y_min, _) = VerticalAlign::Top.y_bounds(screen_y, bound_h);
+            let y_max = std::f32::INFINITY; // never cut off the bottom of the text.
+
+            Rect {
+                min: point(x_min, y_min),
+                max: point(x_max, y_max),
+            }
+        }
+
+        #[allow(clippy::float_cmp)]
+        fn recalculate_glyphs<'font, F>(
+            &self,
+            previous: Cow<'_, Vec<(PositionedGlyph<'font>, Color, FontId)>>,
+            change: GlyphChange,
+            fonts: &F,
+            geometry: &SectionGeometry,
+            sections: &[SectionText<'_>],
+        ) -> Vec<(PositionedGlyph<'font>, Color, FontId)>
+        where
+            F: FontMap<'font>,
+        {
+            recalculate_glyphs_body!(self, previous, change, fonts, geometry, sections)
+        }
+    }
+
     pub struct WrapInRect {
         pub rect: ScreenSpaceRect,
     }
@@ -420,11 +568,11 @@ mod wrap_in_rect {
         where
             F: FontMap<'font>,
         {
-            Layout::default_wrap().calculate_glyphs(fonts, geometry, sections)
+            Wrap {}.calculate_glyphs(fonts, geometry, sections)
         }
         fn bounds_rect(&self, geometry: &SectionGeometry) -> Rect<f32> {
             let rect = self.rect;
-            let mut wide_bounds = Layout::default_wrap().bounds_rect(geometry);
+            let mut wide_bounds = Wrap {}.bounds_rect(geometry);
 
             wide_bounds.min.x = if wide_bounds.min.x < rect.min.0 {
                 rect.min.0
@@ -447,7 +595,7 @@ mod wrap_in_rect {
             } else {
                 wide_bounds.max.y
             };
-            dbg!(wide_bounds)
+            wide_bounds
         }
 
         fn recalculate_glyphs<'font, F>(
@@ -461,11 +609,56 @@ mod wrap_in_rect {
         where
             F: FontMap<'font>,
         {
-            Layout::default_wrap().recalculate_glyphs(previous, change, fonts, geometry, sections)
+            recalculate_glyphs_body!(self, previous, change, fonts, geometry, sections)
+        }
+    }
+
+    #[derive(Hash)]
+    pub struct Unbounded {}
+
+    use std::f32::INFINITY;
+    const INFINITY_RECT: Rect<f32> = Rect {
+        min: Point {
+            x: -INFINITY,
+            y: -INFINITY,
+        },
+        max: Point {
+            x: INFINITY,
+            y: INFINITY,
+        },
+    };
+
+    impl GlyphPositioner for Unbounded {
+        fn calculate_glyphs<'font, F>(
+            &self,
+            fonts: &F,
+            geometry: &SectionGeometry,
+            sections: &[SectionText],
+        ) -> Vec<(PositionedGlyph<'font>, [f32; 4], FontId)>
+        where
+            F: FontMap<'font>,
+        {
+            calculate_glyphs(fonts, geometry.screen_position, INFINITY, sections)
+        }
+        fn bounds_rect(&self, _: &SectionGeometry) -> Rect<f32> {
+            INFINITY_RECT
+        }
+        fn recalculate_glyphs<'font, F>(
+            &self,
+            previous: Cow<Vec<(PositionedGlyph<'font>, [f32; 4], FontId)>>,
+            change: GlyphChange,
+            fonts: &F,
+            geometry: &SectionGeometry,
+            sections: &[SectionText],
+        ) -> Vec<(PositionedGlyph<'font>, [f32; 4], FontId)>
+        where
+            F: FontMap<'font>,
+        {
+            recalculate_glyphs_body!(self, previous, change, fonts, geometry, sections)
         }
     }
 }
-use wrap_in_rect::WrapInRect;
+use text_layouts::{Unbounded, Wrap, WrapInRect};
 
 #[derive(Clone, Debug)]
 pub struct TextSpec<'text> {
@@ -523,16 +716,22 @@ pub fn render(
                     color,
                     layout: match layout {
                         TextLayout::SingleLine => Layout::default_single_line(),
-                        TextLayout::Wrap | TextLayout::WrapInRect(_) => Layout::default_wrap(),
+                        TextLayout::Wrap | TextLayout::WrapInRect(_) | TextLayout::Unbounded => {
+                            Layout::default_wrap()
+                        }
                     },
                     z: z_to_f32(z),
                     ..d!()
                 };
 
                 match layout {
-                    TextLayout::Wrap | TextLayout::SingleLine => glyph_brush.queue(section),
+                    TextLayout::SingleLine => glyph_brush.queue(section),
+                    TextLayout::Wrap => glyph_brush.queue_custom_layout(section, &Wrap {}),
                     TextLayout::WrapInRect(rect) => {
                         glyph_brush.queue_custom_layout(section, &WrapInRect { rect })
+                    }
+                    TextLayout::Unbounded => {
+                        glyph_brush.queue_custom_layout(section, &Unbounded {})
                     }
                 };
             }

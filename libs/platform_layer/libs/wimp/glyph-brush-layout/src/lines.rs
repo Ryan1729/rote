@@ -7,14 +7,14 @@ use full_rusttype::{point, vector, PositionedGlyph, VMetrics};
 use std::iter::{FusedIterator, Iterator, Peekable};
 
 /// A line of `Word`s limited to a max width bound.
-pub(crate) struct Line<'font> {
-    pub glyphs: Vec<(RelativePositionedGlyph<'font>, Color, FontId)>,
-    pub max_v_metrics: VMetrics,
+pub struct Line<'font> {
+    pub(crate) glyphs: Vec<(RelativePositionedGlyph<'font>, Color, FontId)>,
+    pub(crate) max_v_metrics: VMetrics,
 }
 
 impl<'font> Line<'font> {
     #[inline]
-    pub(crate) fn line_height(&self) -> f32 {
+    pub fn line_height(&self) -> f32 {
         self.max_v_metrics.ascent - self.max_v_metrics.descent + self.max_v_metrics.line_gap
     }
 
@@ -79,7 +79,7 @@ impl<'font> Line<'font> {
 ///
 /// Note: Will always have at least one word, if possible, even if the word itself
 /// breaks the `width_bound`.
-pub(crate) struct Lines<'a, 'b, 'font, L, F>
+pub struct Lines<'a, 'b, 'font, L, F>
 where
     'font: 'a + 'b,
     L: LineBreaker,

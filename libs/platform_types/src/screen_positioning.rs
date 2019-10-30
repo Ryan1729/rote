@@ -408,6 +408,7 @@ pub enum VisibilityAttemptResult {
     ApronEdgeTooWeird,
 }
 
+#[derive(Debug)]
 pub struct Apron {
     pub left_w: f32,
     pub right_w: f32,
@@ -459,7 +460,7 @@ pub fn attempt_to_make_xy_visible(
         (Normal, Normal) if w < 1.0 || h < 1.0 => return ScreenTooSmall,
         (Normal, Normal) => {}
     }
-
+    dbg!(&apron, (w, h));
     match (apron.left_w.classify(), apron.top_h.classify()) {
         (Nan, _) | (_, Nan) => return ApronEdgeTooWeird,
         (Infinite, _) | (_, Infinite) => return ApronEdgeTooLarge,

@@ -10,15 +10,41 @@ mod section;
 mod words;
 
 pub use self::{builtin::*, font::*, linebreak::*, section::*};
+
 use std::borrow::Cow;
 
 /// Re-exported rusttype types.
 pub mod rusttype {
     pub use full_rusttype::{
-        point, Error, Font, Glyph, GlyphId, HMetrics, Point, PositionedGlyph, Rect, Scale,
-        ScaledGlyph, SharedBytes, VMetrics,
+        point, vector, Error, Font, Glyph, GlyphId, HMetrics, Point, PositionedGlyph, Rect, Scale,
+        ScaledGlyph, SharedBytes, VMetrics, Vector,
     };
 }
+
+//
+// Hacked in by Ryan1729
+//
+pub use crate::lines::Lines;
+pub fn get_lines_iter<'a, 'b, 'font, F>(
+    font_map: &'b F,
+    sections: &'a [SectionText<'a>],
+    bound_w: f32,
+) -> Lines<'a, 'b, 'font, BuiltInLineBreaker, F>
+where
+    'font: 'a + 'b,
+    F: FontMap<'font>,
+{
+    characters::Characters::new(
+        font_map,
+        sections.iter(),
+        BuiltInLineBreaker::UnicodeLineBreaker,
+    )
+    .words()
+    .lines(bound_w)
+}
+//
+//
+//
 
 use crate::rusttype::*;
 use std::hash::Hash;

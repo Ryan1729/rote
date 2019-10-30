@@ -80,23 +80,24 @@ pub enum Input {
     PreviousBuffer,
     SelectBuffer(BufferId),
     SetFindReplaceMode(FindReplaceMode),
+    SubmitForm,
 }
 d!(for Input : Input::None);
 
 #[derive(Clone, Copy, Debug)]
 pub enum BufferId {
-    Index(usize),
+    Text(usize),
     Find(usize),
     Replace(usize),
 }
-d!(for BufferId: BufferId::Index(0));
+d!(for BufferId: BufferId::Text(0));
 ord!(and friends for BufferId: id, other in {
     use BufferId::*;
     use std::cmp::Ordering::*;
     match (id, other) {
-        (Index(i1), Index(i2))|(Find(i1), Find(i2))|(Replace(i1), Replace(i2)) => i1.cmp(&i2),
-        (Index(_), _) => Less,
-        (_, Index(_)) => Greater,
+        (Text(i1), Text(i2))|(Find(i1), Find(i2))|(Replace(i1), Replace(i2)) => i1.cmp(&i2),
+        (Text(_), _) => Less,
+        (_, Text(_)) => Greater,
         (Find(_), Replace(_)) => Less,
         (Replace(_), Find(_)) => Greater,
     }
@@ -105,8 +106,19 @@ ord!(and friends for BufferId: id, other in {
 impl BufferId {
     pub fn get_index(&self) -> usize {
         match self {
-            BufferId::Index(i) | BufferId::Find(i) | BufferId::Replace(i) => *i,
+            BufferId::Text(i) | BufferId::Find(i) | BufferId::Replace(i) => *i,
         }
+    }
+
+    pub fn is_text(&self) -> bool {
+        match self {
+            BufferId::Text(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_form(&self) -> bool {
+        !self.is_text()
     }
 }
 

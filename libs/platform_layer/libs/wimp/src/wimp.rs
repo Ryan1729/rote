@@ -4,8 +4,8 @@
 // (at commit 90e7c7c331e9f991e11de6404b2ca073c0a09e61)
 
 use glutin::{dpi::LogicalPosition, Api, GlProfile, GlRequest};
+use std::collections::VecDeque;
 use std::path::PathBuf;
-use wimp_render::get_edit_buffer_xywh;
 use wimp_render::{get_find_replace_info, FindReplaceInfo};
 
 use file_chooser;
@@ -75,6 +75,8 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
 // expand to macro definitions" error otherwise.According to issue #54727, this is because there
 // is some worry that all the macro hygiene edge cases may not be handled.
 fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
+    const EVENTS_PER_FRAME: usize = 16;
+
     if cfg!(target_os = "linux") {
         use std::env;
         // winit wayland is currently still wip
@@ -144,18 +146,23 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
         };
     }
 
-    let (mut view, mut cmd) = {
+    let (mut view, mut cmds) = {
         let FindReplaceInfo {
             find_text_xywh,
             replace_text_xywh,
             ..
         } = get_find_replace_info(font_info, screen_wh!());
-        update_and_render(Input::SetSizeDependents(SizeDependents {
+        let (v, c) = update_and_render(Input::SetSizeDependents(SizeDependents {
             buffer_xywh: wimp_render::get_edit_buffer_xywh(d!(), font_info, screen_wh!()).into(),
             find_xywh: find_text_xywh.into(),
             replace_xywh: replace_text_xywh.into(),
             font_info: font_info.into(),
-        }))
+        }));
+
+        let mut cs = VecDeque::with_capacity(EVENTS_PER_FRAME);
+        cs.push_back(c);
+
+        (v, cs)
     };
 
     // If you didn't click on the same symbol, counting that as a double click seems like it
@@ -233,13 +240,15 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
 
             match event {
                 Event::EventsCleared if running => {
-                    match out_rx.try_recv() {
-                        Ok((v, c)) => {
-                            view = v;
-                            cmd = c;
-                        }
-                        _ => {}
-                    };
+                    for _ in 0..EVENTS_PER_FRAME {
+                        match out_rx.try_recv() {
+                            Ok((v, c)) => {
+                                view = v;
+                                cmds.push_back(c);
+                            }
+                            _ => break,
+                        };
+                    }
 
                     // Queue a RedrawRequested event so we draw the updated view quickly.
                     glutin_context.window().request_redraw();
@@ -262,13 +271,19 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                         .swap_buffers()
                         .expect("swap_buffers didn't work!");
 
-                    match cmd.take() {
-                        Cmd::SetClipboard(s) => {
-                            if let Err(err) = clipboard.set_contents(s) {
-                                handle_platform_error!(err);
+                    for _ in 0..EVENTS_PER_FRAME {
+                        if let Some(cmd) = cmds.pop_front() {
+                            match cmd {
+                                Cmd::SetClipboard(s) => {
+                                    if let Err(err) = clipboard.set_contents(s) {
+                                        handle_platform_error!(err);
+                                    }
+                                }
+                                Cmd::NoCmd => {}
                             }
+                        } else {
+                            break;
                         }
-                        Cmd::NoCmd => {}
                     }
 
                     if let Some(input) = input {
@@ -419,27 +434,6 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                                         ModifiersState {
                                             ctrl: true,
                                             shift: false,
-                                            alt: true,
-                                            ..
-                                        },
-                                    ..
-                                },
-                            ..
-                        } => match keypress {
-                            VirtualKeyCode::Key0 => {
-                                call_u_and_r!(Input::InsertNumbersAtCursors);
-                            }
-                            _ => (),
-                        },
-                        WindowEvent::KeyboardInput {
-                            input:
-                                KeyboardInput {
-                                    state: ElementState::Pressed,
-                                    virtual_keycode: Some(keypress),
-                                    modifiers:
-                                        ModifiersState {
-                                            ctrl: true,
-                                            shift: false,
                                             alt: false,
                                             ..
                                         },
@@ -489,6 +483,17 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                                 call_u_and_r!(Input::SetFindReplaceMode(
                                     FindReplaceMode::CurrentFile
                                 ));
+                                call_u_and_r!(Input::SetSizeDependents(SizeDependents {
+                                    buffer_xywh: wimp_render::get_edit_buffer_xywh(
+                                        FindReplaceMode::CurrentFile,
+                                        font_info,
+                                        screen_wh!()
+                                    )
+                                    .into(),
+                                    find_xywh: None,
+                                    replace_xywh: None,
+                                    font_info: None,
+                                }));
                             }
                             VirtualKeyCode::O => {
                                 file_chooser_call!(single, p in CustomEvent::OpenFile(p));
@@ -527,6 +532,27 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                             }
                             VirtualKeyCode::Tab => {
                                 call_u_and_r!(Input::NextBuffer);
+                            }
+                            _ => (),
+                        },
+                        WindowEvent::KeyboardInput {
+                            input:
+                                KeyboardInput {
+                                    state: ElementState::Pressed,
+                                    virtual_keycode: Some(keypress),
+                                    modifiers:
+                                        ModifiersState {
+                                            ctrl: true,
+                                            shift: false,
+                                            alt: true,
+                                            ..
+                                        },
+                                    ..
+                                },
+                            ..
+                        } => match keypress {
+                            VirtualKeyCode::Key0 => {
+                                call_u_and_r!(Input::InsertNumbersAtCursors);
                             }
                             _ => (),
                         },
@@ -597,6 +623,17 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                             ..
                         } => match keypress {
                             VirtualKeyCode::Escape => {
+                                call_u_and_r!(Input::SetSizeDependents(SizeDependents {
+                                    buffer_xywh: wimp_render::get_edit_buffer_xywh(
+                                        d!(),
+                                        font_info,
+                                        screen_wh!()
+                                    )
+                                    .into(),
+                                    find_xywh: None,
+                                    replace_xywh: None,
+                                    font_info: None,
+                                }));
                                 call_u_and_r!(Input::CloseMenuIfAny);
                             }
                             VirtualKeyCode::Back => {
@@ -663,6 +700,9 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                             VirtualKeyCode::Tab => {
                                 call_u_and_r!(Input::TabOut);
                             }
+                            VirtualKeyCode::Return => {
+                                call_u_and_r!(Input::Insert('\n'));
+                            }
                             _ => (),
                         },
                         WindowEvent::ReceivedCharacter(mut c) => {
@@ -685,7 +725,12 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                                 if c == '\r' {
                                     c = '\n';
                                 }
-                                call_u_and_r!(Input::Insert(c));
+
+                                if c == '\n' && view.current_buffer_id.is_form() {
+                                    call_u_and_r!(Input::SubmitForm);
+                                } else {
+                                    call_u_and_r!(Input::Insert(c));
+                                }
                             }
                         }
                         WindowEvent::MouseWheel {

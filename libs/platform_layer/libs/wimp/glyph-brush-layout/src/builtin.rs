@@ -334,7 +334,7 @@ pub enum HorizontalAlign {
 
 impl HorizontalAlign {
     #[inline]
-    pub(crate) fn x_bounds(self, screen_x: f32, bound_w: f32) -> (f32, f32) {
+    pub fn x_bounds(self, screen_x: f32, bound_w: f32) -> (f32, f32) {
         let (min, max) = match self {
             HorizontalAlign::Left => (screen_x, screen_x + bound_w),
             HorizontalAlign::Center => (screen_x - bound_w / 2.0, screen_x + bound_w / 2.0),
@@ -359,7 +359,7 @@ pub enum VerticalAlign {
 
 impl VerticalAlign {
     #[inline]
-    pub(crate) fn y_bounds(self, screen_y: f32, bound_h: f32) -> (f32, f32) {
+    pub fn y_bounds(self, screen_y: f32, bound_h: f32) -> (f32, f32) {
         let (min, max) = match self {
             VerticalAlign::Top => (screen_y, screen_y + bound_h),
             VerticalAlign::Center => (screen_y - bound_h / 2.0, screen_y + bound_h / 2.0),

@@ -267,7 +267,7 @@ pub fn view<'view>(
                 z: TAB_Z,
             },
         ) {
-            input = Some(Input::SelectBuffer(BufferId::Index(i)))
+            input = Some(Input::SelectBuffer(BufferId::Text(i)))
         }
     }
 
@@ -301,7 +301,7 @@ pub fn view<'view>(
             TEXT_SIZE,
             TEXT_COLOUR,
             &data,
-            BufferId::Index(index),
+            BufferId::Text(index),
             EDIT_Z,
             &view.current_buffer_id,
         )
@@ -1061,7 +1061,7 @@ pub fn get_current_buffer_rect(
     wh: ScreenSpaceWH,
 ) -> TextBoxXYWH {
     match current_buffer_id {
-        BufferId::Index(_) => get_edit_buffer_xywh(mode, font_info, wh),
+        BufferId::Text(_) => get_edit_buffer_xywh(mode, font_info, wh),
         BufferId::Find(_) => get_find_replace_info(font_info, wh).find_text_xywh,
         BufferId::Replace(_) => get_find_replace_info(font_info, wh).replace_text_xywh,
     }

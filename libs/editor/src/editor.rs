@@ -106,11 +106,36 @@ macro_rules! current_editor_buffer_mut {
     /* -> Option<&mut EditorBuffer> */
     ($state: expr) => {
         match $state.current_buffer_id {
-            BufferId::Index(i) => $state.buffers.get_mut(i),
+            BufferId::Text(i) => $state.buffers.get_mut(i),
             BufferId::Find(_) => Some(&mut $state.find),
             BufferId::Replace(_) => Some(&mut $state.replace),
         }
     };
+}
+
+macro_rules! set_indexed_id {
+    ($name: ident, $variant: ident) => {
+        impl State {
+            fn $name(&mut self, i: usize) {
+                if i < self.buffers.len() {
+                    self.current_buffer_id = BufferId::$variant(i);
+                }
+            }
+        }
+    };
+}
+
+set_indexed_id! {
+    set_text_id,
+    Text
+}
+set_indexed_id! {
+    set_find_id,
+    Find
+}
+set_indexed_id! {
+    set_replace_id,
+    Replace
 }
 
 impl State {
@@ -120,28 +145,23 @@ impl State {
 
     fn next_buffer(&mut self) {
         let current_buffer_index = self.current_buffer_id.get_index();
-        self.set_index_id((current_buffer_index + 1) % self.buffers.len());
+        self.set_text_id((current_buffer_index + 1) % self.buffers.len());
     }
 
     fn previous_buffer(&mut self) {
         let current_buffer_index = self.current_buffer_id.get_index();
-        self.set_index_id(if current_buffer_index == 0 {
+        self.set_text_id(if current_buffer_index == 0 {
             self.buffers.len() - 1
         } else {
             current_buffer_index - 1
         });
     }
 
-    fn set_index_id(&mut self, i: usize) {
-        if i < self.buffers.len() {
-            self.current_buffer_id = BufferId::Index(i);
-        }
-    }
-
     fn set_id(&mut self, id: BufferId) {
         match id {
-            BufferId::Index(i) => self.set_index_id(i),
-            _ => self.current_buffer_id = id,
+            BufferId::Text(i) => self.set_text_id(i),
+            BufferId::Find(i) => self.set_find_id(i),
+            BufferId::Replace(i) => self.set_replace_id(i),
         }
     }
 
@@ -155,7 +175,7 @@ impl State {
             index
         };
 
-        self.set_index_id(index);
+        self.set_text_id(index);
     }
 
     fn matching_buffer_index(&self, path: &Path) -> Option<usize> {
@@ -187,7 +207,7 @@ impl State {
 
     fn get_current_char_dim(&self) -> CharDim {
         match self.current_buffer_id {
-            BufferId::Index(_) => self.font_info.text_char_dim,
+            BufferId::Text(_) => self.font_info.text_char_dim,
             BufferId::Find(_) | BufferId::Replace(_) => self.font_info.find_replace_char_dim,
         }
     }
@@ -195,22 +215,21 @@ impl State {
     fn try_to_show_cursors_on_current_buffer(&mut self) -> Option<()> {
         let buffer = current_editor_buffer_mut!(self)?;
         let xywh = match self.current_buffer_id {
-            BufferId::Index(_) => self.buffer_xywh,
+            BufferId::Text(_) => self.buffer_xywh,
             BufferId::Find(_) => self.find_xywh,
             BufferId::Replace(_) => self.replace_xywh,
         };
-
         let attempt_result = attempt_to_make_sure_at_least_one_cursor_is_visible(
             &mut buffer.scroll,
             xywh,
             match self.current_buffer_id {
-                BufferId::Index(_) => self.font_info.text_char_dim,
+                BufferId::Text(_) => self.font_info.text_char_dim,
                 BufferId::Find(_) | BufferId::Replace(_) => self.font_info.find_replace_char_dim,
             },
-            self.font_info.status_char_dim,
             &buffer.text_buffer.cursors(),
         );
 
+        dbg!(attempt_result);
         match attempt_result {
             VisibilityAttemptResult::Succeeded => Some(()),
             _ => None,
@@ -361,15 +380,11 @@ fn attempt_to_make_sure_at_least_one_cursor_is_visible(
     scroll: &mut ScrollXY,
     xywh: TextBoxXYWH,
     text_char_dim: CharDim,
-    status_char_dim: CharDim,
     cursors: &Vec1<Cursor>,
 ) -> VisibilityAttemptResult {
     let target_cursor = cursors.last();
 
-    let mut apron: Apron = text_char_dim.into();
-    // The status line is currently on the bottom, so adding the `h` here keeps the cursors
-    // above it.
-    apron.bottom_h += status_char_dim.h;
+    let apron: Apron = text_char_dim.into();
 
     attempt_to_make_xy_visible(
         scroll,
@@ -566,7 +581,7 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
                 "",
             ));
 
-            state.set_index_id(index);
+            state.set_text_id(index);
         }
         TabIn => {
             text_buffer_call!(b.tab_in());
@@ -584,8 +599,22 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
             state.set_id(id);
         }
         SetFindReplaceMode(mode) => {
+            let mut selections = d!();
+            text_buffer_call!(b {
+                selections = b.copy_selections();
+            });
+            state.set_find_id(state.current_buffer_id.get_index());
             state.find_replace_mode = mode;
+            text_buffer_call!(b{
+                if selections.len() == 1 {
+                    b.insert_string(selections.swap_remove(0));
+                }
+                b.select_all()
+                // We don't need to make sure a cursor is visible here since the user
+                // will understand where the cursor is.
+            });
         }
+        SubmitForm => {}
     }
 
     let mut view = d!();
