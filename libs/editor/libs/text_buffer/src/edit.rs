@@ -123,9 +123,7 @@ where
         let action = SetPositionAction::ClearHighlight;
         match special_handling {
             SpecialHandling::None => {
-                dbg!(&cursor);
                 move_cursor::to_absolute_offset(&cloned_rope, cursor, o, action);
-                dbg!(&cursor);
             }
             SpecialHandling::HighlightOnLeftShiftedLeftBy(len) => {
                 move_cursor::to_absolute_offset(&cloned_rope, cursor, o, action);
@@ -205,7 +203,6 @@ where
             (Some(o), highlight) if highlight.is_none() || Some(o) == highlight => {
                 let s = get_string(index);
                 let char_count = s.chars().count();
-                dbg!(&rope, &cursor, &o, &s, &char_count);
                 get_standard_insert_range_edits(rope, cursor, o, s, char_count)
             }
             (Some(o1), Some(o2)) => {

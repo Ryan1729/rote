@@ -68,21 +68,40 @@ impl ClipboardHistory {
     }
 }
 
-#[derive(Default)]
+//#[derive(Default)]
 struct EditorBuffer {
     text_buffer: TextBuffer,
     scroll: ScrollXY,
     name: BufferName,
+    search_results: SearchResults,
 }
+
+// for testing
+d! {for EditorBuffer: EditorBuffer {
+    text_buffer: d!(),
+    scroll: d!(),
+    name: d!(),
+    search_results: SearchResults {
+        ranges: vec![(pos! {}, pos! {l 0 o 4}), (pos! {l 0 o 6}, pos! {l 0 o 10}), (pos! {l 2 o 2}, pos! {l 2 o 8})],
+        current_range: 1,
+    },
+}}
 
 impl EditorBuffer {
     fn new<I: Into<TextBuffer>>(name: BufferName, s: I) -> Self {
         Self {
             name,
-            scroll: d!(),
             text_buffer: s.into(),
+            //
+            ..d!()
         }
     }
+}
+
+#[derive(Default)]
+struct SearchResults {
+    ranges: Vec<(Position, Position)>,
+    current_range: usize,
 }
 
 #[derive(Default)]
@@ -229,7 +248,6 @@ impl State {
             &buffer.text_buffer.cursors(),
         );
 
-        dbg!(attempt_result);
         match attempt_result {
             VisibilityAttemptResult::Succeeded => Some(()),
             _ => None,
@@ -281,7 +299,20 @@ fn to_buffer_view_data(
             state: c.state,
         });
 
-        push_highlights(&mut highlights, position, c.get_highlight_position());
+        push_highlights(&mut highlights, position, c.get_highlight_position(), d!());
+    }
+
+    let SearchResults {
+        ref ranges,
+        current_range,
+    } = editor_buffer.search_results;
+    for (i, &(p1, p2)) in ranges.iter().enumerate() {
+        let kind = if i == current_range {
+            HighlightKind::CurrentResult
+        } else {
+            HighlightKind::Result
+        };
+        push_highlights(&mut highlights, p1, p2, kind);
     }
     BufferViewData {
         scroll: editor_buffer.scroll,
@@ -433,7 +464,7 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
     }
     perf_viz::record_guard!("update_and_render");
 
-    //if cfg!(debug_assertions)
+    // if cfg!(debug_assertions)
     {
         if_changed::dbg!(&input);
     }

@@ -71,13 +71,76 @@ macro_rules! id {
 
 type Colour = [f32; 4];
 
-pub const TEXT_BACKGROUND_COLOUR: Colour = c![3.0 / 256.0, 3.0 / 256.0, 3.0 / 256.0];
-pub const TEXT_HOVER_BACKGROUND_COLOUR: Colour = c![5.0 / 256.0, 5.0 / 256.0, 5.0 / 256.0];
-pub const TEXT_PRESSED_BACKGROUND_COLOUR: Colour = c![0.0, 0.0, 0.0];
-const TEXT_COLOUR: Colour = c![0.3, 0.3, 0.9];
-const FIND_REPLACE_TEXT_COLOUR: Colour = c![0.3, 0.9, 0.9];
-const CHROME_BACKGROUND_COLOUR: Colour = c![7.0 / 256.0, 7.0 / 256.0, 7.0 / 256.0];
-const TAB_BACKGROUND_COLOUR: Colour = c![3.0 / 256.0, 3.0 / 256.0, 3.0 / 256.0];
+const COLOUR_DELTA: f32 = 1.0 / 128.0;
+
+// TODO clamp `lighten` and `darken`?
+macro_rules! lighten {
+    ($colour: expr) => {{
+        let colour = $colour;
+        [
+            colour[0] + COLOUR_DELTA,
+            colour[1] + COLOUR_DELTA,
+            colour[2] + COLOUR_DELTA,
+            colour[3],
+        ]
+    }};
+}
+macro_rules! darken {
+    ($colour: expr) => {{
+        let colour = $colour;
+        [
+            colour[0] - COLOUR_DELTA,
+            colour[1] - COLOUR_DELTA,
+            colour[2] - COLOUR_DELTA,
+            colour[3],
+        ]
+    }};
+}
+
+macro_rules! palette {
+  (black $($tokens:tt)*) => {   c![0x22 as f32 / 256.0, 0x22 as f32 / 256.0, 0x22 as f32 / 256.0 $($tokens)*] };
+  (red $($tokens:tt)*) => {     c![0xde as f32 / 256.0, 0x49 as f32 / 256.0, 0x49 as f32 / 256.0 $($tokens)*] };
+  (green $($tokens:tt)*) => {   c![0x30 as f32 / 256.0, 0xb0 as f32 / 256.0, 0x6e as f32 / 256.0 $($tokens)*] };
+  (yellow $($tokens:tt)*) => {  c![0xff as f32 / 256.0, 0xb9 as f32 / 256.0, 0x37 as f32 / 256.0 $($tokens)*] };
+  (blue $($tokens:tt)*) => {    c![0x33 as f32 / 256.0, 0x52 as f32 / 256.0, 0xe1 as f32 / 256.0 $($tokens)*] };
+  (magenta $($tokens:tt)*) => { c![0x53 as f32 / 256.0, 0x33 as f32 / 256.0, 0x54 as f32 / 256.0 $($tokens)*] };
+  (cyan $($tokens:tt)*) => {    c![0x5a as f32 / 256.0, 0x7d as f32 / 256.0, 0x8b as f32 / 256.0 $($tokens)*] };
+  (white $($tokens:tt)*) => {   c![0xee as f32 / 256.0, 0xee as f32 / 256.0, 0xee as f32 / 256.0 $($tokens)*] };
+
+  (alt black $($tokens:tt)*) => {   c![0x66 as f32 / 256.0, 0x66 as f32 / 256.0, 0x66 as f32 / 256.0 $($tokens)*] };
+  (alt red $($tokens:tt)*) => {     c![0x49 as f32 / 256.0, 0x0b as f32 / 256.0, 0x0b as f32 / 256.0 $($tokens)*] };
+  (alt green $($tokens:tt)*) => {   c![0x16 as f32 / 256.0, 0x4f as f32 / 256.0, 0x31 as f32 / 256.0 $($tokens)*] };
+  (alt yellow $($tokens:tt)*) => {  c![0xff as f32 / 256.0, 0xff as f32 / 256.0, 0x00 as f32 / 256.0 $($tokens)*] };
+  (alt blue $($tokens:tt)*) => {    c![0x00 as f32 / 256.0, 0x37 as f32 / 256.0, 0xff as f32 / 256.0 $($tokens)*] };
+  (alt magenta $($tokens:tt)*) => { c![0xa9 as f32 / 256.0, 0x68 as f32 / 256.0, 0xab as f32 / 256.0 $($tokens)*] };
+  (alt cyan $($tokens:tt)*) => {    c![0x48 as f32 / 256.0, 0x91 as f32 / 256.0, 0xae as f32 / 256.0 $($tokens)*] };
+  (alt white $($tokens:tt)*) => {   c![0xff as f32 / 256.0, 0xff as f32 / 256.0, 0xff as f32 / 256.0 $($tokens)*] };
+}
+
+pub const TEXT_BACKGROUND_COLOUR: Colour = palette![black];
+pub const TEXT_HOVER_BACKGROUND_COLOUR: Colour = lighten!(palette![black]);
+pub const TEXT_PRESSED_BACKGROUND_COLOUR: Colour = darken!(palette![black]);
+const TEXT_COLOUR: Colour = palette![blue];
+const FIND_REPLACE_TEXT_COLOUR: Colour = palette![green];
+
+const HIGHLIGHT_ALPHA: f32 = 0.6;
+const USER_HIGHLIGHT_COLOUR: Colour = palette![alt black, HIGHLIGHT_ALPHA];
+const RESULT_HIGHLIGHT_COLOUR: Colour = palette![yellow, HIGHLIGHT_ALPHA];
+const CURRENT_RESULT_HIGHLIGHT_COLOUR: Colour = palette![green, HIGHLIGHT_ALPHA];
+
+fn highlight_kind_colour(kind: HighlightKind) -> Colour {
+    use HighlightKind::*;
+    match kind {
+        User => USER_HIGHLIGHT_COLOUR,
+        Result => RESULT_HIGHLIGHT_COLOUR,
+        CurrentResult => CURRENT_RESULT_HIGHLIGHT_COLOUR,
+    }
+}
+
+const CHROME_BACKGROUND_COLOUR: Colour = palette![cyan];
+const TAB_BACKGROUND_COLOUR: Colour = palette![alt cyan];
+const TAB_TEXT_COLOUR: Colour = palette![white];
+const TAB_HIGHLIGHT_COLOUR: Colour = palette![yellow];
 
 const TEXT_SIZE: f32 = 60.0;
 const FIND_REPLACE_SIZE: f32 = 26.0;
@@ -257,8 +320,8 @@ pub fn view<'view>(
                 margin,
                 rect,
                 background_colour: CHROME_BACKGROUND_COLOUR,
-                text_colour: c![0.6, 0.6, 0.6],
-                highlight_colour: c![0.6, 0.6, 0.0],
+                text_colour: TAB_TEXT_COLOUR,
+                highlight_colour: TAB_HIGHLIGHT_COLOUR,
                 extra_highlight: if i == visible_index_or_max {
                     ExtraHighlight::Underline(TEXT_COLOUR)
                 } else {
@@ -469,7 +532,7 @@ fn text_box<'view>(
     text_or_rects.push(TextOrRect::Text(TextSpec {
         text: &chars,
         size,
-        layout: TextLayout::WrapInRect(outer_rect),
+        layout: TextLayout::Unbounded, //WrapInRect(outer_rect),
         spec: VisualSpec {
             rect: offset_text_rect,
             color: text_color,
@@ -497,30 +560,30 @@ fn text_box<'view>(
 
     let (x, y) = offset_text_rect.min;
     let CharDim { w, h } = char_dim;
-    text_or_rects.extend(highlights.iter().filter_map(
-        |Highlight {
-             min, max, color, ..
-         }| {
-            let mut rect = ssr!(
-                min.offset.0 as f32 * w + x,
-                min.line as f32 * h + y,
-                max.offset.0 as f32 * w + x,
-                (max.line + 1) as f32 * h + y
-            );
+    text_or_rects.extend(
+        highlights
+            .iter()
+            .filter_map(|Highlight { min, max, kind, .. }| {
+                let mut rect = ssr!(
+                    min.offset.0 as f32 * w + x,
+                    min.line as f32 * h + y,
+                    max.offset.0 as f32 * w + x,
+                    (max.line + 1) as f32 * h + y
+                );
 
-            clamp_within(&mut rect, outer_rect);
+                clamp_within(&mut rect, outer_rect);
 
-            if rect.has_any_area() {
-                Some(TextOrRect::Rect(VisualSpec {
-                    rect,
-                    color: *color,
-                    z: z.saturating_add(4),
-                }))
-            } else {
-                None
-            }
-        },
-    ));
+                if rect.has_any_area() {
+                    Some(TextOrRect::Rect(VisualSpec {
+                        rect,
+                        color: highlight_kind_colour(*kind),
+                        z: z.saturating_add(4),
+                    }))
+                } else {
+                    None
+                }
+            }),
+    );
 
     input
 }

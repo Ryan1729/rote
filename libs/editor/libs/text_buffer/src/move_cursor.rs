@@ -83,7 +83,6 @@ fn move_to<OptionPos: Into<Option<Position>>>(
     position: OptionPos,
     action: SetPositionAction,
 ) -> Moved {
-    dbg!("cursor.get_position() == position");
     if let Some(position) = position.into() {
         if cursor.get_position() == position {
             // We might need to clear the highlight cursor, depending on the action, even though

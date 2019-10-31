@@ -437,7 +437,6 @@ impl<'font, V: Clone + 'static, H: BuildHasher> GlyphBrush<'font, V, H> {
                     if let Some(mut vertex) = glyphed.vertices.pop() {
                         let tex_coords = {
                             let mut tex_coords = extract_tex_coords(&vertex);
-                            if_changed::dbg!(tex_coords);
 
                             // Hacky way to prevent sampling outside of the texture.
                             let x_apron = (tex_coords.max.x - tex_coords.min.x) * 0.25;

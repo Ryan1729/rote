@@ -306,21 +306,27 @@ ord!(and friends for Position: p, other in {
         .then_with(|| p.offset.cmp(&other.offset))
 });
 
-pub const DEFAULT_HIGHLIGHT_COLOUR: [f32; 4] = [0.0, 0.0, 0.0, 0.6];
+#[derive(Clone, Copy, Debug)]
+pub enum HighlightKind {
+    User,
+    Result,
+    CurrentResult,
+}
+d!(for HighlightKind: HighlightKind::User);
 
 #[derive(Debug)]
 pub struct Highlight {
     pub min: Position,
     pub max: Position,
-    pub color: [f32; 4],
+    pub kind: HighlightKind,
 }
 
 impl Highlight {
-    pub fn new((p1, p2): (Position, Position)) -> Self {
+    pub fn new((p1, p2): (Position, Position), kind: HighlightKind) -> Self {
         Highlight {
             min: std::cmp::min(p1, p2),
             max: std::cmp::max(p1, p2),
-            color: DEFAULT_HIGHLIGHT_COLOUR,
+            kind,
         }
     }
 
@@ -354,6 +360,7 @@ pub fn push_highlights<O: Into<Option<Position>>>(
     highlights: &mut Vec<Highlight>,
     position: Position,
     highlight_position: O,
+    kind: HighlightKind,
 ) {
     match highlight_position.into() {
         Some(h) if h != position => {
@@ -361,7 +368,7 @@ pub fn push_highlights<O: Into<Option<Position>>>(
             let max = std::cmp::max(position, h);
 
             if min.line == max.line {
-                highlights.push(Highlight::new((min, max)));
+                highlights.push(Highlight::new((min, max), kind));
                 return;
             }
 
@@ -374,65 +381,80 @@ pub fn push_highlights<O: Into<Option<Position>>>(
                 let max_middle = max.line - 1;
 
                 let offset = min.offset;
-                highlights.push(Highlight::new((
-                    Position {
-                        offset,
-                        line: min.line,
-                    },
-                    Position {
-                        offset: CharOffset(0xFFFF_FFFF__FFFF_FFFF),
-                        line: max_middle,
-                    },
-                )));
+                highlights.push(Highlight::new(
+                    (
+                        Position {
+                            offset,
+                            line: min.line,
+                        },
+                        Position {
+                            offset: CharOffset(0xFFFF_FFFF__FFFF_FFFF),
+                            line: max_middle,
+                        },
+                    ),
+                    kind,
+                ));
 
-                highlights.push(Highlight::new((
-                    Position {
-                        offset: CharOffset(0),
-                        line: min_middle,
-                    },
-                    Position {
-                        offset,
-                        line: max.line,
-                    },
-                )));
+                highlights.push(Highlight::new(
+                    (
+                        Position {
+                            offset: CharOffset(0),
+                            line: min_middle,
+                        },
+                        Position {
+                            offset,
+                            line: max.line,
+                        },
+                    ),
+                    kind,
+                ));
 
                 return;
             }
 
             if min.offset != 0 {
-                highlights.push(Highlight::new((
-                    min,
-                    Position {
-                        offset: CharOffset(0xFFFF_FFFF__FFFF_FFFF),
-                        ..min
-                    },
-                )));
+                highlights.push(Highlight::new(
+                    (
+                        min,
+                        Position {
+                            offset: CharOffset(0xFFFF_FFFF__FFFF_FFFF),
+                            ..min
+                        },
+                    ),
+                    kind,
+                ));
             }
 
             let min_middle = min.line + if min.offset == 0 { 0 } else { 1 };
             // Since We know the lines must be different, we know `max.line > 0`
             let max_middle = max.line - 1;
             if min_middle <= max_middle {
-                highlights.push(Highlight::new((
-                    Position {
-                        offset: CharOffset(0),
-                        line: min_middle,
-                    },
-                    Position {
-                        offset: CharOffset(0xFFFF_FFFF__FFFF_FFFF),
-                        line: max_middle,
-                    },
-                )));
+                highlights.push(Highlight::new(
+                    (
+                        Position {
+                            offset: CharOffset(0),
+                            line: min_middle,
+                        },
+                        Position {
+                            offset: CharOffset(0xFFFF_FFFF__FFFF_FFFF),
+                            line: max_middle,
+                        },
+                    ),
+                    kind,
+                ));
             }
 
             if max.offset != 0 {
-                highlights.push(Highlight::new((
-                    Position {
-                        offset: CharOffset(0),
-                        ..max
-                    },
-                    max,
-                )));
+                highlights.push(Highlight::new(
+                    (
+                        Position {
+                            offset: CharOffset(0),
+                            ..max
+                        },
+                        max,
+                    ),
+                    kind,
+                ));
             }
         }
         _ => {}
