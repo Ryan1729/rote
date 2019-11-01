@@ -100,7 +100,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
     unsafe impl Sync for CustomEvent {}
 
     use glutin::event_loop::EventLoop;
-    let events: EventLoop<CustomEvent> = glutin::event_loop::EventLoop::new_user_event();
+    let events: EventLoop<CustomEvent> = glutin::event_loop::EventLoop::with_user_event();
     let event_proxy = events.create_proxy();
     let title = "rote";
 
@@ -117,6 +117,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
             &events,
         )?;
     let glutin_context = unsafe { glutin_context.make_current().map_err(|(_, e)| e)? };
+    dbg!(glutin_context.get_pixel_format());
 
     let scroll_multiplier: f32 = 16.0;
 
@@ -129,7 +130,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
 
     let font_info = wimp_render::get_font_info(&char_dims);
 
-    let mut loop_helper = spin_sleep::LoopHelper::builder().build_with_target_rate(250.0);
+    let mut loop_helper = spin_sleep::LoopHelper::builder().build_with_target_rate(128.0); //250.0);
 
     let mut running = true;
     let mut dimensions = glutin_context

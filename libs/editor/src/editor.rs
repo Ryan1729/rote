@@ -68,7 +68,7 @@ impl ClipboardHistory {
     }
 }
 
-//#[derive(Default)]
+#[derive(Default)]
 struct EditorBuffer {
     text_buffer: TextBuffer,
     scroll: ScrollXY,
@@ -76,23 +76,11 @@ struct EditorBuffer {
     search_results: SearchResults,
 }
 
-// for testing
-d! {for EditorBuffer: EditorBuffer {
-    text_buffer: d!(),
-    scroll: d!(),
-    name: d!(),
-    search_results: SearchResults {
-        ranges: vec![(pos! {}, pos! {l 0 o 4}), (pos! {l 0 o 6}, pos! {l 0 o 10}), (pos! {l 2 o 2}, pos! {l 2 o 8})],
-        current_range: 1,
-    },
-}}
-
 impl EditorBuffer {
     fn new<I: Into<TextBuffer>>(name: BufferName, s: I) -> Self {
         Self {
             name,
             text_buffer: s.into(),
-            //
             ..d!()
         }
     }

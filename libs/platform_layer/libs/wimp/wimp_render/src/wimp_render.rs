@@ -98,23 +98,23 @@ macro_rules! darken {
 }
 
 macro_rules! palette {
-  (black $($tokens:tt)*) => {   c![0x22 as f32 / 256.0, 0x22 as f32 / 256.0, 0x22 as f32 / 256.0 $($tokens)*] };
-  (red $($tokens:tt)*) => {     c![0xde as f32 / 256.0, 0x49 as f32 / 256.0, 0x49 as f32 / 256.0 $($tokens)*] };
-  (green $($tokens:tt)*) => {   c![0x30 as f32 / 256.0, 0xb0 as f32 / 256.0, 0x6e as f32 / 256.0 $($tokens)*] };
-  (yellow $($tokens:tt)*) => {  c![0xff as f32 / 256.0, 0xb9 as f32 / 256.0, 0x37 as f32 / 256.0 $($tokens)*] };
-  (blue $($tokens:tt)*) => {    c![0x33 as f32 / 256.0, 0x52 as f32 / 256.0, 0xe1 as f32 / 256.0 $($tokens)*] };
-  (magenta $($tokens:tt)*) => { c![0x53 as f32 / 256.0, 0x33 as f32 / 256.0, 0x54 as f32 / 256.0 $($tokens)*] };
-  (cyan $($tokens:tt)*) => {    c![0x5a as f32 / 256.0, 0x7d as f32 / 256.0, 0x8b as f32 / 256.0 $($tokens)*] };
-  (white $($tokens:tt)*) => {   c![0xee as f32 / 256.0, 0xee as f32 / 256.0, 0xee as f32 / 256.0 $($tokens)*] };
+  (black $($tokens:tt)*) => {   c![0x22 as f32 / 255.0, 0x22 as f32 / 255.0, 0x22 as f32 / 255.0 $($tokens)*] };
+  (red $($tokens:tt)*) => {     c![0xde as f32 / 255.0, 0x49 as f32 / 255.0, 0x49 as f32 / 255.0 $($tokens)*] };
+  (green $($tokens:tt)*) => {   c![0x30 as f32 / 255.0, 0xb0 as f32 / 255.0, 0x6e as f32 / 255.0 $($tokens)*] };
+  (yellow $($tokens:tt)*) => {  c![0xff as f32 / 255.0, 0xb9 as f32 / 255.0, 0x37 as f32 / 255.0 $($tokens)*] };
+  (blue $($tokens:tt)*) => {    c![0x33 as f32 / 255.0, 0x52 as f32 / 255.0, 0xe1 as f32 / 255.0 $($tokens)*] };
+  (magenta $($tokens:tt)*) => { c![0x53 as f32 / 255.0, 0x33 as f32 / 255.0, 0x54 as f32 / 255.0 $($tokens)*] };
+  (cyan $($tokens:tt)*) => {    c![0x5a as f32 / 255.0, 0x7d as f32 / 255.0, 0x8b as f32 / 255.0 $($tokens)*] };
+  (white $($tokens:tt)*) => {   c![0xee as f32 / 255.0, 0xee as f32 / 255.0, 0xee as f32 / 255.0 $($tokens)*] };
 
-  (alt black $($tokens:tt)*) => {   c![0x66 as f32 / 256.0, 0x66 as f32 / 256.0, 0x66 as f32 / 256.0 $($tokens)*] };
-  (alt red $($tokens:tt)*) => {     c![0x49 as f32 / 256.0, 0x0b as f32 / 256.0, 0x0b as f32 / 256.0 $($tokens)*] };
-  (alt green $($tokens:tt)*) => {   c![0x16 as f32 / 256.0, 0x4f as f32 / 256.0, 0x31 as f32 / 256.0 $($tokens)*] };
-  (alt yellow $($tokens:tt)*) => {  c![0xff as f32 / 256.0, 0xff as f32 / 256.0, 0x00 as f32 / 256.0 $($tokens)*] };
-  (alt blue $($tokens:tt)*) => {    c![0x00 as f32 / 256.0, 0x37 as f32 / 256.0, 0xff as f32 / 256.0 $($tokens)*] };
-  (alt magenta $($tokens:tt)*) => { c![0xa9 as f32 / 256.0, 0x68 as f32 / 256.0, 0xab as f32 / 256.0 $($tokens)*] };
-  (alt cyan $($tokens:tt)*) => {    c![0x48 as f32 / 256.0, 0x91 as f32 / 256.0, 0xae as f32 / 256.0 $($tokens)*] };
-  (alt white $($tokens:tt)*) => {   c![0xff as f32 / 256.0, 0xff as f32 / 256.0, 0xff as f32 / 256.0 $($tokens)*] };
+  (alt black $($tokens:tt)*) => {   c![0x66 as f32 / 255.0, 0x66 as f32 / 255.0, 0x66 as f32 / 255.0 $($tokens)*] };
+  (alt red $($tokens:tt)*) => {     c![0x49 as f32 / 255.0, 0x0b as f32 / 255.0, 0x0b as f32 / 255.0 $($tokens)*] };
+  (alt green $($tokens:tt)*) => {   c![0x16 as f32 / 255.0, 0x4f as f32 / 255.0, 0x31 as f32 / 255.0 $($tokens)*] };
+  (alt yellow $($tokens:tt)*) => {  c![0xff as f32 / 255.0, 0xff as f32 / 255.0, 0x00 as f32 / 255.0 $($tokens)*] };
+  (alt blue $($tokens:tt)*) => {    c![0x00 as f32 / 255.0, 0x37 as f32 / 255.0, 0xff as f32 / 255.0 $($tokens)*] };
+  (alt magenta $($tokens:tt)*) => { c![0xa9 as f32 / 255.0, 0x68 as f32 / 255.0, 0xab as f32 / 255.0 $($tokens)*] };
+  (alt cyan $($tokens:tt)*) => {    c![0x48 as f32 / 255.0, 0x91 as f32 / 255.0, 0xae as f32 / 255.0 $($tokens)*] };
+  (alt white $($tokens:tt)*) => {   c![0xff as f32 / 255.0, 0xff as f32 / 255.0, 0xff as f32 / 255.0 $($tokens)*] };
 }
 
 pub const TEXT_BACKGROUND_COLOUR: Colour = palette![black];

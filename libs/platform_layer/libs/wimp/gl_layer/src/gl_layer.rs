@@ -7,7 +7,7 @@ use glyph_brush::{
 };
 use macros::{d, invariants_checked};
 use platform_types::{
-    screen_positioning::{CharDim, ScreenSpaceRect, ScreenSpaceWH},
+    screen_positioning::{CharDim, ScreenSpaceRect},
     ssr,
 };
 use shared::Res;
@@ -199,7 +199,7 @@ mod z_depth_tests {
 pub fn init<F>(
     hidpi_factor: f32,
     text_sizes: &[f32],
-    clear_colour: [f32; 4],
+    clear_colour: [f32; 4], // the clear colour currently flashes up on exit.
     load_fn: F,
 ) -> Res<(State<'static>, Vec<CharDim>)>
 where
@@ -249,7 +249,7 @@ where
             gl::TexImage2D(
                 gl::TEXTURE_2D,
                 0,
-                gl::RED as _,
+                gl::R8 as _,
                 width as _,
                 height as _,
                 0,
@@ -295,8 +295,14 @@ where
         // Enabled alpha blending
         gl::Enable(gl::BLEND);
         gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
-        // Use srgb for consistency with other examples
-        gl::Enable(gl::FRAMEBUFFER_SRGB);
+
+        // We specifically do *not* enable `FRAMEBUFFER_SRGB` because we currently are passing
+        // sRGB colours into the shader, rather than linear colours, so the extra linear to sRGB
+        // conversion that this setting would apply, would make our colours too bright. If we want
+        // to do colour blends in the shader, we'll need to enable this and convert our input
+        // colours to linear ourselves.
+        //gl::Enable(gl::FRAMEBUFFER_SRGB);
+
         gl::ClearColor(
             clear_colour[0],
             clear_colour[1],
@@ -821,7 +827,7 @@ pub fn render(
                 gl::TexImage2D(
                     gl::TEXTURE_2D,
                     0,
-                    gl::RED as _,
+                    gl::R8 as _,
                     new_width as _,
                     new_height as _,
                     0,
@@ -835,8 +841,22 @@ pub fn render(
         }
     }
     match brush_action? {
-        BrushAction::Draw(vertices) => {
+        BrushAction::Draw(mut vertices) => {
             perf_viz::record_guard!("BrushAction::Draw");
+            vertices.sort_by(|v1, v2| {
+                use std::cmp::Ordering::*;
+                let z1 = v1[2];
+                let z2 = v2[2];
+
+                if z1 > z2 {
+                    Less
+                } else if z2 < z1 {
+                    Greater
+                } else {
+                    // NaN ends up here
+                    Equal
+                }
+            });
             // Draw new vertices
             *vertex_count = vertices.len();
             unsafe {

@@ -30,8 +30,6 @@ Once everything above this line is done we can start bootstrapping, (using this 
   * is there anything else to this?
 
 * embark on the journey to get multiple `VisibleBuffers` working
-  * fix text rendering bug: background appears to be the clear colour always
-    * see if changing the clear colour actually changes things in the way we would expect
   * separate out `gl_layer` into re-usable crate
   * experiment with multiple windows a bit in a separate repo, just to make sure there are no surprises there.
     so we should have things that are shared between the n windows and things that are not.
@@ -48,6 +46,7 @@ Once everything above this line is done we can start bootstrapping, (using this 
     * keyboard shortcut to detach current tab into its own window
     * make sure typing works
     * allow dragging tabs outside the window to detach them.
+    * allow dragging tabs inside a window to reattach them.
 
 * Ctrl-shift-f to open a within current project folder search
   * implies some way to know what the project is. Options:
