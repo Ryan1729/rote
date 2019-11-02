@@ -348,7 +348,8 @@ macro_rules! highlight {
                     line: $max_line,
                     offset: CharOffset($max_offset),
                 },
-            )
+            ),
+            d!()
         )
     };
     (l $min_line:literal o $min_offset:literal l $max_line:literal o max ) => {

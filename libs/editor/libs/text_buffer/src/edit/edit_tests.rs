@@ -131,7 +131,9 @@ fn get_tab_in_edit_produces_the_expected_edit_with_multiple_cursors_in_this_buff
             let expected_rope = r!(EXPECTED_TEXT.to_owned());
             let mut first_cursor = Cursor::new(pos! {l 0, o TAB_STR_CHAR_COUNT});
             let mut last_cursor = Cursor::new(start_of_empty_line);
-            move_cursor::right_n_times(&expected_rope, &mut last_cursor, TAB_STR_CHAR_COUNT);
+            for _ in 0..TAB_STR_CHAR_COUNT {
+                move_cursor::directly(&expected_rope, &mut last_cursor, Move::Right);
+            }
 
             for _ in 0..EXPECTED_CLEAVE_POINT - TAB_STR_CHAR_COUNT {
                 move_cursor::and_extend_selection(&expected_rope, &mut first_cursor, Move::Right);

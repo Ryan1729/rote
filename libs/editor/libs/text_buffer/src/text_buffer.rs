@@ -1,6 +1,6 @@
 use crate::move_cursor::{forward, get_next_selection_point, get_previous_selection_point};
 use editor_types::{Cursor, SetPositionAction, Vec1};
-use macros::{borrow, d, some_or, CheckedSub};
+use macros::{d, some_or, CheckedSub};
 use panic_safe_rope::{ByteIndex, LineIndex, Rope, RopeLine, RopeSliceTrait};
 use platform_types::*;
 use std::borrow::Borrow;
@@ -186,14 +186,26 @@ impl Cursors {
     }
 }
 
-borrow!(<Vec1<Cursor>> for Cursors : c in &c.cursors);
-
 #[derive(Clone, Debug, Default)]
 pub struct TextBuffer {
     rope: Rope,
     cursors: Cursors,
     history: VecDeque<Edit>,
     history_index: usize,
+}
+
+impl TextBuffer {
+    pub fn borrow_rope(&self) -> &Rope {
+        &self.rope
+    }
+
+    pub fn borrow_cursors(&self) -> &Cursors {
+        &self.cursors
+    }
+
+    pub fn borrow_cursors_vec(&self) -> &Vec1<Cursor> {
+        &self.cursors.cursors
+    }
 }
 
 impl From<String> for TextBuffer {
@@ -216,7 +228,214 @@ impl From<&str> for TextBuffer {
     }
 }
 
-borrow!(<Vec1<Cursor>> for TextBuffer : b in b.cursors.borrow());
+pub fn get_search_ranges(needle: &TextBuffer, haystack: &TextBuffer) -> Vec<(Position, Position)> {
+    // Two-way string matching based on http://www-igm.univ-mlv.fr/~lecroq/string/node26.html
+
+    macro_rules! max_suffix {
+        ($name: ident, >) => {
+            max_suffix!($name, a, b, a > b)
+        };
+        ($name: ident, <) => {
+            max_suffix!($name, a, b, a < b)
+        };
+        ($name: ident, $a: ident, $b: ident, $test: expr) => {
+            fn $name(rope: &Rope) -> Option<(isize, isize)> {
+                let len = rope.len_chars().0 as isize;
+                let mut ms: isize = -1;
+                let mut j: isize = 0;
+                let mut p: isize = 1;
+                let mut k: isize = p;
+
+                while j + k < len {
+                    let $a = rope.char(AbsoluteCharOffset((j + k) as usize))?;
+                    let $b = rope.char(AbsoluteCharOffset((ms + k) as usize))?;
+                    if $test {
+                        j += k;
+                        k = 1;
+                        p = j - ms;
+                    } else if $a == $b {
+                        if k != p {
+                            k += 1;
+                        } else {
+                            j += p;
+                            k = 1;
+                        }
+                    } else {
+                        ms = j;
+                        j = ms + 1;
+                        p = 1;
+                        k = p;
+                    }
+                }
+
+                Some((ms, p))
+            }
+        };
+    }
+
+    /* Computing of the maximal suffix for <= */
+    max_suffix!(max_suffix_le, <);
+    /* Computing of the maximal suffix for >= */
+    max_suffix!(max_suffix_ge, >);
+
+    let mut output = Vec::new();
+    let needle_len = needle.rope.len_chars().0 as isize;
+    let haystack_len = haystack.rope.len_chars().0 as isize;
+    macro_rules! push {
+        ($start_offset: expr) => {
+            let start_offset = $start_offset as usize;
+            let end_offset = start_offset + needle_len as usize;
+
+            let rope = &haystack.rope;
+            match (
+                char_offset_to_pos(rope, AbsoluteCharOffset(start_offset)),
+                char_offset_to_pos(rope, AbsoluteCharOffset(end_offset)),
+            ) {
+                (Some(s), Some(e)) => {
+                    output.push((s, e));
+                }
+                (s, e) => {
+                    if cfg!(debug_assertions) {
+                        panic!("start {:?}, end {:?}", s, e);
+                    }
+                }
+            }
+        };
+    }
+
+    /* Two Way string matching algorithm. */
+    //void TW(char *x, int m, char *y, int n) {
+    let ell;
+    let mut period;
+    {
+        /* Preprocessing */
+        match (max_suffix_le(&needle.rope), max_suffix_ge(&needle.rope)) {
+            (Some((i, p)), Some((j, q))) => {
+                if i > j {
+                    ell = i;
+                    period = p;
+                } else {
+                    ell = j;
+                    period = q;
+                }
+            }
+            (le, ge) => {
+                if cfg!(debug_assertions) {
+                    panic!("le {:?}, ge {:?}", le, ge);
+                } else {
+                    return output;
+                }
+            }
+        }
+    }
+
+    macro_rules! opts_match {
+       ($op1: expr, $op2: expr, $match_case: block else $else_case: block) => (
+           match ($op1, $op2) {
+               (Some(e1), Some(e2)) if e1 == e2 => $match_case
+               _ => $else_case
+           }
+       );
+   }
+
+    /* Searching */
+    let period_matches = {
+        let mut start_chars = haystack.chars();
+        let mut period_chars = haystack.chars().skip(period as usize);
+        let mut matches = true;
+        for _ in 0..(ell + 1) {
+            opts_match!(start_chars.next(), period_chars.next(), {} else {
+                matches = false;
+                break;
+            });
+        }
+        matches
+    };
+
+    //this avoid trapping the ropey `Chars` in a `Skip` struct, so we can still call `prev`.
+    macro_rules! skip_manually {
+        ($iter: expr, $n: expr) => {{
+            let mut iter = $iter;
+            for _ in 0..($n as usize) {
+                if iter.next().is_none() {
+                    break;
+                }
+            }
+            iter
+        }};
+    }
+
+    let mut i: isize;
+    let mut j: isize = 0;
+    if period_matches {
+        let mut memory: isize = -1;
+        while j <= haystack_len - needle_len {
+            i = std::cmp::max(ell, memory) + 1;
+            {
+                let mut n_chars = skip_manually!(needle.rope.chars(), i);
+                let mut h_chars = skip_manually!(haystack.rope.chars(), i + j);
+                while i < needle_len
+                    && opts_match!(n_chars.next(), h_chars.next(), {true} else {false})
+                {
+                    i += 1;
+                }
+            }
+            if i >= needle_len {
+                i = ell;
+                {
+                    let mut n_chars = skip_manually!(needle.rope.chars(), needle_len - i);
+                    let mut h_chars = skip_manually!(haystack.rope.chars(), haystack_len - (i + j));
+                    while i > memory
+                        && opts_match!(n_chars.prev(), h_chars.prev(), {true} else {false})
+                    {
+                        i -= 1;
+                    }
+                }
+                if i <= memory {
+                    push!(j);
+                }
+                j += period;
+                memory = needle_len - period - 1;
+            } else {
+                j += i - ell;
+                memory = -1;
+            }
+        }
+    } else {
+        period = std::cmp::max(ell + 1, needle_len - ell - 1) + 1;
+        while j <= haystack_len - needle_len {
+            i = ell + 1;
+            {
+                let mut n_chars = skip_manually!(needle.rope.chars(), i);
+                let mut h_chars = skip_manually!(haystack.rope.chars(), i + j);
+                while i < needle_len
+                    && opts_match!(n_chars.next(), h_chars.next(), {true} else {false})
+                {
+                    i += 1;
+                }
+            }
+            if i >= needle_len {
+                i = ell;
+                {
+                    let mut n_chars = skip_manually!(needle.rope.chars(), needle_len - i);
+                    let mut h_chars = skip_manually!(haystack.rope.chars(), haystack_len - (i + j));
+                    while i > 0 && opts_match!(n_chars.prev(), h_chars.prev(), {true} else {false})
+                    {
+                        i -= 1;
+                    }
+                }
+                if i < 0 {
+                    push!(j);
+                }
+                j += period;
+            } else {
+                j += i - ell;
+            }
+        }
+    }
+
+    output
+}
 
 type OffsetPair = (Option<AbsoluteCharOffset>, Option<AbsoluteCharOffset>);
 
@@ -723,10 +942,6 @@ impl TextBuffer {
 //
 
 impl TextBuffer {
-    pub fn cursors(&self) -> &Vec1<Cursor> {
-        self.borrow()
-    }
-
     pub fn in_bounds<P: Borrow<Position>>(&self, position: P) -> bool {
         in_cursor_bounds(&self.rope, position)
     }

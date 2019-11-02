@@ -1048,5 +1048,50 @@ fn adding_a_cursor_inside_a_highlight_does_not_change_the_selection() {
     selection_is_unchanged!(p left);
 }
 
+proptest! {
+    #[test]
+    fn get_search_ranges_works(
+        (needle, haystack) in arb::needle_and_haystack()
+    ) {
+        // precondition
+        assert!(needle.len() > 0);
+
+        let needle = t_b!(needle);
+        let haystack = t_b!(haystack);
+
+        let ranges = get_search_ranges(&needle, &haystack);
+
+        assert!(ranges.len() > 0);
+
+        let mut chars = haystack.chars();
+        let mut previously_used = AbsoluteCharOffset(0);
+        for (start, end) in ranges {
+            let start_offset = pos_to_char_offset(&haystack.rope, &start).unwrap();
+            let end_offset = pos_to_char_offset(&haystack.rope, &end).unwrap();
+
+            for _ in previously_used.0..start_offset.0 {
+                chars.next().unwrap();
+            }
+
+            let mut n_chars = needle.chars();
+            for _ in start_offset.0..end_offset.0 {
+                assert_eq!(chars.next(), n_chars.next());
+            }
+
+            previously_used = end_offset;
+        }
+    }
+}
+
+proptest! {
+    #[test]
+    fn get_search_ranges_does_not_make_stuff_up(
+        needle in "[0-9]+",
+        needleless_haystack in "[a-z]+"
+    ) {
+        assert_eq!(get_search_ranges(&t_b!(needle), &t_b!(needleless_haystack)).len(), 0);
+    }
+}
+
 pub mod arb;
 mod cursor_manipulation;

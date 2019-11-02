@@ -5,7 +5,7 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use std::collections::VecDeque;
-use text_buffer::TextBuffer;
+use text_buffer::{get_search_ranges, TextBuffer};
 
 #[derive(Default)]
 struct ClipboardHistory {
@@ -69,9 +69,14 @@ impl ClipboardHistory {
 }
 
 #[derive(Default)]
-struct EditorBuffer {
+struct ScrollableBuffer {
     text_buffer: TextBuffer,
     scroll: ScrollXY,
+}
+
+#[derive(Default)]
+struct EditorBuffer {
+    scrollable: ScrollableBuffer,
     name: BufferName,
     search_results: SearchResults,
 }
@@ -80,7 +85,10 @@ impl EditorBuffer {
     fn new<I: Into<TextBuffer>>(name: BufferName, s: I) -> Self {
         Self {
             name,
-            text_buffer: s.into(),
+            scrollable: ScrollableBuffer {
+                text_buffer: s.into(),
+                ..d!()
+            },
             ..d!()
         }
     }
@@ -92,6 +100,16 @@ struct SearchResults {
     current_range: usize,
 }
 
+fn get_search_results(needle: &TextBuffer, haystack: &ScrollableBuffer) -> SearchResults {
+    let ranges = get_search_ranges(needle, &haystack.text_buffer);
+
+    //TODO: Set `current_range` to something as close as possible to being on screen of haystack
+    SearchResults {
+        ranges,
+        current_range: 0,
+    }
+}
+
 #[derive(Default)]
 pub struct State {
     // TODO side by side visible buffers
@@ -100,20 +118,20 @@ pub struct State {
     buffer_xywh: TextBoxXYWH,
     current_buffer_id: BufferId,
     find_replace_mode: FindReplaceMode,
-    find: EditorBuffer,
+    find: ScrollableBuffer,
     find_xywh: TextBoxXYWH,
-    replace: EditorBuffer,
+    replace: ScrollableBuffer,
     replace_xywh: TextBoxXYWH,
     font_info: FontInfo,
     clipboard_history: ClipboardHistory,
 }
 
 // this macro helps the borrow checker figure out that borrows are valid.
-macro_rules! current_editor_buffer_mut {
-    /* -> Option<&mut EditorBuffer> */
+macro_rules! current_scrollable_buffer_mut {
+    /* -> Option<&mut ScrollableBuffer> */
     ($state: expr) => {
         match $state.current_buffer_id {
-            BufferId::Text(i) => $state.buffers.get_mut(i),
+            BufferId::Text(i) => $state.buffers.get_mut(i).map(|b| &mut b.scrollable),
             BufferId::Find(_) => Some(&mut $state.find),
             BufferId::Replace(_) => Some(&mut $state.replace),
         }
@@ -220,7 +238,7 @@ impl State {
     }
 
     fn try_to_show_cursors_on_current_buffer(&mut self) -> Option<()> {
-        let buffer = current_editor_buffer_mut!(self)?;
+        let buffer = current_scrollable_buffer_mut!(self)?;
         let xywh = match self.current_buffer_id {
             BufferId::Text(_) => self.buffer_xywh,
             BufferId::Find(_) => self.find_xywh,
@@ -233,7 +251,7 @@ impl State {
                 BufferId::Text(_) => self.font_info.text_char_dim,
                 BufferId::Find(_) | BufferId::Replace(_) => self.font_info.find_replace_char_dim,
             },
-            &buffer.text_buffer.cursors(),
+            buffer.text_buffer.borrow_cursors_vec(),
         );
 
         match attempt_result {
@@ -269,12 +287,12 @@ impl From<&str> for State {
 
 const AVERAGE_SELECTION_LNES_ESTIMATE: usize = 4;
 
-fn to_buffer_view_data(
-    editor_buffer: &EditorBuffer,
+fn scrollable_to_buffer_view_data(
+    scrollable: &ScrollableBuffer,
     selection_lines_estimate: usize,
 ) -> BufferViewData {
-    let buffer = &editor_buffer.text_buffer;
-    let buffer_cursors = buffer.cursors();
+    let buffer = &scrollable.text_buffer;
+    let buffer_cursors = buffer.borrow_cursors();
     let cursors_len = buffer_cursors.len();
     let mut cursors = Vec::with_capacity(cursors_len);
     let mut highlights = Vec::with_capacity(cursors.len() * selection_lines_estimate);
@@ -290,6 +308,22 @@ fn to_buffer_view_data(
         push_highlights(&mut highlights, position, c.get_highlight_position(), d!());
     }
 
+    BufferViewData {
+        scroll: scrollable.scroll,
+        chars: buffer.chars().collect::<String>(),
+        cursors,
+        highlights,
+    }
+}
+
+fn editor_to_buffer_view_data(
+    editor_buffer: &EditorBuffer,
+    selection_lines_estimate: usize,
+) -> BufferViewData {
+    let mut buffer_view_data =
+        scrollable_to_buffer_view_data(&editor_buffer.scrollable, selection_lines_estimate);
+
+    let highlights = &mut buffer_view_data.highlights;
     let SearchResults {
         ref ranges,
         current_range,
@@ -300,14 +334,10 @@ fn to_buffer_view_data(
         } else {
             HighlightKind::Result
         };
-        push_highlights(&mut highlights, p1, p2, kind);
+        push_highlights(highlights, p1, p2, kind);
     }
-    BufferViewData {
-        scroll: editor_buffer.scroll,
-        chars: buffer.chars().collect::<String>(),
-        cursors,
-        highlights,
-    }
+
+    buffer_view_data
 }
 
 #[perf_viz::record]
@@ -333,7 +363,7 @@ pub fn render_view(
         view.buffers.push(BufferView {
             name: name.clone(),
             name_string: name.to_string(),
-            data: to_buffer_view_data(&editor_buffer, AVERAGE_SELECTION_LNES_ESTIMATE),
+            data: editor_to_buffer_view_data(&editor_buffer, AVERAGE_SELECTION_LNES_ESTIMATE),
         });
     }
 
@@ -342,8 +372,11 @@ pub fn render_view(
     let current_buffer_index = current_buffer_id.get_index();
     match buffers.get(current_buffer_index) {
         Some(EditorBuffer {
-            text_buffer: buffer,
-            scroll,
+            scrollable:
+                ScrollableBuffer {
+                    text_buffer: buffer,
+                    scroll,
+                },
             ..
         }) => {
             let scroll = *scroll;
@@ -364,7 +397,7 @@ pub fn render_view(
             // debugging
             let _cannot_actually_fail = write!(chars, "  ? t{} s{}", text_char_dim, scroll);
 
-            for c in buffer.cursors().iter() {
+            for c in buffer.borrow_cursors().iter() {
                 let _cannot_actually_fail = write!(
                     chars,
                     "{} {} ({}|{}), ",
@@ -388,8 +421,11 @@ pub fn render_view(
 
     view.find_replace = FindReplaceView {
         mode: find_replace_mode,
-        find: to_buffer_view_data(&find, FIND_REPLACE_AVERAGE_SELECTION_LNES_ESTIMATE),
-        replace: to_buffer_view_data(&replace, FIND_REPLACE_AVERAGE_SELECTION_LNES_ESTIMATE),
+        find: scrollable_to_buffer_view_data(&find, FIND_REPLACE_AVERAGE_SELECTION_LNES_ESTIMATE),
+        replace: scrollable_to_buffer_view_data(
+            &replace,
+            FIND_REPLACE_AVERAGE_SELECTION_LNES_ESTIMATE,
+        ),
     };
 
     view.current_buffer_id = current_buffer_id;
@@ -435,7 +471,7 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
             buffer_call!($buffer {$buffer.$($method_call)*})
         };
         ($buffer: ident $tokens:block) => {{
-            if let Some($buffer) = current_editor_buffer_mut!(state) {
+            if let Some($buffer) = current_scrollable_buffer_mut!(state) {
                 $tokens;
             }
         }}
@@ -445,7 +481,7 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
             text_buffer_call!($buffer {$buffer.$($method_call)*})
         };
         ($buffer: ident $tokens:block) => {{
-            if let Some($buffer) = current_editor_buffer_mut!(state).map(|b| &mut b.text_buffer) {
+            if let Some($buffer) = current_scrollable_buffer_mut!(state).map(|b| &mut b.text_buffer) {
                 $tokens;
             }
         }}
@@ -633,7 +669,22 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
                 // will understand where the cursor is.
             });
         }
-        SubmitForm => {}
+        SubmitForm => match state.current_buffer_id {
+            BufferId::Text(_) => {}
+            BufferId::Find(i) => match state.find_replace_mode {
+                FindReplaceMode::Hidden => {}
+                FindReplaceMode::CurrentFile => {
+                    if let Some(target_buffer) = state.buffers.get_mut(i) {
+                        let needle = &state.find.text_buffer;
+                        let haystack = &target_buffer.scrollable;
+                        target_buffer.search_results = get_search_results(needle, haystack);
+                    }
+                }
+            },
+            BufferId::Replace(i) => {
+                dbg!("TODO BufferId::Replace {}", i);
+            }
+        },
     }
 
     let mut view = d!();

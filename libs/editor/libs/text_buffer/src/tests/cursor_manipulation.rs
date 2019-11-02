@@ -1284,24 +1284,6 @@ fn moving_onto_shorter_lines_across_carriage_return_line_feeds_works() {
     moving_onto_shorter_lines!("\r\n");
 }
 
-proptest! {
-    #[test]
-    fn right_n_times_is_the_same_as_move_right_n_times(
-        (rope, pos, AbsoluteCharOffset(n)) in arb_rope_and_pos_and_offset(),
-    ) {
-        let mut c1 = Cursor::new(pos);
-        let mut c2 = Cursor::new(pos);
-
-        move_cursor::right_n_times(&rope, &mut c1, n);
-
-        for _ in 0..n {
-            move_cursor::directly(&rope, &mut c2, Move::Right);
-        }
-
-        assert_eq!(c1, c2);
-    }
-}
-
 #[test]
 fn moving_left_across_a_newline_works_on_this_example() {
     use Move::*;

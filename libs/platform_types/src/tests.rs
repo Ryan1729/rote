@@ -1,6 +1,5 @@
 use super::*;
-use crate::floating_point::*;
-use proptest::{num::f32, prop_compose, proptest};
+use proptest::{prop_compose, proptest};
 
 prop_compose! {
     fn arb_pos(max_line: usize, max_offset: usize)
@@ -32,7 +31,7 @@ fn get_ord_highlights<O: Into<Option<Position>>>(
     {
         let mut highlights = Vec::with_capacity(16);
 
-        push_highlights(&mut highlights, position, highlight_position);
+        push_highlights(&mut highlights, position, highlight_position, d!());
 
         highlights
     }
