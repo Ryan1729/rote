@@ -228,6 +228,12 @@ impl From<&str> for TextBuffer {
     }
 }
 
+impl From<&TextBuffer> for String {
+    fn from(t_b: &TextBuffer) -> Self {
+        t_b.rope.clone().into()
+    }
+}
+
 pub fn get_search_ranges(needle: &TextBuffer, haystack: &TextBuffer) -> Vec<(Position, Position)> {
     // Two-way string matching based on http://www-igm.univ-mlv.fr/~lecroq/string/node26.html
 

@@ -96,17 +96,29 @@ impl EditorBuffer {
 
 #[derive(Default)]
 struct SearchResults {
+    needle: String,
     ranges: Vec<(Position, Position)>,
     current_range: usize,
 }
 
-fn get_search_results(needle: &TextBuffer, haystack: &ScrollableBuffer) -> SearchResults {
-    let ranges = get_search_ranges(needle, &haystack.text_buffer);
+fn update_search_results(needle: &TextBuffer, haystack: &mut EditorBuffer) {
+    let needle_string: String = needle.into();
+    if needle_string == haystack.search_results.needle {
+        let search_results = &mut haystack.search_results;
+        let len = search_results.ranges.len();
+        search_results.current_range += 1;
+        if search_results.current_range >= len {
+            search_results.current_range = 0;
+        }
+    } else {
+        let ranges = get_search_ranges(needle, &haystack.scrollable.text_buffer);
 
-    //TODO: Set `current_range` to something as close as possible to being on screen of haystack
-    SearchResults {
-        ranges,
-        current_range: 0,
+        //TODO: Set `current_range` to something as close as possible to being on screen of haystack
+        haystack.search_results = SearchResults {
+            needle: needle.into(),
+            ranges,
+            current_range: 0,
+        };
     }
 }
 
@@ -327,6 +339,7 @@ fn editor_to_buffer_view_data(
     let SearchResults {
         ref ranges,
         current_range,
+        ..
     } = editor_buffer.search_results;
     for (i, &(p1, p2)) in ranges.iter().enumerate() {
         let kind = if i == current_range {
@@ -675,9 +688,7 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
                 FindReplaceMode::Hidden => {}
                 FindReplaceMode::CurrentFile => {
                     if let Some(target_buffer) = state.buffers.get_mut(i) {
-                        let needle = &state.find.text_buffer;
-                        let haystack = &target_buffer.scrollable;
-                        target_buffer.search_results = get_search_results(needle, haystack);
+                        update_search_results(&state.find.text_buffer, target_buffer)
                     }
                 }
             },
