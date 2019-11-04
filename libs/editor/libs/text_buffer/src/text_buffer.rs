@@ -253,18 +253,20 @@ pub fn get_search_ranges(needle: &TextBuffer, haystack: &TextBuffer) -> Vec<(Pos
                         j += k;
                         k = 1;
                         p = j - ms;
-                    } else if $a == $b {
-                        if k != p {
-                            k += 1;
-                        } else {
-                            j += p;
-                            k = 1;
-                        }
                     } else {
-                        ms = j;
-                        j = ms + 1;
-                        p = 1;
-                        k = p;
+                        if $a == $b {
+                            if k != p {
+                                k += 1;
+                            } else {
+                                j += p;
+                                k = 1;
+                            }
+                        } else {
+                            ms = j;
+                            j = ms + 1;
+                            p = 1;
+                            k = p;
+                        }
                     }
                 }
 
@@ -330,13 +332,14 @@ pub fn get_search_ranges(needle: &TextBuffer, haystack: &TextBuffer) -> Vec<(Pos
     }
 
     macro_rules! opts_match {
-       ($op1: expr, $op2: expr, $match_case: block else $else_case: block) => (
-           match ($op1, $op2) {
-               (Some(e1), Some(e2)) if e1 == e2 => $match_case
-               _ => $else_case
-           }
-       );
-   }
+        ($op1: expr, $op2: expr, $match_case: block else $else_case: block) => {
+            match ($op1, $op2) {
+                (Some(e1), Some(e2)) if e1 == e2 => $match_case,
+                (None, None) => $match_case,
+                _ => $else_case,
+            }
+        };
+    }
 
     /* Searching */
     let period_matches = {
@@ -383,8 +386,9 @@ pub fn get_search_ranges(needle: &TextBuffer, haystack: &TextBuffer) -> Vec<(Pos
             if i >= needle_len {
                 i = ell;
                 {
-                    let mut n_chars = skip_manually!(needle.rope.chars(), needle_len - i);
-                    let mut h_chars = skip_manually!(haystack.rope.chars(), haystack_len - (i + j));
+                    let mut n_chars = skip_manually!(needle.rope.chars(), needle_len - i + 1);
+                    let mut h_chars =
+                        skip_manually!(haystack.rope.chars(), haystack_len - (i + j) + 1);
                     while i > memory
                         && opts_match!(n_chars.prev(), h_chars.prev(), {true} else {false})
                     {
@@ -417,9 +421,10 @@ pub fn get_search_ranges(needle: &TextBuffer, haystack: &TextBuffer) -> Vec<(Pos
             if i >= needle_len {
                 i = ell;
                 {
-                    let mut n_chars = skip_manually!(needle.rope.chars(), needle_len - i);
-                    let mut h_chars = skip_manually!(haystack.rope.chars(), haystack_len - (i + j));
-                    while i > 0 && opts_match!(n_chars.prev(), h_chars.prev(), {true} else {false})
+                    let mut n_chars = skip_manually!(needle.rope.chars(), i + 1);
+                    let mut h_chars = skip_manually!(haystack.rope.chars(), i + j + 1);
+
+                    while i >= 0 && opts_match!(n_chars.prev(), h_chars.prev(), {true} else {false})
                     {
                         i -= 1;
                     }

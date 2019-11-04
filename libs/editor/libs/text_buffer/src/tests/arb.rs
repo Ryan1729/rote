@@ -37,6 +37,7 @@ prop_compose! {
         }
         if needleless_haystack.chars().count() == insert_point {
             inserted_count += 1;
+            haystack.push_str(&needle);
         }
         self::assert_eq!(inserted_count, 1,
             "insert_point {}, needle {:?}, needleless_haystack: {:?}, needleless_haystack.chars().count() {}",

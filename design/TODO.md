@@ -21,7 +21,7 @@ Once everything above this line is done we can start bootstrapping, (using this 
 * make auto-tab-scroll happen when a new tab is created
   * fix auto-scroll drifting as the amount of tabs increases.
 
-* get line wrapping working better
+* get line wrapping/text clipping working better
   * re-enable using `WrapInRect`
   * the cursor positions are off
   * is there anything else to this?
