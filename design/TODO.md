@@ -1,10 +1,5 @@
 ## TODO
 
-* Ctrl-f to open a within current file search
-  * seems like the string search algorithm we would want is "Two-way string matching": http://www-igm.univ-mlv.fr/~lecroq/string/node26.html
-    * actually implement function that returns find results.
-      * make selecting the currently highlighted search result use the cursors instead of a separate index.
-
 * Ctrl-d to select word and find next instance of word and select it and place a cursor there.
   * maybe make ctrl-alt-n unconditionally select the next word, just to break this into steps?
 

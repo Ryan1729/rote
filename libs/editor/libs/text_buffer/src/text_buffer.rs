@@ -573,8 +573,8 @@ impl TextBuffer {
     }
 
     #[perf_viz::record]
-    pub fn set_cursor<P: Borrow<Position>>(&mut self, position: P, replace_or_add: ReplaceOrAdd) {
-        if let Some(cursors) = self.get_new_cursors(position, replace_or_add) {
+    pub fn set_cursor<C: Into<Cursor>>(&mut self, cursor: C, replace_or_add: ReplaceOrAdd) {
+        if let Some(cursors) = self.get_new_cursors(cursor, replace_or_add) {
             self.apply_cursor_edit(cursors);
         }
     }
@@ -584,18 +584,29 @@ impl TextBuffer {
         self.extend_selection_for_all_cursors(Move::ToBufferEnd);
     }
 
-    fn get_new_cursors<P: Borrow<Position>>(
+    fn get_new_cursors<C: Into<Cursor>>(
         &self,
-        position: P,
+        cursor: C,
         replace_or_add: ReplaceOrAdd,
     ) -> Option<Vec1<Cursor>> {
-        let position = position.borrow();
+        let unclamped_cursor = cursor.into();
 
-        nearest_valid_position_on_same_line(&self.rope, position).map(|p| match replace_or_add {
-            ReplaceOrAdd::Replace => Vec1::new(Cursor::new(p)),
+        let cursor: Option<Cursor> = match (
+            nearest_valid_position_on_same_line(&self.rope, unclamped_cursor.get_position()),
+            unclamped_cursor
+                .get_highlight_position()
+                .and_then(|h| nearest_valid_position_on_same_line(&self.rope, h)),
+        ) {
+            (Some(p), Some(h)) => Some((p, h).into()),
+            (Some(p), None) => Some(p.into()),
+            (None, _) => None,
+        };
+
+        cursor.map(|c| match replace_or_add {
+            ReplaceOrAdd::Replace => Vec1::new(c),
             ReplaceOrAdd::Add => {
                 let mut cursors = self.cursors.get_cloned_cursors();
-                cursors.push(Cursor::new(p));
+                cursors.push(c);
                 cursors
             }
         })
@@ -621,14 +632,14 @@ impl TextBuffer {
     /// * everything else, which we will call "Punctuation"
     /// (see get_offsets in move_cursor.rs for details)
     ///
-    /// If it helps, you can think of it as "select_word" if the position is on a word, and other
+    /// If it helps, you can think of it as "select_word" if the cursor is on a word, and other
     /// stuff otherwise
-    pub fn select_char_type_grouping<P: Borrow<Position>>(
+    pub fn select_char_type_grouping<C: Into<Cursor>>(
         &mut self,
-        position: P,
+        cursor: C,
         replace_or_add: ReplaceOrAdd,
     ) {
-        if let Some(mut new) = self.get_new_cursors(position, replace_or_add) {
+        if let Some(mut new) = self.get_new_cursors(cursor, replace_or_add) {
             let c = new.last_mut();
 
             let rope = &self.rope;

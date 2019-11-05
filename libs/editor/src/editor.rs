@@ -102,24 +102,14 @@ struct SearchResults {
 }
 
 fn update_search_results(needle: &TextBuffer, haystack: &mut EditorBuffer) {
-    let needle_string: String = needle.into();
-    if needle_string == haystack.search_results.needle {
-        let search_results = &mut haystack.search_results;
-        let len = search_results.ranges.len();
-        search_results.current_range += 1;
-        if search_results.current_range >= len {
-            search_results.current_range = 0;
-        }
-    } else {
-        let ranges = get_search_ranges(needle, &haystack.scrollable.text_buffer);
+    let ranges = get_search_ranges(needle, &haystack.scrollable.text_buffer);
 
-        //TODO: Set `current_range` to something as close as possible to being on screen of haystack
-        haystack.search_results = SearchResults {
-            needle: needle.into(),
-            ranges,
-            current_range: 0,
-        };
-    }
+    //TODO: Set `current_range` to something as close as possible to being on screen of haystack
+    haystack.search_results = SearchResults {
+        needle: needle.into(),
+        ranges,
+        current_range: 0,
+    };
 }
 
 #[derive(Default)]
@@ -139,10 +129,13 @@ pub struct State {
 }
 
 // this macro helps the borrow checker figure out that borrows are valid.
-macro_rules! current_scrollable_buffer_mut {
+macro_rules! get_scrollable_buffer_mut {
     /* -> Option<&mut ScrollableBuffer> */
     ($state: expr) => {
-        match $state.current_buffer_id {
+        get_scrollable_buffer_mut!($state, $state.current_buffer_id)
+    };
+    ($state: expr, $id: expr) => {
+        match $id {
             BufferId::Text(i) => $state.buffers.get_mut(i).map(|b| &mut b.scrollable),
             BufferId::Find(_) => Some(&mut $state.find),
             BufferId::Replace(_) => Some(&mut $state.replace),
@@ -249,9 +242,9 @@ impl State {
         }
     }
 
-    fn try_to_show_cursors_on_current_buffer(&mut self) -> Option<()> {
-        let buffer = current_scrollable_buffer_mut!(self)?;
-        let xywh = match self.current_buffer_id {
+    fn try_to_show_cursors_on(&mut self, id: BufferId) -> Option<()> {
+        let buffer = get_scrollable_buffer_mut!(self, id)?;
+        let xywh = match id {
             BufferId::Text(_) => self.buffer_xywh,
             BufferId::Find(_) => self.find_xywh,
             BufferId::Replace(_) => self.replace_xywh,
@@ -259,7 +252,7 @@ impl State {
         let attempt_result = attempt_to_make_sure_at_least_one_cursor_is_visible(
             &mut buffer.scroll,
             xywh,
-            match self.current_buffer_id {
+            match id {
                 BufferId::Text(_) => self.font_info.text_char_dim,
                 BufferId::Find(_) | BufferId::Replace(_) => self.font_info.find_replace_char_dim,
             },
@@ -484,7 +477,7 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
             buffer_call!($buffer {$buffer.$($method_call)*})
         };
         ($buffer: ident $tokens:block) => {{
-            if let Some($buffer) = current_scrollable_buffer_mut!(state) {
+            if let Some($buffer) = get_scrollable_buffer_mut!(state) {
                 $tokens;
             }
         }}
@@ -494,7 +487,7 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
             text_buffer_call!($buffer {$buffer.$($method_call)*})
         };
         ($buffer: ident $tokens:block) => {{
-            if let Some($buffer) = current_scrollable_buffer_mut!(state).map(|b| &mut b.text_buffer) {
+            if let Some($buffer) = get_scrollable_buffer_mut!(state).map(|b| &mut b.text_buffer) {
                 $tokens;
             }
         }}
@@ -510,8 +503,26 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
 
     macro_rules! try_to_show_cursors {
         () => {
-            state.try_to_show_cursors_on_current_buffer();
+            try_to_show_cursors!(state.current_buffer_id)
+        };
+        ($id: expr) => {
+            state.try_to_show_cursors_on($id);
             // TODO trigger error popup based on result?
+        };
+    }
+
+    macro_rules! post_edit_sync {
+        () => {
+            match state.find_replace_mode {
+                FindReplaceMode::Hidden => {}
+                FindReplaceMode::CurrentFile => {
+                    let i = state.current_buffer_id.get_index();
+                    if let Some(target_buffer) = state.buffers.get_mut(i) {
+                        update_search_results(&state.find.text_buffer, target_buffer);
+                    }
+                }
+            }
+            try_to_show_cursors!();
         };
     }
 
@@ -527,19 +538,19 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
         },
         Insert(c) => buffer_call!(b{
             b.text_buffer.insert(c);
-            try_to_show_cursors!();
+            post_edit_sync!();
         }),
         Delete => buffer_call!(b {
             b.text_buffer.delete();
-            try_to_show_cursors!();
+            post_edit_sync!();
         }),
         Redo => buffer_call!(b {
             b.text_buffer.redo();
-            try_to_show_cursors!();
+            post_edit_sync!();
         }),
         Undo => buffer_call!(b {
             b.text_buffer.undo();
-            try_to_show_cursors!();
+            post_edit_sync!();
         }),
         MoveAllCursors(r#move) => {
             buffer_call!(b{
@@ -583,7 +594,7 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
                 );
 
                 b.text_buffer.set_cursor(position, replace_or_add);
-            })
+            });
         }
         DragCursors(xy) => {
             let char_dim = state.get_current_char_dim();
@@ -622,7 +633,7 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
             if let Some(s) = state.clipboard_history.cut(&mut b.text_buffer) {
                 cmd = Cmd::SetClipboard(s);
             }
-            try_to_show_cursors!();
+            post_edit_sync!();
         }),
         Copy => buffer_call!(b {
             if let Some(s) = state.clipboard_history.copy(&mut b.text_buffer) {
@@ -632,15 +643,15 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
         }),
         Paste(op_s) => buffer_call!(b {
             state.clipboard_history.paste(&mut b.text_buffer, op_s);
-            try_to_show_cursors!();
+            post_edit_sync!();
         }),
         InsertNumbersAtCursors => buffer_call!(b {
             b.text_buffer.insert_at_each_cursor(|i| i.to_string());
-            try_to_show_cursors!();
+            post_edit_sync!();
         }),
         LoadedFile(path, str) => {
             state.add_or_select_buffer(path, str);
-            try_to_show_cursors!();
+            post_edit_sync!();
         }
         NewScratchBuffer => {
             let index = state.buffers.len();
@@ -653,9 +664,11 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
         }
         TabIn => {
             text_buffer_call!(b.tab_in());
+            post_edit_sync!();
         }
         TabOut => {
             text_buffer_call!(b.tab_out());
+            post_edit_sync!();
         }
         NextBuffer => {
             state.next_buffer();
@@ -681,14 +694,42 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
                 // We don't need to make sure a cursor is visible here since the user
                 // will understand where the cursor is.
             });
+            post_edit_sync!();
         }
         SubmitForm => match state.current_buffer_id {
             BufferId::Text(_) => {}
             BufferId::Find(i) => match state.find_replace_mode {
                 FindReplaceMode::Hidden => {}
                 FindReplaceMode::CurrentFile => {
-                    if let Some(target_buffer) = state.buffers.get_mut(i) {
-                        update_search_results(&state.find.text_buffer, target_buffer)
+                    if let Some(haystack) = state.buffers.get_mut(i) {
+                        let needle = &state.find.text_buffer;
+                        let needle_string: String = needle.into();
+                        if needle_string == haystack.search_results.needle {
+                            if needle_string.len() > 0 {
+                                let search_results = &mut haystack.search_results;
+                                let len = search_results.ranges.len();
+                                search_results.current_range += 1;
+                                if search_results.current_range >= len {
+                                    search_results.current_range = 0;
+                                }
+
+                                if let Some(pair) = haystack
+                                    .search_results
+                                    .ranges
+                                    .get(haystack.search_results.current_range)
+                                {
+                                    let c: Cursor = pair.into();
+                                    haystack
+                                        .scrollable
+                                        .text_buffer
+                                        .set_cursor(c, ReplaceOrAdd::Replace);
+                                    try_to_show_cursors!(BufferId::Text(i));
+                                }
+                            }
+                        } else {
+                            update_search_results(needle, haystack);
+                        }
+                        try_to_show_cursors!();
                     }
                 }
             },

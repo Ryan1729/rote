@@ -180,6 +180,30 @@ ord!(and friends for Cursor: c, other in {
         .then_with(|| c.state.cmp(&other.state))
 });
 
+impl From<Position> for Cursor {
+    fn from(p: Position) -> Self {
+        Cursor::new(p)
+    }
+}
+
+impl From<&Position> for Cursor {
+    fn from(p: &Position) -> Self {
+        Cursor::new(*p)
+    }
+}
+
+impl From<(Position, Position)> for Cursor {
+    fn from((p, h): (Position, Position)) -> Self {
+        Cursor::new_with_highlight(p, h)
+    }
+}
+
+impl From<&(Position, Position)> for Cursor {
+    fn from(&(p, h): &(Position, Position)) -> Self {
+        Cursor::new_with_highlight(p, h)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
