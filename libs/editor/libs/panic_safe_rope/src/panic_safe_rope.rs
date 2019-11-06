@@ -319,6 +319,14 @@ impl Rope {
             rope_slice: self.rope.slice(r),
         })
     }
+
+    /// Equivalent to `slice(..)` except it always returns a `RopeSlice`
+    #[inline]
+    pub fn full_slice(&self) -> RopeSlice {
+        RopeSlice {
+            rope_slice: self.rope.slice(0..self.len_chars().0),
+        }
+    }
 }
 
 fmt_debug!(for Rope : Rope {rope, ..} in "{:?}", rope);

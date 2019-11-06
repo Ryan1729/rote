@@ -1,7 +1,7 @@
 use crate::move_cursor::{forward, get_next_selection_point, get_previous_selection_point};
 use editor_types::{Cursor, SetPositionAction, Vec1};
 use macros::{d, some_or, CheckedSub};
-use panic_safe_rope::{ByteIndex, LineIndex, Rope, RopeLine, RopeSliceTrait};
+use panic_safe_rope::{ByteIndex, LineIndex, Rope, RopeLine, RopeSlice, RopeSliceTrait};
 use platform_types::*;
 use std::borrow::Borrow;
 use std::cmp::{max, min};
@@ -10,7 +10,7 @@ use std::collections::VecDeque;
 mod edit;
 mod move_cursor;
 
-use edit::Edit;
+use edit::{AbsoluteCharOffsetRange, Edit};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Cursors {
@@ -234,7 +234,36 @@ impl From<&TextBuffer> for String {
     }
 }
 
-pub fn get_search_ranges(needle: &TextBuffer, haystack: &TextBuffer) -> Vec<(Position, Position)> {
+/// A `max_needed` of `None` means return all the results. AKA no limit.
+pub fn get_search_ranges(
+    needle: RopeSlice,
+    haystack: &Rope,
+    haystack_range: Option<AbsoluteCharOffsetRange>,
+    max_needed: Option<std::num::NonZeroUsize>,
+) -> Vec<(Position, Position)> {
+    let (min, slice) = haystack_range
+        .and_then(|r| haystack.slice(r.range()).map(|s| (r.min().0, s)))
+        .unwrap_or_else(|| (0, haystack.full_slice()));
+
+    let offsets = get_search_ranges_impl(needle, slice, max_needed);
+
+    offsets
+        .into_iter()
+        .filter_map(|(o_min, o_max)| {
+            let a_o_min = AbsoluteCharOffset(o_min.0 + min);
+            let a_o_max = AbsoluteCharOffset(o_max.0 + min);
+
+            char_offset_to_pos(haystack, a_o_min)
+                .and_then(|p_min| char_offset_to_pos(haystack, a_o_max).map(|p_max| (p_min, p_max)))
+        })
+        .collect()
+}
+
+fn get_search_ranges_impl(
+    needle: RopeSlice,
+    haystack: RopeSlice,
+    max_needed: Option<std::num::NonZeroUsize>,
+) -> Vec<(CharOffset, CharOffset)> {
     // Two-way string matching based on http://www-igm.univ-mlv.fr/~lecroq/string/node26.html
 
     macro_rules! max_suffix {
@@ -245,7 +274,7 @@ pub fn get_search_ranges(needle: &TextBuffer, haystack: &TextBuffer) -> Vec<(Pos
             max_suffix!($name, a, b, a < b)
         };
         ($name: ident, $a: ident, $b: ident, $test: expr) => {
-            fn $name(rope: &Rope) -> Option<(isize, isize)> {
+            fn $name(rope: &RopeSlice) -> Option<(isize, isize)> {
                 let len = rope.len_chars().0 as isize;
                 let mut ms: isize = -1;
                 let mut j: isize = 0;
@@ -253,8 +282,8 @@ pub fn get_search_ranges(needle: &TextBuffer, haystack: &TextBuffer) -> Vec<(Pos
                 let mut k: isize = p;
 
                 while j + k < len {
-                    let $a = rope.char(AbsoluteCharOffset((j + k) as usize))?;
-                    let $b = rope.char(AbsoluteCharOffset((ms + k) as usize))?;
+                    let $a = rope.char(CharOffset((j + k) as usize))?;
+                    let $b = rope.char(CharOffset((ms + k) as usize))?;
                     if $test {
                         j += k;
                         k = 1;
@@ -287,25 +316,17 @@ pub fn get_search_ranges(needle: &TextBuffer, haystack: &TextBuffer) -> Vec<(Pos
     max_suffix!(max_suffix_ge, >);
 
     let mut output = Vec::new();
-    let needle_len = needle.rope.len_chars().0 as isize;
-    let haystack_len = haystack.rope.len_chars().0 as isize;
+    let needle_len = needle.len_chars().0 as isize;
+    let haystack_len = haystack.len_chars().0 as isize;
     macro_rules! push {
         ($start_offset: expr) => {
             let start_offset = $start_offset as usize;
             let end_offset = start_offset + needle_len as usize;
 
-            let rope = &haystack.rope;
-            match (
-                char_offset_to_pos(rope, AbsoluteCharOffset(start_offset)),
-                char_offset_to_pos(rope, AbsoluteCharOffset(end_offset)),
-            ) {
-                (Some(s), Some(e)) => {
-                    output.push((s, e));
-                }
-                (s, e) => {
-                    if cfg!(debug_assertions) {
-                        panic!("start {:?}, end {:?}", s, e);
-                    }
+            output.push((CharOffset(start_offset), CharOffset(end_offset)));
+            if let Some(max_needed) = max_needed {
+                if max_needed.get() >= output.len() {
+                    return output;
                 }
             }
         };
@@ -317,7 +338,7 @@ pub fn get_search_ranges(needle: &TextBuffer, haystack: &TextBuffer) -> Vec<(Pos
     let mut period;
     {
         /* Preprocessing */
-        match (max_suffix_le(&needle.rope), max_suffix_ge(&needle.rope)) {
+        match (max_suffix_le(&needle), max_suffix_ge(&needle)) {
             (Some((i, p)), Some((j, q))) => {
                 if i > j {
                     ell = i;
@@ -381,8 +402,8 @@ pub fn get_search_ranges(needle: &TextBuffer, haystack: &TextBuffer) -> Vec<(Pos
         while j <= haystack_len - needle_len {
             i = std::cmp::max(ell, memory) + 1;
             {
-                let mut n_chars = skip_manually!(needle.rope.chars(), i);
-                let mut h_chars = skip_manually!(haystack.rope.chars(), i + j);
+                let mut n_chars = skip_manually!(needle.chars(), i);
+                let mut h_chars = skip_manually!(haystack.chars(), i + j);
                 while i < needle_len
                     && opts_match!(n_chars.next(), h_chars.next(), {true} else {false})
                 {
@@ -392,9 +413,8 @@ pub fn get_search_ranges(needle: &TextBuffer, haystack: &TextBuffer) -> Vec<(Pos
             if i >= needle_len {
                 i = ell;
                 {
-                    let mut n_chars = skip_manually!(needle.rope.chars(), needle_len - i + 1);
-                    let mut h_chars =
-                        skip_manually!(haystack.rope.chars(), haystack_len - (i + j) + 1);
+                    let mut n_chars = skip_manually!(needle.chars(), needle_len - i + 1);
+                    let mut h_chars = skip_manually!(haystack.chars(), haystack_len - (i + j) + 1);
                     while i > memory
                         && opts_match!(n_chars.prev(), h_chars.prev(), {true} else {false})
                     {
@@ -416,8 +436,8 @@ pub fn get_search_ranges(needle: &TextBuffer, haystack: &TextBuffer) -> Vec<(Pos
         while j <= haystack_len - needle_len {
             i = ell + 1;
             {
-                let mut n_chars = skip_manually!(needle.rope.chars(), i);
-                let mut h_chars = skip_manually!(haystack.rope.chars(), i + j);
+                let mut n_chars = skip_manually!(needle.chars(), i);
+                let mut h_chars = skip_manually!(haystack.chars(), i + j);
                 while i < needle_len
                     && opts_match!(n_chars.next(), h_chars.next(), {true} else {false})
                 {
@@ -427,8 +447,8 @@ pub fn get_search_ranges(needle: &TextBuffer, haystack: &TextBuffer) -> Vec<(Pos
             if i >= needle_len {
                 i = ell;
                 {
-                    let mut n_chars = skip_manually!(needle.rope.chars(), i + 1);
-                    let mut h_chars = skip_manually!(haystack.rope.chars(), i + j + 1);
+                    let mut n_chars = skip_manually!(needle.chars(), i + 1);
+                    let mut h_chars = skip_manually!(haystack.chars(), i + j + 1);
 
                     while i >= 0 && opts_match!(n_chars.prev(), h_chars.prev(), {true} else {false})
                     {
@@ -446,6 +466,33 @@ pub fn get_search_ranges(needle: &TextBuffer, haystack: &TextBuffer) -> Vec<(Pos
     }
 
     output
+}
+
+pub fn next_instance_of_selected(rope: &Rope, cursor: &Cursor) -> Option<(Position, Position)> {
+    match offset_pair(rope, cursor) {
+        (Some(p_offset), Some(h_offset)) => {
+            let range = AbsoluteCharOffsetRange::new(p_offset, h_offset);
+            let selected_text = rope.slice(range.range())?;
+
+            get_search_ranges(
+                selected_text,
+                rope,
+                Some(AbsoluteCharOffsetRange::new(range.max(), rope.len_chars())),
+                std::num::NonZeroUsize::new(1),
+            )
+            .pop()
+            .or_else(|| {
+                get_search_ranges(
+                    selected_text,
+                    rope,
+                    Some(AbsoluteCharOffsetRange::new(d!(), range.min())),
+                    std::num::NonZeroUsize::new(1),
+                )
+                .pop()
+            })
+        }
+        _ => None,
+    }
 }
 
 type OffsetPair = (Option<AbsoluteCharOffset>, Option<AbsoluteCharOffset>);

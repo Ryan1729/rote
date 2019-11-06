@@ -5,7 +5,7 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use std::collections::VecDeque;
-use text_buffer::{get_search_ranges, TextBuffer};
+use text_buffer::{get_search_ranges, next_instance_of_selected, TextBuffer};
 
 #[derive(Default)]
 struct ClipboardHistory {
@@ -102,7 +102,12 @@ struct SearchResults {
 }
 
 fn update_search_results(needle: &TextBuffer, haystack: &mut EditorBuffer) {
-    let ranges = get_search_ranges(needle, &haystack.scrollable.text_buffer);
+    let ranges = get_search_ranges(
+        needle.borrow_rope().full_slice(),
+        &haystack.scrollable.text_buffer.borrow_rope(),
+        d!(),
+        d!(),
+    );
 
     //TODO: Set `current_range` to something as close as possible to being on screen of haystack
     haystack.search_results = SearchResults {
@@ -623,6 +628,23 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
 
                 b.text_buffer.select_char_type_grouping(position, replace_or_add)
             })
+        }
+        ExtendSelectionWithSearch => {
+            buffer_call!(b{
+                let cursor = b.text_buffer.borrow_cursors().first().clone();
+                match cursor.get_highlight_position() {
+                    Option::None => {
+                        b.text_buffer.select_char_type_grouping(cursor.get_position(), ReplaceOrAdd::Add);
+                    }
+                    Some(_) => {
+                        dbg!();
+                        if let Some(pair) = next_instance_of_selected(b.text_buffer.borrow_rope(), &cursor) {
+                            dbg!();
+                            b.text_buffer.set_cursor(pair, ReplaceOrAdd::Add);
+                        }
+                    }
+                }
+            });
         }
         SetBufferPath(buffer_index, path) => {
             if let Some(b) = state.buffers.get_mut(buffer_index) {

@@ -690,7 +690,7 @@ mod absolute_char_offset_range {
         }
     }
 }
-use absolute_char_offset_range::AbsoluteCharOffsetRange;
+pub use absolute_char_offset_range::AbsoluteCharOffsetRange;
 
 #[perf_viz::record]
 fn sort_cursors(cursors: Vec1<Cursor>) -> Vec1<Cursor> {

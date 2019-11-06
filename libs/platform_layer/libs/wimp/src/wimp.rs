@@ -480,6 +480,9 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                             VirtualKeyCode::C => {
                                 call_u_and_r!(Input::Copy);
                             }
+                            VirtualKeyCode::D => {
+                                call_u_and_r!(Input::ExtendSelectionWithSearch);
+                            }
                             VirtualKeyCode::F => {
                                 call_u_and_r!(Input::SetFindReplaceMode(
                                     FindReplaceMode::CurrentFile
@@ -709,6 +712,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                         WindowEvent::ReceivedCharacter(mut c) => {
                             if c != '\u{1}'       // "start of heading" (sent with Ctrl-a)
                              && c != '\u{3}'    // "end of text" (sent with Ctrl-c)
+                             && c != '\u{4}'    // "end of transmission" (sent with Ctrl-d)
                              && c != '\u{6}'    // "acknowledge" (sent with Ctrl-f)
                              && c != '\u{8}'    // backspace (sent with Ctrl-h)
                              && c != '\u{9}'    // horizontal tab (sent with Ctrl-i)

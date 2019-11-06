@@ -1,8 +1,5 @@
 ## TODO
 
-* Ctrl-d to select word and find next instance of word and select it and place a cursor there.
-  * maybe make ctrl-alt-n unconditionally select the next word, just to break this into steps?
-
 * Ctrl-p open a list of open files, with a search box.
   * searching files by name
   * is it okay for this to take over the whole screen?

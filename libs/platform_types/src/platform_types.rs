@@ -65,6 +65,7 @@ pub enum Input {
     SetCursor(TextBoxSpaceXY, ReplaceOrAdd),
     DragCursors(TextBoxSpaceXY),
     SelectCharTypeGrouping(TextBoxSpaceXY, ReplaceOrAdd),
+    ExtendSelectionWithSearch,
     SetBufferPath(usize, PathBuf),
     Undo,
     Redo,
