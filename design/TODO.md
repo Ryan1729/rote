@@ -14,11 +14,29 @@ Once everything above this line is done we can start bootstrapping, (using this 
 * decide whether it would be better to start with a simple shelling out to the compiler to get error messages, or if we should start with trying to integrate RLS
   * the criteria are:
     * would RLS mean we wouldn't need the separate shelling out?
+      * seems like it?
     * how easy would it be to get the most important info out of it?
     * if we can avoid total work by starting with RLS, and it's not more then say 2x the work to get the initial parts we want working with RLS, then it seems worth it ta go with RLS first.
       * example: if shelling out takes 100 units of work, and RLS takes 1000 in total, but 150 to get error reporting, then shelling out first costs 1100 overall, but we get error reporting 50 units sooner. whereas if we do RLS that's only 1000 units overall, but we have to wait 50 units longer for in-editor error reporting. If we assume that a unit of waiting is the same cost as a unit of saved work, (they are both proxies for time spent right? so maybe that costing makes sense,) then RLS seems like the better deal.
+  * This page brings up some problems: https://www.reddit.com/r/vim/comments/b3yzq4/a_lsp_client_maintainers_view_of_the_lsp_protocol/ that may shift the calculus towards just not doing RLS integration at all. The offsets needing to be converted to utf-16 just to be converted back is annoying (RLS has switched to using utf-16 since that reddit post was written.)
+    * what are the features that need language integration that I actually use in environments that
+    have them?
+      * extract to variable
+      * extract function/method
+      * jump to blah
+      * error location highlighting/jump
+      * add import for thing I just started using in this scope
+      * find duplicated code
+      * move
+      * macro snippet
+    * To be honest, I like the intellij rust plugin's behaviour better than what I get in Atom currently. Can we just do what they do?
+      * intellij-community is under apache 2.0 and the rust plugin is under MIT so maybe?
+        * not all of the above list of features are in RLS or intellij-community. So we're going to need to live without at least some of them. The question at this point seems to com down to: How easy is it to build intellij-community? Because if that is a reasonable process, then we could dissect that down to just the minimum needed to replicate the features from that list, (everything but the duplicated code one I think?) and then just re-implement that myself, using their code as an example.
 
-* similarly to the above, does RLS provide brace matching, or should I do that myself?
+
+* draw an underline below matching braces, parens, brackets when a cursor is next to them.
+  * draw a different thing (dotted line?) if there is no matching brace found.
+  * jump to matching brace?
 
 * make auto-tab-scroll happen when a new tab is created
   * fix auto-scroll drifting as the amount of tabs increases.
