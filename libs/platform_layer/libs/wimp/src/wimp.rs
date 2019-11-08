@@ -371,7 +371,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                         () => {{
                             let xy = wimp_render::get_current_buffer_rect(
                                 view.current_buffer_id,
-                                view.find_replace.mode,
+                                view.menu.get_mode(),
                                 font_info,
                                 screen_wh!(),
                             )
@@ -411,7 +411,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                             } = get_find_replace_info(font_info, screen_wh!());
                             call_u_and_r!(Input::SetSizeDependents(SizeDependents {
                                 buffer_xywh: wimp_render::get_edit_buffer_xywh(
-                                    view.find_replace.mode,
+                                    view.menu.get_mode(),
                                     font_info,
                                     screen_wh!()
                                 )
@@ -489,7 +489,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                                 ));
                                 call_u_and_r!(Input::SetSizeDependents(SizeDependents {
                                     buffer_xywh: wimp_render::get_edit_buffer_xywh(
-                                        FindReplaceMode::CurrentFile,
+                                        MenuMode::FindReplace,
                                         font_info,
                                         screen_wh!()
                                     )
@@ -781,7 +781,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                                     let cursor_icon = if wimp_render::should_show_text_cursor(
                                         ui.mouse_pos,
                                         view.current_buffer_id,
-                                        view.find_replace.mode,
+                                        view.menu.get_mode(),
                                         font_info,
                                         screen_wh!(),
                                     ) {

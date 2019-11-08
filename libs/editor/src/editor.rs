@@ -124,6 +124,9 @@ pub struct State {
     buffers: Vec1<EditorBuffer>,
     buffer_xywh: TextBoxXYWH,
     current_buffer_id: BufferId,
+    menu_mode: MenuMode,
+    file_switcher: ScrollableBuffer,
+    file_switcher_results: FileSwitcherResults,
     find_replace_mode: FindReplaceMode,
     find: ScrollableBuffer,
     find_xywh: TextBoxXYWH,
@@ -139,13 +142,15 @@ macro_rules! get_scrollable_buffer_mut {
     ($state: expr) => {
         get_scrollable_buffer_mut!($state, $state.current_buffer_id)
     };
-    ($state: expr, $id: expr) => {
-        match $id {
-            BufferId::Text(i) => $state.buffers.get_mut(i).map(|b| &mut b.scrollable),
-            BufferId::Find(_) => Some(&mut $state.find),
-            BufferId::Replace(_) => Some(&mut $state.replace),
+    ($state: expr, $id: expr) => {{
+        let id = $id;
+        match $id.kind {
+            BufferIdKind::Text => $state.buffers.get_mut(id.index).map(|b| &mut b.scrollable),
+            BufferIdKind::Find => Some(&mut $state.find),
+            BufferIdKind::Replace => Some(&mut $state.replace),
+            BufferIdKind::FileSwitcher => Some(&mut $state.file_switcher),
         }
-    };
+    }};
 }
 
 macro_rules! set_indexed_id {
@@ -153,7 +158,7 @@ macro_rules! set_indexed_id {
         impl State {
             fn $name(&mut self, i: usize) {
                 if i < self.buffers.len() {
-                    self.current_buffer_id = BufferId::$variant(i);
+                    self.current_buffer_id = b_id!(BufferIdKind::$variant, i);
                 }
             }
         }
@@ -172,6 +177,10 @@ set_indexed_id! {
     set_replace_id,
     Replace
 }
+set_indexed_id! {
+    set_file_switcher_id,
+    FileSwitcher
+}
 
 impl State {
     pub fn new() -> State {
@@ -179,12 +188,11 @@ impl State {
     }
 
     fn next_buffer(&mut self) {
-        let current_buffer_index = self.current_buffer_id.get_index();
-        self.set_text_id((current_buffer_index + 1) % self.buffers.len());
+        self.set_text_id((self.current_buffer_id.index + 1) % self.buffers.len());
     }
 
     fn previous_buffer(&mut self) {
-        let current_buffer_index = self.current_buffer_id.get_index();
+        let current_buffer_index = self.current_buffer_id.index;
         self.set_text_id(if current_buffer_index == 0 {
             self.buffers.len() - 1
         } else {
@@ -192,11 +200,12 @@ impl State {
         });
     }
 
-    fn set_id(&mut self, id: BufferId) {
-        match id {
-            BufferId::Text(i) => self.set_text_id(i),
-            BufferId::Find(i) => self.set_find_id(i),
-            BufferId::Replace(i) => self.set_replace_id(i),
+    fn set_id(&mut self, BufferId { kind, index: i }: BufferId) {
+        match kind {
+            BufferIdKind::Text => self.set_text_id(i),
+            BufferIdKind::Find => self.set_find_id(i),
+            BufferIdKind::Replace => self.set_replace_id(i),
+            BufferIdKind::FileSwitcher => self.set_file_switcher_id(i),
         }
     }
 
@@ -241,25 +250,30 @@ impl State {
     }
 
     fn get_current_char_dim(&self) -> CharDim {
-        match self.current_buffer_id {
-            BufferId::Text(_) => self.font_info.text_char_dim,
-            BufferId::Find(_) | BufferId::Replace(_) => self.font_info.find_replace_char_dim,
+        use BufferIdKind::*;
+        match self.current_buffer_id.kind {
+            Text => self.font_info.text_char_dim,
+            Find | Replace | FileSwitcher => self.font_info.find_replace_char_dim,
         }
     }
 
     fn try_to_show_cursors_on(&mut self, id: BufferId) -> Option<()> {
+        use BufferIdKind::*;
+
         let buffer = get_scrollable_buffer_mut!(self, id)?;
-        let xywh = match id {
-            BufferId::Text(_) => self.buffer_xywh,
-            BufferId::Find(_) => self.find_xywh,
-            BufferId::Replace(_) => self.replace_xywh,
+        let kind = id.kind;
+        let xywh = match kind {
+            Text => self.buffer_xywh,
+            Find => self.find_xywh,
+            Replace => self.replace_xywh,
+            FileSwitcher => self.find_xywh, // TODO customize
         };
         let attempt_result = attempt_to_make_sure_at_least_one_cursor_is_visible(
             &mut buffer.scroll,
             xywh,
-            match id {
-                BufferId::Text(_) => self.font_info.text_char_dim,
-                BufferId::Find(_) | BufferId::Replace(_) => self.font_info.find_replace_char_dim,
+            match kind {
+                Text => self.font_info.text_char_dim,
+                Find | Replace | FileSwitcher => self.font_info.find_replace_char_dim,
             },
             buffer.text_buffer.borrow_cursors_vec(),
         );
@@ -357,6 +371,9 @@ pub fn render_view(
         ref buffers,
         font_info: FontInfo { text_char_dim, .. },
         current_buffer_id,
+        menu_mode,
+        ref file_switcher_results,
+        ref file_switcher,
         find_replace_mode,
         ref find,
         ref replace,
@@ -380,7 +397,7 @@ pub fn render_view(
 
     view.status_line.chars.clear();
     view.visible_buffers = d!();
-    let current_buffer_index = current_buffer_id.get_index();
+    let current_buffer_index = current_buffer_id.index;
     match buffers.get(current_buffer_index) {
         Some(EditorBuffer {
             scrollable:
@@ -428,15 +445,31 @@ pub fn render_view(
         }
     };
 
-    const FIND_REPLACE_AVERAGE_SELECTION_LNES_ESTIMATE: usize = 1;
+    const FIND_REPLACE_AVERAGE_SELECTION_LINES_ESTIMATE: usize = 1;
 
-    view.find_replace = FindReplaceView {
-        mode: find_replace_mode,
-        find: scrollable_to_buffer_view_data(&find, FIND_REPLACE_AVERAGE_SELECTION_LNES_ESTIMATE),
-        replace: scrollable_to_buffer_view_data(
-            &replace,
-            FIND_REPLACE_AVERAGE_SELECTION_LNES_ESTIMATE,
-        ),
+    view.menu = match menu_mode {
+        MenuMode::Hidden => MenuView::None,
+        MenuMode::FindReplace => MenuView::FindReplace(FindReplaceView {
+            mode: find_replace_mode,
+            find: scrollable_to_buffer_view_data(
+                &find,
+                FIND_REPLACE_AVERAGE_SELECTION_LINES_ESTIMATE,
+            ),
+            replace: scrollable_to_buffer_view_data(
+                &replace,
+                FIND_REPLACE_AVERAGE_SELECTION_LINES_ESTIMATE,
+            ),
+        }),
+        MenuMode::FileSwitcher => {
+            const FILE_SEARCH_SELECTION_LINES_ESTIMATE: usize = 1;
+            MenuView::FileSwitcher(FileSwitcherView {
+                search: scrollable_to_buffer_view_data(
+                    &file_switcher,
+                    FILE_SEARCH_SELECTION_LINES_ESTIMATE,
+                ),
+                results: file_switcher_results.clone(),
+            })
+        }
     };
 
     view.current_buffer_id = current_buffer_id;
@@ -518,10 +551,13 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
 
     macro_rules! post_edit_sync {
         () => {
-            match state.find_replace_mode {
-                FindReplaceMode::Hidden => {}
-                FindReplaceMode::CurrentFile => {
-                    let i = state.current_buffer_id.get_index();
+            match state.menu_mode {
+                MenuMode::Hidden => {}
+                MenuMode::FileSwitcher => {
+                    //TODO update file switcher results
+                }
+                MenuMode::FindReplace => {
+                    let i = state.current_buffer_id.index;
                     if let Some(target_buffer) = state.buffers.get_mut(i) {
                         update_search_results(&state.find.text_buffer, target_buffer);
                     }
@@ -535,12 +571,9 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
     match input {
         Input::None => {}
         Quit => {}
-        CloseMenuIfAny => match state.find_replace_mode {
-            FindReplaceMode::CurrentFile => {
-                state.find_replace_mode = FindReplaceMode::Hidden;
-            }
-            FindReplaceMode::Hidden => {}
-        },
+        CloseMenuIfAny => {
+            state.menu_mode = MenuMode::Hidden;
+        }
         Insert(c) => buffer_call!(b{
             b.text_buffer.insert(c);
             post_edit_sync!();
@@ -706,7 +739,7 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
             text_buffer_call!(b {
                 selections = b.copy_selections();
             });
-            state.set_find_id(state.current_buffer_id.get_index());
+            state.set_find_id(state.current_buffer_id.index);
             state.find_replace_mode = mode;
             text_buffer_call!(b{
                 if selections.len() == 1 {
@@ -718,11 +751,11 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
             });
             post_edit_sync!();
         }
-        SubmitForm => match state.current_buffer_id {
-            BufferId::Text(_) => {}
-            BufferId::Find(i) => match state.find_replace_mode {
-                FindReplaceMode::Hidden => {}
+        SubmitForm => match state.current_buffer_id.kind {
+            BufferIdKind::Text => {}
+            BufferIdKind::Find => match state.find_replace_mode {
                 FindReplaceMode::CurrentFile => {
+                    let i = state.current_buffer_id.index;
                     if let Some(haystack) = state.buffers.get_mut(i) {
                         let needle = &state.find.text_buffer;
                         let needle_string: String = needle.into();
@@ -745,7 +778,7 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
                                         .scrollable
                                         .text_buffer
                                         .set_cursor(c, ReplaceOrAdd::Replace);
-                                    try_to_show_cursors!(BufferId::Text(i));
+                                    try_to_show_cursors!(b_id!(BufferIdKind::Text, i));
                                 }
                             }
                         } else {
@@ -755,8 +788,13 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
                     }
                 }
             },
-            BufferId::Replace(i) => {
-                dbg!("TODO BufferId::Replace {}", i);
+            BufferIdKind::Replace => {
+                let i = state.current_buffer_id.index;
+                dbg!("TODO BufferIdKind::Replace {}", i);
+            }
+            BufferIdKind::FileSwitcher => {
+                let i = state.current_buffer_id.index;
+                dbg!("TODO BufferIdKind::FileSwitcher {}", i);
             }
         },
     }

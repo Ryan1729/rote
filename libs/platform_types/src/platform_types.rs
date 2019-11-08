@@ -85,35 +85,65 @@ pub enum Input {
 }
 d!(for Input : Input::None);
 
-#[derive(Clone, Copy, Debug)]
-pub enum BufferId {
-    Text(usize),
-    Find(usize),
-    Replace(usize),
+#[derive(Clone, Copy, Default, Debug)]
+pub struct BufferId {
+    pub kind: BufferIdKind,
+    pub index: usize,
 }
-d!(for BufferId: BufferId::Text(0));
 ord!(and friends for BufferId: id, other in {
-    use BufferId::*;
-    use std::cmp::Ordering::*;
-    match (id, other) {
-        (Text(i1), Text(i2))|(Find(i1), Find(i2))|(Replace(i1), Replace(i2)) => i1.cmp(&i2),
-        (Text(_), _) => Less,
-        (_, Text(_)) => Greater,
-        (Find(_), Replace(_)) => Less,
-        (Replace(_), Find(_)) => Greater,
+    id.kind.cmp(&other.kind).then_with(|| id.index.cmp(&other.index))
+});
+
+#[macro_export]
+macro_rules! b_id {
+    //
+    // Creation
+    //
+    ($kind: expr) => {
+        BufferId {
+            kind: $kind,
+            index: d!(),
+        }
+    };
+    ($kind: expr, $index: expr) => {
+        BufferId {
+            kind: $kind,
+            index: $index,
+        }
+    };
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum BufferIdKind {
+    Text,
+    Find,
+    Replace,
+    FileSwitcher,
+}
+d!(for BufferIdKind: BufferIdKind::Text);
+
+impl From<&BufferIdKind> for u8 {
+    fn from(kind: &BufferIdKind) -> Self {
+        use BufferIdKind::*;
+        match kind {
+            Text => 0,
+            Find => 1,
+            Replace => 2,
+            FileSwitcher => 3,
+        }
     }
+}
+
+ord!(and friends for BufferIdKind: kind, other in {
+    let k: u8 = kind.into();
+    let o: u8 = other.into();
+    k.cmp(&o)
 });
 
 impl BufferId {
-    pub fn get_index(&self) -> usize {
-        match self {
-            BufferId::Text(i) | BufferId::Find(i) | BufferId::Replace(i) => *i,
-        }
-    }
-
     pub fn is_text(&self) -> bool {
-        match self {
-            BufferId::Text(_) => true,
+        match self.kind {
+            BufferIdKind::Text => true,
             _ => false,
         }
     }
@@ -515,11 +545,44 @@ pub const DEFAULT_STATUS_LINE_CHARS: &'static str = "No buffer selected.";
 d!(for StatusLineView: StatusLineView {chars: DEFAULT_STATUS_LINE_CHARS.to_owned()});
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum FindReplaceMode {
+pub enum MenuMode {
     Hidden,
+    FileSwitcher,
+    FindReplace,
+}
+d!(for MenuMode: MenuMode::Hidden);
+
+#[derive(Debug)]
+pub enum MenuView {
+    None,
+    FileSwitcher(FileSwitcherView),
+    FindReplace(FindReplaceView),
+}
+d!(for MenuView: MenuView::None);
+
+impl MenuView {
+    pub fn get_mode(&self) -> MenuMode {
+        match self {
+            Self::None => MenuMode::Hidden,
+            Self::FileSwitcher(_) => MenuMode::FileSwitcher,
+            Self::FindReplace(_) => MenuMode::FindReplace,
+        }
+    }
+}
+
+pub type FileSwitcherResults = Vec<PathBuf>;
+
+#[derive(Default, Debug)]
+pub struct FileSwitcherView {
+    pub search: BufferViewData,
+    pub results: FileSwitcherResults,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum FindReplaceMode {
     CurrentFile,
 }
-d!(for FindReplaceMode: FindReplaceMode::Hidden);
+d!(for FindReplaceMode: FindReplaceMode::CurrentFile);
 
 #[derive(Default, Debug)]
 pub struct FindReplaceView {
@@ -535,7 +598,7 @@ pub struct View {
     pub current_buffer_id: BufferId,
     pub visible_buffers: VisibleBuffers,
     pub buffers: Vec<BufferView>,
-    pub find_replace: FindReplaceView,
+    pub menu: MenuView,
     pub status_line: StatusLineView,
 }
 

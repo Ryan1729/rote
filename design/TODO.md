@@ -11,6 +11,15 @@ Once everything above this line is done we can start bootstrapping, (using this 
 
 ----------------------------
 
+* decide whether it would be better to start with a simple shelling out to the compiler to get error messages, or if we should start with trying to integrate RLS
+  * the criteria are:
+    * would RLS mean we wouldn't need the separate shelling out?
+    * how easy would it be to get the most important info out of it?
+    * if we can avoid total work by starting with RLS, and it's not more then say 2x the work to get the initial parts we want working with RLS, then it seems worth it ta go with RLS first.
+      * example: if shelling out takes 100 units of work, and RLS takes 1000 in total, but 150 to get error reporting, then shelling out first costs 1100 overall, but we get error reporting 50 units sooner. whereas if we do RLS that's only 1000 units overall, but we have to wait 50 units longer for in-editor error reporting. If we assume that a unit of waiting is the same cost as a unit of saved work, (they are both proxies for time spent right? so maybe that costing makes sense,) then RLS seems like the better deal.
+
+* similarly to the above, does RLS provide brace matching, or should I do that myself?
+
 * make auto-tab-scroll happen when a new tab is created
   * fix auto-scroll drifting as the amount of tabs increases.
 
