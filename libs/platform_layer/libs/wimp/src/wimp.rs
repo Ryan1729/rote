@@ -484,9 +484,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                                 call_u_and_r!(Input::ExtendSelectionWithSearch);
                             }
                             VirtualKeyCode::F => {
-                                call_u_and_r!(Input::SetFindReplaceMode(
-                                    FindReplaceMode::CurrentFile
-                                ));
+                                call_u_and_r!(Input::SetMenuMode(MenuMode::FindReplace));
                                 call_u_and_r!(Input::SetSizeDependents(SizeDependents {
                                     buffer_xywh: wimp_render::get_edit_buffer_xywh(
                                         MenuMode::FindReplace,
@@ -501,6 +499,20 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                             }
                             VirtualKeyCode::O => {
                                 file_chooser_call!(single, p in CustomEvent::OpenFile(p));
+                            }
+                            VirtualKeyCode::P => {
+                                call_u_and_r!(Input::SetMenuMode(MenuMode::FileSwitcher));
+                                call_u_and_r!(Input::SetSizeDependents(SizeDependents {
+                                    buffer_xywh: wimp_render::get_edit_buffer_xywh(
+                                        MenuMode::FileSwitcher,
+                                        font_info,
+                                        screen_wh!()
+                                    )
+                                    .into(),
+                                    find_xywh: None,
+                                    replace_xywh: None,
+                                    font_info: None,
+                                }));
                             }
                             VirtualKeyCode::S => {
                                 if let Some((buffer, i)) = view.visible_buffers[0]
@@ -717,6 +729,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                              && c != '\u{8}'    // backspace (sent with Ctrl-h)
                              && c != '\u{9}'    // horizontal tab (sent with Ctrl-i)
                              && c != '\u{f}'    // "shift in" AKA use black ink apparently, (sent with Ctrl-o)
+                             && c != '\u{10}'   // "data link escape" AKA interprt the following as raw data, (sent with Ctrl-p)
                              && c != '\u{13}'   // "device control 3" (sent with Ctrl-s)
                              && c != '\u{14}'   // "device control 4" (sent with Ctrl-t)
                              && c != '\u{16}'   // "synchronous idle" (sent with Ctrl-v)

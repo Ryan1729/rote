@@ -734,6 +734,9 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
         SelectBuffer(id) => {
             state.set_id(id);
         }
+        OpenOrSelectBuffer(path) => {
+            dbg!("TODO OpenOrSelectBuffer {}", path);
+        }
         SetFindReplaceMode(mode) => {
             let mut selections = d!();
             text_buffer_call!(b {
@@ -750,6 +753,9 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
                 // will understand where the cursor is.
             });
             post_edit_sync!();
+        }
+        SetMenuMode(mode) => {
+            state.menu_mode = mode;
         }
         SubmitForm => match state.current_buffer_id.kind {
             BufferIdKind::Text => {}

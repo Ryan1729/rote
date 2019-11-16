@@ -2,7 +2,7 @@
 
 * Ctrl-p open a list of open files, with a search box.
   * searching files by name
-  * is it okay for this to take over the whole screen?
+    * fill out `Vec` of results
 
 * automatically save edited text files to disk in temp files.
   * there should be no data lost earlier than say 5 minutes ago if the power to the machine goes out.

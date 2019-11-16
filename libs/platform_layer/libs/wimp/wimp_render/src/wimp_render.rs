@@ -121,7 +121,6 @@ pub const TEXT_BACKGROUND_COLOUR: Colour = palette![black];
 pub const TEXT_HOVER_BACKGROUND_COLOUR: Colour = lighten!(palette![black]);
 pub const TEXT_PRESSED_BACKGROUND_COLOUR: Colour = darken!(palette![black]);
 const TEXT_COLOUR: Colour = palette![blue];
-const FIND_REPLACE_TEXT_COLOUR: Colour = palette![green];
 
 const HIGHLIGHT_ALPHA: f32 = 0.6;
 const USER_HIGHLIGHT_COLOUR: Colour = palette![alt black, HIGHLIGHT_ALPHA];
@@ -137,8 +136,10 @@ fn highlight_kind_colour(kind: HighlightKind) -> Colour {
     }
 }
 
-const CHROME_BACKGROUND_COLOUR: Colour = palette![cyan];
-const TAB_BACKGROUND_COLOUR: Colour = palette![alt cyan];
+const CHROME_BACKGROUND_COLOUR: Colour = palette![alt green];
+const CHROME_TEXT_COLOUR: Colour = palette![alt cyan];
+const TAB_BAR_BACKGROUND_COLOUR: Colour = palette![alt cyan];
+const TAB_BACKGROUND_COLOUR: Colour = palette![cyan];
 const TAB_TEXT_COLOUR: Colour = palette![white];
 const TAB_HIGHLIGHT_COLOUR: Colour = palette![yellow];
 
@@ -193,23 +194,21 @@ pub enum Spacing {
     Horizontal(f32),
     Vertical(f32),
     Axis(f32, f32),
+    LeftTopRightBottom(f32, f32, f32, f32),
 }
 d!(for Spacing: Spacing::All(0.0));
 
 impl Spacing {
-    /// This rect represents the space that the spacing would take up if it were around nothing.
-    fn into_rect(self) -> ScreenSpaceRect {
+    /// ltrb is short for `LeftTopRightBottom` The output here is what the values would be if the
+    /// spacing was the `LeftTopRightBottom` varaint.
+    fn into_ltrb(self) -> (f32, f32, f32, f32) {
         use Spacing::*;
-        let (min_x, min_y, max_x, max_y) = match self {
+        match self {
             All(n) => (n, n, n, n),
             Horizontal(n) => (n, 0.0, n, 0.0),
             Vertical(n) => (0.0, n, 0.0, n),
             Axis(x, y) => (x, y, x, y),
-        };
-
-        ScreenSpaceRect {
-            min: (min_x, min_y),
-            max: (max_x, max_y),
+            LeftTopRightBottom(l, t, r, b) => (l, t, r, b),
         }
     }
 }
@@ -284,15 +283,7 @@ pub fn view<'view>(
 
     text_or_rects.push(TextOrRect::Rect(VisualSpec {
         rect: ssr!(0.0, 0.0, width, edit_buffer_text_rect.xy.y),
-        color: if inside_tab_area(ui.mouse_pos, *font_info) {
-            c![
-                TAB_BACKGROUND_COLOUR[0],
-                TAB_BACKGROUND_COLOUR[1],
-                CHROME_BACKGROUND_COLOUR[2]
-            ]
-        } else {
-            TAB_BACKGROUND_COLOUR
-        },
+        color: TAB_BAR_BACKGROUND_COLOUR,
         z: TAB_BACKGROUND_Z,
     }));
 
@@ -319,7 +310,7 @@ pub fn view<'view>(
                 padding,
                 margin,
                 rect,
-                background_colour: CHROME_BACKGROUND_COLOUR,
+                background_colour: TAB_BACKGROUND_COLOUR,
                 text_colour: TAB_TEXT_COLOUR,
                 highlight_colour: TAB_HIGHLIGHT_COLOUR,
                 extra_highlight: if i == visible_index_or_max {
@@ -406,7 +397,7 @@ pub fn view<'view>(
                             layout: TextLayout::SingleLine,
                             spec: VisualSpec {
                                 rect: label_rect,
-                                color: FIND_REPLACE_TEXT_COLOUR,
+                                color: CHROME_TEXT_COLOUR,
                                 z: FIND_REPLACE_Z,
                             },
                         }));
@@ -419,7 +410,7 @@ pub fn view<'view>(
                                     padding,
                                     *find_replace_char_dim,
                                     FIND_REPLACE_SIZE,
-                                    FIND_REPLACE_TEXT_COLOUR,
+                                    CHROME_TEXT_COLOUR,
                                     $data,
                                     $input,
                                     FIND_REPLACE_Z,
@@ -439,7 +430,108 @@ pub fn view<'view>(
                 }
             }
             MenuView::FileSwitcher(FileSwitcherView { search, results }) => {
-                // TODO render stuff
+                let FileSwitcherInfo {
+                    padding,
+                    margin,
+                    top_y,
+                    bottom_y,
+                    label_rect,
+                    search_outer_rect,
+                    search_text_xywh,
+                    ..
+                } = get_file_switcher_info(*font_info, wh);
+                let outer_rect = ScreenSpaceRect {
+                    min: (0.0, top_y),
+                    max: (width, bottom_y),
+                };
+                text_or_rects.push(TextOrRect::Rect(VisualSpec {
+                    rect: outer_rect,
+                    color: CHROME_BACKGROUND_COLOUR,
+                    z: FIND_REPLACE_BACKGROUND_Z,
+                }));
+                text_or_rects.push(TextOrRect::Text(TextSpec {
+                    text: if search.chars.len() == 0 {
+                        "Find File"
+                    } else {
+                        // cheap hack to avoid lifetime issues
+                        match results.len() {
+                            0 => "Find File (0 results)",
+                            1 => "Find File (1 result)",
+                            2 => "Find File (2 results)",
+                            3 => "Find File (3 results)",
+                            4 => "Find File (4 results)",
+                            5 => "Find File (5 results)",
+                            6 => "Find File (6 results)",
+                            7 => "Find File (7 results)",
+                            8 => "Find File (8 results)",
+                            _ => "Find File (9+ results)",
+                        }
+                    },
+                    size: FIND_REPLACE_SIZE,
+                    layout: TextLayout::SingleLine,
+                    spec: VisualSpec {
+                        rect: label_rect,
+                        color: CHROME_TEXT_COLOUR,
+                        z: FIND_REPLACE_Z,
+                    },
+                }));
+                macro_rules! spaced_input_box {
+                    ($data: expr, $input: expr, $outer_rect: expr) => {{
+                        input = text_box(
+                            ui,
+                            &mut text_or_rects,
+                            $outer_rect,
+                            padding,
+                            *find_replace_char_dim,
+                            FIND_REPLACE_SIZE,
+                            CHROME_TEXT_COLOUR,
+                            $data,
+                            $input,
+                            FIND_REPLACE_Z,
+                            &view.current_buffer_id,
+                        )
+                        .or(input);
+                    }};
+                }
+
+                let mut current_rect = search_outer_rect;
+                let (_, _, _, bottom) = margin.into_ltrb();
+                let vertical_shift = search_text_xywh.wh.h + bottom;
+
+                spaced_input_box!(
+                    search,
+                    b_id!(BufferIdKind::FileSwitcher, index),
+                    current_rect
+                );
+                current_rect.min.0 += vertical_shift;
+                current_rect.max.0 += vertical_shift;
+
+                for (i, result) in results.iter().enumerate() {
+                    let path_text = result.to_str().unwrap_or("Non-UTF8 Path");
+                    if do_outline_button(
+                        ui,
+                        id!(i),
+                        &mut text_or_rects,
+                        OutlineButtonSpec {
+                            text: &path_text,
+                            size: TAB_SIZE,
+                            char_dim: *tab_char_dim,
+                            layout: TextLayout::SingleLine,
+                            padding,
+                            margin,
+                            rect,
+                            background_colour: TAB_BACKGROUND_COLOUR,
+                            text_colour: TAB_TEXT_COLOUR,
+                            highlight_colour: TAB_HIGHLIGHT_COLOUR,
+                            extra_highlight: ExtraHighlight::None,
+                            z: TAB_Z,
+                        },
+                    ) {
+                        input = Some(Input::OpenOrSelectBuffer(result.to_owned()));
+                    }
+                    current_rect.min.0 += vertical_shift;
+                    current_rect.max.0 += vertical_shift;
+                }
             }
         }
     }
@@ -455,7 +547,7 @@ pub fn view<'view>(
             min: (0.0, status_line_y),
             max: (width, status_line_y + SEPARATOR_LINE_THICKNESS),
         },
-        color: TAB_BACKGROUND_COLOUR,
+        color: TAB_BAR_BACKGROUND_COLOUR,
         z: STATUS_BACKGROUND_Z,
     }));
 
@@ -476,7 +568,7 @@ pub fn view<'view>(
         layout: TextLayout::SingleLine,
         spec: VisualSpec {
             rect: rect.with_min_y(status_line_y + 2.0 * SEPARATOR_LINE_THICKNESS),
-            color: c![0.3, 0.9, 0.3],
+            color: CHROME_TEXT_COLOUR,
             z: STATUS_Z,
         },
     }));
@@ -849,7 +941,7 @@ fn enlarge_by(
     ssr!(min_x, min_y, max_x, max_y): ScreenSpaceRect,
     enlarge_amount: Spacing,
 ) -> ScreenSpaceRect {
-    let ssr!(min_x_e, min_y_e, max_x_e, max_y_e) = enlarge_amount.into_rect();
+    let (min_x_e, min_y_e, max_x_e, max_y_e) = enlarge_amount.into_ltrb();
     ssr!(
         min_x - min_x_e,
         min_y - min_y_e,
@@ -862,7 +954,7 @@ fn shrink_by(
     ssr!(min_x, min_y, max_x, max_y): ScreenSpaceRect,
     shrink_amount: Spacing,
 ) -> ScreenSpaceRect {
-    let ssr!(min_x_s, min_y_s, max_x_s, max_y_s) = shrink_amount.into_rect();
+    let (min_x_s, min_y_s, max_x_s, max_y_s) = shrink_amount.into_ltrb();
     ssr!(
         min_x + min_x_s,
         min_y + min_y_s,
@@ -1109,11 +1201,12 @@ pub fn get_file_switcher_info(
     FontInfo {
         status_char_dim,
         find_replace_char_dim,
+        tab_char_dim,
         ..
     }: FontInfo,
     sswh!(width, height): ScreenSpaceWH,
 ) -> FileSwitcherInfo {
-    // TODO shoudl these be separate constants with different values?
+    // TODO should these be separate constants with different values?
     let mut margin = FIND_REPLACE_MARGIN_RATIO * height;
     margin = if margin > FIND_REPLACE_MIN_MARGIN {
         margin
@@ -1130,9 +1223,7 @@ pub fn get_file_switcher_info(
     };
 
     let bottom_y = get_status_line_y(status_char_dim, height);
-    // assuming that there are two text buffers and a heading, each with the same margin and
-    //padding, without the margins being duplicated
-    let top_y = bottom_y - (margin * 4.0 + padding * 6.0 + find_replace_char_dim.h * 3.0);
+    let top_y = upper_position_info(&tab_char_dim).edit_y;
 
     let mut current_y = top_y + margin;
     let text_height = 2.0 * padding + find_replace_char_dim.h;

@@ -80,6 +80,8 @@ pub enum Input {
     NextBuffer,
     PreviousBuffer,
     SelectBuffer(BufferId),
+    OpenOrSelectBuffer(PathBuf),
+    SetMenuMode(MenuMode),
     SetFindReplaceMode(FindReplaceMode),
     SubmitForm,
 }
