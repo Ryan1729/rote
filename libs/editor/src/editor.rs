@@ -309,6 +309,72 @@ impl From<&str> for State {
     }
 }
 
+fn find_in_paths(paths: &[&PathBuf], needle: &str) -> FileSwitcherResults {
+    let mut output: FileSwitcherResults = Vec::with_capacity(paths.len());
+
+    for path in paths.iter() {
+        let mut contains_needle = false;
+
+        macro_rules! cmp_match_indices {
+            ($p1: expr, $p2: expr) => {{
+                use std::cmp::Ordering::*;
+                let mut p1_iter = $p1.match_indices(needle);
+                let mut p2_iter = $p2.match_indices(needle);
+                let mut ordering = Equal;
+                loop {
+                    match (p1_iter.next(), p2_iter.next()) {
+                        (Some((p1_i, _)), Some((p2_i, _))) => {
+                            contains_needle = true;
+                            ordering = p1_i.cmp(&p2_i);
+                            if ordering != Equal {
+                                break;
+                            }
+                        }
+                        (Some(_), None) => {
+                            ordering = Less;
+                            break;
+                        }
+                        (None, Some(_)) => {
+                            contains_needle = true;
+                            ordering = Greater;
+                            break;
+                        }
+                        (None, None) => break,
+                    }
+                }
+                ordering
+            }};
+        }
+
+        let i = output
+            .binary_search_by(|p| {
+                match (path.to_str(), p.to_str()) {
+                    // Fast(er) path for valid unicde paths
+                    (Some(s1), Some(s2)) => cmp_match_indices!(s1, s2),
+                    (Some(s1), None) => {
+                        let s2 = p.to_string_lossy();
+                        cmp_match_indices!(s1, s2)
+                    }
+                    (None, Some(s2)) => {
+                        let s1 = path.to_string_lossy();
+                        cmp_match_indices!(s1, s2)
+                    }
+                    (None, None) => {
+                        let s1 = path.to_string_lossy();
+                        let s2 = p.to_string_lossy();
+                        cmp_match_indices!(s1, s2)
+                    }
+                }
+            })
+            .unwrap_or_else(|i| i);
+
+        if contains_needle {
+            output.insert(i, path.to_path_buf());
+        }
+    }
+    output
+}
+
 const AVERAGE_SELECTION_LNES_ESTIMATE: usize = 4;
 
 fn scrollable_to_buffer_view_data(
@@ -799,8 +865,20 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
                 dbg!("TODO BufferIdKind::Replace {}", i);
             }
             BufferIdKind::FileSwitcher => {
-                let i = state.current_buffer_id.index;
-                dbg!("TODO BufferIdKind::FileSwitcher {}", i);
+                let needle_string: String = state.file_switcher.text_buffer.borrow_rope().into();
+                let needle_str: &str = &needle_string;
+
+                let mut searched_paths: Vec<&PathBuf> = Vec::with_capacity(state.buffers.len());
+
+                for buffer in state.buffers.iter() {
+                    match &buffer.name {
+                        BufferName::Path(p) => {
+                            searched_paths.push(p);
+                        }
+                        BufferName::Scratch(_) => {}
+                    };
+                }
+                state.file_switcher_results = find_in_paths(searched_paths.as_slice(), needle_str);
             }
         },
     }

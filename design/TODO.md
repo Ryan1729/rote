@@ -1,15 +1,28 @@
 ## TODO
 
 * Ctrl-p open a list of open files, with a search box.
+  * select proper buffer on ctrl-p
   * searching files by name
     * fill out `Vec` of results
+  * open selected file
+
+* Ctrl-w to close current tab
+  * this should be done before the automatic saving to disk if for no other reason than because it will make testing easier.
 
 * automatically save edited text files to disk in temp files.
-  * there should be no data lost earlier than say 5 minutes ago if the power to the machine goes out.
+  * there should be no data lost earlier than say 1 minute ago if the power to the machine goes out.
+  * algorithm sketch
+    * every save period overwrite a temporary file with the contents of the buffer, for each edited buffer, (consider a buffer edited if it does not match the contents of the non-temp file. Scratch buffers are always edited).
+    * if the user saves the real file, delete the temp file. (a new one will be created if they edit the file again and the editor is not closed within the save period)
+    * if the user closes an edited file warn them it is not saved and offer to save it.
+    * on opening the editor, look at all the temp files and open the files they point to and set the buffer contents to the contents of the temp file, effectively restoring the state to what it was before the editor was closed.
 
 Once everything above this line is done we can start bootstrapping, (using this editor to edit itself.)
 
 ----------------------------
+
+* Ctrl-E to toggle single line comments
+  * could probably reuse tab insertion deletion code.
 
 * decide whether it would be better to start with a simple shelling out to the compiler to get error messages, or if we should start with trying to integrate RLS
   * the criteria are:
@@ -94,7 +107,6 @@ Once everything above this line is done we can start bootstrapping, (using this 
             * Seems reasonable at the moment. The editor should not need to care about whether there are multiple windows, but it does need to know that two buffers are the same
   * closable tabs
     * button on tabs
-    * ctrl-w to close current tabs
     * closing multiple tabs
       * right click menu like in browsers?
   * Ctrl-shift-t to restore last tab
