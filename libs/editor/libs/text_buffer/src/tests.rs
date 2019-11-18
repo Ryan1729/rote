@@ -1055,7 +1055,7 @@ fn get_search_ranges_works_on(needle: &str, haystack: &str) {
     let needle = t_b!(needle);
     let haystack = t_b!(haystack);
 
-    let ranges = get_search_ranges(&needle, &haystack);
+    let ranges = get_search_ranges(needle.rope.full_slice(), &haystack.rope, None, None);
 
     assert!(ranges.len() > 0);
 
@@ -1093,7 +1093,14 @@ proptest! {
         needle in "[0-9]+",
         needleless_haystack in "[a-z]+"
     ) {
-        assert_eq!(get_search_ranges(&t_b!(needle), &t_b!(needleless_haystack)).len(), 0);
+        let needle = t_b!(needle);
+        let needleless_haystack = t_b!(needleless_haystack);
+        assert_eq!(get_search_ranges(
+            needle.rope.full_slice(),
+            &needleless_haystack.rope,
+            None,
+            None
+        ).len(), 0);
     }
 }
 

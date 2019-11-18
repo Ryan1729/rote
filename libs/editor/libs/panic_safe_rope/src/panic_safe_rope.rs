@@ -109,7 +109,7 @@ impl From<LineIndex> for LineLength {
     }
 }
 
-use check_or_no_panic::check_or_no_panic;
+//use check_or_no_panic::check_or_no_panic;
 
 impl Rope {
     //#[check_or_no_panic]

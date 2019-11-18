@@ -163,7 +163,7 @@ fn position_ord_works_as_expected() {
     assert!(pos! {l 0 o 9} < pos! {l 9 o 0});
 }
 
-// It turns out this is also needed int he tests and in fact, it's kind of in the way since we now
+// It turns out this is also needed only in the tests and in fact, it's kind of in the way since we now
 // want to store the pieces separately. I'll leave the original comments here for posterity.
 
 /// This represents the visible portion of the screen. This struct primarily exists to make it
@@ -630,7 +630,7 @@ fn screen_space_to_position_then_position_to_screen_space_is_identity_after_one_
         TextBoxXY { x: 0.0, y: 0.0 }
     )
 }
-
+*/
 fn text_space_to_position_then_position_to_text_space_is_identity_after_one_conversion_for_these(
     xy: TextSpaceXY,
 ) {
@@ -721,9 +721,11 @@ fn text_box_to_screen_works_on_this_realistic_example() {
             },
             TextBoxXY { x: 250.0, y: 440.0 }
         ),
-        ScreenSpaceXY { x: 750.0, y: 40.0 }
+        ScreenSpaceXY {
+            x: 1250.0,
+            y: 920.0
+        }
     );
 }
-*/
 
 pub mod arb;

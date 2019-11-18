@@ -234,6 +234,7 @@ impl From<&TextBuffer> for String {
     }
 }
 
+/// A `haystack_range` of `None` means use the whole haystack. AKA no limit.
 /// A `max_needed` of `None` means return all the results. AKA no limit.
 pub fn get_search_ranges(
     needle: RopeSlice,

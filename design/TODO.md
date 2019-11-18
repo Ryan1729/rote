@@ -87,6 +87,8 @@ Once everything above this line is done we can start bootstrapping, (using this 
   * implies some way to know what the project is. Options:
     * custom file format that specifies the paths. Open one of those at startup
     * parse each programming languages files' to figure this out where possible
+    * just like ask the user to open one or more project dirs and then keep track of those
+      * maybe with file format mentioned above.
   * fallback to open files search if there is no project info
     * Ctrl-alt-f for always open files search?
 
