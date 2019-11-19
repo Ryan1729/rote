@@ -283,6 +283,22 @@ impl State {
             _ => None,
         }
     }
+
+    fn set_menu_mode(&mut self, mode: MenuMode) {
+        self.menu_mode = mode;
+        match mode {
+            MenuMode::FileSwitcher => {
+                self.set_file_switcher_id(self.current_buffer_id.index);
+            }
+            MenuMode::FindReplace => {
+                self.set_find_id(self.current_buffer_id.index);
+            }
+            MenuMode::Hidden => {
+                dbg!(MenuMode::Hidden);
+                self.set_text_id(self.current_buffer_id.index);
+            }
+        }
+    }
 }
 
 pub fn new() -> State {
@@ -704,7 +720,25 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
             match state.menu_mode {
                 MenuMode::Hidden => {}
                 MenuMode::FileSwitcher => {
-                    //TODO update file switcher results
+                    let needle_string: String =
+                        state.file_switcher.text_buffer.borrow_rope().into();
+                    let needle_str: &str = &needle_string;
+
+                    let mut searched_paths: Vec<&PathBuf> = Vec::with_capacity(state.buffers.len());
+
+                    for buffer in state.buffers.iter() {
+                        match &buffer.name {
+                            BufferName::Path(p) => {
+                                searched_paths.push(p);
+                            }
+                            BufferName::Scratch(_) => {}
+                        };
+                    }
+                    dbg!(&searched_paths);
+                    dbg!(&needle_str);
+                    state.file_switcher_results =
+                        find_in_paths(searched_paths.iter().map(|p| p.as_path()), needle_str);
+                    dbg!(&state.file_switcher_results);
                 }
                 MenuMode::FindReplace => {
                     let i = state.current_buffer_id.index;
@@ -722,7 +756,7 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
         Input::None => {}
         Quit => {}
         CloseMenuIfAny => {
-            state.menu_mode = MenuMode::Hidden;
+            state.set_menu_mode(MenuMode::Hidden);
         }
         Insert(c) => buffer_call!(b{
             b.text_buffer.insert(c);
@@ -905,7 +939,7 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
             post_edit_sync!();
         }
         SetMenuMode(mode) => {
-            state.menu_mode = mode;
+            state.set_menu_mode(mode);
         }
         SubmitForm => match state.current_buffer_id.kind {
             BufferIdKind::Text => {}
@@ -916,6 +950,7 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
                         let needle = &state.find.text_buffer;
                         let needle_string: String = needle.into();
                         if needle_string == haystack.search_results.needle {
+                            // advance to next search result
                             if needle_string.len() > 0 {
                                 let search_results = &mut haystack.search_results;
                                 let len = search_results.ranges.len();
@@ -949,28 +984,11 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
                 dbg!("TODO BufferIdKind::Replace {}", i);
             }
             BufferIdKind::FileSwitcher => {
-                let needle_string: String = state.file_switcher.text_buffer.borrow_rope().into();
-                let needle_str: &str = &needle_string;
-
-                let mut searched_paths: Vec<&PathBuf> = Vec::with_capacity(state.buffers.len());
-
-                for buffer in state.buffers.iter() {
-                    match &buffer.name {
-                        BufferName::Path(p) => {
-                            searched_paths.push(p);
-                        }
-                        BufferName::Scratch(_) => {}
-                    };
-                }
-                dbg!(&searched_paths);
-                dbg!(&needle_str);
-                state.file_switcher_results =
-                    find_in_paths(searched_paths.iter().map(|p| p.as_path()), needle_str);
-                dbg!(&state.file_switcher_results);
+                post_edit_sync!();
             }
         },
     }
-
+    dbg!(state.current_buffer_id);
     let mut view = d!();
 
     render_view(state, &mut view);

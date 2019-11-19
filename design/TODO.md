@@ -1,10 +1,8 @@
 ## TODO
 
 * Ctrl-p open a list of open files, with a search box.
-  * select proper buffer on ctrl-p
-  * searching files by name
-    * fill out `Vec` of results
   * open selected file
+    * fix button sizing/positioning issue
 
 * Ctrl-w to close current tab
   * this should be done before the automatic saving to disk if for no other reason than because it will make testing easier.
