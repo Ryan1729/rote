@@ -198,18 +198,27 @@ pub enum Spacing {
 }
 d!(for Spacing: Spacing::All(0.0));
 
+/// LRTB is short for `LeftTopRightBottom`. This represents what the values of a spacing would be
+/// if the spacing was the `LeftTopRightBottom` variant.
+struct LRTB {
+    l: f32,
+    r: f32,
+    t: f32,
+    b: f32,
+}
+
 impl Spacing {
-    /// ltrb is short for `LeftTopRightBottom` The output here is what the values would be if the
-    /// spacing was the `LeftTopRightBottom` varaint.
-    fn into_ltrb(self) -> (f32, f32, f32, f32) {
+    fn into_ltrb(self) -> LRTB {
         use Spacing::*;
-        match self {
+        let (l, t, r, b) = match self {
             All(n) => (n, n, n, n),
             Horizontal(n) => (n, 0.0, n, 0.0),
             Vertical(n) => (0.0, n, 0.0, n),
             Axis(x, y) => (x, y, x, y),
             LeftTopRightBottom(l, t, r, b) => (l, t, r, b),
-        }
+        };
+
+        LRTB { l, t, r, b }
     }
 }
 struct SpacedRect {
@@ -307,14 +316,13 @@ pub fn view<'view>(
                 size: TAB_SIZE,
                 char_dim: *tab_char_dim,
                 layout: TextLayout::SingleLine,
-                padding,
                 margin,
                 rect,
                 background_colour: TAB_BACKGROUND_COLOUR,
                 text_colour: TAB_TEXT_COLOUR,
                 highlight_colour: TAB_HIGHLIGHT_COLOUR,
                 extra_highlight: if i == visible_index_or_max {
-                    ExtraHighlight::Underline(TEXT_COLOUR)
+                    ExtraHighlight::Underline(TEXT_COLOUR, padding.into_ltrb().b)
                 } else {
                     ExtraHighlight::None
                 },
@@ -345,11 +353,11 @@ pub fn view<'view>(
         //     // s
         // };
 
-        let rect: ScreenSpaceRect = edit_buffer_text_rect.into();
+        let edit_buffer_text_rect: ScreenSpaceRect = edit_buffer_text_rect.into();
         input = text_box(
             ui,
             &mut text_or_rects,
-            rect,
+            edit_buffer_text_rect,
             d!(),
             *text_char_dim,
             TEXT_SIZE,
@@ -433,6 +441,8 @@ pub fn view<'view>(
                 let FileSwitcherInfo {
                     padding,
                     margin,
+                    list_padding,
+                    list_margin,
                     top_y,
                     bottom_y,
                     label_rect,
@@ -495,19 +505,27 @@ pub fn view<'view>(
                 }
 
                 let mut current_rect = search_outer_rect;
-                let (_, _, _, bottom) = margin.into_ltrb();
-                let vertical_shift = search_text_xywh.wh.h + bottom;
+                let list_bottom_margin = list_margin.into_ltrb().b;
+                let vertical_shift =
+                    search_text_xywh.wh.h + margin.into_ltrb().b - list_bottom_margin;
 
                 spaced_input_box!(
                     search,
                     b_id!(BufferIdKind::FileSwitcher, index),
                     current_rect
                 );
-                current_rect.min.0 += vertical_shift;
-                current_rect.max.0 += vertical_shift;
+                // We add the extra `list_bottom_margin` here but not in the loop so that the
+                // spacing bewteen the textbox and the first button is the same as the spacing
+                // between subsequent buttons. If we added it in both there would be a double
+                // magin between buttons.
+                current_rect.min.1 += vertical_shift;
+                current_rect.min.1 += list_bottom_margin;
+                current_rect.max.1 += vertical_shift;
+                current_rect.max.1 += list_bottom_margin;
 
                 for (i, result) in results.iter().enumerate() {
                     let path_text = result.to_str().unwrap_or("Non-UTF8 Path");
+                    let rect = enlarge_by(shrink_by(current_rect, margin), list_padding);
                     if do_outline_button(
                         ui,
                         id!(i),
@@ -517,8 +535,7 @@ pub fn view<'view>(
                             size: TAB_SIZE,
                             char_dim: *tab_char_dim,
                             layout: TextLayout::SingleLine,
-                            padding,
-                            margin,
+                            margin: list_margin,
                             rect,
                             background_colour: TAB_BACKGROUND_COLOUR,
                             text_colour: TAB_TEXT_COLOUR,
@@ -529,8 +546,8 @@ pub fn view<'view>(
                     ) {
                         input = Some(Input::OpenOrSelectBuffer(result.to_owned()));
                     }
-                    current_rect.min.0 += vertical_shift;
-                    current_rect.max.0 += vertical_shift;
+                    current_rect.min.1 += vertical_shift;
+                    current_rect.max.1 += vertical_shift;
                 }
             }
         }
@@ -904,7 +921,8 @@ fn do_button_logic(ui: &mut UIState, id: UIId, rect: ScreenSpaceRect) -> DoButto
 
 enum ExtraHighlight {
     None,
-    Underline(Colour),
+    /// The f32 is height
+    Underline(Colour, f32),
 }
 d!(for ExtraHighlight: ExtraHighlight::None);
 
@@ -913,7 +931,6 @@ struct OutlineButtonSpec<'text> {
     size: f32,
     char_dim: CharDim,
     layout: TextLayout,
-    padding: Spacing,
     margin: Spacing,
     rect: ScreenSpaceRect,
     background_colour: Colour,
@@ -927,7 +944,6 @@ d!(for OutlineButtonSpec<'static>: OutlineButtonSpec {
     size: 16.0,
     char_dim: CharDim { w: 16.0, h: 16.0 },
     layout: TextLayout::SingleLine,
-    padding: d!(),
     margin: d!(),
     rect: d!(),
     background_colour: c![1.0, 0.0, 0.0],
@@ -941,7 +957,12 @@ fn enlarge_by(
     ssr!(min_x, min_y, max_x, max_y): ScreenSpaceRect,
     enlarge_amount: Spacing,
 ) -> ScreenSpaceRect {
-    let (min_x_e, min_y_e, max_x_e, max_y_e) = enlarge_amount.into_ltrb();
+    let LRTB {
+        l: min_x_e,
+        t: min_y_e,
+        r: max_x_e,
+        b: max_y_e,
+    } = enlarge_amount.into_ltrb();
     ssr!(
         min_x - min_x_e,
         min_y - min_y_e,
@@ -954,7 +975,12 @@ fn shrink_by(
     ssr!(min_x, min_y, max_x, max_y): ScreenSpaceRect,
     shrink_amount: Spacing,
 ) -> ScreenSpaceRect {
-    let (min_x_s, min_y_s, max_x_s, max_y_s) = shrink_amount.into_ltrb();
+    let LRTB {
+        l: min_x_s,
+        t: min_y_s,
+        r: max_x_s,
+        b: max_y_s,
+    } = shrink_amount.into_ltrb();
     ssr!(
         min_x + min_x_s,
         min_y + min_y_s,
@@ -990,7 +1016,6 @@ fn render_outline_button<'view>(
         size,
         char_dim,
         layout,
-        padding,
         margin,
         rect,
         background_colour,
@@ -1004,8 +1029,7 @@ fn render_outline_button<'view>(
     use ButtonState::*;
 
     let text_w = usize_to_f32_or_65536(text.chars().count()) * char_dim.w;
-    let shrunk_rect = shrink_by(rect, padding);
-    let text_rect = center_within((text_w, char_dim.h), shrunk_rect);
+    let text_rect = center_within((text_w, char_dim.h), rect);
 
     macro_rules! push_text {
         () => {
@@ -1057,9 +1081,9 @@ fn render_outline_button<'view>(
     }
 
     match extra_highlight {
-        ExtraHighlight::Underline(color) => {
+        ExtraHighlight::Underline(color, height) => {
             text_or_rects.push(TextOrRect::Rect(VisualSpec {
-                rect: rect.with_min_y(shrunk_rect.max.1),
+                rect: rect.with_min_y(rect.max.1 - height),
                 color,
                 z: z.saturating_add(2),
             }));
@@ -1190,6 +1214,8 @@ pub fn get_find_replace_info(
 pub struct FileSwitcherInfo {
     pub margin: Spacing,
     pub padding: Spacing,
+    pub list_margin: Spacing,
+    pub list_padding: Spacing,
     pub top_y: f32,
     pub bottom_y: f32,
     pub label_rect: ScreenSpaceRect,
@@ -1251,9 +1277,13 @@ pub fn get_file_switcher_info(
     );
     let search_text_xywh = text_rect!();
 
+    const LIST_MARGIN_TO_PADDING_RATIO: f32 = 1.0 / 8.0;
+
     FileSwitcherInfo {
         margin: Spacing::All(margin),
         padding: Spacing::All(padding),
+        list_margin: Spacing::All(margin * LIST_MARGIN_TO_PADDING_RATIO),
+        list_padding: Spacing::All(margin * (1.0 - LIST_MARGIN_TO_PADDING_RATIO)),
         top_y,
         bottom_y,
         label_rect,

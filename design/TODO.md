@@ -2,7 +2,10 @@
 
 * Ctrl-p open a list of open files, with a search box.
   * open selected file
-    * fix button sizing/positioning issue
+    * implement `OpenOrSelectBuffer`
+    * keyboard control
+      * do we want some kind of overarching tab positioning system or just to make this case work and worry about that later?
+        * the latter
 
 * Ctrl-w to close current tab
   * this should be done before the automatic saving to disk if for no other reason than because it will make testing easier.
