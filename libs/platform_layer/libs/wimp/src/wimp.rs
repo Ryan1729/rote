@@ -239,6 +239,20 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                 };
             }
 
+            macro_rules! load_file {
+                ($path: expr) => {{
+                    let p = $path;
+                    match std::fs::read_to_string(&p) {
+                        Ok(s) => {
+                            call_u_and_r!(Input::LoadedFile(p, s));
+                        }
+                        Err(err) => {
+                            handle_platform_error!(err);
+                        }
+                    }
+                }};
+            }
+
             match event {
                 Event::EventsCleared if running => {
                     for _ in 0..EVENTS_PER_FRAME {
@@ -280,6 +294,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                                         handle_platform_error!(err);
                                     }
                                 }
+                                Cmd::LoadFile(path) => load_file!(path),
                                 Cmd::NoCmd => {}
                             }
                         } else {
@@ -313,14 +328,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                     loop_helper.loop_start();
                 }
                 Event::UserEvent(e) => match e {
-                    CustomEvent::OpenFile(p) => match std::fs::read_to_string(&p) {
-                        Ok(s) => {
-                            call_u_and_r!(Input::LoadedFile(p, s));
-                        }
-                        Err(err) => {
-                            handle_platform_error!(err);
-                        }
-                    },
+                    CustomEvent::OpenFile(p) => load_file!(p),
                     CustomEvent::SaveNewFile(ref p, index) => {
                         if let Some(b) = view.buffers.get(index) {
                             save_to_disk!(p, &b.data.chars, index);

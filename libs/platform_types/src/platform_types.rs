@@ -628,6 +628,7 @@ pub struct BufferViewData {
 pub enum Cmd {
     NoCmd,
     SetClipboard(String),
+    LoadFile(PathBuf),
 }
 
 d!(for Cmd : Cmd::NoCmd);

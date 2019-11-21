@@ -299,6 +299,20 @@ impl State {
             }
         }
     }
+
+    fn opened_paths(&self) -> Vec<&PathBuf> {
+        let mut opened_paths: Vec<&PathBuf> = Vec::with_capacity(self.buffers.len());
+
+        for buffer in self.buffers.iter() {
+            match &buffer.name {
+                BufferName::Path(p) => {
+                    opened_paths.push(p);
+                }
+                BufferName::Scratch(_) => {}
+            };
+        }
+        opened_paths
+    }
 }
 
 pub fn new() -> State {
@@ -723,22 +737,8 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
                     let needle_string: String =
                         state.file_switcher.text_buffer.borrow_rope().into();
                     let needle_str: &str = &needle_string;
-
-                    let mut searched_paths: Vec<&PathBuf> = Vec::with_capacity(state.buffers.len());
-
-                    for buffer in state.buffers.iter() {
-                        match &buffer.name {
-                            BufferName::Path(p) => {
-                                searched_paths.push(p);
-                            }
-                            BufferName::Scratch(_) => {}
-                        };
-                    }
-                    dbg!(&searched_paths);
-                    dbg!(&needle_str);
                     state.file_switcher_results =
-                        find_in_paths(searched_paths.iter().map(|p| p.as_path()), needle_str);
-                    dbg!(&state.file_switcher_results);
+                        find_in_paths(state.opened_paths().iter().map(|p| p.as_path()), needle_str);
                 }
                 MenuMode::FindReplace => {
                     let i = state.current_buffer_id.index;
@@ -751,12 +751,18 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
         };
     }
 
+    macro_rules! close_menu_if_any {
+        () => {
+            state.set_menu_mode(MenuMode::Hidden);
+        };
+    }
+
     use Input::*;
     match input {
         Input::None => {}
         Quit => {}
         CloseMenuIfAny => {
-            state.set_menu_mode(MenuMode::Hidden);
+            close_menu_if_any!();
         }
         Insert(c) => buffer_call!(b{
             b.text_buffer.insert(c);
@@ -917,9 +923,25 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
         }
         SelectBuffer(id) => {
             state.set_id(id);
+            close_menu_if_any!();
         }
         OpenOrSelectBuffer(path) => {
-            dbg!("TODO OpenOrSelectBuffer {}", path);
+            if let Some(id) = state
+                .buffers
+                .iter()
+                .enumerate()
+                .find(|(_, b)| match &b.name {
+                    BufferName::Path(p) => *p == path,
+                    BufferName::Scratch(_) => false,
+                })
+                .map(|(i, _)| b_id!(BufferIdKind::Text, i))
+            {
+                dbg!("state.set_id(id)");
+                state.set_id(id);
+                close_menu_if_any!();
+            } else {
+                cmd = Cmd::LoadFile(path);
+            }
         }
         SetFindReplaceMode(mode) => {
             let mut selections = d!();
