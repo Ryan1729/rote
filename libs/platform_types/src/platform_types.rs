@@ -87,6 +87,79 @@ pub enum Input {
 }
 d!(for Input : Input::None);
 
+/// A module containg a Generational Index
+mod g_i {
+    use macros::d;
+    pub type Generation = u32;
+    pub type IndexPart = u32;
+
+    /// The type of invalidation that caused the index to need another generation. We keep track
+    /// of this so that we can auto-fix the indexes from one generation ago, when possible.
+    pub enum Invalidation {
+        RemovedAt(IndexPart),
+    }
+    /// `RemovedAt(0)` is a reasonable default because it results is a fixup of no change at all
+    /// which is correct for the first instance.
+    d!(for Invalidation: Invalidation::RemovedAt(0));
+
+    #[derive(Default)]
+    pub struct State {
+        current: Generation,
+        invalidation: Invalidation,
+    }
+
+    impl State {
+        fn advance(&mut self, invalidation: Invalidation) {
+            *self = State {
+                current: self.current.wrapping_add(1),
+                invalidation,
+            };
+        }
+        fn get_index(&self, index: IndexPart) -> Index {
+            Index {
+                generation: self.current,
+                index,
+            }
+        }
+    }
+
+    /// A generational index
+    pub struct Index {
+        generation: Generation,
+        /// 4 billion what-zits ought to be enough for anybody!
+        index: IndexPart,
+    }
+
+    impl Index {
+        pub fn get(&self, state: State) -> Option<usize> {
+            if self.generation == state.current {
+                Some(self.index as usize)
+            } else if state.current > 0 && self.generation == state.current - 1 {
+                match state.invalidation {
+                    Invalidation::RemovedAt(i) => {
+                        use std::cmp::Ordering::*;
+                        // Imagine the vec looks like this:
+                        // `vec![10, 11, 12, 13, 14]`.
+                        // and that we called `v.remove(2)` so now it looks like:
+                        // `vec![10, 11, 13, 14]`.
+                        // If you wanted `12` you can't have it, but if you wanted `10` or `11`
+                        // your index is valid as is. Finally, if you wanted `13` or `14` then your
+                        // index needs to be shifted down by one.
+                        match self.index.cmp(&i) {
+                            Equal => None,
+                            Less => Some(self.index as usize),
+                            Greater => (self.index as usize).checked_sub(1),
+                        }
+                    }
+                }
+            } else {
+                // insert your own joke about people > 40 years older than yourself here.
+                None
+            }
+        }
+    }
+}
+
 #[derive(Clone, Copy, Default, Debug)]
 pub struct BufferId {
     pub kind: BufferIdKind,

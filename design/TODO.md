@@ -2,7 +2,6 @@
 
 * Ctrl-p open a list of open files, with a search box.
   * open selected file
-    * implement `OpenOrSelectBuffer`
     * keyboard control
       * do we want some kind of overarching tab positioning system or just to make this case work and worry about that later?
         * the latter
