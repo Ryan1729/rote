@@ -94,7 +94,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
     #[derive(Clone, Debug)]
     enum CustomEvent {
         OpenFile(PathBuf),
-        SaveNewFile(PathBuf, usize),
+        SaveNewFile(PathBuf, g_i::Index),
     }
     unsafe impl Send for CustomEvent {}
     unsafe impl Sync for CustomEvent {}
@@ -330,9 +330,13 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                 Event::UserEvent(e) => match e {
                     CustomEvent::OpenFile(p) => load_file!(p),
                     CustomEvent::SaveNewFile(ref p, index) => {
-                        if let Some(b) = view.buffers.get(index) {
-                            save_to_disk!(p, &b.data.chars, index);
-                        }
+                        // The fact we need to store the index and retreive it later, potentially
+                        // across multiple updates, is why this thread needs to know about the
+                        // generational indices.
+                        // TODO uncomment and fix
+                        // if let Some(b) = view.buffers.get(index) {
+                        //     save_to_disk!(p, &b.data.chars, index);
+                        // }
                     }
                 },
                 Event::NewEvents(StartCause::Init) => {
@@ -460,7 +464,6 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                                         &view,
                                         &font_info,
                                         (width as _, height as _),
-                                        0,
                                     );
                                 } else {
                                     call_u_and_r!(Input::ResetScroll);
@@ -523,9 +526,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                                 }));
                             }
                             VirtualKeyCode::S => {
-                                if let Some((buffer, i)) = view.visible_buffers[0]
-                                    .and_then(|i| view.buffers.get(i).map(|b| (b, i)))
-                                {
+                                if let Some((i, buffer)) = view.get_visible_index_and_buffer() {
                                     match buffer.name {
                                         BufferName::Scratch(_) => {
                                             file_chooser_call!(
@@ -616,7 +617,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                                 ));
                             }
                             VirtualKeyCode::S => {
-                                if let Some(i) = view.visible_buffers[0] {
+                                if let Some(i) = view.visible_buffer {
                                     file_chooser_call!(
                                         save,
                                         p in CustomEvent::SaveNewFile(p, i)

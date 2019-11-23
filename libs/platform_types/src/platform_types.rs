@@ -66,7 +66,7 @@ pub enum Input {
     DragCursors(TextBoxSpaceXY),
     SelectCharTypeGrouping(TextBoxSpaceXY, ReplaceOrAdd),
     ExtendSelectionWithSearch,
-    SetBufferPath(usize, PathBuf),
+    SetBufferPath(g_i::Index, PathBuf),
     Undo,
     Redo,
     Cut,
@@ -87,35 +87,151 @@ pub enum Input {
 }
 d!(for Input : Input::None);
 
-/// A module containg a Generational Index
-mod g_i {
-    use macros::d;
+/// A module containg a Generational Index implementation
+pub mod g_i {
+    use macros::{d, fmt_debug, fmt_display, ord};
     pub type Generation = u32;
-    pub type IndexPart = u32;
+    type LengthSize = u32;
+
+    // The amount of elements in the collection using generational indexes. Not a valid index.
+    #[derive(Clone, Copy, Default)]
+    pub struct Length(LengthSize);
+    fmt_debug!(for Length: Length(l) in "{}", l);
+    fmt_display!(for Length: Length(l) in "{}", l);
+    ord!(and friends for Length: length, other in {
+        length.0.cmp(&other.0)
+    });
+
+    impl Length {
+        /// This returns a `usize` to make comparing to usize lengths conveinient.
+        pub const fn max_value() -> usize {
+            LengthSize::max_value() as usize
+        }
+
+        /// This takes a `usize` to make creation from usize lengths, where we don't care about
+        /// the maximum case, conveinient.
+        pub fn or_max(len: usize) -> Self {
+            Self({
+                let max = Self::max_value();
+                if len > max {
+                    max as LengthSize
+                } else {
+                    len as LengthSize
+                }
+            })
+        }
+    }
+
+    impl From<Length> for usize {
+        fn from(length: Length) -> Self {
+            length.0 as usize
+        }
+    }
+
+    /// The part of `Index` which does not have to do with generations. That is, the part which
+    /// denotes which element in the collection is desired, in the usual 0-based way.
+    #[derive(Clone, Copy, Default)]
+    pub struct IndexPart(LengthSize);
+    fmt_debug!(for IndexPart: IndexPart(l) in "{}", l);
+    fmt_display!(for IndexPart: IndexPart(l) in "{}", l);
+    ord!(and friends for IndexPart: index_part, other in {
+        index_part.0.cmp(&other.0)
+    });
+
+    impl IndexPart {
+        /// This returns a `usize` to make comparing to usize lengths conveinient.
+        pub const fn max_value() -> usize {
+            (LengthSize::max_value() - 1) as usize
+        }
+
+        /// This takes a `usize` to make creation from usize lengths, where we don't care about
+        /// the maximum case, conveinient.
+        pub fn or_max(i: usize) -> Self {
+            Self({
+                let max = Self::max_value();
+                if i > max {
+                    max as LengthSize
+                } else {
+                    i as LengthSize
+                }
+            })
+        }
+    }
+
+    impl macros::SaturatingAdd<usize> for IndexPart {
+        type Output = Self;
+
+        fn saturating_add(self, rhs: usize) -> Self::Output {
+            let sum = (self.0 as usize).saturating_add(rhs);
+
+            Self::or_max(sum)
+        }
+    }
+
+    impl macros::SaturatingSub<usize> for IndexPart {
+        type Output = Self;
+
+        fn saturating_sub(self, rhs: usize) -> Self::Output {
+            // assumes `LengthSize` is an unsigned type.
+            Self((self.0 as usize).saturating_sub(rhs) as LengthSize)
+        }
+    }
+
+    impl From<IndexPart> for usize {
+        fn from(part: IndexPart) -> Self {
+            part.0 as usize
+        }
+    }
+
+    impl From<IndexPart> for Length {
+        fn from(part: IndexPart) -> Self {
+            Length(part.0)
+        }
+    }
+
+    impl std::ops::Rem<Length> for IndexPart {
+        type Output = Self;
+
+        // I guess this operation should be doing genreation checking, which would imply that
+        // `Length` should store the generation, and more importantly, this operation could fail.
+        // Let's see if that actually becomes a problem though I guess? If it does we could avoid
+        // that by making this a function that takes the container so it is known that the `Length`
+        // is the correct genetration.
+        fn rem(mut self, modulus: Length) -> Self::Output {
+            Self(self.0 % modulus.0)
+        }
+    }
+
+    impl std::ops::RemAssign<Length> for IndexPart {
+        fn rem_assign(&mut self, modulus: Length) {
+            *self = *self % modulus;
+        }
+    }
 
     /// The type of invalidation that caused the index to need another generation. We keep track
     /// of this so that we can auto-fix the indexes from one generation ago, when possible.
+    #[derive(Clone, Copy, Debug)]
     pub enum Invalidation {
         RemovedAt(IndexPart),
     }
-    /// `RemovedAt(0)` is a reasonable default because it results is a fixup of no change at all
+    /// `RemovedAt(d!())` is a reasonable default because it results is a fixup of no change at all
     /// which is correct for the first instance.
-    d!(for Invalidation: Invalidation::RemovedAt(0));
+    d!(for Invalidation: Invalidation::RemovedAt(d!()));
 
-    #[derive(Default)]
+    #[derive(Clone, Copy, Default, Debug)]
     pub struct State {
         current: Generation,
         invalidation: Invalidation,
     }
 
     impl State {
-        fn advance(&mut self, invalidation: Invalidation) {
+        pub fn advance(&mut self, invalidation: Invalidation) {
             *self = State {
                 current: self.current.wrapping_add(1),
                 invalidation,
             };
         }
-        fn get_index(&self, index: IndexPart) -> Index {
+        pub fn new_index(&self, index: IndexPart) -> Index {
             Index {
                 generation: self.current,
                 index,
@@ -123,18 +239,36 @@ mod g_i {
         }
     }
 
+    #[derive(Clone, Copy, Default, Debug)]
     /// A generational index
     pub struct Index {
         generation: Generation,
         /// 4 billion what-zits ought to be enough for anybody!
         index: IndexPart,
     }
+    ord!(and friends for Index: index, other in {
+        index.generation.cmp(&other.generation).then_with(|| index.index.cmp(&other.index))
+    });
+
+    impl std::cmp::PartialOrd<IndexPart> for Index {
+        fn partial_cmp(&self, other: &IndexPart) -> Option<std::cmp::Ordering> {
+            Some(self.index.cmp(&other))
+        }
+    }
+
+    impl std::cmp::PartialEq<IndexPart> for Index {
+        fn eq(&self, other: &IndexPart) -> bool {
+            self.partial_cmp(other)
+                .map(|o| o == std::cmp::Ordering::Equal)
+                .unwrap_or(false)
+        }
+    }
 
     impl Index {
         pub fn get(&self, state: State) -> Option<usize> {
             if self.generation == state.current {
-                Some(self.index as usize)
-            } else if state.current > 0 && self.generation == state.current - 1 {
+                Some(self.index.0 as usize)
+            } else if self.generation == state.current.wrapping_sub(1) {
                 match state.invalidation {
                     Invalidation::RemovedAt(i) => {
                         use std::cmp::Ordering::*;
@@ -147,8 +281,8 @@ mod g_i {
                         // index needs to be shifted down by one.
                         match self.index.cmp(&i) {
                             Equal => None,
-                            Less => Some(self.index as usize),
-                            Greater => (self.index as usize).checked_sub(1),
+                            Less => Some(self.index.0 as usize),
+                            Greater => (self.index.0 as usize).checked_sub(1),
                         }
                     }
                 }
@@ -158,12 +292,53 @@ mod g_i {
             }
         }
     }
+
+    impl macros::SaturatingAdd<usize> for Index {
+        type Output = Self;
+
+        fn saturating_add(mut self, rhs: usize) -> Self::Output {
+            self.index = self.index.saturating_add(rhs);
+
+            self
+        }
+    }
+
+    impl macros::SaturatingSub<usize> for Index {
+        type Output = Self;
+
+        fn saturating_sub(mut self, rhs: usize) -> Self::Output {
+            self.index = self.index.saturating_sub(rhs);
+
+            self
+        }
+    }
+
+    impl From<Index> for Length {
+        fn from(index: Index) -> Self {
+            Length::from(index.index)
+        }
+    }
+
+    impl std::ops::Rem<Length> for Index {
+        type Output = Self;
+
+        fn rem(mut self, modulus: Length) -> Self::Output {
+            self.index %= modulus;
+            self
+        }
+    }
+
+    impl std::ops::RemAssign<Length> for Index {
+        fn rem_assign(&mut self, modulus: Length) {
+            *self = *self % modulus;
+        }
+    }
 }
 
 #[derive(Clone, Copy, Default, Debug)]
 pub struct BufferId {
     pub kind: BufferIdKind,
-    pub index: usize,
+    pub index: g_i::Index,
 }
 ord!(and friends for BufferId: id, other in {
     id.kind.cmp(&other.kind).then_with(|| id.index.cmp(&other.index))
@@ -666,15 +841,32 @@ pub struct FindReplaceView {
     pub replace: BufferViewData,
 }
 
-pub type VisibleBuffers = [Option<usize>; 2];
+pub type VisibleBuffer = Option<g_i::Index>;
 
 #[derive(Default, Debug)]
 pub struct View {
     pub current_buffer_id: BufferId,
-    pub visible_buffers: VisibleBuffers,
+    pub generation_state: g_i::State,
+    pub visible_buffer: VisibleBuffer,
     pub buffers: Vec<BufferView>,
     pub menu: MenuView,
     pub status_line: StatusLineView,
+}
+
+impl View {
+    pub fn get_visible_index_or_max(&self) -> usize {
+        self.visible_buffer
+            .and_then(|index| index.get(self.generation_state))
+            .unwrap_or(usize::max_value())
+    }
+
+    pub fn get_visible_index_and_buffer(&self) -> Option<(g_i::Index, &BufferView)> {
+        self.visible_buffer.and_then(|index| {
+            index
+                .get(self.generation_state)
+                .and_then(|i| self.buffers.get(i).map(|b| (index, b)))
+        })
+    }
 }
 
 #[derive(Default, Debug)]

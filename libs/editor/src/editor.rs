@@ -1,11 +1,13 @@
 use editor_types::{Cursor, Vec1};
-use macros::{d, ok_or};
+use macros::{d, ok_or, SaturatingAdd, SaturatingSub};
 use platform_types::{screen_positioning::*, *};
 use std::path::Path;
 use std::path::PathBuf;
 
 use std::collections::VecDeque;
 use text_buffer::{get_search_ranges, next_instance_of_selected, TextBuffer};
+
+mod editor_view;
 
 #[derive(Default)]
 struct ClipboardHistory {
@@ -117,11 +119,88 @@ fn update_search_results(needle: &TextBuffer, haystack: &mut EditorBuffer) {
     };
 }
 
+/// The collection of files opened for editing, and/or in-memory scratch buffers.
+/// Guarenteed to have at least one buffer in it at all times.
+#[derive(Default)]
+struct EditorBuffers {
+    buffers: Vec1<EditorBuffer>,
+    index_state: g_i::State,
+}
+
+impl EditorBuffers {
+    fn new(buffer: EditorBuffer) -> Self {
+        Self {
+            buffers: Vec1::new(buffer),
+            ..d!()
+        }
+    }
+
+    /// Since there is always at least one buffer, this always returns at least 1.
+    fn len(&self) -> g_i::Length {
+        debug_assert!(self.buffers.len() <= g_i::Length::max_value());
+        g_i::Length::or_max(self.buffers.len())
+    }
+
+    /// The index of the last buffer
+    fn last_index(&self) -> g_i::Index {
+        let len: usize = self.len().into();
+        self.index_state.new_index(g_i::IndexPart::or_max(len - 1))
+    }
+
+    fn get_mut(&mut self, index: g_i::Index) -> Option<&mut EditorBuffer> {
+        index.get(self.index_state).and_then(move |i| self.buffers.get_mut(i))
+    }
+
+    fn get(& self, index: g_i::Index) -> Option<& EditorBuffer> {
+        index.get(self.index_state).and_then(|i| self.buffers.get(i))
+    }
+
+    fn push(&mut self, buffer: EditorBuffer) {
+        let will_fit = self.buffers.len() < g_i::Length::max_value();
+        debug_assert!(will_fit);
+        if will_fit {
+            self.buffers.push(buffer);
+        }
+    }
+}
+
+struct IterWithIndexes<'iter> {
+    index: g_i::Index,
+    iter: std::slice::Iter<'iter, EditorBuffer>,
+}
+
+impl <'iter> Iterator for IterWithIndexes<'iter> {
+    type Item = (g_i::Index, &'iter EditorBuffer);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next().map(|b| {
+            let i = self.index.clone();
+
+            self.index = self.index.saturating_add(1);
+
+            (i, b)
+        })
+    }
+}
+
+impl EditorBuffers {
+    fn iter(&self) -> std::slice::Iter<EditorBuffer> {
+        self.buffers.iter()
+    }
+
+    fn iter_with_indexes(&self) -> IterWithIndexes {
+        IterWithIndexes {
+            index: d!(),
+            iter: self.iter(),
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct State {
     // TODO side by side visible buffers
     // visible_buffers: VisibleBuffers,
-    buffers: Vec1<EditorBuffer>,
+    buffers: EditorBuffers,
     buffer_xywh: TextBoxXYWH,
     current_buffer_id: BufferId,
     menu_mode: MenuMode,
@@ -156,8 +235,9 @@ macro_rules! get_scrollable_buffer_mut {
 macro_rules! set_indexed_id {
     ($name: ident, $variant: ident) => {
         impl State {
-            fn $name(&mut self, i: usize) {
-                if i < self.buffers.len() {
+            fn $name(&mut self, i: g_i::Index) {
+                let i_len: g_i::Length = i.into();
+                if i_len < self.buffers.len() {
                     self.current_buffer_id = b_id!(BufferIdKind::$variant, i);
                 }
             }
@@ -188,15 +268,15 @@ impl State {
     }
 
     fn next_buffer(&mut self) {
-        self.set_text_id((self.current_buffer_id.index + 1) % self.buffers.len());
+        self.set_text_id((self.current_buffer_id.index.saturating_add(1)) % self.buffers.len());
     }
 
     fn previous_buffer(&mut self) {
         let current_buffer_index = self.current_buffer_id.index;
-        self.set_text_id(if current_buffer_index == 0 {
-            self.buffers.len() - 1
+        self.set_text_id(if current_buffer_index == g_i::Index::default() {
+            self.buffers.last_index()
         } else {
-            current_buffer_index - 1
+            current_buffer_index.saturating_sub(1)
         });
     }
 
@@ -213,17 +293,16 @@ impl State {
         let index = if let Some(index) = self.matching_buffer_index(path.as_ref()) {
             index
         } else {
-            let index = self.buffers.len();
             self.buffers
                 .push(EditorBuffer::new(BufferName::Path(path), str));
-            index
+            self.buffers.last_index()
         };
 
         self.set_text_id(index);
     }
 
-    fn matching_buffer_index(&self, path: &Path) -> Option<usize> {
-        for (i, buffer) in self.buffers.iter().enumerate() {
+    fn matching_buffer_index(&self, path: &Path) -> Option<g_i::Index> {
+        for (i, buffer) in self.buffers.iter_with_indexes() {
             match &buffer.name {
                 BufferName::Path(p) => {
                     if ok_or!(p.canonicalize(), continue) == ok_or!(path.canonicalize(), continue) {
@@ -301,7 +380,7 @@ impl State {
     }
 
     fn opened_paths(&self) -> Vec<&PathBuf> {
-        let mut opened_paths: Vec<&PathBuf> = Vec::with_capacity(self.buffers.len());
+        let mut opened_paths: Vec<&PathBuf> = Vec::with_capacity(self.buffers.len().into());
 
         for buffer in self.buffers.iter() {
             match &buffer.name {
@@ -323,7 +402,7 @@ impl From<String> for State {
     fn from(s: String) -> Self {
         let mut output: Self = d!();
 
-        output.buffers = Vec1::new(EditorBuffer::new(d!(), s));
+        output.buffers = EditorBuffers::new(EditorBuffer::new(d!(), s));
 
         output
     }
@@ -333,7 +412,7 @@ impl From<&str> for State {
     fn from(s: &str) -> Self {
         let mut output: Self = d!();
 
-        output.buffers = Vec1::new(EditorBuffer::new(d!(), s));
+        output.buffers = EditorBuffers::new(EditorBuffer::new(d!(), s));
 
         output
     }
@@ -487,172 +566,6 @@ mod tests {
             expected
         );
     }
-}
-
-const AVERAGE_SELECTION_LNES_ESTIMATE: usize = 4;
-
-fn scrollable_to_buffer_view_data(
-    scrollable: &ScrollableBuffer,
-    selection_lines_estimate: usize,
-) -> BufferViewData {
-    let buffer = &scrollable.text_buffer;
-    let buffer_cursors = buffer.borrow_cursors();
-    let cursors_len = buffer_cursors.len();
-    let mut cursors = Vec::with_capacity(cursors_len);
-    let mut highlights = Vec::with_capacity(cursors.len() * selection_lines_estimate);
-
-    for c in buffer_cursors.iter() {
-        let position = c.get_position();
-
-        cursors.push(CursorView {
-            position,
-            state: c.state,
-        });
-
-        push_highlights(&mut highlights, position, c.get_highlight_position(), d!());
-    }
-
-    BufferViewData {
-        scroll: scrollable.scroll,
-        chars: buffer.chars().collect::<String>(),
-        cursors,
-        highlights,
-    }
-}
-
-fn editor_to_buffer_view_data(
-    editor_buffer: &EditorBuffer,
-    selection_lines_estimate: usize,
-) -> BufferViewData {
-    let mut buffer_view_data =
-        scrollable_to_buffer_view_data(&editor_buffer.scrollable, selection_lines_estimate);
-
-    let highlights = &mut buffer_view_data.highlights;
-    let SearchResults {
-        ref ranges,
-        current_range,
-        ..
-    } = editor_buffer.search_results;
-    for (i, &(p1, p2)) in ranges.iter().enumerate() {
-        let kind = if i == current_range {
-            HighlightKind::CurrentResult
-        } else {
-            HighlightKind::Result
-        };
-        push_highlights(highlights, p1, p2, kind);
-    }
-
-    buffer_view_data
-}
-
-#[perf_viz::record]
-pub fn render_view(
-    &State {
-        ref buffers,
-        font_info: FontInfo { text_char_dim, .. },
-        current_buffer_id,
-        menu_mode,
-        ref file_switcher_results,
-        ref file_switcher,
-        find_replace_mode,
-        ref find,
-        ref replace,
-        buffer_xywh: TextBoxXYWH {
-            xy: text_box_pos, ..
-        },
-        ..
-    }: &State,
-    view: &mut View,
-) {
-    view.buffers.clear();
-
-    for editor_buffer in buffers.iter() {
-        let name = &editor_buffer.name;
-        view.buffers.push(BufferView {
-            name: name.clone(),
-            name_string: name.to_string(),
-            data: editor_to_buffer_view_data(&editor_buffer, AVERAGE_SELECTION_LNES_ESTIMATE),
-        });
-    }
-
-    view.status_line.chars.clear();
-    view.visible_buffers = d!();
-    let current_buffer_index = current_buffer_id.index;
-    match buffers.get(current_buffer_index) {
-        Some(EditorBuffer {
-            scrollable:
-                ScrollableBuffer {
-                    text_buffer: buffer,
-                    scroll,
-                },
-            ..
-        }) => {
-            let scroll = *scroll;
-            view.visible_buffers[0] = Some(current_buffer_index);
-            fn display_option_compactly<A: ToString>(op: Option<A>) -> String {
-                match op {
-                    None => "N".to_string(),
-                    Some(a) => a.to_string(),
-                }
-            }
-
-            use std::fmt::Write;
-            let chars = &mut view.status_line.chars;
-
-            let _cannot_actually_fail =
-                write!(chars, "{}/{}", current_buffer_index + 1, buffers.len());
-
-            // debugging
-            let _cannot_actually_fail = write!(chars, "  ? t{} s{}", text_char_dim, scroll);
-
-            for c in buffer.borrow_cursors().iter() {
-                let _cannot_actually_fail = write!(
-                    chars,
-                    "{} {} ({}|{}), ",
-                    c,
-                    position_to_screen_space(c.get_position(), text_char_dim, scroll, text_box_pos),
-                    display_option_compactly(buffer.find_index(c).and_then(|o| if o == 0 {
-                        None
-                    } else {
-                        Some(o - 1)
-                    })),
-                    display_option_compactly(buffer.find_index(c)),
-                );
-            }
-        }
-        None => {
-            view.status_line.chars.push_str(DEFAULT_STATUS_LINE_CHARS);
-        }
-    };
-
-    const FIND_REPLACE_AVERAGE_SELECTION_LINES_ESTIMATE: usize = 1;
-
-    view.menu = match menu_mode {
-        MenuMode::Hidden => MenuView::None,
-        MenuMode::FindReplace => MenuView::FindReplace(FindReplaceView {
-            mode: find_replace_mode,
-            find: scrollable_to_buffer_view_data(
-                &find,
-                FIND_REPLACE_AVERAGE_SELECTION_LINES_ESTIMATE,
-            ),
-            replace: scrollable_to_buffer_view_data(
-                &replace,
-                FIND_REPLACE_AVERAGE_SELECTION_LINES_ESTIMATE,
-            ),
-        }),
-        MenuMode::FileSwitcher => {
-            const FILE_SEARCH_SELECTION_LINES_ESTIMATE: usize = 1;
-            MenuView::FileSwitcher(FileSwitcherView {
-                search: scrollable_to_buffer_view_data(
-                    &file_switcher,
-                    FILE_SEARCH_SELECTION_LINES_ESTIMATE,
-                ),
-                results: dbg!(file_switcher_results.clone()),
-            })
-        }
-    };
-
-    view.current_buffer_id = current_buffer_id;
 }
 
 fn attempt_to_make_sure_at_least_one_cursor_is_visible(
@@ -899,13 +812,11 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
             post_edit_sync!();
         }
         NewScratchBuffer => {
-            let index = state.buffers.len();
             state.buffers.push(EditorBuffer::new(
                 BufferName::Scratch(state.next_scratch_buffer_number()),
                 "",
             ));
-
-            state.set_text_id(index);
+            state.set_text_id(state.buffers.last_index());
         }
         TabIn => {
             text_buffer_call!(b.tab_in());
@@ -928,21 +839,26 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
         OpenOrSelectBuffer(path) => {
             if let Some(id) = state
                 .buffers
-                .iter()
-                .enumerate()
+                .iter_with_indexes()
                 .find(|(_, b)| match &b.name {
                     BufferName::Path(p) => *p == path,
                     BufferName::Scratch(_) => false,
                 })
                 .map(|(i, _)| b_id!(BufferIdKind::Text, i))
             {
-                dbg!("state.set_id(id)");
                 state.set_id(id);
                 close_menu_if_any!();
             } else {
                 cmd = Cmd::LoadFile(path);
             }
         }
+        // CloseBuffer(spec) => {
+        //     let index = match spec {
+        //         CloseBufferSpec::Current => {state.current_buffer_id.index}
+        //         CloseBufferSpec::Index(i) => {i}
+        //     }
+        //
+        // }
         SetFindReplaceMode(mode) => {
             let mut selections = d!();
             text_buffer_call!(b {
@@ -1013,7 +929,7 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
     dbg!(state.current_buffer_id);
     let mut view = d!();
 
-    render_view(state, &mut view);
+    editor_view::render(state, &mut view);
 
     (view, cmd)
 }

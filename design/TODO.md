@@ -22,7 +22,7 @@ Once everything above this line is done we can start bootstrapping, (using this 
 ----------------------------
 
 * Ctrl-E to toggle single line comments
-  * could probably reuse tab insertion deletion code.
+  * could probably reuse tab insertion/deletion code.
 
 * decide whether it would be better to start with a simple shelling out to the compiler to get error messages, or if we should start with trying to integrate RLS
   * the criteria are:

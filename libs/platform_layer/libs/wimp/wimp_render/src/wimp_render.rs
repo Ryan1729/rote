@@ -296,7 +296,7 @@ pub fn view<'view>(
         z: TAB_BACKGROUND_Z,
     }));
 
-    let visible_index_or_max = view.visible_buffers[0].unwrap_or(usize::max_value());
+    let visible_index_or_max = view.get_visible_index_or_max();
     let tab_count = view.buffers.len();
     for (i, BufferView { name_string, .. }) in view.buffers.iter().enumerate() {
         let SpacedRect {
@@ -329,13 +329,14 @@ pub fn view<'view>(
                 z: TAB_Z,
             },
         ) {
-            input = Some(Input::SelectBuffer(b_id!(BufferIdKind::Text, i)))
+            input = Some(Input::SelectBuffer(b_id!(
+                BufferIdKind::Text,
+                view.generation_state.new_index(g_i::IndexPart::or_max(i))
+            )))
         }
     }
 
-    if let Some((index, BufferView { data, .. })) =
-        view.visible_buffers[0].and_then(|i| view.buffers.get(i).map(|b| (i, b)))
-    {
+    if let Some((index, BufferView { data, .. })) = view.get_visible_index_and_buffer() {
         // let text = {
         //     chars
         //     // perf_viz::record_guard!("map unprinatbles to symbols for themselves");
@@ -709,14 +710,15 @@ pub fn make_active_tab_visible<'view>(
     view: &'view View,
     FontInfo { tab_char_dim, .. }: &FontInfo,
     (screen_width, _): (f32, f32),
-    buffer_side: usize,
-) {
-    let target_index_or_max = view.visible_buffers[buffer_side].unwrap_or(usize::max_value());
+) -> Option<()> {
+    let target_index_or_max = view.get_visible_index_or_max();
     let tab_count = view.buffers.len();
     let tab_layout = get_tab_spaced_rect(&ui, *tab_char_dim, 0, tab_count, screen_width);
     let tab_width = tab_layout.width();
 
     make_nth_tab_visible_if_present(ui, target_index_or_max, tab_count, tab_width);
+
+    Some(())
 }
 
 fn make_nth_tab_visible_if_present(
