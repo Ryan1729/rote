@@ -74,6 +74,8 @@ pub fn render(
     }: &State,
     view: &mut View,
 ) {
+    view.index_state = buffers.index_state;
+
     view.buffers.clear();
 
     for editor_buffer in buffers.iter() {
@@ -87,6 +89,7 @@ pub fn render(
 
     view.status_line.chars.clear();
     view.visible_buffer = d!();
+    dbg!(current_buffer_id);
     let current_buffer_index = current_buffer_id.index;
     match buffers.get(current_buffer_index) {
         Some(EditorBuffer {
@@ -114,7 +117,7 @@ pub fn render(
                 "{}/{}",
                 display_option_compactly(
                     current_buffer_index
-                        .get(view.generation_state)
+                        .get(view.index_state)
                         .map(|i| i.saturating_add(1))
                 ),
                 usize::from(buffers.len())

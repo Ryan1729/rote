@@ -333,10 +333,12 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                         // The fact we need to store the index and retreive it later, potentially
                         // across multiple updates, is why this thread needs to know about the
                         // generational indices.
-                        // TODO uncomment and fix
-                        // if let Some(b) = view.buffers.get(index) {
-                        //     save_to_disk!(p, &b.data.chars, index);
-                        // }
+                        if let Some(b) = index
+                            .get(view.index_state)
+                            .and_then(|i| view.buffers.get(i))
+                        {
+                            save_to_disk!(p, &b.data.chars, index);
+                        }
                     }
                 },
                 Event::NewEvents(StartCause::Init) => {
@@ -546,6 +548,18 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                             VirtualKeyCode::V => {
                                 call_u_and_r!(Input::Paste(clipboard.get_contents().ok()));
                             }
+                            VirtualKeyCode::W => match view.current_buffer_id {
+                                BufferId {
+                                    kind: BufferIdKind::Text,
+                                    index,
+                                    ..
+                                } => {
+                                    call_u_and_r!(Input::CloseBuffer(index));
+                                }
+                                _ => {
+                                    call_u_and_r!(Input::CloseMenuIfAny);
+                                }
+                            },
                             VirtualKeyCode::X => {
                                 call_u_and_r!(Input::Cut);
                             }
@@ -742,6 +756,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                              && c != '\u{13}'   // "device control 3" (sent with Ctrl-s)
                              && c != '\u{14}'   // "device control 4" (sent with Ctrl-t)
                              && c != '\u{16}'   // "synchronous idle" (sent with Ctrl-v)
+                             && c != '\u{17}'   // "end of transmission block" (sent with Ctrl-w)
                              && c != '\u{18}'   // "cancel" (sent with Ctrl-x)
                              && c != '\u{19}'   // "end of medium" (sent with Ctrl-y)
                              && c != '\u{1a}'   // "substitute" (sent with Ctrl-z)

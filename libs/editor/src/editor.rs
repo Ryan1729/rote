@@ -70,13 +70,13 @@ impl ClipboardHistory {
     }
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 struct ScrollableBuffer {
     text_buffer: TextBuffer,
     scroll: ScrollXY,
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 struct EditorBuffer {
     scrollable: ScrollableBuffer,
     name: BufferName,
@@ -96,7 +96,7 @@ impl EditorBuffer {
     }
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 struct SearchResults {
     needle: String,
     ranges: Vec<(Position, Position)>,
@@ -148,11 +148,15 @@ impl EditorBuffers {
     }
 
     fn get_mut(&mut self, index: g_i::Index) -> Option<&mut EditorBuffer> {
-        index.get(self.index_state).and_then(move |i| self.buffers.get_mut(i))
+        index
+            .get(self.index_state)
+            .and_then(move |i| self.buffers.get_mut(i))
     }
 
-    fn get(& self, index: g_i::Index) -> Option<& EditorBuffer> {
-        index.get(self.index_state).and_then(|i| self.buffers.get(i))
+    fn get(&self, index: g_i::Index) -> Option<&EditorBuffer> {
+        index
+            .get(self.index_state)
+            .and_then(|i| self.buffers.get(i))
     }
 
     fn push(&mut self, buffer: EditorBuffer) {
@@ -162,6 +166,24 @@ impl EditorBuffers {
             self.buffers.push(buffer);
         }
     }
+
+    fn remove_if_present(&mut self, index: g_i::Index) -> Option<EditorBuffer> {
+        if index < self.len() {
+            dbg!(index.get(self.index_state)).and_then(|i| {
+                let output = dbg!(self.buffers.try_remove(i).ok());
+
+                if output.is_some() {
+                    // No reason to update the index state if we didn't remove anything.
+                    self.index_state.removed_at(index);
+                    dbg!()
+                }
+
+                output
+            })
+        } else {
+            None
+        }
+    }
 }
 
 struct IterWithIndexes<'iter> {
@@ -169,7 +191,7 @@ struct IterWithIndexes<'iter> {
     iter: std::slice::Iter<'iter, EditorBuffer>,
 }
 
-impl <'iter> Iterator for IterWithIndexes<'iter> {
+impl<'iter> Iterator for IterWithIndexes<'iter> {
     type Item = (g_i::Index, &'iter EditorBuffer);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -236,8 +258,7 @@ macro_rules! set_indexed_id {
     ($name: ident, $variant: ident) => {
         impl State {
             fn $name(&mut self, i: g_i::Index) {
-                let i_len: g_i::Length = i.into();
-                if i_len < self.buffers.len() {
+                if i < self.buffers.len() {
                     self.current_buffer_id = b_id!(BufferIdKind::$variant, i);
                 }
             }
@@ -273,7 +294,8 @@ impl State {
 
     fn previous_buffer(&mut self) {
         let current_buffer_index = self.current_buffer_id.index;
-        self.set_text_id(if current_buffer_index == g_i::Index::default() {
+        let i: usize = current_buffer_index.into();
+        self.set_text_id(if i == 0 {
             self.buffers.last_index()
         } else {
             current_buffer_index.saturating_sub(1)
@@ -852,13 +874,19 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
                 cmd = Cmd::LoadFile(path);
             }
         }
-        // CloseBuffer(spec) => {
-        //     let index = match spec {
-        //         CloseBufferSpec::Current => {state.current_buffer_id.index}
-        //         CloseBufferSpec::Index(i) => {i}
-        //     }
-        //
-        // }
+        CloseBuffer(index) => {
+            state.buffers.remove_if_present(index);
+
+            let index_state = state.buffers.index_state;
+
+            state.current_buffer_id.index = index_state
+                .migrate(state.current_buffer_id.index)
+                .or_else(|| index_state.migrate(state.current_buffer_id.index.saturating_sub(1)))
+                .unwrap_or_else(||
+                    // if the current index is zero and we remove it we end up pointing at the new
+                    // first element. In this case, this is desired.
+                    index_state.new_index(d!()));
+        }
         SetFindReplaceMode(mode) => {
             let mut selections = d!();
             text_buffer_call!(b {

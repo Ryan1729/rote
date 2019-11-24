@@ -81,6 +81,7 @@ pub enum Input {
     PreviousBuffer,
     SelectBuffer(BufferId),
     OpenOrSelectBuffer(PathBuf),
+    CloseBuffer(g_i::Index),
     SetMenuMode(MenuMode),
     SetFindReplaceMode(FindReplaceMode),
     SubmitForm,
@@ -192,12 +193,12 @@ pub mod g_i {
     impl std::ops::Rem<Length> for IndexPart {
         type Output = Self;
 
-        // I guess this operation should be doing genreation checking, which would imply that
+        // I guess this operation should be doing generation checking, which would imply that
         // `Length` should store the generation, and more importantly, this operation could fail.
         // Let's see if that actually becomes a problem though I guess? If it does we could avoid
         // that by making this a function that takes the container so it is known that the `Length`
         // is the correct genetration.
-        fn rem(mut self, modulus: Length) -> Self::Output {
+        fn rem(self, modulus: Length) -> Self::Output {
             Self(self.0 % modulus.0)
         }
     }
@@ -208,14 +209,32 @@ pub mod g_i {
         }
     }
 
+    // It could be argued that this should do generation checking, but it could also be agued that
+    // you should be allowed to compare to old lengths assuming you know what yoa are doing. We'll
+    // see if it ecomes an issue I guess.
+    impl std::cmp::PartialOrd<Length> for IndexPart {
+        fn partial_cmp(&self, other: &Length) -> Option<std::cmp::Ordering> {
+            Some(self.0.cmp(&other.0))
+        }
+    }
+
+    impl std::cmp::PartialEq<Length> for IndexPart {
+        fn eq(&self, other: &Length) -> bool {
+            self.partial_cmp(other)
+                .map(|o| o == std::cmp::Ordering::Equal)
+                .unwrap_or(false)
+        }
+    }
+
     /// The type of invalidation that caused the index to need another generation. We keep track
     /// of this so that we can auto-fix the indexes from one generation ago, when possible.
-    #[derive(Clone, Copy, Debug)]
-    pub enum Invalidation {
-        RemovedAt(IndexPart),
-    }
     /// `RemovedAt(d!())` is a reasonable default because it results is a fixup of no change at all
     /// which is correct for the first instance.
+    #[derive(Clone, Copy, Debug)]
+    enum Invalidation {
+        RemovedAt(IndexPart),
+    }
+
     d!(for Invalidation: Invalidation::RemovedAt(d!()));
 
     #[derive(Clone, Copy, Default, Debug)]
@@ -225,11 +244,19 @@ pub mod g_i {
     }
 
     impl State {
-        pub fn advance(&mut self, invalidation: Invalidation) {
+        fn advance(&mut self, invalidation: Invalidation) {
             *self = State {
                 current: self.current.wrapping_add(1),
                 invalidation,
             };
+        }
+        pub fn removed_at(&mut self, index: Index) {
+            self.advance(Invalidation::RemovedAt(index.index));
+        }
+
+        /// Attempt to convert an index from a given gerneation to the current generation.
+        pub fn migrate(self, index: Index) -> Option<Index> {
+            index.get_index_part(self).map(|i| self.new_index(i))
         }
         pub fn new_index(&self, index: IndexPart) -> Index {
             Index {
@@ -265,9 +292,12 @@ pub mod g_i {
     }
 
     impl Index {
-        pub fn get(&self, state: State) -> Option<usize> {
+        pub fn get(self, state: State) -> Option<usize> {
+            self.get_index_part(state).map(|IndexPart(i)| i as usize)
+        }
+        fn get_index_part(self, state: State) -> Option<IndexPart> {
             if self.generation == state.current {
-                Some(self.index.0 as usize)
+                Some(self.index)
             } else if self.generation == state.current.wrapping_sub(1) {
                 match state.invalidation {
                     Invalidation::RemovedAt(i) => {
@@ -281,8 +311,8 @@ pub mod g_i {
                         // index needs to be shifted down by one.
                         match self.index.cmp(&i) {
                             Equal => None,
-                            Less => Some(self.index.0 as usize),
-                            Greater => (self.index.0 as usize).checked_sub(1),
+                            Less => Some(self.index),
+                            Greater => (self.index.0).checked_sub(1).map(IndexPart),
                         }
                     }
                 }
@@ -313,6 +343,12 @@ pub mod g_i {
         }
     }
 
+    impl From<Index> for usize {
+        fn from(index: Index) -> Self {
+            usize::from(index.index)
+        }
+    }
+
     impl From<Index> for Length {
         fn from(index: Index) -> Self {
             Length::from(index.index)
@@ -331,6 +367,20 @@ pub mod g_i {
     impl std::ops::RemAssign<Length> for Index {
         fn rem_assign(&mut self, modulus: Length) {
             *self = *self % modulus;
+        }
+    }
+
+    impl std::cmp::PartialOrd<Length> for Index {
+        fn partial_cmp(&self, other: &Length) -> Option<std::cmp::Ordering> {
+            Some(self.index.0.cmp(&other.0))
+        }
+    }
+
+    impl std::cmp::PartialEq<Length> for Index {
+        fn eq(&self, other: &Length) -> bool {
+            self.partial_cmp(other)
+                .map(|o| o == std::cmp::Ordering::Equal)
+                .unwrap_or(false)
         }
     }
 }
@@ -846,7 +896,7 @@ pub type VisibleBuffer = Option<g_i::Index>;
 #[derive(Default, Debug)]
 pub struct View {
     pub current_buffer_id: BufferId,
-    pub generation_state: g_i::State,
+    pub index_state: g_i::State,
     pub visible_buffer: VisibleBuffer,
     pub buffers: Vec<BufferView>,
     pub menu: MenuView,
@@ -856,14 +906,14 @@ pub struct View {
 impl View {
     pub fn get_visible_index_or_max(&self) -> usize {
         self.visible_buffer
-            .and_then(|index| index.get(self.generation_state))
+            .and_then(|index| index.get(self.index_state))
             .unwrap_or(usize::max_value())
     }
 
     pub fn get_visible_index_and_buffer(&self) -> Option<(g_i::Index, &BufferView)> {
         self.visible_buffer.and_then(|index| {
             index
-                .get(self.generation_state)
+                .get(self.index_state)
                 .and_then(|i| self.buffers.get(i).map(|b| (index, b)))
         })
     }

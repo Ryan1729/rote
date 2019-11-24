@@ -331,7 +331,7 @@ pub fn view<'view>(
         ) {
             input = Some(Input::SelectBuffer(b_id!(
                 BufferIdKind::Text,
-                view.generation_state.new_index(g_i::IndexPart::or_max(i))
+                view.index_state.new_index(g_i::IndexPart::or_max(i))
             )))
         }
     }
