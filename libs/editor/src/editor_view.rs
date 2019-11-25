@@ -27,6 +27,7 @@ fn scrollable_to_buffer_view_data(
         chars: buffer.chars().collect::<String>(),
         cursors,
         highlights,
+        navigation: scrollable.navigation,
     }
 }
 
@@ -97,6 +98,7 @@ pub fn render(
                 ScrollableBuffer {
                     text_buffer: buffer,
                     scroll,
+                    ..
                 },
             ..
         }) => {

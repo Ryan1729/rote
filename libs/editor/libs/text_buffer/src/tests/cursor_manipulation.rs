@@ -357,7 +357,7 @@ macro_rules! multiline_selection {
             buffer,
             p: pos! {l 1 o 3},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.extend_selection(0, Move::ToBufferStart);
@@ -406,7 +406,7 @@ macro_rules! multiline_selection {
             buffer,
             p: pos! {l 1 o 0},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.extend_selection(0, Move::Left);
@@ -465,7 +465,7 @@ macro_rules! moving_by_words {
             buffer,
             p: pos! {l 0 o 0},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, ToNextLikelyEditLocation);
@@ -474,7 +474,7 @@ macro_rules! moving_by_words {
             buffer,
             p: pos! {l 0 o 1},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, ToNextLikelyEditLocation);
@@ -482,7 +482,7 @@ macro_rules! moving_by_words {
             buffer,
             p: pos! {l 0 o 4},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, ToNextLikelyEditLocation);
@@ -490,7 +490,7 @@ macro_rules! moving_by_words {
             buffer,
             p: pos! {l 0 o 5},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, ToNextLikelyEditLocation);
@@ -498,7 +498,7 @@ macro_rules! moving_by_words {
             buffer,
             p: pos! {l 1 o 1},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, ToNextLikelyEditLocation);
@@ -506,7 +506,7 @@ macro_rules! moving_by_words {
             buffer,
             p: pos! {l 1 o 4},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, ToNextLikelyEditLocation);
@@ -514,7 +514,7 @@ macro_rules! moving_by_words {
             buffer,
             p: pos! {l 2 o 3},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, ToNextLikelyEditLocation);
@@ -522,7 +522,7 @@ macro_rules! moving_by_words {
             buffer,
             p: pos! {l 2 o 4},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, ToNextLikelyEditLocation);
@@ -530,7 +530,7 @@ macro_rules! moving_by_words {
             buffer,
             p: pos! {l 3 o 3},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, ToNextLikelyEditLocation);
@@ -538,7 +538,7 @@ macro_rules! moving_by_words {
             buffer,
             p: pos! {l 3 o 6},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, ToNextLikelyEditLocation);
@@ -546,7 +546,7 @@ macro_rules! moving_by_words {
             buffer,
             p: pos! {l 3 o 9},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, ToNextLikelyEditLocation);
@@ -554,7 +554,7 @@ macro_rules! moving_by_words {
             buffer,
             p: pos! {l 3 o 10},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, ToNextLikelyEditLocation);
@@ -562,7 +562,7 @@ macro_rules! moving_by_words {
             buffer,
             p: pos! {l 3 o 13},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, ToNextLikelyEditLocation);
@@ -570,7 +570,7 @@ macro_rules! moving_by_words {
             buffer,
             p: pos! {l 3 o 16},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, ToNextLikelyEditLocation);
@@ -578,7 +578,7 @@ macro_rules! moving_by_words {
             buffer,
             p: pos! {l 4 o 0},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, ToNextLikelyEditLocation);
@@ -586,7 +586,7 @@ macro_rules! moving_by_words {
             buffer,
             p: pos! {l 4 o 0},
             h: None,
-            s: CursorState::PressedAgainstWall
+            s: CursorState::PressedAgainstWall(_)
         }
 
         // Now back the other way
@@ -596,7 +596,7 @@ macro_rules! moving_by_words {
             buffer,
             p: pos! {l 3 o 13},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, ToPreviousLikelyEditLocation);
@@ -604,7 +604,7 @@ macro_rules! moving_by_words {
             buffer,
             p: pos! {l 3 o 10},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, ToPreviousLikelyEditLocation);
@@ -612,7 +612,7 @@ macro_rules! moving_by_words {
             buffer,
             p: pos! {l 3 o 9},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, ToPreviousLikelyEditLocation);
@@ -620,7 +620,7 @@ macro_rules! moving_by_words {
             buffer,
             p: pos! {l 3 o 6},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, ToPreviousLikelyEditLocation);
@@ -628,7 +628,7 @@ macro_rules! moving_by_words {
             buffer,
             p: pos! {l 3 o 3},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, ToPreviousLikelyEditLocation);
@@ -636,7 +636,7 @@ macro_rules! moving_by_words {
             buffer,
             p: pos! {l 3 o 0},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, ToPreviousLikelyEditLocation);
@@ -644,7 +644,7 @@ macro_rules! moving_by_words {
             buffer,
             p: pos! {l 2 o 3},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, ToPreviousLikelyEditLocation);
@@ -652,7 +652,7 @@ macro_rules! moving_by_words {
             buffer,
             p: pos! {l 2 o 0},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, ToPreviousLikelyEditLocation);
@@ -660,7 +660,7 @@ macro_rules! moving_by_words {
             buffer,
             p: pos! {l 1 o 1},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, ToPreviousLikelyEditLocation);
@@ -668,7 +668,7 @@ macro_rules! moving_by_words {
             buffer,
             p: pos! {l 1 o 0},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, ToPreviousLikelyEditLocation);
@@ -677,7 +677,7 @@ macro_rules! moving_by_words {
             buffer,
             p: pos! {l 0 o 4},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, ToPreviousLikelyEditLocation);
@@ -685,7 +685,7 @@ macro_rules! moving_by_words {
             buffer,
             p: pos! {l 0 o 1},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, ToPreviousLikelyEditLocation);
@@ -693,7 +693,7 @@ macro_rules! moving_by_words {
             buffer,
             p: pos! {l 0 o 0},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, ToPreviousLikelyEditLocation);
@@ -701,7 +701,7 @@ macro_rules! moving_by_words {
             buffer,
             p: pos! {l 0 o 0},
             h: None,
-            s: CursorState::PressedAgainstWall
+            s: CursorState::PressedAgainstWall(_)
         }
 
         let mut alt_buffer: TextBuffer = t_b!(concat!(
@@ -716,7 +716,7 @@ macro_rules! moving_by_words {
             alt_buffer,
             p: pos! {l 1 o 3},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         alt_buffer.move_cursor(0, ToNextLikelyEditLocation);
@@ -724,7 +724,7 @@ macro_rules! moving_by_words {
             alt_buffer,
             p: pos! {l 1 o 3},
             h: None,
-            s: CursorState::PressedAgainstWall
+            s: CursorState::PressedAgainstWall(_)
         }
 
         // Back to the beginning again
@@ -734,7 +734,7 @@ macro_rules! moving_by_words {
             alt_buffer,
             p: pos! {l 1 o 0},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         alt_buffer.move_cursor(0, ToPreviousLikelyEditLocation);
@@ -742,7 +742,7 @@ macro_rules! moving_by_words {
             alt_buffer,
             p: pos! {l 0 o 0},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         alt_buffer.move_cursor(0, ToPreviousLikelyEditLocation);
@@ -750,7 +750,7 @@ macro_rules! moving_by_words {
             alt_buffer,
             p: pos! {l 0 o 0},
             h: None,
-            s: CursorState::PressedAgainstWall
+            s: CursorState::PressedAgainstWall(_)
         }
     };
 }
@@ -774,7 +774,7 @@ macro_rules! selecting_likely_edit_locations_works_on_a_single_character {
             buffer,
             p: pos! {l 0 o 1},
             h: pos! {l 0 o 0},
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.select_char_type_grouping(pos! {l 0 o 1}, ReplaceOrAdd::Replace);
@@ -783,7 +783,7 @@ macro_rules! selecting_likely_edit_locations_works_on_a_single_character {
             buffer,
             p: pos! {l 0 o 1},
             h: pos! {l 0 o 0},
-            s: d!()
+            s: CursorState::None,
         }
     };
 }
@@ -838,7 +838,7 @@ macro_rules! check_select_bounds {
                 $buffer,
                 p: $right_edge,
                 h: $left_edge,
-                s: d!()
+                s: CursorState::None,
             }
         }
     };
@@ -875,7 +875,7 @@ fn selecting_likely_edit_locations_works_on_this_snake_case_example() {
         buffer,
         p: last,
         h: inner_right_edge,
-        s: d!()
+        s: CursorState::None,
     }
 
     buffer.select_char_type_grouping(last, ReplaceOrAdd::Replace);
@@ -884,7 +884,7 @@ fn selecting_likely_edit_locations_works_on_this_snake_case_example() {
         buffer,
         p: last,
         h: inner_right_edge,
-        s: d!()
+        s: CursorState::None,
     }
 }
 
@@ -929,7 +929,7 @@ fn selecting_likely_edit_locations_works_on_this_subtraction_example() {
         buffer,
         p: last,
         h: that_right_edge,
-        s: d!()
+        s: CursorState::None,
     }
 
     buffer.select_char_type_grouping(last, ReplaceOrAdd::Replace);
@@ -938,7 +938,7 @@ fn selecting_likely_edit_locations_works_on_this_subtraction_example() {
         buffer,
         p: last,
         h: that_right_edge,
-        s: d!()
+        s: CursorState::None,
     }
 }
 
@@ -1038,7 +1038,7 @@ macro_rules! moving_onto_shorter_lines {
             buffer,
             p: pos! {l 0 o 0},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, Down);
@@ -1046,7 +1046,7 @@ macro_rules! moving_onto_shorter_lines {
             buffer,
             p: pos! {l 1 o 0},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
         dbg!(1);
 
@@ -1055,7 +1055,7 @@ macro_rules! moving_onto_shorter_lines {
             buffer,
             p: pos! {l 1 o 1},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
         dbg!(2);
 
@@ -1064,7 +1064,7 @@ macro_rules! moving_onto_shorter_lines {
             buffer,
             p: pos! {l 0 o 0},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
         dbg!(3);
 
@@ -1073,7 +1073,7 @@ macro_rules! moving_onto_shorter_lines {
             buffer,
             p: pos! {l 1 o 1},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, ToLineEnd);
@@ -1081,7 +1081,7 @@ macro_rules! moving_onto_shorter_lines {
             buffer,
             p: pos! {l 1 o 3},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, Up);
@@ -1089,7 +1089,7 @@ macro_rules! moving_onto_shorter_lines {
             buffer,
             p: pos! {l 0 o 0},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, Down);
@@ -1097,7 +1097,7 @@ macro_rules! moving_onto_shorter_lines {
             buffer,
             p: pos! {l 1 o 3},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, ToLineStart);
@@ -1105,7 +1105,7 @@ macro_rules! moving_onto_shorter_lines {
             buffer,
             p: pos! {l 1 o 0},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, Right);
@@ -1113,7 +1113,7 @@ macro_rules! moving_onto_shorter_lines {
             buffer,
             p: pos! {l 1 o 1},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, Down);
@@ -1121,7 +1121,7 @@ macro_rules! moving_onto_shorter_lines {
             buffer,
             p: pos! {l 2 o 0},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, Up);
@@ -1129,7 +1129,7 @@ macro_rules! moving_onto_shorter_lines {
             buffer,
             p: pos! {l 1 o 1},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, ToLineEnd);
@@ -1137,7 +1137,7 @@ macro_rules! moving_onto_shorter_lines {
             buffer,
             p: pos! {l 1 o 3},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
         dbg!(4);
 
@@ -1146,7 +1146,7 @@ macro_rules! moving_onto_shorter_lines {
             buffer,
             p: pos! {l 2 o 0},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
         dbg!(5);
 
@@ -1165,7 +1165,7 @@ macro_rules! moving_onto_shorter_lines {
             buffer,
             p: pos! {l 0 o 0},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, Down);
@@ -1173,7 +1173,7 @@ macro_rules! moving_onto_shorter_lines {
             buffer,
             p: pos! {l 1 o 0},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, Right);
@@ -1181,7 +1181,7 @@ macro_rules! moving_onto_shorter_lines {
             buffer,
             p: pos! {l 1 o 1},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, Up);
@@ -1189,7 +1189,7 @@ macro_rules! moving_onto_shorter_lines {
             buffer,
             p: pos! {l 0 o 1},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, Down);
@@ -1197,7 +1197,7 @@ macro_rules! moving_onto_shorter_lines {
             buffer,
             p: pos! {l 1 o 1},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, ToLineEnd);
@@ -1205,7 +1205,7 @@ macro_rules! moving_onto_shorter_lines {
             buffer,
             p: pos! {l 1 o 3},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, Up);
@@ -1213,7 +1213,7 @@ macro_rules! moving_onto_shorter_lines {
             buffer,
             p: pos! {l 0 o 1},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, Down);
@@ -1221,7 +1221,7 @@ macro_rules! moving_onto_shorter_lines {
             buffer,
             p: pos! {l 1 o 3},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, ToLineStart);
@@ -1229,7 +1229,7 @@ macro_rules! moving_onto_shorter_lines {
             buffer,
             p: pos! {l 1 o 0},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, Right);
@@ -1237,7 +1237,7 @@ macro_rules! moving_onto_shorter_lines {
             buffer,
             p: pos! {l 1 o 1},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, Down);
@@ -1245,7 +1245,7 @@ macro_rules! moving_onto_shorter_lines {
             buffer,
             p: pos! {l 2 o 1},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, Up);
@@ -1253,7 +1253,7 @@ macro_rules! moving_onto_shorter_lines {
             buffer,
             p: pos! {l 1 o 1},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, ToLineEnd);
@@ -1261,7 +1261,7 @@ macro_rules! moving_onto_shorter_lines {
             buffer,
             p: pos! {l 1 o 3},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
 
         buffer.move_cursor(0, Down);
@@ -1269,7 +1269,7 @@ macro_rules! moving_onto_shorter_lines {
             buffer,
             p: pos! {l 2 o 1},
             h: None,
-            s: d!()
+            s: CursorState::None,
         }
     };
 }
@@ -1296,7 +1296,7 @@ fn moving_left_across_a_newline_works_on_this_example() {
         buffer,
         p: pos! {l 1 o 0},
         h: None,
-        s: d!(),
+        s: CursorState::None,
     }
 
     buffer.move_cursor(0, Left);
@@ -1305,6 +1305,6 @@ fn moving_left_across_a_newline_works_on_this_example() {
         buffer,
         p: pos! {l 0 o 0},
         h: None,
-        s: d!(),
+        s: CursorState::None,
     }
 }

@@ -108,7 +108,7 @@ fn get_tab_in_edit_produces_the_expected_edit_with_multiple_cursors_in_this_buff
             &buffer.rope,
             vec1![
                 cur! {
-                    l 9 o 0 h start_of_empty_line, ->|
+                    l 9 o 0 h start_of_empty_line, ->|(Move::Right)
                 },
                 cur!(l 4 o 5 h l 0 o 0)
             ]

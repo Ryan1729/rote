@@ -104,7 +104,7 @@ prop_compose! {
 fn arb_cursor_state() -> impl Strategy<Value = CursorState> {
     prop_oneof![
         Just(CursorState::None),
-        Just(CursorState::PressedAgainstWall),
+        arb_move().prop_map(CursorState::PressedAgainstWall),
     ]
 }
 

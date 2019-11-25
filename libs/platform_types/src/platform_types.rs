@@ -8,39 +8,75 @@ pub mod floating_point;
 pub mod screen_positioning;
 pub use screen_positioning::*;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Move {
-    Up,
-    Down,
-    Left,
-    Right,
-    ToLineStart,
-    ToLineEnd,
-    ToBufferStart,
-    ToBufferEnd,
-    ToPreviousLikelyEditLocation,
-    ToNextLikelyEditLocation,
-}
+mod move_mod {
+    use super::*;
+    #[derive(Clone, Copy, Debug)]
+    pub enum Move {
+        Up,
+        Down,
+        Left,
+        Right,
+        ToLineStart,
+        ToLineEnd,
+        ToBufferStart,
+        ToBufferEnd,
+        ToPreviousLikelyEditLocation,
+        ToNextLikelyEditLocation,
+    }
+    use Move::*;
 
-impl std::ops::Not for Move {
-    type Output = Move;
+    fmt_display!(for Move: r#move in "{}", match r#move {
+        Up => ">",
+        Down => "v",
+        Left => "<",
+        Right => ">",
+        ToLineStart => "Line<",
+        ToLineEnd => "Line>",
+        ToBufferStart => "Buffer<",
+        ToBufferEnd => "Buffer>",
+        ToPreviousLikelyEditLocation => "Edit<",
+        ToNextLikelyEditLocation => "Edit>",
+    });
 
-    fn not(self) -> Self::Output {
-        use Move::*;
-        match self {
-            Up => Down,
-            Down => Up,
-            Left => Right,
-            Right => Left,
-            ToLineStart => ToLineEnd,
-            ToLineEnd => ToLineStart,
-            ToBufferStart => ToBufferEnd,
-            ToBufferEnd => ToBufferStart,
-            ToPreviousLikelyEditLocation => ToNextLikelyEditLocation,
-            ToNextLikelyEditLocation => ToPreviousLikelyEditLocation,
+    macro_rules! to_num {
+        ($m: expr) => {
+            match $m {
+                Up => 0,
+                Down => 1,
+                Left => 2,
+                Right => 3,
+                ToLineStart => 4,
+                ToLineEnd => 5,
+                ToBufferStart => 6,
+                ToBufferEnd => 7,
+                ToPreviousLikelyEditLocation => 8,
+                ToNextLikelyEditLocation => 9,
+            }
+        };
+    }
+
+    ord!(and friends for Move: r#move, other in to_num!(r#move).cmp(&to_num!(other)));
+
+    impl std::ops::Not for Move {
+        type Output = Move;
+
+        fn not(self) -> Self::Output {
+            match self {
+                Up => Down,
+                Down => Up,
+                Left => Right,
+                Right => Left,
+                ToLineStart => ToLineEnd,
+                ToLineEnd => ToLineStart,
+                ToBufferStart => ToBufferEnd,
+                ToBufferEnd => ToBufferStart,
+                ToPreviousLikelyEditLocation => ToNextLikelyEditLocation,
+                ToNextLikelyEditLocation => ToPreviousLikelyEditLocation,
+            }
         }
     }
 }
+pub use move_mod::Move;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ReplaceOrAdd {
@@ -812,21 +848,24 @@ fmt_display!(for BufferName: name in "{}",
 #[derive(Clone, Copy)]
 pub enum CursorState {
     None,
-    PressedAgainstWall,
+    PressedAgainstWall(Move),
 }
 d!(for CursorState: CursorState::None);
 
 fmt_debug!(for CursorState: s in "{}", match s {
-    CursorState::None => "_",
-    CursorState::PressedAgainstWall => "->|"
+    CursorState::None => std::borrow::Cow::Borrowed("_"),
+    CursorState::PressedAgainstWall(r#move) => std::borrow::Cow::Owned(format!("->|({})", r#move))
 });
 
 ord!(and friends for CursorState: state, other in {
     use std::cmp::Ordering::*;
     match (state, other) {
-        (CursorState::None, CursorState::None) | (CursorState::PressedAgainstWall, CursorState::PressedAgainstWall) => Equal,
-        (CursorState::None, CursorState::PressedAgainstWall) => Less,
-        (CursorState::PressedAgainstWall, CursorState::None) => Greater
+        (CursorState::None, CursorState::None) => Equal,
+        (CursorState::None, CursorState::PressedAgainstWall(_)) => Less,
+        (CursorState::PressedAgainstWall(_), CursorState::None) => Greater,
+        (CursorState::PressedAgainstWall(m1), CursorState::PressedAgainstWall(m2)) => {
+            m1.cmp(&m2)
+        }
     }
 });
 
@@ -927,6 +966,14 @@ pub struct BufferView {
     pub data: BufferViewData,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub enum Navigation {
+    None,
+    Up,
+    Down,
+}
+d!(for Navigation: Navigation::None);
+
 #[derive(Default, Debug)]
 pub struct BufferViewData {
     //TODO make this a &str or a char iterator
@@ -934,6 +981,7 @@ pub struct BufferViewData {
     pub scroll: ScrollXY,
     pub cursors: Vec<CursorView>,
     pub highlights: Vec<Highlight>,
+    pub navigation: Navigation,
 }
 
 // Short form "Command".

@@ -22,7 +22,7 @@ macro_rules! cursor_assert {
         $buffer:expr
         $(, p: $pos: expr)?
         $(, h: $highlight_position: expr)?
-        $(, s: $state: expr)?
+        $(, s: $state: pat)?
         $(,)?) => {{
         let c = $buffer.cursors.first();
 
@@ -39,7 +39,10 @@ macro_rules! cursor_assert {
         )*
 
         $(
-            assert_eq!(c.state, $state);
+            match c.state {
+                $state => {},
+                _ => panic!("{:?} does not match {}", c.state, stringify!($state))
+            }
         )*
 
     }};

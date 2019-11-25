@@ -79,40 +79,40 @@ macro_rules! cur {
     (l $line:literal o $offset:literal) => {
         Cursor::new(pos! {l $line o $offset})
     };
-    (l $line:literal o $offset:literal ->|) => {
-        cur!(->| cursor: Cursor::new(pos! {l $line o $offset}))
+    (l $line:literal o $offset:literal ->|($move: expr)) => {
+        cur!(->|($move) cursor: Cursor::new(pos! {l $line o $offset}))
     };
     (l $line:literal o $offset:literal h l $h_line:literal o $h_offset:literal) => {
         Cursor::new_with_highlight(pos! {l $line o $offset}, pos! {l $h_line o $h_offset})
     };
-    (l $line:literal o $offset:literal h l $h_line:literal o $h_offset:literal ->|) => {
-        cur!(->| cursor: Cursor::new_with_highlight(pos! {l $line o $offset}, pos! {l $h_line o $h_offset}))
+    (l $line:literal o $offset:literal h l $h_line:literal o $h_offset:literal ->|($move: expr)) => {
+        cur!(->|($move) cursor: Cursor::new_with_highlight(pos! {l $line o $offset}, pos! {l $h_line o $h_offset}))
     };
     (l $line:literal o $offset:literal h $h_pos: expr) => {
         Cursor::new_with_highlight(pos! {l $line o $offset}, $h_pos)
     };
-    (l $line:literal o $offset:literal h $h_pos: expr, ->|) => {
-        cur!(->| cursor: Cursor::new_with_highlight(pos! {l $line o $offset}, $h_pos))
+    (l $line:literal o $offset:literal h $h_pos: expr, ->|($move: expr)) => {
+        cur!(->|($move) cursor: Cursor::new_with_highlight(pos! {l $line o $offset}, $h_pos))
     };
     (h l $h_line:literal o $h_offset:literal) => {
         Cursor::new_with_highlight(pos! {}, pos! {l $h_line o $h_offset})
     };
-    (h l $h_line:literal o $h_offset:literal ->|) => {
-        cur!(->| cursor: Cursor::new_with_highlight(pos! {}, pos! {l $h_line o $h_offset}))
+    (h l $h_line:literal o $h_offset:literal ->|($move: expr)) => {
+        cur!(->|($move) cursor: Cursor::new_with_highlight(pos! {}, pos! {l $h_line o $h_offset}))
     };
     (l $line:literal o $offset:literal h) => {
         Cursor::new_with_highlight(pos! {l $line o $offset}, pos! {})
     };
-    (l $line:literal o $offset:literal h ->|) => {
-        cur!(->| cursor: Cursor::new_with_highlight(pos! {l $line o $offset}, pos! {}))
+    (l $line:literal o $offset:literal h ->|($move: expr)) => {
+        cur!(->|($move) cursor: Cursor::new_with_highlight(pos! {l $line o $offset}, pos! {}))
     };
-    (->| cursor: $cursor: expr) => {{
+    (->|($move: expr) cursor: $cursor: expr) => {{
         let mut c = $cursor;
-        c.state = CursorState::PressedAgainstWall;
+        c.state = CursorState::PressedAgainstWall($move);
         c
     }};
-    (->|) => {
-        cur!(->| cursor: Cursor::new(pos! {}))
+    (->|($move: expr)) => {
+        cur!(->|($move) cursor: Cursor::new(pos! {}))
     };
     () => {
         Cursor::new(pos! {})

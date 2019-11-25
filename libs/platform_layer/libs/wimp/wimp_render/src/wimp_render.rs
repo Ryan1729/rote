@@ -5,7 +5,7 @@ use std::cmp::max;
 
 // This is probably excessive. We can make this smaller if there is a measuarable perf impact
 // but given this goes on the stack, that seems unlikely?
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct UIId([u64; 32]);
 fmt_debug!(for UIId: UIId(id) in "{}", {
     let mut s = String::with_capacity(32 * 4);
@@ -29,8 +29,6 @@ impl UIId {
         UIId(id)
     }
 }
-
-const UI_ID_ZERO: UIId = UIId::new([0; 32]);
 
 /// This macro creates a UIId based on the expression passed in and the location of the invocation
 /// in the file. This implies it may assign the same id to multiple `id` invocations inside another
@@ -510,6 +508,17 @@ pub fn view<'view>(
                 let vertical_shift =
                     search_text_xywh.wh.h + margin.into_ltrb().b - list_bottom_margin;
 
+                let mut navigated_result = None;
+
+                match search.navigation {
+                    Navigation::None | Navigation::Up => {}
+                    Navigation::Down => {
+                        if results.len() > 0 {
+                            navigated_result = Some(0);
+                        }
+                    }
+                }
+
                 spaced_input_box!(
                     search,
                     b_id!(BufferIdKind::FileSwitcher, index),
@@ -524,12 +533,22 @@ pub fn view<'view>(
                 current_rect.max.1 += vertical_shift;
                 current_rect.max.1 += list_bottom_margin;
 
-                for (i, result) in results.iter().enumerate() {
+                for (index, result) in results.iter().enumerate() {
                     let path_text = result.to_str().unwrap_or("Non-UTF8 Path");
                     let rect = enlarge_by(shrink_by(current_rect, margin), list_padding);
+
+                    let result_id = id!(index);
+
+                    match navigated_result {
+                        Some(i) if i == index => {
+                            ui.keyboard.set_next_hot(result_id);
+                        }
+                        _ => {}
+                    };
+
                     if do_outline_button(
                         ui,
-                        id!(i),
+                        result_id,
                         &mut text_or_rects,
                         OutlineButtonSpec {
                             text: &path_text,
@@ -608,6 +627,7 @@ fn text_box<'view>(
         cursors,
         scroll,
         chars,
+        ..
     }: &'view BufferViewData,
     buffer_id: BufferId,
     z: u16,
@@ -668,7 +688,7 @@ fn text_box<'view>(
                 rect: cursor_rect,
                 color: match c.state {
                     CursorState::None => c![0.9, 0.3, 0.3],
-                    CursorState::PressedAgainstWall => c![0.9, 0.9, 0.3],
+                    CursorState::PressedAgainstWall(_) => c![0.9, 0.9, 0.3],
                 },
                 z: z.saturating_add(3),
             },
@@ -777,28 +797,39 @@ impl PhysicalButtonState {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct UIState {
     pub mouse_pos: ScreenSpaceXY,
     pub left_mouse_state: PhysicalButtonState,
+    pub enter_key_state: PhysicalButtonState,
     pub tab_scroll: f32,
+    pub mouse: UIFocus,
+    pub keyboard: UIFocus,
+}
+
+impl UIState {
+    pub fn frame_init(&mut self) {
+        self.mouse.frame_init();
+        self.keyboard.frame_init();
+    }
+    pub fn frame_end(&mut self) {
+        // This needs to go here instead of in init, so that we actually see the undecayed state
+        // for the first frame after the input event.
+        self.left_mouse_state.decay();
+        self.enter_key_state.decay();
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct UIFocus {
     active: UIId,
     hot: UIId,
     next_hot: UIId,
 }
 
-d!(for UIState: UIState {
-    mouse_pos: d!(),
-    left_mouse_state: d!(),
-    tab_scroll: d!(),
-    hot: UI_ID_ZERO,
-    active: UI_ID_ZERO,
-    next_hot: UI_ID_ZERO,
-});
-
-impl UIState {
+impl UIFocus {
     pub fn set_not_active(&mut self) {
-        self.active = UI_ID_ZERO;
+        self.active = d!();
     }
     pub fn set_active(&mut self, id: UIId) {
         self.active = id;
@@ -808,22 +839,13 @@ impl UIState {
     }
     #[allow(dead_code)]
     pub fn set_not_hot(&mut self) {
-        self.hot = UI_ID_ZERO;
+        self.hot = d!();
     }
     pub fn frame_init(&mut self) {
-        if self.active == UI_ID_ZERO {
+        if self.active == d!() {
             self.hot = self.next_hot;
         }
-        self.next_hot = UI_ID_ZERO;
-        // dbg!("frame_init");
-        // dbg!(self.active != UI_ID_ZERO);
-        // dbg!(self.hot != UI_ID_ZERO);
-        // dbg!(self.next_hot != UI_ID_ZERO);
-    }
-    pub fn frame_end(&mut self) {
-        // This needs to go here instead of in int, so that we actually see the undecayed state
-        // for the first frame after the input event.
-        self.left_mouse_state.decay();
+        self.next_hot = d!();
     }
 }
 
@@ -861,7 +883,7 @@ fn clamp_within(rect: &mut ScreenSpaceRect, ScreenSpaceRect { min, max }: Screen
 #[derive(Clone, Copy, Debug)]
 enum ButtonState {
     Usual,
-    Hover,
+    Hover, // TODO shouuld there be a different state for keyboard "hover"?
     Pressed,
 }
 ord!(and friends for ButtonState: s, other in {
@@ -892,32 +914,49 @@ fn do_button_logic(ui: &mut UIState, id: UIId, rect: ScreenSpaceRect) -> DoButto
 
     let mouse_pos = ui.mouse_pos;
     let mouse_state = ui.left_mouse_state;
+    let enter_key_state = ui.enter_key_state;
 
     let inside = inside_rect(mouse_pos, rect);
 
-    if ui.active == id {
+    if ui.mouse.active == id {
         if mouse_state == PhysicalButtonState::ReleasedThisFrame {
-            clicked = ui.hot == id && inside;
-            ui.set_not_active();
+            clicked = ui.mouse.hot == id && inside;
+            ui.mouse.set_not_active();
         }
-    } else if ui.hot == id {
-        if mouse_state == PhysicalButtonState::PressedThisFrame {
-            ui.set_active(id);
+    } else if ui.keyboard.active == id {
+        if enter_key_state == PhysicalButtonState::PressedThisFrame {
+            clicked = ui.keyboard.hot == id;
+            ui.keyboard.set_not_active();
+        }
+    } else {
+        if ui.mouse.hot == id {
+            if mouse_state == PhysicalButtonState::PressedThisFrame {
+                ui.mouse.set_active(id);
+            }
+        }
+
+        if ui.keyboard.hot == id {
+            if enter_key_state == PhysicalButtonState::PressedThisFrame {
+                ui.keyboard.set_active(id);
+            }
         }
     }
 
     if inside {
-        ui.set_next_hot(id);
+        ui.mouse.set_next_hot(id);
     }
+    // keyboard_hot is expected to be set by other ui code, since it depends on what that code
+    // wants to allow regarding movement.
 
-    let state = if ui.active == id && mouse_state.is_pressed() {
+    let state = if (ui.mouse.active == id && mouse_state.is_pressed())
+        || (ui.keyboard.active == id && enter_key_state.is_pressed())
+    {
         Pressed
-    } else if ui.hot == id {
+    } else if ui.mouse.hot == id || ui.keyboard.hot == id {
         Hover
     } else {
         Usual
     };
-
     (clicked, state)
 }
 

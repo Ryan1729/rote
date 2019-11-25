@@ -55,9 +55,6 @@ fn do_button_logic_does_not_flash_like_it_used_to() {
 fn render_outline_button_centers_this_example_properly() {
     let mut text_or_rects = Vec::new();
 
-    let x_padding = 4.0;
-    let y_padding = 6.0;
-
     let x_margin = 5.0;
     let y_margin = 7.0;
 
@@ -76,7 +73,6 @@ fn render_outline_button_centers_this_example_properly() {
         text: "test",
         size: 8.0,
         char_dim,
-        padding: Spacing::Axis(x_padding, y_padding),
         margin: Spacing::Axis(x_margin, y_margin),
         rect,
         background_colour: c![0.0, 0.0, 0.0],

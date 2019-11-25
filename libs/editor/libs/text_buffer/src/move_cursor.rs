@@ -61,14 +61,10 @@ pub fn directly_custom(rope: &Rope, cursor: &mut Cursor, r#move: Move, action: S
         ToNextLikelyEditLocation => move_to_next_likely_edit_location(rope, cursor, action),
     };
 
-    cursor.state = state_from_moved(moved);
-}
-
-fn state_from_moved(moved: Moved) -> CursorState {
-    match moved {
-        Moved::No => CursorState::PressedAgainstWall,
+    cursor.state = match moved {
+        Moved::No => CursorState::PressedAgainstWall(r#move),
         Moved::Yes => CursorState::None,
-    }
+    };
 }
 
 enum Moved {

@@ -5,6 +5,9 @@
     * keyboard control
       * do we want some kind of overarching tab positioning system or just to make this case work and worry about that later?
         * the latter
+        * deselect buffer on movement down from buffer.
+        * reselect it on movement off the top of the list.
+    * scrollable list (could be done later?)
 
 * automatically save edited text files to disk in temp files.
   * there should be no data lost earlier than say 1 minute ago if the power to the machine goes out.
