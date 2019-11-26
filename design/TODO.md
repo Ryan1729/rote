@@ -2,11 +2,16 @@
 
 * Ctrl-p open a list of open files, with a search box.
   * open selected file
+    * fix bugs
+      * do a search with result and then delete query and results are still there.
+      * press down when there are no results and "Navigation::Down" never gets reset.
+      * press down when there are results and the whole ctrl-p menu closes
     * keyboard control
       * do we want some kind of overarching tab positioning system or just to make this case work and worry about that later?
         * the latter
         * deselect buffer on movement down from buffer.
         * reselect it on movement off the top of the list.
+        * move down to select the next thing in the list
     * scrollable list (could be done later?)
 
 * automatically save edited text files to disk in temp files.

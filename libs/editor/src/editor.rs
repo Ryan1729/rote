@@ -424,6 +424,7 @@ macro_rules! get_scrollable_buffer_mut {
     ($state: expr, $id: expr) => {{
         let id = $id;
         match $id.kind {
+            BufferIdKind::None => Option::None,
             BufferIdKind::Text => $state.buffers.get_mut(id.index).map(|b| &mut b.scrollable),
             BufferIdKind::Find => Some(&mut $state.find),
             BufferIdKind::Replace => Some(&mut $state.replace),
@@ -435,15 +436,18 @@ macro_rules! get_scrollable_buffer_mut {
 macro_rules! set_indexed_id {
     ($name: ident, $variant: ident) => {
         impl State {
+            #[allow(dead_code)]
             fn $name(&mut self, i: g_i::Index) {
-                if i < self.buffers.len() {
-                    self.current_buffer_id = b_id!(BufferIdKind::$variant, i);
-                }
+                self.set_id(b_id!(BufferIdKind::$variant, i));
             }
         }
     };
 }
 
+set_indexed_id! {
+    set_none_id,
+    None
+}
 set_indexed_id! {
     set_text_id,
     Text
@@ -480,12 +484,9 @@ impl State {
         });
     }
 
-    fn set_id(&mut self, BufferId { kind, index: i }: BufferId) {
-        match kind {
-            BufferIdKind::Text => self.set_text_id(i),
-            BufferIdKind::Find => self.set_find_id(i),
-            BufferIdKind::Replace => self.set_replace_id(i),
-            BufferIdKind::FileSwitcher => self.set_file_switcher_id(i),
+    fn set_id(&mut self, id: BufferId) {
+        if id.index < self.buffers.len() {
+            self.current_buffer_id = id;
         }
     }
 
@@ -529,10 +530,16 @@ impl State {
     }
 
     fn get_current_char_dim(&self) -> CharDim {
+        Self::char_dim_for_buffer_kind(&self.font_info, self.current_buffer_id.kind)
+    }
+
+    fn char_dim_for_buffer_kind(font_info: &FontInfo, kind: BufferIdKind) -> CharDim {
         use BufferIdKind::*;
-        match self.current_buffer_id.kind {
-            Text => self.font_info.text_char_dim,
-            Find | Replace | FileSwitcher => self.font_info.find_replace_char_dim,
+        match kind {
+            Text => font_info.text_char_dim,
+            // None uses the same char_dim as the menus since it represents keybaord naviagaion in
+            // the menus.
+            None | Find | Replace | FileSwitcher => font_info.find_replace_char_dim,
         }
     }
 
@@ -542,6 +549,7 @@ impl State {
         let buffer = get_scrollable_buffer_mut!(self, id)?;
         let kind = id.kind;
         let xywh = match kind {
+            None => return Option::None,
             Text => self.buffer_xywh,
             Find => self.find_xywh,
             Replace => self.replace_xywh,
@@ -550,16 +558,13 @@ impl State {
         let attempt_result = attempt_to_make_sure_at_least_one_cursor_is_visible(
             &mut buffer.scroll,
             xywh,
-            match kind {
-                Text => self.font_info.text_char_dim,
-                Find | Replace | FileSwitcher => self.font_info.find_replace_char_dim,
-            },
+            Self::char_dim_for_buffer_kind(&self.font_info, kind),
             buffer.text_buffer.borrow_cursors_vec(),
         );
 
         match attempt_result {
             VisibilityAttemptResult::Succeeded => Some(()),
-            _ => None,
+            _ => Option::None,
         }
     }
 
@@ -944,7 +949,7 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
             state.set_menu_mode(mode);
         }
         SubmitForm => match state.current_buffer_id.kind {
-            BufferIdKind::Text => {}
+            BufferIdKind::None | BufferIdKind::Text => {}
             BufferIdKind::Find => match state.find_replace_mode {
                 FindReplaceMode::CurrentFile => {
                     let i = state.current_buffer_id.index;

@@ -1,71 +1,120 @@
 use gl_layer::{TextLayout, TextOrRect, TextSpec, VisualSpec};
-use macros::{c, d, fmt_debug, ord};
+use macros::{c, d, ord};
 use platform_types::{screen_positioning::*, *};
 use std::cmp::max;
 
-// This is probably excessive. We can make this smaller if there is a measuarable perf impact
-// but given this goes on the stack, that seems unlikely?
-#[derive(Clone, Copy, Default)]
-pub struct UIId([u64; 32]);
-fmt_debug!(for UIId: UIId(id) in "{}", {
-    let mut s = String::with_capacity(32 * 4);
-    'outer: for n in id.iter() {
-        let bytes = n.to_be_bytes();
-        for &byte in bytes.iter() {
-            if byte == 0 {
-                break 'outer;
-            }
-            s.push(byte as char);
-        }
+mod ui_id {
+    use macros::{d, fmt_debug, ord};
+    /// The varaints here represent sections of code that want to be able to store information in the
+    /// ids. For example, so that the ui state can change differently based on which part of soem
+    /// dynamically generated UI is selected.
+    #[derive(Clone, Copy, Debug)]
+    pub enum Tag {
+        FileSwitcherResults,
     }
-    s
-});
-ord!(and friends for UIId: id, other in {
-    id.0.cmp(&other.0)
-});
 
-impl UIId {
-    pub const fn new(id: [u64; 32]) -> Self {
-        UIId(id)
+    /// 31 to leave space for the enum variant tag.
+    pub const DATA_LEN: usize = 31;
+
+    /// The payload of the `UUId::Data` varaint
+    type Data = [u64; DATA_LEN];
+
+    // This is probably excessive size-wise. We can make this smaller if there is a measuarable
+    // perf impact but given this goes on the stack, that seems unlikely?
+    #[derive(Clone, Copy)]
+    pub enum UIId {
+        /// The generic data variant. Used when the data's sizes are not known ahead of time
+        Data(Data),
+        TaggedUsize(Tag, usize),
     }
-}
+    d!(for UIId: UIId::Data(d!()));
 
-/// This macro creates a UIId based on the expression passed in and the location of the invocation
-/// in the file. This implies it may assign the same id to multiple `id` invocations inside another
-/// macro. A suggested fix for that is to pass down the needed ids from outside that macro.
-macro_rules! id {
-    ($thing: expr) => {{
-        let mut id = [0; 32];
-        // TODO is the compilier smart enough to avoid the allocation here?
-        let s = format!(
-            "{},{}",
-            $thing,
-            concat!(column!(), ",", line!(), ",", file!())
-        );
-        let slice = s.as_bytes();
+    fmt_debug!(for UIId: id in "{}", {
+        match id {
+            UIId::Data(data) => {
+                let mut s = String::with_capacity(31 * std::mem::size_of::<u64>());
 
-        let mut i = 0;
-        for chunk in slice.chunks_exact(8) {
-            let mut value = 0u64;
-            value |= (chunk[0] as u64) << 56;
-            value |= (chunk[1] as u64) << 48;
-            value |= (chunk[2] as u64) << 40;
-            value |= (chunk[3] as u64) << 32;
-            value |= (chunk[4] as u64) << 24;
-            value |= (chunk[5] as u64) << 16;
-            value |= (chunk[6] as u64) << 8;
-            value |= (chunk[7] as u64) << 0;
-            id[i] = value;
-            i += 1;
-            if i >= id.len() {
-                break;
+                'outer: for n in data.iter() {
+                    let bytes = n.to_be_bytes();
+                    for &byte in bytes.iter() {
+                        if byte == 0 {
+                            break 'outer;
+                        }
+                        s.push(byte as char);
+                    }
+                }
+
+                s
+            },
+            UIId::TaggedUsize(tag, payload) => {
+                format!("TaggedUsize{:?}", (tag, payload))
             }
         }
+    });
+    ord!(and friends for UIId: id, other in {
+        use UIId::*;
+        use std::cmp::Ordering::*;
+        match (id, other) {
+            (Data(_), TaggedUsize(_, _)) => {
+                Less
+            },
+            (TaggedUsize(_, _), Data(_)) => {
+                Greater
+            },
+            (Data(d1), Data(d2)) => {
+                d1.cmp(&d2)
+            }
+            (TaggedUsize(Tag::FileSwitcherResults, payload1), TaggedUsize(Tag::FileSwitcherResults, payload2)) => {
+                payload1.cmp(&payload2)
+            }
+        }
+    });
 
-        // use new so we can use this macro outside this package.
-        UIId::new(id)
-    }};
+    impl UIId {
+        pub const fn new(id: Data) -> Self {
+            UIId::Data(id)
+        }
+    }
+
+    /// This macro creates a UIId based on the expression passed in and the location of the invocation
+    /// in the file. This implies it may assign the same id to multiple `id` invocations inside another
+    /// macro. A suggested fix for that is to pass down the needed ids from outside that macro.
+    #[macro_export]
+    macro_rules! id {
+        ($thing: expr) => {{
+            let mut id = [0; ui_id::DATA_LEN];
+            // TODO is the compilier smart enough to avoid the allocation here?
+            let s = format!(
+                "{},{}",
+                $thing,
+                concat!(column!(), ",", line!(), ",", file!())
+            );
+            let slice = s.as_bytes();
+
+            let mut i = 0;
+            for chunk in slice.chunks_exact(8) {
+                let mut value = 0u64;
+                value |= (chunk[0] as u64) << 56;
+                value |= (chunk[1] as u64) << 48;
+                value |= (chunk[2] as u64) << 40;
+                value |= (chunk[3] as u64) << 32;
+                value |= (chunk[4] as u64) << 24;
+                value |= (chunk[5] as u64) << 16;
+                value |= (chunk[6] as u64) << 8;
+                value |= (chunk[7] as u64) << 0;
+                id[i] = value;
+                i += 1;
+                if i >= id.len() {
+                    break;
+                }
+            }
+
+            // use new so we can use this macro outside this package.
+            UIId::new(id)
+        }};
+    }
 }
+use ui_id::UIId;
 
 type Colour = [f32; 4];
 
@@ -508,22 +557,57 @@ pub fn view<'view>(
                 let vertical_shift =
                     search_text_xywh.wh.h + margin.into_ltrb().b - list_bottom_margin;
 
+                let search_buffer_id = b_id!(BufferIdKind::FileSwitcher, index);
+
+                fn get_result_id(index: usize) -> UIId {
+                    id!(index)
+                }
+
                 let mut navigated_result = None;
 
-                match search.navigation {
-                    Navigation::None | Navigation::Up => {}
-                    Navigation::Down => {
-                        if results.len() > 0 {
-                            navigated_result = Some(0);
+                if input.is_none() {
+                    match search.navigation {
+                        Navigation::None => {}
+                        Navigation::Up => {
+                            if view.current_buffer_id == search_buffer_id {
+                                // do nothing
+                            } else if let UIId::TaggedUsize(
+                                ui_id::Tag::FileSwitcherResults,
+                                result_index,
+                            ) = ui.keyboard.hot
+                            {
+                                if result_index == 0 {
+                                    input = Some(Input::SelectBuffer(b_id!(
+                                        BufferIdKind::FileSwitcher,
+                                        index
+                                    )));
+                                } else {
+                                    navigated_result = Some(result_index - 1);
+                                }
+                            }
+                        }
+                        Navigation::Down => {
+                            dbg!("Navigation::Down");
+                            if view.current_buffer_id == search_buffer_id {
+                                if results.len() > 0 {
+                                    navigated_result = Some(0);
+                                    input =
+                                        Some(Input::SelectBuffer(b_id!(BufferIdKind::None, index)));
+                                    dbg!(&input);
+                                }
+                            } else if let UIId::TaggedUsize(
+                                ui_id::Tag::FileSwitcherResults,
+                                result_index,
+                            ) = ui.keyboard.hot
+                            {
+                                navigated_result = Some((result_index + 1) % results.len());
+                                dbg!(navigated_result);
+                            }
                         }
                     }
                 }
 
-                spaced_input_box!(
-                    search,
-                    b_id!(BufferIdKind::FileSwitcher, index),
-                    current_rect
-                );
+                spaced_input_box!(search, search_buffer_id, current_rect);
                 // We add the extra `list_bottom_margin` here but not in the loop so that the
                 // spacing bewteen the textbox and the first button is the same as the spacing
                 // between subsequent buttons. If we added it in both there would be a double
@@ -533,14 +617,14 @@ pub fn view<'view>(
                 current_rect.max.1 += vertical_shift;
                 current_rect.max.1 += list_bottom_margin;
 
-                for (index, result) in results.iter().enumerate() {
+                for (result_index, result) in results.iter().enumerate() {
                     let path_text = result.to_str().unwrap_or("Non-UTF8 Path");
                     let rect = enlarge_by(shrink_by(current_rect, margin), list_padding);
 
-                    let result_id = id!(index);
+                    let result_id = get_result_id(result_index);
 
                     match navigated_result {
-                        Some(i) if i == index => {
+                        Some(i) if i == result_index => {
                             ui.keyboard.set_next_hot(result_id);
                         }
                         _ => {}
@@ -1367,6 +1451,7 @@ pub fn get_current_buffer_rect(
 ) -> TextBoxXYWH {
     use BufferIdKind::*;
     match current_buffer_id.kind {
+        None => d!(),
         Text => get_edit_buffer_xywh(mode, font_info, wh),
         Find => get_find_replace_info(font_info, wh).find_text_xywh,
         Replace => get_find_replace_info(font_info, wh).replace_text_xywh,

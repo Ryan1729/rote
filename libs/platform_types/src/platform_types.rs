@@ -451,6 +451,10 @@ macro_rules! b_id {
 
 #[derive(Clone, Copy, Debug)]
 pub enum BufferIdKind {
+    /// Used to indicate that the kayboard is focussed on a non-buffer.
+    None,
+    /// Indicates A buffer repesenting an open file or an imemory scratch file.
+    /// Almost all buffers are `Text` buffers.
     Text,
     Find,
     Replace,
@@ -462,10 +466,11 @@ impl From<&BufferIdKind> for u8 {
     fn from(kind: &BufferIdKind) -> Self {
         use BufferIdKind::*;
         match kind {
-            Text => 0,
-            Find => 1,
-            Replace => 2,
-            FileSwitcher => 3,
+            None => 0,
+            Text => 1,
+            Find => 2,
+            Replace => 3,
+            FileSwitcher => 4,
         }
     }
 }
