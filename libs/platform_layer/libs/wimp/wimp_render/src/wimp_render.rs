@@ -605,6 +605,10 @@ pub fn view<'view>(
                             }
                         }
                     }
+
+                    if search.navigation != Navigation::None {
+                        input = input.or_else(|| Some(Input::ClearNaviagation));
+                    }
                 }
 
                 spaced_input_box!(search, search_buffer_id, current_rect);

@@ -148,6 +148,9 @@ fn find_in_paths<'path, I: Iterator<Item = &'path Path>>(
     paths: I,
     needle: &str,
 ) -> FileSwitcherResults {
+    if needle.len() == 0 {
+        return d!();
+    }
     let len = {
         if let (_, Some(l)) = paths.size_hint() {
             l
@@ -736,6 +739,7 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
     use Input::*;
     match input {
         Input::None => {}
+        ClearNaviagation => {}
         Quit => {}
         CloseMenuIfAny => {
             close_menu_if_any!();
@@ -897,7 +901,12 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
         }
         SelectBuffer(id) => {
             state.set_id(id);
-            close_menu_if_any!();
+            match id.kind {
+                BufferIdKind::Text => {
+                    close_menu_if_any!();
+                }
+                _ => {}
+            }
         }
         OpenOrSelectBuffer(path) => {
             if let Some(id) = state

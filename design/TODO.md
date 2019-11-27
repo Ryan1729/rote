@@ -1,10 +1,22 @@
 ## TODO
 
+* make internal states clearer
+  * whether buffer is selected or not
+    * changing the background colour seems annoying
+      * we want it to be dark most of the time, and making it brighter emphasizes it too much
+    * thin outline? Maybe just an underline?
+    * a little icon in the top right?
+    * decrease letter/cursor alpha?
+      * this is sort of cheating the colour restriction thing, but if we imagine someone being colour-blind then stuff that is out of focus becoming unintelligible doesn't seem like an enormous issue?
+      * But, we'd still want to be able to read the text for find and replace.
+    * cursor blinking
+      * Okay yeah, we should do that.
+  * keyboard vs mouse focus
+    * consistent colouring?
+
 * Ctrl-p open a list of open files, with a search box.
   * open selected file
     * fix bugs
-      * do a search with result and then delete query and results are still there.
-      * press down when there are no results and "Navigation::Down" never gets reset.
       * press down when there are results and the whole ctrl-p menu closes
     * keyboard control
       * do we want some kind of overarching tab positioning system or just to make this case work and worry about that later?
