@@ -319,6 +319,7 @@ pub fn view<'view>(
     view: &'view View,
     font_info: &FontInfo,
     wh: ScreenSpaceWH,
+    dt: std::time::Duration,
 ) -> (Vec<TextOrRect<'view>>, Option<Input>) {
     let sswh!(width, height) = wh;
     let FontInfo {
@@ -331,6 +332,9 @@ pub fn view<'view>(
     const PER_BUFFER_TEXT_OR_RECT_ESTIMATE: usize =
         4   // 2-4 per tab, usually 2
     ;
+    ui.add_dt(dt);
+    let cursor_blink_alpha = ui.get_cursor_blink_alpha();
+
     let mut text_or_rects =
         Vec::with_capacity(view.buffers.len() * PER_BUFFER_TEXT_OR_RECT_ESTIMATE);
     let mut input = None;
@@ -414,6 +418,7 @@ pub fn view<'view>(
             b_id!(BufferIdKind::Text, index),
             EDIT_Z,
             &view.current_buffer_id,
+            cursor_blink_alpha,
         )
         .or(input);
 
@@ -471,6 +476,7 @@ pub fn view<'view>(
                                     $input,
                                     FIND_REPLACE_Z,
                                     &view.current_buffer_id,
+                                    cursor_blink_alpha,
                                 )
                                 .or(input);
                             }};
@@ -547,6 +553,7 @@ pub fn view<'view>(
                             $input,
                             FIND_REPLACE_Z,
                             &view.current_buffer_id,
+                            cursor_blink_alpha,
                         )
                         .or(input);
                     }};
@@ -720,6 +727,7 @@ fn text_box<'view>(
     buffer_id: BufferId,
     z: u16,
     current_buffer_id: &BufferId,
+    cursor_blink_alpha: f32,
 ) -> Option<Input> {
     let mut input = None;
 
@@ -728,14 +736,17 @@ fn text_box<'view>(
         input = Some(Input::SelectBuffer(buffer_id));
     }
 
-    let color = if *current_buffer_id == buffer_id {
-        TEXT_BACKGROUND_COLOUR
+    let (color, cursor_alpha) = if *current_buffer_id == buffer_id {
+        (TEXT_BACKGROUND_COLOUR, cursor_blink_alpha)
     } else {
-        match button_state {
-            ButtonState::Usual => TEXT_BACKGROUND_COLOUR,
-            ButtonState::Hover => TEXT_HOVER_BACKGROUND_COLOUR,
-            ButtonState::Pressed => TEXT_PRESSED_BACKGROUND_COLOUR,
-        }
+        (
+            match button_state {
+                ButtonState::Usual => TEXT_BACKGROUND_COLOUR,
+                ButtonState::Hover => TEXT_HOVER_BACKGROUND_COLOUR,
+                ButtonState::Pressed => TEXT_PRESSED_BACKGROUND_COLOUR,
+            },
+            1.0,
+        )
     };
 
     text_or_rects.push(TextOrRect::Rect(VisualSpec {
@@ -775,8 +786,8 @@ fn text_box<'view>(
             spec: VisualSpec {
                 rect: cursor_rect,
                 color: match c.state {
-                    CursorState::None => c![0.9, 0.3, 0.3],
-                    CursorState::PressedAgainstWall(_) => c![0.9, 0.9, 0.3],
+                    CursorState::None => palette![red, cursor_alpha],
+                    CursorState::PressedAgainstWall(_) => palette![yellow, cursor_alpha],
                 },
                 z: z.saturating_add(3),
             },
@@ -893,6 +904,40 @@ pub struct UIState {
     pub tab_scroll: f32,
     pub mouse: UIFocus,
     pub keyboard: UIFocus,
+    /// This is should be in the range [0.0, 2.0]. This needs the extra space to repesent the down
+    /// side of the sawtooth pattern.
+    pub cursor_blink_alpha_accumulator: f32,
+    // counts
+    pub cursor_solid_override_accumulator: f32,
+}
+
+impl UIState {
+    pub fn note_interaction(&mut self) {
+        self.cursor_solid_override_accumulator = 1.5;
+    }
+    fn add_dt(&mut self, dt: std::time::Duration) {
+        let offset = ((dt.as_millis() as u64 as f32) / 1000.0) * 1.5;
+
+        if self.cursor_solid_override_accumulator > 0.0 {
+            self.cursor_solid_override_accumulator -= offset;
+            if self.cursor_solid_override_accumulator < 0.0 {
+                self.cursor_solid_override_accumulator = 0.0;
+            }
+        } else {
+            self.cursor_blink_alpha_accumulator += offset;
+            self.cursor_blink_alpha_accumulator =
+                self.cursor_blink_alpha_accumulator.rem_euclid(2.0);
+        }
+    }
+    fn get_cursor_blink_alpha(&self) -> f32 {
+        if self.cursor_solid_override_accumulator > 0.0 {
+            1.0
+        } else if self.cursor_blink_alpha_accumulator > 1.0 {
+            2.0 - self.cursor_blink_alpha_accumulator
+        } else {
+            self.cursor_blink_alpha_accumulator
+        }
+    }
 }
 
 impl UIState {

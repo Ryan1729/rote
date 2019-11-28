@@ -1,7 +1,7 @@
 ## TODO
 
 * make internal states clearer
-  * whether buffer is selected or not
+  * whether buffer is selected or not (is cursor blinking enough?)
     * changing the background colour seems annoying
       * we want it to be dark most of the time, and making it brighter emphasizes it too much
     * thin outline? Maybe just an underline?
@@ -9,10 +9,11 @@
     * decrease letter/cursor alpha?
       * this is sort of cheating the colour restriction thing, but if we imagine someone being colour-blind then stuff that is out of focus becoming unintelligible doesn't seem like an enormous issue?
       * But, we'd still want to be able to read the text for find and replace.
-    * cursor blinking
-      * Okay yeah, we should do that.
   * keyboard vs mouse focus
+    * do we want to be able to tell if something is selected by mouse and keyboard vs just mouse vs just keyboard? Or would showing the mouse selection only be enough?
     * consistent colouring?
+      * how about mouse yellow, keyboard blue, and both green outlines?
+
 
 * Ctrl-p open a list of open files, with a search box.
   * open selected file

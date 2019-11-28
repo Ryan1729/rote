@@ -6,6 +6,7 @@
 use glutin::{dpi::LogicalPosition, Api, GlProfile, GlRequest};
 use std::collections::VecDeque;
 use std::path::PathBuf;
+use std::time::Duration;
 use wimp_render::{get_find_replace_info, FindReplaceInfo};
 
 use file_chooser;
@@ -130,7 +131,9 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
 
     let font_info = wimp_render::get_font_info(&char_dims);
 
-    let mut loop_helper = spin_sleep::LoopHelper::builder().build_with_target_rate(128.0); //250.0);
+    const TARGET_RATE: f64 = 128.0; //250.0);
+
+    let mut loop_helper = spin_sleep::LoopHelper::builder().build_with_target_rate(TARGET_RATE);
 
     let mut running = true;
     let mut dimensions = glutin_context
@@ -178,6 +181,8 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
 
     let mut ui: UIState = d!();
 
+    let mut dt = Duration::from_nanos(((1.0 / TARGET_RATE) * 1_000_000_000.0) as u64);
+
     macro_rules! mouse_within_radius {
         () => {
             (last_click_x - ui.mouse_pos.x).abs() <= mouse_epsilon_radius
@@ -214,6 +219,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
 
             macro_rules! call_u_and_r {
                 ($input:expr) => {
+                    ui.note_interaction();
                     let _hope_it_gets_there = in_tx.send($input);
                 };
             }
@@ -275,7 +281,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                     ui.frame_init();
 
                     let (text_and_rects, input) =
-                        wimp_render::view(&mut ui, &view, &font_info, screen_wh!());
+                        wimp_render::view(&mut ui, &view, &font_info, screen_wh!(), dt);
                     let width = dimensions.width;
                     let height = dimensions.height;
 
@@ -325,7 +331,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                     perf_viz::start_record!("main loop");
 
                     // We want to track the time that the message loop takes too!
-                    loop_helper.loop_start();
+                    dt = loop_helper.loop_start();
                 }
                 Event::UserEvent(e) => match e {
                     CustomEvent::OpenFile(p) => load_file!(p),
@@ -344,7 +350,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                 Event::NewEvents(StartCause::Init) => {
                     // At least try to measure the first frame accurately
                     perf_viz::start_record!("main loop");
-                    loop_helper.loop_start();
+                    dt = loop_helper.loop_start();
                 }
                 Event::WindowEvent { event, .. } => {
                     macro_rules! quit {
