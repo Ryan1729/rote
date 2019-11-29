@@ -279,6 +279,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                     ..
                 } => {
                     ui.frame_init();
+                    if_changed::dbg!(&ui.keyboard);
 
                     let (text_and_rects, input) =
                         wimp_render::view(&mut ui, &view, &font_info, screen_wh!(), dt);

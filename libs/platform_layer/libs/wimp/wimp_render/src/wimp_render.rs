@@ -369,9 +369,6 @@ pub fn view<'view>(
                 layout: TextLayout::SingleLine,
                 margin,
                 rect,
-                background_colour: TAB_BACKGROUND_COLOUR,
-                text_colour: TAB_TEXT_COLOUR,
-                highlight_colour: TAB_HIGHLIGHT_COLOUR,
                 extra_highlight: if i == visible_index_or_max {
                     ExtraHighlight::Underline(TEXT_COLOUR, padding.into_ltrb().b)
                 } else {
@@ -567,14 +564,24 @@ pub fn view<'view>(
                 let search_buffer_id = b_id!(BufferIdKind::FileSwitcher, index);
 
                 fn get_result_id(index: usize) -> UIId {
-                    id!(index)
+                    ui_id::UIId::TaggedUsize(ui_id::Tag::FileSwitcherResults, index)
                 }
 
                 let mut navigated_result = None;
 
                 if input.is_none() {
                     match search.navigation {
-                        Navigation::None => {}
+                        Navigation::None => {
+                            if view.current_buffer_id == search_buffer_id {
+                                // do nothing
+                            } else if let UIId::TaggedUsize(
+                                ui_id::Tag::FileSwitcherResults,
+                                result_index,
+                            ) = ui.keyboard.hot
+                            {
+                                navigated_result = Some(result_index);
+                            }
+                        }
                         Navigation::Up => {
                             if view.current_buffer_id == search_buffer_id {
                                 // do nothing
@@ -600,7 +607,7 @@ pub fn view<'view>(
                                     navigated_result = Some(0);
                                     input =
                                         Some(Input::SelectBuffer(b_id!(BufferIdKind::None, index)));
-                                    dbg!(&input);
+                                    dbg!(&navigated_result, &input);
                                 }
                             } else if let UIId::TaggedUsize(
                                 ui_id::Tag::FileSwitcherResults,
@@ -652,9 +659,6 @@ pub fn view<'view>(
                             layout: TextLayout::SingleLine,
                             margin: list_margin,
                             rect,
-                            background_colour: TAB_BACKGROUND_COLOUR,
-                            text_colour: TAB_TEXT_COLOUR,
-                            highlight_colour: TAB_HIGHLIGHT_COLOUR,
                             extra_highlight: ExtraHighlight::None,
                             z: TAB_Z,
                         },
@@ -742,8 +746,8 @@ fn text_box<'view>(
         (
             match button_state {
                 ButtonState::Usual => TEXT_BACKGROUND_COLOUR,
-                ButtonState::Hover => TEXT_HOVER_BACKGROUND_COLOUR,
-                ButtonState::Pressed => TEXT_PRESSED_BACKGROUND_COLOUR,
+                ButtonState::Hover(_) => TEXT_HOVER_BACKGROUND_COLOUR,
+                ButtonState::Pressed(_) => TEXT_PRESSED_BACKGROUND_COLOUR,
             },
             1.0,
         )
@@ -922,6 +926,9 @@ impl UIState {
             self.cursor_solid_override_accumulator -= offset;
             if self.cursor_solid_override_accumulator < 0.0 {
                 self.cursor_solid_override_accumulator = 0.0;
+                // Make sure when the override ends that we don't jump to a random point in the
+                // blink
+                self.cursor_blink_alpha_accumulator = 1.0;
             }
         } else {
             self.cursor_blink_alpha_accumulator += offset;
@@ -1014,26 +1021,44 @@ fn clamp_within(rect: &mut ScreenSpaceRect, ScreenSpaceRect { min, max }: Screen
 }
 
 #[derive(Clone, Copy, Debug)]
+enum InputType {
+    Mouse,
+    Keyboard,
+    Both,
+}
+
+macro_rules! input_type_tag {
+    ($input_type: expr) => {{
+        use InputType::*;
+        match $input_type {
+            Mouse => 1,
+            Keyboard => 2,
+            Both => 3,
+        }
+    }};
+}
+
+ord!(and friends for InputType: t, other in input_type_tag!(t).cmp(&input_type_tag!(other)));
+
+#[derive(Clone, Copy, Debug)]
 enum ButtonState {
     Usual,
-    Hover, // TODO shouuld there be a different state for keyboard "hover"?
-    Pressed,
+    Hover(InputType),
+    Pressed(InputType),
 }
 ord!(and friends for ButtonState: s, other in {
     use ButtonState::*;
-    let s = match s {
-        Usual => 0,
-        Hover => 1,
-        Pressed => 2,
-    };
+    macro_rules! button_state_tag {
+        ($button_state: expr) => (
+            match $button_state {
+                Usual => (0, 0),
+                Hover(input_type) => (1, input_type_tag!(input_type)),
+                Pressed(input_type) => (2, input_type_tag!(input_type)),
+            }
+        );
+    }
 
-    let other = match other {
-        Usual => 0,
-        Hover => 1,
-        Pressed => 2,
-    };
-
-    s.cmp(&other)
+    button_state_tag!(s).cmp(&button_state_tag!(other))
 });
 
 type DoButtonResult = (bool, ButtonState);
@@ -1081,14 +1106,19 @@ fn do_button_logic(ui: &mut UIState, id: UIId, rect: ScreenSpaceRect) -> DoButto
     // keyboard_hot is expected to be set by other ui code, since it depends on what that code
     // wants to allow regarding movement.
 
-    let state = if (ui.mouse.active == id && mouse_state.is_pressed())
-        || (ui.keyboard.active == id && enter_key_state.is_pressed())
-    {
-        Pressed
-    } else if ui.mouse.hot == id || ui.keyboard.hot == id {
-        Hover
-    } else {
-        Usual
+    let state = match (
+        ui.mouse.active == id && mouse_state.is_pressed(),
+        ui.keyboard.active == id && enter_key_state.is_pressed(),
+    ) {
+        (true, true) => Pressed(InputType::Both),
+        (true, false) => Pressed(InputType::Mouse),
+        (false, true) => Pressed(InputType::Keyboard),
+        (false, false) => match (ui.mouse.hot == id, ui.keyboard.hot == id) {
+            (true, true) => Hover(InputType::Both),
+            (true, false) => Hover(InputType::Mouse),
+            (false, true) => Hover(InputType::Keyboard),
+            (false, false) => Usual,
+        },
     };
     (clicked, state)
 }
@@ -1107,9 +1137,6 @@ struct OutlineButtonSpec<'text> {
     layout: TextLayout,
     margin: Spacing,
     rect: ScreenSpaceRect,
-    background_colour: Colour,
-    text_colour: Colour,
-    highlight_colour: Colour,
     extra_highlight: ExtraHighlight,
     z: u16,
 }
@@ -1120,9 +1147,6 @@ d!(for OutlineButtonSpec<'static>: OutlineButtonSpec {
     layout: TextLayout::SingleLine,
     margin: d!(),
     rect: d!(),
-    background_colour: c![1.0, 0.0, 0.0],
-    text_colour: c![0.0, 1.0, 0.0],
-    highlight_colour: c![0.0, 0.0, 1.0],
     extra_highlight: d!(),
     z: gl_layer::DEFAULT_Z,
 });
@@ -1192,9 +1216,6 @@ fn render_outline_button<'view>(
         layout,
         margin,
         rect,
-        background_colour,
-        text_colour,
-        highlight_colour,
         extra_highlight,
         z,
     }: OutlineButtonSpec<'view>,
@@ -1205,6 +1226,20 @@ fn render_outline_button<'view>(
     let text_w = usize_to_f32_or_65536(text.chars().count()) * char_dim.w;
     let text_rect = center_within((text_w, char_dim.h), rect);
 
+    const BACKGROUND_COLOUR: Colour = TAB_BACKGROUND_COLOUR;
+    const TEXT_COLOUR: Colour = TAB_TEXT_COLOUR;
+
+    macro_rules! highlight_colour {
+        ($input_type: expr) => {{
+            use InputType::*;
+            match $input_type {
+                Mouse => palette![yellow],
+                Keyboard => palette![blue],
+                Both => palette![green],
+            }
+        }};
+    }
+
     macro_rules! push_text {
         () => {
             text_or_rects.push(TextOrRect::Text(TextSpec {
@@ -1213,7 +1248,7 @@ fn render_outline_button<'view>(
                 layout,
                 spec: VisualSpec {
                     rect: text_rect,
-                    color: text_colour,
+                    color: TEXT_COLOUR,
                     z: z.saturating_add(1),
                 },
             }));
@@ -1221,25 +1256,25 @@ fn render_outline_button<'view>(
     }
 
     match state {
-        Pressed => {
+        Pressed(input_type) => {
             text_or_rects.push(TextOrRect::Rect(VisualSpec {
                 rect,
-                color: highlight_colour,
+                color: highlight_colour!(input_type),
                 z,
             }));
             push_text!();
         }
-        Hover => {
+        Hover(input_type) => {
             // outline
             text_or_rects.push(TextOrRect::Rect(VisualSpec {
                 rect: enlarge_by(rect, margin),
-                color: highlight_colour,
+                color: highlight_colour!(input_type),
                 z: z.saturating_sub(1),
             }));
 
             text_or_rects.push(TextOrRect::Rect(VisualSpec {
                 rect,
-                color: background_colour,
+                color: BACKGROUND_COLOUR,
                 z,
             }));
             push_text!();
@@ -1247,7 +1282,7 @@ fn render_outline_button<'view>(
         Usual => {
             text_or_rects.push(TextOrRect::Rect(VisualSpec {
                 rect,
-                color: background_colour,
+                color: BACKGROUND_COLOUR,
                 z,
             }));
             push_text!();

@@ -1,19 +1,11 @@
 ## TODO
 
-* make internal states clearer
-  * whether buffer is selected or not (is cursor blinking enough?)
-    * changing the background colour seems annoying
-      * we want it to be dark most of the time, and making it brighter emphasizes it too much
-    * thin outline? Maybe just an underline?
-    * a little icon in the top right?
-    * decrease letter/cursor alpha?
-      * this is sort of cheating the colour restriction thing, but if we imagine someone being colour-blind then stuff that is out of focus becoming unintelligible doesn't seem like an enormous issue?
-      * But, we'd still want to be able to read the text for find and replace.
-  * keyboard vs mouse focus
-    * do we want to be able to tell if something is selected by mouse and keyboard vs just mouse vs just keyboard? Or would showing the mouse selection only be enough?
-    * consistent colouring?
-      * how about mouse yellow, keyboard blue, and both green outlines?
+* either make ctrl-tab close the menus or have it deselect the  menu buffer 
 
+* keyboard vs mouse focus
+  * do we want to be able to tell if something is selected by mouse and keyboard vs just mouse vs just keyboard? Or would showing the mouse selection only be enough?
+  * consistent colouring?
+    * how about mouse yellow, keyboard blue, and both green outlines?
 
 * Ctrl-p open a list of open files, with a search box.
   * open selected file
@@ -76,6 +68,18 @@ Once everything above this line is done we can start bootstrapping, (using this 
 
 * make auto-tab-scroll happen when a new tab is created
   * fix auto-scroll drifting as the amount of tabs increases.
+
+* make internal states clearer
+  * whether buffer is selected or not (is cursor blinking enough?)
+    * changing the background colour seems annoying
+      * we want it to be dark most of the time, and making it brighter emphasizes it too much
+    * thin outline? Maybe just an underline?
+    * a little icon in the top right?
+    * decrease letter/cursor alpha?
+      * this is sort of cheating the colour restriction thing, but if we imagine someone being colour-blind then stuff that is out of focus becoming unintelligible doesn't seem like an enormous issue?
+      * But, we'd still want to be able to read the text for find and replace.
+
+* should the cursor blinking be (a fast approximation of) a sine wave instead?
 
 * get line wrapping/text clipping working better
   * re-enable using `WrapInRect`
