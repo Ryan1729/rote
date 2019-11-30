@@ -99,7 +99,7 @@ where
             special_handling,
             post_delta_shift,
         },
-    ) in dbg!(specs).into_iter().enumerate().rev()
+    ) in specs.into_iter().enumerate().rev()
     {
         total_delta = total_delta.saturating_add(delta);
 
@@ -198,7 +198,7 @@ where
 {
     get_edit(
         original_rope,
-        dbg!(original_cursors),
+        original_cursors,
         |cursor, rope, index| match offset_pair(original_rope, cursor) {
             (Some(o), highlight) if highlight.is_none() || Some(o) == highlight => {
                 let s = get_string(index);

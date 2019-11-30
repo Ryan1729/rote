@@ -116,6 +116,38 @@ mod ui_id {
 }
 use ui_id::UIId;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Navigation {
+    None,
+    Up,
+    Down,
+    Interact,
+}
+d!(for Navigation: Navigation::None);
+
+fn navigation_from_cursors(cursors: &Vec<CursorView>) -> Navigation {
+    let mut output = d!();
+
+    for c in cursors.iter() {
+        match c.state {
+            CursorState::None => {}
+            CursorState::PressedAgainstWall(dir) => match dir {
+                Move::Up => {
+                    output = Navigation::Up;
+                    break;
+                }
+                Move::Down => {
+                    output = Navigation::Down;
+                    break;
+                }
+                _ => {}
+            },
+        }
+    }
+
+    output
+}
+
 type Colour = [f32; 4];
 
 const COLOUR_DELTA: f32 = 1.0 / 128.0;
@@ -188,7 +220,6 @@ const CHROME_TEXT_COLOUR: Colour = palette![alt cyan];
 const TAB_BAR_BACKGROUND_COLOUR: Colour = palette![alt cyan];
 const TAB_BACKGROUND_COLOUR: Colour = palette![cyan];
 const TAB_TEXT_COLOUR: Colour = palette![white];
-const TAB_HIGHLIGHT_COLOUR: Colour = palette![yellow];
 
 const TEXT_SIZE: f32 = 60.0;
 const FIND_REPLACE_SIZE: f32 = 26.0;
@@ -314,6 +345,20 @@ fn get_tab_spaced_rect(
     }
 }
 
+fn begin_view(ui: &mut UIState, view: &View) {
+    if_changed::dbg!(ui.navigation);
+    if let Some(buffer_view_data) = view.get_current_buffer_view_data() {
+        ui.navigation = navigation_from_cursors(&buffer_view_data.cursors);
+    } else {
+        // use the navigation that was set before `view` was called if there was one.
+    }
+    if_changed::dbg!(ui.navigation);
+}
+
+fn end_view(ui: &mut UIState) {
+    ui.navigation = d!();
+}
+
 pub fn view<'view>(
     ui: &mut UIState,
     view: &'view View,
@@ -321,6 +366,7 @@ pub fn view<'view>(
     wh: ScreenSpaceWH,
     dt: std::time::Duration,
 ) -> (Vec<TextOrRect<'view>>, Option<Input>) {
+    begin_view(ui, view);
     let sswh!(width, height) = wh;
     let FontInfo {
         text_char_dim,
@@ -333,7 +379,7 @@ pub fn view<'view>(
         4   // 2-4 per tab, usually 2
     ;
     ui.add_dt(dt);
-    let cursor_blink_alpha = ui.get_cursor_blink_alpha();
+    let fade_alpha = ui.get_fade_alpha();
 
     let mut text_or_rects =
         Vec::with_capacity(view.buffers.len() * PER_BUFFER_TEXT_OR_RECT_ESTIMATE);
@@ -415,7 +461,7 @@ pub fn view<'view>(
             b_id!(BufferIdKind::Text, index),
             EDIT_Z,
             &view.current_buffer_id,
-            cursor_blink_alpha,
+            fade_alpha,
         )
         .or(input);
 
@@ -473,7 +519,7 @@ pub fn view<'view>(
                                     $input,
                                     FIND_REPLACE_Z,
                                     &view.current_buffer_id,
-                                    cursor_blink_alpha,
+                                    fade_alpha,
                                 )
                                 .or(input);
                             }};
@@ -550,7 +596,7 @@ pub fn view<'view>(
                             $input,
                             FIND_REPLACE_Z,
                             &view.current_buffer_id,
-                            cursor_blink_alpha,
+                            fade_alpha,
                         )
                         .or(input);
                     }};
@@ -570,9 +616,9 @@ pub fn view<'view>(
                 let mut navigated_result = None;
 
                 if input.is_none() {
-                    match search.navigation {
+                    match ui.navigation {
                         Navigation::None => {
-                            if view.current_buffer_id == search_buffer_id {
+                            if view.current_buffer_id.kind != BufferIdKind::None {
                                 // do nothing
                             } else if let UIId::TaggedUsize(
                                 ui_id::Tag::FileSwitcherResults,
@@ -583,7 +629,7 @@ pub fn view<'view>(
                             }
                         }
                         Navigation::Up => {
-                            if view.current_buffer_id == search_buffer_id {
+                            if view.current_buffer_id.kind != BufferIdKind::None {
                                 // do nothing
                             } else if let UIId::TaggedUsize(
                                 ui_id::Tag::FileSwitcherResults,
@@ -591,37 +637,43 @@ pub fn view<'view>(
                             ) = ui.keyboard.hot
                             {
                                 if result_index == 0 {
-                                    input = Some(Input::SelectBuffer(b_id!(
-                                        BufferIdKind::FileSwitcher,
-                                        index
-                                    )));
+                                    input = Some(Input::SelectBuffer(search_buffer_id));
                                 } else {
                                     navigated_result = Some(result_index - 1);
                                 }
                             }
                         }
                         Navigation::Down => {
-                            dbg!("Navigation::Down");
                             if view.current_buffer_id == search_buffer_id {
                                 if results.len() > 0 {
                                     navigated_result = Some(0);
                                     input =
                                         Some(Input::SelectBuffer(b_id!(BufferIdKind::None, index)));
-                                    dbg!(&navigated_result, &input);
                                 }
+                            } else if view.current_buffer_id.kind != BufferIdKind::None {
+                                // do nothing
                             } else if let UIId::TaggedUsize(
                                 ui_id::Tag::FileSwitcherResults,
                                 result_index,
                             ) = ui.keyboard.hot
                             {
                                 navigated_result = Some((result_index + 1) % results.len());
-                                dbg!(navigated_result);
                             }
                         }
-                    }
-
-                    if search.navigation != Navigation::None {
-                        input = input.or_else(|| Some(Input::ClearNaviagation));
+                        Navigation::Interact => {
+                            if view.current_buffer_id.kind != BufferIdKind::None {
+                                // do nothing
+                            } else if let UIId::TaggedUsize(
+                                ui_id::Tag::FileSwitcherResults,
+                                result_index,
+                            ) = ui.keyboard.hot
+                            {
+                                input = results
+                                    .get(result_index)
+                                    .cloned()
+                                    .map(Input::OpenOrSelectBuffer);
+                            }
+                        }
                     }
                 }
 
@@ -709,6 +761,8 @@ pub fn view<'view>(
         },
     }));
 
+    end_view(ui);
+
     (text_or_rects, input)
 }
 
@@ -731,7 +785,7 @@ fn text_box<'view>(
     buffer_id: BufferId,
     z: u16,
     current_buffer_id: &BufferId,
-    cursor_blink_alpha: f32,
+    fade_alpha: f32,
 ) -> Option<Input> {
     let mut input = None;
 
@@ -741,7 +795,7 @@ fn text_box<'view>(
     }
 
     let (color, cursor_alpha) = if *current_buffer_id == buffer_id {
-        (TEXT_BACKGROUND_COLOUR, cursor_blink_alpha)
+        (TEXT_BACKGROUND_COLOUR, fade_alpha)
     } else {
         (
             match button_state {
@@ -908,41 +962,42 @@ pub struct UIState {
     pub tab_scroll: f32,
     pub mouse: UIFocus,
     pub keyboard: UIFocus,
+    pub navigation: Navigation,
     /// This is should be in the range [0.0, 2.0]. This needs the extra space to repesent the down
     /// side of the sawtooth pattern.
-    pub cursor_blink_alpha_accumulator: f32,
-    // counts
-    pub cursor_solid_override_accumulator: f32,
+    pub fade_alpha_accumulator: f32,
+    // If the user has recently made or is making an input, we don't want a distracting animation
+    // during that time. Afterwards though, we do want the animation to start again.
+    pub fade_solid_override_accumulator: f32,
 }
 
 impl UIState {
     pub fn note_interaction(&mut self) {
-        self.cursor_solid_override_accumulator = 1.5;
+        self.fade_solid_override_accumulator = 1.5;
     }
     fn add_dt(&mut self, dt: std::time::Duration) {
         let offset = ((dt.as_millis() as u64 as f32) / 1000.0) * 1.5;
 
-        if self.cursor_solid_override_accumulator > 0.0 {
-            self.cursor_solid_override_accumulator -= offset;
-            if self.cursor_solid_override_accumulator < 0.0 {
-                self.cursor_solid_override_accumulator = 0.0;
+        if self.fade_solid_override_accumulator > 0.0 {
+            self.fade_solid_override_accumulator -= offset;
+            if self.fade_solid_override_accumulator < 0.0 {
+                self.fade_solid_override_accumulator = 0.0;
                 // Make sure when the override ends that we don't jump to a random point in the
                 // blink
-                self.cursor_blink_alpha_accumulator = 1.0;
+                self.fade_alpha_accumulator = 1.0;
             }
         } else {
-            self.cursor_blink_alpha_accumulator += offset;
-            self.cursor_blink_alpha_accumulator =
-                self.cursor_blink_alpha_accumulator.rem_euclid(2.0);
+            self.fade_alpha_accumulator += offset;
+            self.fade_alpha_accumulator = self.fade_alpha_accumulator.rem_euclid(2.0);
         }
     }
-    fn get_cursor_blink_alpha(&self) -> f32 {
-        if self.cursor_solid_override_accumulator > 0.0 {
+    fn get_fade_alpha(&self) -> f32 {
+        if self.fade_solid_override_accumulator > 0.0 {
             1.0
-        } else if self.cursor_blink_alpha_accumulator > 1.0 {
-            2.0 - self.cursor_blink_alpha_accumulator
+        } else if self.fade_alpha_accumulator > 1.0 {
+            2.0 - self.fade_alpha_accumulator
         } else {
-            self.cursor_blink_alpha_accumulator
+            self.fade_alpha_accumulator
         }
     }
 }
@@ -1195,7 +1250,7 @@ fn do_outline_button<'view>(
 ) -> bool {
     let (clicked, state) = do_button_logic(ui, id, spec.rect);
 
-    render_outline_button(text_or_rects, spec, state);
+    render_outline_button(text_or_rects, spec, state, ui.get_fade_alpha());
 
     clicked
 }
@@ -1220,6 +1275,7 @@ fn render_outline_button<'view>(
         z,
     }: OutlineButtonSpec<'view>,
     state: ButtonState,
+    fade_alpha: f32,
 ) {
     use ButtonState::*;
 
@@ -1233,9 +1289,9 @@ fn render_outline_button<'view>(
         ($input_type: expr) => {{
             use InputType::*;
             match $input_type {
-                Mouse => palette![yellow],
-                Keyboard => palette![blue],
-                Both => palette![green],
+                Mouse => palette![yellow, fade_alpha],
+                Keyboard => palette![blue, fade_alpha],
+                Both => palette![green, fade_alpha],
             }
         }};
     }

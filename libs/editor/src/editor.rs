@@ -5,7 +5,7 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use std::collections::VecDeque;
-use text_buffer::{get_search_ranges, next_instance_of_selected, Cursors, TextBuffer};
+use text_buffer::{get_search_ranges, next_instance_of_selected, TextBuffer};
 
 mod editor_view;
 
@@ -74,30 +74,6 @@ impl ClipboardHistory {
 struct ScrollableBuffer {
     text_buffer: TextBuffer,
     scroll: ScrollXY,
-    navigation: Navigation,
-}
-
-fn navigation_from_cursors(cursors: &Cursors) -> Navigation {
-    let mut output = d!();
-
-    for c in cursors.iter() {
-        match c.state {
-            CursorState::None => {}
-            CursorState::PressedAgainstWall(dir) => match dir {
-                Move::Up => {
-                    output = Navigation::Up;
-                    break;
-                }
-                Move::Down => {
-                    output = Navigation::Down;
-                    break;
-                }
-                _ => {}
-            },
-        }
-    }
-
-    output
 }
 
 #[derive(Debug, Default)]
@@ -387,10 +363,6 @@ impl EditorBuffers {
         self.buffers.iter()
     }
 
-    fn iter_mut(&mut self) -> std::slice::IterMut<EditorBuffer> {
-        self.buffers.iter_mut()
-    }
-
     fn iter_with_indexes(&self) -> IterWithIndexes {
         IterWithIndexes {
             index: d!(),
@@ -490,6 +462,13 @@ impl State {
     fn set_id(&mut self, id: BufferId) {
         if id.index < self.buffers.len() {
             self.current_buffer_id = id;
+
+            if let Some(buffer) = get_scrollable_buffer_mut!(self) {
+                // These need to be cleared so that the `platform_types::View` that is passed down
+                // can be examined to detemine if the user wants to navigate away from the given
+                // buffer
+                buffer.text_buffer.reset_cursor_states();
+            }
         }
     }
 
@@ -728,18 +707,9 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
         };
     }
 
-    // clear all navigations
-    for b in state.buffers.iter_mut() {
-        b.scrollable.navigation = d!();
-    }
-    state.find.navigation = d!();
-    state.replace.navigation = d!();
-    state.file_switcher.navigation = d!();
-
     use Input::*;
     match input {
         Input::None => {}
-        ClearNaviagation => {}
         Quit => {}
         CloseMenuIfAny => {
             close_menu_if_any!();
@@ -763,14 +733,12 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
         MoveAllCursors(r#move) => {
             buffer_call!(b{
                 b.text_buffer.move_all_cursors(r#move);
-                b.navigation = navigation_from_cursors(&b.text_buffer.borrow_cursors());
                 try_to_show_cursors!();
             });
         }
         ExtendSelectionForAllCursors(r#move) => {
             buffer_call!(b{
                 b.text_buffer.extend_selection_for_all_cursors(r#move);
-                b.navigation = navigation_from_cursors(&b.text_buffer.borrow_cursors());
                 try_to_show_cursors!();
             });
         }

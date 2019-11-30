@@ -13,7 +13,7 @@ use file_chooser;
 use macros::d;
 use platform_types::{screen_positioning::screen_to_text_box, *};
 use shared::Res;
-use wimp_render::{PhysicalButtonState, UIState};
+use wimp_render::{Navigation, PhysicalButtonState, UIState};
 
 mod clipboard_layer {
     pub use clipboard::ClipboardProvider;
@@ -667,7 +667,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                                     ..
                                 },
                             ..
-                        } => match keypress {
+                        } => match dbg!(keypress) {
                             VirtualKeyCode::Escape => {
                                 call_u_and_r!(Input::SetSizeDependents(SizeDependents {
                                     buffer_xywh: wimp_render::get_edit_buffer_xywh(
@@ -687,9 +687,11 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                             }
                             VirtualKeyCode::Up => {
                                 call_u_and_r!(Input::MoveAllCursors(Move::Up));
+                                ui.navigation = Navigation::Up;
                             }
                             VirtualKeyCode::Down => {
                                 call_u_and_r!(Input::MoveAllCursors(Move::Down));
+                                ui.navigation = Navigation::Down;
                             }
                             VirtualKeyCode::Left => {
                                 call_u_and_r!(Input::MoveAllCursors(Move::Left));
@@ -725,9 +727,11 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                         } => match keypress {
                             VirtualKeyCode::Up => {
                                 call_u_and_r!(Input::ExtendSelectionForAllCursors(Move::Up));
+                                ui.navigation = Navigation::Up;
                             }
                             VirtualKeyCode::Down => {
                                 call_u_and_r!(Input::ExtendSelectionForAllCursors(Move::Down));
+                                ui.navigation = Navigation::Down;
                             }
                             VirtualKeyCode::Left => {
                                 call_u_and_r!(Input::ExtendSelectionForAllCursors(Move::Left));
@@ -775,8 +779,19 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                                     c = '\n';
                                 }
 
-                                if c == '\n' && view.current_buffer_id.is_form() {
-                                    call_u_and_r!(Input::SubmitForm);
+                                if c == '\n' {
+                                    use BufferIdKind::*;
+                                    match view.current_buffer_id.kind {
+                                        None => {
+                                            ui.navigation = Navigation::Interact;
+                                        }
+                                        Text => {
+                                            call_u_and_r!(Input::Insert(c));
+                                        }
+                                        Find | Replace | FileSwitcher => {
+                                            call_u_and_r!(Input::SubmitForm);
+                                        }
+                                    }
                                 } else {
                                     call_u_and_r!(Input::Insert(c));
                                 }

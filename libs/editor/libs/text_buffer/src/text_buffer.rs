@@ -184,6 +184,12 @@ impl Cursors {
             *cursors = cs;
         }
     }
+
+    fn reset_states(&mut self) {
+        for c in self.cursors.iter_mut() {
+            c.state = d!();
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default)]
@@ -205,6 +211,10 @@ impl TextBuffer {
 
     pub fn borrow_cursors_vec(&self) -> &Vec1<Cursor> {
         &self.cursors.cursors
+    }
+
+    pub fn reset_cursor_states(&mut self) {
+        self.cursors.reset_states();
     }
 }
 

@@ -22,7 +22,6 @@ pub enum ReplaceOrAdd {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Input {
     None,
-    ClearNaviagation,
     Quit,
     CloseMenuIfAny,
     Insert(char),
@@ -119,19 +118,6 @@ ord!(and friends for BufferIdKind: kind, other in {
     let o: u8 = other.into();
     k.cmp(&o)
 });
-
-impl BufferId {
-    pub fn is_text(&self) -> bool {
-        match self.kind {
-            BufferIdKind::Text => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_form(&self) -> bool {
-        !self.is_text()
-    }
-}
 
 /// The nth space between utf8 characters. So in the string "aöc" there are
 /// five possibe `CharOffset`s. (Note that "ö" is two characters: "o\u{308}".)
@@ -600,6 +586,36 @@ impl View {
                 .and_then(|i| self.buffers.get(i).map(|b| (index, b)))
         })
     }
+
+    pub fn get_current_buffer_view_data(&self) -> Option<&BufferViewData> {
+        use BufferIdKind::*;
+        match self.current_buffer_id.kind {
+            None => Option::None,
+            Text => {
+                for (index, buffer) in self.buffers.iter().enumerate() {
+                    // This seems like it should be correct given that the `current_buffer_id` is
+                    // of the current generation
+                    let i: usize = self.current_buffer_id.index.into();
+                    if index == i {
+                        return Some(&buffer.data);
+                    }
+                }
+                Option::None
+            }
+            Find => match &self.menu {
+                MenuView::FindReplace(ref fr) => Some(&fr.find),
+                _ => Option::None,
+            },
+            Replace => match &self.menu {
+                MenuView::FindReplace(ref fr) => Some(&fr.replace),
+                _ => Option::None,
+            },
+            FileSwitcher => match &self.menu {
+                MenuView::FileSwitcher(ref fs) => Some(&fs.search),
+                _ => Option::None,
+            },
+        }
+    }
 }
 
 #[derive(Default, Debug)]
@@ -610,14 +626,6 @@ pub struct BufferView {
     pub data: BufferViewData,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Navigation {
-    None,
-    Up,
-    Down,
-}
-d!(for Navigation: Navigation::None);
-
 #[derive(Default, Debug)]
 pub struct BufferViewData {
     //TODO make this a &str or a char iterator
@@ -625,7 +633,6 @@ pub struct BufferViewData {
     pub scroll: ScrollXY,
     pub cursors: Vec<CursorView>,
     pub highlights: Vec<Highlight>,
-    pub navigation: Navigation,
 }
 
 // Short form "Command".

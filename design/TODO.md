@@ -1,11 +1,18 @@
 ## TODO
 
-* either make ctrl-tab close the menus or have it deselect the  menu buffer 
+* either have a navigation for the none buffer or just have a single navigation hanging off the state/view
+  * what was the reason for having a separate navigation for each buffer again?
+    * well this may not have been the reason, but how would a single navigation be used to navigate from say the find buffer to the replace buffer?
+      * when the top one is navigated down from, go to the bottom one. Seems easy.
+    * I guess we were thinking bout this as "navigations from" buffers rather than "navigations in the app"?
+      * Right, because the editor system shouldn't be the one that is telling you when you navigated, except in the case of buffers since it's the one that knows that information.
+      * Okay so then I guess that `wimp_render` should be passed an overall navigation, which is tracked by the platform layer then? then? It wouldn't need to be a platform navigation but it could be.
+  * So there doesn't seem to be any time that there would ever be a navigation from two different buffers at once. So it seems like the navigation should just be on the view, with a `BufferIdKind` next to it so that the same information is still being passed down.
+    * and if it turns out that we never need to really use that `BufferIdKind` it will be easy to get rid of.
+    * (written after more thought and just before I actually do it) except what would be the case where you would care? It's also easy to add later when we care so let's just not add it yet. When you're thinking about what can be done it's easy to think "Oh just do this extra thing" but when you actually have to do it, then it's easy to think "Oh, why don't we skip that".
 
-* keyboard vs mouse focus
-  * do we want to be able to tell if something is selected by mouse and keyboard vs just mouse vs just keyboard? Or would showing the mouse selection only be enough?
-  * consistent colouring?
-    * how about mouse yellow, keyboard blue, and both green outlines?
+
+* either make ctrl-tab close the menus or have it not deselect the menu buffer
 
 * Ctrl-p open a list of open files, with a search box.
   * open selected file

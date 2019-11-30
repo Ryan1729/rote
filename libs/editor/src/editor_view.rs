@@ -27,7 +27,6 @@ fn scrollable_to_buffer_view_data(
         chars: buffer.chars().collect::<String>(),
         cursors,
         highlights,
-        navigation: scrollable.navigation,
     }
 }
 
@@ -90,7 +89,7 @@ pub fn render(
 
     view.status_line.chars.clear();
     view.visible_buffer = d!();
-    dbg!(current_buffer_id);
+
     let current_buffer_index = current_buffer_id.index;
     match buffers.get(current_buffer_index) {
         Some(EditorBuffer {
