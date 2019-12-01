@@ -446,17 +446,23 @@ impl State {
     }
 
     fn next_buffer(&mut self) {
-        self.set_text_id((self.current_buffer_id.index.saturating_add(1)) % self.buffers.len());
+        self.set_id_index((self.current_buffer_id.index.saturating_add(1)) % self.buffers.len());
     }
 
     fn previous_buffer(&mut self) {
         let current_buffer_index = self.current_buffer_id.index;
         let i: usize = current_buffer_index.into();
-        self.set_text_id(if i == 0 {
+        self.set_id_index(if i == 0 {
             self.buffers.last_index()
         } else {
             current_buffer_index.saturating_sub(1)
         });
+    }
+
+    fn set_id_index(&mut self, index: g_i::Index) {
+        if index < self.buffers.len() {
+            self.current_buffer_id.index = index;
+        }
     }
 
     fn set_id(&mut self, id: BufferId) {

@@ -1,31 +1,5 @@
 ## TODO
 
-* either have a navigation for the none buffer or just have a single navigation hanging off the state/view
-  * what was the reason for having a separate navigation for each buffer again?
-    * well this may not have been the reason, but how would a single navigation be used to navigate from say the find buffer to the replace buffer?
-      * when the top one is navigated down from, go to the bottom one. Seems easy.
-    * I guess we were thinking bout this as "navigations from" buffers rather than "navigations in the app"?
-      * Right, because the editor system shouldn't be the one that is telling you when you navigated, except in the case of buffers since it's the one that knows that information.
-      * Okay so then I guess that `wimp_render` should be passed an overall navigation, which is tracked by the platform layer then? then? It wouldn't need to be a platform navigation but it could be.
-  * So there doesn't seem to be any time that there would ever be a navigation from two different buffers at once. So it seems like the navigation should just be on the view, with a `BufferIdKind` next to it so that the same information is still being passed down.
-    * and if it turns out that we never need to really use that `BufferIdKind` it will be easy to get rid of.
-    * (written after more thought and just before I actually do it) except what would be the case where you would care? It's also easy to add later when we care so let's just not add it yet. When you're thinking about what can be done it's easy to think "Oh just do this extra thing" but when you actually have to do it, then it's easy to think "Oh, why don't we skip that".
-
-
-* either make ctrl-tab close the menus or have it not deselect the menu buffer
-
-* Ctrl-p open a list of open files, with a search box.
-  * open selected file
-    * fix bugs
-      * press down when there are results and the whole ctrl-p menu closes
-    * keyboard control
-      * do we want some kind of overarching tab positioning system or just to make this case work and worry about that later?
-        * the latter
-        * deselect buffer on movement down from buffer.
-        * reselect it on movement off the top of the list.
-        * move down to select the next thing in the list
-    * scrollable list (could be done later?)
-
 * automatically save edited text files to disk in temp files.
   * there should be no data lost earlier than say 1 minute ago if the power to the machine goes out.
   * algorithm sketch
@@ -33,10 +7,35 @@
     * if the user saves the real file, delete the temp file. (a new one will be created if they edit the file again and the editor is not closed within the save period)
     * if the user closes an edited file warn them it is not saved and offer to save it.
     * on opening the editor, look at all the temp files and open the files they point to and set the buffer contents to the contents of the temp file, effectively restoring the state to what it was before the editor was closed.
+  * suggested implementation steps
+    * get temp file writing working
+      * write to application data directory
+      * decide on temp filename convention
+        * do we say want to encode the date into the temp file?
+        * Maybe just a "v1_" prefix for forward compatibility
+        * Note we need to encode the real path somehow.
+          * Can paths be inserted losslessly into paths? Like with an escape character or something?
+          * Should we do it like that or should we have a file containing mappings from paths to temp files?
+          * well this SO post suggests the separate file approach https://stackoverflow.com/a/1976050 and that to do otherwise would be "opening up one huge can of hurt".
+          * okay, but I still want the target file to be recognizable in most cases without requiring the file to be opened. So let's stick the file name with say all non [A-Za-z] replaces with underscores or dashes or something in the name of the file along with enough stuff to make the temp filename unique.
+          * So to sum up we have 3 requirements of the names:
+            * be identifiable as temp files
+              * could use separate directory for that
+            * be unique
+              * can we just used a uuid for this?
+                * why not just 128 random bits?
+            * be clearly related to the given file (a slug)
+      * write out files unconditionally every small time period (10 seconds?)
+      * determine if files are considered "edited" by the criteria above and display that state on the tabs
+      * delete temp files on save
+      * load all temp files on open
+      * examine current state for bugs?
 
 Once everything above this line is done we can start bootstrapping, (using this editor to edit itself.)
 
 ----------------------------
+
+* Do some compile-time profiling so I can see what is taking so ling to compile and either pull that into a crate (meaning it is compiled less often) or change it in some way to make it compile faster
 
 * Ctrl-E to toggle single line comments
   * could probably reuse tab insertion/deletion code.
@@ -68,10 +67,11 @@ Once everything above this line is done we can start bootstrapping, (using this 
       * Okay, what if we use [`tree-sitter`](http://tree-sitter.github.io/tree-sitter/)? It seems to be designed specifically for my use case, and there is already a rust grammar made for it. And since `tree-sitter` is written in rust it is likely to be maintained.
         * The documentation is a little light, but I think the process is that I can take the generated `parser.c` and `scanner.c` from [`tree-sitter-rust`](https://github.com/tree-sitter/tree-sitter-rust) and just stick them into my source tree, then using the [`tree-sitter` rust bindings](https://github.com/tree-sitter/tree-sitter/tree/master/lib/binding_rust) I can set up a build.rs and afterwards just pretend `tree-sitter` is a rust library. Then, updating to the newest version of `tree-sitter` would just be as easy as editing the Cargo.toml and overwriting the c files with new versions. We'll see if I misunderstood something when I try it I guess.
 
-
 * draw an underline below matching braces, parens, brackets when a cursor is next to them.
   * draw a different thing (dotted line?) if there is no matching brace found.
   * jump to matching brace?
+
+* scrollable search results list
 
 * make auto-tab-scroll happen when a new tab is created
   * fix auto-scroll drifting as the amount of tabs increases.

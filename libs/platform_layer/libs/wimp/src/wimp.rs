@@ -90,6 +90,89 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
         }
     }
 
+    let title = "rote";
+
+    let mut args = std::env::args();
+    //exe name
+    args.next();
+
+    let mut data_dir = None;
+
+    const VERSION: &'static str = "--version";
+    const HELP: &'static str = "--help";
+    const DATA_DIR_OVERRIDE: &'static str = "--data-dir-override";
+
+    while let Some(s) = args.next() {
+        let s: &str = &s;
+        match s {
+            HELP => {
+                let accepted_args = [VERSION, HELP, DATA_DIR_OVERRIDE];
+                println!("accepted args: ");
+                for arg in accepted_args.iter() {
+                    print!("    {}", arg);
+                    if *arg == DATA_DIR_OVERRIDE {
+                        print!(" <data directory path>");
+                    }
+                    println!()
+                }
+                std::process::exit(0)
+            }
+            VERSION => {
+                println!("{} version {}", title, env!("CARGO_PKG_VERSION"));
+                std::process::exit(0)
+            }
+            DATA_DIR_OVERRIDE => {
+                data_dir = Some(args.next().ok_or_else(|| {
+                    format!(
+                        "{0} needs an argument. For example: {0} ./data",
+                        DATA_DIR_OVERRIDE
+                    )
+                })?)
+                .map(PathBuf::from);
+            }
+            _ => {
+                eprintln!("unknown arg {:?}", s);
+                std::process::exit(1)
+            }
+        }
+    }
+
+    let data_dir = data_dir
+        .or_else(|| {
+            directories::ProjectDirs::from("com", "ryanwiedemann", title)
+                .map(|proj_dirs| proj_dirs.data_dir().to_owned())
+        })
+        .ok_or("Could not find app data dir")?;
+
+    match std::fs::metadata(&data_dir) {
+        Ok(meta) => {
+            if meta.is_dir() {
+                Ok(())
+            } else {
+                Err("data_dir existed but was not a directory!".to_owned())
+            }
+        }
+        Err(err) => {
+            if err.kind() == std::io::ErrorKind::NotFound {
+                std::fs::create_dir_all(&data_dir)
+                    .map_err(|e| e.to_string())
+                    .and_then(|_| {
+                        std::fs::metadata(&data_dir)
+                            .map_err(|e| e.to_string())
+                            .and_then(|meta| {
+                                if meta.is_dir() {
+                                    Ok(())
+                                } else {
+                                    Err("data_dir was created but was not a directory!".to_owned())
+                                }
+                            })
+                    })
+            } else {
+                Err(err.to_string())
+            }
+        }
+    }?;
+
     let mut clipboard: Clipboard = get_clipboard();
 
     #[derive(Clone, Debug)]
@@ -103,7 +186,6 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
     use glutin::event_loop::EventLoop;
     let events: EventLoop<CustomEvent> = glutin::event_loop::EventLoop::with_user_event();
     let event_proxy = events.create_proxy();
-    let title = "rote";
 
     let glutin_context = glutin::ContextBuilder::new()
         .with_gl_profile(GlProfile::Core)
