@@ -1,9 +1,13 @@
 /target/
 **/*.rs.bk
 
+.vscode/*
+
+# Project specific
+
 temp_out
 
 flame-chart*.html
 flame-graph*.html
 
-.vscode/*
+dev-data/*

@@ -311,7 +311,7 @@ pub enum HighlightKind {
 }
 d!(for HighlightKind: HighlightKind::User);
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Highlight {
     pub min: Position,
     pub max: Position,
@@ -499,7 +499,7 @@ ord!(and friends for CursorState: state, other in {
     }
 });
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct CursorView {
     pub position: Position,
     pub state: CursorState,
@@ -618,7 +618,7 @@ impl View {
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct BufferView {
     pub name: BufferName,
     // TODO this could be truncated to a fixed length/on the stack
@@ -626,7 +626,7 @@ pub struct BufferView {
     pub data: BufferViewData,
 }
 
-#[derive(Default, Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct BufferViewData {
     //TODO make this a &str or a char iterator
     pub chars: String,

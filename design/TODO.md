@@ -22,14 +22,31 @@
             * be identifiable as temp files
               * could use separate directory for that
             * be unique
-              * can we just used a uuid for this?
+              * can we just use a UUId for this?
                 * why not just 128 random bits?
             * be clearly related to the given file (a slug)
       * write out files unconditionally every small time period (10 seconds?)
+        * test by printing something out every time period
+          * using thread sleep.
+        * temp file write out algorithm sketch:
+          * first (re-)load the mapping from paths to temp filenames from disk
+          * then, for each open buffer write out a temp file, reusing filenames if they are in the mapping, creating new UUIds and building new filenames if they don't
+          * write the mapping back out to disk
+        * file thread communication plan:
+          * file thread sleeps for the time period
+          * then the file thread sends a message to the event loop asking for the current state of each file (view.buffers), blocking on the response
+          * the main thread sees the message and sends a *copy* of the view's buffers. (so we can keep mutating the view)
+          * when the file thread gets the buffers it writes them  out as above, then starts waiting again (go to the first item in this list).
+            * do we care about measuring and subtracting the time the message sending took? That is, do we care about the waiting period being as close to the given time as possible?
+              * No?
+        * note that the thread communication plan implies that the thread will either be sleeping or blocking waiting for a response when the app shuts down.
       * determine if files are considered "edited" by the criteria above and display that state on the tabs
       * delete temp files on save
       * load all temp files on open
       * examine current state for bugs?
+      * handle all related TODOs
+        * something better than `eprintln!` to handle problems with the edited buffer saving. Even just an error popup in the actual app would be better than that.
+         * what about creating a new scratch buffer containing the error message and switching to that? This avoids needing to make a whole error messages system for now.
 
 Once everything above this line is done we can start bootstrapping, (using this editor to edit itself.)
 

@@ -173,12 +173,17 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
         }
     }?;
 
+    let edited_files_dir = data_dir.join("edited_files_v1/");
+    let edited_files_index_path = data_dir.join("edited_files_v1_index.txt");
+
     let mut clipboard: Clipboard = get_clipboard();
 
     #[derive(Clone, Debug)]
     enum CustomEvent {
         OpenFile(PathBuf),
         SaveNewFile(PathBuf, g_i::Index),
+        SendBuffersToBeSaved,
+        EditedBufferError(String),
     }
     unsafe impl Send for CustomEvent {}
     unsafe impl Sync for CustomEvent {}
@@ -274,19 +279,72 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
 
     use std::sync::mpsc::channel;
 
-    // into the editor thread
-    let (in_tx, in_rx) = channel();
-    // out of the editor thread
-    let (out_tx, out_rx) = channel();
+    // TODO set up edited files thread
+    // * simple demo printing
+    // * setup communication and printout transfeerred data
+    // * actually write stuff to disk
 
-    let mut join_handle = Some(
+    // into the edited files thread
+    let (edited_files_in_sink, edited_files_in_source) = channel();
+
+    enum EditedFilesThread {
+        Quit,
+        Buffers(Vec<BufferView>),
+    }
+
+    let mut edited_files_join_handle = Some({
+        let proxy = event_proxy.clone();
+
+        std::thread::Builder::new()
+            .name("edited_files".to_string())
+            .spawn(move || loop {
+                macro_rules! handle_message {
+                    ($message: expr) => {{
+                        use EditedFilesThread::*;
+                        match $message {
+                            Quit => return,
+                            Buffers(buffers) => {
+                                dbg!(buffers);
+                                let _hope_it_gets_there = proxy.send_event(
+                                    CustomEvent::EditedBufferError("Error test".to_string()),
+                                );
+                            }
+                        }
+                    }};
+                }
+
+                // 20 * 50 = 1_000, 60_000 ms = 1 minute
+                // so this waits roughly a minute plus waiting time for messages
+                const QUIT_CHECK_COUNT: u32 = 20; // * 60;
+                for _ in 0..QUIT_CHECK_COUNT {
+                    std::thread::sleep(Duration::from_millis(50));
+                    if let Ok(message) = edited_files_in_source.try_recv() {
+                        handle_message!(message);
+                    }
+                }
+
+                let _hope_it_gets_there = proxy.send_event(CustomEvent::SendBuffersToBeSaved);
+
+                if let Ok(message) = edited_files_in_source.recv() {
+                    handle_message!(message);
+                }
+            })
+            .expect("Could not start edited_files thread!")
+    });
+
+    // into the editor thread
+    let (editor_in_sink, editor_in_source) = channel();
+    // out of the editor thread
+    let (editor_out_sink, editor_out_source) = channel();
+
+    let mut editor_join_handle = Some(
         std::thread::Builder::new()
             .name("editor".to_string())
             .spawn(move || {
-                while let Ok(input) = in_rx.recv() {
+                while let Ok(input) = editor_in_source.recv() {
                     let was_quit = Input::Quit == input;
                     let pair = update_and_render(input);
-                    let _hope_it_gets_there = out_tx.send(pair);
+                    let _hope_it_gets_there = editor_out_sink.send(pair);
                     if was_quit {
                         return;
                     }
@@ -302,7 +360,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
             macro_rules! call_u_and_r {
                 ($input:expr) => {
                     ui.note_interaction();
-                    let _hope_it_gets_there = in_tx.send($input);
+                    let _hope_it_gets_there = editor_in_sink.send($input);
                 };
             }
 
@@ -344,7 +402,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
             match event {
                 Event::EventsCleared if running => {
                     for _ in 0..EVENTS_PER_FRAME {
-                        match out_rx.try_recv() {
+                        match editor_out_source.try_recv() {
                             Ok((v, c)) => {
                                 view = v;
                                 cmds.push_back(c);
@@ -429,6 +487,16 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                             save_to_disk!(p, &b.data.chars, index);
                         }
                     }
+                    CustomEvent::SendBuffersToBeSaved => {
+                        let _hope_it_gets_there = edited_files_in_sink.send(EditedFilesThread::Buffers(view.buffers.clone()));
+                    }
+                    CustomEvent::EditedBufferError(e) => {
+                        // TODO show warning dialog to user and ask if they want to continue
+                        // without edited file saving or save and restart. If they do, then it
+                        // should be made obvious visually that the feature is not working right
+                        // now.
+                        handle_platform_error!(e);
+                    }
                 },
                 Event::NewEvents(StartCause::Init) => {
                     // At least try to measure the first frame accurately
@@ -440,11 +508,17 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                         () => {{
                             perf_viz::end_record!("main loop");
                             call_u_and_r!(Input::Quit);
+                            let _hope_it_gets_there = edited_files_in_sink.send(EditedFilesThread::Quit);
                             running = false;
 
                             // If we got here, we assume that we've sent a Quit input to the editor thread so it will stop.
-                            match join_handle.take() {
+                            match editor_join_handle.take() {
                                 Some(j_h) => j_h.join().expect("Could not join editor thread!"),
+                                None => {}
+                            };
+
+                            match edited_files_join_handle.take() {
+                                Some(j_h) => j_h.join().expect("Could not join edited_files thread!"),
                                 None => {}
                             };
 
