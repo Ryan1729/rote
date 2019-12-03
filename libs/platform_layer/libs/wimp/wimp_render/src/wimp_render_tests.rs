@@ -22,14 +22,17 @@ fn do_button_logic_does_not_flash_like_it_used_to() {
     assert_eq!(do_button_logic(&mut ui, id, rect), (false, Usual));
     ui.frame_end();
     ui.frame_init();
-    assert_eq!(do_button_logic(&mut ui, id, rect), (false, Hover));
+    assert_eq!(
+        do_button_logic(&mut ui, id, rect),
+        (false, Hover(InputType::Mouse))
+    );
     ui.frame_end();
     ui.left_mouse_state = PhysicalButtonState::PressedThisFrame;
     for i in 0..16 {
         ui.frame_init();
         assert_eq!(
             do_button_logic(&mut ui, id, rect),
-            (false, Pressed),
+            (false, Pressed(InputType::Mouse)),
             "iteration {}",
             i
         );
@@ -37,13 +40,16 @@ fn do_button_logic_does_not_flash_like_it_used_to() {
     }
     ui.left_mouse_state = PhysicalButtonState::ReleasedThisFrame;
     ui.frame_init();
-    assert_eq!(do_button_logic(&mut ui, id, rect), (true, Hover));
+    assert_eq!(
+        do_button_logic(&mut ui, id, rect),
+        (true, Hover(InputType::Mouse))
+    );
     ui.frame_end();
     for i in 0..16 {
         ui.frame_init();
         assert_eq!(
             do_button_logic(&mut ui, id, rect),
-            (false, Hover),
+            (false, Hover(InputType::Mouse)),
             "iteration {}",
             i
         );
@@ -75,13 +81,10 @@ fn render_outline_button_centers_this_example_properly() {
         char_dim,
         margin: Spacing::Axis(x_margin, y_margin),
         rect,
-        background_colour: c![0.0, 0.0, 0.0],
-        text_colour: c![0.6, 0.6, 0.6],
-        highlight_colour: c![0.6, 0.6, 0.0],
         z: TAB_Z,
         ..d!()
     };
-    render_outline_button(&mut text_or_rects, spec, ButtonState::Usual);
+    render_outline_button(&mut text_or_rects, spec, ButtonState::Usual, 1.0);
 
     let background_rect = text_or_rects
         .iter()

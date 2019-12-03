@@ -18,12 +18,14 @@ perf_viz = { path = "../../../perf_viz" }
 perf_viz_proc_macro = { path = "../../../perf_viz/libs/perf_viz_proc_macro" }
 gl_layer = { path = "gl_layer" }
 full_rusttype = { version = "0.7.5", features = ["gpu_cache"], package = "rusttype" }
+edited_storage = { path = "edited_storage" }
 shared = { path = "shared" }
+wimp_render = { path = "wimp_render" }
 glutin = "0.22.0-alpha3"
 spin_sleep = "0.3"
 clipboard = "0.5.0"
 directories = "2.0"
-wimp_render = { path = "wimp_render" }
+
 
 [features]
 default = []

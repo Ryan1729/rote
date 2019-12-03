@@ -297,36 +297,42 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
 
         std::thread::Builder::new()
             .name("edited_files".to_string())
-            .spawn(move || loop {
-                macro_rules! handle_message {
-                    ($message: expr) => {{
-                        use EditedFilesThread::*;
-                        match $message {
-                            Quit => return,
-                            Buffers(buffers) => {
-                                dbg!(buffers);
-                                let _hope_it_gets_there = proxy.send_event(
-                                    CustomEvent::EditedBufferError("Error test".to_string()),
-                                );
+            .spawn(move || {
+                loop {
+                    macro_rules! handle_message {
+                        ($message: expr) => {{
+                            use EditedFilesThread::*;
+                            match $message {
+                                Quit => return,
+                                Buffers(buffers) => match edited_storage::sync(buffers) {
+                                    Ok(_) => {}
+                                    Err(e) => {
+                                        use std::error::Error;
+                                        let _hope_it_gets_there =
+                                            proxy.send_event(CustomEvent::EditedBufferError(
+                                                e.description().to_owned(),
+                                            ));
+                                    }
+                                },
                             }
-                        }
-                    }};
-                }
+                        }};
+                    }
 
-                // 20 * 50 = 1_000, 60_000 ms = 1 minute
-                // so this waits roughly a minute plus waiting time for messages
-                const QUIT_CHECK_COUNT: u32 = 20; // * 60;
-                for _ in 0..QUIT_CHECK_COUNT {
-                    std::thread::sleep(Duration::from_millis(50));
-                    if let Ok(message) = edited_files_in_source.try_recv() {
+                    // 20 * 50 = 1_000, 60_000 ms = 1 minute
+                    // so this waits roughly a minute plus waiting time for messages
+                    const QUIT_CHECK_COUNT: u32 = 20; // * 60;
+                    for _ in 0..QUIT_CHECK_COUNT {
+                        std::thread::sleep(Duration::from_millis(50));
+                        if let Ok(message) = edited_files_in_source.try_recv() {
+                            handle_message!(message);
+                        }
+                    }
+
+                    let _hope_it_gets_there = proxy.send_event(CustomEvent::SendBuffersToBeSaved);
+
+                    if let Ok(message) = edited_files_in_source.recv() {
                         handle_message!(message);
                     }
-                }
-
-                let _hope_it_gets_there = proxy.send_event(CustomEvent::SendBuffersToBeSaved);
-
-                if let Ok(message) = edited_files_in_source.recv() {
-                    handle_message!(message);
                 }
             })
             .expect("Could not start edited_files thread!")

@@ -459,7 +459,7 @@ pub fn push_highlights<O: Into<Option<Position>>>(
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum BufferName {
     Path(PathBuf),
     Scratch(u32),
@@ -657,4 +657,4 @@ pub type UpdateAndRenderOutput = (View, Cmd);
 pub type UpdateAndRender = fn(Input) -> UpdateAndRenderOutput;
 
 #[cfg(test)]
-mod tests;
+pub mod tests;

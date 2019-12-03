@@ -1,5 +1,9 @@
 ## TODO
 
+* complete `names_to_path` related TODOs
+  * write serialize/desrialize prop test for `NameToPathEntry` which consist of a `BufferName` and a `PathBuf`.
+    * arb `BufferName` and arb `PathBuf`.
+
 * automatically save edited text files to disk in temp files.
   * there should be no data lost earlier than say 1 minute ago if the power to the machine goes out.
   * algorithm sketch
