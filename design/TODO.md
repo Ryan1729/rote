@@ -2,7 +2,9 @@
 
 * complete `names_to_path` related TODOs
   * determine if files are considered "edited" and display that state on the tabs
+    * set `buffer_statuses` entries when things change
   * delete temp files on save
+  * load all temp files on open
 
 * automatically save edited text files to disk in temp files.
   * there should be no data lost earlier than say 1 minute ago if the power to the machine goes out.

@@ -604,6 +604,19 @@ impl ScreenSpaceRect {
         }
     }
 
+    pub fn with_max_x(&self, max_x: f32) -> Self {
+        ScreenSpaceRect {
+            max: (max_x, self.max.1),
+            ..*self
+        }
+    }
+    pub fn with_max_y(&self, max_y: f32) -> Self {
+        ScreenSpaceRect {
+            max: (self.max.0, max_y),
+            ..*self
+        }
+    }
+
     pub fn width(&self) -> f32 {
         self.max.0 - self.min.0
     }

@@ -4,10 +4,10 @@ use rand::{thread_rng, Rng};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-pub fn sync(
+pub fn store_buffers(
     edited_files_dir: &Path,
     edited_files_index_path: &Path,
-    buffers: Vec<BufferView>,
+    all_buffers: Vec<BufferView>,
 ) -> std::io::Result<()> {
     let mut rng = thread_rng();
 
@@ -21,7 +21,7 @@ pub fn sync(
         }
     }
 
-    for buffer in buffers {
+    for buffer in all_buffers {
         let filename = if let Some(uuid) = names_to_uuid.get(&buffer.name) {
             get_path(buffer.name_string, uuid)
         } else {

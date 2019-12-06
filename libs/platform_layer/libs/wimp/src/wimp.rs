@@ -4,7 +4,7 @@
 // (at commit 90e7c7c331e9f991e11de6404b2ca073c0a09e61)
 
 use glutin::{dpi::LogicalPosition, Api, GlProfile, GlRequest};
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 use std::time::Duration;
 use wimp_render::{get_find_replace_info, FindReplaceInfo};
@@ -304,7 +304,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                             use EditedFilesThread::*;
                             match $message {
                                 Quit => return,
-                                Buffers(buffers) => match edited_storage::sync(
+                                Buffers(buffers) => match edited_storage::store_buffers(
                                     &edited_files_dir,
                                     &edited_files_index_path,
                                     buffers,
@@ -362,6 +362,8 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
             })
             .expect("Could not start editor thread!"),
     );
+
+    let mut buffer_statuses = HashMap::with_capacity(16 /* TODO use initial buffer count */);
 
     {
         events.run(move |event, _, control_flow| {
@@ -432,7 +434,14 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                     if_changed::dbg!(&ui.keyboard);
 
                     let (text_and_rects, input) =
-                        wimp_render::view(&mut ui, &view, &font_info, screen_wh!(), dt);
+                        wimp_render::view(
+                            &mut ui,
+                            &view,
+                            &font_info,
+                            screen_wh!(),
+                            dt,
+                            &buffer_statuses
+                        );
                     let width = dimensions.width;
                     let height = dimensions.height;
 

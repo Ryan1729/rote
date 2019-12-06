@@ -148,6 +148,14 @@ fn navigation_from_cursors(cursors: &Vec<CursorView>) -> Navigation {
     output
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BufferStatus {
+    Unedited,
+    EditedAndSaved,
+    EditedAndUnSaved,
+}
+d!(for BufferStatus: BufferStatus::Unedited);
+
 type Colour = [f32; 4];
 
 const COLOUR_DELTA: f32 = 1.0 / 128.0;
@@ -365,6 +373,7 @@ pub fn view<'view>(
     font_info: &FontInfo,
     wh: ScreenSpaceWH,
     dt: std::time::Duration,
+    buffer_statuses: &std::collections::HashMap<usize, BufferStatus>,
 ) -> (Vec<TextOrRect<'view>>, Option<Input>) {
     begin_view(ui, view);
     let sswh!(width, height) = wh;
@@ -393,9 +402,19 @@ pub fn view<'view>(
         z: TAB_BACKGROUND_Z,
     }));
 
+    //
+    // Tabs
+    //
+
     let visible_index_or_max = view.get_visible_index_or_max();
     let tab_count = view.buffers.len();
-    for (i, BufferView { name_string, .. }) in view.buffers.iter().enumerate() {
+    for (
+        i,
+        BufferView {
+            name_string, name, ..
+        },
+    ) in view.buffers.iter().enumerate()
+    {
         let SpacedRect {
             padding,
             margin,
@@ -404,6 +423,7 @@ pub fn view<'view>(
         if rect.min.0 > width {
             break;
         }
+
         if do_outline_button(
             ui,
             id!(i),
@@ -415,10 +435,20 @@ pub fn view<'view>(
                 layout: TextLayout::SingleLine,
                 margin,
                 rect,
-                extra_highlight: if i == visible_index_or_max {
-                    ExtraHighlight::Underline(TEXT_COLOUR, padding.into_ltrb().b)
-                } else {
-                    ExtraHighlight::None
+                underline: Some(LineSpec {
+                    colour: TEXT_COLOUR,
+                    thickness: padding.into_ltrb().b,
+                }),
+                side_bars: match buffer_statuses.get(&i).cloned().unwrap_or_default() {
+                    BufferStatus::Unedited => None,
+                    BufferStatus::EditedAndUnSaved => Some(LineSpec {
+                        colour: palette![red],
+                        thickness: padding.into_ltrb().l,
+                    }),
+                    BufferStatus::EditedAndSaved => Some(LineSpec {
+                        colour: palette![alt yellow],
+                        thickness: padding.into_ltrb().l,
+                    }),
                 },
                 z: TAB_Z,
             },
@@ -711,8 +741,8 @@ pub fn view<'view>(
                             layout: TextLayout::SingleLine,
                             margin: list_margin,
                             rect,
-                            extra_highlight: ExtraHighlight::None,
                             z: TAB_Z,
+                            ..d!()
                         },
                     ) {
                         input = Some(Input::OpenOrSelectBuffer(result.to_owned()));
@@ -1178,12 +1208,10 @@ fn do_button_logic(ui: &mut UIState, id: UIId, rect: ScreenSpaceRect) -> DoButto
     (clicked, state)
 }
 
-enum ExtraHighlight {
-    None,
-    /// The f32 is height
-    Underline(Colour, f32),
+struct LineSpec {
+    colour: Colour,
+    thickness: f32,
 }
-d!(for ExtraHighlight: ExtraHighlight::None);
 
 struct OutlineButtonSpec<'text> {
     text: &'text str,
@@ -1192,8 +1220,9 @@ struct OutlineButtonSpec<'text> {
     layout: TextLayout,
     margin: Spacing,
     rect: ScreenSpaceRect,
-    extra_highlight: ExtraHighlight,
     z: u16,
+    underline: Option<LineSpec>,
+    side_bars: Option<LineSpec>,
 }
 d!(for OutlineButtonSpec<'static>: OutlineButtonSpec {
     text: "OutlineButtonSpec default",
@@ -1202,8 +1231,9 @@ d!(for OutlineButtonSpec<'static>: OutlineButtonSpec {
     layout: TextLayout::SingleLine,
     margin: d!(),
     rect: d!(),
-    extra_highlight: d!(),
     z: gl_layer::DEFAULT_Z,
+    underline: d!(),
+    side_bars: d!(),
 });
 
 fn enlarge_by(
@@ -1271,7 +1301,8 @@ fn render_outline_button<'view>(
         layout,
         margin,
         rect,
-        extra_highlight,
+        underline,
+        side_bars,
         z,
     }: OutlineButtonSpec<'view>,
     state: ButtonState,
@@ -1345,15 +1376,28 @@ fn render_outline_button<'view>(
         }
     }
 
-    match extra_highlight {
-        ExtraHighlight::Underline(color, height) => {
-            text_or_rects.push(TextOrRect::Rect(VisualSpec {
-                rect: rect.with_min_y(rect.max.1 - height),
-                color,
-                z: z.saturating_add(2),
-            }));
-        }
-        _ => {}
+    if let Some(LineSpec { colour, thickness }) = side_bars {
+        let z = z.saturating_add(2);
+        // left side
+        text_or_rects.push(TextOrRect::Rect(VisualSpec {
+            rect: rect.with_max_x(rect.min.0 + thickness),
+            color: colour,
+            z,
+        }));
+        // right side
+        text_or_rects.push(TextOrRect::Rect(VisualSpec {
+            rect: rect.with_min_x(rect.max.0 - thickness),
+            color: colour,
+            z,
+        }));
+    }
+
+    if let Some(LineSpec { colour, thickness }) = underline {
+        text_or_rects.push(TextOrRect::Rect(VisualSpec {
+            rect: rect.with_min_y(rect.max.1 - thickness),
+            color: colour,
+            z: z.saturating_add(3),
+        }));
     }
 }
 
