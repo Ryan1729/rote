@@ -304,7 +304,11 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                             use EditedFilesThread::*;
                             match $message {
                                 Quit => return,
-                                Buffers(buffers) => match edited_storage::sync(buffers) {
+                                Buffers(buffers) => match edited_storage::sync(
+                                    &edited_files_dir,
+                                    &edited_files_index_path,
+                                    buffers,
+                                ) {
                                     Ok(_) => {}
                                     Err(e) => {
                                         use std::error::Error;

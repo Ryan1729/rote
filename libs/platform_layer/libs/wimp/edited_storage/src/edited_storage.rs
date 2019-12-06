@@ -2,13 +2,24 @@ use platform_types::*;
 
 use rand::{thread_rng, Rng};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-pub fn sync(buffers: Vec<BufferView>) -> std::io::Result<()> {
+pub fn sync(
+    edited_files_dir: &Path,
+    edited_files_index_path: &Path,
+    buffers: Vec<BufferView>,
+) -> std::io::Result<()> {
     let mut rng = thread_rng();
 
-    // TODO load from file
-    let mut names_to_uuid: HashMap<BufferName, u128> = HashMap::new();
+    let index_string = std::fs::read_to_string(edited_files_index_path).unwrap_or_default();
+    let mut names_to_uuid: HashMap<BufferName, u128> =
+        HashMap::with_capacity(index_string.lines().count());
+
+    for line in index_string.lines() {
+        if let Some((name, uuid)) = deserialize(line) {
+            names_to_uuid.insert(name, uuid);
+        }
+    }
 
     for buffer in buffers {
         let filename = if let Some(uuid) = names_to_uuid.get(&buffer.name) {
@@ -26,11 +37,16 @@ pub fn sync(buffers: Vec<BufferView>) -> std::io::Result<()> {
             path
         };
 
-        std::fs::write(filename, buffer.data.chars)?;
+        // TODO replace all files in directory with these files atomically if possible
+        std::fs::write(edited_files_dir.join(filename), buffer.data.chars)?;
     }
 
-    // TODO write out to disk
-    //names_to_uuid
+    let mut index_string = String::with_capacity(names_to_uuid.len() * INDEX_LINE_LENGTH_ESTIMATE);
+
+    for (k, v) in names_to_uuid {
+        serialize(&k, v, &mut index_string);
+        index_string.push('\n');
+    }
 
     Ok(())
 }
@@ -43,11 +59,22 @@ fn get_path(buffer_name: String, uuid: &u128) -> PathBuf {
 
 const PATH_PREFIX: &'static str = "Path: ";
 const SCRATCH_PREFIX: &'static str = "Scratch: ";
+const SCRATCH_PREFIX_LENGTH: usize = 9;
 
 const UUID_SUFFIX_LENGTH: usize = 32
     + 1 // for comma
 ;
-fn serialize(name: &BufferName, uuid: u128) -> String {
+
+const PATH_LENGTH_ESTIMATE: usize = 128;
+
+const INDEX_LINE_LENGTH_ESTIMATE: usize =
+    SCRATCH_PREFIX_LENGTH // the longest prefix
+    + UUID_SUFFIX_LENGTH
+    + PATH_LENGTH_ESTIMATE // the longest extra field
+    ;
+
+fn serialize(name: &BufferName, uuid: u128, append_target: &mut String) {
+    use std::fmt::Write;
     use BufferName::*;
     match name {
         Path(p) => {
@@ -58,10 +85,16 @@ fn serialize(name: &BufferName, uuid: u128) -> String {
             // Hopefully seeing the first file being rendered with replacement characters will
             // convince you to be careful editing files with those filenames?
             let path_string = p.to_string_lossy();
-            format!("{}{:032x},{}", PATH_PREFIX, uuid, path_string)
+            write!(
+                append_target,
+                "{}{:032x},{}",
+                PATH_PREFIX, uuid, path_string
+            );
         }
-        Scratch(n) => format!("{}{:032x},{}", SCRATCH_PREFIX, uuid, n),
-    }
+        Scratch(n) => {
+            write!(append_target, "{}{:032x},{}", SCRATCH_PREFIX, uuid, n);
+        }
+    };
 }
 
 fn deserialize(s: &str) -> Option<(BufferName, u128)> {
