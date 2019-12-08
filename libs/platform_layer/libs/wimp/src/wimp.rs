@@ -4,7 +4,7 @@
 // (at commit 90e7c7c331e9f991e11de6404b2ca073c0a09e61)
 
 use glutin::{dpi::LogicalPosition, Api, GlProfile, GlRequest};
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::time::Duration;
 use wimp_render::{get_find_replace_info, FindReplaceInfo};
@@ -12,7 +12,7 @@ use wimp_render::{get_find_replace_info, FindReplaceInfo};
 use file_chooser;
 use macros::d;
 use platform_types::{screen_positioning::screen_to_text_box, *};
-use shared::Res;
+use shared::{BufferStatuses, Res};
 use wimp_render::{Navigation, PhysicalButtonState, UIState};
 
 mod clipboard_layer {
@@ -277,6 +277,9 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
         };
     }
 
+    let buffer_statuses = std::sync::Arc::new(BufferStatuses::new(
+        16, /* TODO use initial buffer count */
+    ));
     use std::sync::mpsc::channel;
 
     // TODO set up edited files thread
@@ -294,6 +297,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
 
     let mut edited_files_join_handle = Some({
         let proxy = event_proxy.clone();
+        let buffer_statuses_ref = buffer_statuses.clone();
 
         std::thread::Builder::new()
             .name("edited_files".to_string())
@@ -308,6 +312,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                                     &edited_files_dir,
                                     &edited_files_index_path,
                                     buffers,
+                                    buffer_statuses_ref.get_mut_possibly_blocking(),
                                 ) {
                                     Ok(_) => {}
                                     Err(e) => {
@@ -363,9 +368,8 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
             .expect("Could not start editor thread!"),
     );
 
-    let mut buffer_statuses = HashMap::with_capacity(16 /* TODO use initial buffer count */);
-
     {
+        let buffer_statuses_ref = buffer_statuses.clone();
         events.run(move |event, _, control_flow| {
             use glutin::event::*;
 
@@ -440,7 +444,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                             &font_info,
                             screen_wh!(),
                             dt,
-                            &buffer_statuses
+                            buffer_statuses_ref.get_non_blocking()
                         );
                     let width = dimensions.width;
                     let height = dimensions.height;

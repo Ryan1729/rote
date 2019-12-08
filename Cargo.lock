@@ -552,6 +552,7 @@ dependencies = [
  "platform_types 0.1.0",
  "proptest 0.9.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "shared 0.1.0",
 ]
 
 [[package]]
@@ -2008,7 +2009,7 @@ dependencies = [
 name = "shared"
 version = "0.1.0"
 dependencies = [
- "platform_types 0.1.0",
+ "macros 0.1.0",
 ]
 
 [[package]]
@@ -2437,6 +2438,7 @@ dependencies = [
  "perf_viz 0.1.0",
  "platform_types 0.1.0",
  "proptest 0.9.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "shared 0.1.0",
 ]
 
 [[package]]

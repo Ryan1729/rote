@@ -1,6 +1,7 @@
 use gl_layer::{TextLayout, TextOrRect, TextSpec, VisualSpec};
 use macros::{c, d, ord};
 use platform_types::{screen_positioning::*, *};
+use shared::{BufferStatus, BufferStatusMap};
 use std::cmp::max;
 
 mod ui_id {
@@ -147,14 +148,6 @@ fn navigation_from_cursors(cursors: &Vec<CursorView>) -> Navigation {
 
     output
 }
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum BufferStatus {
-    Unedited,
-    EditedAndSaved,
-    EditedAndUnSaved,
-}
-d!(for BufferStatus: BufferStatus::Unedited);
 
 type Colour = [f32; 4];
 
@@ -373,7 +366,7 @@ pub fn view<'view>(
     font_info: &FontInfo,
     wh: ScreenSpaceWH,
     dt: std::time::Duration,
-    buffer_statuses: &std::collections::HashMap<usize, BufferStatus>,
+    buffer_status_map: &BufferStatusMap,
 ) -> (Vec<TextOrRect<'view>>, Option<Input>) {
     begin_view(ui, view);
     let sswh!(width, height) = wh;
@@ -439,7 +432,7 @@ pub fn view<'view>(
                     colour: TEXT_COLOUR,
                     thickness: padding.into_ltrb().b,
                 }),
-                side_bars: match buffer_statuses.get(&i).cloned().unwrap_or_default() {
+                side_bars: match buffer_status_map.get(&i).cloned().unwrap_or_default() {
                     BufferStatus::Unedited => None,
                     BufferStatus::EditedAndUnSaved => Some(LineSpec {
                         colour: palette![red],

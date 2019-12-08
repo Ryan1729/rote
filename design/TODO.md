@@ -3,6 +3,10 @@
 * complete `names_to_path` related TODOs
   * determine if files are considered "edited" and display that state on the tabs
     * set `buffer_statuses` entries when things change
+      * when edits are made to the buffers
+        * I guess we need to send that down with the view
+        * how would that work with multiple files being edited at once, say in a project wide find and replace?
+        * I think I'd rather send down a whole bunch of views in relatively rare occurrences like that instead of making every view slower to shuffle around.
   * delete temp files on save
   * load all temp files on open
 
@@ -10,7 +14,7 @@
   * there should be no data lost earlier than say 1 minute ago if the power to the machine goes out.
   * algorithm sketch
     * every save period overwrite a temporary file with the contents of the buffer, for each edited buffer, (consider a buffer edited if it does not match the contents of the non-temp file. Scratch buffers are always edited).
-    * if the user saves the real file, delete the temp file. (a new one will be created if they edit the file again and the editor is not closed within the save period)
+    * if the user saves the real file, delete the temp file. (a new one will be created if  they edit the file again and the editor is not closed within the save period)
     * if the user closes an edited file warn them it is not saved and offer to save it.
     * on opening the editor, look at all the temp files and open the files they point to and set the buffer contents to the contents of the temp file, effectively restoring the state to what it was before the editor was closed.
   * suggested implementation steps

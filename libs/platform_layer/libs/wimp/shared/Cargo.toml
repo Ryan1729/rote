@@ -8,4 +8,4 @@ edition = "2018"
 path = "./src/shared.rs"
 
 [dependencies]
-platform_types = { path = "../../../../platform_types" }
+macros = { path = "../../../../macros" }

@@ -1,6 +1,7 @@
 use platform_types::*;
 
 use rand::{thread_rng, Rng};
+use shared::{BufferStatus, BufferStatusMap};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -8,6 +9,7 @@ pub fn store_buffers(
     edited_files_dir: &Path,
     edited_files_index_path: &Path,
     all_buffers: Vec<BufferView>,
+    buffer_statuses: &mut BufferStatusMap,
 ) -> std::io::Result<()> {
     let mut rng = thread_rng();
 
@@ -21,7 +23,7 @@ pub fn store_buffers(
         }
     }
 
-    for buffer in all_buffers {
+    for (i, buffer) in all_buffers.into_iter().enumerate() {
         let filename = if let Some(uuid) = names_to_uuid.get(&buffer.name) {
             get_path(buffer.name_string, uuid)
         } else {
@@ -39,6 +41,10 @@ pub fn store_buffers(
 
         // TODO replace all files in directory with these files atomically if possible
         std::fs::write(edited_files_dir.join(filename), buffer.data.chars)?;
+
+        if let Some(BufferStatus::EditedAndUnSaved) = buffer_statuses.get(&i) {
+            buffer_statuses.insert(i, BufferStatus::EditedAndSaved);
+        }
     }
 
     let mut index_string = String::with_capacity(names_to_uuid.len() * INDEX_LINE_LENGTH_ESTIMATE);
