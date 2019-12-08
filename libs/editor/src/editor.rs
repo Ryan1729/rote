@@ -685,6 +685,8 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
         };
     }
 
+    let mut edited_buffer_index: Option<g_i::Index> = Option::None;
+
     macro_rules! post_edit_sync {
         () => {
             match state.menu_mode {
@@ -704,6 +706,7 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
                 }
             }
             try_to_show_cursors!();
+            edited_buffer_index = Some(state.current_buffer_id.index);
         };
     }
 
@@ -982,6 +985,7 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
     let mut view = d!();
 
     editor_view::render(state, &mut view);
+    view.edited_buffer_index = edited_buffer_index;
 
     (view, cmd)
 }

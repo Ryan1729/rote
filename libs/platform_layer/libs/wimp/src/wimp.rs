@@ -12,7 +12,7 @@ use wimp_render::{get_find_replace_info, FindReplaceInfo};
 use file_chooser;
 use macros::d;
 use platform_types::{screen_positioning::screen_to_text_box, *};
-use shared::{BufferStatuses, Res};
+use shared::{BufferStatus, BufferStatuses, Res};
 use wimp_render::{Navigation, PhysicalButtonState, UIState};
 
 mod clipboard_layer {
@@ -292,7 +292,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
 
     enum EditedFilesThread {
         Quit,
-        Buffers(Vec<BufferView>),
+        Buffers(g_i::State, Vec<BufferView>),
     }
 
     let mut edited_files_join_handle = Some({
@@ -308,21 +308,24 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                             use EditedFilesThread::*;
                             match $message {
                                 Quit => return,
-                                Buffers(buffers) => match edited_storage::store_buffers(
-                                    &edited_files_dir,
-                                    &edited_files_index_path,
-                                    buffers,
-                                    buffer_statuses_ref.get_mut_possibly_blocking(),
-                                ) {
-                                    Ok(_) => {}
-                                    Err(e) => {
-                                        use std::error::Error;
-                                        let _hope_it_gets_there =
-                                            proxy.send_event(CustomEvent::EditedBufferError(
-                                                e.description().to_owned(),
-                                            ));
+                                Buffers(index_state, buffers) => {
+                                    match edited_storage::store_buffers(
+                                        &edited_files_dir,
+                                        &edited_files_index_path,
+                                        buffers,
+                                        index_state,
+                                        buffer_statuses_ref.get_mut_possibly_blocking(),
+                                    ) {
+                                        Ok(_) => {}
+                                        Err(e) => {
+                                            use std::error::Error;
+                                            let _hope_it_gets_there =
+                                                proxy.send_event(CustomEvent::EditedBufferError(
+                                                    e.description().to_owned(),
+                                                ));
+                                        }
                                     }
-                                },
+                                }
                             }
                         }};
                     }
@@ -417,10 +420,15 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
 
             match event {
                 Event::EventsCleared if running => {
+                    let buffer_statuses = buffer_statuses_ref.get_mut_without_blocking_for_one_consumer();
                     for _ in 0..EVENTS_PER_FRAME {
                         match editor_out_source.try_recv() {
                             Ok((v, c)) => {
                                 view = v;
+                                if let Some(index) = view.edited_buffer_index {
+                                    buffer_statuses.insert(view.index_state, index, BufferStatus::EditedAndUnSaved);
+                                }
+
                                 cmds.push_back(c);
                             }
                             _ => break,
@@ -511,7 +519,9 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                         }
                     }
                     CustomEvent::SendBuffersToBeSaved => {
-                        let _hope_it_gets_there = edited_files_in_sink.send(EditedFilesThread::Buffers(view.buffers.clone()));
+                        let _hope_it_gets_there = edited_files_in_sink.send(
+                            EditedFilesThread::Buffers(view.index_state, view.buffers.clone())
+                        );
                     }
                     CustomEvent::EditedBufferError(e) => {
                         // TODO show warning dialog to user and ask if they want to continue

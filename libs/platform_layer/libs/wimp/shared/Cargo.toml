@@ -9,3 +9,4 @@ path = "./src/shared.rs"
 
 [dependencies]
 macros = { path = "../../../../macros" }
+platform_types = { path = "../../../../platform_types" }

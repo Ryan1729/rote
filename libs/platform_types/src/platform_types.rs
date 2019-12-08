@@ -567,6 +567,7 @@ pub struct View {
     pub current_buffer_id: BufferId,
     pub index_state: g_i::State,
     pub visible_buffer: VisibleBuffer,
+    pub edited_buffer_index: Option<g_i::Index>,
     pub buffers: Vec<BufferView>,
     pub menu: MenuView,
     pub status_line: StatusLineView,

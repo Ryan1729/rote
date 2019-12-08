@@ -9,6 +9,7 @@ pub fn store_buffers(
     edited_files_dir: &Path,
     edited_files_index_path: &Path,
     all_buffers: Vec<BufferView>,
+    index_state: g_i::State,
     buffer_statuses: &mut BufferStatusMap,
 ) -> std::io::Result<()> {
     let mut rng = thread_rng();
@@ -42,8 +43,10 @@ pub fn store_buffers(
         // TODO replace all files in directory with these files atomically if possible
         std::fs::write(edited_files_dir.join(filename), buffer.data.chars)?;
 
-        if let Some(BufferStatus::EditedAndUnSaved) = buffer_statuses.get(&i) {
-            buffer_statuses.insert(i, BufferStatus::EditedAndSaved);
+        let index = index_state.new_index(g_i::IndexPart::or_max(i));
+
+        if let Some(BufferStatus::EditedAndUnSaved) = buffer_statuses.get(index_state, index) {
+            buffer_statuses.insert(index_state, index, BufferStatus::EditedAndSaved);
         }
     }
 
@@ -82,7 +85,7 @@ const INDEX_LINE_LENGTH_ESTIMATE: usize =
 fn serialize(name: &BufferName, uuid: u128, append_target: &mut String) {
     use std::fmt::Write;
     use BufferName::*;
-    match name {
+    let _write_for_string_always_works = match name {
         Path(p) => {
             // if a user selects a non-unicode path, then at least this way the data will be
             // preserved, even if it might be directed to a different filename. Excluding the
@@ -95,11 +98,9 @@ fn serialize(name: &BufferName, uuid: u128, append_target: &mut String) {
                 append_target,
                 "{}{:032x},{}",
                 PATH_PREFIX, uuid, path_string
-            );
+            )
         }
-        Scratch(n) => {
-            write!(append_target, "{}{:032x},{}", SCRATCH_PREFIX, uuid, n);
-        }
+        Scratch(n) => write!(append_target, "{}{:032x},{}", SCRATCH_PREFIX, uuid, n),
     };
 }
 
@@ -159,7 +160,8 @@ mod tests {
     }
 
     fn serialize_then_deserialize_works_on(name: BufferName, uuid: u128) {
-        let serialized = serialize(&name, uuid);
+        let mut serialized = String::with_capacity(UUID_SUFFIX_LENGTH);
+        serialize(&name, uuid, &mut serialized);
         let deserialized = deserialize(&serialized);
         let expected = Some((name, uuid));
         assert_eq!(

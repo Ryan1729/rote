@@ -432,7 +432,13 @@ pub fn view<'view>(
                     colour: TEXT_COLOUR,
                     thickness: padding.into_ltrb().b,
                 }),
-                side_bars: match buffer_status_map.get(&i).cloned().unwrap_or_default() {
+                side_bars: match buffer_status_map
+                    .get(
+                        view.index_state,
+                        view.index_state.new_index(g_i::IndexPart::or_max(i)),
+                    )
+                    .unwrap_or_default()
+                {
                     BufferStatus::Unedited => None,
                     BufferStatus::EditedAndUnSaved => Some(LineSpec {
                         colour: palette![red],

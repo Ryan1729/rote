@@ -4,7 +4,7 @@ pub type Generation = u32;
 type LengthSize = u32;
 
 /// The amount of elements in the collection using generational indexes. Not a valid index.
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, Hash)]
 pub struct Length(LengthSize);
 fmt_debug!(for Length: Length(l) in "{}", l);
 fmt_display!(for Length: Length(l) in "{}", l);
@@ -40,7 +40,7 @@ impl From<Length> for usize {
 
 /// The part of `Index` which does not have to do with generations. That is, the part which
 /// denotes which element in the collection is desired, in the usual 0-based way.
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, Hash)]
 pub struct IndexPart(LengthSize);
 fmt_debug!(for IndexPart: IndexPart(l) in "{}", l);
 fmt_display!(for IndexPart: IndexPart(l) in "{}", l);
@@ -160,7 +160,10 @@ impl State {
         };
     }
     pub fn removed_at(&mut self, index: Index) {
-        self.advance(Invalidation::RemovedAt(index.index));
+        self.removed_at_index_part(index.index);
+    }
+    pub fn removed_at_index_part(&mut self, index: IndexPart) {
+        self.advance(Invalidation::RemovedAt(index));
     }
 
     /// Attempt to convert an index from a given gerneation to the current generation.
@@ -175,7 +178,7 @@ impl State {
     }
 }
 
-#[derive(Clone, Copy, Default, Debug)]
+#[derive(Clone, Copy, Default, Debug, Hash)]
 /// A generational index
 pub struct Index {
     generation: Generation,

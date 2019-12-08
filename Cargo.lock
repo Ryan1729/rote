@@ -2010,6 +2010,7 @@ name = "shared"
 version = "0.1.0"
 dependencies = [
  "macros 0.1.0",
+ "platform_types 0.1.0",
 ]
 
 [[package]]
