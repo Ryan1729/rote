@@ -17,6 +17,7 @@ pub enum BufferStatus {
 }
 d!(for BufferStatus: BufferStatus::Unedited);
 
+#[derive(Debug)]
 pub struct BufferStatusMap {
     map: HashMap<usize, BufferStatus>,
 }
@@ -194,8 +195,100 @@ mod tests {
 
         assert_eq!(map.map.len(), 1);
     }
+
+    // TODO see if this can be merged with the similar macro below
+    macro_rules! does_not_block_assert {
+        ($buffer_statuses: ident) => {
+            use std::time::{Duration, Instant};
+            let start_time = Instant::now();
+
+            const BLOCK_TIME: Duration = Duration::from_millis(10);
+            // must be less than one third of BLOCK_TIME
+            const NON_BLOCK_PROCESSING_TIME_UNIT: Duration = Duration::from_millis(1);
+
+            let handle = {
+                let buffer_statuses_ref = $buffer_statuses.clone();
+                std::thread::Builder::new()
+                    .name("get_mut_possibly_blocking".to_string())
+                    .spawn(move || {
+                        let map = buffer_statuses_ref.get_mut_possibly_blocking();
+                        std::thread::sleep(BLOCK_TIME);
+
+                        map.insert(d!(), d!(), d!());
+                        dbg!(map);
+                    })
+                    .expect("Could not start get_mut_possibly_blocking thread!")
+            };
+
+            let buffer_statuses_ref = $buffer_statuses.clone();
+            {
+                let map = buffer_statuses_ref.get_mut_without_blocking_for_one_consumer();
+                std::thread::sleep(NON_BLOCK_PROCESSING_TIME_UNIT);
+                map.insert(d!(), d!(), d!());
+                dbg!(map);
+            }
+
+            let map = buffer_statuses_ref.get_non_blocking();
+            std::thread::sleep(NON_BLOCK_PROCESSING_TIME_UNIT);
+            dbg!(map);
+
+            let end_time = Instant::now();
+
+            // assert that the thread did not stop the non-blocking operations from proceeding
+            assert!(
+                end_time.duration_since(start_time)
+                    < BLOCK_TIME
+                        .checked_sub(NON_BLOCK_PROCESSING_TIME_UNIT)
+                        .unwrap()
+            );
+
+            handle.join().unwrap();
+        };
+    }
+
+    #[test]
+    fn does_not_block_in_this_expected_scenario() {
+        let buffer_statuses = std::sync::Arc::new(BufferStatuses::new(16));
+
+        does_not_block_assert!(buffer_statuses);
+    }
+
+    // meta
+    // this test validates that `buffer_statuses_does_not_block_in_this_expected_scenario`
+    // actually demonstrates what it purports to.
+    #[test]
+    fn implemented_with_a_mutex_blocks_inappropriately() {
+        #[derive(Debug)]
+        pub struct BufferStatuses {
+            pub map_mutex: std::sync::Mutex<BufferStatusMap>,
+        }
+
+        impl BufferStatuses {
+            pub fn new(capacity: usize) -> Self {
+                BufferStatuses {
+                    map_mutex: std::sync::Mutex::new(BufferStatusMap::with_capacity(capacity)),
+                }
+            }
+
+            pub fn get_mut_possibly_blocking(&mut self) -> &mut BufferStatusMap {
+                self.map_mutex.get_mut().unwrap()
+            }
+
+            pub fn get_mut_without_blocking_for_one_consumer(&mut self) -> &mut BufferStatusMap {
+                self.map_mutex.get_mut().unwrap()
+            }
+
+            pub fn get_non_blocking(&mut self) -> &BufferStatusMap {
+                self.map_mutex.get_mut().unwrap()
+            }
+        }
+
+        let buffer_statuses = std::sync::Arc::new(BufferStatuses::new(16));
+        does_not_block_assert!(buffer_statuses);
+    }
 }
 
+#[derive(Debug)]
 pub struct BufferStatuses {
     map: BufferStatusMap,
 }

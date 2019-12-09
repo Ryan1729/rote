@@ -1,5 +1,8 @@
 ## TODO
 
+* write test demonstrating that the `BufferStatuses` methods do not cause a deadlock under the expected usage.
+  * demonstrate that a mutex based approach does cause a deadlock
+
 * complete `names_to_path` related TODOs
   * determine if files are considered "edited" and display that state on the tabs
     * set `buffer_statuses` entries when things change
