@@ -40,6 +40,42 @@ impl BufferStatusMap {
     }
 }
 
+pub fn new_buffer_status_handles() -> (BufferStatusReadHandle, BufferStatusWriteHandle) {
+    unimplemented!()
+}
+
+struct BufferStatusMaps {
+    map1: AtomicPtr<BufferStatusMap>,
+    map2: AtomicPtr<BufferStatusMap>,
+}
+
+impl BufferStatusMaps {
+    fn swap(&mut self) {
+        self.map1.compare_exchange(
+            self.map1.get_mut(),
+            self.map2.get_mut(),
+            Ordering::SeqCst,
+            Ordering::SeqCst
+        );
+    }
+}
+
+#[derive(Debug)]
+pub struct BufferStatusWriteHandle {
+    maps: BufferStatusMaps,
+}
+
+impl BufferStatusWriteHandle {
+    fn get_mut_possibly_blocking(&mut self) -> &mut BufferStatusMap {}
+
+    fn swap(&mut self) {
+        self.maps.swap()
+    }
+}
+
+#[derive(Debug)]
+pub struct BufferStatusReadHandle {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -198,7 +234,7 @@ mod tests {
 
     // TODO see if this can be merged with the similar macro below
     macro_rules! does_not_block_assert {
-        ($buffer_statuses: ident) => {
+        ($buffer_statuses_r: ident, $buffer_statuses_w: ident) => {
             use std::time::{Duration, Instant};
             let start_time = Instant::now();
 
@@ -206,31 +242,56 @@ mod tests {
             // must be less than one third of BLOCK_TIME
             const NON_BLOCK_PROCESSING_TIME_UNIT: Duration = Duration::from_millis(1);
 
+            use std::sync::mpsc::channel;
+            let (sink, source) = channel();
+
+            #[derive(Default)]
+            struct InsertCommand {
+                state: g_i::State,
+                index: g_i::Index,
+                status: BufferStatus,
+            }
+
             let handle = {
-                let buffer_statuses_ref = $buffer_statuses.clone();
+                let r_ref = $buffer_statuses_r.clone();
+                let w_ref = $buffer_statuses_w.clone();
                 std::thread::Builder::new()
                     .name("get_mut_possibly_blocking".to_string())
                     .spawn(move || {
-                        let map = buffer_statuses_ref.get_mut_possibly_blocking();
-                        std::thread::sleep(BLOCK_TIME);
+                        {
+                            let map = w_ref.get_mut_possibly_blocking();
+                            std::thread::sleep(BLOCK_TIME);
+                            map.insert(d!(), d!(), d!());
+                            dbg!(map);
+                        }
+                        w_ref.swap(r_ref);
 
-                        map.insert(d!(), d!(), d!());
-                        dbg!(map);
+                        if let Ok(InsertCommand {
+                            state,
+                            index,
+                            status,
+                        }) = source.recv()
+                        {
+                            map.insert(state, index, status);
+                            w_ref.swap(r_ref);
+                        }
                     })
                     .expect("Could not start get_mut_possibly_blocking thread!")
             };
 
-            let buffer_statuses_ref = $buffer_statuses.clone();
             {
-                let map = buffer_statuses_ref.get_mut_without_blocking_for_one_consumer();
                 std::thread::sleep(NON_BLOCK_PROCESSING_TIME_UNIT);
-                map.insert(d!(), d!(), d!());
-                dbg!(map);
+                let mut cmd: InsertCommand = d!();
+                cmd.index = cmd.state.new_index(IndexPart::or_max(1));
+                sink.send(cmd);
             }
 
-            let map = buffer_statuses_ref.get_non_blocking();
-            std::thread::sleep(NON_BLOCK_PROCESSING_TIME_UNIT);
-            dbg!(map);
+            {
+                let buffer_statuses_ref = $buffer_statuses_r.clone();
+                let map = buffer_statuses_ref.get_non_blocking();
+                std::thread::sleep(NON_BLOCK_PROCESSING_TIME_UNIT);
+                dbg!(map);
+            }
 
             let end_time = Instant::now();
 
@@ -243,6 +304,12 @@ mod tests {
             );
 
             handle.join().unwrap();
+
+            let buffer_statuses_ref = $buffer_statuses_r.clone();
+            let map = buffer_statuses_ref.get_non_blocking();
+
+            // assert that all the writes eventually succeeded
+            assert!(map.len() == 2);
         };
     }
 
@@ -288,6 +355,7 @@ mod tests {
     }
 }
 
+/// This will completely change later
 #[derive(Debug)]
 pub struct BufferStatuses {
     map: BufferStatusMap,
