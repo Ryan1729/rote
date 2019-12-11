@@ -1,6 +1,11 @@
 use macros::d;
 use platform_types::g_i;
+use std::cell::UnsafeCell;
 use std::collections::HashMap;
+use std::sync::{
+    atomic::{AtomicU8, Ordering},
+    Arc,
+};
 
 pub type Res<T> = Result<T, Box<dyn std::error::Error>>;
 
@@ -38,47 +43,109 @@ impl BufferStatusMap {
             self.map.insert(i, status);
         }
     }
-}
 
-pub fn new_buffer_status_handles() -> (BufferStatusReadHandle, BufferStatusWriteHandle) {
-    unimplemented!()
-}
-
-struct BufferStatusMaps {
-    map1: AtomicPtr<BufferStatusMap>,
-    map2: AtomicPtr<BufferStatusMap>,
-}
-
-impl BufferStatusMaps {
-    fn swap(&mut self) {
-        self.map1.compare_exchange(
-            self.map1.get_mut(),
-            self.map2.get_mut(),
-            Ordering::SeqCst,
-            Ordering::SeqCst
-        );
+    #[cfg(test)]
+    fn len(&self) -> usize {
+        self.map.len()
     }
 }
 
+/// `capactiy` indicates capacity of each of the three maps, so the total capacity memory used
+/// will be at least three times that number.
+pub fn new_buffer_status_handles(
+    capacity: usize,
+) -> (BufferStatusReadHandle, BufferStatusWriteHandle) {
+    let maps = Arc::new(BufferStatusMaps {
+        maps: [
+            UnsafeCell::new(BufferStatusMap::with_capacity(capacity)),
+            UnsafeCell::new(BufferStatusMap::with_capacity(capacity)),
+            UnsafeCell::new(BufferStatusMap::with_capacity(capacity)),
+        ],
+        free_index: d!(),
+    });
+
+    (
+        BufferStatusReadHandle {
+            maps: maps.clone(),
+            index: 1,
+        },
+        BufferStatusWriteHandle { maps, index: 2 },
+    )
+}
+
+#[derive(Debug)]
+struct BufferStatusMaps {
+    maps: [UnsafeCell<BufferStatusMap>; 3],
+    free_index: AtomicU8,
+}
+
+/// There should be at most one `BufferStatusWriteHandle` for a given backing store of maps.
+/// Therefore this does not an should not implement `Clone`.
 #[derive(Debug)]
 pub struct BufferStatusWriteHandle {
-    maps: BufferStatusMaps,
+    maps: Arc<BufferStatusMaps>,
+    index: u8,
 }
 
+/// There should be at most one `BufferStatusWriteHandle` for a given backing store of maps.
+/// Therefor that write handle is safe to transfer to another thread.
+unsafe impl Send for BufferStatusWriteHandle {}
+
 impl BufferStatusWriteHandle {
-    fn get_mut_possibly_blocking(&mut self) -> &mut BufferStatusMap {}
+    fn get_mut_possibly_blocking(&mut self) -> &mut BufferStatusMap {
+        // Our index should never be the same as a reader's index, so this is safe.
+        let write_ptr = self.maps.maps[self.index as usize].get();
+        let write_ref = unsafe { &mut *write_ptr };
+
+        // There should only ever be one writer, and that's us, so this is safe.
+        // TODO use a Mutex to ensure this property? the lack of `Clone` on
+        // `BufferStatusWriteHandle` seems to ensure this already though?
+        let read_ptr = self.maps.maps[self.maps.free_index.load(
+            Ordering::SeqCst, // TODO can this be weaker?
+        ) as usize]
+            .get();
+        let read_ref = unsafe { &(*read_ptr) };
+
+        write_ref.map.clear();
+        for (k, v) in read_ref.map.iter() {
+            write_ref.map.insert(*k, *v);
+        }
+
+        write_ref
+    }
 
     fn swap(&mut self) {
-        self.maps.swap()
+        self.index = self.maps.free_index.swap(
+            self.index,
+            Ordering::SeqCst, //TODO can this be weaker?
+        )
     }
 }
 
 #[derive(Debug)]
-pub struct BufferStatusReadHandle {}
+pub struct BufferStatusReadHandle {
+    maps: Arc<BufferStatusMaps>,
+    index: u8,
+}
+
+impl BufferStatusReadHandle {
+    fn get(&mut self) -> &BufferStatusMap {
+        // Swap so that we get a fresh read.
+        self.index = self.maps.free_index.swap(
+            self.index,
+            Ordering::SeqCst, //TODO can this be weaker?
+        );
+
+        // Our index should never be the same as a the writer's index, so this is safe.
+        let read_ptr = self.maps.maps[self.index as usize].get();
+        unsafe { &mut *read_ptr }
+    }
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::proptest;
 
     fn state_at_generation(generation: g_i::Generation) -> g_i::State {
         let mut s: g_i::State = d!();
@@ -253,18 +320,18 @@ mod tests {
             }
 
             let handle = {
-                let r_ref = $buffer_statuses_r.clone();
-                let w_ref = $buffer_statuses_w.clone();
+                let w_ref = $buffer_statuses_w;
                 std::thread::Builder::new()
                     .name("get_mut_possibly_blocking".to_string())
                     .spawn(move || {
+                        let mut w_ref = w_ref;
                         {
                             let map = w_ref.get_mut_possibly_blocking();
                             std::thread::sleep(BLOCK_TIME);
                             map.insert(d!(), d!(), d!());
                             dbg!(map);
                         }
-                        w_ref.swap(r_ref);
+                        w_ref.swap();
 
                         if let Ok(InsertCommand {
                             state,
@@ -272,8 +339,9 @@ mod tests {
                             status,
                         }) = source.recv()
                         {
+                            let map = w_ref.get_mut_possibly_blocking();
                             map.insert(state, index, status);
-                            w_ref.swap(r_ref);
+                            w_ref.swap();
                         }
                     })
                     .expect("Could not start get_mut_possibly_blocking thread!")
@@ -282,13 +350,14 @@ mod tests {
             {
                 std::thread::sleep(NON_BLOCK_PROCESSING_TIME_UNIT);
                 let mut cmd: InsertCommand = d!();
-                cmd.index = cmd.state.new_index(IndexPart::or_max(1));
+                cmd.index = cmd.state.new_index(g_i::IndexPart::or_max(1));
                 sink.send(cmd);
             }
 
+            let mut r_ref = $buffer_statuses_r;
+
             {
-                let buffer_statuses_ref = $buffer_statuses_r.clone();
-                let map = buffer_statuses_ref.get_non_blocking();
+                let map = r_ref.get();
                 std::thread::sleep(NON_BLOCK_PROCESSING_TIME_UNIT);
                 dbg!(map);
             }
@@ -305,8 +374,7 @@ mod tests {
 
             handle.join().unwrap();
 
-            let buffer_statuses_ref = $buffer_statuses_r.clone();
-            let map = buffer_statuses_ref.get_non_blocking();
+            let map = r_ref.get();
 
             // assert that all the writes eventually succeeded
             assert!(map.len() == 2);
@@ -314,44 +382,18 @@ mod tests {
     }
 
     #[test]
-    fn does_not_block_in_this_expected_scenario() {
-        let buffer_statuses = std::sync::Arc::new(BufferStatuses::new(16));
-
-        does_not_block_assert!(buffer_statuses);
+    fn buffer_status_handles_do_not_block_in_this_expected_scenario() {
+        let (r, w) = new_buffer_status_handles(16);
+        does_not_block_assert!(r, w);
     }
 
-    // meta
-    // this test validates that `buffer_statuses_does_not_block_in_this_expected_scenario`
-    // actually demonstrates what it purports to.
-    #[test]
-    fn implemented_with_a_mutex_blocks_inappropriately() {
-        #[derive(Debug)]
-        pub struct BufferStatuses {
-            pub map_mutex: std::sync::Mutex<BufferStatusMap>,
+    proptest! {
+        #[test]
+        fn writes_to_buffer_status_handles_are_eventually_consistent(
+            edits in "unimplemented!()"
+        ) {
+            unimplemented!()
         }
-
-        impl BufferStatuses {
-            pub fn new(capacity: usize) -> Self {
-                BufferStatuses {
-                    map_mutex: std::sync::Mutex::new(BufferStatusMap::with_capacity(capacity)),
-                }
-            }
-
-            pub fn get_mut_possibly_blocking(&mut self) -> &mut BufferStatusMap {
-                self.map_mutex.get_mut().unwrap()
-            }
-
-            pub fn get_mut_without_blocking_for_one_consumer(&mut self) -> &mut BufferStatusMap {
-                self.map_mutex.get_mut().unwrap()
-            }
-
-            pub fn get_non_blocking(&mut self) -> &BufferStatusMap {
-                self.map_mutex.get_mut().unwrap()
-            }
-        }
-
-        let buffer_statuses = std::sync::Arc::new(BufferStatuses::new(16));
-        does_not_block_assert!(buffer_statuses);
     }
 }
 
