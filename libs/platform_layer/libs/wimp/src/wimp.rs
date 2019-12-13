@@ -302,6 +302,8 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
         std::thread::Builder::new()
             .name("edited_files".to_string())
             .spawn(move || {
+                // TODO read channel from ui thread periodically to update buffer_statuses_ref
+                // and check if it is time to write to disk.
                 loop {
                     macro_rules! handle_message {
                         ($message: expr) => {{

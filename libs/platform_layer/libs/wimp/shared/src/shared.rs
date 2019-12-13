@@ -22,7 +22,7 @@ pub enum BufferStatus {
 }
 d!(for BufferStatus: BufferStatus::Unedited);
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct BufferStatusMap {
     map: HashMap<usize, BufferStatus>,
 }
@@ -98,7 +98,7 @@ impl BufferStatusWriteHandle {
         let write_ref = unsafe { &mut *write_ptr };
 
         // There should only ever be one writer, and that's us, so this is safe.
-        // TODO use a Mutex to ensure this property? the lack of `Clone` on
+        // TODO use a Mutex to ensure this property? The lack of `Clone` on
         // `BufferStatusWriteHandle` seems to ensure this already though?
         let read_ptr = self.maps.maps[self.maps.free_index.load(
             Ordering::SeqCst, // TODO can this be weaker?
@@ -145,7 +145,7 @@ impl BufferStatusReadHandle {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use proptest::proptest;
+    use proptest::prelude::{any, prop_oneof, proptest, Just, Strategy};
 
     fn state_at_generation(generation: g_i::Generation) -> g_i::State {
         let mut s: g_i::State = d!();
@@ -299,6 +299,32 @@ mod tests {
         assert_eq!(map.map.len(), 1);
     }
 
+    #[derive(Default, Debug)]
+    struct InsertCommand {
+        state: g_i::State,
+        index: g_i::Index,
+        status: BufferStatus,
+    }
+
+    fn arb_buffer_status() -> impl Strategy<Value = BufferStatus> {
+        use BufferStatus::*;
+        prop_oneof![Just(Unedited), Just(EditedAndSaved), Just(EditedAndUnSaved),]
+    }
+
+    // The `State` is guarentted to match
+    fn arb_cmd() -> impl Strategy<Value = InsertCommand> {
+        (
+            platform_types::g_i::arb::state(),
+            platform_types::g_i::arb::index_part(),
+            arb_buffer_status(),
+        )
+            .prop_map(|(state, index_part, status)| InsertCommand {
+                state,
+                index: state.new_index(index_part),
+                status,
+            })
+    }
+
     // TODO see if this can be merged with the similar macro below
     macro_rules! does_not_block_assert {
         ($buffer_statuses_r: ident, $buffer_statuses_w: ident) => {
@@ -311,13 +337,6 @@ mod tests {
 
             use std::sync::mpsc::channel;
             let (sink, source) = channel();
-
-            #[derive(Default)]
-            struct InsertCommand {
-                state: g_i::State,
-                index: g_i::Index,
-                status: BufferStatus,
-            }
 
             let handle = {
                 let w_ref = $buffer_statuses_w;
@@ -387,12 +406,151 @@ mod tests {
         does_not_block_assert!(r, w);
     }
 
+    #[derive(Debug)]
+    enum EditAction {
+        UI(EditSpec),
+        Background(EditSpec),
+        Read(u8),
+    }
+
+    #[derive(Debug)]
+    struct EditSpec {
+        cmd: InsertCommand,
+        wait_ns: u8,
+    }
+
+    fn arb_edit_spec() -> impl Strategy<Value = EditSpec> {
+        (arb_cmd(), any::<u8>()).prop_map(|(cmd, wait_ns)| EditSpec { cmd, wait_ns })
+    }
+
+    fn arb_edit() -> impl Strategy<Value = EditAction> {
+        prop_oneof![
+            any::<u8>().prop_map(EditAction::Read),
+            arb_edit_spec().prop_map(EditAction::UI),
+            arb_edit_spec().prop_map(EditAction::Background),
+        ]
+    }
+
+    fn arb_edits(len: usize) -> impl Strategy<Value = Vec<EditAction>> {
+        proptest::collection::vec(arb_edit(), len)
+    }
+
     proptest! {
         #[test]
         fn writes_to_buffer_status_handles_are_eventually_consistent(
-            edits in "unimplemented!()"
+            edits in arb_edits(16)
         ) {
-            unimplemented!()
+            use std::thread::sleep;
+            use std::time::Duration;
+            let mut expected: BufferStatusMap = BufferStatusMap::with_capacity(edits.len());
+            for edit in edits.iter() {
+                use EditAction::*;
+                match edit {
+                    Read(_) => {},
+                    Background(EditSpec {
+                        cmd: InsertCommand {
+                            state,
+                            index,
+                            status,
+                        },
+                        ..
+                    }) | UI(EditSpec {
+                        cmd: InsertCommand {
+                            state,
+                            index,
+                            status,
+                        },
+                        ..
+                    }) => {
+                        expected.insert(*state, *index, *status);
+                    },
+                };
+            }
+
+            use std::sync::mpsc::channel;
+            let (background_sink, background_source) = channel();
+            let (ui_sink, ui_source) = channel();
+            let (ui_to_background_sink, ui_to_background_source) = channel();
+
+            let (mut r_ref, w_ref) = new_buffer_status_handles(edits.len());
+
+            let ui_handle = std::thread::Builder::new()
+                    .spawn(move || {
+                        while let Ok(cmd) = ui_source.recv()
+                        {
+                            if let Some(EditSpec {cmd, wait_ns}) = cmd {
+                                sleep(Duration::from_nanos(wait_ns as _));
+                                ui_to_background_sink.send(EditSpec {
+                                    cmd,
+                                    wait_ns: 0
+                                }).unwrap();
+                            } else {
+                                break;
+                            }
+                        }
+                    })
+                    .expect("Could not start thread!");
+
+            let background_handle = std::thread::Builder::new()
+                    .spawn(move || {
+                        let mut w_ref = w_ref;
+                        loop {
+                            if let Ok(EditSpec {
+                                cmd: InsertCommand {
+                                    state,
+                                    index,
+                                    status,
+                                },
+                                wait_ns
+                            }) = ui_to_background_source.try_recv() {
+                                let map = w_ref.get_mut_possibly_blocking();
+                                sleep(Duration::from_nanos(wait_ns as _));
+                                map.insert(state, index, status);
+                                w_ref.swap();
+                            }
+
+                            if let Ok(cmd) = background_source.try_recv() {
+                                if let Some(EditSpec {
+                                    cmd: InsertCommand {
+                                        state,
+                                        index,
+                                        status,
+                                    },
+                                    wait_ns
+                                }) = cmd {
+                                    let map = w_ref.get_mut_possibly_blocking();
+                                    sleep(Duration::from_nanos(wait_ns as _));
+                                    map.insert(state, index, status);
+                                    w_ref.swap();
+                                } else {
+                                    break;
+                                }
+                            }
+                        }
+                    })
+                    .expect("Could not start thread!");
+
+            for edit in edits {
+                use EditAction::*;
+                match edit {
+                    Read(wait_ns) => {
+                        let map = r_ref.get();
+                        sleep(Duration::from_nanos(wait_ns as _));
+                        dbg!(map);
+                    },
+                    UI(spec) => ui_sink.send(Some(spec)).unwrap(),
+                    Background(spec) => background_sink.send(Some(spec)).unwrap(),
+                };
+            }
+
+            ui_sink.send(None).unwrap();
+            ui_handle.join().unwrap();
+
+            background_sink.send(None).unwrap();
+            background_handle.join().unwrap();
+
+            // assert that all the writes eventually succeeded
+            assert_eq!(*r_ref.get(), expected);
         }
     }
 }

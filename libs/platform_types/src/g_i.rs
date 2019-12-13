@@ -295,3 +295,23 @@ impl std::cmp::PartialEq<Length> for Index {
             .unwrap_or(false)
     }
 }
+
+pub mod arb {
+    use super::*;
+    use proptest::prelude::{any, Strategy};
+
+    pub fn index_part() -> impl Strategy<Value = IndexPart> {
+        any::<LengthSize>().prop_map(|i| IndexPart::or_max(i as _))
+    }
+
+    fn invalidation() -> impl Strategy<Value = Invalidation> {
+        index_part().prop_map(Invalidation::RemovedAt)
+    }
+
+    pub fn state() -> impl Strategy<Value = State> {
+        (any::<Generation>(), invalidation()).prop_map(|(current, invalidation)| State {
+            current,
+            invalidation,
+        })
+    }
+}
