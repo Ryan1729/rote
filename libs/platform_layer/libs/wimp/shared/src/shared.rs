@@ -435,35 +435,36 @@ mod tests {
         proptest::collection::vec(arb_edit(), len)
     }
 
-    proptest! {
-        #[test]
-        fn writes_to_buffer_status_handles_are_eventually_consistent(
-            edits in arb_edits(16)
-        ) {
+    macro_rules! eventually_consistent_assert {
+        ($edits: expr) => {{
+            let edits = $edits;
             use std::thread::sleep;
             use std::time::Duration;
             let mut expected: BufferStatusMap = BufferStatusMap::with_capacity(edits.len());
             for edit in edits.iter() {
                 use EditAction::*;
                 match edit {
-                    Read(_) => {},
+                    Read(_) => {}
                     Background(EditSpec {
-                        cmd: InsertCommand {
-                            state,
-                            index,
-                            status,
-                        },
+                        cmd:
+                            InsertCommand {
+                                state,
+                                index,
+                                status,
+                            },
                         ..
-                    }) | UI(EditSpec {
-                        cmd: InsertCommand {
-                            state,
-                            index,
-                            status,
-                        },
+                    })
+                    | UI(EditSpec {
+                        cmd:
+                            InsertCommand {
+                                state,
+                                index,
+                                status,
+                            },
                         ..
                     }) => {
                         expected.insert(*state, *index, *status);
-                    },
+                    }
                 };
             }
 
@@ -475,60 +476,62 @@ mod tests {
             let (mut r_ref, w_ref) = new_buffer_status_handles(edits.len());
 
             let ui_handle = std::thread::Builder::new()
-                    .spawn(move || {
-                        while let Ok(cmd) = ui_source.recv()
-                        {
-                            if let Some(EditSpec {cmd, wait_ns}) = cmd {
-                                sleep(Duration::from_nanos(wait_ns as _));
-                                ui_to_background_sink.send(EditSpec {
-                                    cmd,
-                                    wait_ns: 0
-                                }).unwrap();
-                            } else {
-                                break;
-                            }
+                .spawn(move || {
+                    while let Ok(cmd) = ui_source.recv() {
+                        if let Some(EditSpec { cmd, wait_ns }) = cmd {
+                            sleep(Duration::from_nanos(wait_ns as _));
+                            ui_to_background_sink
+                                .send(EditSpec { cmd, wait_ns: 0 })
+                                .unwrap();
+                        } else {
+                            break;
                         }
-                    })
-                    .expect("Could not start thread!");
+                    }
+                })
+                .expect("Could not start thread!");
 
             let background_handle = std::thread::Builder::new()
-                    .spawn(move || {
-                        let mut w_ref = w_ref;
-                        loop {
-                            if let Ok(EditSpec {
-                                cmd: InsertCommand {
+                .spawn(move || {
+                    let mut w_ref = w_ref;
+                    loop {
+                        if let Ok(EditSpec {
+                            cmd:
+                                InsertCommand {
                                     state,
                                     index,
                                     status,
                                 },
-                                wait_ns
-                            }) = ui_to_background_source.try_recv() {
-                                let map = w_ref.get_mut_possibly_blocking();
-                                sleep(Duration::from_nanos(wait_ns as _));
-                                map.insert(state, index, status);
-                                w_ref.swap();
-                            }
+                            wait_ns,
+                        }) = ui_to_background_source.try_recv()
+                        {
+                            let map = w_ref.get_mut_possibly_blocking();
+                            sleep(Duration::from_nanos(wait_ns as _));
+                            map.insert(state, index, status);
+                            w_ref.swap();
+                        }
 
-                            if let Ok(cmd) = background_source.try_recv() {
-                                if let Some(EditSpec {
-                                    cmd: InsertCommand {
+                        if let Ok(cmd) = background_source.try_recv() {
+                            if let Some(EditSpec {
+                                cmd:
+                                    InsertCommand {
                                         state,
                                         index,
                                         status,
                                     },
-                                    wait_ns
-                                }) = cmd {
-                                    let map = w_ref.get_mut_possibly_blocking();
-                                    sleep(Duration::from_nanos(wait_ns as _));
-                                    map.insert(state, index, status);
-                                    w_ref.swap();
-                                } else {
-                                    break;
-                                }
+                                wait_ns,
+                            }) = cmd
+                            {
+                                let map = w_ref.get_mut_possibly_blocking();
+                                sleep(Duration::from_nanos(wait_ns as _));
+                                map.insert(state, index, status);
+                                w_ref.swap();
+                            } else {
+                                break;
                             }
                         }
-                    })
-                    .expect("Could not start thread!");
+                    }
+                })
+                .expect("Could not start thread!");
 
             for edit in edits {
                 use EditAction::*;
@@ -537,7 +540,7 @@ mod tests {
                         let map = r_ref.get();
                         sleep(Duration::from_nanos(wait_ns as _));
                         dbg!(map);
-                    },
+                    }
                     UI(spec) => ui_sink.send(Some(spec)).unwrap(),
                     Background(spec) => background_sink.send(Some(spec)).unwrap(),
                 };
@@ -551,7 +554,128 @@ mod tests {
 
             // assert that all the writes eventually succeeded
             assert_eq!(*r_ref.get(), expected);
+        }};
+    }
+
+    proptest! {
+        #[test]
+        fn writes_to_buffer_status_handles_are_eventually_consistent(
+            edits in arb_edits(16)
+        ) {
+            eventually_consistent_assert!(edits)
         }
+    }
+
+    #[test]
+    fn writes_to_buffer_status_handles_are_eventually_consistent_in_this_case() {
+        use BufferStatus::*;
+        use EditAction::*;
+        // Repeat to deal with this working accidentally sometimes
+        for _ in 0..10 {
+            eventually_consistent_assert!(vec![
+                Read(0),
+                Read(0),
+                Read(128),
+                Read(10),
+                UI(EditSpec {
+                    cmd: InsertCommand {
+                        state: g_i::State::new_removed_at(
+                            1592203,
+                            g_i::IndexPart::or_max(11682499)
+                        ),
+                        index: g_i::Index::new_from_parts(1592203, g_i::IndexPart::or_max(86)),
+                        status: Unedited,
+                    },
+                    wait_ns: 19,
+                }),
+                Read(19),
+                Read(7),
+                UI(EditSpec {
+                    cmd: InsertCommand {
+                        state: g_i::State::new_removed_at(2709657, g_i::IndexPart::or_max(4)),
+                        index: g_i::Index::new_from_parts(
+                            2709657,
+                            g_i::IndexPart::or_max(2388572503)
+                        ),
+                        status: Unedited,
+                    },
+                    wait_ns: 0,
+                }),
+                Read(0),
+                UI(EditSpec {
+                    cmd: InsertCommand {
+                        state: g_i::State::new_removed_at(1174, g_i::IndexPart::or_max(3509)),
+                        index: g_i::Index::new_from_parts(1174, g_i::IndexPart::or_max(1604)),
+                        status: Unedited,
+                    },
+                    wait_ns: 0,
+                }),
+                UI(EditSpec {
+                    cmd: InsertCommand {
+                        state: g_i::State::new_removed_at(
+                            31018491,
+                            g_i::IndexPart::or_max(35019205)
+                        ),
+                        index: g_i::Index::new_from_parts(
+                            31018491,
+                            g_i::IndexPart::or_max(24714586)
+                        ),
+                        status: EditedAndSaved,
+                    },
+                    wait_ns: 9,
+                }),
+                Background(EditSpec {
+                    cmd: InsertCommand {
+                        state: g_i::State::new_removed_at(
+                            77350305,
+                            g_i::IndexPart::or_max(1593500352)
+                        ),
+                        index: g_i::Index::new_from_parts(
+                            77350305,
+                            g_i::IndexPart::or_max(3429944534)
+                        ),
+                        status: EditedAndUnSaved,
+                    },
+                    wait_ns: 37,
+                }),
+                UI(EditSpec {
+                    cmd: InsertCommand {
+                        state: g_i::State::new_removed_at(
+                            4109276931,
+                            g_i::IndexPart::or_max(271399484),
+                        ),
+                        index: g_i::Index::new_from_parts(
+                            4109276931,
+                            g_i::IndexPart::or_max(383778964),
+                        ),
+                        status: EditedAndSaved,
+                    },
+                    wait_ns: 196,
+                }),
+                Read(225),
+                Read(137),
+                Read(37),
+            ])
+        }
+    }
+
+    #[test]
+    fn writes_to_buffer_status_handles_are_eventually_consistent_in_this_reduced_case() {
+        use BufferStatus::*;
+        use EditAction::*;
+
+        eventually_consistent_assert!(vec![
+            UI(EditSpec {
+                cmd: InsertCommand {
+                    state: g_i::State::new_removed_at(0, g_i::IndexPart::or_max(0)),
+                    index: g_i::Index::new_from_parts(0, g_i::IndexPart::or_max(1)),
+                    status: Unedited,
+                },
+                wait_ns: 0,
+            }),
+            Read(1),
+            Read(0),
+        ]);
     }
 }
 

@@ -296,9 +296,25 @@ impl std::cmp::PartialEq<Length> for Index {
     }
 }
 
+// intended for tests only.
 pub mod arb {
     use super::*;
     use proptest::prelude::{any, Strategy};
+
+    impl State {
+        pub fn new_removed_at(current: Generation, index_part: IndexPart) -> Self {
+            State {
+                current,
+                invalidation: Invalidation::RemovedAt(index_part),
+            }
+        }
+    }
+
+    impl Index {
+        pub fn new_from_parts(generation: Generation, index: IndexPart) -> Self {
+            Index { generation, index }
+        }
+    }
 
     pub fn index_part() -> impl Strategy<Value = IndexPart> {
         any::<LengthSize>().prop_map(|i| IndexPart::or_max(i as _))

@@ -1,5 +1,15 @@
 ## TODO
 
+* The below doesn't seem to accurately retain all the writes.
+  * why wouldn't having two buffers where the writer blocks waiting for the reader to be done reading work? (write to whichever is free, then wait on the other one)
+    * the possibility of write starving?
+      * Okay, what if we have the writer time out on the second write?
+      * wouldn't it need to queue the writes to make sure they get there?
+    * Okay, what about two maps behind mutexes? the reader reads which ever one isn't locked and the writer writes whichever one isn't locked, each alternating at different rates?
+      * for example the writer switches every second time, and the reader switches every time?
+      * this seems complicated, but maybe?
+  * does the write get lost or just stuck in the middle? if it's stuck in the middle can we adjust the reading protocol?
+
 * After much thought, I think the simplest thing that (hopefully) does what we want regarding multiple threads updating the `buffer_statuses` is as follows:
   * 1st version
     * have a single writer thread, (can be the same as the `edited_storage` thread,) by sending things through a channel.
