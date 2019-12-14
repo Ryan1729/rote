@@ -2,10 +2,7 @@ use macros::d;
 use platform_types::g_i;
 use std::cell::UnsafeCell;
 use std::collections::HashMap;
-use std::sync::{
-    atomic::{AtomicU8, Ordering},
-    Arc,
-};
+use std::sync::{Arc, Mutex};
 
 pub type Res<T> = Result<T, Box<dyn std::error::Error>>;
 
@@ -22,7 +19,7 @@ pub enum BufferStatus {
 }
 d!(for BufferStatus: BufferStatus::Unedited);
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct BufferStatusMap {
     map: HashMap<usize, BufferStatus>,
 }
@@ -50,33 +47,30 @@ impl BufferStatusMap {
     }
 }
 
-/// `capactiy` indicates capacity of each of the three maps, so the total capacity memory used
+/// `capacity` indicates capacity of each of the three maps, so the total capacity memory used
 /// will be at least three times that number.
 pub fn new_buffer_status_handles(
     capacity: usize,
 ) -> (BufferStatusReadHandle, BufferStatusWriteHandle) {
     let maps = Arc::new(BufferStatusMaps {
         maps: [
-            UnsafeCell::new(BufferStatusMap::with_capacity(capacity)),
-            UnsafeCell::new(BufferStatusMap::with_capacity(capacity)),
-            UnsafeCell::new(BufferStatusMap::with_capacity(capacity)),
+            Mutex::new(BufferStatusMap::with_capacity(capacity)),
+            Mutex::new(BufferStatusMap::with_capacity(capacity)),
         ],
-        free_index: d!(),
     });
 
     (
         BufferStatusReadHandle {
             maps: maps.clone(),
-            index: 1,
+            index: 0,
         },
-        BufferStatusWriteHandle { maps, index: 2 },
+        BufferStatusWriteHandle { maps },
     )
 }
 
 #[derive(Debug)]
 struct BufferStatusMaps {
-    maps: [UnsafeCell<BufferStatusMap>; 3],
-    free_index: AtomicU8,
+    maps: [Mutex<BufferStatusMap>; 2],
 }
 
 /// There should be at most one `BufferStatusWriteHandle` for a given backing store of maps.
@@ -84,41 +78,34 @@ struct BufferStatusMaps {
 #[derive(Debug)]
 pub struct BufferStatusWriteHandle {
     maps: Arc<BufferStatusMaps>,
-    index: u8,
 }
 
-/// There should be at most one `BufferStatusWriteHandle` for a given backing store of maps.
-/// Therefor that write handle is safe to transfer to another thread.
-unsafe impl Send for BufferStatusWriteHandle {}
-
 impl BufferStatusWriteHandle {
-    fn get_mut_possibly_blocking(&mut self) -> &mut BufferStatusMap {
-        // Our index should never be the same as a reader's index, so this is safe.
-        let write_ptr = self.maps.maps[self.index as usize].get();
-        let write_ref = unsafe { &mut *write_ptr };
+    fn perform_write<F>(&mut self, action: F)
+    where
+        F: Fn(&mut BufferStatusMap) -> (),
+    {
+        // Just in case we somehow would loop forever otherwise
+        let mut count = 0;
+        let mut wrote_to_1 = false;
+        let mut wrote_to_2 = false;
+        while count < 16 && !(wrote_to_1 && wrote_to_2) {
+            if !wrote_to_1 {
+                if let Ok(ref mut map) = self.maps.maps[0].try_lock() {
+                    action(map);
+                    wrote_to_1 = true;
+                }
+            }
+            if !wrote_to_2 {
+                if let Ok(ref mut map) = self.maps.maps[1].try_lock() {
+                    action(map);
+                    wrote_to_2 = true;
+                }
+            }
 
-        // There should only ever be one writer, and that's us, so this is safe.
-        // TODO use a Mutex to ensure this property? The lack of `Clone` on
-        // `BufferStatusWriteHandle` seems to ensure this already though?
-        let read_ptr = self.maps.maps[self.maps.free_index.load(
-            Ordering::SeqCst, // TODO can this be weaker?
-        ) as usize]
-            .get();
-        let read_ref = unsafe { &(*read_ptr) };
-
-        write_ref.map.clear();
-        for (k, v) in read_ref.map.iter() {
-            write_ref.map.insert(*k, *v);
+            count += 1;
         }
-
-        write_ref
-    }
-
-    fn swap(&mut self) {
-        self.index = self.maps.free_index.swap(
-            self.index,
-            Ordering::SeqCst, //TODO can this be weaker?
-        )
+        debug_assert!(count < 16);
     }
 }
 
@@ -129,16 +116,20 @@ pub struct BufferStatusReadHandle {
 }
 
 impl BufferStatusReadHandle {
-    fn get(&mut self) -> &BufferStatusMap {
-        // Swap so that we get a fresh read.
-        self.index = self.maps.free_index.swap(
-            self.index,
-            Ordering::SeqCst, //TODO can this be weaker?
-        );
+    fn get(&mut self) -> BufferStatusMap {
+        // TODO change the api to take a fn that takes a &BufferStatusMap to avoid the clone?
+        if let Ok(read_ref) = self.maps.maps[self.index as usize].try_lock() {
+            return (*read_ref).clone();
+        }
 
-        // Our index should never be the same as a the writer's index, so this is safe.
-        let read_ptr = self.maps.maps[self.index as usize].get();
-        unsafe { &mut *read_ptr }
+        self.index += 1;
+        self.index &= 1;
+
+        if let Ok(read_ref) = self.maps.maps[self.index as usize].try_lock() {
+            return read_ref.clone();
+        }
+
+        BufferStatusMap::with_capacity(0)
     }
 }
 
@@ -325,7 +316,6 @@ mod tests {
             })
     }
 
-    // TODO see if this can be merged with the similar macro below
     macro_rules! does_not_block_assert {
         ($buffer_statuses_r: ident, $buffer_statuses_w: ident) => {
             use std::time::{Duration, Instant};
@@ -341,16 +331,14 @@ mod tests {
             let handle = {
                 let w_ref = $buffer_statuses_w;
                 std::thread::Builder::new()
-                    .name("get_mut_possibly_blocking".to_string())
+                    .name("perform_write".to_string())
                     .spawn(move || {
                         let mut w_ref = w_ref;
-                        {
-                            let map = w_ref.get_mut_possibly_blocking();
+                        w_ref.perform_write(|map| {
                             std::thread::sleep(BLOCK_TIME);
                             map.insert(d!(), d!(), d!());
                             dbg!(map);
-                        }
-                        w_ref.swap();
+                        });
 
                         if let Ok(InsertCommand {
                             state,
@@ -358,12 +346,12 @@ mod tests {
                             status,
                         }) = source.recv()
                         {
-                            let map = w_ref.get_mut_possibly_blocking();
-                            map.insert(state, index, status);
-                            w_ref.swap();
+                            w_ref.perform_write(|map| {
+                                map.insert(state, index, status);
+                            });
                         }
                     })
-                    .expect("Could not start get_mut_possibly_blocking thread!")
+                    .expect("Could not start perform_write thread!")
             };
 
             {
@@ -504,10 +492,10 @@ mod tests {
                             wait_ns,
                         }) = ui_to_background_source.try_recv()
                         {
-                            let map = w_ref.get_mut_possibly_blocking();
-                            sleep(Duration::from_nanos(wait_ns as _));
-                            map.insert(state, index, status);
-                            w_ref.swap();
+                            w_ref.perform_write(|map| {
+                                sleep(Duration::from_nanos(wait_ns as _));
+                                map.insert(state, index, status);
+                            });
                         }
 
                         if let Ok(cmd) = background_source.try_recv() {
@@ -521,10 +509,10 @@ mod tests {
                                 wait_ns,
                             }) = cmd
                             {
-                                let map = w_ref.get_mut_possibly_blocking();
-                                sleep(Duration::from_nanos(wait_ns as _));
-                                map.insert(state, index, status);
-                                w_ref.swap();
+                                w_ref.perform_write(|map| {
+                                    sleep(Duration::from_nanos(wait_ns as _));
+                                    map.insert(state, index, status);
+                                });
                             } else {
                                 break;
                             }
@@ -546,6 +534,8 @@ mod tests {
                 };
             }
 
+            sleep(Duration::from_nanos(1000 as _));
+
             ui_sink.send(None).unwrap();
             ui_handle.join().unwrap();
 
@@ -553,7 +543,14 @@ mod tests {
             background_handle.join().unwrap();
 
             // assert that all the writes eventually succeeded
-            assert_eq!(*r_ref.get(), expected);
+            let mut map = r_ref.get();
+            for _ in 0..8 {
+                if map == expected {
+                    break;
+                }
+                map = r_ref.get();
+            }
+            assert_eq!(map, expected);
         }};
     }
 
@@ -563,6 +560,41 @@ mod tests {
             edits in arb_edits(16)
         ) {
             eventually_consistent_assert!(edits)
+        }
+    }
+
+    #[test]
+    fn writes_to_buffer_status_handles_are_eventually_consistent_in_this_reduced_case() {
+        use BufferStatus::*;
+        use EditAction::*;
+        // Repeat to deal with this working accidentally sometimes
+        for _ in 0..10 {
+            eventually_consistent_assert!(vec![
+                UI(EditSpec {
+                    cmd: InsertCommand {
+                        state: g_i::State::new_removed_at(10, g_i::IndexPart::or_max(5)),
+                        index: g_i::Index::new_from_parts(10, g_i::IndexPart::or_max(0)),
+                        status: Unedited,
+                    },
+                    wait_ns: 0,
+                }),
+                UI(EditSpec {
+                    cmd: InsertCommand {
+                        state: g_i::State::new_removed_at(10, g_i::IndexPart::or_max(5)),
+                        index: g_i::Index::new_from_parts(10, g_i::IndexPart::or_max(1)),
+                        status: EditedAndSaved,
+                    },
+                    wait_ns: 0,
+                }),
+                Background(EditSpec {
+                    cmd: InsertCommand {
+                        state: g_i::State::new_removed_at(10, g_i::IndexPart::or_max(5)),
+                        index: g_i::Index::new_from_parts(10, g_i::IndexPart::or_max(2)),
+                        status: EditedAndUnSaved,
+                    },
+                    wait_ns: 0,
+                }),
+            ])
         }
     }
 
@@ -659,8 +691,9 @@ mod tests {
         }
     }
 
+    // this was reduced on an implementation we tried before
     #[test]
-    fn writes_to_buffer_status_handles_are_eventually_consistent_in_this_reduced_case() {
+    fn writes_to_buffer_status_handles_are_eventually_consistent_in_this_previously_reduced_case() {
         use BufferStatus::*;
         use EditAction::*;
 
