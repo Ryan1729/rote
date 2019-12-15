@@ -105,7 +105,12 @@ impl BufferStatusWriteHandle {
 
             count += 1;
         }
+        dbg!("end write loop");
+        if !(wrote_to_1 && wrote_to_2) {
+            dbg!("missed write!");
+        }
         debug_assert!(count < 16);
+        debug_assert!(wrote_to_1 && wrote_to_2);
     }
 }
 
@@ -534,7 +539,7 @@ mod tests {
                 };
             }
 
-            sleep(Duration::from_nanos(1000 as _));
+            sleep(Duration::from_millis(1000 as _));
 
             ui_sink.send(None).unwrap();
             ui_handle.join().unwrap();
@@ -563,8 +568,10 @@ mod tests {
         }
     }
 
+    // this seems very fragile, in that it stops failing if seemily unrelated things like
+    // line numbers change
     #[test]
-    fn writes_to_buffer_status_handles_are_eventually_consistent_in_this_reduced_case() {
+    fn writes_to_buffer_status_handles_are_eventually_consistent_in_this_fragile_reduced_case() {
         use BufferStatus::*;
         use EditAction::*;
         // Repeat to deal with this working accidentally sometimes
@@ -603,7 +610,8 @@ mod tests {
         use BufferStatus::*;
         use EditAction::*;
         // Repeat to deal with this working accidentally sometimes
-        for _ in 0..10 {
+        for i in 0..10 {
+            dbg!(i);
             eventually_consistent_assert!(vec![
                 Read(0),
                 Read(0),
@@ -689,6 +697,172 @@ mod tests {
                 Read(37),
             ])
         }
+    }
+
+    #[test]
+    fn writes_to_buffer_status_handles_are_eventually_consistent_in_this_differently_reduced_case()
+    {
+        use BufferStatus::*;
+        use EditAction::*;
+        let edits = vec![
+            UI(EditSpec {
+                cmd: InsertCommand {
+                    state: g_i::State::new_removed_at(10, g_i::IndexPart::or_max(10)),
+                    index: g_i::Index::new_from_parts(10, g_i::IndexPart::or_max(1)),
+                    status: Unedited,
+                },
+                wait_ns: 19,
+            }),
+            UI(EditSpec {
+                cmd: InsertCommand {
+                    state: g_i::State::new_removed_at(10, g_i::IndexPart::or_max(4)),
+                    index: g_i::Index::new_from_parts(10, g_i::IndexPart::or_max(2)),
+                    status: Unedited,
+                },
+                wait_ns: 0,
+            }),
+            UI(EditSpec {
+                cmd: InsertCommand {
+                    state: g_i::State::new_removed_at(1174, g_i::IndexPart::or_max(10)),
+                    index: g_i::Index::new_from_parts(1174, g_i::IndexPart::or_max(1604)),
+                    status: Unedited,
+                },
+                wait_ns: 0,
+            }),
+            Background(EditSpec {
+                cmd: InsertCommand {
+                    state: g_i::State::new_removed_at(10, g_i::IndexPart::or_max(10)),
+                    index: g_i::Index::new_from_parts(10, g_i::IndexPart::or_max(4)),
+                    status: EditedAndUnSaved,
+                },
+                wait_ns: 0,
+            }),
+        ];
+        use std::thread::sleep;
+        use std::time::Duration;
+        let mut expected: BufferStatusMap = BufferStatusMap::with_capacity(4);
+        for edit in edits.iter() {
+            use EditAction::*;
+            match edit {
+                Read(_) => {}
+                Background(EditSpec {
+                    cmd:
+                        InsertCommand {
+                            state,
+                            index,
+                            status,
+                        },
+                    ..
+                })
+                | UI(EditSpec {
+                    cmd:
+                        InsertCommand {
+                            state,
+                            index,
+                            status,
+                        },
+                    ..
+                }) => {
+                    expected.insert(*state, *index, *status);
+                }
+            };
+        }
+
+        use std::sync::mpsc::channel;
+        let (background_sink, background_source) = channel();
+        let (ui_sink, ui_source) = channel();
+        let (ui_to_background_sink, ui_to_background_source) = channel();
+
+        let (mut r_ref, w_ref) = new_buffer_status_handles(edits.len());
+
+        let ui_handle = std::thread::Builder::new()
+            .spawn(move || {
+                while let Ok(cmd) = ui_source.recv() {
+                    if let Some(cmd) = cmd {
+                        ui_to_background_sink.send(cmd).unwrap();
+                    } else {
+                        break;
+                    }
+                }
+            })
+            .expect("Could not start thread!");
+
+        let background_handle = std::thread::Builder::new()
+            .spawn(move || {
+                let mut w_ref = w_ref;
+                loop {
+                    if let Ok(InsertCommand {
+                        state,
+                        index,
+                        status,
+                    }) = ui_to_background_source.try_recv()
+                    {
+                        w_ref.perform_write(|map| {
+                            dbg!((state, index, status));
+                            map.insert(state, index, status);
+                        });
+                    }
+
+                    if let Ok(cmd) = background_source.try_recv() {
+                        if let Some(InsertCommand {
+                            state,
+                            index,
+                            status,
+                        }) = cmd
+                        {
+                            w_ref.perform_write(|map| {
+                                dbg!((state, index, status));
+                                map.insert(state, index, status);
+                            });
+                        } else {
+                            break;
+                        }
+                    }
+                }
+            })
+            .expect("Could not start thread!");
+
+        ui_sink
+            .send(Some(InsertCommand {
+                state: g_i::State::new_removed_at(10, g_i::IndexPart::or_max(10)),
+                index: g_i::Index::new_from_parts(10, g_i::IndexPart::or_max(1)),
+                status: Unedited,
+            }))
+            .unwrap();
+        ui_sink
+            .send(Some(InsertCommand {
+                state: g_i::State::new_removed_at(10, g_i::IndexPart::or_max(4)),
+                index: g_i::Index::new_from_parts(10, g_i::IndexPart::or_max(2)),
+                status: Unedited,
+            }))
+            .unwrap();
+        background_sink
+            .send(Some(InsertCommand {
+                state: g_i::State::new_removed_at(10, g_i::IndexPart::or_max(10)),
+                index: g_i::Index::new_from_parts(10, g_i::IndexPart::or_max(4)),
+                status: EditedAndUnSaved,
+            }))
+            .unwrap();
+        ui_sink
+            .send(Some(InsertCommand {
+                state: g_i::State::new_removed_at(1174, g_i::IndexPart::or_max(10)),
+                index: g_i::Index::new_from_parts(1174, g_i::IndexPart::or_max(1604)),
+                status: Unedited,
+            }))
+            .unwrap();
+
+        // this was directly changed to `from_millis`
+        sleep(Duration::from_millis(1000 as _));
+
+        ui_sink.send(None).unwrap();
+        ui_handle.join().unwrap();
+
+        background_sink.send(None).unwrap();
+        background_handle.join().unwrap();
+
+        // assert that all the writes eventually succeeded
+        let map = r_ref.get();
+        assert_eq!(map, expected);
     }
 
     // this was reduced on an implementation we tried before
