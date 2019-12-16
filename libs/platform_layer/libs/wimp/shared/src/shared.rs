@@ -4,6 +4,27 @@ use std::cell::UnsafeCell;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+macro_rules! dbg {
+    // Trailing comma with single argument is ignored
+    ($val:expr,) => { dbg!($val) };
+    ($($val:expr),+ $(,)?) => {
+        if cfg!(feature = "extra-prints") {
+            ($(std::dbg!($val)),+,)
+        } else {
+            ($($val),+,)
+        }
+    };
+    ($($args: tt)*) => {
+        if cfg!(feature = "extra-prints") {
+            std::dbg!(
+                $($args)*
+            )
+        } else {
+            $($args)*
+        }
+    };
+}
+
 pub type Res<T> = Result<T, Box<dyn std::error::Error>>;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -47,8 +68,8 @@ impl BufferStatusMap {
     }
 }
 
-/// `capacity` indicates capacity of each of the three maps, so the total capacity memory used
-/// will be at least three times that number.
+/// `capacity` indicates capacity of each of the two maps, so the total capacity memory used
+/// will be at least two times that number.
 pub fn new_buffer_status_handles(
     capacity: usize,
 ) -> (BufferStatusReadHandle, BufferStatusWriteHandle) {
@@ -89,6 +110,7 @@ impl BufferStatusWriteHandle {
         let mut count = 0;
         let mut wrote_to_1 = false;
         let mut wrote_to_2 = false;
+        dbg!("begin write loop");
         while count < 16 && !(wrote_to_1 && wrote_to_2) {
             if !wrote_to_1 {
                 if let Ok(ref mut map) = self.maps.maps[0].try_lock() {
@@ -134,6 +156,7 @@ impl BufferStatusReadHandle {
             return read_ref.clone();
         }
 
+        debug_assert!(false, "neither of the maps were free to read!");
         BufferStatusMap::with_capacity(0)
     }
 }
@@ -339,6 +362,7 @@ mod tests {
                     .name("perform_write".to_string())
                     .spawn(move || {
                         let mut w_ref = w_ref;
+                        dbg!();
                         w_ref.perform_write(|map| {
                             std::thread::sleep(BLOCK_TIME);
                             map.insert(d!(), d!(), d!());
@@ -351,6 +375,7 @@ mod tests {
                             status,
                         }) = source.recv()
                         {
+                            dbg!();
                             w_ref.perform_write(|map| {
                                 map.insert(state, index, status);
                             });
@@ -497,6 +522,7 @@ mod tests {
                             wait_ns,
                         }) = ui_to_background_source.try_recv()
                         {
+                            dbg!();
                             w_ref.perform_write(|map| {
                                 sleep(Duration::from_nanos(wait_ns as _));
                                 map.insert(state, index, status);
@@ -514,6 +540,7 @@ mod tests {
                                 wait_ns,
                             }) = cmd
                             {
+                                dbg!();
                                 w_ref.perform_write(|map| {
                                     sleep(Duration::from_nanos(wait_ns as _));
                                     map.insert(state, index, status);
@@ -559,13 +586,194 @@ mod tests {
         }};
     }
 
-    proptest! {
-        #[test]
-        fn writes_to_buffer_status_handles_are_eventually_consistent(
-            edits in arb_edits(16)
-        ) {
-            eventually_consistent_assert!(edits)
+    // proptest! {
+    //     #[test]
+    //     fn writes_to_buffer_status_handles_are_eventually_consistent(
+    //         edits in arb_edits(16)
+    //     ) {
+    //         eventually_consistent_assert!(edits);
+    //     }
+    // }
+    // proptest! {
+    //     #[test]
+    //     fn a_small_number_of_writes_to_buffer_status_handles_are_eventually_consistent(
+    //         edits in arb_edits(4)
+    //     ) {
+    //         eventually_consistent_assert!(edits)
+    //     }
+    // }
+    // proptest! {
+    //     #[test]
+    //     fn a_small_number_of_no_wait_writes_to_buffer_status_handles_are_eventually_consistent(
+    //         edits in arb_no_wait_edits(6)
+    //     ) {
+    //         eventually_consistent_assert!(edits)
+    //     }
+    // }
+    // proptest! {
+    //     #[test]
+    //     fn a_small_number_of_low_wait_writes_to_buffer_status_handles_are_eventually_consistent(
+    //         edits in arb_no_wait_edits(6)
+    //     ) {
+    //         use std::thread::sleep;
+    //         use std::time::Duration;
+    //         sleep(Duration::from_millis(1000));
+    //          eventually_consistent_assert!(edits);
+    //         sleep(Duration::from_millis(1000));
+    //     }
+    // }
+
+    #[test]
+    fn writes_to_buffer_status_handles_are_eventually_consistent_in_this_background_only_case() {
+        use BufferStatus::*;
+        use EditAction::*;
+        // Repeat to deal with this working accidentally sometimes
+        for _ in 0..10 {
+            eventually_consistent_assert!(vec![
+                Read(85),
+                Background(EditSpec {
+                    cmd: InsertCommand {
+                        state: g_i::State::new_removed_at(
+                            2332472432,
+                            g_i::IndexPart::or_max(1456962602)
+                        ),
+                        index: g_i::Index::new_from_parts(
+                            2332472432,
+                            g_i::IndexPart::or_max(2051423259)
+                        ),
+                        status: EditedAndUnSaved
+                    },
+                    wait_ns: 76
+                }),
+                Read(247),
+                Read(220)
+            ])
         }
+    }
+
+    fn arb_no_wait_edit_spec() -> impl Strategy<Value = EditSpec> {
+        arb_cmd().prop_map(|cmd| EditSpec { cmd, wait_ns: 0 })
+    }
+
+    fn arb_no_wait_edit() -> impl Strategy<Value = EditAction> {
+        prop_oneof![
+            any::<u8>().prop_map(EditAction::Read),
+            arb_no_wait_edit_spec().prop_map(EditAction::UI),
+            arb_no_wait_edit_spec().prop_map(EditAction::Background),
+        ]
+    }
+
+    fn arb_no_wait_edits(len: usize) -> impl Strategy<Value = Vec<EditAction>> {
+        proptest::collection::vec(arb_no_wait_edit(), len)
+    }
+
+    fn arb_low_wait_edit_spec() -> impl Strategy<Value = EditSpec> {
+        (arb_cmd(), 0u8..8u8).prop_map(|(cmd, wait_ns)| EditSpec { cmd, wait_ns })
+    }
+
+    fn arb_low_wait_edit() -> impl Strategy<Value = EditAction> {
+        prop_oneof![
+            any::<u8>().prop_map(EditAction::Read),
+            arb_low_wait_edit_spec().prop_map(EditAction::UI),
+            arb_low_wait_edit_spec().prop_map(EditAction::Background),
+        ]
+    }
+
+    fn arb_low_wait_edits(len: usize) -> impl Strategy<Value = Vec<EditAction>> {
+        proptest::collection::vec(arb_low_wait_edit(), len)
+    }
+
+    #[test]
+    fn writes_to_buffer_status_handles_are_eventually_consistent_in_this_low_wait_case() {
+        use BufferStatus::*;
+        use EditAction::*;
+        // Repeat to deal with this working accidentally sometimes
+        for _ in 0..10 {
+            eventually_consistent_assert!(vec![
+                Background(EditSpec {
+                    cmd: InsertCommand {
+                        state: g_i::State::new_removed_at(
+                            3317595543,
+                            g_i::IndexPart::or_max(1741788840)
+                        ),
+                        index: g_i::Index::new_from_parts(
+                            3317595543,
+                            g_i::IndexPart::or_max(712949773)
+                        ),
+                        status: EditedAndSaved
+                    },
+                    wait_ns: 0
+                }),
+                Read(237),
+                UI(EditSpec {
+                    cmd: InsertCommand {
+                        state: g_i::State::new_removed_at(
+                            3937218626,
+                            g_i::IndexPart::or_max(976009862)
+                        ),
+                        index: g_i::Index::new_from_parts(
+                            3937218626,
+                            g_i::IndexPart::or_max(1882077133)
+                        ),
+                        status: EditedAndUnSaved
+                    },
+                    wait_ns: 0
+                }),
+                Read(53),
+                UI(EditSpec {
+                    cmd: InsertCommand {
+                        state: g_i::State::new_removed_at(
+                            3589185535,
+                            g_i::IndexPart::or_max(2907596317)
+                        ),
+                        index: g_i::Index::new_from_parts(
+                            3589185535,
+                            g_i::IndexPart::or_max(2734144724)
+                        ),
+                        status: Unedited
+                    },
+                    wait_ns: 0
+                }),
+                Read(67)
+            ])
+        }
+    }
+    #[test]
+    fn writes_to_buffer_status_handles_are_eventually_consistent_in_this_no_wait_case() {
+        use BufferStatus::*;
+        use EditAction::*;
+        eventually_consistent_assert!(vec![
+            Background(EditSpec {
+                cmd: InsertCommand {
+                    state: g_i::State::new_removed_at(
+                        2507298832,
+                        g_i::IndexPart::or_max(573633008)
+                    ),
+                    index: g_i::Index::new_from_parts(
+                        2507298832,
+                        g_i::IndexPart::or_max(1801167927)
+                    ),
+                    status: EditedAndUnSaved
+                },
+                wait_ns: 0
+            }),
+            Read(191),
+            Background(EditSpec {
+                cmd: InsertCommand {
+                    state: g_i::State::new_removed_at(
+                        2814191416,
+                        g_i::IndexPart::or_max(2385426564)
+                    ),
+                    index: g_i::Index::new_from_parts(
+                        2814191416,
+                        g_i::IndexPart::or_max(402864839)
+                    ),
+                    status: Unedited
+                },
+                wait_ns: 0
+            }),
+            Read(98)
+        ])
     }
 
     // this seems very fragile, in that it stops failing if seemily unrelated things like
@@ -603,6 +811,440 @@ mod tests {
                 }),
             ])
         }
+    }
+    #[test]
+    fn writes_to_buffer_status_handles_are_eventually_consistent_in_this_larger_case() {
+        use BufferStatus::*;
+        use EditAction::*;
+        // Repeat to deal with this working accidentally sometimes
+        for _ in 0..10 {
+            eventually_consistent_assert!(vec![
+                Read(27),
+                Background(EditSpec {
+                    cmd: InsertCommand {
+                        state: g_i::State::new_removed_at(
+                            2434480905,
+                            g_i::IndexPart::or_max(680357167)
+                        ),
+                        index: g_i::Index::new_from_parts(
+                            2434480905,
+                            g_i::IndexPart::or_max(2318874691)
+                        ),
+                        status: EditedAndSaved
+                    },
+                    wait_ns: 231
+                }),
+                Background(EditSpec {
+                    cmd: InsertCommand {
+                        state: g_i::State::new_removed_at(
+                            1910514516,
+                            g_i::IndexPart::or_max(4119993596)
+                        ),
+                        index: g_i::Index::new_from_parts(
+                            1910514516,
+                            g_i::IndexPart::or_max(322132911)
+                        ),
+                        status: Unedited
+                    },
+                    wait_ns: 104
+                }),
+                UI(EditSpec {
+                    cmd: InsertCommand {
+                        state: g_i::State::new_removed_at(
+                            559852674,
+                            g_i::IndexPart::or_max(825109939)
+                        ),
+                        index: g_i::Index::new_from_parts(
+                            559852674,
+                            g_i::IndexPart::or_max(4200813804)
+                        ),
+                        status: Unedited
+                    },
+                    wait_ns: 92
+                }),
+                UI(EditSpec {
+                    cmd: InsertCommand {
+                        state: g_i::State::new_removed_at(
+                            453630451,
+                            g_i::IndexPart::or_max(51466386)
+                        ),
+                        index: g_i::Index::new_from_parts(
+                            453630451,
+                            g_i::IndexPart::or_max(1876936825)
+                        ),
+                        status: EditedAndUnSaved
+                    },
+                    wait_ns: 2
+                }),
+                Background(EditSpec {
+                    cmd: InsertCommand {
+                        state: g_i::State::new_removed_at(
+                            2992882045,
+                            g_i::IndexPart::or_max(426719865)
+                        ),
+                        index: g_i::Index::new_from_parts(
+                            2992882045,
+                            g_i::IndexPart::or_max(4033930643)
+                        ),
+                        status: EditedAndSaved
+                    },
+                    wait_ns: 121
+                }),
+                Read(81),
+                Read(245),
+                UI(EditSpec {
+                    cmd: InsertCommand {
+                        state: g_i::State::new_removed_at(
+                            4283532257,
+                            g_i::IndexPart::or_max(3402489830)
+                        ),
+                        index: g_i::Index::new_from_parts(
+                            4283532257,
+                            g_i::IndexPart::or_max(3390308471)
+                        ),
+                        status: Unedited
+                    },
+                    wait_ns: 166
+                }),
+                Background(EditSpec {
+                    cmd: InsertCommand {
+                        state: g_i::State::new_removed_at(
+                            95726890,
+                            g_i::IndexPart::or_max(2344258780)
+                        ),
+                        index: g_i::Index::new_from_parts(
+                            95726890,
+                            g_i::IndexPart::or_max(3345628815)
+                        ),
+                        status: EditedAndUnSaved
+                    },
+                    wait_ns: 181
+                }),
+                Read(148),
+                UI(EditSpec {
+                    cmd: InsertCommand {
+                        state: g_i::State::new_removed_at(
+                            3648996020,
+                            g_i::IndexPart::or_max(629373344)
+                        ),
+                        index: g_i::Index::new_from_parts(
+                            3648996020,
+                            g_i::IndexPart::or_max(3055515599)
+                        ),
+                        status: Unedited
+                    },
+                    wait_ns: 118
+                }),
+                UI(EditSpec {
+                    cmd: InsertCommand {
+                        state: g_i::State::new_removed_at(
+                            2777082947,
+                            g_i::IndexPart::or_max(2466565771)
+                        ),
+                        index: g_i::Index::new_from_parts(
+                            2777082947,
+                            g_i::IndexPart::or_max(4008344918)
+                        ),
+                        status: EditedAndUnSaved
+                    },
+                    wait_ns: 204
+                }),
+                Read(11),
+                Background(EditSpec {
+                    cmd: InsertCommand {
+                        state: g_i::State::new_removed_at(
+                            1997231776,
+                            g_i::IndexPart::or_max(3556728567)
+                        ),
+                        index: g_i::Index::new_from_parts(
+                            1997231776,
+                            g_i::IndexPart::or_max(2958260438)
+                        ),
+                        status: EditedAndSaved
+                    },
+                    wait_ns: 58
+                }),
+                UI(EditSpec {
+                    cmd: InsertCommand {
+                        state: g_i::State::new_removed_at(
+                            4172508134,
+                            g_i::IndexPart::or_max(3588284327)
+                        ),
+                        index: g_i::Index::new_from_parts(
+                            4172508134,
+                            g_i::IndexPart::or_max(4237783786)
+                        ),
+                        status: EditedAndSaved
+                    },
+                    wait_ns: 195
+                })
+            ])
+        }
+    }
+
+    #[test]
+    fn writes_to_buffer_status_handles_are_eventually_consistent_in_this_larger_reduced_case() {
+        use std::sync::mpsc::channel;
+        use std::thread::sleep;
+        use std::time::Duration;
+        use BufferStatus::*;
+        use EditAction::*;
+        // Repeat to deal with this working accidentally sometimes
+        macro_rules! rep {
+            () => {
+                let (background_sink, background_source) = channel();
+                let (ui_sink, ui_source) = channel();
+                let (ui_to_background_sink, ui_to_background_source) = channel();
+
+                let (mut r_ref, w_ref) = new_buffer_status_handles(16);
+
+                std::thread::Builder::new()
+                    .spawn(move || {
+                        while let Ok(cmd) = ui_source.recv() {
+                            if let Some(EditSpec { cmd, wait_ns }) = cmd {
+                                sleep(Duration::from_nanos(wait_ns as _));
+                                ui_to_background_sink
+                                    .send(EditSpec { cmd, wait_ns: 0 })
+                                    .unwrap();
+                            } else {
+                                break;
+                            }
+                        }
+                    })
+                    .expect("Could not start thread!");
+
+                std::thread::Builder::new()
+                    .spawn(move || {
+                        let mut w_ref = w_ref;
+                        loop {
+                            if let Ok(EditSpec {
+                                cmd:
+                                    InsertCommand {
+                                        state,
+                                        index,
+                                        status,
+                                    },
+                                wait_ns,
+                            }) = ui_to_background_source.try_recv()
+                            {
+                                dbg!();
+                                println!("ui_to_background outer {:?}", (state, index, status));
+                                w_ref.perform_write(|map| {
+                                    println!("ui_to_background inner {:?}", (state, index, status));
+                                    sleep(Duration::from_nanos(wait_ns as _));
+                                    map.insert(state, index, status);
+                                });
+                            }
+
+                            if let Ok(cmd) = background_source.try_recv() {
+                                if let Some(EditSpec {
+                                    cmd:
+                                        InsertCommand {
+                                            state,
+                                            index,
+                                            status,
+                                        },
+                                    wait_ns,
+                                }) = cmd
+                                {
+                                    dbg!();
+                                    println!("background outer {:?}", (state, index, status));
+                                    w_ref.perform_write(|map| {
+                                        println!("background inner {:?}", (state, index, status));
+                                        sleep(Duration::from_nanos(wait_ns as _));
+                                        map.insert(state, index, status);
+                                    });
+                                } else {
+                                    break;
+                                }
+                            }
+                        }
+                    })
+                    .expect("Could not start thread!");
+
+                let edits = vec![
+                    Read(27),
+                    Background(EditSpec {
+                        cmd: InsertCommand {
+                            state: g_i::State::new_removed_at(
+                                2434480905,
+                                g_i::IndexPart::or_max(680357167),
+                            ),
+                            index: g_i::Index::new_from_parts(
+                                2434480905,
+                                g_i::IndexPart::or_max(2318874691),
+                            ),
+                            status: EditedAndSaved,
+                        },
+                        wait_ns: 231,
+                    }),
+                    Background(EditSpec {
+                        cmd: InsertCommand {
+                            state: g_i::State::new_removed_at(
+                                1910514516,
+                                g_i::IndexPart::or_max(4119993596),
+                            ),
+                            index: g_i::Index::new_from_parts(
+                                1910514516,
+                                g_i::IndexPart::or_max(322132911),
+                            ),
+                            status: Unedited,
+                        },
+                        wait_ns: 104,
+                    }),
+                    UI(EditSpec {
+                        cmd: InsertCommand {
+                            state: g_i::State::new_removed_at(
+                                559852674,
+                                g_i::IndexPart::or_max(825109939),
+                            ),
+                            index: g_i::Index::new_from_parts(
+                                559852674,
+                                g_i::IndexPart::or_max(4200813804),
+                            ),
+                            status: Unedited,
+                        },
+                        wait_ns: 92,
+                    }),
+                    UI(EditSpec {
+                        cmd: InsertCommand {
+                            state: g_i::State::new_removed_at(
+                                453630451,
+                                g_i::IndexPart::or_max(51466386),
+                            ),
+                            index: g_i::Index::new_from_parts(
+                                453630451,
+                                g_i::IndexPart::or_max(1876936825),
+                            ),
+                            status: EditedAndUnSaved,
+                        },
+                        wait_ns: 2,
+                    }),
+                    Background(EditSpec {
+                        cmd: InsertCommand {
+                            state: g_i::State::new_removed_at(
+                                2992882045,
+                                g_i::IndexPart::or_max(426719865),
+                            ),
+                            index: g_i::Index::new_from_parts(
+                                2992882045,
+                                g_i::IndexPart::or_max(4033930643),
+                            ),
+                            status: EditedAndSaved,
+                        },
+                        wait_ns: 121,
+                    }),
+                    Read(81),
+                    Read(245),
+                    UI(EditSpec {
+                        cmd: InsertCommand {
+                            state: g_i::State::new_removed_at(
+                                4283532257,
+                                g_i::IndexPart::or_max(3402489830),
+                            ),
+                            index: g_i::Index::new_from_parts(
+                                4283532257,
+                                g_i::IndexPart::or_max(3390308471),
+                            ),
+                            status: Unedited,
+                        },
+                        wait_ns: 166,
+                    }),
+                    Background(EditSpec {
+                        cmd: InsertCommand {
+                            state: g_i::State::new_removed_at(
+                                95726890,
+                                g_i::IndexPart::or_max(2344258780),
+                            ),
+                            index: g_i::Index::new_from_parts(
+                                95726890,
+                                g_i::IndexPart::or_max(3345628815),
+                            ),
+                            status: EditedAndUnSaved,
+                        },
+                        wait_ns: 181,
+                    }),
+                    Read(148),
+                    UI(EditSpec {
+                        cmd: InsertCommand {
+                            state: g_i::State::new_removed_at(
+                                3648996020,
+                                g_i::IndexPart::or_max(629373344),
+                            ),
+                            index: g_i::Index::new_from_parts(
+                                3648996020,
+                                g_i::IndexPart::or_max(3055515599),
+                            ),
+                            status: Unedited,
+                        },
+                        wait_ns: 118,
+                    }),
+                    UI(EditSpec {
+                        cmd: InsertCommand {
+                            state: g_i::State::new_removed_at(
+                                2777082947,
+                                g_i::IndexPart::or_max(2466565771),
+                            ),
+                            index: g_i::Index::new_from_parts(
+                                2777082947,
+                                g_i::IndexPart::or_max(4008344918),
+                            ),
+                            status: EditedAndUnSaved,
+                        },
+                        wait_ns: 204,
+                    }),
+                    Read(11),
+                    Background(EditSpec {
+                        cmd: InsertCommand {
+                            state: g_i::State::new_removed_at(
+                                1997231776,
+                                g_i::IndexPart::or_max(3556728567),
+                            ),
+                            index: g_i::Index::new_from_parts(
+                                1997231776,
+                                g_i::IndexPart::or_max(2958260438),
+                            ),
+                            status: EditedAndSaved,
+                        },
+                        wait_ns: 58,
+                    }),
+                    UI(EditSpec {
+                        cmd: InsertCommand {
+                            state: g_i::State::new_removed_at(
+                                4172508134,
+                                g_i::IndexPart::or_max(3588284327),
+                            ),
+                            index: g_i::Index::new_from_parts(
+                                4172508134,
+                                g_i::IndexPart::or_max(4237783786),
+                            ),
+                            status: EditedAndSaved,
+                        },
+                        wait_ns: 195,
+                    }),
+                ];
+
+                for edit in edits {
+                    use EditAction::*;
+                    match edit {
+                        Read(wait_ns) => {
+                            let map = r_ref.get();
+                            sleep(Duration::from_nanos(wait_ns as _));
+                            dbg!(map);
+                        }
+                        UI(spec) => ui_sink.send(Some(spec)).unwrap(),
+                        Background(spec) => background_sink.send(Some(spec)).unwrap(),
+                    };
+                }
+
+                // we've removed the final assert here since we were getting different panics,
+                // meaning it didn't get run.
+            };
+        }
+        rep!();
+        rep!();
+        rep!();
+        rep!();
     }
 
     #[test]
@@ -797,6 +1439,7 @@ mod tests {
                         status,
                     }) = ui_to_background_source.try_recv()
                     {
+                        dbg!();
                         w_ref.perform_write(|map| {
                             dbg!((state, index, status));
                             map.insert(state, index, status);
@@ -810,6 +1453,7 @@ mod tests {
                             status,
                         }) = cmd
                         {
+                            dbg!();
                             w_ref.perform_write(|map| {
                                 dbg!((state, index, status));
                                 map.insert(state, index, status);

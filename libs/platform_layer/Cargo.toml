@@ -15,3 +15,4 @@ macros = { path = "../macros" }
 default = []
 invariant-checking = []
 time-render = ["wimp/time-render"]
+extra-prints = ["wimp/extra-prints"]

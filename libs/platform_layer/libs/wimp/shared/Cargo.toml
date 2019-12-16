@@ -13,3 +13,7 @@ platform_types = { path = "../../../../platform_types" }
 
 [dev-dependencies]
 proptest = "0.9.3"
+
+[features]
+default = []
+extra-prints = []

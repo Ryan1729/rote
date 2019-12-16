@@ -36,6 +36,7 @@ invariant-checking = ["editor/invariant-checking"]
 time-render = ["platform_layer/time-render"]
 flame-chart = ["perf_viz/flame-chart"]
 flame-graph = ["perf_viz/flame-graph"]
+extra-prints = ["platform_layer/extra-prints"]
 
 [workspace]
 
