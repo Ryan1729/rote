@@ -399,15 +399,8 @@ pub fn view<'view>(
     // Tabs
     //
 
-    let visible_index_or_max = view.get_visible_index_or_max();
     let tab_count = view.buffers.len();
-    for (
-        i,
-        BufferView {
-            name_string, name, ..
-        },
-    ) in view.buffers.iter().enumerate()
-    {
+    for (i, BufferView { name_string, .. }) in view.buffers.iter().enumerate() {
         let SpacedRect {
             padding,
             margin,

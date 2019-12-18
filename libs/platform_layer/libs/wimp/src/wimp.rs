@@ -12,7 +12,7 @@ use wimp_render::{get_find_replace_info, FindReplaceInfo};
 use file_chooser;
 use macros::d;
 use platform_types::{screen_positioning::screen_to_text_box, *};
-use shared::{BufferStatus, BufferStatuses, Res};
+use shared::{transform_status, BufferStatus, BufferStatusMap, Res};
 use wimp_render::{Navigation, PhysicalButtonState, UIState};
 
 mod clipboard_layer {
@@ -277,9 +277,8 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
         };
     }
 
-    let buffer_statuses = std::sync::Arc::new(BufferStatuses::new(
-        16, /* TODO use initial buffer count */
-    ));
+    let mut buffer_status_map =
+        BufferStatusMap::with_capacity(16 /* TODO use initial buffer count */);
     use std::sync::mpsc::channel;
 
     // TODO set up edited files thread
@@ -289,6 +288,8 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
 
     // into the edited files thread
     let (edited_files_in_sink, edited_files_in_source) = channel();
+    // out of the edited files thread
+    let (edited_files_out_sink, edited_files_out_source) = channel();
 
     enum EditedFilesThread {
         Quit,
@@ -297,7 +298,6 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
 
     let mut edited_files_join_handle = Some({
         let proxy = event_proxy.clone();
-        let buffer_statuses_ref = buffer_statuses.clone();
 
         std::thread::Builder::new()
             .name("edited_files".to_string())
@@ -316,9 +316,13 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                                         &edited_files_index_path,
                                         buffers,
                                         index_state,
-                                        buffer_statuses_ref.get_mut_possibly_blocking(),
                                     ) {
-                                        Ok(_) => {}
+                                        Ok(transitions) => {
+                                            for transition in transitions {
+                                                let _hope_it_gets_there =
+                                                    edited_files_out_sink.send(transition);
+                                            }
+                                        }
                                         Err(e) => {
                                             use std::error::Error;
                                             let _hope_it_gets_there =
@@ -374,7 +378,6 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
     );
 
     {
-        let buffer_statuses_ref = buffer_statuses.clone();
         events.run(move |event, _, control_flow| {
             use glutin::event::*;
 
@@ -385,11 +388,11 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                 };
             }
 
-            // eventually we'll likely want to tell  the editor, and have it decide whether/how
+            // eventually we'll likely want to tell the editor, and have it decide whether/how
             // to display it to the user.
             macro_rules! handle_platform_error {
                 ($err: expr) => {
-                    eprintln!("{}", $err);
+                    eprintln!("{},{}: {}", file!(), line!(), $err);
                 };
             }
 
@@ -422,16 +425,34 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
 
             match event {
                 Event::EventsCleared if running => {
-                    let buffer_statuses = buffer_statuses_ref.get_mut_without_blocking_for_one_consumer();
                     for _ in 0..EVENTS_PER_FRAME {
                         match editor_out_source.try_recv() {
                             Ok((v, c)) => {
                                 view = v;
                                 if let Some(index) = view.edited_buffer_index {
-                                    buffer_statuses.insert(view.index_state, index, BufferStatus::EditedAndUnSaved);
+                                    buffer_status_map.insert(view.index_state, index, BufferStatus::EditedAndUnSaved);
                                 }
 
                                 cmds.push_back(c);
+                            }
+                            _ => break,
+                        };
+                    }
+
+                    // TODO limit to `EVENTS_PER_FRAME` loops total?
+                    for _ in 0..EVENTS_PER_FRAME {
+                        match edited_files_out_source.try_recv() {
+                            Ok((index, transition)) => {
+                                buffer_status_map.insert(
+                                    view.index_state,
+                                    index,
+                                    transform_status(
+                                        buffer_status_map
+                                            .get(view.index_state, index)
+                                            .unwrap_or_default(),
+                                        transition
+                                    )
+                                );
                             }
                             _ => break,
                         };
@@ -454,7 +475,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                             &font_info,
                             screen_wh!(),
                             dt,
-                            buffer_statuses_ref.get_non_blocking()
+                            &buffer_status_map
                         );
                     let width = dimensions.width;
                     let height = dimensions.height;

@@ -1,34 +1,5 @@
 ## TODO
 
-* The below doesn't seem to accurately retain all the writes.
-  * why wouldn't having two buffers where the writer blocks waiting for the reader to be done reading work? (write to whichever is free, then wait on the other one)
-    * the possibility of write starving?
-      * Okay, what if we have the writer time out on the second write?
-      * wouldn't it need to queue the writes to make sure they get there?
-    * Okay, what about two maps behind mutexes? the reader reads which ever one isn't locked and the writer writes whichever one isn't locked, each alternating at different rates?
-      * for example the writer switches every second time, and the reader switches every time?
-      * this seems complicated, but maybe?
-  * does the write get lost or just stuck in the middle? if it's stuck in the middle can we adjust the reading protocol?
-
-* After much thought, I think the simplest thing that (hopefully) does what we want regarding multiple threads updating the `buffer_statuses` is as follows:
-  * 1st version
-    * have a single writer thread, (can be the same as the `edited_storage` thread,) by sending things through a channel.
-    * there are two maps and a shared index that indicates which is the read map and which is the write map.
-    * in that writer thread we read the read map, copy the data into the write map, and write our changes to the write map. Then we atomically swap the index once we are done writing. This being correct relies on the fact that there is exactly one writer thread. We can use a `Mutex<()>` to enforce that.
-    * in the UI thread we grab the read map and just don't worry about locks.
-  * But wait, what if multiple writes happen while a read is going on? Seems like we need another map then? Triple-buffering seems to be a thing.
-    * so instead, the write thread would read the currently used read map, and then write to the current read map, then swap with the third map.
-    * The read thread would atomically swap the read map with the third map just before reading. This way there are no times where the read map would be the same as the write map.
-
-* If we get this working we should definitely write a proptest throwing random writes at the different threads and ensure that the expected final read map is obtained.
-  * we might also consider attempting to eliminate any `unsafe`, possibly by storing references instead of using an index.
-    * Looks like `AtomicPtr::new(Box::into_raw(Box::new(map)))` would be a way to get atomic heap references like we would want
-
-* if implementing our own custom lock-free data structure as described above seems too complicated, let's use [evmap](https://github.com/jonhoo/rust-evmap) for now.
-  * specifically make one background thread that has the write handle in it and send messages to it when the views show up and then use the read handle in the ui thread.
-    * the write thread will also handle the `edited_storage` stuff.
-    * for now, we can see if calling `WriteHandle::Refresh` after every write slows things down too much or not. If it does then we can just call that after a delay.
-
 * complete `names_to_path` related TODOs
   * determine if files are considered "edited" and display that state on the tabs
     * set `buffer_statuses` entries when things change

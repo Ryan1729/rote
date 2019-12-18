@@ -410,6 +410,28 @@ macro_rules! c {
     };
 }
 
+#[macro_export]
+macro_rules! dbg {
+    // Trailing comma with single argument is ignored
+    ($val:expr,) => { dbg!($val) };
+    ($($val:expr),+ $(,)?) => {
+        if cfg!(feature = "extra-prints") {
+            ($(std::dbg!($val)),+,)
+        } else {
+            ($($val),+,)
+        }
+    };
+    ($($args: tt)*) => {
+        if cfg!(feature = "extra-prints") {
+            std::dbg!(
+                $($args)*
+            )
+        } else {
+            $($args)*
+        }
+    };
+}
+
 #[cfg(feature = "invariant-checking")]
 #[macro_export]
 macro_rules! invariant_violation {

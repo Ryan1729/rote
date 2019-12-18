@@ -1,7 +1,7 @@
 use platform_types::*;
 
 use rand::{thread_rng, Rng};
-use shared::{BufferStatus, BufferStatusMap};
+use shared::BufferStatusTransition;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -10,8 +10,7 @@ pub fn store_buffers(
     edited_files_index_path: &Path,
     all_buffers: Vec<BufferView>,
     index_state: g_i::State,
-    buffer_statuses: &mut BufferStatusMap,
-) -> std::io::Result<()> {
+) -> std::io::Result<Vec<(g_i::Index, BufferStatusTransition)>> {
     let mut rng = thread_rng();
 
     let index_string = std::fs::read_to_string(edited_files_index_path).unwrap_or_default();
@@ -23,6 +22,8 @@ pub fn store_buffers(
             names_to_uuid.insert(name, uuid);
         }
     }
+
+    let mut result = Vec::with_capacity(all_buffers.len());
 
     for (i, buffer) in all_buffers.into_iter().enumerate() {
         let filename = if let Some(uuid) = names_to_uuid.get(&buffer.name) {
@@ -45,9 +46,7 @@ pub fn store_buffers(
 
         let index = index_state.new_index(g_i::IndexPart::or_max(i));
 
-        if let Some(BufferStatus::EditedAndUnSaved) = buffer_statuses.get(index_state, index) {
-            buffer_statuses.insert(index_state, index, BufferStatus::EditedAndSaved);
-        }
+        result.push((index, BufferStatusTransition::SaveTemp));
     }
 
     let mut index_string = String::with_capacity(names_to_uuid.len() * INDEX_LINE_LENGTH_ESTIMATE);
@@ -57,7 +56,10 @@ pub fn store_buffers(
         index_string.push('\n');
     }
 
-    Ok(())
+    //TODO make this atomic with the other writes in this function.
+    std::fs::write(edited_files_index_path, index_string)?;
+
+    Ok(result)
 }
 
 fn get_path(buffer_name: String, uuid: &u128) -> PathBuf {
