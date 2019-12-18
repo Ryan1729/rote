@@ -687,7 +687,7 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
 
     let mut edited_buffer_index: Option<g_i::Index> = Option::None;
 
-    macro_rules! post_edit_sync {
+    macro_rules! buffer_view_sync {
         () => {
             match state.menu_mode {
                 MenuMode::Hidden => {}
@@ -706,6 +706,12 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
                 }
             }
             try_to_show_cursors!();
+        };
+    }
+
+    macro_rules! post_edit_sync {
+        () => {
+            buffer_view_sync!();
             edited_buffer_index = Some(state.current_buffer_id.index);
         };
     }
@@ -853,7 +859,7 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
         }),
         LoadedFile(path, str) => {
             state.add_or_select_buffer(path, str);
-            post_edit_sync!();
+            buffer_view_sync!();
         }
         NewScratchBuffer => {
             state.buffers.push(EditorBuffer::new(

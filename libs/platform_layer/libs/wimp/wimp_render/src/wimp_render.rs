@@ -438,7 +438,7 @@ pub fn view<'view>(
                         thickness: padding.into_ltrb().l,
                     }),
                     BufferStatus::EditedAndSaved => Some(LineSpec {
-                        colour: palette![alt yellow],
+                        colour: palette![alt black],
                         thickness: padding.into_ltrb().l,
                     }),
                 },

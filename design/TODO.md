@@ -1,13 +1,9 @@
 ## TODO
 
 * complete `names_to_path` related TODOs
-  * determine if files are considered "edited" and display that state on the tabs
-    * set `buffer_statuses` entries when things change
-      * when edits are made to the buffers
-        * I guess we need to send that down with the view
-        * how would that work with multiple files being edited at once, say in a project wide find and replace?
-        * I think I'd rather send down a whole bunch of views in relatively rare occurrences like that instead of making every view slower to shuffle around.
   * delete temp files on save
+    * that is, the temp files that would no longer be needed since they match what is on disk otherwise.
+    * so, all files that are considered `Unedited` should not have a temp file.
   * load all temp files on open
 
 * automatically save edited text files to disk in temp files.

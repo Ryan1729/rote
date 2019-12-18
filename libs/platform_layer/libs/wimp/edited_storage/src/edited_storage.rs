@@ -1,16 +1,22 @@
 use platform_types::*;
 
 use rand::{thread_rng, Rng};
-use shared::BufferStatusTransition;
+use shared::{BufferStatus, BufferStatusTransition};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+
+pub type BufferInfo = (BufferView, BufferStatus);
 
 pub fn store_buffers(
     edited_files_dir: &Path,
     edited_files_index_path: &Path,
-    all_buffers: Vec<BufferView>,
+    all_buffers: Vec<BufferInfo>,
     index_state: g_i::State,
 ) -> std::io::Result<Vec<(g_i::Index, BufferStatusTransition)>> {
+    use std::fs::{create_dir_all, remove_file, write};
+
+    create_dir_all(edited_files_dir)?;
+
     let mut rng = thread_rng();
 
     let index_string = std::fs::read_to_string(edited_files_index_path).unwrap_or_default();
@@ -25,7 +31,7 @@ pub fn store_buffers(
 
     let mut result = Vec::with_capacity(all_buffers.len());
 
-    for (i, buffer) in all_buffers.into_iter().enumerate() {
+    for (i, (buffer, status)) in all_buffers.into_iter().enumerate() {
         let filename = if let Some(uuid) = names_to_uuid.get(&buffer.name) {
             get_path(buffer.name_string, uuid)
         } else {
@@ -41,8 +47,20 @@ pub fn store_buffers(
             path
         };
 
+        let path = edited_files_dir.join(filename);
+
         // TODO replace all files in directory with these files atomically if possible
-        std::fs::write(edited_files_dir.join(filename), buffer.data.chars)?;
+        match status {
+            BufferStatus::Unedited => {
+                match remove_file(path).map_err(|e| e.kind()) {
+                    Err(std::io::ErrorKind::NotFound) => {}
+                    otherwise => otherwise?,
+                };
+            }
+            _ => {
+                write(path, buffer.data.chars)?;
+            }
+        }
 
         let index = index_state.new_index(g_i::IndexPart::or_max(i));
 
@@ -57,7 +75,7 @@ pub fn store_buffers(
     }
 
     //TODO make this atomic with the other writes in this function.
-    std::fs::write(edited_files_index_path, index_string)?;
+    write(edited_files_index_path, index_string)?;
 
     Ok(result)
 }
@@ -65,7 +83,7 @@ pub fn store_buffers(
 fn get_path(buffer_name: String, uuid: &u128) -> PathBuf {
     let slug = buffer_name.replace(|c: char| !c.is_ascii_alphabetic(), "_");
 
-    PathBuf::from(format!("{}_{}", slug, uuid))
+    PathBuf::from(format!("{}_{:032x}", slug, uuid))
 }
 
 const PATH_PREFIX: &'static str = "Path: ";

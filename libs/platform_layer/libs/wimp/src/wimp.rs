@@ -12,7 +12,7 @@ use wimp_render::{get_find_replace_info, FindReplaceInfo};
 use file_chooser;
 use macros::d;
 use platform_types::{screen_positioning::screen_to_text_box, *};
-use shared::{transform_status, BufferStatus, BufferStatusMap, Res};
+use shared::{transform_status, BufferStatus, BufferStatusMap, BufferStatusTransition, Res};
 use wimp_render::{Navigation, PhysicalButtonState, UIState};
 
 mod clipboard_layer {
@@ -281,11 +281,6 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
         BufferStatusMap::with_capacity(16 /* TODO use initial buffer count */);
     use std::sync::mpsc::channel;
 
-    // TODO set up edited files thread
-    // * simple demo printing
-    // * setup communication and printout transfeerred data
-    // * actually write stuff to disk
-
     // into the edited files thread
     let (edited_files_in_sink, edited_files_in_source) = channel();
     // out of the edited files thread
@@ -293,7 +288,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
 
     enum EditedFilesThread {
         Quit,
-        Buffers(g_i::State, Vec<BufferView>),
+        Buffers(g_i::State, Vec<edited_storage::BufferInfo>),
     }
 
     let mut edited_files_join_handle = Some({
@@ -398,9 +393,20 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
 
             macro_rules! save_to_disk {
                 ($path: expr, $str: expr, $buffer_index: expr) => {
+                    let index = $buffer_index;
                     match std::fs::write($path, $str) {
                         Ok(_) => {
-                            call_u_and_r!(Input::SetBufferPath($buffer_index, $path.to_path_buf()));
+                            buffer_status_map.insert(
+                                view.index_state,
+                                index,
+                                transform_status(
+                                    buffer_status_map
+                                        .get(view.index_state, index)
+                                        .unwrap_or_default(),
+                                    BufferStatusTransition::Save
+                                )
+                            );
+                            call_u_and_r!(Input::SetBufferPath(index, $path.to_path_buf()));
                         }
                         Err(err) => {
                             handle_platform_error!(err);
@@ -543,7 +549,12 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                     }
                     CustomEvent::SendBuffersToBeSaved => {
                         let _hope_it_gets_there = edited_files_in_sink.send(
-                            EditedFilesThread::Buffers(view.index_state, view.buffers.clone())
+                            EditedFilesThread::Buffers(
+                                view.index_state,
+                                view.buffers.iter().enumerate().map(|(i, b)|
+                                    (b.to_owned(), buffer_status_map.get(view.index_state, view.index_state.new_index(g_i::IndexPart::or_max(i))).unwrap_or_default())
+                                ).collect()
+                            )
                         );
                     }
                     CustomEvent::EditedBufferError(e) => {
