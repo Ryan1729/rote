@@ -173,8 +173,8 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
         }
     }?;
 
-    let edited_files_dir = data_dir.join("edited_files_v1/");
-    let edited_files_index_path = data_dir.join("edited_files_v1_index.txt");
+    let edited_files_dir_buf = data_dir.join("edited_files_v1/");
+    let edited_files_index_path_buf = data_dir.join("edited_files_v1_index.txt");
 
     let mut clipboard: Clipboard = get_clipboard();
 
@@ -292,13 +292,13 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
     }
 
     let mut edited_files_join_handle = Some({
+        let edited_files_dir = edited_files_dir_buf.clone();
+        let edited_files_index_path = edited_files_index_path_buf.clone();
         let proxy = event_proxy.clone();
 
         std::thread::Builder::new()
             .name("edited_files".to_string())
             .spawn(move || {
-                // TODO read channel from ui thread periodically to update buffer_statuses_ref
-                // and check if it is time to write to disk.
                 loop {
                     macro_rules! handle_message {
                         ($message: expr) => {{
@@ -373,15 +373,21 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
     );
 
     {
+        macro_rules! call_u_and_r {
+            ($input:expr) => {
+                ui.note_interaction();
+                let _hope_it_gets_there = editor_in_sink.send($input);
+            };
+        }
+
+        for (name, data) in
+            edited_storage::load_previous_tabs(&edited_files_dir_buf, &edited_files_index_path_buf)
+        {
+            call_u_and_r!(Input::AddOrSelectBuffer(name, data));
+        }
+
         events.run(move |event, _, control_flow| {
             use glutin::event::*;
-
-            macro_rules! call_u_and_r {
-                ($input:expr) => {
-                    ui.note_interaction();
-                    let _hope_it_gets_there = editor_in_sink.send($input);
-                };
-            }
 
             // eventually we'll likely want to tell the editor, and have it decide whether/how
             // to display it to the user.
@@ -420,7 +426,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                     let p = $path;
                     match std::fs::read_to_string(&p) {
                         Ok(s) => {
-                            call_u_and_r!(Input::LoadedFile(p, s));
+                            call_u_and_r!(Input::AddOrSelectBuffer(BufferName::Path(p), s));
                         }
                         Err(err) => {
                             handle_platform_error!(err);

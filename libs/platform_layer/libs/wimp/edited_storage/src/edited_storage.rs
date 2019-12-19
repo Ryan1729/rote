@@ -7,6 +7,20 @@ use std::path::{Path, PathBuf};
 
 pub type BufferInfo = (BufferView, BufferStatus);
 
+fn get_names_to_uuid(edited_files_index_path: &Path) -> HashMap<BufferName, u128> {
+    let index_string = std::fs::read_to_string(edited_files_index_path).unwrap_or_default();
+    let mut names_to_uuid: HashMap<BufferName, u128> =
+        HashMap::with_capacity(index_string.lines().count());
+
+    for line in index_string.lines() {
+        if let Some((name, uuid)) = deserialize(line) {
+            names_to_uuid.insert(name, uuid);
+        }
+    }
+
+    names_to_uuid
+}
+
 pub fn store_buffers(
     edited_files_dir: &Path,
     edited_files_index_path: &Path,
@@ -19,15 +33,7 @@ pub fn store_buffers(
 
     let mut rng = thread_rng();
 
-    let index_string = std::fs::read_to_string(edited_files_index_path).unwrap_or_default();
-    let mut names_to_uuid: HashMap<BufferName, u128> =
-        HashMap::with_capacity(index_string.lines().count());
-
-    for line in index_string.lines() {
-        if let Some((name, uuid)) = deserialize(line) {
-            names_to_uuid.insert(name, uuid);
-        }
-    }
+    let mut names_to_uuid: HashMap<BufferName, u128> = get_names_to_uuid(edited_files_index_path);
 
     let mut result = Vec::with_capacity(all_buffers.len());
 
@@ -78,6 +84,31 @@ pub fn store_buffers(
     write(edited_files_index_path, index_string)?;
 
     Ok(result)
+}
+
+pub fn load_previous_tabs(
+    edited_files_dir: &Path,
+    edited_files_index_path: &Path,
+) -> Vec<(BufferName, String)> {
+    let mut names_to_uuid: HashMap<BufferName, u128> = get_names_to_uuid(edited_files_index_path);
+
+    let mut result = Vec::with_capacity(names_to_uuid.len());
+
+    let mut pairs: Vec<_> = names_to_uuid.into_iter().collect();
+    //TODO store the save order and sort by that?
+    pairs.sort();
+
+    for (name, uuid) in pairs {
+        let path = edited_files_dir.join(get_path(name.to_string(), &uuid));
+
+        match std::fs::read_to_string(path) {
+            Ok(data) => {
+                result.push((name, data));
+            }
+            _ => {}
+        }
+    }
+    result
 }
 
 fn get_path(buffer_name: String, uuid: &u128) -> PathBuf {

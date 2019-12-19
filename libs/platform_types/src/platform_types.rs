@@ -44,7 +44,7 @@ pub enum Input {
     Copy,
     Paste(Option<String>),
     InsertNumbersAtCursors,
-    LoadedFile(PathBuf, String),
+    AddOrSelectBuffer(BufferName, String),
     NewScratchBuffer,
     TabIn,
     TabOut,
@@ -459,7 +459,7 @@ pub fn push_highlights<O: Into<Option<Position>>>(
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Hash)]
 pub enum BufferName {
     Path(PathBuf),
     Scratch(u32),
@@ -474,6 +474,31 @@ fmt_display!(for BufferName: name in "{}",
         BufferName::Scratch(n) => format!("*scratch {}*", n),
     }
  );
+ord!(and friends for BufferName: name, other in {
+     use BufferName::*;
+     use std::cmp::Ordering::*;
+     match (name, other) {
+         (Path(p1), Path(p2)) => {
+             match (p1.canonicalize(), p2.canonicalize() ) {
+                 (Ok(ref cp1), Ok(ref cp2)) if cp1 == cp2 => {
+                     Equal
+                 }
+                 _ => {
+                     p1.cmp(&p2)
+                 }
+             }
+         }
+         (Path(_), Scratch(_)) => {
+             Less
+         }
+         (Scratch(_), Path(_)) => {
+             Greater
+         }
+         (Scratch(n1), Scratch(n2)) => {
+             n1.cmp(&n2)
+         }
+     }
+ });
 
 #[derive(Clone, Copy)]
 pub enum CursorState {

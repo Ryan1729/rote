@@ -478,27 +478,21 @@ impl State {
         }
     }
 
-    fn add_or_select_buffer(&mut self, path: PathBuf, str: String) {
-        let index = if let Some(index) = self.matching_buffer_index(path.as_ref()) {
+    fn add_or_select_buffer(&mut self, name: BufferName, str: String) {
+        let index = if let Some(index) = self.matching_buffer_index(&name) {
             index
         } else {
-            self.buffers
-                .push(EditorBuffer::new(BufferName::Path(path), str));
+            self.buffers.push(EditorBuffer::new(name, str));
             self.buffers.last_index()
         };
 
         self.set_text_id(index);
     }
 
-    fn matching_buffer_index(&self, path: &Path) -> Option<g_i::Index> {
+    fn matching_buffer_index(&self, name: &BufferName) -> Option<g_i::Index> {
         for (i, buffer) in self.buffers.iter_with_indexes() {
-            match &buffer.name {
-                BufferName::Path(p) => {
-                    if ok_or!(p.canonicalize(), continue) == ok_or!(path.canonicalize(), continue) {
-                        return Some(i);
-                    }
-                }
-                _ => {}
+            if &buffer.name == name {
+                return Some(i);
             }
         }
         None
@@ -857,8 +851,8 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
             b.text_buffer.insert_at_each_cursor(|i| i.to_string());
             post_edit_sync!();
         }),
-        LoadedFile(path, str) => {
-            state.add_or_select_buffer(path, str);
+        AddOrSelectBuffer(name, str) => {
+            state.add_or_select_buffer(name, str);
             buffer_view_sync!();
         }
         NewScratchBuffer => {

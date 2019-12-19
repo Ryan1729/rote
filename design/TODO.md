@@ -1,9 +1,6 @@
 ## TODO
 
 * complete `names_to_path` related TODOs
-  * delete temp files on save
-    * that is, the temp files that would no longer be needed since they match what is on disk otherwise.
-    * so, all files that are considered `Unedited` should not have a temp file.
   * load all temp files on open
 
 * automatically save edited text files to disk in temp files.
