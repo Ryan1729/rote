@@ -58,25 +58,6 @@ impl BufferStatusMap {
             dbg!(i, &self.map);
             self.map.get(&i).cloned()
         })
-        // dbg!(state, index);
-        // if self.last_state == Some(state) {
-        //     dbg!();
-        //     index.get(state).and_then(|i| {
-        //         dbg!(i, &self.map);
-        //         self.map.get(&i).cloned()
-        //     })
-        // } else if let Some(i) = self.last_state.and_then(|s| {
-        //     dbg!();
-        //     index
-        //         .get(state)
-        //         .and_then(|i| s.migrate(state.new_index(g_i::IndexPart::or_max(i))))
-        // }) {
-        //     dbg!();
-        //     i.get(state).and_then(|i| self.map.get(&i).cloned())
-        // } else {
-        //     dbg!();
-        //     None
-        // }
     }
 
     pub fn insert(&mut self, state: g_i::State, current_index: g_i::Index, status: BufferStatus) {
