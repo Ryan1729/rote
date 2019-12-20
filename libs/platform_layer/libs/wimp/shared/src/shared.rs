@@ -54,10 +54,7 @@ impl BufferStatusMap {
     }
 
     pub fn get(&self, state: g_i::State, index: g_i::Index) -> Option<BufferStatus> {
-        index.get(state).and_then(|i| {
-            dbg!(i, &self.map);
-            self.map.get(&i).cloned()
-        })
+        index.get(state).and_then(|i| self.map.get(&i).cloned())
     }
 
     pub fn insert(&mut self, state: g_i::State, current_index: g_i::Index, status: BufferStatus) {
