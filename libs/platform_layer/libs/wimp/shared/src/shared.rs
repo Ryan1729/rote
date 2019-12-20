@@ -42,22 +42,68 @@ pub fn transform_status(status: BufferStatus, transition: BufferStatusTransition
 #[derive(Clone, Debug, PartialEq)]
 pub struct BufferStatusMap {
     map: HashMap<usize, BufferStatus>,
+    last_state: Option<g_i::State>,
 }
 
 impl BufferStatusMap {
     pub fn with_capacity(capacity: usize) -> Self {
         BufferStatusMap {
             map: HashMap::with_capacity(capacity),
+            last_state: d!(),
         }
     }
 
     pub fn get(&self, state: g_i::State, index: g_i::Index) -> Option<BufferStatus> {
-        index.get(state).and_then(|i| self.map.get(&i).cloned())
+        index.get(state).and_then(|i| {
+            dbg!(i, &self.map);
+            self.map.get(&i).cloned()
+        })
+        // dbg!(state, index);
+        // if self.last_state == Some(state) {
+        //     dbg!();
+        //     index.get(state).and_then(|i| {
+        //         dbg!(i, &self.map);
+        //         self.map.get(&i).cloned()
+        //     })
+        // } else if let Some(i) = self.last_state.and_then(|s| {
+        //     dbg!();
+        //     index
+        //         .get(state)
+        //         .and_then(|i| s.migrate(state.new_index(g_i::IndexPart::or_max(i))))
+        // }) {
+        //     dbg!();
+        //     i.get(state).and_then(|i| self.map.get(&i).cloned())
+        // } else {
+        //     dbg!();
+        //     None
+        // }
     }
 
-    pub fn insert(&mut self, state: g_i::State, index: g_i::Index, status: BufferStatus) {
-        if let Some(i) = index.get(state) {
-            self.map.insert(i, status);
+    pub fn insert(&mut self, state: g_i::State, current_index: g_i::Index, status: BufferStatus) {
+        if let Some(current_index) = current_index.get(state) {
+            let last_state = self.last_state;
+            if Some(state) != last_state {
+                let mut keys: Vec<_> = self.map.keys().cloned().collect();
+                //currently all the state fixups work if we use thie reverse order.
+                keys.sort();
+                keys.reverse();
+                for key in keys {
+                    if let Some(i) = last_state.and_then(|s| {
+                        state
+                            .migrate(s.new_index(g_i::IndexPart::or_max(key)))
+                            .and_then(|i| i.get(state))
+                    }) {
+                        let status = self.map.remove(&i).unwrap_or_default();
+                        self.map.insert(i, status);
+                    } else {
+                        self.map.remove(&key);
+                    }
+                }
+
+                self.last_state = Some(state);
+            }
+
+            self.map.insert(current_index, status);
         }
     }
 }
@@ -118,12 +164,12 @@ mod tests {
         );
         map.insert(
             state_1,
-            state_1.new_index(g_i::IndexPart::or_max(0)),
+            state_1.new_index(g_i::IndexPart::or_max(3)),
             status_post_2,
         );
         map.insert(
             state_1,
-            state_1.new_index(g_i::IndexPart::or_max(0)),
+            state_1.new_index(g_i::IndexPart::or_max(4)),
             status_post_2,
         );
 
@@ -137,23 +183,28 @@ mod tests {
              ) => {
                 assert_eq!(
                     map.get(state_1, $index_state.new_index(g_i::IndexPart::or_max(0))),
-                    $ex0
+                    $ex0,
+                    "$ex0"
                 );
                 assert_eq!(
                     map.get(state_1, $index_state.new_index(g_i::IndexPart::or_max(1))),
-                    $ex1
+                    $ex1,
+                    "$ex1"
                 );
                 assert_eq!(
                     map.get(state_1, $index_state.new_index(g_i::IndexPart::or_max(2))),
-                    $ex2
+                    $ex2,
+                    "$ex2"
                 );
                 assert_eq!(
                     map.get(state_1, $index_state.new_index(g_i::IndexPart::or_max(3))),
-                    $ex3
+                    $ex3,
+                    "$ex3"
                 );
                 assert_eq!(
                     map.get(state_1, $index_state.new_index(g_i::IndexPart::or_max(4))),
-                    $ex4
+                    $ex4,
+                    "$ex4"
                 );
             };
         }

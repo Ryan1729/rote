@@ -1,55 +1,7 @@
 ## TODO
 
-* complete `names_to_path` related TODOs
-  * load all temp files on open
-
-* automatically save edited text files to disk in temp files.
-  * there should be no data lost earlier than say 1 minute ago if the power to the machine goes out.
-  * algorithm sketch
-    * every save period overwrite a temporary file with the contents of the buffer, for each edited buffer, (consider a buffer edited if it does not match the contents of the non-temp file. Scratch buffers are always edited).
-    * if the user saves the real file, delete the temp file. (a new one will be created if  they edit the file again and the editor is not closed within the save period)
-    * if the user closes an edited file warn them it is not saved and offer to save it.
-    * on opening the editor, look at all the temp files and open the files they point to and set the buffer contents to the contents of the temp file, effectively restoring the state to what it was before the editor was closed.
-  * suggested implementation steps
-    * get temp file writing working
-      * write to application data directory
-      * decide on temp filename convention
-        * do we say want to encode the date into the temp file?
-        * Maybe just a "v1_" prefix for forward compatibility
-        * Note we need to encode the real path somehow.
-          * Can paths be inserted losslessly into paths? Like with an escape character or something?
-          * Should we do it like that or should we have a file containing mappings from paths to temp files?
-          * well this SO post suggests the separate file approach https://stackoverflow.com/a/1976050 and that to do otherwise would be "opening up one huge can of hurt".
-          * okay, but I still want the target file to be recognizable in most cases without requiring the file to be opened. So let's stick the file name with say all non [A-Za-z] replaces with underscores or dashes or something in the name of the file along with enough stuff to make the temp filename unique.
-          * So to sum up we have 3 requirements of the names:
-            * be identifiable as temp files
-              * could use separate directory for that
-            * be unique
-              * can we just use a UUId for this?
-                * why not just 128 random bits?
-            * be clearly related to the given file (a slug)
-      * write out files unconditionally every small time period (10 seconds?)
-        * test by printing something out every time period
-          * using thread sleep.
-        * temp file write out algorithm sketch:
-          * first (re-)load the mapping from paths to temp filenames from disk
-          * then, for each open buffer write out a temp file, reusing filenames if they are in the mapping, creating new UUIds and building new filenames if they don't
-          * write the mapping back out to disk
-        * file thread communication plan:
-          * file thread sleeps for the time period
-          * then the file thread sends a message to the event loop asking for the current state of each file (view.buffers), blocking on the response
-          * the main thread sees the message and sends a *copy* of the view's buffers. (so we can keep mutating the view)
-          * when the file thread gets the buffers it writes them  out as above, then starts waiting again (go to the first item in this list).
-            * do we care about measuring and subtracting the time the message sending took? That is, do we care about the waiting period being as close to the given time as possible?
-              * No?
-        * note that the thread communication plan implies that the thread will either be sleeping or blocking waiting for a response when the app shuts down.
-      * determine if files are considered "edited" by the criteria above and display that state on the tabs
-      * delete temp files on save
-      * load all temp files on open
-      * examine current state for bugs?
-      * handle all related TODOs
-        * something better than `eprintln!` to handle problems with the edited buffer saving. Even just an error popup in the actual app would be better than that.
-         * what about creating a new scratch buffer containing the error message and switching to that? This avoids needing to make a whole error messages system for now.
+* something better than `eprintln!` to handle problems with the edited buffer saving. Even just an error popup in the actual app would be better than that.
+ * what about creating a new scratch buffer containing the error message and switching to that? This avoids needing to make a whole error messages system for now.
 
 Once everything above this line is done we can start bootstrapping, (using this editor to edit itself.)
 

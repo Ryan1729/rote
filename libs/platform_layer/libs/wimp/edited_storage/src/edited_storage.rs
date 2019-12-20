@@ -90,7 +90,7 @@ pub fn load_previous_tabs(
     edited_files_dir: &Path,
     edited_files_index_path: &Path,
 ) -> Vec<(BufferName, String)> {
-    let mut names_to_uuid: HashMap<BufferName, u128> = get_names_to_uuid(edited_files_index_path);
+    let names_to_uuid: HashMap<BufferName, u128> = get_names_to_uuid(edited_files_index_path);
 
     let mut result = Vec::with_capacity(names_to_uuid.len());
 

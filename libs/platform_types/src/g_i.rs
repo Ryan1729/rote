@@ -139,14 +139,14 @@ impl std::cmp::PartialEq<Length> for IndexPart {
 /// of this so that we can auto-fix the indexes from one generation ago, when possible.
 /// `RemovedAt(d!())` is a reasonable default because it results is a fixup of no change at all
 /// which is correct for the first instance.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 enum Invalidation {
     RemovedAt(IndexPart),
 }
 
 d!(for Invalidation: Invalidation::RemovedAt(d!()));
 
-#[derive(Clone, Copy, Default, Debug)]
+#[derive(Clone, Copy, Default, Debug, PartialEq)]
 pub struct State {
     current: Generation,
     invalidation: Invalidation,

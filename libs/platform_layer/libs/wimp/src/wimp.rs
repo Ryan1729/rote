@@ -277,8 +277,6 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
         };
     }
 
-    let mut buffer_status_map =
-        BufferStatusMap::with_capacity(16 /* TODO use initial buffer count */);
     use std::sync::mpsc::channel;
 
     // into the edited files thread
@@ -380,10 +378,20 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
             };
         }
 
-        for (name, data) in
-            edited_storage::load_previous_tabs(&edited_files_dir_buf, &edited_files_index_path_buf)
-        {
+        let previous_tabs =
+            edited_storage::load_previous_tabs(&edited_files_dir_buf, &edited_files_index_path_buf);
+
+        let mut buffer_status_map = BufferStatusMap::with_capacity((previous_tabs.len() + 1) * 2);
+
+        for (i, (name, data)) in previous_tabs.into_iter().enumerate() {
             call_u_and_r!(Input::AddOrSelectBuffer(name, data));
+
+            // if we bothered saving them before, they were clearly edited.
+            buffer_status_map.insert(
+                view.index_state,
+                view.index_state.new_index(g_i::IndexPart::or_max(i)),
+                BufferStatus::EditedAndSaved,
+            );
         }
 
         events.run(move |event, _, control_flow| {

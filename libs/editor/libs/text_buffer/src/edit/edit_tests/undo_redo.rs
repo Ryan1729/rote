@@ -165,7 +165,7 @@ proptest! {
             // here by just letting that case pass.
             if !text_buffer_eq_ignoring_history!(buffer, initial_buffer) {
                 return Err(
-                    proptest::test_runner::TestCaseError::reject("buffer was changed!")
+                    proptest::test_runner::TestCaseError::reject(format!("buffer was changed!: {:?} doesn't match {:?}", buffer, initial_buffer))
                 );
             }
         }
