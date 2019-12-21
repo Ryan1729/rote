@@ -45,7 +45,7 @@ pub enum Input {
     Paste(Option<String>),
     InsertNumbersAtCursors,
     AddOrSelectBuffer(BufferName, String),
-    NewScratchBuffer,
+    NewScratchBuffer(Option<String>),
     TabIn,
     TabOut,
     NextBuffer,

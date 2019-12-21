@@ -401,7 +401,9 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
             // to display it to the user.
             macro_rules! handle_platform_error {
                 ($err: expr) => {
-                    eprintln!("{},{}: {}", file!(), line!(), $err);
+                    let error = format!("{},{}: {}", file!(), line!(), $err);
+                    eprintln!("{}", error);
+                    call_u_and_r!(Input::NewScratchBuffer(Some(error)));
                 };
             }
 
@@ -787,7 +789,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                                 }
                             }
                             VirtualKeyCode::T => {
-                                call_u_and_r!(Input::NewScratchBuffer);
+                                call_u_and_r!(Input::NewScratchBuffer(None));
                             }
                             VirtualKeyCode::V => {
                                 call_u_and_r!(Input::Paste(clipboard.get_contents().ok()));

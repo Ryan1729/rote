@@ -7,6 +7,10 @@ Once everything above this line is done we can start bootstrapping, (using this 
 
 ----------------------------
 
+* handle hidpi properly
+  * add `--hidpi-override` arg
+  * make sure 1.0, 1.5, and 2.0 work.
+
 * Do some compile-time profiling so I can see what is taking so ling to compile and either pull that into a crate (meaning it is compiled less often) or change it in some way to make it compile faster
 
 * Ctrl-E to toggle single line comments
@@ -187,3 +191,5 @@ Once everything above this line is done we can start bootstrapping, (using this 
 
 * Measure the timings and perceived latency without the weird `"time-render"` stuff again. A quick check is not showing a perceived difference anymore
   * see https://gamedev.stackexchange.com/a/173730
+
+* search the code for TODOs

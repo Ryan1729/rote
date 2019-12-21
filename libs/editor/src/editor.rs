@@ -1,5 +1,5 @@
 use editor_types::{Cursor, Vec1};
-use macros::{d, ok_or, SaturatingAdd, SaturatingSub};
+use macros::{d, SaturatingAdd, SaturatingSub};
 use platform_types::{screen_positioning::*, *};
 use std::path::Path;
 use std::path::PathBuf;
@@ -322,13 +322,12 @@ impl EditorBuffers {
 
     fn remove_if_present(&mut self, index: g_i::Index) -> Option<EditorBuffer> {
         if index < self.len() {
-            dbg!(index.get(self.index_state)).and_then(|i| {
-                let output = dbg!(self.buffers.try_remove(i).ok());
+            index.get(self.index_state).and_then(|i| {
+                let output = self.buffers.try_remove(i).ok();
 
                 if output.is_some() {
                     // No reason to update the index state if we didn't remove anything.
                     self.index_state.removed_at(index);
-                    dbg!()
                 }
 
                 output
@@ -855,10 +854,10 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
             state.add_or_select_buffer(name, str);
             buffer_view_sync!();
         }
-        NewScratchBuffer => {
+        NewScratchBuffer(data_op) => {
             state.buffers.push(EditorBuffer::new(
                 BufferName::Scratch(state.next_scratch_buffer_number()),
-                "",
+                data_op.unwrap_or_default(),
             ));
             state.set_text_id(state.buffers.last_index());
         }
