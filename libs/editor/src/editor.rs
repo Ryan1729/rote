@@ -104,6 +104,7 @@ struct SearchResults {
 }
 
 fn update_search_results(needle: &TextBuffer, haystack: &mut EditorBuffer) {
+    perf_viz::record_guard!("update_search_results");
     let ranges = get_search_ranges(
         needle.borrow_rope().full_slice(),
         &haystack.scrollable.text_buffer.borrow_rope(),
@@ -980,7 +981,6 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
             }
         },
     }
-    dbg!(state.current_buffer_id);
     let mut view = d!();
 
     editor_view::render(state, &mut view);

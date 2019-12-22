@@ -1,7 +1,6 @@
 ## TODO
 
-* something better than `eprintln!` to handle problems with the edited buffer saving. Even just an error popup in the actual app would be better than that.
- * what about creating a new scratch buffer containing the error message and switching to that? This avoids needing to make a whole error messages system for now.
+* fix ctrl-f menu being too slow
 
 Once everything above this line is done we can start bootstrapping, (using this editor to edit itself.)
 

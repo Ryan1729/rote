@@ -252,13 +252,15 @@ pub fn get_search_ranges(
     haystack_range: Option<AbsoluteCharOffsetRange>,
     max_needed: Option<std::num::NonZeroUsize>,
 ) -> Vec<(Position, Position)> {
+    perf_viz::record_guard!("get_search_ranges");
     let (min, slice) = haystack_range
         .and_then(|r| haystack.slice(r.range()).map(|s| (r.min().0, s)))
         .unwrap_or_else(|| (0, haystack.full_slice()));
 
     let offsets = get_search_ranges_impl(needle, slice, max_needed);
 
-    offsets
+    perf_viz::start_record!("offsets.into_iter() char_offset_to_pos");
+    let output = offsets
         .into_iter()
         .filter_map(|(o_min, o_max)| {
             let a_o_min = AbsoluteCharOffset(o_min.0 + min);
@@ -267,7 +269,9 @@ pub fn get_search_ranges(
             char_offset_to_pos(haystack, a_o_min)
                 .and_then(|p_min| char_offset_to_pos(haystack, a_o_max).map(|p_max| (p_min, p_max)))
         })
-        .collect()
+        .collect();
+    perf_viz::end_record!("offsets.into_iter() char_offset_to_pos");
+    output
 }
 
 fn get_search_ranges_impl(
@@ -275,6 +279,7 @@ fn get_search_ranges_impl(
     haystack: RopeSlice,
     max_needed: Option<std::num::NonZeroUsize>,
 ) -> Vec<(CharOffset, CharOffset)> {
+    perf_viz::record_guard!("get_search_ranges_impl");
     // Two-way string matching based on http://www-igm.univ-mlv.fr/~lecroq/string/node26.html
 
     macro_rules! max_suffix {
@@ -286,6 +291,7 @@ fn get_search_ranges_impl(
         };
         ($name: ident, $a: ident, $b: ident, $test: expr) => {
             fn $name(rope: &RopeSlice) -> Option<(isize, isize)> {
+                perf_viz::record_guard!(stringify!($name));
                 let len = rope.len_chars().0 as isize;
                 let mut ms: isize = -1;
                 let mut j: isize = 0;
@@ -370,13 +376,14 @@ fn get_search_ranges_impl(
     }
 
     macro_rules! opts_match {
-        ($op1: expr, $op2: expr, $match_case: block else $else_case: block) => {
+        ($op1: expr, $op2: expr, $match_case: block else $else_case: block) => {{
+            perf_viz::record_guard!("opts_match");
             match ($op1, $op2) {
                 (Some(e1), Some(e2)) if e1 == e2 => $match_case,
                 (None, None) => $match_case,
                 _ => $else_case,
             }
-        };
+        }};
     }
 
     /* Searching */
@@ -393,9 +400,10 @@ fn get_search_ranges_impl(
         matches
     };
 
-    //this avoid trapping the ropey `Chars` in a `Skip` struct, so we can still call `prev`.
+    // this avoids trapping the ropey `Chars` in a `Skip` struct, so we can still call `prev`.
     macro_rules! skip_manually {
         ($iter: expr, $n: expr) => {{
+            perf_viz::record_guard!("skip_manually");
             let mut iter = $iter;
             for _ in 0..($n as usize) {
                 if iter.next().is_none() {
@@ -408,29 +416,39 @@ fn get_search_ranges_impl(
 
     let mut i: isize;
     let mut j: isize = 0;
+    perf_viz::start_record!("if period_matches");
+    println!("%\n%\n%\n");
     if period_matches {
+        perf_viz::record_guard!("period_matches");
         let mut memory: isize = -1;
         while j <= haystack_len - needle_len {
+            perf_viz::record_guard!("while j <= haystack_len - needle_len");
             i = std::cmp::max(ell, memory) + 1;
             {
                 let mut n_chars = skip_manually!(needle.chars(), i);
                 let mut h_chars = skip_manually!(haystack.chars(), i + j);
+                perf_viz::start_record!("outside while i < needle_len");
                 while i < needle_len
                     && opts_match!(n_chars.next(), h_chars.next(), {true} else {false})
                 {
+                    perf_viz::record_guard!("while i < needle_len &&");
                     i += 1;
                 }
+                perf_viz::end_record!("outside while i < needle_len");
             }
             if i >= needle_len {
                 i = ell;
                 {
                     let mut n_chars = skip_manually!(needle.chars(), needle_len - i + 1);
                     let mut h_chars = skip_manually!(haystack.chars(), haystack_len - (i + j) + 1);
+                    perf_viz::start_record!("outside while i > memory");
                     while i > memory
                         && opts_match!(n_chars.prev(), h_chars.prev(), {true} else {false})
                     {
+                        perf_viz::record_guard!("while i > memory &&");
                         i -= 1;
                     }
+                    perf_viz::end_record!("outside while i > memory");
                 }
                 if i <= memory {
                     push!(j);
@@ -443,6 +461,7 @@ fn get_search_ranges_impl(
             }
         }
     } else {
+        perf_viz::record_guard!("!period_matches");
         period = std::cmp::max(ell + 1, needle_len - ell - 1) + 1;
         while j <= haystack_len - needle_len {
             i = ell + 1;
@@ -475,6 +494,7 @@ fn get_search_ranges_impl(
             }
         }
     }
+    perf_viz::end_record!("if period_matches");
 
     output
 }
