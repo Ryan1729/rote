@@ -1,6 +1,7 @@
 ## TODO
 
 * fix ctrl-f menu being too slow
+  * implement wrappers for `ropey` methods added in 1.1.0 and use them instead of slow `skip_manually`.
 
 Once everything above this line is done we can start bootstrapping, (using this editor to edit itself.)
 

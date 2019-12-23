@@ -76,6 +76,11 @@ fn get_search_ranges_works_on_this_late_found_generated_example() {
     get_search_ranges_works_on("0¡", "::0¡");
 }
 
+#[test]
+fn get_search_ranges_works_on_this_mutation_of_the_late_found_generated_example() {
+    get_search_ranges_works_on("0A", "::0A");
+}
+
 proptest! {
     #[test]
     fn get_search_ranges_impl_matches_refernce_impl(
@@ -90,6 +95,7 @@ proptest! {
     }
 }
 
+/// This version is slow (`skip_manually` in particular) but has previously passed the `get_search_ranges_works` test.
 fn get_search_ranges_reference_impl(
     needle: RopeSlice,
     haystack: RopeSlice,
@@ -106,6 +112,7 @@ fn get_search_ranges_reference_impl(
         };
         ($name: ident, $a: ident, $b: ident, $test: expr) => {
             fn $name(rope: &RopeSlice) -> Option<(isize, isize)> {
+                perf_viz::record_guard!(stringify!($name));
                 let len = rope.len_chars().0 as isize;
                 let mut ms: isize = -1;
                 let mut j: isize = 0;
@@ -190,22 +197,22 @@ fn get_search_ranges_reference_impl(
     }
 
     macro_rules! opts_match {
-        ($op1: expr, $op2: expr, $match_case: block else $else_case: block) => {{
+        ($op1: expr, $op2: expr, $match_case: block else $else_case: block) => {
             match ($op1, $op2) {
                 (Some(e1), Some(e2)) if e1 == e2 => $match_case,
                 (None, None) => $match_case,
                 _ => $else_case,
             }
-        }};
+        };
     }
 
     /* Searching */
     let period_matches = {
-        let mut start_chars = haystack.chars();
-        let mut period_chars = haystack.chars().skip(period as usize);
+        let mut start_chars = needle.chars();
+        let mut period_chars = needle.chars().skip(period as usize);
         let mut matches = true;
         for _ in 0..(ell + 1) {
-            opts_match!(start_chars.next(), period_chars.next(), {} else {
+            opts_match!(dbg!(start_chars.next()), dbg!(period_chars.next()), {} else {
                 matches = false;
                 break;
             });
@@ -228,7 +235,6 @@ fn get_search_ranges_reference_impl(
 
     let mut i: isize;
     let mut j: isize = 0;
-    println!("%\n%\n%\n");
     if period_matches {
         let mut memory: isize = -1;
         while j <= haystack_len - needle_len {
@@ -248,7 +254,7 @@ fn get_search_ranges_reference_impl(
                     let mut n_chars = skip_manually!(needle.chars(), needle_len - i + 1);
                     let mut h_chars = skip_manually!(haystack.chars(), haystack_len - (i + j) + 1);
                     while i > memory
-                        && opts_match!(n_chars.prev(), h_chars.prev(), {true} else {false})
+                        && opts_match!(dbg!(n_chars.prev()), dbg!(h_chars.prev()), {true} else {false})
                     {
                         i -= 1;
                     }
@@ -264,6 +270,7 @@ fn get_search_ranges_reference_impl(
             }
         }
     } else {
+        perf_viz::record_guard!("!period_matches");
         period = std::cmp::max(ell + 1, needle_len - ell - 1) + 1;
         while j <= haystack_len - needle_len {
             i = ell + 1;

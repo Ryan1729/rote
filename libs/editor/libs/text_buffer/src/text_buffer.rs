@@ -376,23 +376,22 @@ fn get_search_ranges_impl(
     }
 
     macro_rules! opts_match {
-        ($op1: expr, $op2: expr, $match_case: block else $else_case: block) => {{
-            perf_viz::record_guard!("opts_match");
+        ($op1: expr, $op2: expr, $match_case: block else $else_case: block) => {
             match ($op1, $op2) {
                 (Some(e1), Some(e2)) if e1 == e2 => $match_case,
                 (None, None) => $match_case,
                 _ => $else_case,
             }
-        }};
+        };
     }
 
     /* Searching */
     let period_matches = {
-        let mut start_chars = haystack.chars();
-        let mut period_chars = haystack.chars().skip(period as usize);
+        let mut start_chars = needle.chars();
+        let mut period_chars = needle.chars().skip(period as usize);
         let mut matches = true;
         for _ in 0..(ell + 1) {
-            opts_match!(start_chars.next(), period_chars.next(), {} else {
+            opts_match!(dbg!(start_chars.next()), dbg!(period_chars.next()), {} else {
                 matches = false;
                 break;
             });
@@ -405,10 +404,9 @@ fn get_search_ranges_impl(
         ($iter: expr, $n: expr) => {{
             perf_viz::record_guard!("skip_manually");
             let mut iter = $iter;
-            for _ in 0..($n as usize) {
-                if iter.next().is_none() {
-                    break;
-                }
+            let n = $n as usize;
+            if n != 0 {
+                let _must_use = iter.nth(n - 1);
             }
             iter
         }};
@@ -416,39 +414,29 @@ fn get_search_ranges_impl(
 
     let mut i: isize;
     let mut j: isize = 0;
-    perf_viz::start_record!("if period_matches");
-    println!("%\n%\n%\n");
     if period_matches {
-        perf_viz::record_guard!("period_matches");
         let mut memory: isize = -1;
         while j <= haystack_len - needle_len {
-            perf_viz::record_guard!("while j <= haystack_len - needle_len");
             i = std::cmp::max(ell, memory) + 1;
             {
                 let mut n_chars = skip_manually!(needle.chars(), i);
                 let mut h_chars = skip_manually!(haystack.chars(), i + j);
-                perf_viz::start_record!("outside while i < needle_len");
                 while i < needle_len
                     && opts_match!(n_chars.next(), h_chars.next(), {true} else {false})
                 {
-                    perf_viz::record_guard!("while i < needle_len &&");
                     i += 1;
                 }
-                perf_viz::end_record!("outside while i < needle_len");
             }
             if i >= needle_len {
                 i = ell;
                 {
                     let mut n_chars = skip_manually!(needle.chars(), needle_len - i + 1);
                     let mut h_chars = skip_manually!(haystack.chars(), haystack_len - (i + j) + 1);
-                    perf_viz::start_record!("outside while i > memory");
                     while i > memory
-                        && opts_match!(n_chars.prev(), h_chars.prev(), {true} else {false})
+                        && opts_match!(dbg!(n_chars.prev()), dbg!(h_chars.prev()), {true} else {false})
                     {
-                        perf_viz::record_guard!("while i > memory &&");
                         i -= 1;
                     }
-                    perf_viz::end_record!("outside while i > memory");
                 }
                 if i <= memory {
                     push!(j);
@@ -494,7 +482,6 @@ fn get_search_ranges_impl(
             }
         }
     }
-    perf_viz::end_record!("if period_matches");
 
     output
 }
