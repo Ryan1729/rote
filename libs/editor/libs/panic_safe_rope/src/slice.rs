@@ -1,15 +1,9 @@
 use crate::{
-    conversion::{to_rope_line, to_chunk, to_slice_range},
-    Lines,
-    Chunk,
-    ByteIndex,
-    ByteLength,
-    CharOffset,
-    LineIndex,
-    LineLength
+    conversion::{to_chunk, to_rope_line, to_slice_range},
+    ByteIndex, ByteLength, CharOffset, Chunk, LineIndex, LineLength, Lines,
 };
-use std::ops::RangeBounds;
 use ropey::iter::{Bytes, Chars, Chunks};
+use std::ops::RangeBounds;
 
 /// A wrapper around `ropey::RopeSlice` that checks the panic conditions at runtime and
 /// changes the return type of some methods with the aim of preventing panics.
@@ -70,25 +64,32 @@ pub trait RopeSliceTrait<'rope> {
     fn chunk_at_char(&self, char_idx: CharOffset) -> Option<Chunk<'rope>>;
 
     /// Returns `None` if `line_break_idx` is out of bounds (i.e. `line_break_idx > len_lines()`).
-    fn chunk_at_line_break(
-        &self,
-        line_break_idx: usize
-    ) -> Option<Chunk<'rope>>;
+    fn chunk_at_line_break(&self, line_break_idx: usize) -> Option<Chunk<'rope>>;
 
     /// Returns `None`  if `line_idx` is out of bounds (i.e. `line_idx >= len_lines()`).
     fn line(&self, line_idx: LineIndex) -> Option<RopeLine<'rope>>;
 
     /// Returns `None` if the start of the range is greater than the end, or if the
     /// end is out of bounds (i.e. `end > len_chars()`).
-    fn slice<R>(&self, char_range: R) -> Option<Self> where
+    fn slice<R>(&self, char_range: R) -> Option<Self>
+    where
         R: RangeBounds<CharOffset>,
         Self: std::marker::Sized;
 
     fn bytes(&self) -> Bytes<'rope>;
 
+    /// Returns `None` if `byte_idx` is out of bounds (i.e. `byte_idx > len_bytes()`).
+    fn bytes_at(&self, byte_idx: ByteIndex) -> Option<Bytes>;
+
     fn chars(&self) -> Chars<'rope>;
 
+    /// Returns `None` if `char_idx` is out of bounds (i.e. `char_idx > len_chars()`).
+    fn chars_at(&self, char_idx: CharOffset) -> Option<Chars>;
+
     fn lines(&self) -> Lines<'rope>;
+
+    /// Returns `None` if `line_break_idx` is out of bounds (i.e. `line_break_idx > len_lines()`).
+    fn lines_at(&self, line_break_idx: usize) -> Option<Lines>;
 
     fn chunks(&self) -> Chunks<'rope>;
 
@@ -97,7 +98,7 @@ pub trait RopeSliceTrait<'rope> {
 
 // End of public facing portion of this file.
 
-impl <'rope>RopeSliceTrait<'rope> for RopeSlice<'rope> {
+impl<'rope> RopeSliceTrait<'rope> for RopeSlice<'rope> {
     #[inline]
     fn len_bytes(&self) -> ByteLength {
         ByteLength(self.rope_slice.len_bytes())
@@ -176,7 +177,8 @@ impl <'rope>RopeSliceTrait<'rope> for RopeSlice<'rope> {
     fn chunk_at_byte(&self, byte_idx: ByteIndex) -> Option<Chunk<'rope>> {
         macros::some_if!(
             byte_idx <= self.len_bytes().0 => self.rope_slice.chunk_at_byte(byte_idx.0)
-        ).map(to_chunk)
+        )
+        .map(to_chunk)
     }
 
     /// Returns `None` if `char_idx` is out of bounds (i.e. `char_idx > len_chars()`).
@@ -184,15 +186,13 @@ impl <'rope>RopeSliceTrait<'rope> for RopeSlice<'rope> {
     fn chunk_at_char(&self, char_idx: CharOffset) -> Option<Chunk<'rope>> {
         macros::some_if!(
             char_idx <= self.len_chars() => self.rope_slice.chunk_at_char(char_idx.0)
-        ).map(to_chunk)
+        )
+        .map(to_chunk)
     }
 
     /// Returns `None` if `line_break_idx` is out of bounds (i.e. `line_break_idx > len_lines()`).
     #[inline]
-    fn chunk_at_line_break(
-        &self,
-        line_break_idx: usize,
-    ) -> Option<Chunk<'rope>> {
+    fn chunk_at_line_break(&self, line_break_idx: usize) -> Option<Chunk<'rope>> {
         macros::some_if!(
             line_break_idx <= self.len_lines() => self.rope_slice.chunk_at_line_break(line_break_idx)
         ).map(to_chunk)
@@ -203,14 +203,34 @@ impl <'rope>RopeSliceTrait<'rope> for RopeSlice<'rope> {
         self.rope_slice.bytes()
     }
 
+    /// Returns `None` if `byte_idx` is out of bounds (i.e. `byte_idx > len_bytes()`).
+    fn bytes_at(&self, byte_idx: ByteIndex) -> Option<ropey::iter::Bytes> {
+        macros::some_if!(
+            byte_idx.0 <= self.len_bytes().0 => self.rope_slice.bytes_at(byte_idx.0)
+        )
+    }
+
     #[inline]
     fn chars(&self) -> ropey::iter::Chars<'rope> {
         self.rope_slice.chars()
+    }
+    /// Returns `None` if `char_idx` is out of bounds (i.e. `char_idx > len_chars()`).
+    fn chars_at(&self, char_idx: CharOffset) -> Option<ropey::iter::Chars> {
+        macros::some_if!(
+            char_idx <= self.len_chars() => self.rope_slice.chars_at(char_idx.0)
+        )
     }
 
     #[inline]
     fn lines(&self) -> Lines<'rope> {
         self.rope_slice.lines().map(to_rope_line)
+    }
+
+    /// Returns `None` if `line_break_idx` is out of bounds (i.e. `line_break_idx > len_lines()`).
+    fn lines_at(&self, line_break_idx: usize) -> Option<Lines> {
+        macros::some_if!(
+            line_break_idx <= self.len_lines() => self.rope_slice.lines_at(line_break_idx).map(to_rope_line)
+        )
     }
 
     #[inline]
@@ -234,7 +254,7 @@ impl <'rope>RopeSliceTrait<'rope> for RopeSlice<'rope> {
         R: RangeBounds<CharOffset>,
     {
         to_slice_range(char_range, self.len_chars()).map(|r| RopeSlice {
-            rope_slice: self.rope_slice.slice(r)
+            rope_slice: self.rope_slice.slice(r),
         })
     }
 
@@ -246,8 +266,8 @@ impl <'rope>RopeSliceTrait<'rope> for RopeSlice<'rope> {
 impl<'rope> From<&'rope str> for RopeSlice<'rope> {
     #[inline]
     fn from(text: &'rope str) -> Self {
-        RopeSlice{
-            rope_slice: ropey::RopeSlice::from(text)
+        RopeSlice {
+            rope_slice: ropey::RopeSlice::from(text),
         }
     }
 }
@@ -275,14 +295,14 @@ impl<'slice> std::cmp::PartialEq<RopeSlice<'slice>> for RopeSlice<'slice> {
     }
 }
 
-impl<'rope,'slice> std::cmp::PartialEq<&'rope str> for RopeSlice<'slice> {
+impl<'rope, 'slice> std::cmp::PartialEq<&'rope str> for RopeSlice<'slice> {
     #[inline]
     fn eq(&self, other: &&'rope str) -> bool {
         self.rope_slice.eq(other)
     }
 }
 
-impl<'rope,'slice> std::cmp::PartialEq<RopeSlice<'slice>> for &'rope str {
+impl<'rope, 'slice> std::cmp::PartialEq<RopeSlice<'slice>> for &'rope str {
     #[inline]
     fn eq(&self, other: &RopeSlice<'slice>) -> bool {
         self.eq(&other.rope_slice)
@@ -310,21 +330,21 @@ impl<'rope, 'slice> std::cmp::PartialEq<String> for RopeSlice<'slice> {
     }
 }
 
-impl<'rope,'slice> std::cmp::PartialEq<RopeSlice<'slice>> for String {
+impl<'rope, 'slice> std::cmp::PartialEq<RopeSlice<'slice>> for String {
     #[inline]
     fn eq(&self, other: &RopeSlice<'slice>) -> bool {
         self.eq(&other.rope_slice)
     }
 }
 
-impl<'rope,'slice> std::cmp::PartialEq<std::borrow::Cow<'rope, str>> for RopeSlice<'slice> {
+impl<'rope, 'slice> std::cmp::PartialEq<std::borrow::Cow<'rope, str>> for RopeSlice<'slice> {
     #[inline]
     fn eq(&self, other: &std::borrow::Cow<'rope, str>) -> bool {
         self.rope_slice.eq(other)
     }
 }
 
-impl<'rope,'slice> std::cmp::PartialEq<RopeSlice<'slice>> for std::borrow::Cow<'rope, str> {
+impl<'rope, 'slice> std::cmp::PartialEq<RopeSlice<'slice>> for std::borrow::Cow<'rope, str> {
     #[inline]
     fn eq(&self, other: &RopeSlice<'slice>) -> bool {
         self.eq(&other.rope_slice)
@@ -345,7 +365,7 @@ impl<'slice> std::cmp::PartialOrd<RopeSlice<'slice>> for RopeSlice<'slice> {
     }
 }
 
-impl <'rope>RopeSliceTrait<'rope> for RopeLine<'rope> {
+impl<'rope> RopeSliceTrait<'rope> for RopeLine<'rope> {
     // In general in this impl we punch through to the `rope_slice` field if we didn't cahnge the
     // type, and we just call the method on `.0` if we did, so we don't have to reimplement the
     // logic
@@ -427,10 +447,7 @@ impl <'rope>RopeSliceTrait<'rope> for RopeLine<'rope> {
 
     /// Returns `None` if `line_break_idx` is out of bounds (i.e. `line_break_idx > len_lines()`).
     #[inline]
-    fn chunk_at_line_break(
-        &self,
-        line_break_idx: usize,
-    ) -> Option<Chunk<'rope>> {
+    fn chunk_at_line_break(&self, line_break_idx: usize) -> Option<Chunk<'rope>> {
         self.0.chunk_at_line_break(line_break_idx)
     }
 
@@ -439,14 +456,29 @@ impl <'rope>RopeSliceTrait<'rope> for RopeLine<'rope> {
         self.0.rope_slice.bytes()
     }
 
+    /// Returns `None` if `byte_idx` is out of bounds (i.e. `byte_idx > len_bytes()`).
+    fn bytes_at(&self, byte_idx: ByteIndex) -> Option<ropey::iter::Bytes> {
+        self.0.bytes_at(byte_idx)
+    }
+
     #[inline]
     fn chars(&self) -> ropey::iter::Chars<'rope> {
         self.0.rope_slice.chars()
     }
 
+    /// Returns `None` if `char_idx` is out of bounds (i.e. `char_idx > len_chars()`).
+    fn chars_at(&self, char_idx: CharOffset) -> Option<ropey::iter::Chars> {
+        self.0.chars_at(char_idx)
+    }
+
     #[inline]
     fn lines(&self) -> Lines<'rope> {
         self.0.lines()
+    }
+
+    /// Returns `None` if `line_break_idx` is out of bounds (i.e. `line_break_idx > len_lines()`).
+    fn lines_at(&self, line_break_idx: usize) -> Option<Lines> {
+        self.0.lines_at(line_break_idx)
     }
 
     #[inline]
@@ -505,14 +537,14 @@ impl<'slice> std::cmp::PartialEq<RopeLine<'slice>> for RopeLine<'slice> {
     }
 }
 
-impl<'rope,'slice> std::cmp::PartialEq<&'rope str> for RopeLine<'slice> {
+impl<'rope, 'slice> std::cmp::PartialEq<&'rope str> for RopeLine<'slice> {
     #[inline]
     fn eq(&self, other: &&'rope str) -> bool {
         self.0.rope_slice.eq(other)
     }
 }
 
-impl<'rope,'slice> std::cmp::PartialEq<RopeLine<'slice>> for &'rope str {
+impl<'rope, 'slice> std::cmp::PartialEq<RopeLine<'slice>> for &'rope str {
     #[inline]
     fn eq(&self, other: &RopeLine<'slice>) -> bool {
         self.eq(&other.0.rope_slice)
@@ -540,21 +572,21 @@ impl<'rope, 'slice> std::cmp::PartialEq<String> for RopeLine<'slice> {
     }
 }
 
-impl<'rope,'slice> std::cmp::PartialEq<RopeLine<'slice>> for String {
+impl<'rope, 'slice> std::cmp::PartialEq<RopeLine<'slice>> for String {
     #[inline]
     fn eq(&self, other: &RopeLine<'slice>) -> bool {
         self.eq(&other.0.rope_slice)
     }
 }
 
-impl<'rope,'slice> std::cmp::PartialEq<std::borrow::Cow<'rope, str>> for RopeLine<'slice> {
+impl<'rope, 'slice> std::cmp::PartialEq<std::borrow::Cow<'rope, str>> for RopeLine<'slice> {
     #[inline]
     fn eq(&self, other: &std::borrow::Cow<'rope, str>) -> bool {
         self.0.rope_slice.eq(other)
     }
 }
 
-impl<'rope,'slice> std::cmp::PartialEq<RopeLine<'slice>> for std::borrow::Cow<'rope, str> {
+impl<'rope, 'slice> std::cmp::PartialEq<RopeLine<'slice>> for std::borrow::Cow<'rope, str> {
     #[inline]
     fn eq(&self, other: &RopeLine<'slice>) -> bool {
         self.eq(&other.0.rope_slice)

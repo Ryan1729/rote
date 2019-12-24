@@ -77,8 +77,28 @@ fn get_search_ranges_works_on_this_late_found_generated_example() {
 }
 
 #[test]
-fn get_search_ranges_works_on_this_mutation_of_the_late_found_generated_example() {
+fn get_search_ranges_works_on_this_reduction_of_the_late_found_generated_example() {
     get_search_ranges_works_on("0A", "::0A");
+}
+
+#[test]
+fn get_search_ranges_works_on_this_second_identical_needle_and_haystack() {
+    get_search_ranges_works_on("\"#\"", "\"#\"");
+}
+
+#[test]
+fn get_search_ranges_works_on_this_reduction_of_the_second_identical_needle_and_haystack() {
+    get_search_ranges_works_on("123", "123");
+}
+
+#[test]
+fn get_search_ranges_works_on_this_fffd_generated_example() {
+    get_search_ranges_works_on("\"#\"", "�\"#\"");
+}
+
+#[test]
+fn get_search_ranges_works_on_this_reduction_of_the_fffd_generated_example() {
+    get_search_ranges_works_on("123", "�123");
 }
 
 proptest! {

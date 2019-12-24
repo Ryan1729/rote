@@ -375,12 +375,16 @@ fn get_search_ranges_impl(
         }
     }
 
-    macro_rules! opts_match {
-        ($op1: expr, $op2: expr, $match_case: block else $else_case: block) => {
-            match ($op1, $op2) {
-                (Some(e1), Some(e2)) if e1 == e2 => $match_case,
-                (None, None) => $match_case,
-                _ => $else_case,
+    macro_rules! opt_iters_match_once {
+        ($method: ident : $op_iter1: expr, $op_iter2: expr) => {
+            match (&mut $op_iter1, &mut $op_iter2) {
+                (Some(ref mut i1), Some(ref mut i2)) => match (i1.$method(), i2.$method()) {
+                    (Some(e1), Some(e2)) if e1 == e2 => true,
+                    (None, None) => true,
+                    _ => false,
+                },
+                (None, None) => true,
+                _ => false,
             }
         };
     }
@@ -391,24 +395,27 @@ fn get_search_ranges_impl(
         let mut period_chars = needle.chars().skip(period as usize);
         let mut matches = true;
         for _ in 0..(ell + 1) {
-            opts_match!(dbg!(start_chars.next()), dbg!(period_chars.next()), {} else {
-                matches = false;
-                break;
-            });
+            match (start_chars.next(), period_chars.next()) {
+                (Some(e1), Some(e2)) if e1 == e2 => {}
+                (None, None) => {}
+                _ => {
+                    matches = false;
+                    break;
+                }
+            }
         }
         matches
     };
 
     // this avoids trapping the ropey `Chars` in a `Skip` struct, so we can still call `prev`.
-    macro_rules! skip_manually {
-        ($iter: expr, $n: expr) => {{
-            perf_viz::record_guard!("skip_manually");
-            let mut iter = $iter;
-            let n = $n as usize;
-            if n != 0 {
-                let _must_use = iter.nth(n - 1);
-            }
-            iter
+    macro_rules! get_chars_at {
+        ($rope: expr, $n: expr) => {{
+            perf_viz::record_guard!("get_chars_at");
+            use std::convert::TryInto;
+            $n.try_into()
+                .ok()
+                .map(CharOffset)
+                .and_then(|offset| $rope.chars_at(offset))
         }};
     }
 
@@ -419,22 +426,18 @@ fn get_search_ranges_impl(
         while j <= haystack_len - needle_len {
             i = std::cmp::max(ell, memory) + 1;
             {
-                let mut n_chars = skip_manually!(needle.chars(), i);
-                let mut h_chars = skip_manually!(haystack.chars(), i + j);
-                while i < needle_len
-                    && opts_match!(n_chars.next(), h_chars.next(), {true} else {false})
-                {
+                let mut n_chars = get_chars_at!(needle, i);
+                let mut h_chars = get_chars_at!(haystack, i + j);
+                while i < needle_len && opt_iters_match_once!(next: n_chars, h_chars) {
                     i += 1;
                 }
             }
             if i >= needle_len {
                 i = ell;
                 {
-                    let mut n_chars = skip_manually!(needle.chars(), needle_len - i + 1);
-                    let mut h_chars = skip_manually!(haystack.chars(), haystack_len - (i + j) + 1);
-                    while i > memory
-                        && opts_match!(dbg!(n_chars.prev()), dbg!(h_chars.prev()), {true} else {false})
-                    {
+                    let mut n_chars = get_chars_at!(needle, needle_len - i + 1);
+                    let mut h_chars = get_chars_at!(haystack, haystack_len - (i + j) + 1);
+                    while i > memory && opt_iters_match_once!(prev: n_chars, h_chars) {
                         i -= 1;
                     }
                 }
@@ -454,22 +457,19 @@ fn get_search_ranges_impl(
         while j <= haystack_len - needle_len {
             i = ell + 1;
             {
-                let mut n_chars = skip_manually!(needle.chars(), i);
-                let mut h_chars = skip_manually!(haystack.chars(), i + j);
-                while i < needle_len
-                    && opts_match!(n_chars.next(), h_chars.next(), {true} else {false})
-                {
+                let mut n_chars = get_chars_at!(needle, i);
+                let mut h_chars = get_chars_at!(haystack, i + j);
+                while i < needle_len && opt_iters_match_once!(next: n_chars, h_chars) {
                     i += 1;
                 }
             }
             if i >= needle_len {
                 i = ell;
                 {
-                    let mut n_chars = skip_manually!(needle.chars(), i + 1);
-                    let mut h_chars = skip_manually!(haystack.chars(), i + j + 1);
+                    let mut n_chars = get_chars_at!(needle, i + 1);
+                    let mut h_chars = get_chars_at!(haystack, i + j + 1);
 
-                    while i >= 0 && opts_match!(n_chars.prev(), h_chars.prev(), {true} else {false})
-                    {
+                    while i >= 0 && opt_iters_match_once!(prev: n_chars, h_chars) {
                         i -= 1;
                     }
                 }
