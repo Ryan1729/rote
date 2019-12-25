@@ -435,8 +435,8 @@ fn get_search_ranges_impl(
             if i >= needle_len {
                 i = ell;
                 {
-                    let mut n_chars = get_chars_at!(needle, needle_len - i + 1);
-                    let mut h_chars = get_chars_at!(haystack, haystack_len - (i + j) + 1);
+                    let mut n_chars = get_chars_at!(needle, i + 1);
+                    let mut h_chars = get_chars_at!(haystack, i + j + 1);
                     while i > memory && opt_iters_match_once!(prev: n_chars, h_chars) {
                         i -= 1;
                     }

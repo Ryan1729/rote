@@ -98,7 +98,17 @@ fn get_search_ranges_works_on_this_fffd_generated_example() {
 
 #[test]
 fn get_search_ranges_works_on_this_reduction_of_the_fffd_generated_example() {
-    get_search_ranges_works_on("123", "�123");
+    get_search_ranges_works_on("121", "A121");
+}
+
+#[test]
+fn get_search_ranges_works_on_this_registered_trademark_generated_example() {
+    get_search_ranges_works_on("\"#\"", "®�\"#\"");
+}
+
+#[test]
+fn get_search_ranges_works_on_this_reduction_of_the_registered_trademark_generated_example() {
+    get_search_ranges_works_on("121", "34121");
 }
 
 proptest! {
@@ -132,7 +142,6 @@ fn get_search_ranges_reference_impl(
         };
         ($name: ident, $a: ident, $b: ident, $test: expr) => {
             fn $name(rope: &RopeSlice) -> Option<(isize, isize)> {
-                perf_viz::record_guard!(stringify!($name));
                 let len = rope.len_chars().0 as isize;
                 let mut ms: isize = -1;
                 let mut j: isize = 0;
@@ -216,12 +225,16 @@ fn get_search_ranges_reference_impl(
         }
     }
 
-    macro_rules! opts_match {
-        ($op1: expr, $op2: expr, $match_case: block else $else_case: block) => {
-            match ($op1, $op2) {
-                (Some(e1), Some(e2)) if e1 == e2 => $match_case,
-                (None, None) => $match_case,
-                _ => $else_case,
+    macro_rules! opt_iters_match_once {
+        ($method: ident : $op_iter1: expr, $op_iter2: expr) => {
+            match (&mut $op_iter1, &mut $op_iter2) {
+                (Some(ref mut i1), Some(ref mut i2)) => match (i1.$method(), i2.$method()) {
+                    (Some(e1), Some(e2)) if e1 == e2 => true,
+                    (None, None) => true,
+                    _ => false,
+                },
+                (None, None) => true,
+                _ => false,
             }
         };
     }
@@ -232,24 +245,27 @@ fn get_search_ranges_reference_impl(
         let mut period_chars = needle.chars().skip(period as usize);
         let mut matches = true;
         for _ in 0..(ell + 1) {
-            opts_match!(dbg!(start_chars.next()), dbg!(period_chars.next()), {} else {
-                matches = false;
-                break;
-            });
+            match (start_chars.next(), period_chars.next()) {
+                (Some(e1), Some(e2)) if e1 == e2 => {}
+                (None, None) => {}
+                _ => {
+                    matches = false;
+                    break;
+                }
+            }
         }
         matches
     };
 
     // this avoids trapping the ropey `Chars` in a `Skip` struct, so we can still call `prev`.
-    macro_rules! skip_manually {
-        ($iter: expr, $n: expr) => {{
-            let mut iter = $iter;
-            for _ in 0..($n as usize) {
-                if iter.next().is_none() {
-                    break;
-                }
-            }
-            iter
+    macro_rules! get_chars_at {
+        ($rope: expr, $n: expr) => {{
+            perf_viz::record_guard!("get_chars_at");
+            use std::convert::TryInto;
+            $n.try_into()
+                .ok()
+                .map(CharOffset)
+                .and_then(|offset| $rope.chars_at(offset))
         }};
     }
 
@@ -260,22 +276,18 @@ fn get_search_ranges_reference_impl(
         while j <= haystack_len - needle_len {
             i = std::cmp::max(ell, memory) + 1;
             {
-                let mut n_chars = skip_manually!(needle.chars(), i);
-                let mut h_chars = skip_manually!(haystack.chars(), i + j);
-                while i < needle_len
-                    && opts_match!(n_chars.next(), h_chars.next(), {true} else {false})
-                {
+                let mut n_chars = get_chars_at!(needle, i);
+                let mut h_chars = get_chars_at!(haystack, i + j);
+                while i < needle_len && opt_iters_match_once!(next: n_chars, h_chars) {
                     i += 1;
                 }
             }
             if i >= needle_len {
                 i = ell;
                 {
-                    let mut n_chars = skip_manually!(needle.chars(), needle_len - i + 1);
-                    let mut h_chars = skip_manually!(haystack.chars(), haystack_len - (i + j) + 1);
-                    while i > memory
-                        && opts_match!(dbg!(n_chars.prev()), dbg!(h_chars.prev()), {true} else {false})
-                    {
+                    let mut n_chars = get_chars_at!(needle, i + 1);
+                    let mut h_chars = get_chars_at!(haystack, i + j + 1);
+                    while i > memory && opt_iters_match_once!(prev: n_chars, h_chars) {
                         i -= 1;
                     }
                 }
@@ -290,27 +302,23 @@ fn get_search_ranges_reference_impl(
             }
         }
     } else {
-        perf_viz::record_guard!("!period_matches");
         period = std::cmp::max(ell + 1, needle_len - ell - 1) + 1;
         while j <= haystack_len - needle_len {
             i = ell + 1;
             {
-                let mut n_chars = skip_manually!(needle.chars(), i);
-                let mut h_chars = skip_manually!(haystack.chars(), i + j);
-                while i < needle_len
-                    && opts_match!(n_chars.next(), h_chars.next(), {true} else {false})
-                {
+                let mut n_chars = get_chars_at!(needle, i);
+                let mut h_chars = get_chars_at!(haystack, i + j);
+                while i < needle_len && opt_iters_match_once!(next: n_chars, h_chars) {
                     i += 1;
                 }
             }
             if i >= needle_len {
                 i = ell;
                 {
-                    let mut n_chars = skip_manually!(needle.chars(), i + 1);
-                    let mut h_chars = skip_manually!(haystack.chars(), i + j + 1);
+                    let mut n_chars = get_chars_at!(needle, i + 1);
+                    let mut h_chars = get_chars_at!(haystack, i + j + 1);
 
-                    while i >= 0 && opts_match!(n_chars.prev(), h_chars.prev(), {true} else {false})
-                    {
+                    while i >= 0 && opt_iters_match_once!(prev: n_chars, h_chars) {
                         i -= 1;
                     }
                 }
