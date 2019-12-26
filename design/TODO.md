@@ -8,6 +8,8 @@ Once everything above this line is done we can start bootstrapping, (using this 
   * add `--hidpi-override` arg
   * make sure 1.0, 1.5, and 2.0 work.
 
+* let the user know how many search results there are somehow
+
 * Do some compile-time profiling so I can see what is taking so ling to compile and either pull that into a crate (meaning it is compiled less often) or change it in some way to make it compile faster
 
 * Ctrl-E to toggle single line comments
@@ -40,11 +42,20 @@ Once everything above this line is done we can start bootstrapping, (using this 
       * Okay, what if we use [`tree-sitter`](http://tree-sitter.github.io/tree-sitter/)? It seems to be designed specifically for my use case, and there is already a rust grammar made for it. And since `tree-sitter` is written in rust it is likely to be maintained.
         * The documentation is a little light, but I think the process is that I can take the generated `parser.c` and `scanner.c` from [`tree-sitter-rust`](https://github.com/tree-sitter/tree-sitter-rust) and just stick them into my source tree, then using the [`tree-sitter` rust bindings](https://github.com/tree-sitter/tree-sitter/tree/master/lib/binding_rust) I can set up a build.rs and afterwards just pretend `tree-sitter` is a rust library. Then, updating to the newest version of `tree-sitter` would just be as easy as editing the Cargo.toml and overwriting the c files with new versions. We'll see if I misunderstood something when I try it I guess.
 
+* ctrl-g Go to line number
+
 * draw an underline below matching braces, parens, brackets when a cursor is next to them.
   * draw a different thing (dotted line?) if there is no matching brace found.
   * jump to matching brace?
 
-* scrollable search results list
+* PageUp/Down?
+    * maybe these could be jump to matching brace?
+
+* scrollable file search results list
+
+* visual feedback on copy
+    * as in, copy-paste
+    * so say have the selection rectangle shrink towards the cursor?
 
 * make auto-tab-scroll happen when a new tab is created
   * fix auto-scroll drifting as the amount of tabs increases.

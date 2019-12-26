@@ -719,7 +719,6 @@ fn delete_within_range(
     rope: &mut Rope,
     range: AbsoluteCharOffsetRange,
 ) -> (RangeEdit, AbsoluteCharOffset, isize) {
-    dbg!(&rope, &range);
     let chars = copy_string(rope, range);
 
     rope.remove(range.range());

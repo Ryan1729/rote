@@ -347,13 +347,11 @@ fn get_tab_spaced_rect(
 }
 
 fn begin_view(ui: &mut UIState, view: &View) {
-    if_changed::dbg!(ui.navigation);
     if let Some(buffer_view_data) = view.get_current_buffer_view_data() {
         ui.navigation = navigation_from_cursors(&buffer_view_data.cursors);
     } else {
         // use the navigation that was set before `view` was called if there was one.
     }
-    if_changed::dbg!(ui.navigation);
 }
 
 fn end_view(ui: &mut UIState) {

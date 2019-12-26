@@ -560,7 +560,6 @@ impl State {
                 self.set_find_id(self.current_buffer_id.index);
             }
             MenuMode::Hidden => {
-                dbg!(MenuMode::Hidden);
                 self.set_text_id(self.current_buffer_id.index);
             }
         }
@@ -662,7 +661,7 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
     }
     perf_viz::record_guard!("update_and_render");
 
-    // if cfg!(debug_assertions)
+    if cfg!(debug_assertions)
     {
         if_changed::dbg!(&input);
     }

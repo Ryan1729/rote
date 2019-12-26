@@ -531,8 +531,13 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
 
                     if let Some(rate) = loop_helper.report_rate() {
                         glutin_context.window().set_title(&format!(
-                            "{} {:.0} FPS {:?} click {:?}",
+                            "{}{} {:.0} FPS {:?} click {:?}",
                             title,
+                            if cfg!(debug_assertions) {
+                                " DEBUG"
+                            } else {
+                                ""
+                            },
                             rate,
                             (ui.mouse_pos.x, ui.mouse_pos.y),
                             (last_click_x, last_click_y),
@@ -906,7 +911,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                                     ..
                                 },
                             ..
-                        } => match dbg!(keypress) {
+                        } => match if cfg!(debug_assertions) {dbg!(keypress)} else {keypress} {
                             VirtualKeyCode::Escape => {
                                 call_u_and_r!(Input::SetSizeDependents(SizeDependents {
                                     buffer_xywh: wimp_render::get_edit_buffer_xywh(
@@ -995,7 +1000,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                             _ => (),
                         },
                         WindowEvent::ReceivedCharacter(mut c) => {
-                            if c != '\u{1}'       // "start of heading" (sent with Ctrl-a)
+                            if c != '\u{1}'     // "start of heading" (sent with Ctrl-a)
                              && c != '\u{3}'    // "end of text" (sent with Ctrl-c)
                              && c != '\u{4}'    // "end of transmission" (sent with Ctrl-d)
                              && c != '\u{6}'    // "acknowledge" (sent with Ctrl-f)
@@ -1011,8 +1016,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                              && c != '\u{19}'   // "end of medium" (sent with Ctrl-y)
                              && c != '\u{1a}'   // "substitute" (sent with Ctrl-z)
                              && c != '\u{1b}'   // escape
-                             && c != '\u{7f}'
-                            // delete
+                             && c != '\u{7f}'   // delete
                             {
                                 if c == '\r' {
                                     c = '\n';
