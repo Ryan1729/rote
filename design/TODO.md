@@ -5,15 +5,31 @@ Once everything above this line is done we can start bootstrapping, (using this 
 ----------------------------
 
 * handle hidpi properly
-  * add `--hidpi-override` arg
   * make sure 1.0, 1.5, and 2.0 work.
 
-* let the user know how many search results there are somehow
+* fix undo acting weird sometimes
+    * improve tests so they catch the problem
+    * seems to happen only on large files? Maybe only after a certain amount of edits?
+    * this may or may not be the whole issue, but if you do something, then undo a bit then redo, it seems to be replaying things it shouldn't.
+        * for example: type 12345, then undo twice to get "123" then type 6 and then redo and you type 5
+        * given the action in the buffer was a cursor movement, that can (partially?) explain the weirdness
+    * another potentially separate issue:
+        * select some text with the keyboard, from the right to the left and cut it.
+        * then try to undo
+
+* select search field on ctrl-f
+    * allows easy deletion of previous thing
+    * maybe just replace with selection automatically?
 
 * Do some compile-time profiling so I can see what is taking so ling to compile and either pull that into a crate (meaning it is compiled less often) or change it in some way to make it compile faster
 
 * Ctrl-E to toggle single line comments
   * could probably reuse tab insertion/deletion code.
+
+* let the user know how many search results there are somehow
+
+* soft focus follows mouse on menus?
+    * if the cursor is on the main text when, for example, the find menu is up, then the main text should be scrolled, not the find box.
 
 * decide whether it would be better to start with a simple shelling out to the compiler to get error messages, or if we should start with trying to integrate RLS
   * the criteria are:
@@ -52,6 +68,8 @@ Once everything above this line is done we can start bootstrapping, (using this 
     * maybe these could be jump to matching brace?
 
 * scrollable file search results list
+
+* update highlights after edits change the text
 
 * visual feedback on copy
     * as in, copy-paste

@@ -97,21 +97,26 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
     args.next();
 
     let mut data_dir = None;
+    let mut hidpi_factor = None;
 
     const VERSION: &'static str = "--version";
     const HELP: &'static str = "--help";
     const DATA_DIR_OVERRIDE: &'static str = "--data-dir-override";
+    const HIDPI_OVERRIDE: &'static str = "--hidpi-override";
 
     while let Some(s) = args.next() {
         let s: &str = &s;
         match s {
             HELP => {
-                let accepted_args = [VERSION, HELP, DATA_DIR_OVERRIDE];
+                let accepted_args = [VERSION, HELP, DATA_DIR_OVERRIDE, HIDPI_OVERRIDE];
                 println!("accepted args: ");
                 for arg in accepted_args.iter() {
                     print!("    {}", arg);
                     if *arg == DATA_DIR_OVERRIDE {
                         print!(" <data directory path>");
+                    }
+                    if *arg == HIDPI_OVERRIDE {
+                        print!(" <hidpi factor (positive floating point number)>");
                     }
                     println!()
                 }
@@ -129,6 +134,18 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                     )
                 })?)
                 .map(PathBuf::from);
+            }
+            HIDPI_OVERRIDE => {
+                hidpi_factor = Some(args.next().ok_or_else(|| {
+                    format!(
+                        "{0} needs an argument. For example: {0} 1.5",
+                        HIDPI_OVERRIDE
+                    )
+                })?)
+                .and_then(|s| {
+                    use std::str::FromStr;
+                    f64::from_str(&s).ok()
+                });
             }
             _ => {
                 eprintln!("unknown arg {:?}", s);
@@ -205,12 +222,19 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
             &events,
         )?;
     let glutin_context = unsafe { glutin_context.make_current().map_err(|(_, e)| e)? };
+
+    macro_rules! get_hidpi_factor {
+        () => {
+            hidpi_factor.unwrap_or_else(|| glutin_context.window().hidpi_factor())
+        }
+    }
+
     dbg!(glutin_context.get_pixel_format());
 
     let scroll_multiplier: f32 = 16.0;
 
     let (mut gl_state, char_dims) = gl_layer::init(
-        glutin_context.window().hidpi_factor() as f32,
+        get_hidpi_factor!() as f32,
         &wimp_render::TEXT_SIZES,
         wimp_render::TEXT_BACKGROUND_COLOUR,
         |symbol| glutin_context.get_proc_address(symbol) as _,
@@ -226,7 +250,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
     let mut dimensions = glutin_context
         .window()
         .inner_size()
-        .to_physical(glutin_context.window().hidpi_factor());
+        .to_physical(get_hidpi_factor!());
 
     macro_rules! screen_wh {
         () => {
@@ -665,7 +689,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                         WindowEvent::CloseRequested => quit!(),
                         WindowEvent::Resized(size) => {
                             let window = glutin_context.window();
-                            let hidpi_factor = window.hidpi_factor();
+                            let hidpi_factor = get_hidpi_factor!();
                             glutin_context.resize(size.to_physical(hidpi_factor));
                             let ls = window.inner_size();
                             dimensions = ls.to_physical(hidpi_factor);

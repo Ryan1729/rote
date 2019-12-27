@@ -222,7 +222,7 @@ const TAB_BAR_BACKGROUND_COLOUR: Colour = palette![alt cyan];
 const TAB_BACKGROUND_COLOUR: Colour = palette![cyan];
 const TAB_TEXT_COLOUR: Colour = palette![white];
 
-const TEXT_SIZE: f32 = 60.0;
+const TEXT_SIZE: f32 = 32.0;
 const FIND_REPLACE_SIZE: f32 = 26.0;
 const STATUS_SIZE: f32 = 22.0;
 const TAB_SIZE: f32 = 16.0;

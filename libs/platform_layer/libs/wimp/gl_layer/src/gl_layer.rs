@@ -319,29 +319,29 @@ where
     let vertex_max = vertex_count;
 
     macro_rules! get_char_dim {
-        ($scale:ident) => {
+        ($scale:expr) => {{
+            let scale = $scale;
             CharDim {
                 w: {
                     // We currently assume the font is monospaced.
                     let em_space_char = '\u{2003}';
-                    let h_metrics = font.glyph(em_space_char).scaled($scale).h_metrics();
+                    let h_metrics = font.glyph(em_space_char).scaled(scale).h_metrics();
 
                     h_metrics.advance_width
                 },
                 h: {
-                    let v_metrics = font.v_metrics($scale);
+                    let v_metrics = font.v_metrics(scale);
 
                     v_metrics.ascent + -v_metrics.descent + v_metrics.line_gap
                 },
             }
-        };
+        }};
     }
 
     let mut char_dims = Vec::with_capacity(text_sizes.len());
 
     for size in text_sizes {
-        let scale = Scale::uniform((size * hidpi_factor).round());
-        char_dims.push(get_char_dim!(scale));
+        char_dims.push(get_char_dim!(get_scale(*size, hidpi_factor)));
     }
 
     Ok((
@@ -359,6 +359,10 @@ where
         },
         char_dims,
     ))
+}
+
+fn get_scale(size: f32, hidpi_factor: f32) -> Scale {
+    Scale::uniform((size * hidpi_factor).round())
 }
 
 pub fn set_dimensions(state: &mut State, hidpi_factor: f32, (width, height): (i32, i32)) {
@@ -698,12 +702,14 @@ pub fn render(
         ref mut vertex_count,
         ref mut vertex_max,
         ref mut glyph_brush,
+        hidpi_factor,
         ..
     }: &mut State,
     text_and_rects: Vec<TextOrRect>,
     width: u32,
     height: u32,
 ) -> Res<()> {
+    let hidpi_factor = *hidpi_factor;
     let mut highlight_ranges = Vec::new();
     perf_viz::start_record!("for &text_and_rects");
     for t_or_r in text_and_rects {
@@ -716,7 +722,7 @@ pub fn render(
             }) => {
                 let section = Section {
                     text: &text,
-                    scale: Scale::uniform(size),
+                    scale: get_scale(size, hidpi_factor),
                     screen_position: rect.min,
                     bounds: rect.max,
                     color,
