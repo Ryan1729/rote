@@ -230,6 +230,7 @@ const TAB_SIZE: f32 = 16.0;
 const SEPARATOR_LINE_THICKNESS: f32 = 2.0;
 
 pub const TEXT_SIZES: [f32; 4] = [TEXT_SIZE, STATUS_SIZE, TAB_SIZE, FIND_REPLACE_SIZE];
+pub const SCROLL_MULTIPLIER: f32 = TEXT_SIZE * 3.0;
 
 pub fn get_font_info(char_dims: &[CharDim]) -> FontInfo {
     debug_assert!(

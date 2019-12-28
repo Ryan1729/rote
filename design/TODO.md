@@ -1,12 +1,5 @@
 ## TODO
 
-Once everything above this line is done we can start bootstrapping, (using this editor to edit itself.)
-
-----------------------------
-
-* handle hidpi properly
-  * make sure 1.0, 1.5, and 2.0 work.
-
 * fix undo acting weird sometimes
     * improve tests so they catch the problem
     * seems to happen only on large files? Maybe only after a certain amount of edits?
@@ -20,6 +13,9 @@ Once everything above this line is done we can start bootstrapping, (using this 
 * select search field on ctrl-f
     * allows easy deletion of previous thing
     * maybe just replace with selection automatically?
+
+* fix frame drop when scrolling that became apparent when increasing the scroll mutiplier
+    * very apparent in debug mode
 
 * Do some compile-time profiling so I can see what is taking so ling to compile and either pull that into a crate (meaning it is compiled less often) or change it in some way to make it compile faster
 

@@ -231,8 +231,6 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
 
     dbg!(glutin_context.get_pixel_format());
 
-    let scroll_multiplier: f32 = 16.0;
-
     let (mut gl_state, char_dims) = gl_layer::init(
         get_hidpi_factor!() as f32,
         &wimp_render::TEXT_SIZES,
@@ -1069,7 +1067,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                             modifiers: ModifiersState { shift: false, .. },
                             ..
                         } => {
-                            let scroll_y = y * scroll_multiplier;
+                            let scroll_y = y * wimp_render::SCROLL_MULTIPLIER;
                             if wimp_render::inside_tab_area(ui.mouse_pos, font_info) {
                                 ui.tab_scroll += scroll_y;
                             } else {
@@ -1081,7 +1079,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                             modifiers: ModifiersState { shift: true, .. },
                             ..
                         } => {
-                            let scroll_y = y * scroll_multiplier;
+                            let scroll_y = y * wimp_render::SCROLL_MULTIPLIER;
                             if wimp_render::inside_tab_area(ui.mouse_pos, font_info) {
                                 ui.tab_scroll += scroll_y;
                             } else {
