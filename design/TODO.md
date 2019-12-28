@@ -9,10 +9,17 @@
     * another potentially separate issue:
         * select some text with the keyboard, from the right to the left and cut it.
         * then try to undo
+    * might be a reduced/clearer version of what was meant above (as in the paste was missing):
+        * type a character
+        * paste something
+        * type a character
+        * try to undo
 
 * select search field on ctrl-f
     * allows easy deletion of previous thing
     * maybe just replace with selection automatically?
+
+* delete line on F1
 
 * fix frame drop when scrolling that became apparent when increasing the scroll mutiplier
     * very apparent in debug mode
@@ -23,6 +30,7 @@
   * could probably reuse tab insertion/deletion code.
 
 * let the user know how many search results there are somehow
+    * The need for this manifests most when there are 0 results, which currently results in no action rather than an explicit indication of that fact.
 
 * soft focus follows mouse on menus?
     * if the cursor is on the main text when, for example, the find menu is up, then the main text should be scrolled, not the find box.

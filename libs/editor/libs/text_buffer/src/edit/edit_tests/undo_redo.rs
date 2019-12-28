@@ -22,11 +22,11 @@ prop_compose! {
 // After some thought I am unable to establish a relationship between this property holding and
 // the property we actually care about, undo/redo working. It seemed intuitive that either this
 // property would imply undo/redo works or vice versa. But the closest I have come to
-// demonstrating a link requires assumiong that there is only one edit that produces a given rope
+// demonstrating a link requires assuming that there is only one edit that produces a given rope
 // to rope transition, which is clearly false, (sometimes moving the cursor one spec doen the same
 // thing as Home/End.) So, at this time it does not seem worth it to try to make this property
 // hold. But it feels like it might make sense to do this later, and it also feels like without
-// a reminder of this happneing before, it moght happen again so I will leave this commented out.
+// a reminder of this happening before, it might happen again so I will leave this commented out.
 /*
 proptest! {
     #[test]
@@ -151,24 +151,10 @@ fn redo_redoes() {
 proptest! {
     #[test]
     fn undo_redo_is_a_no_op_if_there_are_no_valid_edits(
-        edits in arb::test_edits(SOME_AMOUNT, TestEditSpec::All)
+        s in ".*"
     ) {
-        //TODO generate initial buffer? This would simulate a load from a new file.
-        let initial_buffer: TextBuffer = d!();
+        let initial_buffer: TextBuffer = t_b!(s);
         let mut buffer: TextBuffer = deep_clone(&initial_buffer);
-
-        for edit in edits.iter() {
-            TestEdit::apply(&mut buffer, (*edit).clone());
-
-            // The cases where there are valid edits in the history should be covered by tests
-            // that call `undo_redo_works_on_these_edits_and_index` so we can just simplify the code
-            // here by just letting that case pass.
-            if !text_buffer_eq_ignoring_history!(buffer, initial_buffer) {
-                return Err(
-                    proptest::test_runner::TestCaseError::reject(format!("buffer was changed!: {:?} doesn't match {:?}", buffer, initial_buffer))
-                );
-            }
-        }
 
         // Redo with no redos left should be a no-op
         for _ in 0..3 {
@@ -251,7 +237,7 @@ fn undo_redo_works_on_these_edits_and_index<TestEdits: Borrow<[TestEdit]>>(
     assert_text_buffer_eq_ignoring_history!(buffer, final_buffer);
 
     // Redo with no redos left should be a no-op
-    for _ in 0..3 {
+    for _ in 0..10 {
         dbg!();
         buffer.redo();
     }
@@ -268,7 +254,7 @@ fn undo_redo_works_on_these_edits_and_index<TestEdits: Borrow<[TestEdit]>>(
     assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
 
     // undo with no undos left should be a no-op
-    for _ in 0..3 {
+    for _ in 0..10 {
         dbg!();
         buffer.undo();
     }
@@ -601,3 +587,66 @@ fn undo_redo_works_on_this_reduced_case_involving_a_select_bewtween_char_type_gr
 
     assert_text_buffer_eq_ignoring_history!(buffer, expected_buffer_after_second_edit);
 }
+
+// TODO make a version of `undo_redo_works_on` that catches this.
+#[test]
+fn does_not_allow_applying_stale_redos_in_this_case() {
+    let mut buffer: TextBuffer = d!();
+
+    TestEdit::apply(&mut buffer, TestEdit::Insert('1'));
+    TestEdit::apply(&mut buffer, TestEdit::Insert('2'));
+    TestEdit::apply(&mut buffer, TestEdit::Insert('3'));
+
+    let buffer_after_3 = deep_clone(&buffer);
+
+    TestEdit::apply(&mut buffer, TestEdit::Insert('4'));
+    TestEdit::apply(&mut buffer, TestEdit::Insert('5'));
+
+    // precondition
+    assert_eq!(buffer.rope.to_string(), "12345");
+
+    buffer.undo();
+    buffer.undo();
+
+    // precondition
+    assert_text_buffer_eq_ignoring_history!(buffer, buffer_after_3);
+    assert_eq!(buffer.rope.to_string(), "123");
+
+    TestEdit::apply(&mut buffer, TestEdit::Insert('6'));
+    
+    // precondition
+    assert_eq!(buffer.rope.to_string(), "1236");
+    let buffer_after_6 = deep_clone(&buffer);
+
+    buffer.redo();
+    
+    assert_text_buffer_eq_ignoring_history!(buffer, buffer_after_6);
+    assert_eq!(buffer.rope.to_string(), "1236");
+}
+
+// TODO make proptest version of this.
+#[test]
+fn undoes_pastes_properly_in_this_case() {
+    let initial_buffer: TextBuffer = d!();
+    let mut buffer: TextBuffer = deep_clone(&initial_buffer);
+
+    TestEdit::apply(&mut buffer, TestEdit::Insert('1'));
+
+    TestEdit::apply(&mut buffer, TestEdit::InsertString("234".to_string()));
+
+    let buffer_after_paste: TextBuffer = deep_clone(&buffer);
+
+    TestEdit::apply(&mut buffer, TestEdit::Insert('5'));
+
+    // precondition
+    assert_eq!(buffer.rope.to_string(), "12345");
+
+    buffer.undo();
+
+    assert_text_buffer_eq_ignoring_history!(buffer, buffer_after_paste);
+
+    buffer.undo();
+
+    assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
+}
+
