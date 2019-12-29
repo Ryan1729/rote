@@ -198,7 +198,9 @@ fn undo_redo_works_on_these_edits_and_index<TestEdits: Borrow<[TestEdit]>>(
     for edit in edits.iter() {
         TestEdit::apply(&mut buffer, (*edit).clone());
 
-        record_if_index_matches!();
+        if edit.is_recordable() {
+            record_if_index_matches!();
+        }
     }
 
     let expected_buffer_at_index = if let Some(b) = expected_buffer_at_index {
@@ -263,6 +265,77 @@ fn undo_redo_works_on_these_edits_and_index<TestEdits: Borrow<[TestEdit]>>(
     assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
 }
 
+fn undo_redo_works_on_all_these_edits<TestEdits: Borrow<[TestEdit]>>(
+    edits: TestEdits,
+) {
+    let edits = edits.borrow();
+
+    let initial_buffer: TextBuffer = d!();
+    let mut buffer: TextBuffer = deep_clone(&initial_buffer);
+
+    let mut expected_buffers: Vec<TextBuffer> = Vec::with_capacity(edits.len());
+
+    for edit in edits.iter() {
+        TestEdit::apply(&mut buffer, (*edit).clone());
+
+        expected_buffers.push(deep_clone(&buffer));
+    }
+
+    let final_buffer = deep_clone(&buffer);
+
+    let len = buffer.history.len();
+
+    // preconditon
+    assert_eq!(
+        expected_buffers.len(), 
+        len,
+        "wrong amount of expected_buffers"
+    );
+
+    if len != 0 {
+        for i in (0..len).rev() {
+            assert_text_buffer_eq_ignoring_history!(buffer, expected_buffers[i]);
+            buffer.undo();
+        }
+    }
+
+    assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
+
+    for i in 0..len {
+        buffer.redo();
+        assert_text_buffer_eq_ignoring_history!(buffer, expected_buffers[i]);
+    }
+
+    dbg!();
+    assert_text_buffer_eq_ignoring_history!(buffer, final_buffer);
+
+    // Redo with no redos left should be a no-op
+    for _ in 0..10 {
+        dbg!();
+        buffer.redo();
+    }
+
+    dbg!();
+    assert_text_buffer_eq_ignoring_history!(buffer, final_buffer);
+
+    for _ in 0..len {
+        dbg!();
+        dbg!(&mut buffer).undo();
+    }
+
+    dbg!();
+    assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
+
+    // undo with no undos left should be a no-op
+    for _ in 0..10 {
+        dbg!();
+        buffer.undo();
+    }
+
+    dbg!();
+    assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
+}
+
 proptest! {
     #[test]
     fn undo_redo_works((edits, index) in arb::test_edits_and_index(SOME_AMOUNT, TestEditSpec::All)) {
@@ -272,6 +345,11 @@ proptest! {
     #[test]
     fn undo_redo_works_on_inserts((edits, index) in arb::test_edits_and_index(SOME_AMOUNT, TestEditSpec::Insert)) {
         undo_redo_works_on_these_edits_and_index(edits, index);
+    }
+
+    #[test]
+    fn undo_redo_works_on_all_inserts(edits in arb::test_edits(SOME_AMOUNT, TestEditSpec::Insert)) {
+        undo_redo_works_on_all_these_edits(edits);
     }
 
     #[test]
@@ -286,6 +364,16 @@ proptest! {
 }
 
 #[test]
+fn undo_redo_works_on_this_near_minimal_set_of_edits() {
+    undo_redo_works_on_these_edits_and_index(
+        vec![
+            TestEdit::Insert('\u{0}'),
+        ],
+        0,
+    );
+}
+
+#[test]
 fn undo_redo_works_on_this_set_of_edits() {
     undo_redo_works_on_these_edits_and_index(
         vec![
@@ -293,6 +381,14 @@ fn undo_redo_works_on_this_set_of_edits() {
             TestEdit::Insert('a'),
             TestEdit::Insert('\n'),
         ],
+        0,
+    );
+}
+
+#[test]
+fn undo_redo_works_on_this_set_of_edits_with_a_cut() {
+    undo_redo_works_on_these_edits_and_index(
+        vec![TestEdit::Insert('¡'), TestEdit::Cut, TestEdit::MoveAllCursors(Move::ToLineEnd)],
         0,
     );
 }
@@ -482,7 +578,9 @@ fn undo_redo_works_on_this_reduced_move_to_line_start_case() {
 
     assert_text_buffer_eq_ignoring_history!(buffer, buffer_after_2);
 
-    buffer.undo();
+    // This was here before, but now cursor movements do not get 
+    // recorded in the history any more.
+    //buffer.undo();
 
     assert_text_buffer_eq_ignoring_history!(buffer, buffer_after_1);
 
@@ -588,7 +686,51 @@ fn undo_redo_works_on_this_reduced_case_involving_a_select_bewtween_char_type_gr
     assert_text_buffer_eq_ignoring_history!(buffer, expected_buffer_after_second_edit);
 }
 
-// TODO make a version of `undo_redo_works_on` that catches this.
+fn does_not_allow_applying_stale_redos_on<TestEdits: Borrow<[TestEdit]>>(
+    edits: TestEdits,
+    index: usize,
+) {
+    let edits = edits.borrow();
+
+    let initial_buffer: TextBuffer = d!();
+    let mut buffer: TextBuffer = deep_clone(&initial_buffer);
+
+    let len = edits.len();
+
+    for edit in edits.iter() {
+        TestEdit::apply(&mut buffer, (*edit).clone());
+    }
+
+    for _ in (index..len).rev() {
+        buffer.undo();
+    }
+
+    TestEdit::apply(&mut buffer, TestEdit::Insert('6'));
+
+    let final_buffer = deep_clone(&buffer);
+
+    for _ in index..(len + 2) {
+        buffer.redo();
+        assert_text_buffer_eq_ignoring_history!(buffer, final_buffer);
+    }
+
+    if len != 0 {
+        for _ in 0..len {
+            dbg!();
+            dbg!(&mut buffer).undo();
+        }
+
+        assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
+    }
+}
+
+proptest! {
+    #[test]
+    fn does_not_allow_applying_stale_redos((edits, index) in arb::test_edits_and_index(SOME_AMOUNT, TestEditSpec::All)) {
+        does_not_allow_applying_stale_redos_on(edits, index);
+    }
+}
+
 #[test]
 fn does_not_allow_applying_stale_redos_in_this_case() {
     let mut buffer: TextBuffer = d!();
@@ -624,7 +766,6 @@ fn does_not_allow_applying_stale_redos_in_this_case() {
     assert_eq!(buffer.rope.to_string(), "1236");
 }
 
-// TODO make proptest version of this.
 #[test]
 fn undoes_pastes_properly_in_this_case() {
     let initial_buffer: TextBuffer = d!();
@@ -645,6 +786,7 @@ fn undoes_pastes_properly_in_this_case() {
 
     assert_text_buffer_eq_ignoring_history!(buffer, buffer_after_paste);
 
+    buffer.undo();
     buffer.undo();
 
     assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);

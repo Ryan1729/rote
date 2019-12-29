@@ -14,6 +14,10 @@
         * paste something
         * type a character
         * try to undo
+        * ... Now I can't reproduce this one? 
+
+* Make edited indication on tabs larger
+    * maybe just the entire tab colour? Or a thick overline?
 
 * select search field on ctrl-f
     * allows easy deletion of previous thing
@@ -21,7 +25,9 @@
 
 * delete line on F1
 
-* fix frame drop when scrolling that became apparent when increasing the scroll mutiplier
+* prevent "No buffer selected" when re-opening already opened file
+
+* fix frame drop when scrolling that became apparent when increasing the scroll multiplier
     * very apparent in debug mode
 
 * Do some compile-time profiling so I can see what is taking so ling to compile and either pull that into a crate (meaning it is compiled less often) or change it in some way to make it compile faster
@@ -67,6 +73,15 @@
 * draw an underline below matching braces, parens, brackets when a cursor is next to them.
   * draw a different thing (dotted line?) if there is no matching brace found.
   * jump to matching brace?
+
+* Ctrl-shift-f to open a within current project folder search
+  * implies some way to know what the project is. Options:
+    * custom file format that specifies the paths. Open one of those at startup
+    * parse each programming languages files' to figure this out where possible
+    * just like ask the user to open one or more project dirs and then keep track of those
+      * maybe with file format mentioned above.
+  * fallback to open files search if there is no project info
+    * Ctrl-alt-f for always open files search?
 
 * PageUp/Down?
     * maybe these could be jump to matching brace?
@@ -117,15 +132,6 @@
     * make sure typing works
     * allow dragging tabs outside the window to detach them.
     * allow dragging tabs inside a window to reattach them.
-
-* Ctrl-shift-f to open a within current project folder search
-  * implies some way to know what the project is. Options:
-    * custom file format that specifies the paths. Open one of those at startup
-    * parse each programming languages files' to figure this out where possible
-    * just like ask the user to open one or more project dirs and then keep track of those
-      * maybe with file format mentioned above.
-  * fallback to open files search if there is no project info
-    * Ctrl-alt-f for always open files search?
 
 * allow switching between search modes with mouse
 

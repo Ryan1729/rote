@@ -785,7 +785,9 @@ impl TextBuffer {
                 new: Cursors::new(&self.rope, new),
             }
             .into(),
-            ApplyKind::Record,
+            // We don't record cursor movements for undo purposes
+            // so you can undo, select, copy and then redo.
+            ApplyKind::Playback, 
         );
     }
 
@@ -813,6 +815,7 @@ impl TextBuffer {
 
         match kind {
             ApplyKind::Record => {
+                self.history.truncate(self.history_index);
                 self.history.push_back(edit);
                 self.history_index += 1;
             }

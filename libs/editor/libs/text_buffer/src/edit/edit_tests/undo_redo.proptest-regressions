@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 3320980613ca51ab0fcdeed1d9de41ea9618de648b5fc6b4c50dbb8d82e9ffab # shrinks to edits = []
+cc 105a3760895bb8ba27e5b5a63121e74037c0dce1eec21ef1d76ee0ad5eb0ce48 # shrinks to (edits, index) = ([InsertString("\u{b}"), Cut, DragCursors(pos!{l 1 o 0})], 0)

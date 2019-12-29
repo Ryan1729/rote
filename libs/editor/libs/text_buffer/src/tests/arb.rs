@@ -347,6 +347,21 @@ impl TestEdit {
             TabOut => buffer.tab_out(),
         }
     }
+
+    pub fn is_recordable(&self) -> bool {
+        use TestEdit::*;
+        match *self {
+            SelectCharTypeGrouping(_, _) | MoveAllCursors(_) 
+            | ExtendSelectionForAllCursors(_) | MoveCursors(_, _) 
+            | ExtendSelection(_, _) | SetCursor(_, _) | DragCursors(_) => {
+                false
+            }
+            Insert(_) | InsertString(_) | Delete | Cut 
+            | InsertNumbersAtCursors | TabIn | TabOut => {
+                true
+            }
+        }
+    }
 }
 
 pub fn test_edit() -> impl Strategy<Value = TestEdit> {
