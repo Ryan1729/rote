@@ -394,6 +394,63 @@ fn undo_redo_works_on_this_set_of_edits_with_a_cut() {
 }
 
 #[test]
+fn undo_redo_works_on_this_inlined_test_about_a_set_of_edits_with_a_cut() {
+    let edits = vec![TestEdit::Insert('¡'), TestEdit::Cut, TestEdit::MoveAllCursors(Move::ToLineEnd)];
+
+    let initial_buffer: TextBuffer = d!();
+    let mut buffer: TextBuffer = deep_clone(&initial_buffer);
+
+    for edit in edits.iter() {
+        TestEdit::apply(&mut buffer, (*edit).clone());
+    }
+
+    let final_buffer = deep_clone(&buffer);
+
+    let len = buffer.history.len();
+
+    if len != 0 {
+        for _ in 0..dbg!(dbg!(len - 1)) {
+            dbg!();
+            buffer.undo();
+        }
+    }
+
+    for _ in 0..len {
+        buffer.redo();
+    }
+
+    dbg!();
+    assert_text_buffer_eq_ignoring_history!(buffer, final_buffer);
+
+    // Redo with no redos left should be a no-op
+    for _ in 0..10 {
+        dbg!();
+        buffer.redo();
+    }
+
+    dbg!();
+    assert_text_buffer_eq_ignoring_history!(buffer, final_buffer);
+
+    for _ in 0..len {
+        dbg!();
+        dbg!(&mut buffer).undo();
+    }
+
+    dbg!();
+    assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
+
+    // undo with no undos left should be a no-op
+    for _ in 0..10 {
+        dbg!();
+        buffer.undo();
+    }
+
+    dbg!();
+    assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
+}
+
+
+#[test]
 fn undo_redo_works_in_this_reduced_scenario() {
     let initial_buffer: TextBuffer = d!();
     let mut buffer: TextBuffer = deep_clone(&initial_buffer);
@@ -539,6 +596,80 @@ fn undo_redo_works_on_this_reduced_simple_insert_delete_case() {
     dbg!();
     buffer.undo();
 
+    assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
+}
+
+
+
+#[test]
+fn undo_redo_works_on_this_insert_numbers_then_move_case() {
+    undo_redo_works_on_these_edits_and_index(
+        vec![TestEdit::InsertNumbersAtCursors, TestEdit::MoveAllCursors(Move::ToPreviousLikelyEditLocation)],
+        0,
+    );
+}
+
+#[test]
+fn undo_redo_works_on_this_reduced_insert_numbers_then_move_case() {
+    undo_redo_works_on_these_edits_and_index(
+        vec![TestEdit::Insert('0'), TestEdit::MoveAllCursors(Move::Left)],
+        0,
+    );
+}
+
+#[test]
+fn undo_redo_works_on_this_reduced_and_inlined_insert_numbers_then_move_case() {
+    let initial_buffer: TextBuffer = d!();
+    let mut buffer: TextBuffer = deep_clone(&initial_buffer);
+
+    TestEdit::apply(&mut buffer, TestEdit::Insert('0'));
+
+    let expected_buffer_at_index = deep_clone(&buffer);
+
+    TestEdit::apply(&mut buffer, TestEdit::MoveAllCursors(Move::Left));
+
+    let final_buffer = deep_clone(&buffer);
+
+    let len = buffer.history.len();
+
+    for _ in 0..dbg!(len - 1) {
+        dbg!();
+        buffer.undo();
+    }
+
+    assert_text_buffer_eq_ignoring_history!(buffer, expected_buffer_at_index);
+
+    for _ in 0..len {
+        buffer.redo();
+    }
+
+    dbg!();
+    assert_text_buffer_eq_ignoring_history!(buffer, final_buffer);
+
+    // Redo with no redos left should be a no-op
+    for _ in 0..10 {
+        dbg!();
+        buffer.redo();
+    }
+
+    dbg!();
+    assert_text_buffer_eq_ignoring_history!(buffer, final_buffer);
+
+    for _ in 0..len {
+        dbg!();
+        dbg!(&mut buffer).undo();
+    }
+
+    dbg!();
+    assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
+
+    // undo with no undos left should be a no-op
+    for _ in 0..10 {
+        dbg!();
+        buffer.undo();
+    }
+
+    dbg!();
     assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
 }
 

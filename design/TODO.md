@@ -18,6 +18,9 @@
 
 * Make edited indication on tabs larger
     * maybe just the entire tab colour? Or a thick overline?
+    * we also need a clear indication of which tab is currently selected.
+
+* ctrl-g Go to line number
 
 * select search field on ctrl-f
     * allows easy deletion of previous thing
@@ -67,8 +70,6 @@
         * it gives very poor errors (no messages at all apparently?), and sometimes panics, so no.
       * Okay, what if we use [`tree-sitter`](http://tree-sitter.github.io/tree-sitter/)? It seems to be designed specifically for my use case, and there is already a rust grammar made for it. And since `tree-sitter` is written in rust it is likely to be maintained.
         * The documentation is a little light, but I think the process is that I can take the generated `parser.c` and `scanner.c` from [`tree-sitter-rust`](https://github.com/tree-sitter/tree-sitter-rust) and just stick them into my source tree, then using the [`tree-sitter` rust bindings](https://github.com/tree-sitter/tree-sitter/tree/master/lib/binding_rust) I can set up a build.rs and afterwards just pretend `tree-sitter` is a rust library. Then, updating to the newest version of `tree-sitter` would just be as easy as editing the Cargo.toml and overwriting the c files with new versions. We'll see if I misunderstood something when I try it I guess.
-
-* ctrl-g Go to line number
 
 * draw an underline below matching braces, parens, brackets when a cursor is next to them.
   * draw a different thing (dotted line?) if there is no matching brace found.
