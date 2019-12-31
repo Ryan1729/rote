@@ -108,3 +108,22 @@ macro_rules! text_buffer_eq_ignoring_history {
             == $crate::test_macros::IgnoringHistory(&$right)
     };
 }
+
+#[macro_export]
+macro_rules! assert_text_buffer_rope_eq {
+    ($left:expr, $right:expr) => {
+        assert_eq!(
+            $left.rope,
+            $right.rope,
+            stringify!($left != $right (ignoring everything but the rope))
+        );
+    };
+}
+
+#[macro_export]
+macro_rules! text_buffer_rope_eq {
+    ($left:expr, $right:expr) => {
+        $left.rope == $right.rope
+    };
+}
+

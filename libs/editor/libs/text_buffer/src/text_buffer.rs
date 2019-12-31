@@ -198,7 +198,6 @@ pub struct TextBuffer {
     cursors: Cursors,
     history: VecDeque<Edit>,
     history_index: usize,
-    history_final_cursor_change: Option<edit::Change<Cursors>>
 }
 
 impl TextBuffer {
@@ -791,22 +790,6 @@ impl TextBuffer {
             // so you can undo, select, copy and then redo...
             ApplyKind::Playback,
         );
-
-        // ... that said, it is nice if the last cursor movement at the very end 
-        // is recorded. This also makes testing a little more straight forward 
-        // (at least some of the time) since recording this retains the property
-        // that after some edits, then some undos and redos, the final TextBuffer
-        // is exactly as it was when it would have been recorded.
-        if self.at_final_change() {
-            self.history_final_cursor_change = if let Some(ref prev_change) = self.history_final_cursor_change {
-                Some(edit::Change {
-                    old: prev_change.old.clone(),
-                    new: change.new,
-                })
-            } else {
-                Some(change)
-            };
-        }
     }
 
     pub fn tab_in(&mut self) {
@@ -836,15 +819,10 @@ impl TextBuffer {
                 self.history.truncate(self.history_index);
                 self.history.push_back(edit);
                 self.history_index += 1;
-                self.history_final_cursor_change = None;
             }
             ApplyKind::Playback => {}
         }
     }
-
-    fn at_final_change(&self) -> bool {
-        self.history_index == self.history.len()
-    }    
 
     // some of these are convenience methods for tests
     #[allow(dead_code)]
@@ -1035,28 +1013,13 @@ impl<'rope> TextBuffer {
 
 impl TextBuffer {
     pub fn redo(&mut self) -> Option<()> {
-        let output = self.history.get(self.history_index).cloned().map(|edit| {
+        self.history.get(self.history_index).cloned().map(|edit| {
             self.apply_edit(edit, ApplyKind::Playback);
             self.history_index += 1;
-        });
-
-        if self.at_final_change() {
-            if let Some(change) = self.history_final_cursor_change.clone() {
-                self.apply_edit(change.into(), ApplyKind::Playback);
-            }
-        }
-
-        output
+        })
     }
 
     pub fn undo(&mut self) -> Option<()> {
-        if self.at_final_change() {
-            if let Some(change) = self.history_final_cursor_change.clone() {
-                let edit: Edit = change.into();
-                self.apply_edit(!edit, ApplyKind::Playback);
-            }
-        }
-
         let new_index = self.history_index.checked_sub(1)?;
         self.history.get(new_index).cloned().map(|edit| {
             self.apply_edit(!edit, ApplyKind::Playback);

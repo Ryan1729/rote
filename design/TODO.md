@@ -1,30 +1,16 @@
 ## TODO
 
-* fix undo acting weird sometimes
-    * improve tests so they catch the problem
-    * seems to happen only on large files? Maybe only after a certain amount of edits?
-    * this may or may not be the whole issue, but if you do something, then undo a bit then redo, it seems to be replaying things it shouldn't.
-        * for example: type 12345, then undo twice to get "123" then type 6 and then redo and you type 5
-        * given the action in the buffer was a cursor movement, that can (partially?) explain the weirdness
-    * another potentially separate issue:
-        * select some text with the keyboard, from the right to the left and cut it.
-        * then try to undo
-    * might be a reduced/clearer version of what was meant above (as in the paste was missing):
-        * type a character
-        * paste something
-        * type a character
-        * try to undo
-        * ... Now I can't reproduce this one? 
-
 * Make edited indication on tabs larger
     * maybe just the entire tab colour? Or a thick overline?
     * we also need a clear indication of which tab is currently selected.
+        * maybe only have the underline if the buffer is selected?
 
 * ctrl-g Go to line number
 
 * select search field on ctrl-f
     * allows easy deletion of previous thing
     * maybe just replace with selection automatically?
+        * If we can undo that, sure.
 
 * delete line on F1
 
@@ -200,6 +186,8 @@
     * There's this thread talking about "real tabs" helping visually impaired users. Do we want to do something about that? https://www.reddit.com/r/javascript/comments/c8drjo/nobody_talks_about_the_real_reason_to_use_tabs/
       * Well right now we are in a complexity local minimum regarding mouse positioning which relies on all characters being the same width. If we want to move away from there then I think we should be getting more out of that, like ligature support.
       * Also, why do the characters used in editor need to be the same as what is on disk? We could just make conversion easier if we ever have any visually impaired users (which at this point implies myself getting further visual impairments beyond needing glasses.)
+
+* develop an opinion on where the cursors should be when undoing and redoing. Then, ensure that is the case.
 
 * Have tab edits be collected together for the purposes of undo
   * options
