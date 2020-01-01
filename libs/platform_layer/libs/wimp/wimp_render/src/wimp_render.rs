@@ -262,7 +262,7 @@ const STATUS_Z: u16 = z_from_base(128);
 const TAB_Z: u16 = STATUS_Z;
 
 /// Ratios to tab width
-const TAB_MARGIN_RATIO: f32 = 1.0 / 128.0;
+const TAB_MARGIN_RATIO: f32 = 1.0 / 32.0;
 const TAB_PADDING_RATIO: f32 = 1.0 / 64.0;
 const TAB_MIN_W: f32 = 128.0;
 const TAB_MIN_PADDING: f32 = TAB_MIN_W * TAB_PADDING_RATIO;
@@ -324,7 +324,7 @@ fn get_tab_spaced_rect(
         tab_v_padding,
         tab_v_margin,
         tab_y,
-        ..
+        edit_y
     } = upper_position_info(&tab_char_dim);
     let tab_count: f32 = usize_to_f32_or_65536(max(tab_count, 1));
     let tab_w = width / tab_count;
@@ -343,7 +343,7 @@ fn get_tab_spaced_rect(
     SpacedRect {
         padding: Spacing::Axis(tab_padding, tab_v_padding),
         margin: Spacing::Axis(tab_margin, tab_v_margin),
-        rect: ssr!((min_x, tab_y), (max_x, tab_y + tab_char_dim.h)),
+        rect: ssr!((min_x, tab_y), (max_x, edit_y - tab_y)),
     }
 }
 
@@ -398,6 +398,8 @@ pub fn view<'view>(
     // Tabs
     //
 
+    let selected_index = view.get_visible_index_or_max();
+
     let tab_count = view.buffers.len();
     for (i, BufferView { name_string, .. }) in view.buffers.iter().enumerate() {
         let SpacedRect {
@@ -420,11 +422,15 @@ pub fn view<'view>(
                 layout: TextLayout::SingleLine,
                 margin,
                 rect,
-                underline: Some(LineSpec {
-                    colour: TEXT_COLOUR,
-                    thickness: padding.into_ltrb().b,
-                }),
-                side_bars: match buffer_status_map
+                underline: if i == selected_index {
+                    Some(LineSpec {
+                        colour: TEXT_COLOUR,
+                        thickness: padding.into_ltrb().b,
+                    })
+                } else {
+                    None
+                },
+                overline: match buffer_status_map
                     .get(
                         view.index_state,
                         view.index_state.new_index(g_i::IndexPart::or_max(i)),
@@ -434,11 +440,11 @@ pub fn view<'view>(
                     BufferStatus::Unedited => None,
                     BufferStatus::EditedAndUnSaved => Some(LineSpec {
                         colour: palette![red],
-                        thickness: padding.into_ltrb().l,
+                        thickness: padding.into_ltrb().t,
                     }),
                     BufferStatus::EditedAndSaved => Some(LineSpec {
                         colour: palette![alt black],
-                        thickness: padding.into_ltrb().l,
+                        thickness: padding.into_ltrb().t,
                     }),
                 },
                 z: TAB_Z,
@@ -1213,7 +1219,7 @@ struct OutlineButtonSpec<'text> {
     rect: ScreenSpaceRect,
     z: u16,
     underline: Option<LineSpec>,
-    side_bars: Option<LineSpec>,
+    overline: Option<LineSpec>,
 }
 d!(for OutlineButtonSpec<'static>: OutlineButtonSpec {
     text: "OutlineButtonSpec default",
@@ -1224,7 +1230,7 @@ d!(for OutlineButtonSpec<'static>: OutlineButtonSpec {
     rect: d!(),
     z: gl_layer::DEFAULT_Z,
     underline: d!(),
-    side_bars: d!(),
+    overline: d!(),
 });
 
 fn enlarge_by(
@@ -1293,7 +1299,7 @@ fn render_outline_button<'view>(
         margin,
         rect,
         underline,
-        side_bars,
+        overline,
         z,
     }: OutlineButtonSpec<'view>,
     state: ButtonState,
@@ -1306,6 +1312,12 @@ fn render_outline_button<'view>(
 
     const BACKGROUND_COLOUR: Colour = TAB_BACKGROUND_COLOUR;
     const TEXT_COLOUR: Colour = TAB_TEXT_COLOUR;
+
+    let text_z = z.saturating_add(3);
+    let overline_z = z.saturating_add(2);
+    let underline_z = z.saturating_add(1);
+    //z is the rect z
+    let outline_z = z.saturating_sub(1);
 
     macro_rules! highlight_colour {
         ($input_type: expr) => {{
@@ -1327,7 +1339,7 @@ fn render_outline_button<'view>(
                 spec: VisualSpec {
                     rect: text_rect,
                     color: TEXT_COLOUR,
-                    z: z.saturating_add(1),
+                    z: text_z,
                 },
             }));
         };
@@ -1347,7 +1359,7 @@ fn render_outline_button<'view>(
             text_or_rects.push(TextOrRect::Rect(VisualSpec {
                 rect: enlarge_by(rect, margin),
                 color: highlight_colour!(input_type),
-                z: z.saturating_sub(1),
+                z: outline_z,
             }));
 
             text_or_rects.push(TextOrRect::Rect(VisualSpec {
@@ -1367,19 +1379,11 @@ fn render_outline_button<'view>(
         }
     }
 
-    if let Some(LineSpec { colour, thickness }) = side_bars {
-        let z = z.saturating_add(2);
-        // left side
+    if let Some(LineSpec { colour, thickness }) = overline {
         text_or_rects.push(TextOrRect::Rect(VisualSpec {
-            rect: rect.with_max_x(rect.min.0 + thickness),
+            rect: rect.with_max_y(rect.min.1 + thickness),
             color: colour,
-            z,
-        }));
-        // right side
-        text_or_rects.push(TextOrRect::Rect(VisualSpec {
-            rect: rect.with_min_x(rect.max.0 - thickness),
-            color: colour,
-            z,
+            z: overline_z,
         }));
     }
 
@@ -1387,7 +1391,7 @@ fn render_outline_button<'view>(
         text_or_rects.push(TextOrRect::Rect(VisualSpec {
             rect: rect.with_min_y(rect.max.1 - thickness),
             color: colour,
-            z: z.saturating_add(3),
+            z: underline_z,
         }));
     }
 }
@@ -1407,8 +1411,8 @@ struct UpperPositionInfo {
 fn upper_position_info(tab_char_dim: &CharDim) -> UpperPositionInfo {
     let tab_v_padding = TAB_MIN_PADDING;
     let tab_v_margin = TAB_MIN_MARGIN;
-    let tab_y = tab_v_margin + tab_v_padding;
-    let edit_y = tab_y + tab_char_dim.h + tab_v_padding + tab_v_margin;
+    let tab_y = tab_v_margin;
+    let edit_y = tab_y + tab_v_padding + tab_char_dim.h + tab_v_padding + tab_y;
 
     UpperPositionInfo {
         tab_v_padding,

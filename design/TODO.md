@@ -1,11 +1,7 @@
 ## TODO
 
-* Make edited indication on tabs larger
-    * maybe just the entire tab colour? Or a thick overline?
-    * we also need a clear indication of which tab is currently selected.
-        * maybe only have the underline if the buffer is selected?
-
 * ctrl-g Go to line number
+    * so we need another menu like the find/replace menu
 
 * select search field on ctrl-f
     * allows easy deletion of previous thing
@@ -19,7 +15,7 @@
 * fix frame drop when scrolling that became apparent when increasing the scroll multiplier
     * very apparent in debug mode
 
-* Do some compile-time profiling so I can see what is taking so ling to compile and either pull that into a crate (meaning it is compiled less often) or change it in some way to make it compile faster
+* Do some compile-time profiling so I can see what is taking so long to compile and either pull that into a crate (meaning it is compiled less often) or change it in some way to make it compile faster
 
 * Ctrl-E to toggle single line comments
   * could probably reuse tab insertion/deletion code.
