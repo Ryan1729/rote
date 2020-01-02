@@ -7,7 +7,7 @@ use glutin::{dpi::LogicalPosition, Api, GlProfile, GlRequest};
 use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::time::Duration;
-use wimp_render::{get_find_replace_info, FindReplaceInfo};
+use wimp_render::{get_find_replace_info, FindReplaceInfo, get_go_to_position_info, GoToPositionInfo};
 
 use file_chooser;
 use macros::d;
@@ -259,18 +259,37 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
         };
     }
 
+    macro_rules! get_non_font_size_dependents {
+        ($mode: expr) => {{
+            let wh = screen_wh!();
+            let FindReplaceInfo {
+                find_text_xywh,
+                replace_text_xywh,
+                ..
+            } = get_find_replace_info(font_info, wh);
+            let GoToPositionInfo {
+                input_text_xywh,
+                ..
+            } = get_go_to_position_info(font_info, wh);
+            SizeDependents {
+                buffer_xywh: wimp_render::get_edit_buffer_xywh(
+                    $mode,
+                    font_info,
+                    screen_wh!()
+                )
+                .into(),
+                find_xywh: find_text_xywh.into(),
+                replace_xywh: replace_text_xywh.into(),
+                go_to_position_xywh: input_text_xywh.into(),
+                font_info: font_info.into(),
+            }
+        }};
+    }
+
     let (mut view, mut cmds) = {
-        let FindReplaceInfo {
-            find_text_xywh,
-            replace_text_xywh,
-            ..
-        } = get_find_replace_info(font_info, screen_wh!());
-        let (v, c) = update_and_render(Input::SetSizeDependents(SizeDependents {
-            buffer_xywh: wimp_render::get_edit_buffer_xywh(d!(), font_info, screen_wh!()).into(),
-            find_xywh: find_text_xywh.into(),
-            replace_xywh: replace_text_xywh.into(),
-            font_info: font_info.into(),
-        }));
+        let (v, c) = update_and_render(Input::SetSizeDependents(
+            get_non_font_size_dependents!(d!())
+        ));
 
         let mut cs = VecDeque::with_capacity(EVENTS_PER_FRAME);
         cs.push_back(c);
@@ -668,6 +687,27 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                         }};
                     }
 
+                    macro_rules! switch_menu_mode {
+                        ($mode: expr) => {
+                            let mode = $mode;
+
+                            call_u_and_r!(Input::SetMenuMode(mode));
+
+                            call_u_and_r!(Input::SetSizeDependents(SizeDependents {
+                                buffer_xywh: wimp_render::get_edit_buffer_xywh(
+                                    mode,
+                                    font_info,
+                                    screen_wh!()
+                                )
+                                .into(),
+                                find_xywh: None,
+                                replace_xywh: None,
+                                go_to_position_xywh: None,
+                                font_info: None,
+                            }));
+                        };
+                    }
+
                     if cfg!(feature = "print-raw-input") {
                         match &event {
                             &WindowEvent::KeyboardInput { ref input, .. } => {
@@ -691,22 +731,9 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                             glutin_context.resize(size.to_physical(hidpi_factor));
                             let ls = window.inner_size();
                             dimensions = ls.to_physical(hidpi_factor);
-                            let FindReplaceInfo {
-                                find_text_xywh,
-                                replace_text_xywh,
-                                ..
-                            } = get_find_replace_info(font_info, screen_wh!());
-                            call_u_and_r!(Input::SetSizeDependents(SizeDependents {
-                                buffer_xywh: wimp_render::get_edit_buffer_xywh(
-                                    view.menu.get_mode(),
-                                    font_info,
-                                    screen_wh!()
-                                )
-                                .into(),
-                                find_xywh: find_text_xywh.into(),
-                                replace_xywh: replace_text_xywh.into(),
-                                font_info: None,
-                            }));
+                            call_u_and_r!(Input::SetSizeDependents(
+                                get_non_font_size_dependents!(view.menu.get_mode())
+                            ));
                             gl_layer::set_dimensions(
                                 &mut gl_state,
                                 hidpi_factor as _,
@@ -770,35 +797,16 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                                 call_u_and_r!(Input::ExtendSelectionWithSearch);
                             }
                             VirtualKeyCode::F => {
-                                call_u_and_r!(Input::SetMenuMode(MenuMode::FindReplace));
-                                call_u_and_r!(Input::SetSizeDependents(SizeDependents {
-                                    buffer_xywh: wimp_render::get_edit_buffer_xywh(
-                                        MenuMode::FindReplace,
-                                        font_info,
-                                        screen_wh!()
-                                    )
-                                    .into(),
-                                    find_xywh: None,
-                                    replace_xywh: None,
-                                    font_info: None,
-                                }));
+                                switch_menu_mode!(MenuMode::FindReplace);
+                            }
+                            VirtualKeyCode::G => {
+                                switch_menu_mode!(MenuMode::GoToPosition);
                             }
                             VirtualKeyCode::O => {
                                 file_chooser_call!(single, p in CustomEvent::OpenFile(p));
                             }
                             VirtualKeyCode::P => {
-                                call_u_and_r!(Input::SetMenuMode(MenuMode::FileSwitcher));
-                                call_u_and_r!(Input::SetSizeDependents(SizeDependents {
-                                    buffer_xywh: wimp_render::get_edit_buffer_xywh(
-                                        MenuMode::FileSwitcher,
-                                        font_info,
-                                        screen_wh!()
-                                    )
-                                    .into(),
-                                    find_xywh: None,
-                                    replace_xywh: None,
-                                    font_info: None,
-                                }));
+                                switch_menu_mode!(MenuMode::FileSwitcher);
                             }
                             VirtualKeyCode::S => {
                                 if let Some((i, buffer)) = view.get_visible_index_and_buffer() {
@@ -944,6 +952,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                                     .into(),
                                     find_xywh: None,
                                     replace_xywh: None,
+                                    go_to_position_xywh: None,
                                     font_info: None,
                                 }));
                                 call_u_and_r!(Input::CloseMenuIfAny);
@@ -1026,6 +1035,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                              && c != '\u{3}'    // "end of text" (sent with Ctrl-c)
                              && c != '\u{4}'    // "end of transmission" (sent with Ctrl-d)
                              && c != '\u{6}'    // "acknowledge" (sent with Ctrl-f)
+                             && c != '\u{7}'    // bell (sent with Ctrl-g)
                              && c != '\u{8}'    // backspace (sent with Ctrl-h)
                              && c != '\u{9}'    // horizontal tab (sent with Ctrl-i)
                              && c != '\u{f}'    // "shift in" AKA use black ink apparently, (sent with Ctrl-o)
@@ -1053,7 +1063,7 @@ fn run_inner(update_and_render: UpdateAndRender) -> Res<()> {
                                         Text => {
                                             call_u_and_r!(Input::Insert(c));
                                         }
-                                        Find | Replace | FileSwitcher => {
+                                        Find | Replace | FileSwitcher | GoToPosition => {
                                             call_u_and_r!(Input::SubmitForm);
                                         }
                                     }

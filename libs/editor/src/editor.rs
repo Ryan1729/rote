@@ -386,6 +386,8 @@ pub struct State {
     find_xywh: TextBoxXYWH,
     replace: ScrollableBuffer,
     replace_xywh: TextBoxXYWH,
+    go_to_position: ScrollableBuffer,
+    go_to_position_xywh: TextBoxXYWH,
     font_info: FontInfo,
     clipboard_history: ClipboardHistory,
 }
@@ -397,13 +399,15 @@ macro_rules! get_scrollable_buffer_mut {
         get_scrollable_buffer_mut!($state, $state.current_buffer_id)
     };
     ($state: expr, $id: expr) => {{
+        use BufferIdKind::*;
         let id = $id;
         match $id.kind {
-            BufferIdKind::None => Option::None,
-            BufferIdKind::Text => $state.buffers.get_mut(id.index).map(|b| &mut b.scrollable),
-            BufferIdKind::Find => Some(&mut $state.find),
-            BufferIdKind::Replace => Some(&mut $state.replace),
-            BufferIdKind::FileSwitcher => Some(&mut $state.file_switcher),
+            None => Option::None,
+            Text => $state.buffers.get_mut(id.index).map(|b| &mut b.scrollable),
+            Find => Some(&mut $state.find),
+            Replace => Some(&mut $state.replace),
+            FileSwitcher => Some(&mut $state.file_switcher),
+            GoToPosition => Some(&mut $state.go_to_position),
         }
     }};
 }
@@ -438,6 +442,10 @@ set_indexed_id! {
 set_indexed_id! {
     set_file_switcher_id,
     FileSwitcher
+}
+set_indexed_id! {
+    set_go_to_position_id,
+    GoToPosition
 }
 
 impl State {
@@ -521,7 +529,7 @@ impl State {
             Text => font_info.text_char_dim,
             // None uses the same char_dim as the menus since it represents keybaord naviagaion in
             // the menus.
-            None | Find | Replace | FileSwitcher => font_info.find_replace_char_dim,
+            None | Find | Replace | FileSwitcher | GoToPosition => font_info.find_replace_char_dim,
         }
     }
 
@@ -536,6 +544,7 @@ impl State {
             Find => self.find_xywh,
             Replace => self.replace_xywh,
             FileSwitcher => self.find_xywh, // TODO customize
+            GoToPosition => self.go_to_position_xywh,
         };
         let attempt_result = attempt_to_make_sure_at_least_one_cursor_is_visible(
             &mut buffer.scroll,
@@ -553,6 +562,9 @@ impl State {
     fn set_menu_mode(&mut self, mode: MenuMode) {
         self.menu_mode = mode;
         match mode {
+            MenuMode::GoToPosition => {
+                self.set_go_to_position_id(self.current_buffer_id.index);
+            }
             MenuMode::FileSwitcher => {
                 self.set_file_switcher_id(self.current_buffer_id.index);
             }
@@ -683,7 +695,7 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
     macro_rules! buffer_view_sync {
         () => {
             match state.menu_mode {
-                MenuMode::Hidden => {}
+                MenuMode::Hidden | MenuMode::GoToPosition => {}
                 MenuMode::FileSwitcher => {
                     let needle_string: String =
                         state.file_switcher.text_buffer.borrow_rope().into();
@@ -692,8 +704,7 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
                         find_in_paths(state.opened_paths().iter().map(|p| p.as_path()), needle_str);
                 }
                 MenuMode::FindReplace => {
-                    let i = state.current_buffer_id.index;
-                    if let Some(target_buffer) = state.buffers.get_mut(i) {
+                    if let Some(target_buffer) = state.buffers.get_mut(state.current_buffer_id.index) {
                         update_search_results(&state.find.text_buffer, target_buffer);
                     }
                 }
@@ -769,6 +780,7 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
             set_if_present!(sds => state.buffer_xywh);
             set_if_present!(sds => state.find_xywh);
             set_if_present!(sds => state.replace_xywh);
+            set_if_present!(sds => state.go_to_position_xywh);
         }
         SetCursor(xy, replace_or_add) => {
             let char_dim = state.get_current_char_dim();
@@ -974,6 +986,10 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
             BufferIdKind::Replace => {
                 let i = state.current_buffer_id.index;
                 dbg!("TODO BufferIdKind::Replace {}", i);
+            }
+            BufferIdKind::GoToPosition => {
+                let i = state.current_buffer_id.index;
+                dbg!("TODO BufferIdKind::GoToPosition {}", i);
             }
             BufferIdKind::FileSwitcher => {
                 post_edit_sync!();

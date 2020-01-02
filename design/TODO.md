@@ -3,6 +3,8 @@
 * ctrl-g Go to line number
     * so we need another menu like the find/replace menu
 
+* look harder for undo weirdness.
+
 * select search field on ctrl-f
     * allows easy deletion of previous thing
     * maybe just replace with selection automatically?
@@ -119,6 +121,10 @@
 * allow switching between search modes with mouse
 
 * replace for all find modes
+
+* allow opening a new file through the OS GUI
+    * if rote is already running then should it open a separate instance or open the file in the running instance?
+        * we would like it to work as a git commit/rebase TODO file editor, so maybe we'd want a cli switch to decide?
 
 * Display file tabs that allow the user to switch between open buffers
   * truncate tab names that are too long  with `...`

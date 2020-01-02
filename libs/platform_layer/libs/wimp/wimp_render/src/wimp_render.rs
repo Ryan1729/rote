@@ -386,10 +386,13 @@ pub fn view<'view>(
         Vec::with_capacity(view.buffers.len() * PER_BUFFER_TEXT_OR_RECT_ESTIMATE);
     let mut input = None;
 
-    let edit_buffer_text_rect = get_edit_buffer_xywh(view.menu.get_mode(), *font_info, wh);
+    let UpperPositionInfo {
+        edit_y,
+        ..
+    } = upper_position_info(&tab_char_dim);
 
     text_or_rects.push(TextOrRect::Rect(VisualSpec {
-        rect: ssr!(0.0, 0.0, width, edit_buffer_text_rect.xy.y),
+        rect: ssr!(0.0, 0.0, width, edit_y),
         color: TAB_BAR_BACKGROUND_COLOUR,
         z: TAB_BACKGROUND_Z,
     }));
@@ -474,6 +477,8 @@ pub fn view<'view>(
         //     //     .collect::<String>();
         //     // s
         // };
+
+        let edit_buffer_text_rect = get_edit_buffer_xywh(view.menu.get_mode(), *font_info, wh);
 
         let edit_buffer_text_rect: ScreenSpaceRect = edit_buffer_text_rect.into();
         input = text_box(
@@ -747,6 +752,53 @@ pub fn view<'view>(
                     current_rect.min.1 += vertical_shift;
                     current_rect.max.1 += vertical_shift;
                 }
+            }
+            MenuView::GoToPosition(GoToPositionView {
+                go_to_position,
+            }) => {
+                let GoToPositionInfo {
+                    padding,
+                    top_y,
+                    bottom_y,
+                    label_rect,
+                    input_outer_rect,
+                    ..
+                } = get_go_to_position_info(*font_info, wh);
+                let outer_rect = ScreenSpaceRect {
+                    min: (0.0, top_y),
+                    max: (width, bottom_y),
+                };
+                text_or_rects.push(TextOrRect::Rect(VisualSpec {
+                    rect: outer_rect,
+                    color: CHROME_BACKGROUND_COLOUR,
+                    z: FIND_REPLACE_BACKGROUND_Z,
+                }));
+                
+                text_or_rects.push(TextOrRect::Text(TextSpec {
+                    text: "Go to position",
+                    size: FIND_REPLACE_SIZE,
+                    layout: TextLayout::SingleLine,
+                    spec: VisualSpec {
+                        rect: label_rect,
+                        color: CHROME_TEXT_COLOUR,
+                        z: FIND_REPLACE_Z,
+                    },
+                }));
+
+                input = text_box(
+                    ui,
+                    &mut text_or_rects,
+                    input_outer_rect,
+                    padding,
+                    *find_replace_char_dim,
+                    FIND_REPLACE_SIZE,
+                    CHROME_TEXT_COLOUR,
+                    go_to_position,
+                    b_id!(BufferIdKind::GoToPosition, index),
+                    FIND_REPLACE_Z,
+                    &view.current_buffer_id,
+                    fade_alpha,
+                ).or(input);
             }
         }
     }
@@ -1422,12 +1474,40 @@ fn upper_position_info(tab_char_dim: &CharDim) -> UpperPositionInfo {
     }
 }
 
-/// Ratios to screen height
-const FIND_REPLACE_MARGIN_RATIO: f32 = 1.0 / 16.0;
-const FIND_REPLACE_PADDING_RATIO: f32 = 1.0 / 32.0;
+/// A specification for spacing aorund something, contiaing values suitable for passing to `Spacing::All`.
+struct SpacingAllSpec {
+    margin: f32,
+    padding: f32,
+}
 
-const FIND_REPLACE_MIN_MARGIN: f32 = FIND_REPLACE_MARGIN_RATIO * 256.0;
-const FIND_REPLACE_MIN_PADDING: f32 = FIND_REPLACE_PADDING_RATIO * 256.0;
+fn get_menu_spacing(height: f32) -> SpacingAllSpec {
+    /// Ratios to screen height
+    const MARGIN_RATIO: f32 = 1.0 / 16.0;
+    const PADDING_RATIO: f32 = 1.0 / 32.0;
+
+    const MIN_MARGIN: f32 = MARGIN_RATIO * 256.0;
+    const MIN_PADDING: f32 = PADDING_RATIO * 256.0;
+
+    let mut margin = MARGIN_RATIO * height;
+    margin = if margin > MIN_MARGIN {
+        margin
+    } else {
+        //NaN ends up here
+        MIN_MARGIN
+    };
+    let mut padding = PADDING_RATIO * height;
+    padding = if padding > MIN_PADDING {
+        padding
+    } else {
+        //NaN ends up here
+        MIN_PADDING
+    };
+
+    SpacingAllSpec {
+        margin,
+        padding
+    }
+}
 
 pub struct FindReplaceInfo {
     pub margin: Spacing,
@@ -1449,20 +1529,7 @@ pub fn get_find_replace_info(
     }: FontInfo,
     sswh!(width, height): ScreenSpaceWH,
 ) -> FindReplaceInfo {
-    let mut margin = FIND_REPLACE_MARGIN_RATIO * height;
-    margin = if margin > FIND_REPLACE_MIN_MARGIN {
-        margin
-    } else {
-        //NaN ends up here
-        FIND_REPLACE_MIN_MARGIN
-    };
-    let mut padding = FIND_REPLACE_PADDING_RATIO * height;
-    padding = if padding > FIND_REPLACE_MIN_PADDING {
-        padding
-    } else {
-        //NaN ends up here
-        FIND_REPLACE_MIN_PADDING
-    };
+    let SpacingAllSpec { margin, padding } = get_menu_spacing(height);
 
     let bottom_y = get_status_line_y(status_char_dim, height);
     // assuming that there are two text buffers and a heading, each with the same margin and
@@ -1536,21 +1603,7 @@ pub fn get_file_switcher_info(
     }: FontInfo,
     sswh!(width, height): ScreenSpaceWH,
 ) -> FileSwitcherInfo {
-    // TODO should these be separate constants with different values?
-    let mut margin = FIND_REPLACE_MARGIN_RATIO * height;
-    margin = if margin > FIND_REPLACE_MIN_MARGIN {
-        margin
-    } else {
-        //NaN ends up here
-        FIND_REPLACE_MIN_MARGIN
-    };
-    let mut padding = FIND_REPLACE_PADDING_RATIO * height;
-    padding = if padding > FIND_REPLACE_MIN_PADDING {
-        padding
-    } else {
-        //NaN ends up here
-        FIND_REPLACE_MIN_PADDING
-    };
+    let SpacingAllSpec { margin, padding } = get_menu_spacing(height);
 
     let bottom_y = get_status_line_y(status_char_dim, height);
     let top_y = upper_position_info(&tab_char_dim).edit_y;
@@ -1596,6 +1649,68 @@ pub fn get_file_switcher_info(
     }
 }
 
+pub struct GoToPositionInfo {
+    pub margin: Spacing,
+    pub padding: Spacing,
+    pub top_y: f32,
+    pub bottom_y: f32,
+    pub label_rect: ScreenSpaceRect,
+    pub input_outer_rect: ScreenSpaceRect,
+    pub input_text_xywh: TextBoxXYWH,
+}
+
+pub fn get_go_to_position_info(
+    FontInfo {
+        status_char_dim,
+        find_replace_char_dim,
+        tab_char_dim,
+        ..
+    }: FontInfo,
+    sswh!(width, height): ScreenSpaceWH,
+) -> GoToPositionInfo {
+    let SpacingAllSpec { margin, padding } = get_menu_spacing(height);
+
+    let top_y = upper_position_info(&tab_char_dim).edit_y;
+
+    let mut current_y = top_y + margin;
+    let text_height = 2.0 * padding + find_replace_char_dim.h;
+
+    macro_rules! text_rect {
+        () => {
+            text_rect!(padding)
+        };
+        ($h_padding: expr) => {
+            tbxywh!(
+                margin + $h_padding,
+                current_y + padding,
+                width - 2.0 * (margin + $h_padding),
+                text_height - 2.0 * padding
+            )
+        };
+    }
+
+    let label_rect = text_rect!(0.0).into();
+
+    current_y += text_height + margin;
+    let input_outer_rect = ssr!(
+        (margin, current_y),
+        (width - margin, current_y + text_height)
+    );
+    let input_text_xywh = text_rect!();
+
+    let bottom_y = current_y + text_height + padding + margin;
+
+    GoToPositionInfo {
+        margin: Spacing::All(margin),
+        padding: Spacing::All(padding),
+        top_y,
+        bottom_y,
+        label_rect,
+        input_outer_rect,
+        input_text_xywh,
+    }
+}
+
 fn get_status_line_y(status_char_dim: CharDim, height: f32) -> f32 {
     height - (status_char_dim.h + 2.0 * SEPARATOR_LINE_THICKNESS)
 }
@@ -1610,7 +1725,7 @@ pub fn get_edit_buffer_xywh(mode: MenuMode, font_info: FontInfo, wh: ScreenSpace
     let max_y = match mode {
         MenuMode::Hidden => get_status_line_y(status_char_dim, height),
         MenuMode::FindReplace => get_find_replace_info(font_info, wh).top_y,
-        MenuMode::FileSwitcher => wh.h,
+        MenuMode::FileSwitcher | MenuMode::GoToPosition => wh.h,
     };
     let y = upper_position_info(tab_char_dim).edit_y;
     TextBoxXYWH {
@@ -1635,9 +1750,11 @@ pub fn get_current_buffer_rect(
         Find => get_find_replace_info(font_info, wh).find_text_xywh,
         Replace => get_find_replace_info(font_info, wh).replace_text_xywh,
         FileSwitcher => get_file_switcher_info(font_info, wh).search_text_xywh,
+        GoToPosition => get_go_to_position_info(font_info, wh).input_text_xywh,
     }
 }
 
+/// This function determines whether the mouse cursor should use the text selection icon ot not.
 pub fn should_show_text_cursor(
     xy: ScreenSpaceXY,
     current_buffer_id: BufferId,
@@ -1645,30 +1762,36 @@ pub fn should_show_text_cursor(
     font_info: FontInfo,
     wh: ScreenSpaceWH,
 ) -> bool {
-    match mode {
-        MenuMode::Hidden => inside_rect(
-            xy,
-            get_current_buffer_rect(current_buffer_id, mode, font_info, wh).into(),
-        ),
+    let inside_edit_buffer = inside_rect(xy, get_edit_buffer_xywh(mode, font_info, wh).into());
+    inside_edit_buffer || match mode {
+        MenuMode::Hidden => false,
         MenuMode::FindReplace => {
-            inside_rect(xy, get_edit_buffer_xywh(mode, font_info, wh).into()) || {
-                let FindReplaceInfo {
-                    find_outer_rect,
-                    replace_outer_rect,
-                    ..
-                } = get_find_replace_info(font_info, wh);
+            let FindReplaceInfo {
+                find_outer_rect,
+                replace_outer_rect,
+                ..
+            } = get_find_replace_info(font_info, wh);
 
-                inside_rect(xy, find_outer_rect.into())
-                    || inside_rect(xy, replace_outer_rect.into())
-            }
+            inside_rect(xy, find_outer_rect.into())
+            || inside_rect(xy, replace_outer_rect.into())
         }
         MenuMode::FileSwitcher => {
             let FileSwitcherInfo {
-                search_outer_rect, ..
+                search_outer_rect,
+                ..
             } = get_file_switcher_info(font_info, wh);
 
             inside_rect(xy, search_outer_rect.into())
         }
+        MenuMode::GoToPosition => {
+            let GoToPositionInfo {
+                input_outer_rect,
+                ..
+            } = get_go_to_position_info(font_info, wh);
+
+            inside_rect(xy, input_outer_rect.into())
+        }
+        
     }
 }
 

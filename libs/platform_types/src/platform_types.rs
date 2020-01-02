@@ -97,6 +97,7 @@ pub enum BufferIdKind {
     Find,
     Replace,
     FileSwitcher,
+    GoToPosition,
 }
 d!(for BufferIdKind: BufferIdKind::Text);
 
@@ -109,6 +110,7 @@ impl From<&BufferIdKind> for u8 {
             Find => 2,
             Replace => 3,
             FileSwitcher => 4,
+            GoToPosition => 5,
         }
     }
 }
@@ -543,6 +545,7 @@ pub enum MenuMode {
     Hidden,
     FileSwitcher,
     FindReplace,
+    GoToPosition,
 }
 d!(for MenuMode: MenuMode::Hidden);
 
@@ -551,6 +554,7 @@ pub enum MenuView {
     None,
     FileSwitcher(FileSwitcherView),
     FindReplace(FindReplaceView),
+    GoToPosition(GoToPositionView)
 }
 d!(for MenuView: MenuView::None);
 
@@ -560,6 +564,7 @@ impl MenuView {
             Self::None => MenuMode::Hidden,
             Self::FileSwitcher(_) => MenuMode::FileSwitcher,
             Self::FindReplace(_) => MenuMode::FindReplace,
+            Self::GoToPosition(_) => MenuMode::GoToPosition,
         }
     }
 }
@@ -583,6 +588,11 @@ pub struct FindReplaceView {
     pub mode: FindReplaceMode,
     pub find: BufferViewData,
     pub replace: BufferViewData,
+}
+
+#[derive(Default, Debug)]
+pub struct GoToPositionView {
+    pub go_to_position: BufferViewData,
 }
 
 pub type VisibleBuffer = Option<g_i::Index>;
@@ -638,6 +648,10 @@ impl View {
             },
             FileSwitcher => match &self.menu {
                 MenuView::FileSwitcher(ref fs) => Some(&fs.search),
+                _ => Option::None,
+            },
+            GoToPosition => match &self.menu {
+                MenuView::GoToPosition(ref gtp) => Some(&gtp.go_to_position),
                 _ => Option::None,
             },
         }

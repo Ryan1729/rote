@@ -747,4 +747,5 @@ pub struct SizeDependents {
     pub buffer_xywh: Option<TextBoxXYWH>,
     pub find_xywh: Option<TextBoxXYWH>,
     pub replace_xywh: Option<TextBoxXYWH>,
+    pub go_to_position_xywh: Option<TextBoxXYWH>,
 }

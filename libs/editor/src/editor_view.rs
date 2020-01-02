@@ -67,6 +67,7 @@ pub fn render(
         find_replace_mode,
         ref find,
         ref replace,
+        ref go_to_position,
         buffer_xywh: TextBoxXYWH {
             xy: text_box_pos, ..
         },
@@ -171,7 +172,16 @@ pub fn render(
                 ),
                 results: dbg!(file_switcher_results.clone()),
             })
-        }
+        },
+        MenuMode::GoToPosition => {
+            const GO_TO_POSITION_SELECTION_LINES_ESTIMATE: usize = 1;
+            MenuView::GoToPosition(GoToPositionView {
+                go_to_position: scrollable_to_buffer_view_data(
+                    &go_to_position,
+                    GO_TO_POSITION_SELECTION_LINES_ESTIMATE,
+                ),
+            })
+        },
     };
 
     view.current_buffer_id = current_buffer_id;
