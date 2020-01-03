@@ -546,12 +546,34 @@ impl State {
             FileSwitcher => self.find_xywh, // TODO customize
             GoToPosition => self.go_to_position_xywh,
         };
-        let attempt_result = attempt_to_make_sure_at_least_one_cursor_is_visible(
-            &mut buffer.scroll,
-            xywh,
-            Self::char_dim_for_buffer_kind(&self.font_info, kind),
-            buffer.text_buffer.borrow_cursors_vec(),
+
+        let scroll = &mut buffer.scroll;
+        let cursors = buffer.text_buffer.borrow_cursors_vec();
+        let char_dim = Self::char_dim_for_buffer_kind(&self.font_info, kind);
+
+        // We try first with this smaller xywh to make the cursor appear
+        // in the center more often.
+        let mut small_xywh = xywh.clone();
+        small_xywh.xy.x += small_xywh.wh.w / 4.0;
+        small_xywh.wh.w /= 2.0;
+        small_xywh.xy.y += small_xywh.wh.h / 4.0;
+        small_xywh.wh.h /= 2.0;
+
+        let mut attempt_result = attempt_to_make_sure_at_least_one_cursor_is_visible(
+            scroll,
+            small_xywh,
+            char_dim,
+            cursors,
         );
+
+        if attempt_result != VisibilityAttemptResult::Succeeded {
+            attempt_result = attempt_to_make_sure_at_least_one_cursor_is_visible(
+                scroll,
+                xywh,
+                char_dim,
+                cursors,
+            );
+        }
 
         match attempt_result {
             VisibilityAttemptResult::Succeeded => Some(()),
@@ -988,8 +1010,17 @@ fn update_and_render_inner(state: &mut State, input: Input) -> UpdateAndRenderOu
                 dbg!("TODO BufferIdKind::Replace {}", i);
             }
             BufferIdKind::GoToPosition => {
-                let i = state.current_buffer_id.index;
-                dbg!("TODO BufferIdKind::GoToPosition {}", i);
+                text_buffer_call!(b{
+                    let input: String = b.into();
+                    if let Ok(position) = input.parse::<Position>() {
+                        if let Some(edit_b) = state.buffers.get_mut(state.current_buffer_id.index) {
+                            edit_b.scrollable.text_buffer.set_cursor(position, ReplaceOrAdd::Replace);
+                            state.set_menu_mode(MenuMode::Hidden);
+                            try_to_show_cursors!();
+                        }
+                    }
+                    // TODO: show Err case
+                });
             }
             BufferIdKind::FileSwitcher => {
                 post_edit_sync!();

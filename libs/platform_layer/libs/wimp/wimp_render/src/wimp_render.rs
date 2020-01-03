@@ -1723,9 +1723,9 @@ pub fn get_edit_buffer_xywh(mode: MenuMode, font_info: FontInfo, wh: ScreenSpace
         ..
     } = font_info;
     let max_y = match mode {
-        MenuMode::Hidden => get_status_line_y(status_char_dim, height),
+        MenuMode::Hidden | MenuMode::GoToPosition => get_status_line_y(status_char_dim, height),
         MenuMode::FindReplace => get_find_replace_info(font_info, wh).top_y,
-        MenuMode::FileSwitcher | MenuMode::GoToPosition => wh.h,
+        MenuMode::FileSwitcher => wh.h,
     };
     let y = upper_position_info(tab_char_dim).edit_y;
     TextBoxXYWH {

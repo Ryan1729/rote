@@ -273,8 +273,26 @@ fmt_display! {
    Position{ line, offset } in "{}:{}", line, display_max!(offset.0)
 }
 
+impl std::str::FromStr for Position {
+    type Err = std::num::ParseIntError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let chunks: Vec<&str> = s.trim_matches(char::is_whitespace)
+                                 .split(':')
+                                 .collect();
+
+        let line = chunks.get(0)
+            .map(|&s| s).unwrap_or_default().parse::<usize>()?;
+        let offset = chunks.get(1)
+            .map(|&s| s).unwrap_or_else(|| "0").parse::<usize>()
+            .map(CharOffset).unwrap_or_default();
+
+        Ok(Position { line, offset })
+    }
+}
+
 /// Semantically this is concatenate strings with these final positions together and take the final
-/// position. That is, if a string that has as its final position, the position on the lef- hand
+/// position. That is, if a string that has as its final position, the position on the left hand
 /// side, is concatenated at the beginning of a string with a final position of the position on the
 /// right hand side, the resulting string will have the position that results applying this
 /// function.

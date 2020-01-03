@@ -244,6 +244,13 @@ impl From<&TextBuffer> for String {
     }
 }
 
+impl From<&mut TextBuffer> for String {
+    fn from(t_b: &mut TextBuffer) -> Self {
+        t_b.rope.clone().into()
+    }
+}
+
+
 /// A `haystack_range` of `None` means use the whole haystack. AKA no limit.
 /// A `max_needed` of `None` means return all the results. AKA no limit.
 pub fn get_search_ranges(
