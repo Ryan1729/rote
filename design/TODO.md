@@ -1,10 +1,5 @@
 ## TODO
 
-* select search field on ctrl-f
-    * allows easy deletion of previous thing
-    * maybe just replace with selection automatically?
-        * If we can undo that, sure.
-
 * delete line on F1
 
 * prevent "No buffer selected" when re-opening already opened file

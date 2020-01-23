@@ -23,7 +23,9 @@ fn main() -> Res<()> {
         .with_depth_buffer(24)
         .build_windowed(
             glutin::window::WindowBuilder::new()
-                .with_inner_size((683, 393).into())
+                .with_inner_size(
+                    glutin::dpi::Size::Logical(glutin::dpi::LogicalSize::new(683.0, 393.0))
+                )
                 .with_title("z-layers example"),
             &events,
         )?;
@@ -34,8 +36,10 @@ fn main() -> Res<()> {
 
     let text_sizes = [TEXT_SIZE, HELP_SIZE];
 
+    let mut hidpi_factor = 1.0;
+
     let (mut gl_state, _) = gl_layer::init(
-        glutin_context.window().hidpi_factor() as f32,
+        hidpi_factor as f32,
         &text_sizes,
         [0.3, 0.3, 0.3, 1.0],
         |symbol| glutin_context.get_proc_address(symbol) as _,
@@ -46,8 +50,7 @@ fn main() -> Res<()> {
     let mut running = true;
     let mut dimensions = glutin_context
         .window()
-        .inner_size()
-        .to_physical(glutin_context.window().hidpi_factor());
+        .inner_size();
 
     let first_colour = [0.0, 0.6, 0.6, 1.0];
     let text_colour = [0.9, 0.9, 0.9, 1.0];
@@ -70,14 +73,11 @@ fn main() -> Res<()> {
             }
 
             match event {
-                Event::EventsCleared if running => {
+                Event::MainEventsCleared if running => {
                     // Queue a RedrawRequested event so we draw the updated view quickly.
                     glutin_context.window().request_redraw();
                 }
-                Event::WindowEvent {
-                    event: WindowEvent::RedrawRequested,
-                    ..
-                } => {
+                Event::RedrawRequested(_) => {
                     if auto_advance {
                         advance!();
                     }
@@ -246,12 +246,15 @@ fn main() -> Res<()> {
 
                     match event {
                         WindowEvent::CloseRequested => quit!(),
+                        WindowEvent::ScaleFactorChanged {
+                            scale_factor,
+                            ..
+                        } => {
+                            hidpi_factor = scale_factor;
+                        }
                         WindowEvent::Resized(size) => {
-                            let window = glutin_context.window();
-                            let hidpi_factor = window.hidpi_factor();
-                            glutin_context.resize(size.to_physical(hidpi_factor));
-                            let ls = window.inner_size();
-                            dimensions = ls.to_physical(hidpi_factor);
+                            glutin_context.resize(size);
+                            dimensions = size;
                             gl_layer::set_dimensions(
                                 &mut gl_state,
                                 hidpi_factor as _,
@@ -263,15 +266,11 @@ fn main() -> Res<()> {
                                 KeyboardInput {
                                     state: ElementState::Pressed,
                                     virtual_keycode: Some(keypress),
-                                    modifiers:
-                                        ModifiersState {
-                                            shift: true,
-                                            ..
-                                        },
+                                    modifiers,
                                     ..
                                 },
                             ..
-                        } => {
+                        } if modifiers.shift() => {
                             const SHIFT: u16 = 65535 / 16;
                             match keypress {
                                 VirtualKeyCode::Escape => {
@@ -297,15 +296,11 @@ fn main() -> Res<()> {
                                 KeyboardInput {
                                     state: ElementState::Pressed,
                                     virtual_keycode: Some(keypress),
-                                    modifiers:
-                                        ModifiersState {
-                                            shift: false,
-                                            ..
-                                        },
+                                    modifiers,
                                     ..
                                 },
                             ..
-                        } => {
+                        } if !modifiers.shift() => {
                             match keypress {
                                 VirtualKeyCode::Escape => {
                                     quit!();

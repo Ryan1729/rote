@@ -90,7 +90,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
     args.next();
 
     let mut data_dir = None;
-    let mut hidpi_factor = None;
+    let mut hidpi_factor_override = None;
 
     const VERSION: &'static str = "--version";
     const HELP: &'static str = "--help";
@@ -129,7 +129,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                 .map(PathBuf::from);
             }
             HIDPI_OVERRIDE => {
-                hidpi_factor = Some(args.next().ok_or_else(|| {
+                hidpi_factor_override = Some(args.next().ok_or_else(|| {
                     format!(
                         "{0} needs an argument. For example: {0} 1.5",
                         HIDPI_OVERRIDE
@@ -210,15 +210,18 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
         .with_depth_buffer(24)
         .build_windowed(
             glutin::window::WindowBuilder::new()
-                .with_inner_size((1024, 576).into())
+                .with_inner_size(
+                    glutin::dpi::Size::Logical(glutin::dpi::LogicalSize::new(1024.0, 576.0))
+                 )
                 .with_title(title),
             &events,
         )?;
     let glutin_context = unsafe { glutin_context.make_current().map_err(|(_, e)| e)? };
 
+    let mut current_hidpi_factor = 1.0;
     macro_rules! get_hidpi_factor {
         () => {
-            hidpi_factor.unwrap_or_else(|| glutin_context.window().hidpi_factor())
+            hidpi_factor_override.unwrap_or(current_hidpi_factor)
         }
     }
 
@@ -240,8 +243,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
     let mut running = true;
     let mut dimensions = glutin_context
         .window()
-        .inner_size()
-        .to_physical(get_hidpi_factor!());
+        .inner_size();
 
     macro_rules! screen_wh {
         () => {
@@ -480,7 +482,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
             }
 
             match event {
-                Event::EventsCleared if running => {
+                Event::MainEventsCleared if running => {
                     for _ in 0..EVENTS_PER_FRAME {
                         match editor_out_source.try_recv() {
                             Ok((v, c)) => {
@@ -517,10 +519,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                     // Queue a RedrawRequested event so we draw the updated view quickly.
                     glutin_context.window().request_redraw();
                 }
-                Event::WindowEvent {
-                    event: WindowEvent::RedrawRequested,
-                    ..
-                } => {
+                Event::RedrawRequested(_) => {
                     ui.frame_init();
                     if_changed::dbg!(&ui.keyboard);
 
@@ -716,14 +715,26 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         }
                     }
 
+
+                    // As of this writing, issues on https://github.com/rust-windowing/winit ,
+                    // specifically #1124 and #883, suggest that the it is up in the air as to
+                    // whether the modifiers field on some of the matches below will actually
+                    // be eventually removed or not. So, in the meantime, I choose the path 
+                    // that is the least work right now, since it seems unlikely for the amount
+                    // of work it will be later to grow significantly. Time will tell.
+                    #[allow(deprecated)]
                     match event {
                         WindowEvent::CloseRequested => quit!(),
+                        WindowEvent::ScaleFactorChanged {
+                            scale_factor,
+                            ..
+                        } => {
+                            current_hidpi_factor = scale_factor;
+                        }
                         WindowEvent::Resized(size) => {
-                            let window = glutin_context.window();
                             let hidpi_factor = get_hidpi_factor!();
-                            glutin_context.resize(size.to_physical(hidpi_factor));
-                            let ls = window.inner_size();
-                            dimensions = ls.to_physical(hidpi_factor);
+                            glutin_context.resize(size);
+                            dimensions = size;
                             call_u_and_r!(Input::SetSizeDependents(
                                 get_non_font_size_dependents!(view.menu.get_mode())
                             ));
@@ -738,17 +749,15 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                                 KeyboardInput {
                                     state: ElementState::Pressed,
                                     virtual_keycode: Some(keypress),
-                                    modifiers:
-                                        ModifiersState {
-                                            ctrl: true,
-                                            shift: false,
-                                            alt: false,
-                                            ..
-                                        },
+                                    modifiers,
                                     ..
                                 },
                             ..
-                        } => match keypress {
+                        } 
+                        if 
+                        modifiers.ctrl() 
+                        && !modifiers.shift() 
+                        && !modifiers.alt() => match keypress {
                             VirtualKeyCode::Key0 => {
                                 if wimp_render::inside_tab_area(ui.mouse_pos, font_info) {
                                     let width = dimensions.width;
@@ -853,17 +862,14 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                                 KeyboardInput {
                                     state: ElementState::Pressed,
                                     virtual_keycode: Some(keypress),
-                                    modifiers:
-                                        ModifiersState {
-                                            ctrl: true,
-                                            shift: false,
-                                            alt: true,
-                                            ..
-                                        },
+                                    modifiers,
                                     ..
                                 },
                             ..
-                        } => match keypress {
+                        } if 
+                        modifiers.ctrl() 
+                        && !modifiers.shift()
+                        && modifiers.alt() => match keypress {
                             VirtualKeyCode::Key0 => {
                                 call_u_and_r!(Input::InsertNumbersAtCursors);
                             }
@@ -874,16 +880,11 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                                 KeyboardInput {
                                     state: ElementState::Pressed,
                                     virtual_keycode: Some(keypress),
-                                    modifiers:
-                                        ModifiersState {
-                                            ctrl: true,
-                                            shift: true,
-                                            ..
-                                        },
+                                    modifiers,
                                     ..
                                 },
                             ..
-                        } => match keypress {
+                        } if modifiers.ctrl() && modifiers.shift() => match keypress {
                             VirtualKeyCode::Home => {
                                 call_u_and_r!(Input::ExtendSelectionForAllCursors(
                                     Move::ToBufferStart
@@ -925,16 +926,11 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                                 KeyboardInput {
                                     state: ElementState::Pressed,
                                     virtual_keycode: Some(keypress),
-                                    modifiers:
-                                        ModifiersState {
-                                            ctrl: false,
-                                            shift: false,
-                                            ..
-                                        },
+                                    modifiers,
                                     ..
                                 },
                             ..
-                        } => match if cfg!(debug_assertions) {dbg!(keypress)} else {keypress} {
+                        } if !modifiers.ctrl() && !modifiers.shift() => match if cfg!(debug_assertions) {dbg!(keypress)} else {keypress} {
                             VirtualKeyCode::Escape => {
                                 call_u_and_r!(Input::SetSizeDependents(SizeDependents {
                                     buffer_xywh: wimp_render::get_edit_buffer_xywh(
@@ -983,16 +979,11 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                                 KeyboardInput {
                                     state: ElementState::Pressed,
                                     virtual_keycode: Some(keypress),
-                                    modifiers:
-                                        ModifiersState {
-                                            ctrl: false,
-                                            shift: true,
-                                            ..
-                                        },
+                                    modifiers,
                                     ..
                                 },
                             ..
-                        } => match keypress {
+                        } if !modifiers.ctrl() && modifiers.shift() => match keypress {
                             VirtualKeyCode::Up => {
                                 call_u_and_r!(Input::ExtendSelectionForAllCursors(Move::Up));
                                 ui.navigation = Navigation::Up;
@@ -1067,9 +1058,9 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         }
                         WindowEvent::MouseWheel {
                             delta: MouseScrollDelta::LineDelta(_, y),
-                            modifiers: ModifiersState { shift: false, .. },
+                            modifiers,
                             ..
-                        } => {
+                        } if !modifiers.shift() => {
                             let scroll_y = y * wimp_render::SCROLL_MULTIPLIER;
                             if wimp_render::inside_tab_area(ui.mouse_pos, font_info) {
                                 ui.tab_scroll += scroll_y;
@@ -1079,9 +1070,9 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         }
                         WindowEvent::MouseWheel {
                             delta: MouseScrollDelta::LineDelta(_, y),
-                            modifiers: ModifiersState { shift: true, .. },
+                            modifiers,
                             ..
-                        } => {
+                        } if modifiers.shift() => {
                             let scroll_y = y * wimp_render::SCROLL_MULTIPLIER;
                             if wimp_render::inside_tab_area(ui.mouse_pos, font_info) {
                                 ui.tab_scroll += scroll_y;
@@ -1090,21 +1081,18 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                             }
                         }
                         WindowEvent::CursorMoved {
-                            position: LogicalPosition { x, y },
+                            position,
                             modifiers,
                             ..
                         } => {
+                            let LogicalPosition::<f32> { x, y } = position.to_logical(get_hidpi_factor!());
                             ui.mouse_pos = ScreenSpaceXY {
-                                x: x as f32,
-                                y: y as f32,
+                                x,
+                                y,
                             };
 
                             match modifiers {
-                                ModifiersState {
-                                    ctrl: false,
-                                    shift: false,
-                                    ..
-                                } => {
+                                m if !m.shift() && !m.ctrl() => {
                                     let cursor_icon = if wimp_render::should_show_text_cursor(
                                         ui.mouse_pos,
                                         view.menu.get_mode(),
@@ -1128,15 +1116,12 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         WindowEvent::MouseInput {
                             button: MouseButton::Left,
                             state: ElementState::Pressed,
-                            modifiers:
-                                ModifiersState {
-                                    ctrl, shift: false, ..
-                                },
+                            modifiers,
                             ..
-                        } => {
+                        } if !modifiers.shift() => {
                             ui.left_mouse_state = PhysicalButtonState::PressedThisFrame;
 
-                            let replace_or_add = if ctrl {
+                            let replace_or_add = if modifiers.ctrl() {
                                 ReplaceOrAdd::Add
                             } else {
                                 ReplaceOrAdd::Replace
