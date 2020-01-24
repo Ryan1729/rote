@@ -93,10 +93,10 @@ pub trait RopeSliceTrait<'rope> {
 
     fn chunks(&self) -> Chunks<'rope>;
 
-    // Returns the sliced chars as a cintiguoug string if possible. This allows optimizations in those cases.
+    // Returns the sliced chars as a contiguous string if possible. This allows optimizations in those cases.
     // Note that a valid implemention of this method can always return `None`, so it should not be relied upon
     // to ever return a `&str`
-    fn as_str(&self) -> Option<&'rope str>;
+    fn as_str_if_no_allocation_needed(&self) -> Option<&'rope str>;
 }
 
 // End of public facing portion of this file.
@@ -261,7 +261,8 @@ impl<'rope> RopeSliceTrait<'rope> for RopeSlice<'rope> {
         })
     }
 
-    fn as_str(&self) -> Option<&'rope str> {
+    // Returns a Some only if the str can be safely sliced without a memory allocation.
+    fn as_str_if_no_allocation_needed(&self) -> Option<&'rope str> {
         self.rope_slice.as_str()
     }
 }
@@ -505,7 +506,8 @@ impl<'rope> RopeSliceTrait<'rope> for RopeLine<'rope> {
         self.0.slice(char_range).map(RopeLine)
     }
 
-    fn as_str(&self) -> Option<&'rope str> {
+    // Returns a Some only if the str can be safely sliced without a memory allocation.
+    fn as_str_if_no_allocation_needed(&self) -> Option<&'rope str> {
         self.0.rope_slice.as_str()
     }
 }

@@ -170,9 +170,13 @@ fn reduced_panic_safe_rope_slices_properly_in_buggy_txt_all_in_one_test() {
             rope_slice: line.rope_slice.slice((Bound::Included(4), Bound::Excluded(12))),
         });
     
-    assert_eq!(slice.as_str(), line.rope_slice.as_str());
+    assert_eq!(
+        slice.as_str_if_no_allocation_needed(),
+        line.as_str_if_no_allocation_needed()
+    );
 
-    // these tests seems to have been based on a misunderstanding of what `as_str` is supposed to do. 
+    // these tests seems to have been based on a misunderstanding of what 
+    // `as_str_if_no_allocation_needed` is supposed to do. (before the rename). 
 
     assert_eq!(
         slice,

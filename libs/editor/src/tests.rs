@@ -2,7 +2,7 @@ use super::*;
 use platform_types::pos;
 use editor_types::{cur, vec1};
 
-use proptest::prelude::{proptest, Strategy};
+use proptest::prelude::{Strategy};
 
 fn update_and_render_shows_the_cursor_when_pressing_home_on(text: &str, buffer_xywh: TextBoxXYWH, char_dim: CharDim) {
     let mut state: State = text.into();

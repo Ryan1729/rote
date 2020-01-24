@@ -383,9 +383,16 @@ pub fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit
                         } else {
                             highlight_end_for_line
                         };
-                    let highlighted_line_after_whitespace: &str =
-                        some_or!(line.slice(o..slice_end).and_then(|l| l.as_str()), continue);
-                    chars.push_str(highlighted_line_after_whitespace);
+                    let highlighted_line_after_whitespace =
+                        some_or!(line.slice(o..slice_end), continue);
+
+                    if let Some(s) = highlighted_line_after_whitespace.as_str_if_no_allocation_needed() {
+                        chars.push_str(s);
+                    } else { 
+                        for c in highlighted_line_after_whitespace.chars() {
+                            chars.push(c);
+                        }
+                    }
                 }
 
                 let (range_edit, delete_offset, delete_delta) = delete_within_range(rope, range);
@@ -483,8 +490,14 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
 
                     dbg!(delete_count, slice_end);
 
-                    for c in some_or!(line.slice(delete_count..slice_end), continue).chars() {
-                        chars.push(c);
+                    let line_minus_start = some_or!(line.slice(delete_count..slice_end), continue);
+
+                    if let Some(s) = line_minus_start.as_str_if_no_allocation_needed() {
+                        chars.push_str(s);
+                    } else { 
+                        for c in line_minus_start.chars() {
+                            chars.push(c);
+                        }
                     }
                 }
 

@@ -183,3 +183,68 @@ fn the_rope_acts_as_expected_in_this_does_not_lose_a_line_derived_case() {
         "precious\n"
     );
 }
+
+#[test]
+fn does_not_lose_a_line_in_this_second_manually_found_case() {
+    use TestEdit::*;
+    use ReplaceOrAdd::*;
+    let mut buffer = t_b!(include_str!("./test-text-1.txt"));
+
+    let line_count = buffer.rope.len_lines();
+
+    let expected_line_suffix = "// We don't need to make sure a cursor is visible here since the user";
+
+    //precondition given we assert it again below
+    {
+        let s: String = buffer.rope.clone().into();
+        assert!(s.contains(expected_line_suffix), "\n*****\n\nPrecondition failure!\n\n*****\n");
+        assert_eq!(line_count, buffer.rope.len_lines(), "\n*****\n\nPrecondition failure!\n\n*****\n");
+    }
+
+    buffer.set_cursor(cur!{l 813 o 0 h l 830 o 30}, Replace);
+
+    TestEdit::apply(&mut buffer, TabIn);
+
+    {
+        let s: String = buffer.rope.clone().into();
+        assert!(s.contains(expected_line_suffix));
+    }
+    assert_eq!(line_count, buffer.rope.len_lines());
+}
+
+#[test]
+fn does_not_lose_a_line_in_this_reduced_second_manually_found_case() {
+    use TestEdit::*;
+    use ReplaceOrAdd::*;
+    let mut buffer = t_b!(include_str!("./test-text-1-reduced-0.txt"));
+
+    let line_count = buffer.rope.len_lines();
+
+    //precondition given we assert it again below
+    assert_eq!(line_count, buffer.rope.len_lines(), "\n*****\n\nPrecondition failure!\n\n*****\n");
+
+    buffer.set_cursor(cur!{l 827 o 0 h l 828 o 30}, Replace);
+
+    TestEdit::apply(&mut buffer, TabIn);
+
+    assert_eq!(line_count, buffer.rope.len_lines());
+}
+
+#[test]
+fn does_not_lose_a_line_in_this_reduced_1_second_manually_found_case() {
+    use TestEdit::*;
+    use ReplaceOrAdd::*;
+    let mut buffer = t_b!(include_str!("./test-text-1-reduced-1.txt"));
+
+    let line_count = buffer.rope.len_lines();
+
+    //precondition given we assert it again below
+    assert_eq!(line_count, buffer.rope.len_lines(), "\n*****\n\nPrecondition failure!\n\n*****\n");
+
+    buffer.set_cursor(cur!{l 827 o 0 h l 828 o 30}, Replace);
+
+    TestEdit::apply(&mut buffer, TabIn);
+
+    assert_eq!(line_count, buffer.rope.len_lines());
+}
+
