@@ -538,34 +538,7 @@ macro_rules! set_if_present {
 
 //#[check_or_no_panic::check_or_no_panic]
 pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutput {
-    macro_rules! buffer_call {
-        ($buffer: ident . $($method_call:tt)*) => {
-            buffer_call!($buffer {$buffer.$($method_call)*})
-        };
-        ($buffer: ident $tokens:block) => {{
-            if let Some($buffer) = get_scrollable_buffer_mut!(state) {
-                $tokens;
-            }
-        }}
-    }
-    macro_rules! text_buffer_call {
-        ($buffer: ident . $($method_call:tt)*) => {
-            text_buffer_call!($buffer {$buffer.$($method_call)*})
-        };
-        ($buffer: ident $tokens:block) => {{
-            if let Some($buffer) = get_scrollable_buffer_mut!(state).map(|b| &mut b.text_buffer) {
-                $tokens;
-            }
-        }}
-    }
     perf_viz::record_guard!("update_and_render");
-
-    if cfg!(debug_assertions)
-    {
-        if_changed::dbg!(&input);
-    }
-
-    let mut cmd = Cmd::NoCmd;
 
     macro_rules! try_to_show_cursors {
         () => {
@@ -576,8 +549,6 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             // TODO trigger error popup based on result?
         };
     }
-
-    let mut edited_buffer_index: Option<g_i::Index> = Option::None;
 
     macro_rules! buffer_view_sync {
         () => {
@@ -600,12 +571,56 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
         };
     }
 
+    let mut edited_buffer_index: Option<g_i::Index> = Option::None;
     macro_rules! post_edit_sync {
         () => {
             buffer_view_sync!();
             edited_buffer_index = Some(state.current_buffer_id.index);
         };
     }
+
+    macro_rules! buffer_call {
+        (sync $buffer: ident . $($method_call:tt)*) => {
+            let output = buffer_call!($buffer . $($method_call)*);
+            post_edit_sync!();
+            output
+        };
+        ($buffer: ident . $($method_call:tt)*) => {
+            buffer_call!($buffer {$buffer.$($method_call)*})
+        };
+        (sync $buffer: ident $tokens:block) => {{
+            buffer_call!($buffer $tokens);
+            post_edit_sync!();
+        }};
+        ($buffer: ident $tokens:block) => {{
+            if let Some($buffer) = get_scrollable_buffer_mut!(state) {
+                $tokens;
+            }
+        }}
+    }
+    macro_rules! text_buffer_call {
+        (sync $buffer: ident . $($method_call:tt)*) => {
+            text_buffer_call!($buffer . $($method_call)*)
+        };
+        ($buffer: ident . $($method_call:tt)*) => {
+            text_buffer_call!($buffer {$buffer.$($method_call)*})
+        };
+        (sync $buffer: ident $tokens:block) => {{
+            text_buffer_call!($buffer $tokens)
+        }};
+        ($buffer: ident $tokens:block) => {{
+            if let Some($buffer) = get_scrollable_buffer_mut!(state).map(|b| &mut b.text_buffer) {
+                $tokens;
+            }
+        }}
+    }
+
+    if cfg!(debug_assertions)
+    {
+        if_changed::dbg!(&input);
+    }
+
+    let mut cmd = Cmd::NoCmd;
 
     macro_rules! close_menu_if_any {
         () => {
@@ -620,21 +635,20 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
         CloseMenuIfAny => {
             close_menu_if_any!();
         }
-        Insert(c) => buffer_call!(b{
+        Insert(c) => buffer_call!(sync b{
             b.text_buffer.insert(c);
-            post_edit_sync!();
         }),
-        Delete => buffer_call!(b {
+        Delete => buffer_call!(sync b {
             b.text_buffer.delete();
-            post_edit_sync!();
         }),
-        Redo => buffer_call!(b {
+        DeleteLines => buffer_call!(sync b {
+            b.text_buffer.delete_lines();
+        }),
+        Redo => buffer_call!(sync b {
             b.text_buffer.redo();
-            post_edit_sync!();
         }),
-        Undo => buffer_call!(b {
+        Undo => buffer_call!(sync b {
             b.text_buffer.undo();
-            post_edit_sync!();
         }),
         MoveAllCursors(r#move) => {
             buffer_call!(b{
@@ -729,11 +743,10 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                 (*b).name = BufferName::Path(path);
             }
         }
-        Cut => buffer_call!(b {
+        Cut => buffer_call!(sync b {
             if let Some(s) = state.clipboard_history.cut(&mut b.text_buffer) {
                 cmd = Cmd::SetClipboard(s);
             }
-            post_edit_sync!();
         }),
         Copy => buffer_call!(b {
             if let Some(s) = state.clipboard_history.copy(&mut b.text_buffer) {
@@ -741,13 +754,11 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             }
             try_to_show_cursors!();
         }),
-        Paste(op_s) => buffer_call!(b {
+        Paste(op_s) => buffer_call!(sync b {
             state.clipboard_history.paste(&mut b.text_buffer, op_s);
-            post_edit_sync!();
         }),
-        InsertNumbersAtCursors => buffer_call!(b {
+        InsertNumbersAtCursors => buffer_call!(sync b {
             b.text_buffer.insert_at_each_cursor(|i| i.to_string());
-            post_edit_sync!();
         }),
         AddOrSelectBuffer(name, str) => {
             state.add_or_select_buffer(name, str);
@@ -761,12 +772,10 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             state.set_text_id(state.buffers.last_index());
         }
         TabIn => {
-            text_buffer_call!(b.tab_in());
-            post_edit_sync!();
+            text_buffer_call!(sync b.tab_in());
         }
         TabOut => {
-            text_buffer_call!(b.tab_out());
-            post_edit_sync!();
+            text_buffer_call!(sync b.tab_out());
         }
         NextBuffer => {
             state.next_buffer();
@@ -843,7 +852,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                 };
 
                 if let Some(selection) = selection {
-                    text_buffer_call!(b{
+                    text_buffer_call!(sync b{
                         // For the small menu buffers I'd rather keep all the history
                         // even if the history order is confusing, since the text 
                         // entered is usually small ... kind of like a shell prompt.
@@ -863,8 +872,6 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                         // will understand where the cursor is.
                     });
                 }
-
-                post_edit_sync!();
             }
         }
         SubmitForm => match state.current_buffer_id.kind {

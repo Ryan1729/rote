@@ -1,6 +1,7 @@
 // This module is inside `tests`
 use super::*;
 
+use crate::edit::line_indicies_touched_by;
 use std::collections::HashMap;
 
 // TODO move all `arb` fns in here
@@ -335,6 +336,7 @@ pub enum TestEdit {
     Insert(char),
     InsertString(String),
     Delete,
+    DeleteLines,
     MoveAllCursors(Move),
     ExtendSelectionForAllCursors(Move),
     MoveCursors(usize, Move),
@@ -415,6 +417,7 @@ impl TestEdit {
             Insert(c) => buffer.insert(*c),
             InsertString(s) => buffer.insert_string(s.to_owned()),
             Delete => buffer.delete(),
+            DeleteLines => buffer.delete_lines(),
             MoveAllCursors(r#move) => buffer.move_all_cursors(*r#move),
             ExtendSelectionForAllCursors(r#move) => buffer.extend_selection_for_all_cursors(*r#move),
             MoveCursors(index, r#move) => buffer.move_cursor(*index, *r#move),
@@ -461,6 +464,26 @@ impl TestEdit {
                             let delete_offset_range = AbsoluteCharOffsetRange::new(o1, o2);
                             let s = edit::copy_string(&buffer.rope, delete_offset_range);
                             decrement_string(counts, &s);
+                        }
+                        _ => {},
+                    }        
+                }
+            },
+            DeleteLines => {
+                let rope = &buffer.rope;
+                for cur in buffer.borrow_cursors_vec().clone() {
+                    let offsets = offset_pair(rope, &cur);
+                    match offsets {
+                        (Some(o1), offset2) => {
+                            let o2 = offset2.unwrap_or(o1);
+                            let range = AbsoluteCharOffsetRange::new(o1, o2);
+                            for index in some_or!(line_indicies_touched_by(rope, range), continue) {
+                                let line_start = some_or!(rope.line_to_char(index), continue);
+                                let line_end = some_or!(rope.line_to_char(LineIndex(index.0 + 1)), continue);
+                                let delete_offset_range = AbsoluteCharOffsetRange::new(line_start, line_end);
+                                let s = edit::copy_string(&buffer.rope, delete_offset_range);
+                                decrement_string(counts, &s);
+                            }
                         }
                         _ => {},
                     }        
@@ -557,7 +580,7 @@ impl TestEdit {
             | ExtendSelection(_, _) | SetCursor(_, _) | DragCursors(_) => {
                 false
             }
-            Insert(_) | InsertString(_) | Delete | Cut 
+            Insert(_) | InsertString(_) | Delete | DeleteLines | Cut 
             | InsertNumbersAtCursors | TabIn | TabOut => {
                 true
             }
@@ -569,6 +592,7 @@ pub fn test_edit() -> impl Strategy<Value = TestEdit> {
     use TestEdit::*;
     prop_oneof![
         Just(Delete),
+        Just(DeleteLines),
         any::<char>().prop_map(Insert),
         ".*".prop_map(InsertString),
         arb_move().prop_map(MoveAllCursors),
@@ -634,6 +658,7 @@ pub fn test_edit_delete_and_tab_in_out_heavy() -> impl Strategy<Value = TestEdit
         9 => Just(TabIn),
         9 => Just(TabOut),
         9 => Just(Delete),
+        9 => Just(DeleteLines),
         5 => test_edit_selection_changes(), // Make sure there can be selections
         1 => test_edit()
     ]

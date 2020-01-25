@@ -9,6 +9,7 @@ use platform_types::CursorState;
 
 use arb::get_counts;
 
+use std::collections::HashSet;
 use pretty_assertions::assert_eq;
 use proptest::prelude::*;
 use proptest::{option, prop_compose, proptest};
@@ -1629,6 +1630,39 @@ fn get_tab_out_edit_returns_the_right_chars_in_this_ascii_case() {
         range_edit.insert_range.unwrap().chars,
         range_edit.delete_range.unwrap().chars
     );
+}
+
+fn delete_lines_deletes_the_expected_amount_of_lines_on(mut buffer: TextBuffer) {
+    let mut line_indicies = HashSet::with_capacity(buffer.rope.len_lines().0);
+
+    for c in buffer.borrow_cursors_vec1().iter() {
+        let offsets = offset_pair(&buffer.rope, c);
+        match offsets {
+            (Some(o1), offset2) => {
+                let o2 = offset2.unwrap_or(o1);
+                let range = AbsoluteCharOffsetRange::new(o1, o2);
+                for index in some_or!(line_indicies_touched_by(&buffer.rope, range), continue) {
+                    line_indicies.insert(index.0);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let line_count = line_indicies.len();
+
+    TestEdit::apply(&mut buffer, TestEdit::DeleteLines);
+
+    assert_eq!(buffer.rope.len_lines(), line_count);
+}
+
+proptest! {
+    #[test]
+    fn delete_lines_deletes_the_expected_amount_of_lines(
+        buffer in arb::text_buffer_with_many_cursors(),
+    ) {
+        delete_lines_deletes_the_expected_amount_of_lines_on(buffer);
+    }
 }
 
 

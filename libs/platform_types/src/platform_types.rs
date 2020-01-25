@@ -26,6 +26,7 @@ pub enum Input {
     CloseMenuIfAny,
     Insert(char),
     Delete,
+    DeleteLines,
     ResetScroll,
     ScrollVertically(f32),
     ScrollHorizontally(f32),

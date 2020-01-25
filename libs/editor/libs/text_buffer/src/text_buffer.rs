@@ -217,6 +217,10 @@ impl TextBuffer {
         &self.cursors.cursors
     }
 
+    pub fn borrow_cursors_vec1(&self) -> &Vec1<Cursor> {
+        &self.cursors.cursors
+    }
+
     pub fn reset_cursor_states(&mut self) {
         self.cursors.reset_states();
     }
@@ -586,9 +590,8 @@ impl TextBuffer {
 
     #[perf_viz::record]
     pub fn insert_string(&mut self, s: String) {
-        self.apply_edit(
-            edit::get_insert_edit(&self.rope, &self.cursors, |_| s.clone()),
-            ApplyKind::Record,
+        self.record_edit(
+            edit::get_insert_edit(&self.rope, &self.cursors, |_| s.clone())
         );
     }
 
@@ -596,17 +599,22 @@ impl TextBuffer {
     where
         F: Fn(usize) -> String,
     {
-        self.apply_edit(
-            edit::get_insert_edit(&self.rope, &self.cursors, func),
-            ApplyKind::Record,
+        self.record_edit(
+            edit::get_insert_edit(&self.rope, &self.cursors, func)
         );
     }
 
     #[perf_viz::record]
     pub fn delete(&mut self) {
-        self.apply_edit(
-            edit::get_delete_edit(&self.rope, &self.cursors),
-            ApplyKind::Record,
+        self.record_edit(
+            edit::get_delete_edit(&self.rope, &self.cursors)
+        );
+    }
+
+    #[perf_viz::record]
+    pub fn delete_lines(&mut self) {
+        self.record_edit(
+            edit::get_delete_lines_edit(&self.rope, &self.cursors)
         );
     }
 
@@ -637,7 +645,7 @@ impl TextBuffer {
     pub fn cut_selections(&mut self) -> Vec<String> {
         let (output, edit) = self.get_selections_and_cut_edit();
 
-        self.apply_edit(edit, ApplyKind::Record);
+        self.record_edit(edit);
 
         output
     }
@@ -804,17 +812,20 @@ impl TextBuffer {
     }
 
     pub fn tab_in(&mut self) {
-        self.apply_edit(
+        self.record_edit(
             edit::get_tab_in_edit(&self.rope, &self.cursors),
-            ApplyKind::Record,
         );
     }
 
     pub fn tab_out(&mut self) {
-        self.apply_edit(
+        self.record_edit(
             edit::get_tab_out_edit(&self.rope, &self.cursors),
-            ApplyKind::Record,
         );
+    }
+
+    #[perf_viz::record]
+    fn record_edit(&mut self, edit: Edit) {
+        self.apply_edit(edit, ApplyKind::Record)
     }
 
     #[perf_viz::record]

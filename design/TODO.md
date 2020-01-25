@@ -2,6 +2,8 @@
 
 * delete line on F1
 
+* still select the previous value in the go to position case even if something that is selected does not parse
+
 * prevent "No buffer selected" when re-opening already opened file
 
 * fix frame drop when scrolling that became apparent when increasing the scroll multiplier
@@ -56,10 +58,59 @@
   * draw a different thing (dotted line?) if there is no matching brace found.
   * jump to matching brace?
 
+* when tabbing in (and out I guess?) insert, (/remove?) extra tab strs automatically depending on the surrounding text.
+    * given these lines
+    ```
+            {
+    to tab
+            }
+    ```
+    selecting `to tab` and pressing tab should result in something like this:
+    ```
+            {
+                to tab
+            }
+    ```
+    since that is the likely desired result.
+    This might also be acceptable and closer to correct in more cases
+    ```
+            {
+            to tab
+            }
+    ```
+    The following is a case where we would expect the second behaviour
+    ```
+        {
+            a = 1;
+    to tab
+            a += 1;
+        }
+    ```
+    That is, we want 
+    ```
+        {
+            a = 1;
+            to tab
+            a += 1;
+        }
+    ```
+    not
+    ```
+        {
+            a = 1;
+                to tab
+            a += 1;
+        }
+    ```
+
+* similar logic to the above auto-tabbing shoudl be used to add in tabs when enter is pressed.
+
 * Do some compile-time profiling so I can see what is taking so long to compile and either pull that into a crate (meaning it is compiled less often) or change it in some way to make it compile faster
 
 * make it such that buffers are not considered edited if their contents matches what is on disk
     * do we want a hash here?
+        * we would only want that as an optimization. 
+        * let's try without one and see if we run into problems in practice
 
 * PageUp/Down?
     * maybe these could be jump to matching brace?

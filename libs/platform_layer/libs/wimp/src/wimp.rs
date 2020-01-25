@@ -946,6 +946,9 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                                 }));
                                 call_u_and_r!(Input::CloseMenuIfAny);
                             }
+                            VirtualKeyCode::F1 => {
+                                call_u_and_r!(Input::DeleteLines);
+                            }
                             VirtualKeyCode::Back => {
                                 call_u_and_r!(Input::Delete);
                             }

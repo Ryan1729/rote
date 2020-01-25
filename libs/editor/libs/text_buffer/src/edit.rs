@@ -273,6 +273,48 @@ pub fn get_delete_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit
     })
 }
 
+/// Returns an edit that, if applied, deletes the line(s) each cursor intersects with.
+pub fn get_delete_lines_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
+    get_edit(original_rope, original_cursors, |cursor, rope, _| {
+        let offsets = offset_pair(original_rope, cursor);
+        match offsets {
+            (Some(o1), offset2) => {
+                let o2 = offset2.unwrap_or(o1);
+                let range = AbsoluteCharOffsetRange::new(o1, o2);
+                let line_indicies = some_or!(line_indicies_touched_by(rope, range), return d!());
+
+                let mut range_edits = d!();
+                let mut cursor_placement_spec = d!();
+
+                for index in line_indicies.into_iter() {
+                    let line_start = some_or!(rope.line_to_char(index), continue);
+                    let line_end = some_or!(rope.line_to_char(index + 1), continue);
+
+                    let (range_edit, delete_offset, delete_delta) = delete_highlighted(rope, line_start, line_end);
+                    
+                    range_edits = RangeEdits {
+                        delete_range: Some(range_edit),
+                        ..d!()
+                    };
+
+                    cursor_placement_spec = CursorPlacementSpec {
+                        offset: delete_offset,
+                        delta: delete_delta,
+                        ..d!()
+                    };
+                    // TODO handle more than one valid line.
+                    break
+                }
+                (
+                    range_edits,
+                    cursor_placement_spec,
+                )
+            }
+            _ => d!(),
+        }
+    })
+}
+
 /// returns an edit that if applied will delete the highlighted region at each cursor if there is
 /// one, and which does nothing otherwise.
 pub fn get_cut_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
@@ -771,7 +813,7 @@ fn delete_within_range(
     )
 }
 
-fn line_indicies_touched_by(
+pub fn line_indicies_touched_by(
     rope: &Rope,
     range: AbsoluteCharOffsetRange,
 ) -> Option<Vec1<LineIndex>> {
