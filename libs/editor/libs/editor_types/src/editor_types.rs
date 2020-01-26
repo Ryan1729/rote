@@ -80,6 +80,9 @@ macro_rules! cur {
     ($pos: expr) => {
         Cursor::new($pos)
     };
+    ($pos: expr, $h_pos: expr) => {
+        Cursor::new_with_highlight($pos, $h_pos)
+    };
     (l $line:literal o $offset:literal) => {
         Cursor::new(pos! {l $line o $offset})
     };

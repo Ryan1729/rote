@@ -213,7 +213,7 @@ fn get_tab_in_edit_produces_the_expected_edit_with_multiple_cursors_in_this_buff
 }
 
 #[test]
-fn get_tab_in_edit_produces_the_expected_change_when_two_cursors_are_on_the_same_line() {
+fn get_tab_in_edit_produces_the_expected_change_when_two_cursors_are_on_the_same_line_in_this_case() {
     let text = format!("0\n  2\n");
 
     let mut buffer = t_b!(text.to_owned());
@@ -235,7 +235,7 @@ fn get_tab_in_edit_produces_the_expected_change_when_two_cursors_are_on_the_same
 }
 
 #[test]
-fn get_tab_in_edit_produces_the_expected_change_when_three_cursors_are_on_the_same_line() {
+fn get_tab_in_edit_produces_the_expected_change_when_three_cursors_are_on_the_same_line_in_this_case() {
     let text = format!("0\n       7\n");
 
     let mut buffer = t_b!(text.to_owned());
@@ -255,6 +255,55 @@ fn get_tab_in_edit_produces_the_expected_change_when_three_cursors_are_on_the_sa
     let s: String = buffer.rope.into();
     //7 + (3 * 4) = 19 ___1234567890123456789
     assert_eq!(s, "    0\n                   7\n    ");
+}
+
+#[test]
+fn get_delete_edit_produces_the_expected_change_in_this_case() {
+    let mut buffer = t_b!("\n", vec1![cur!{l 0 o 0 h l 1 o 0}]);
+
+    let edit = get_delete_edit(&buffer.rope, &buffer.cursors);
+
+    dbg!(&edit);
+
+    buffer.apply_edit(edit, ApplyKind::Playback);
+
+    let s: String = buffer.rope.into();
+
+    assert_eq!(s, "");
+}
+
+fn select_all_followed_by_delete_lines_deletes_everything_on(mut buffer: TextBuffer) {
+    TestEdit::apply(&mut buffer, TestEdit::SelectAll);
+    TestEdit::apply(&mut buffer, TestEdit::DeleteLines);
+
+    assert_eq!(buffer.rope.len_chars(), 0);
+}
+
+proptest! {
+    #[test]
+    fn select_all_followed_by_delete_lines_deletes_everything(
+        buffer in arb::text_buffer_with_many_cursors(),
+    ) {
+        select_all_followed_by_delete_lines_deletes_everything_on(buffer);
+    }
+}
+
+#[test]
+fn delete_lines_deletes_everything_in_this_two_line_case() {
+    let mut buffer = t_b!("\na", vec1![cur!{l 0 o 0 h l 1 o 1}]);
+    
+    TestEdit::apply(&mut buffer, TestEdit::DeleteLines);
+
+    assert_eq!(buffer.rope.len_chars(), 0);
+}
+
+#[test]
+fn delete_lines_deletes_everything_in_this_reduced_two_line_case() {
+    let mut buffer = t_b!("\na", vec1![cur!{l 0 o 0 h l 1 o 1}]);
+    
+    buffer.delete_lines();
+
+    assert_eq!(buffer.rope.len_chars(), 0);
 }
 
 #[test]
@@ -885,6 +934,57 @@ fn get_delete_edit_produces_the_expected_edit_on_this_cr_lf_edit_example() {
 }
 
 #[test]
+fn get_delete_lines_edit_produces_the_expected_edit_on_this_backslash_example() {
+    use TestEdit::*;
+
+    // Arrange
+    let mut buffer = t_b!("\n\\\n\n\\a", vec1![
+        cur!{l 3 o 2},
+        cur!{l 3 o 1}
+    ]);
+    let mut counts = get_counts(&buffer);
+
+    let rope = &buffer.rope;
+
+    let cursors = &buffer.cursors;
+
+    // Act
+    let edit = get_delete_lines_edit(rope, cursors);
+
+    // Assert
+    let expected = {
+        let new_cursors = {
+            let expected_rope = r!("\n\\\n\n".to_owned());
+
+            Cursors::new(&expected_rope, vec1![cur! {l 3 o 0}])
+        };
+
+        let range_edits = {
+            let insert_range = None;
+
+            let delete_range = Some(RangeEdit {
+                range: AbsoluteCharOffsetRange::new(AbsoluteCharOffset(4), AbsoluteCharOffset(6)),
+                chars: "\\a".to_owned(),
+            });
+            RangeEdits {
+                insert_range,
+                delete_range,
+            }
+        };
+
+        Edit {
+            range_edits: vec1![range_edits],
+            cursors: Change {
+                new: new_cursors,
+                old: cursors.clone(),
+            },
+        }
+    };
+
+    assert_eq!(edit, expected);
+}
+
+#[test]
 fn get_insert_edit_produces_the_expected_edit_on_this_multi_byte_char_example() {
     let mut buffer = t_b!("Aa 0");
     buffer.set_cursors_from_vec1(vec1![cur! {l 0 o 2}, cur! {l 0 o 1}]);
@@ -1155,6 +1255,99 @@ fn does_not_lose_characters_in_this_further_reduced_extend_selection_case() {
     dbg!(get_counts(&buffer), &counts);
     TestEdit::apply_with_counts(&mut buffer, &mut counts, &TabIn);
     dbg!(get_counts(&buffer), &counts);
+
+    counts.retain(|_, v| *v != 0);
+
+    assert_eq!(get_counts(&buffer), counts);
+}
+
+#[test]
+fn does_not_lose_characters_in_this_delete_lines_case() {
+    use TestEdit::*;
+    use ReplaceOrAdd::*;
+    let mut buffer = t_b!("\u{2028}ૠ�🌀");
+
+    buffer.set_cursor(cur!{l 0 o 0 h l 1 o 0}, Replace);
+    does_not_lose_characters_on(
+        buffer,
+        [DeleteLines]
+    );
+}
+
+#[test]
+fn does_not_lose_characters_in_this_reduced_delete_lines_case() {
+    use TestEdit::*;
+    use ReplaceOrAdd::*;
+    let mut buffer = t_b!("\na");
+
+    buffer.set_cursor(cur!{l 0 o 0 h l 1 o 0}, Replace);
+    does_not_lose_characters_on(
+        buffer,
+        [DeleteLines]
+    );
+}
+
+#[test]
+fn does_not_lose_characters_in_this_single_newline_delete_lines_case() {
+    use TestEdit::*;
+
+    does_not_lose_characters_on(
+        t_b!("\n"),
+        [DeleteLines]
+    );
+}
+
+#[test]
+fn does_not_lose_characters_in_this_more_complicated_delete_lines_case() {
+    use TestEdit::*;
+
+    does_not_lose_characters_on(
+        t_b!("a"),
+        [
+            Insert('\n'),
+            InsertString("\\\u{b}\u{b}\\".to_string()),
+            SetCursor(pos!{l 3 o 2}, ReplaceOrAdd::Add),
+            DeleteLines
+        ]
+    );
+}
+
+#[test]
+fn does_not_lose_characters_in_this_reduced_more_complicated_delete_lines_case() {
+    use TestEdit::*;
+
+    let mut buffer = t_b!("\n\\\u{b}\u{b}\\a", vec1![
+        cur!{l 3 o 2},
+        cur!{l 3 o 1}
+    ]);
+    let mut counts = get_counts(&buffer);
+
+    dbg!(get_counts(&buffer), &counts);
+    dbg!(&buffer);
+    TestEdit::apply_with_counts(&mut buffer, &mut counts, &DeleteLines);
+    dbg!(get_counts(&buffer), &counts);
+    dbg!(&buffer);
+
+    counts.retain(|_, v| *v != 0);
+
+    assert_eq!(get_counts(&buffer), counts);
+}
+
+#[test]
+fn does_not_lose_characters_in_this_further_reduced_more_complicated_delete_lines_case() {
+    use TestEdit::*;
+
+    let mut buffer = t_b!("\n\\\n\n\\a", vec1![
+        cur!{l 3 o 2},
+        cur!{l 3 o 1}
+    ]);
+    let mut counts = get_counts(&buffer);
+
+    dbg!(get_counts(&buffer), &counts);
+    dbg!(&buffer);
+    TestEdit::apply_with_counts(&mut buffer, &mut counts, &DeleteLines);
+    dbg!(get_counts(&buffer), &counts);
+    dbg!(&buffer);
 
     counts.retain(|_, v| *v != 0);
 

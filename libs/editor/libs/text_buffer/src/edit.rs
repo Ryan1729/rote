@@ -1,5 +1,6 @@
 use super::*;
 use macros::CheckedSub;
+use editor_types::cur;
 
 pub fn apply<'rope, 'cursors>(mut applier: EditApplier, edit: &Edit) {
     // we assume that the edits are in the proper order so we won't mess up our indexes with our
@@ -275,44 +276,22 @@ pub fn get_delete_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit
 
 /// Returns an edit that, if applied, deletes the line(s) each cursor intersects with.
 pub fn get_delete_lines_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
-    get_edit(original_rope, original_cursors, |cursor, rope, _| {
-        let offsets = offset_pair(original_rope, cursor);
-        match offsets {
-            (Some(o1), offset2) => {
-                let o2 = offset2.unwrap_or(o1);
-                let range = AbsoluteCharOffsetRange::new(o1, o2);
-                let line_indicies = some_or!(line_indicies_touched_by(rope, range), return d!());
+    let mut extended_cursors = original_cursors.get_cloned_cursors();
+    for c in extended_cursors.iter_mut() {
+        let position = c.get_position();
+        let highlight_position = c.get_highlight_position_or_position();
 
-                let mut range_edits = d!();
-                let mut cursor_placement_spec = d!();
+        let min_line = min(position.line, highlight_position.line);
+        let max_line = max(position.line, highlight_position.line) + 1;
 
-                for index in line_indicies.into_iter() {
-                    let line_start = some_or!(rope.line_to_char(index), continue);
-                    let line_end = some_or!(rope.line_to_char(index + 1), continue);
+        *c = dbg!(cur!{pos!{l min_line, o 0}, pos!{l max_line, o 0}});
+    }
 
-                    let (range_edit, delete_offset, delete_delta) = delete_highlighted(rope, line_start, line_end);
-                    
-                    range_edits = RangeEdits {
-                        delete_range: Some(range_edit),
-                        ..d!()
-                    };
+    let mut edit = get_delete_edit(original_rope, &Cursors::new(original_rope, extended_cursors));
 
-                    cursor_placement_spec = CursorPlacementSpec {
-                        offset: delete_offset,
-                        delta: delete_delta,
-                        ..d!()
-                    };
-                    // TODO handle more than one valid line.
-                    break
-                }
-                (
-                    range_edits,
-                    cursor_placement_spec,
-                )
-            }
-            _ => d!(),
-        }
-    })
+    edit.cursors.old = original_cursors.clone();
+
+    edit
 }
 
 /// returns an edit that if applied will delete the highlighted region at each cursor if there is

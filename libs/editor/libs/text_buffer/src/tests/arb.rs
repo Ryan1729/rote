@@ -344,6 +344,7 @@ pub enum TestEdit {
     SetCursor(Position, ReplaceOrAdd),
     DragCursors(Position),
     SelectCharTypeGrouping(Position, ReplaceOrAdd),
+    SelectAll,
     Cut,
     InsertNumbersAtCursors,
     TabIn,
@@ -427,6 +428,7 @@ impl TestEdit {
             SelectCharTypeGrouping(position, replace_or_add) => {
                 buffer.select_char_type_grouping(position, *replace_or_add)
             }
+            SelectAll => buffer.select_all(),
             Cut => {
                 buffer.cut_selections();
             }
@@ -494,7 +496,7 @@ impl TestEdit {
             },
             MoveAllCursors(_) | ExtendSelectionForAllCursors(_) | MoveCursors(_, _)
             | ExtendSelection(_, _) | SetCursor(_, _) | DragCursors(_)
-            | SelectCharTypeGrouping(_, _) => {},
+            | SelectCharTypeGrouping(_, _) | SelectAll => {},
             InsertNumbersAtCursors => {
                 decrement_strings(counts, &buffer.copy_selections());
                 for i in 0..buffer.borrow_cursors_vec().len() {
@@ -577,7 +579,8 @@ impl TestEdit {
         match *self {
             SelectCharTypeGrouping(_, _) | MoveAllCursors(_) 
             | ExtendSelectionForAllCursors(_) | MoveCursors(_, _) 
-            | ExtendSelection(_, _) | SetCursor(_, _) | DragCursors(_) => {
+            | ExtendSelection(_, _) | SetCursor(_, _) | DragCursors(_)
+            | SelectAll => {
                 false
             }
             Insert(_) | InsertString(_) | Delete | DeleteLines | Cut 
@@ -613,6 +616,7 @@ pub fn test_edit() -> impl Strategy<Value = TestEdit> {
             replace_or_add()
         )
             .prop_map(|(p, r)| SelectCharTypeGrouping(p, r)),
+        Just(SelectAll),
         Just(Cut),
         Just(InsertNumbersAtCursors),
         Just(TabIn),
@@ -685,6 +689,8 @@ pub fn test_edit_selection_changes() -> impl Strategy<Value = TestEdit> {
             replace_or_add()
         )
             .prop_map(|(p, r)| SelectCharTypeGrouping(p, r)),
+        // TODO would adding this line adversely affect probabiliites of interesting cursor placements?
+        // Just(SelectAll)
     ]
 }
 
