@@ -274,17 +274,21 @@ pub fn get_delete_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit
     })
 }
 
+pub fn extend_cursor_to_cover_line(c: &mut Cursor) {
+    let position = c.get_position();
+    let highlight_position = c.get_highlight_position_or_position();
+
+    let min_line = min(position.line, highlight_position.line);
+    let max_line = max(position.line, highlight_position.line) + 1;
+
+    *c = dbg!(cur!{pos!{l min_line, o 0}, pos!{l max_line, o 0}});
+}
+
 /// Returns an edit that, if applied, deletes the line(s) each cursor intersects with.
 pub fn get_delete_lines_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
     let mut extended_cursors = original_cursors.get_cloned_cursors();
     for c in extended_cursors.iter_mut() {
-        let position = c.get_position();
-        let highlight_position = c.get_highlight_position_or_position();
-
-        let min_line = min(position.line, highlight_position.line);
-        let max_line = max(position.line, highlight_position.line) + 1;
-
-        *c = dbg!(cur!{pos!{l min_line, o 0}, pos!{l max_line, o 0}});
+        extend_cursor_to_cover_line(c);
     }
 
     let mut edit = get_delete_edit(original_rope, &Cursors::new(original_rope, extended_cursors));

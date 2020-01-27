@@ -143,14 +143,14 @@ fn update_and_render_shows_the_cursor_when_pressing_home() {
     }).unwrap();
 }
 
-//#[test]
+/*#[test]
 fn update_and_render_shows_the_cursor_when_pressing_home_in_this_generated_case() {
     update_and_render_shows_the_cursor_when_pressing_home_on(
         CURSOR_SHOW_TEXT,
         tbxywh!(0.0, 0.0, 1803164.0, 1694881200000000000000.0),
         CharDim { w: 1.0, h: 723643300000000000.0 }
     );
-}
+}*/
 
 /* this was from before I decided to change how the screen gets auto-scrolled along the x axis.
 #[test]

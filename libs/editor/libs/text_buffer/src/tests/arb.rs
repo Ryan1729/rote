@@ -1,7 +1,7 @@
 // This module is inside `tests`
 use super::*;
 
-use crate::edit::line_indicies_touched_by;
+
 use std::collections::HashMap;
 
 // TODO move all `arb` fns in here
@@ -439,6 +439,26 @@ impl TestEdit {
     }
 
     pub fn apply_with_counts(buffer: &mut TextBuffer, counts: &mut Counts, edit: &TestEdit) {
+        fn apply_delete_edit(counts: &mut Counts, buffer: &TextBuffer, cursors_vec: Vec1<Cursor>) {
+            let cursors = Cursors::new(&buffer.rope, cursors_vec);
+            for cur in cursors.iter() {
+                let offsets = offset_pair(&buffer.rope, &cur);
+                match offsets {
+                    (Some(o), None) if o > 0 => {
+                        let delete_offset_range = AbsoluteCharOffsetRange::new(o - 1, o);
+                        let s = edit::copy_string(&buffer.rope, delete_offset_range);
+                        decrement_string(counts, &s);
+                    }
+                    (Some(o1), Some(o2)) if o1 > 0 || o2 > 0 => {
+                        let delete_offset_range = AbsoluteCharOffsetRange::new(o1, o2);
+                        let s = edit::copy_string(&buffer.rope, delete_offset_range);
+                        decrement_string(counts, &s);
+                    }
+                    _ => {},
+                }        
+            }
+        }
+
         use TestEdit::*;
         match edit {
             Insert(c) => {
@@ -454,42 +474,14 @@ impl TestEdit {
                 }
             },
             Delete => {
-                for cur in buffer.borrow_cursors_vec().clone() {
-                    let offsets = offset_pair(&buffer.rope, &cur);
-                    match offsets {
-                        (Some(o), None) if o > 0 => {
-                            let delete_offset_range = AbsoluteCharOffsetRange::new(o - 1, o);
-                            let s = edit::copy_string(&buffer.rope, delete_offset_range);
-                            decrement_string(counts, &s);
-                        }
-                        (Some(o1), Some(o2)) if o1 > 0 || o2 > 0 => {
-                            let delete_offset_range = AbsoluteCharOffsetRange::new(o1, o2);
-                            let s = edit::copy_string(&buffer.rope, delete_offset_range);
-                            decrement_string(counts, &s);
-                        }
-                        _ => {},
-                    }        
-                }
+                apply_delete_edit(counts, buffer, buffer.borrow_cursors_vec().clone());
             },
             DeleteLines => {
-                let rope = &buffer.rope;
-                for cur in buffer.borrow_cursors_vec().clone() {
-                    let offsets = offset_pair(rope, &cur);
-                    match offsets {
-                        (Some(o1), offset2) => {
-                            let o2 = offset2.unwrap_or(o1);
-                            let range = AbsoluteCharOffsetRange::new(o1, o2);
-                            for index in some_or!(line_indicies_touched_by(rope, range), continue) {
-                                let line_start = some_or!(rope.line_to_char(index), continue);
-                                let line_end = some_or!(rope.line_to_char(LineIndex(index.0 + 1)), continue);
-                                let delete_offset_range = AbsoluteCharOffsetRange::new(line_start, line_end);
-                                let s = edit::copy_string(&buffer.rope, delete_offset_range);
-                                decrement_string(counts, &s);
-                            }
-                        }
-                        _ => {},
-                    }        
+                let mut cursor_vec = buffer.borrow_cursors_vec().clone();
+                for c in cursor_vec.iter_mut() {
+                    edit::extend_cursor_to_cover_line(c);
                 }
+                apply_delete_edit(counts, buffer, cursor_vec);
             },
             Cut => {
                 decrement_strings(counts, &buffer.copy_selections());

@@ -1,7 +1,5 @@
 ## TODO
 
-* delete line on F1
-
 * still select the previous value in the go to position case even if something that is selected does not parse
 
 * prevent "No buffer selected" when re-opening already opened file

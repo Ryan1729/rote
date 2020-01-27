@@ -272,6 +272,22 @@ fn get_delete_edit_produces_the_expected_change_in_this_case() {
     assert_eq!(s, "");
 }
 
+fn select_all_followed_by_delete_deletes_everything_on(mut buffer: TextBuffer) {
+    TestEdit::apply(&mut buffer, TestEdit::SelectAll);
+    TestEdit::apply(&mut buffer, TestEdit::Delete);
+
+    assert_eq!(buffer.rope.len_chars(), 0);
+}
+
+proptest! {
+    #[test]
+    fn select_all_followed_by_delete_deletes_everything(
+        buffer in arb::text_buffer_with_many_cursors(),
+    ) {
+        select_all_followed_by_delete_deletes_everything_on(buffer);
+    }
+}
+
 fn select_all_followed_by_delete_lines_deletes_everything_on(mut buffer: TextBuffer) {
     TestEdit::apply(&mut buffer, TestEdit::SelectAll);
     TestEdit::apply(&mut buffer, TestEdit::DeleteLines);
@@ -935,14 +951,11 @@ fn get_delete_edit_produces_the_expected_edit_on_this_cr_lf_edit_example() {
 
 #[test]
 fn get_delete_lines_edit_produces_the_expected_edit_on_this_backslash_example() {
-    use TestEdit::*;
-
     // Arrange
-    let mut buffer = t_b!("\n\\\n\n\\a", vec1![
+    let buffer = t_b!("\n\\\n\n\\a", vec1![
         cur!{l 3 o 2},
         cur!{l 3 o 1}
     ]);
-    let mut counts = get_counts(&buffer);
 
     let rope = &buffer.rope;
 
@@ -1826,6 +1839,8 @@ fn get_tab_out_edit_returns_the_right_chars_in_this_ascii_case() {
 }
 
 fn delete_lines_deletes_the_expected_amount_of_lines_on(mut buffer: TextBuffer) {
+    let initial_line_count = buffer.rope.len_lines();
+
     let mut line_indicies = HashSet::with_capacity(buffer.rope.len_lines().0);
 
     for c in buffer.borrow_cursors_vec1().iter() {
@@ -1842,11 +1857,11 @@ fn delete_lines_deletes_the_expected_amount_of_lines_on(mut buffer: TextBuffer) 
         }
     }
 
-    let line_count = line_indicies.len();
+    let expected_line_count = std::cmp::max((initial_line_count - line_indicies.len()).0, 1);
 
     TestEdit::apply(&mut buffer, TestEdit::DeleteLines);
 
-    assert_eq!(buffer.rope.len_lines(), line_count);
+    assert_eq!(buffer.rope.len_lines().0, expected_line_count);
 }
 
 proptest! {
@@ -1858,6 +1873,12 @@ proptest! {
     }
 }
 
+#[test]
+fn delete_lines_deletes_the_expected_amount_of_lines_in_this_small_case() {
+    delete_lines_deletes_the_expected_amount_of_lines_on(
+        t_b!("\u{2028}", vec1![cur!{l 0 o 0 h l 1 o 0}]),
+    );
+}
 
 mod included_files;
 mod edit_arb;
