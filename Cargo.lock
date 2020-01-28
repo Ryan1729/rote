@@ -592,7 +592,6 @@ dependencies = [
  "macros 0.1.0",
  "perf_viz 0.1.0",
  "platform_types 0.1.0",
- "vec1 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -1555,6 +1554,7 @@ dependencies = [
  "arb_macros 0.1.0",
  "macros 0.1.0",
  "proptest 0.9.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "vec1 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

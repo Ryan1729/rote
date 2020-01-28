@@ -8,7 +8,6 @@ edition = "2018"
 path = "./src/editor_types.rs"
 
 [dependencies]
-vec1 = "1.4.0"
 
 [dependencies.macros]
 path = "../../../macros"

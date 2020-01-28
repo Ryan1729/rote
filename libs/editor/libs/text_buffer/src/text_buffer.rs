@@ -1,5 +1,5 @@
 use crate::move_cursor::{forward, get_next_selection_point, get_previous_selection_point};
-use editor_types::{Cursor, SetPositionAction, Vec1};
+use editor_types::{Cursor, SetPositionAction};
 use macros::{d, some_or, CheckedSub};
 use panic_safe_rope::{ByteIndex, LineIndex, Rope, RopeLine, RopeSlice, RopeSliceTrait};
 use platform_types::*;

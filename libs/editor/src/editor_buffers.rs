@@ -111,21 +111,19 @@ impl EditorBuffer {
 /// Guaranteed to have at least one buffer in it at all times.
 #[derive(Debug, Default)]
 pub struct EditorBuffers {
-    buffers: Vec1<EditorBuffer>,
-    index_state: g_i::State,
-    current_index: g_i::Index,
+    buffers: SelectableVec1<A>,
 }
 
 impl EditorBuffers {
     pub fn new(buffer: EditorBuffer) -> Self {
         Self {
-            buffers: Vec1::new(buffer),
+            buffers: SelectableVec1::new(buffer),
             ..d!()
         }
     }
 
     /// Since there is always at least one buffer, this always returns at least 1.
-    pub fn len(&self) -> g_i::Length {
+    /*pub fn len(&self) -> g_i::Length {
         debug_assert!(self.buffers.len() <= g_i::Length::max_value());
         g_i::Length::or_max(self.buffers.len())
     }
@@ -274,25 +272,7 @@ impl EditorBuffers {
     pub fn index_state(&self) -> g_i::State {
         self.index_state
     }
-}
-
-pub struct IterWithIndexes<'iter> {
-    index: g_i::Index,
-    iter: std::slice::Iter<'iter, EditorBuffer>,
-}
-
-impl<'iter> Iterator for IterWithIndexes<'iter> {
-    type Item = (g_i::Index, &'iter EditorBuffer);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.iter.next().map(|b| {
-            let i = self.index.clone();
-
-            self.index = self.index.saturating_add(1);
-
-            (i, b)
-        })
-    }
+*/
 }
 
 impl EditorBuffers {
@@ -300,10 +280,7 @@ impl EditorBuffers {
         self.buffers.iter()
     }
 
-    pub fn iter_with_indexes(&self) -> IterWithIndexes {
-        IterWithIndexes {
-            index: d!(),
-            iter: self.iter(),
-        }
+    pub fn iter_with_indexes(&self) -> g_i::IterWithIndexes<EditorBuffer> {
+        self.buffers.iter_with_indexes()
     }
 }

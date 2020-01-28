@@ -3,6 +3,8 @@ use macros::{
 };
 use std::path::PathBuf;
 
+pub use vec1::{vec1, Vec1};
+
 pub mod floating_point;
 
 pub mod screen_positioning;
@@ -49,7 +51,7 @@ pub enum Input {
     NewScratchBuffer(Option<String>),
     TabIn,
     TabOut,
-    MoveBuffer(BufferMove),
+    MoveBuffer(SelectionMove),
     NextBuffer,
     PreviousBuffer,
     NextLanguage,
@@ -62,16 +64,16 @@ pub enum Input {
 d!(for Input : Input::None);
 
 #[derive(Clone, Copy, Debug)]
-pub enum BufferMove {
+pub enum SelectionMove {
     Left,
     Right,
     ToStart,
     ToEnd,
 }
 
-macro_rules! buffer_move_to_num {
+macro_rules! selection_move_to_num {
     ($m: expr) => {{
-        use BufferMove::*;
+        use SelectionMove::*;
         match $m {
             Left => 0,
             Right => 1,
@@ -81,9 +83,9 @@ macro_rules! buffer_move_to_num {
     }};
 }
 
-ord!(and friends for BufferMove: buffer_move, other in 
-        buffer_move_to_num!(buffer_move)
-            .cmp(&buffer_move_to_num!(other))
+ord!(and friends for SelectionMove: selection_move, other in 
+        selection_move_to_num!(selection_move)
+            .cmp(&selection_move_to_num!(other))
 );
 
 #[derive(Clone, Copy, Default, Debug)]

@@ -1,7 +1,6 @@
 use macros::{d, fmt_debug, fmt_display, ord};
-use platform_types::{CharOffset, CursorState, Position};
+use platform_types::{CharOffset, CursorState, Position, vec1, Vec1};
 use std::borrow::Borrow;
-pub use vec1::{vec1, Vec1};
 
 #[derive(Clone, Copy, Debug)]
 pub enum SetPositionAction {

@@ -8,6 +8,7 @@ edition = "2018"
 path = "./src/platform_types.rs"
 
 [dependencies]
+vec1 = "1.4"
 macros = { path = "../macros" }
 
 [dev-dependencies]

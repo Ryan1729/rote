@@ -2,8 +2,8 @@
 use super::{cursor_assert, r, t_b, *};
 
 use arb::TestEdit;
-use editor_types::{cur, vec1};
-use platform_types::{pos, CursorState};
+use editor_types::{cur};
+use platform_types::{pos, CursorState, vec1};
 use pretty_assertions::assert_eq;
 use proptest::prelude::*;
 use proptest::{collection, option, prop_compose, proptest};
