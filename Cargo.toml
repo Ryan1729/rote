@@ -1,6 +1,6 @@
 [package]
 name = "rote"
-version = "0.2.63"
+version = "0.2.64"
 authors = ["Ryan1729 <Ryan1729@gmail.com>"]
 license = "MIT and Apache 2.0"
 edition = "2018"
@@ -36,7 +36,7 @@ invariant-checking = ["editor/invariant-checking"]
 time-render = ["platform_layer/time-render"]
 flame-chart = ["perf_viz/flame-chart"]
 flame-graph = ["perf_viz/flame-graph"]
-extra-prints = ["platform_layer/extra-prints"]
+extra-prints = ["platform_layer/extra-prints", "editor/extra-prints"]
 
 [workspace]
 

@@ -615,7 +615,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
         }}
     }
 
-    if cfg!(debug_assertions)
+    if cfg!(feature = "extra-prints")
     {
         if_changed::dbg!(&input);
     }
@@ -851,8 +851,9 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                     (s, _) => {s}
                 };
 
-                if let Some(selection) = selection {
-                    text_buffer_call!(sync b{
+                
+                text_buffer_call!(sync b{
+                    if let Some(selection) = selection {
                         // For the small menu buffers I'd rather keep all the history
                         // even if the history order is confusing, since the text 
                         // entered is usually small ... kind of like a shell prompt.
@@ -864,14 +865,15 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                                 break;
                             }
                         }
-
+    
                         b.select_all();
                         b.insert_string(selection);
-                        b.select_all();
-                        // We don't need to make sure a cursor is visible here since the user
-                        // will understand where the cursor is.
-                    });
-                }
+                    }
+
+                    b.select_all();
+                    // We don't need to make sure a cursor is visible here since the user
+                    // will understand where the cursor is.
+                });
             }
         }
         SubmitForm => match state.current_buffer_id.kind {

@@ -42,6 +42,7 @@ proptest = "0.9"
 [features]
 default = []
 invariant-checking = ["check_or_no_panic/invariant-checking"]
+extra-prints = []
 
 [[bench]]
 name = "user_input"

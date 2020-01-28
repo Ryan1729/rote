@@ -1,11 +1,14 @@
 ## TODO
 
-* still select the previous value in the go to position case even if something that is selected does not parse
+* try out multi-colour text
+    * simply cycle through the colours per character
+        * keep this state in the editor, since that is where the real state should go.
+    * try it per non-whitespace character?
 
-* prevent "No buffer selected" when re-opening already opened file
-
-* fix frame drop when scrolling that became apparent when increasing the scroll multiplier
-    * very apparent in debug mode
+* try to integrate tree-sitter
+    * get a parser working
+    * have the text be coloured based on the parse
+        * show scope nesting level?
 
 * Ctrl-E to toggle single line comments
   * could probably reuse tab insertion/deletion code.
@@ -42,6 +45,7 @@
         * it gives very poor errors (no messages at all apparently?), and sometimes panics, so no.
       * Okay, what if we use [`tree-sitter`](http://tree-sitter.github.io/tree-sitter/)? It seems to be designed specifically for my use case, and there is already a rust grammar made for it. And since `tree-sitter` is written in rust it is likely to be maintained.
         * The documentation is a little light, but I think the process is that I can take the generated `parser.c` and `scanner.c` from [`tree-sitter-rust`](https://github.com/tree-sitter/tree-sitter-rust) and just stick them into my source tree, then using the [`tree-sitter` rust bindings](https://github.com/tree-sitter/tree-sitter/tree/master/lib/binding_rust) I can set up a build.rs and afterwards just pretend `tree-sitter` is a rust library. Then, updating to the newest version of `tree-sitter` would just be as easy as editing the Cargo.toml and overwriting the c files with new versions. We'll see if I misunderstood something when I try it I guess.
+        * Ah, I think I was confused before between `tree-sitter`, (the main repo), `tree-sitter-rust`, (the rust grammar), and what I may not have seen before, the tree-sitter rust bindings.
 
 * Ctrl-shift-f to open a within current project folder search
   * implies some way to know what the project is. Options:
@@ -116,6 +120,9 @@
 * scrollable file search results list
 
 * update highlights after edits change the text
+
+* prevent "No buffer selected" when re-opening already opened file
+    * seems fixed?
 
 * visual feedback on copy
     * as in, copy-paste
