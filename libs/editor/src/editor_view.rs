@@ -22,11 +22,26 @@ fn scrollable_to_buffer_view_data(
         push_highlights(&mut highlights, position, c.get_highlight_position(), d!());
     }
 
+    let chars = buffer.chars().collect::<String>();
+
+    let spans = chars.char_indices().map(|(i, _)| {
+        use SpanKind::*;
+        SpanView {
+            kind: match (i + 2) % 3 {
+                1 => Comment,
+                2 => String,
+                _ => Plain,
+            },
+            end_byte_index: i
+        }
+    }).collect();
+
     BufferViewData {
         scroll: scrollable.scroll,
-        chars: buffer.chars().collect::<String>(),
+        chars,
         cursors,
         highlights,
+        spans,
     }
 }
 

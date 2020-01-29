@@ -684,6 +684,20 @@ pub struct BufferView {
     pub data: BufferViewData,
 }
 
+#[derive(Clone, Debug)]
+pub enum SpanKind {
+    Plain,
+    Comment,
+    String,
+}
+d!(for SpanKind: SpanKind::Plain);
+
+#[derive(Clone, Default, Debug)]
+pub struct SpanView {
+    pub end_byte_index: usize,
+    pub kind: SpanKind,
+}
+
 #[derive(Clone, Default, Debug)]
 pub struct BufferViewData {
     //TODO make this a &str or a char iterator
@@ -691,6 +705,7 @@ pub struct BufferViewData {
     pub scroll: ScrollXY,
     pub cursors: Vec<CursorView>,
     pub highlights: Vec<Highlight>,
+    pub spans: Vec<SpanView>
 }
 
 // Short form "Command".

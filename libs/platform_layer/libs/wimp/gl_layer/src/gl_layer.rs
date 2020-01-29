@@ -680,9 +680,26 @@ pub struct TextSpec<'text> {
 }
 
 #[derive(Clone, Debug)]
+pub struct ColouredText<'text> {
+    pub text: &'text str,
+    pub color: [f32; 4]
+}
+
+#[derive(Clone, Debug)]
+pub struct MulticolourTextSpec<'text> {
+    /// The font size
+    pub size: f32,
+    pub layout: TextLayout,
+    pub rect: ScreenSpaceRect,
+    pub z: u16,
+    pub text: Vec<ColouredText<'text>>
+}
+
+#[derive(Clone, Debug)]
 pub enum TextOrRect<'text> {
-    Text(TextSpec<'text>),
     Rect(VisualSpec),
+    Text(TextSpec<'text>),
+    MulticolourText(MulticolourTextSpec<'text>)
 }
 
 /// As of this writing, casting f32 to i32 is undefined behaviour if the value does not fit!
@@ -709,12 +726,33 @@ pub fn render(
     width: u32,
     height: u32,
 ) -> Res<()> {
+    use TextOrRect::*;
     let hidpi_factor = *hidpi_factor;
     let mut highlight_ranges = Vec::new();
     perf_viz::start_record!("for &text_and_rects");
     for t_or_r in text_and_rects {
         match t_or_r {
-            TextOrRect::Text(TextSpec {
+            Rect(VisualSpec {
+                rect: ssr!(min_x, min_y, max_x, max_y),
+                color,
+                z,
+            }) => {
+                let mut pixel_coords: PixelCoords = d!();
+                pixel_coords.min.x = f32_to_i32_or_max(min_x);
+                pixel_coords.min.y = f32_to_i32_or_max(min_y);
+                pixel_coords.max.x = f32_to_i32_or_max(max_x);
+                pixel_coords.max.y = f32_to_i32_or_max(max_y);
+
+                let mut bounds: Bounds = d!();
+                bounds.max = (max_x, max_y).into();
+                highlight_ranges.push(HighlightRange {
+                    pixel_coords,
+                    bounds,
+                    color,
+                    z: z_to_f32(z),
+                });
+            }
+            Text(TextSpec {
                 text,
                 size,
                 layout,
@@ -747,25 +785,45 @@ pub fn render(
                     }
                 };
             }
-            TextOrRect::Rect(VisualSpec {
-                rect: ssr!(min_x, min_y, max_x, max_y),
-                color,
+            MulticolourText(MulticolourTextSpec{
+                size,
+                layout,
+                rect,
                 z,
+                text,
             }) => {
-                let mut pixel_coords: PixelCoords = d!();
-                pixel_coords.min.x = f32_to_i32_or_max(min_x);
-                pixel_coords.min.y = f32_to_i32_or_max(min_y);
-                pixel_coords.max.x = f32_to_i32_or_max(max_x);
-                pixel_coords.max.y = f32_to_i32_or_max(max_y);
-
-                let mut bounds: Bounds = d!();
-                bounds.max = (max_x, max_y).into();
-                highlight_ranges.push(HighlightRange {
-                    pixel_coords,
-                    bounds,
-                    color,
+                let scale = get_scale(size, hidpi_factor);
+                let section = VariedSection {
+                    screen_position: rect.min,
+                    bounds: rect.max,
+                    layout: match layout {
+                        TextLayout::SingleLine => Layout::default_single_line(),
+                        TextLayout::Wrap | TextLayout::WrapInRect(_) | TextLayout::Unbounded => {
+                            Layout::default_wrap().line_breaker(glyph_brush::BuiltInLineBreaker::AnyCharLineBreaker)
+                        }
+                    },
                     z: z_to_f32(z),
-                });
+                    text: text.into_iter().map(|ColouredText { text, color }| {
+                        SectionText {
+                            text,
+                            scale,
+                            color,
+                            ..d!()
+                        }
+                    }).collect(),
+                    ..d!()
+                };
+
+                match layout {
+                    TextLayout::SingleLine => glyph_brush.queue(section),
+                    TextLayout::Wrap => glyph_brush.queue_custom_layout(section, &Wrap {}),
+                    TextLayout::WrapInRect(rect) => {
+                        glyph_brush.queue_custom_layout(section, &WrapInRect { rect })
+                    }
+                    TextLayout::Unbounded => {
+                        glyph_brush.queue_custom_layout(section, &Unbounded {})
+                    }
+                };
             }
         }
     }

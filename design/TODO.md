@@ -1,8 +1,6 @@
 ## TODO
 
 * try out multi-colour text
-    * simply cycle through the colours per character
-        * keep this state in the editor, since that is where the real state should go.
     * try it per non-whitespace character?
 
 * try to integrate tree-sitter

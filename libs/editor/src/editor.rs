@@ -615,7 +615,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
         }}
     }
 
-    if cfg!(feature = "extra-prints")
+    if cfg!(debug_assertions)
     {
         if_changed::dbg!(&input);
     }

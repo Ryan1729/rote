@@ -1,4 +1,4 @@
-use gl_layer::{TextLayout, TextOrRect, TextSpec, VisualSpec};
+use gl_layer::{ColouredText, MulticolourTextSpec, TextLayout, TextOrRect, TextSpec, VisualSpec};
 use macros::{c, d, ord};
 use platform_types::{screen_positioning::*, *};
 use shared::{BufferStatus, BufferStatusMap};
@@ -200,7 +200,6 @@ macro_rules! palette {
 pub const TEXT_BACKGROUND_COLOUR: Colour = palette![black];
 pub const TEXT_HOVER_BACKGROUND_COLOUR: Colour = lighten!(palette![black]);
 pub const TEXT_PRESSED_BACKGROUND_COLOUR: Colour = darken!(palette![black]);
-const TEXT_COLOUR: Colour = palette![blue];
 
 const HIGHLIGHT_ALPHA: f32 = 0.6;
 const USER_HIGHLIGHT_COLOUR: Colour = palette![alt black, HIGHLIGHT_ALPHA];
@@ -427,7 +426,7 @@ pub fn view<'view>(
                 rect,
                 underline: if i == selected_index {
                     Some(LineSpec {
-                        colour: TEXT_COLOUR,
+                        colour: palette![blue],
                         thickness: padding.into_ltrb().b,
                     })
                 } else {
@@ -488,7 +487,7 @@ pub fn view<'view>(
             d!(),
             *text_char_dim,
             TEXT_SIZE,
-            TEXT_COLOUR,
+            TextBoxColour::FromSpans,
             &data,
             b_id!(BufferIdKind::Text, index),
             EDIT_Z,
@@ -546,7 +545,7 @@ pub fn view<'view>(
                                     padding,
                                     *find_replace_char_dim,
                                     FIND_REPLACE_SIZE,
-                                    CHROME_TEXT_COLOUR,
+                                    TextBoxColour::Single(CHROME_TEXT_COLOUR),
                                     $data,
                                     $input,
                                     FIND_REPLACE_Z,
@@ -623,7 +622,7 @@ pub fn view<'view>(
                             padding,
                             *find_replace_char_dim,
                             FIND_REPLACE_SIZE,
-                            CHROME_TEXT_COLOUR,
+                            TextBoxColour::Single(CHROME_TEXT_COLOUR),
                             $data,
                             $input,
                             FIND_REPLACE_Z,
@@ -792,7 +791,7 @@ pub fn view<'view>(
                     padding,
                     *find_replace_char_dim,
                     FIND_REPLACE_SIZE,
-                    CHROME_TEXT_COLOUR,
+                    TextBoxColour::Single(CHROME_TEXT_COLOUR),
                     go_to_position,
                     b_id!(BufferIdKind::GoToPosition, index),
                     FIND_REPLACE_Z,
@@ -845,6 +844,29 @@ pub fn view<'view>(
     (text_or_rects, input)
 }
 
+enum TextBoxColour {
+    FromSpans,
+    Single(Colour),
+}
+d!(for TextBoxColour: TextBoxColour::FromSpans);
+
+fn colourize<'text>(text: &'text str, spans: &[SpanView]) -> Vec<ColouredText<'text>> {
+    let mut prev_byte_index = 0;
+    spans.iter().map(|s| {
+        use SpanKind::*;
+        let output = ColouredText {
+            text: &text[prev_byte_index..s.end_byte_index],
+            color: match s.kind {
+                Plain => palette![blue],
+                Comment => palette![cyan],
+                String => palette![green],
+            },
+        };
+        prev_byte_index = s.end_byte_index;
+        output
+    }).collect()
+}
+
 fn text_box<'view>(
     ui: &mut UIState,
     text_or_rects: &mut Vec<TextOrRect<'view>>,
@@ -852,13 +874,13 @@ fn text_box<'view>(
     padding: Spacing,
     char_dim: CharDim,
     size: f32,
-    // TODO if we need more colour customization we should probably make a struct for it
-    text_color: Colour,
+    text_color: TextBoxColour,
     BufferViewData {
         highlights,
         cursors,
         scroll,
         chars,
+        spans,
         ..
     }: &'view BufferViewData,
     buffer_id: BufferId,
@@ -902,15 +924,16 @@ fn text_box<'view>(
         text_box_pos,
     );
     let offset_text_rect = shrink_by(ssr!(scroll_offset.into(), outer_rect.max), padding);
-    text_or_rects.push(TextOrRect::Text(TextSpec {
-        text: &chars,
+    
+    text_or_rects.push(TextOrRect::MulticolourText(MulticolourTextSpec {
+        text: match text_color {
+            TextBoxColour::FromSpans => colourize(&chars, spans),
+            TextBoxColour::Single(color) => vec![ColouredText{ color, text: &chars }],
+        },
         size,
         layout: TextLayout::Unbounded, //WrapInRect(outer_rect),
-        spec: VisualSpec {
-            rect: offset_text_rect,
-            color: text_color,
-            z,
-        },
+        rect: offset_text_rect,
+        z,
     }));
 
     for c in cursors.iter() {
