@@ -12,11 +12,15 @@ path = "./src/editor.rs"
 [dependencies.check_or_no_panic]
 path = "../check_or_no_panic"
 
+[dependencies.editor_types]
+path = "libs/editor_types"
+
 [dependencies.if_changed]
 path = "../if_changed"
 
 [dependencies.perf_viz]
 path = "../perf_viz"
+
 [dependencies.perf_viz_proc_macro]
 path = "../perf_viz/libs/perf_viz_proc_macro"
 
@@ -26,14 +30,14 @@ path = "../platform_types"
 [dependencies.macros]
 path = "../macros"
 
-[dependencies.editor_types]
-path = "libs/editor_types"
-
-[dependencies.text_buffer]
-path = "libs/text_buffer"
+[dependencies.parsers]
+path = "libs/parsers"
 
 [dependencies.paths]
 path = "libs/paths"
+
+[dependencies.text_buffer]
+path = "libs/text_buffer"
 
 [dev-dependencies]
 criterion = "0.2"

@@ -520,6 +520,20 @@ ord!(and friends for BufferName: name, other in {
      }
  });
 
+impl BufferName {
+    pub fn get_extension_or_empty(&self) -> &str {
+        use BufferName::*;
+        match self {
+            Path(p) => {
+                p.extension()
+                    .and_then(|os_str| os_str.to_str())
+                    .unwrap_or("")
+            },
+            _ => "",
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 pub enum CursorState {
     None,

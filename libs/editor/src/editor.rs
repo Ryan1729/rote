@@ -1,8 +1,9 @@
 use editor_types::{Cursor, Vec1};
 use macros::{d, SaturatingAdd, SaturatingSub};
 use platform_types::{screen_positioning::*, *};
-use std::path::PathBuf;
+use parsers::{Parsers, ParserKind};
 
+use std::path::PathBuf;
 use std::collections::VecDeque;
 use text_buffer::{get_search_ranges, next_instance_of_selected, TextBuffer};
 
@@ -117,6 +118,7 @@ struct EditorBuffer {
     scrollable: ScrollableBuffer,
     name: BufferName,
     search_results: SearchResults,
+    parser_kind: Option<ParserKind>,
 }
 
 impl EditorBuffer {
@@ -129,6 +131,16 @@ impl EditorBuffer {
             },
             ..d!()
         }
+    }
+
+    fn get_parser_kind(&self) -> ParserKind {
+        use ParserKind::*;
+        self.parser_kind.unwrap_or_else(|| {
+            match self.name.get_extension_or_empty() {
+                "rs" => Rust,
+                _ => Plaintext,
+            }
+        })
     }
 }
 
@@ -272,6 +284,7 @@ pub struct State {
     go_to_position_xywh: TextBoxXYWH,
     font_info: FontInfo,
     clipboard_history: ClipboardHistory,
+    parsers: parsers::Parsers,
 }
 
 // this macro helps the borrow checker figure out that borrows are valid.
@@ -525,7 +538,15 @@ fn attempt_to_make_sure_at_least_one_cursor_is_visible(
 }
 
 fn parse_for_go_to_position(input: &str) -> Result<Position, std::num::ParseIntError> {
-   input.parse::<Position>()
+   input.parse::<Position>().map(|p| {
+        // The largest use of jumping to a position is to jump to line numbers emitted 
+        // by an error message. Most line numbers like this start at one, so we need 
+        // to counteract that.
+        pos!{
+            l p.line.saturating_sub(1),
+            o p.offset.saturating_sub(1).0
+        }
+   })
 }
 
 macro_rules! set_if_present {
@@ -615,7 +636,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
         }}
     }
 
-    if cfg!(debug_assertions)
+    if cfg!(feature = "extra-prints")
     {
         if_changed::dbg!(&input);
     }

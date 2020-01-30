@@ -1,0 +1,16 @@
+[package]
+name = "parsers"
+version = "0.1.0"
+authors = ["Ryan1729 <ryan1729@gmail.com>"]
+edition = "2018"
+
+[lib]
+path = "./src/parsers.rs"
+
+[dependencies]
+
+[dependencies.macros]
+path = "../../../macros"
+
+[dependencies.platform_types]
+path = "../../../platform_types"

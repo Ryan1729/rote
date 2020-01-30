@@ -562,6 +562,7 @@ dependencies = [
  "editor_types 0.1.0",
  "if_changed 0.1.0",
  "macros 0.1.0",
+ "parsers 0.1.0",
  "paths 0.1.0",
  "perf_viz 0.1.0",
  "perf_viz_proc_macro 0.1.0",
@@ -1439,6 +1440,14 @@ dependencies = [
  "redox_syscall 0.1.52 (registry+https://github.com/rust-lang/crates.io-index)",
  "smallvec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "winapi 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "parsers"
+version = "0.1.0"
+dependencies = [
+ "macros 0.1.0",
+ "platform_types 0.1.0",
 ]
 
 [[package]]

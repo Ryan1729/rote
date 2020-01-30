@@ -1,18 +1,29 @@
 ## TODO
 
-* try out multi-colour text
-    * try it per non-whitespace character?
-
 * try to integrate tree-sitter
     * get a parser working
     * have the text be coloured based on the parse
         * show scope nesting level?
 
+* do parsing and highlighting selectively
+    * default based on file extension
+    * allow cycling through options for current tab with keyboard shortcut
+        * use Alt-L maybe?
+
 * Ctrl-E to toggle single line comments
   * could probably reuse tab insertion/deletion code.
 
+* put all keyboard responses into a menu so that any command can be dispatched with the mouse or the keyboard.
+    * keyboard responses should be defined in a single place where they end up in the menu and wired up to
+        the keyboard
+        * would setting up a space to put the menu population code be a good first step?
+    * a list of labeled buttons with the keyboard control for each shown
+        * make keyboard shortcut manadatory for each action
+
 * let the user know how many search results there are somehow
     * The need for this manifests most when there are 0 results, which currently results in no action rather than an explicit indication of that fact.
+
+* when a tab is switched to, any fullscreen menus should be hidden
 
 * soft focus follows mouse on menus?
     * if the cursor is on the main text when, for example, the find menu is up, then the main text should be scrolled, not the find box.
@@ -57,6 +68,12 @@
 * draw an underline below matching braces, parens, brackets when a cursor is next to them.
   * draw a different thing (dotted line?) if there is no matching brace found.
   * jump to matching brace?
+
+* prevent "No buffer selected" when re-opening already opened file
+    * seems fixed?
+    * this still happens but only after extended usage apparently.
+        * Okay, we can try running a proptest over the relevant code.
+    * the Ctrl-P menu is also capable of provoking this FWIW
 
 * when tabbing in (and out I guess?) insert, (/remove?) extra tab strs automatically depending on the surrounding text.
     * given these lines
@@ -103,7 +120,20 @@
         }
     ```
 
-* similar logic to the above auto-tabbing shoudl be used to add in tabs when enter is pressed.
+* similar logic to the above auto-tabbing should be used to add in tabs when enter is pressed.
+
+* have some way to see what whitespace, (including line endings) is in a file.
+    * see if we can get conditionally transforming ascii into the control pictures block fast enough
+        * if not fast enough to do repeatedly and still scrolling, then at least 
+            we could do it once and stick it in a scratch buffer.
+    * a built-in hex dump viewer?
+    * would conditionally changing the font be better? That way the layout doesn't get messed up.
+        * that is, switch to a font with the control pictures glyphs in the ascii slots
+        * how hard would moving the glyphs be to do at runtime?
+            * having our own program to do that would be preferable to having to go find a font editor
+                if we end up wanting more changes later.
+        
+    
 
 * Do some compile-time profiling so I can see what is taking so long to compile and either pull that into a crate (meaning it is compiled less often) or change it in some way to make it compile faster
 
@@ -118,9 +148,6 @@
 * scrollable file search results list
 
 * update highlights after edits change the text
-
-* prevent "No buffer selected" when re-opening already opened file
-    * seems fixed?
 
 * visual feedback on copy
     * as in, copy-paste

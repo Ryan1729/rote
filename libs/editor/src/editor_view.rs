@@ -1,5 +1,5 @@
 use super::*;
-const AVERAGE_SELECTION_LNES_ESTIMATE: usize = 4;
+const AVERAGE_SELECTION_LINES_ESTIMATE: usize = 4;
 
 fn scrollable_to_buffer_view_data(
     scrollable: &ScrollableBuffer,
@@ -24,33 +24,27 @@ fn scrollable_to_buffer_view_data(
 
     let chars = buffer.chars().collect::<String>();
 
-    let spans = chars.char_indices().map(|(i, _)| {
-        use SpanKind::*;
-        SpanView {
-            kind: match (i + 2) % 3 {
-                1 => Comment,
-                2 => String,
-                _ => Plain,
-            },
-            end_byte_index: i
-        }
-    }).collect();
-
     BufferViewData {
         scroll: scrollable.scroll,
         chars,
         cursors,
         highlights,
-        spans,
+        ..d!()
     }
 }
 
 fn editor_to_buffer_view_data(
+    parsers: &Parsers,
     editor_buffer: &EditorBuffer,
     selection_lines_estimate: usize,
 ) -> BufferViewData {
     let mut buffer_view_data =
         scrollable_to_buffer_view_data(&editor_buffer.scrollable, selection_lines_estimate);
+
+    buffer_view_data.spans = parsers.get_spans(
+        &buffer_view_data.chars,
+        editor_buffer.get_parser_kind()
+    );
 
     let highlights = &mut buffer_view_data.highlights;
     let SearchResults {
@@ -85,6 +79,7 @@ pub fn render(
         buffer_xywh: TextBoxXYWH {
             xy: text_box_pos, ..
         },
+        ref parsers,
         ..
     }: &State,
     view: &mut View,
@@ -98,7 +93,7 @@ pub fn render(
         view.buffers.push(BufferView {
             name: name.clone(),
             name_string: name.to_string(),
-            data: editor_to_buffer_view_data(&editor_buffer, AVERAGE_SELECTION_LNES_ESTIMATE),
+            data: editor_to_buffer_view_data(parsers, &editor_buffer, AVERAGE_SELECTION_LINES_ESTIMATE),
         });
     }
 
