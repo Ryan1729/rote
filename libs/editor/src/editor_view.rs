@@ -34,7 +34,7 @@ fn scrollable_to_buffer_view_data(
 }
 
 fn editor_to_buffer_view_data(
-    parsers: &Parsers,
+    parsers: &mut Parsers,
     editor_buffer: &EditorBuffer,
     selection_lines_estimate: usize,
 ) -> BufferViewData {
@@ -66,7 +66,7 @@ fn editor_to_buffer_view_data(
 
 #[perf_viz::record]
 pub fn render(
-    &State {
+    &mut State {
         ref buffers,
         font_info: FontInfo { text_char_dim, .. },
         current_buffer_id,
@@ -79,9 +79,9 @@ pub fn render(
         buffer_xywh: TextBoxXYWH {
             xy: text_box_pos, ..
         },
-        ref parsers,
+        ref mut parsers,
         ..
-    }: &State,
+    }: &mut State,
     view: &mut View,
 ) {
     view.index_state = buffers.index_state;
