@@ -698,7 +698,7 @@ pub struct BufferView {
     pub data: BufferViewData,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum SpanKind {
     Plain,
     Comment,

@@ -110,7 +110,7 @@ fn try_to_show_cursors_on(
         );
     }
 
-    dbg!(attempt_result)
+    attempt_result
 }
 
 #[derive(Debug, Default)]

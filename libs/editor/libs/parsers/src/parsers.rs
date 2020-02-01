@@ -1,3 +1,4 @@
+#![deny(unused_variables)]
 use macros::{d, fmt_debug};
 use platform_types::{SpanView, SpanKind};
 
@@ -73,89 +74,13 @@ impl Parsers {
 impl InitializedParsers {
     fn get_spans(&mut self, to_parse: &str, kind: ParserKind) -> Spans {
         use ParserKind::*;
-        use SpanKind::*;
-
-        match kind {
+        match dbg!(kind) {
             Plaintext => {
                 plaintext_spans_for(to_parse)
             }
             Rust => {
-                let SpanNodes {
-                    comment_nodes,
-                    string_nodes,
-                } = self.get_span_nodes(to_parse);
-                
-                let mut comment_nodes = comment_nodes.iter();
-                let mut string_nodes = string_nodes.iter();
-
-
-                let mut spans = Vec::with_capacity(
-                    (comment_nodes.len() + string_nodes.len())
-                    * (PLAIN_NODES_RATIO + 1)
-                );
-
-                let mut comment = comment_nodes.next();
-                let mut string = string_nodes.next();
-                let mut previous_end_byte_index = 0;
-                loop {
-                    let (node, kind) = {
-                        macro_rules! handle_previous_chunk {
-                            ($node: ident) => {
-                                let start = $node.start_byte();
-                                let extra = start.saturating_sub(previous_end_byte_index);
-                                if extra > 0 {
-                                    spans.push(SpanView {
-                                        kind: SpanKind::Plain,
-                                        end_byte_index: start,
-                                    });
-                                    previous_end_byte_index = start;
-                                }   
-                            }
-                        }
-                        match (comment, string) {
-                            (Some(c), Some(s)) => {
-                                // TODO reformulate to make adding in the minimum of n node types easier.
-                                if c.start_byte() < s.start_byte() {
-                                    handle_previous_chunk!(c);
-
-                                    comment = comment_nodes.next();
-
-                                    (c, Comment)
-                                } else {
-                                    handle_previous_chunk!(s);
-                                    
-                                    string = string_nodes.next();
-                                    
-                                    (s, String)
-                                }
-                            }
-                            (Some(c), None) => {
-                                comment = comment_nodes.next();
-
-                                (c, Comment)
-                            }
-                            (None, Some(s)) => {
-                                string = string_nodes.next();
-
-                                (s, String)
-                            }
-                            (None, None) => break,
-                        }
-                    };
-
-                    // this is briefly the current index
-                    previous_end_byte_index = node.end_byte();
-                    spans.push(SpanView {
-                        kind,
-                        end_byte_index: previous_end_byte_index,
-                    });
-                }
-
-                if previous_end_byte_index < to_parse.len() {
-                    spans.push(plaintext_end_span_for(to_parse));
-                }
-
-                spans
+                dbg!("pre rust_spans_for");
+                self.rust_spans_for(to_parse)
             }
         }
     }
@@ -168,20 +93,21 @@ struct SpanNodes<'tree> {
 }
 
 impl InitializedParsers {
-    fn get_span_nodes<'to_parse>(&'to_parse mut self, to_parse: &'to_parse str) -> SpanNodes<'to_parse> {
+    fn rust_spans_for<'to_parse>(&'to_parse mut self, to_parse: &'to_parse str) -> Spans {
+        dbg!("in rust_spans_for");
         self.rust_tree = dbg!(self.rust.parse(to_parse, self.rust_tree.as_ref()));
 
         let mut comment_nodes = Vec::new();
 
         let mut string_nodes = Vec::new();
 
+        let mut query_cursor = QueryCursor::new();
+
         if let Some(r_t) = &self.rust_tree {
             let text_callback = move |n: Node| {
                 let r = n.range();
                 &to_parse[r.start_byte..r.end_byte]
             };
-
-            let mut query_cursor = QueryCursor::new();
 
             let (_, _): (Vec<_>, Vec<_>) = dbg!(
                 query_cursor.matches(
@@ -196,14 +122,6 @@ impl InitializedParsers {
                 ).map(|m: tree_sitter::QueryMatch| m.pattern_index).collect(),
             );
 
-            comment_nodes = query_cursor.matches(
-                &self.rust_comment_query,
-                r_t.root_node(),
-                text_callback,
-            ).flat_map(|q_match| 
-                q_match.captures.iter().map(|q_capture| &q_capture.node)
-            ).collect();
-
             string_nodes = query_cursor.matches(
                 &self.rust_string_query,
                 r_t.root_node(),
@@ -213,13 +131,22 @@ impl InitializedParsers {
                 q_match.captures.iter().map(|q_capture| &q_capture.node)
             }).collect();
 
-            dbg!(&string_nodes);
+            comment_nodes = query_cursor.matches(
+                &self.rust_comment_query,
+                r_t.root_node(),
+                text_callback,
+            ).flat_map(|q_match| 
+                q_match.captures.iter().map(|q_capture| &q_capture.node)
+            ).collect();
         }
 
-        SpanNodes {
-            comment_nodes,
-            string_nodes,
-        }
+        dbg!(get_spans_from_nodes(
+            to_parse,
+            SpanNodes {
+                comment_nodes,
+                string_nodes,
+            }
+        ))
     }
 }
 
@@ -229,6 +156,98 @@ fn plaintext_spans_for(s: &str) -> Spans {
 
 fn plaintext_end_span_for(s: &str) -> SpanView {
     SpanView { kind: SpanKind::Plain, end_byte_index: s.len()}
+}
+
+fn get_spans_from_nodes<'tree>(
+    to_parse: &'tree str,
+    SpanNodes {
+        comment_nodes,
+        string_nodes,
+    }: SpanNodes<'tree>
+) -> Spans {
+    use SpanKind::*;
+
+    let mut comment_nodes = comment_nodes.iter();
+    let mut string_nodes = string_nodes.iter();
+
+    let mut spans = Vec::with_capacity(
+        (comment_nodes.len() + string_nodes.len())
+        * (PLAIN_NODES_RATIO + 1)
+    );
+
+    let mut comment = comment_nodes.next();
+    let mut string = string_nodes.next();
+    let mut previous_end_byte_index = 0;
+    loop {
+        if let Some(s) = string.as_ref() {
+            dbg!("before s.kind_id()");
+            s.kind_id();
+            dbg!("after s.kind_id()");
+            println!("{{Node {} {} - {}}}", s.kind(), s.kind(), s.kind());
+            dbg!(s);
+        }
+        
+        //dbg!(&string, &comment);
+        let (node, kind) = {
+            macro_rules! handle_previous_chunk {
+                ($node: ident) => {
+                    let start = $node.start_byte();
+                    let extra = start.saturating_sub(previous_end_byte_index);
+                    if extra > 0 {
+                        previous_end_byte_index = start;
+                        spans.push(SpanView {
+                            kind: SpanKind::Plain,
+                            end_byte_index: previous_end_byte_index,
+                        });
+                        
+                    }   
+                }
+            }
+            match (comment, string) {
+                (Some(c), Some(s)) => {
+                    // TODO reformulate to make adding in the minimum of n node types easier.
+                    if c.start_byte() < s.start_byte() {
+                        handle_previous_chunk!(c);
+
+                        comment = comment_nodes.next();
+
+                        (c, Comment)
+                    } else {
+                        handle_previous_chunk!(s);
+                        
+                        string = string_nodes.next();
+                        
+                        (s, String)
+                    }
+                }
+                (Some(c), None) => {
+                    comment = comment_nodes.next();
+
+                    (c, Comment)
+                }
+                (None, Some(s)) => {
+                    string = string_nodes.next();
+
+                    (s, String)
+                }
+                (None, None) => break,
+            }
+        };
+
+        dbg!(node.end_byte(), kind);
+        // this is briefly the current index
+        previous_end_byte_index = node.end_byte();
+        spans.push(SpanView {
+            kind,
+            end_byte_index: previous_end_byte_index,
+        });
+    }
+
+    if previous_end_byte_index < to_parse.len() {
+        spans.push(plaintext_end_span_for(to_parse));
+    }
+
+    spans
 }
 
 extern "C" { fn tree_sitter_rust() -> Language; }
@@ -260,13 +279,13 @@ impl InitializedParsers {
 
         let rust_comment_query = Query::new(
             rust_lang,
-            "(line_comment)
-            (block_comment)"
+            "(line_comment) @c1
+            (block_comment) @c2"
         )?;
 
         let rust_string_query = Query::new(
             rust_lang,
-            "(string_literal)"
+            "(string_literal) @s"
         )?;
 
         Ok(InitializedParsers {
