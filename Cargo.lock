@@ -1449,7 +1449,7 @@ dependencies = [
  "cc 1.0.45 (registry+https://github.com/rust-lang/crates.io-index)",
  "macros 0.1.0",
  "platform_types 0.1.0",
- "tree-sitter 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tree-sitter 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -1864,7 +1864,7 @@ dependencies = [
 
 [[package]]
 name = "rote"
-version = "0.2.64"
+version = "0.2.65"
 dependencies = [
  "check_or_no_panic 0.1.0",
  "editor 0.1.0",
@@ -2235,7 +2235,7 @@ dependencies = [
 
 [[package]]
 name = "tree-sitter"
-version = "0.6.0"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "cc 1.0.45 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2864,7 +2864,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum thread_local 0.2.7 (registry+https://github.com/rust-lang/crates.io-index)" = "8576dbbfcaef9641452d5cf0df9b0e7eeab7694956dd33bb61515fb8f18cfdd5"
 "checksum thread_local 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)" = "c6b53e329000edc2b34dbe8545fd20e55a333362d0a321909685a19bd28c3f1b"
 "checksum tinytemplate 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)" = "4574b75faccaacddb9b284faecdf0b544b80b6b294f3d062d325c5726a209c20"
-"checksum tree-sitter 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)" = "5e1283f1a3d6027409c69021230dd21607d7234c4eb39d614f0c7858ee7da061"
+"checksum tree-sitter 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)" = "4cffb80c2f741652e0c679d0fc687172d23310b275d5410ad6ba730c13166de9"
 "checksum twox-hash 1.5.0 (registry+https://github.com/rust-lang/crates.io-index)" = "3bfd5b7557925ce778ff9b9ef90e3ade34c524b5ff10e239c69a42d546d2af56"
 "checksum typenum 1.11.2 (registry+https://github.com/rust-lang/crates.io-index)" = "6d2783fe2d6b8c1101136184eb41be8b1ad379e4657050b8aaff0c79ee7575f9"
 "checksum ucd-util 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)" = "535c204ee4d8434478593480b8f86ab45ec9aae0e83c568ca81abf0fd0e88f86"

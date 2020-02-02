@@ -698,7 +698,7 @@ pub struct BufferView {
     pub data: BufferViewData,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum SpanKind {
     Plain,
     Comment,
@@ -706,7 +706,7 @@ pub enum SpanKind {
 }
 d!(for SpanKind: SpanKind::Plain);
 
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Default, Debug, PartialEq)]
 pub struct SpanView {
     pub end_byte_index: usize,
     pub kind: SpanKind,
