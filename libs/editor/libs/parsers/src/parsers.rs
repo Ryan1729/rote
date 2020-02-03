@@ -53,9 +53,6 @@ impl std::fmt::Debug for InitializedParsers {
 
 type Spans = Vec<SpanView>;
 
-/// How many times more common plain nodes are than the other typs of nodes.
-const PLAIN_NODES_RATIO: usize = 4;
-
 impl Parsers {
     pub fn get_spans(&mut self, to_parse: &str, kind: ParserKind) -> Spans {
         use Parsers::*;
@@ -72,13 +69,13 @@ impl Parsers {
 impl InitializedParsers {
     fn get_spans(&mut self, to_parse: &str, kind: ParserKind) -> Spans {
         use ParserKind::*;
-        match dbg!(kind) {
+        match kind {
             Plaintext => {
                 plaintext_spans_for(to_parse)
             }
             Rust => {
                 // TODO edit the tree properly so and pass it down so we get faster parses
-                self.rust_tree = dbg!(self.rust.parse(to_parse, None));
+                self.rust_tree = self.rust.parse(to_parse, None);
 
                 spans_for(
                     self.rust_tree.as_ref(),
@@ -137,23 +134,21 @@ fn spans_for<'to_parse>(
                     }
                 }
 
-                dbg!("start", &spans, &span_stack, kind, node.start_byte(), node.end_byte());
                 if get_prev!().end_byte_index <= node.start_byte() {
                     if let Some(s) = span_stack.pop() {
-                        spans.push(dbg!(s));
+                        spans.push(s);
                     }
                 }
 
-                spans.push(dbg!(SpanView {
+                spans.push(SpanView {
                     end_byte_index: node.start_byte(),
                     kind: get_prev!().kind,
-                }));
+                });
 
                 span_stack.push(SpanView {
                     end_byte_index: node.end_byte(),
                     kind,
                 });
-                dbg!("end", &spans, &span_stack, kind, node.start_byte(), node.end_byte());
             }
         }
 
@@ -172,7 +167,6 @@ fn spans_for<'to_parse>(
 
     spans
 }
-
 
 fn plaintext_spans_for(s: &str) -> Spans {
     vec![plaintext_end_span_for(s)]
@@ -211,8 +205,7 @@ impl InitializedParsers {
 
         let rust_query = Query::new(
             rust_lang,
-            rust_query_source
-            
+            RUST_QUERY_SOURCE
         )?;
 
         Ok(InitializedParsers {
@@ -223,7 +216,7 @@ impl InitializedParsers {
     }
 }
 
-const rust_query_source: &'static str = "
+const RUST_QUERY_SOURCE: &'static str = "
 (line_comment) @c1
 (block_comment) @c2
 (string_literal) @s
