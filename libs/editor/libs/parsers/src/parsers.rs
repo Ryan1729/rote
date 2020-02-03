@@ -77,7 +77,8 @@ impl InitializedParsers {
                 plaintext_spans_for(to_parse)
             }
             Rust => {
-                self.rust_tree = dbg!(self.rust.parse(to_parse, self.rust_tree.as_ref()));
+                // TODO edit the tree properly so and pass it down so we get faster parses
+                self.rust_tree = dbg!(self.rust.parse(to_parse, None));
 
                 spans_for(
                     self.rust_tree.as_ref(),
@@ -101,7 +102,7 @@ fn spans_for<'to_parse>(
     to_parse: &'to_parse str,
     span_kind_from_match: fn(Match) -> SpanKind,
 ) -> Spans {
-    let mut spans = Vec::new();
+    let mut spans = Vec::with_capacity(1024);
 
     let mut query_cursor = QueryCursor::new();
 
@@ -111,23 +112,62 @@ fn spans_for<'to_parse>(
             &to_parse[r.start_byte..r.end_byte]
         };
 
-        spans = query_cursor.matches(
+        let mut span_stack = Vec::with_capacity(16);
+
+        for q_match in query_cursor.matches(
             query,
             r_t.root_node(),
             text_callback,
-        ).flat_map(|q_match| {
+        ) {
             let pattern_index: usize = q_match.pattern_index;
-            q_match.captures.iter().map(move |q_capture| {
-                let end_byte_index = q_capture.node.end_byte();
-                SpanView {
-                    end_byte_index,
-                    kind: span_kind_from_match(Match {
-                        pattern_index,
-                        capture: *q_capture
-                    }),
+
+            for q_capture in q_match.captures.iter() {
+                let node = q_capture.node;
+                let kind = span_kind_from_match(Match {
+                    pattern_index,
+                    capture: *q_capture
+                });
+
+                macro_rules! get_prev {
+                    () => {
+                        span_stack.last().cloned().unwrap_or_else(|| SpanView {
+                            kind: SpanKind::Plain,
+                            end_byte_index: 0xFFFF_FFFF_FFFF_FFFF
+                        })
+                    }
                 }
-            })
-        }).collect();
+
+                dbg!("start", &spans, &span_stack, kind, node.start_byte(), node.end_byte());
+                if get_prev!().end_byte_index <= node.start_byte() {
+                    if let Some(s) = span_stack.pop() {
+                        spans.push(dbg!(s));
+                    }
+                }
+
+                spans.push(dbg!(SpanView {
+                    end_byte_index: node.start_byte(),
+                    kind: get_prev!().kind,
+                }));
+
+                span_stack.push(SpanView {
+                    end_byte_index: node.end_byte(),
+                    kind,
+                });
+                dbg!("end", &spans, &span_stack, kind, node.start_byte(), node.end_byte());
+            }
+        }
+
+        while let Some(s) = span_stack.pop() {
+            spans.push(s);
+        }
+
+        let len = to_parse.len();
+        if spans.last().map(|s| s.end_byte_index < len).unwrap_or(true) {
+            spans.push(SpanView {
+                end_byte_index: len,
+                kind: SpanKind::Plain,
+            });
+        }
     }
 
     spans
@@ -206,6 +246,19 @@ fn rust_span_kind_from_match(Match {
 mod tests {
     use super::*;
 
+    fn get_rust_parser_and_query(query_source: &str) -> (Parser, Query) {
+        let mut rust = Parser::new();
+        let rust_lang = unsafe { tree_sitter_rust() };
+        rust.set_language(rust_lang).unwrap();
+
+        let query = Query::new(
+            rust_lang,
+            query_source
+        ).unwrap();
+
+        return (rust, query);
+    }
+
     #[test]
     fn spans_for_produces_the_right_result_on_this_multiple_match_case() {
         use SpanKind::*;
@@ -223,20 +276,13 @@ mod tests {
             }
         }
 
-        let mut rust = Parser::new();
-        let rust_lang = unsafe { tree_sitter_rust() };
-        rust.set_language(rust_lang).unwrap();
-
         let foo = "fn f(s: i32) {}";
         let query_source = "
             (parameters) @p
             (primitive_type) @t
         ";
 
-        let query = Query::new(
-            rust_lang,
-            query_source
-        ).unwrap();
+        let (mut rust, query) = get_rust_parser_and_query(query_source);
 
         let tree = rust.parse(foo, None);
         
@@ -246,11 +292,101 @@ mod tests {
             spans,
             vec![
                 SpanView { kind: OTHER, end_byte_index: 4 },
-                SpanView { kind: OUTER, end_byte_index: 6 },
-                SpanView { kind: OTHER, end_byte_index: 8 },
+                SpanView { kind: OUTER, end_byte_index: 8 },
                 SpanView { kind: INNER, end_byte_index: 11 },
                 SpanView { kind: OUTER, end_byte_index: 12 },
                 SpanView { kind: OTHER, end_byte_index: foo.len()},
+            ]
+        )
+    }
+
+    #[test]
+    fn spans_for_produces_the_right_result_on_this_basic_case() {
+        use SpanKind::*;
+        fn span_kind_from_match_example(Match {    
+            pattern_index,
+            ..
+        } : Match) -> SpanKind {    
+            match pattern_index {
+                0 | 1 => Comment,
+                2 => String,
+                _ => Plain,
+            }
+        }
+
+        let foo = 
+"fn main() {
+    let hi = \"hi\";
+    // TODO
+}";
+
+        let query_source = "
+            (line_comment) @c1
+            (block_comment) @c2
+            (string_literal) @s
+        ";
+
+        let (mut rust, query) = get_rust_parser_and_query(query_source);
+
+        let tree = rust.parse(foo, None);
+        
+        let spans = spans_for(tree.as_ref(), &query, foo, span_kind_from_match_example);
+
+        assert_eq!(
+            spans,
+            vec![
+                SpanView { kind: Plain, end_byte_index: 25 },
+                SpanView { kind: String, end_byte_index: 29 },
+                SpanView { kind: Plain, end_byte_index: 35 },
+                SpanView { kind: Comment, end_byte_index: 42 },
+                SpanView { kind: Plain, end_byte_index: foo.len()},
+            ]
+        )
+    }
+
+    #[test]
+    fn spans_for_produces_the_right_result_on_this_less_basic_case() {
+        use SpanKind::*;
+        fn span_kind_from_match_example(Match {    
+            pattern_index,
+            ..
+        } : Match) -> SpanKind {    
+            match pattern_index {
+                0 | 1 => Comment,
+                2 => String,
+                _ => Plain,
+            }
+        }
+
+        let foo = 
+"fn main() {
+    let hi = \"hi\";
+    // TODO
+    let yo = \"yo\";
+}";
+
+        let query_source = "
+            (line_comment) @c1
+            (block_comment) @c2
+            (string_literal) @s
+        ";
+
+        let (mut rust, query) = get_rust_parser_and_query(query_source);
+
+        let tree = rust.parse(foo, None);
+        
+        let spans = spans_for(tree.as_ref(), &query, foo, span_kind_from_match_example);
+
+        assert_eq!(
+            spans,
+            vec![
+                SpanView { kind: Plain, end_byte_index: 25 },
+                SpanView { kind: String, end_byte_index: 29 },
+                SpanView { kind: Plain, end_byte_index: 35 },
+                SpanView { kind: Comment, end_byte_index: 42 },
+                SpanView { kind: Plain, end_byte_index: 56 },
+                SpanView { kind: String, end_byte_index: 60 },
+                SpanView { kind: Plain, end_byte_index: foo.len()},
             ]
         )
     }
