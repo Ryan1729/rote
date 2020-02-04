@@ -1,7 +1,7 @@
 use editor_types::{Cursor, Vec1};
 use macros::{d, SaturatingAdd, SaturatingSub};
 use platform_types::{screen_positioning::*, *};
-use parsers::{Parsers, ParserKind};
+use parsers::{Parsers, ParserKind, Style};
 
 use std::path::PathBuf;
 use std::collections::VecDeque;
@@ -135,9 +135,10 @@ impl EditorBuffer {
 
     fn get_parser_kind(&self) -> ParserKind {
         use ParserKind::*;
+        use Style::*;
         self.parser_kind.unwrap_or_else(|| {
             match self.name.get_extension_or_empty() {
-                "rs" => Rust,
+                //"rs" => Rust(Basic),
                 _ => Plaintext,
             }
         })

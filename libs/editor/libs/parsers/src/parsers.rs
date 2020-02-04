@@ -5,9 +5,15 @@ use platform_types::{SpanView, SpanKind};
 use tree_sitter::{Parser, Language, LanguageError, Node, Query, QueryCapture, QueryCursor, QueryError, Tree};
 
 #[derive(Clone, Copy, Debug)]
+pub enum Style {
+    Basic,
+    TreeDepth
+}
+
+#[derive(Clone, Copy, Debug)]
 pub enum ParserKind {
     Plaintext,
-    Rust
+    Rust(Style)
 }
 d!(for ParserKind: ParserKind::Plaintext);
 
@@ -69,23 +75,73 @@ impl Parsers {
 impl InitializedParsers {
     fn get_spans(&mut self, to_parse: &str, kind: ParserKind) -> Spans {
         use ParserKind::*;
+        use Style::*;
         match kind {
             Plaintext => {
                 plaintext_spans_for(to_parse)
             }
-            Rust => {
+            Rust(style) => {
                 // TODO edit the tree properly so and pass it down so we get faster parses
                 self.rust_tree = self.rust.parse(to_parse, None);
 
-                spans_for(
-                    self.rust_tree.as_ref(),
-                    &self.rust_query,
-                    to_parse,
-                    rust_span_kind_from_match
-                )
+                match style {
+                    Basic => {
+                        query_spans_for(
+                            self.rust_tree.as_ref(),
+                            &self.rust_query,
+                            to_parse,
+                            rust_span_kind_from_match
+                        )
+                    },
+                    TreeDepth => {
+                        tree_depth_spans_for(
+                            self.rust_tree.as_ref(),
+                            to_parse
+                        )
+                    }
+                }
+                
             }
         }
     }
+}
+
+fn tree_depth_spans_for<'to_parse>(
+    tree: Option<&Tree>,
+    _to_parse: &'to_parse str,
+) -> Spans {
+    let mut spans = Vec::with_capacity(1024);
+
+    if let Some(t) = tree {
+        let mut cursor = t.walk();
+        
+        let mut depth: u8 = 0;
+        loop {
+            if cursor.goto_first_child() {
+                depth = depth.wrapping_add(1);
+            } else {
+                // at leaf node
+                spans.push(SpanView {
+                    kind: SpanKind::new(depth),
+                    end_byte_index: cursor.node().end_byte()
+                });
+
+                if cursor.goto_next_sibling() {
+                    continue;
+                } else {
+                    if cursor.goto_parent() {
+                        depth = depth.wrapping_sub(1);
+                        continue;
+                    } else {
+                        break;
+                    }
+                }
+            }
+            
+        }
+    }
+
+    spans
 }
 
 struct Match<'capture> {
@@ -93,7 +149,7 @@ struct Match<'capture> {
     capture: QueryCapture<'capture>
 }
 
-fn spans_for<'to_parse>(
+fn query_spans_for<'to_parse>(
     tree: Option<&Tree>,
     query: &Query,
     to_parse: &'to_parse str,
@@ -128,7 +184,7 @@ fn spans_for<'to_parse>(
                 macro_rules! get_prev {
                     () => {
                         span_stack.last().cloned().unwrap_or_else(|| SpanView {
-                            kind: SpanKind::Plain,
+                            kind: SpanKind::PLAIN,
                             end_byte_index: 0xFFFF_FFFF_FFFF_FFFF
                         })
                     }
@@ -160,7 +216,7 @@ fn spans_for<'to_parse>(
         if spans.last().map(|s| s.end_byte_index < len).unwrap_or(true) {
             spans.push(SpanView {
                 end_byte_index: len,
-                kind: SpanKind::Plain,
+                kind: SpanKind::PLAIN,
             });
         }
     }
@@ -173,7 +229,7 @@ fn plaintext_spans_for(s: &str) -> Spans {
 }
 
 fn plaintext_end_span_for(s: &str) -> SpanView {
-    SpanView { kind: SpanKind::Plain, end_byte_index: s.len()}
+    SpanView { kind: SpanKind::PLAIN, end_byte_index: s.len()}
 }
 
 extern "C" { fn tree_sitter_rust() -> Language; }
@@ -226,11 +282,10 @@ fn rust_span_kind_from_match(Match {
     pattern_index,
     capture: _
 } : Match) -> SpanKind {
-    use SpanKind::*;
     match pattern_index {
-        0 | 1 => Comment,
-        2 => String,
-        _ => Plain,
+        0 | 1 => SpanKind::COMMENT,
+        2 => SpanKind::STRING,
+        _ => SpanKind::PLAIN,
     }
     
 }
@@ -238,6 +293,9 @@ fn rust_span_kind_from_match(Match {
 #[cfg(test)]
 mod tests {
     use super::*;
+    const COMMENT: SpanKind = SpanKind::COMMENT;
+    const PLAIN: SpanKind = SpanKind::PLAIN;
+    const STRING: SpanKind = SpanKind::STRING;
 
     fn get_rust_parser_and_query(query_source: &str) -> (Parser, Query) {
         let mut rust = Parser::new();
@@ -253,11 +311,11 @@ mod tests {
     }
 
     #[test]
-    fn spans_for_produces_the_right_result_on_this_multiple_match_case() {
-        use SpanKind::*;
-        const OUTER: SpanKind = Comment;
-        const INNER: SpanKind = String;
-        const OTHER: SpanKind = Plain;
+    fn query_spans_for_produces_the_right_result_on_this_multiple_match_case() {
+        const OUTER: SpanKind = SpanKind::new(1);
+        const INNER: SpanKind = SpanKind::new(2);
+        // As of this writing this only works if OTHER is the default.
+        const OTHER: SpanKind = SpanKind::PLAIN; 
         fn span_kind_from_match_example(Match {    
             pattern_index,
             ..
@@ -279,7 +337,7 @@ mod tests {
 
         let tree = rust.parse(foo, None);
         
-        let spans = spans_for(tree.as_ref(), &query, foo, span_kind_from_match_example);
+        let spans = query_spans_for(tree.as_ref(), &query, foo, span_kind_from_match_example);
 
         assert_eq!(
             spans,
@@ -294,16 +352,15 @@ mod tests {
     }
 
     #[test]
-    fn spans_for_produces_the_right_result_on_this_basic_case() {
-        use SpanKind::*;
+    fn query_spans_for_produces_the_right_result_on_this_basic_case() {
         fn span_kind_from_match_example(Match {    
             pattern_index,
             ..
         } : Match) -> SpanKind {    
             match pattern_index {
-                0 | 1 => Comment,
-                2 => String,
-                _ => Plain,
+                0 | 1 => COMMENT,
+                2 => STRING,
+                _ => PLAIN,
             }
         }
 
@@ -323,31 +380,30 @@ mod tests {
 
         let tree = rust.parse(foo, None);
         
-        let spans = spans_for(tree.as_ref(), &query, foo, span_kind_from_match_example);
+        let spans = query_spans_for(tree.as_ref(), &query, foo, span_kind_from_match_example);
 
         assert_eq!(
             spans,
             vec![
-                SpanView { kind: Plain, end_byte_index: 25 },
-                SpanView { kind: String, end_byte_index: 29 },
-                SpanView { kind: Plain, end_byte_index: 35 },
-                SpanView { kind: Comment, end_byte_index: 42 },
-                SpanView { kind: Plain, end_byte_index: foo.len()},
+                SpanView { kind: PLAIN, end_byte_index: 25 },
+                SpanView { kind: STRING, end_byte_index: 29 },
+                SpanView { kind: PLAIN, end_byte_index: 35 },
+                SpanView { kind: COMMENT, end_byte_index: 42 },
+                SpanView { kind: PLAIN, end_byte_index: foo.len()},
             ]
         )
     }
 
     #[test]
-    fn spans_for_produces_the_right_result_on_this_less_basic_case() {
-        use SpanKind::*;
+    fn query_spans_for_produces_the_right_result_on_this_less_basic_case() {
         fn span_kind_from_match_example(Match {    
             pattern_index,
             ..
         } : Match) -> SpanKind {    
             match pattern_index {
-                0 | 1 => Comment,
-                2 => String,
-                _ => Plain,
+                0 | 1 => COMMENT,
+                2 => STRING,
+                _ => PLAIN,
             }
         }
 
@@ -368,18 +424,18 @@ mod tests {
 
         let tree = rust.parse(foo, None);
         
-        let spans = spans_for(tree.as_ref(), &query, foo, span_kind_from_match_example);
+        let spans = query_spans_for(tree.as_ref(), &query, foo, span_kind_from_match_example);
 
         assert_eq!(
             spans,
             vec![
-                SpanView { kind: Plain, end_byte_index: 25 },
-                SpanView { kind: String, end_byte_index: 29 },
-                SpanView { kind: Plain, end_byte_index: 35 },
-                SpanView { kind: Comment, end_byte_index: 42 },
-                SpanView { kind: Plain, end_byte_index: 56 },
-                SpanView { kind: String, end_byte_index: 60 },
-                SpanView { kind: Plain, end_byte_index: foo.len()},
+                SpanView { kind: PLAIN, end_byte_index: 25 },
+                SpanView { kind: STRING, end_byte_index: 29 },
+                SpanView { kind: PLAIN, end_byte_index: 35 },
+                SpanView { kind: COMMENT, end_byte_index: 42 },
+                SpanView { kind: PLAIN, end_byte_index: 56 },
+                SpanView { kind: STRING, end_byte_index: 60 },
+                SpanView { kind: PLAIN, end_byte_index: foo.len()},
             ]
         )
     }

@@ -853,13 +853,16 @@ d!(for TextBoxColour: TextBoxColour::FromSpans);
 fn colourize<'text>(text: &'text str, spans: &[SpanView]) -> Vec<ColouredText<'text>> {
     let mut prev_byte_index = 0;
     spans.iter().map(|s| {
-        use SpanKind::*;
+    const COMMENT: SpanKind = SpanKind::COMMENT;
+    const PLAIN: SpanKind = SpanKind::PLAIN;
+    const STRING: SpanKind = SpanKind::STRING;
         let output = ColouredText {
             text: &text[prev_byte_index..s.end_byte_index],
             color: match s.kind {
-                Plain => palette![blue],
-                Comment => palette![cyan],
-                String => palette![green],
+                PLAIN => palette![blue],
+                COMMENT => palette![cyan],
+                STRING=> palette![green],
+                    _ => palette![blue]
             },
         };
         prev_byte_index = s.end_byte_index;

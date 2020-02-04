@@ -89,7 +89,7 @@ macro_rules! b_id {
 
 #[derive(Clone, Copy, Debug)]
 pub enum BufferIdKind {
-    /// Used to indicate that the kayboard is focussed on a non-buffer.
+    /// Used to indicate that the keyboard is focused on a non-buffer.
     None,
     /// Indicates A buffer repesenting an open file or an imemory scratch file.
     /// Almost all buffers are `Text` buffers.
@@ -698,13 +698,37 @@ pub struct BufferView {
     pub data: BufferViewData,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub enum SpanKind {
-    Plain,
-    Comment,
-    String,
+/// We want to allow different kinds of span classifiers to have 
+/// different sets of span kinds, and to be able to invent new ones
+/// without needing to list them all here. Additionally we want 
+/// deciding what to do when presented with values of this type to 
+/// be up to individual clients of the `editor` crate, while also 
+/// allowing at least some form of backward compatibility. For 
+/// example, a client should be allowed to conflate different
+/// SpanKinds up to and including ones that were not known at the 
+/// time that client was written. All that leads us to allowing all
+/// values of the structs size as possible values, rather than an
+/// enum where only certain values are allowed.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct SpanKind(u8);
+
+impl SpanKind {
+    pub const fn new(byte: u8) -> Self { SpanKind(byte) }
+    #[allow(non_snake_case)]
+
+    /// The justification for using all values of a given size
+    /// notwithstanding, it is still useful to have clear 
+    /// conventions, (which can be ignored as necessary,)
+    /// hence these constants.
+    pub  const PLAIN: SpanKind = SpanKind(0);
+    pub  const COMMENT: SpanKind = SpanKind(1);
+    pub  const STRING: SpanKind = SpanKind(2);
+
+    fn get_byte(&self) -> u8 {
+        self.0
+    }
 }
-d!(for SpanKind: SpanKind::Plain);
+d!(for SpanKind: SpanKind::PLAIN);
 
 #[derive(Clone, Default, Debug, PartialEq)]
 pub struct SpanView {
