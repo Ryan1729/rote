@@ -11,7 +11,7 @@
         * use Alt-L maybe?
 
 * Ctrl-E to toggle single line comments
-  * could probably reuse tab insertion/deletion code.
+  * could probably reuse tab insertion/deletion code.            
 
 * put all keyboard responses into a menu so that any command can be dispatched with the mouse or the keyboard.
     * keyboard responses should be defined in a single place where they end up in the menu and wired up to
@@ -20,6 +20,44 @@
     * a list of labeled buttons with the keyboard control for each shown
         * make keyboard shortcut manadatory for each action
 
+* Make Esc pick only one of the mulitple cursors to keep and remove that one's selection if there is one.
+
+* Add a more advanced high-level code manipulation: Extract function
+    * user perspective:
+        * select an expression
+        * press the key combo (Ctrl-Alt-M is traditional)
+        * the selected code is converted to a function call to a new function with a default name. Say "funcName"
+        * the "funcName" function is created with the appropriate parameters, with a good guess at good names.
+        * the user's cursor is jumped to the name of the function but the call is also selected so you can rename it by just typing
+    * steps to approach a working system (these can become tests):
+        * select some code. press key combo
+            * return something different if there main expression is selected/can be inferred from selection
+        * given a selected expression, produce function call
+            * example that takes 0 params and returns nothing
+            * examples that take n params and return nothing
+            * examples that take 0 params and return m things
+            * examples that take n params and return m things
+        * given a selected expression, produce function denifition
+            * example that takes 0 params and returns nothing
+            * examples that take n params and return nothing
+            * examples that take 0 params and return m things
+            * examples that take n params and return m things
+        * given a selected expression, produce function call and definition and place them appropriately
+            * in the outermost scope of the innermost module
+        * do the above but also set/check that the cursors are in the right spots.
+
+* work on fleshing out requirements and implementing this list of features that are enabled by having a parser
+    * list
+        * extract to variable
+        * extract function/method
+        * jump to blah
+        * error location highlighting/jump
+        * add import for thing I just started using in this scope
+        * find duplicated code
+        * move
+        * macro snippet
+    * we'll add fleshed out requirements above this in the file
+
 * let the user know how many search results there are somehow
     * The need for this manifests most when there are 0 results, which currently results in no action rather than an explicit indication of that fact.
 
@@ -27,34 +65,6 @@
 
 * soft focus follows mouse on menus?
     * if the cursor is on the main text when, for example, the find menu is up, then the main text should be scrolled, not the find box.
-
-* decide whether it would be better to start with a simple shelling out to the compiler to get error messages, or if we should start with trying to integrate RLS
-  * the criteria are:
-    * would RLS mean we wouldn't need the separate shelling out?
-      * seems like it?
-    * how easy would it be to get the most important info out of it?
-    * if we can avoid total work by starting with RLS, and it's not more then say 2x the work to get the initial parts we want working with RLS, then it seems worth it ta go with RLS first.
-      * example: if shelling out takes 100 units of work, and RLS takes 1000 in total, but 150 to get error reporting, then shelling out first costs 1100 overall, but we get error reporting 50 units sooner. whereas if we do RLS that's only 1000 units overall, but we have to wait 50 units longer for in-editor error reporting. If we assume that a unit of waiting is the same cost as a unit of saved work, (they are both proxies for time spent right? so maybe that costing makes sense,) then RLS seems like the better deal.
-  * This page brings up some problems: https://www.reddit.com/r/vim/comments/b3yzq4/a_lsp_client_maintainers_view_of_the_lsp_protocol/ that may shift the calculus towards just not doing RLS integration at all. The offsets needing to be converted to utf-16 just to be converted back is annoying (RLS has switched to using utf-16 since that reddit post was written.)
-    * what are the features that need language integration that I actually use in environments that
-    have them?
-      * extract to variable
-      * extract function/method
-      * jump to blah
-      * error location highlighting/jump
-      * add import for thing I just started using in this scope
-      * find duplicated code
-      * move
-      * macro snippet
-    * To be honest, I like the intellij rust plugin's behaviour better than what I get in Atom currently. Can we just do what they do?
-      * intellij-community is under apache 2.0 and the rust plugin is under MIT so maybe?
-        * not all of the above list of features are in RLS or intellij-community. So we're going to need to live without at least some of them. The question at this point seems to com down to: How easy is it to build intellij-community? Because if that is a reasonable process, then we could dissect that down to just the minimum needed to replicate the features from that list, (everything but the duplicated code one I think?) and then just re-implement that myself, using their code as an example.
-        * result of attempting this: The build process was reasonable-ish. I actually got it working. But, I decided to stop before finishing the teardown, once it got to the ppint where I could discern the following: A lot of the code seems very special case, (at least the "fixes" seem to be doing custom string mangling,) and the AST API doesn't seem particularly worth directly copying. It's very straight forward in some ways, (for example an If Expression consists of the three parts you would expect which are themselves Expressions) but other parts like each PsiElement (PSI stands for Program Structure Interface,) extending a "UserDataHolder" apparently to be more garbage collection friendly make trying to directly port parts of it unappealing. Basically, I feel like if I just solved the problem myself, I would have an as good or better solution, since I don't see any real secret sauce/deep experience in there that I would want to take advantage of.
-      * Can we use rust's TokenStream type to help with this?
-        * it gives very poor errors (no messages at all apparently?), and sometimes panics, so no.
-      * Okay, what if we use [`tree-sitter`](http://tree-sitter.github.io/tree-sitter/)? It seems to be designed specifically for my use case, and there is already a rust grammar made for it. And since `tree-sitter` is written in rust it is likely to be maintained.
-        * The documentation is a little light, but I think the process is that I can take the generated `parser.c` and `scanner.c` from [`tree-sitter-rust`](https://github.com/tree-sitter/tree-sitter-rust) and just stick them into my source tree, then using the [`tree-sitter` rust bindings](https://github.com/tree-sitter/tree-sitter/tree/master/lib/binding_rust) I can set up a build.rs and afterwards just pretend `tree-sitter` is a rust library. Then, updating to the newest version of `tree-sitter` would just be as easy as editing the Cargo.toml and overwriting the c files with new versions. We'll see if I misunderstood something when I try it I guess.
-        * Ah, I think I was confused before between `tree-sitter`, (the main repo), `tree-sitter-rust`, (the rust grammar), and what I may not have seen before, the tree-sitter rust bindings.
 
 * Ctrl-shift-f to open a within current project folder search
   * implies some way to know what the project is. Options:
