@@ -51,6 +51,7 @@ pub enum Input {
     TabOut,
     NextBuffer,
     PreviousBuffer,
+    NextLanguage,
     SelectBuffer(BufferId),
     OpenOrSelectBuffer(PathBuf),
     CloseBuffer(g_i::Index),

@@ -1,5 +1,8 @@
 ## TODO
 
+* fix recenty introduced mouse bugs
+    * happened when we changed the way the modifier keys were checked.
+
 * try to integrate tree-sitter
     * get a parser working
     * have the text be coloured based on the parse

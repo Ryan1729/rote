@@ -4,18 +4,58 @@ use platform_types::{SpanView, SpanKind};
 
 use tree_sitter::{Parser, Language, LanguageError, Node, Query, QueryCapture, QueryCursor, QueryError, Tree};
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Style {
     Basic,
     TreeDepth
 }
+d!(for Style: Style::Basic);
 
-#[derive(Clone, Copy, Debug)]
+impl Iterator for Style {
+    type Item = Style;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        use Style::*;
+        match self {
+            Basic => {
+                Some(TreeDepth)
+            },
+            TreeDepth => {
+                None
+            }
+        }.map(|s| {
+            *self = s;
+            s
+        })
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ParserKind {
     Plaintext,
     Rust(Style)
 }
 d!(for ParserKind: ParserKind::Plaintext);
+
+impl Iterator for ParserKind {
+    type Item = ParserKind;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        use ParserKind::*;
+        match self {
+            Plaintext => {
+                Some(Rust(d!()))
+            },
+            Rust(style) => {
+                style.next()
+                    .map(Rust)
+            }
+        }.map(|p| {
+            *self = p;
+            p
+        })
+    }
+}
 
 #[derive(Debug)]
 pub enum Parsers {
@@ -117,7 +157,7 @@ fn tree_depth_spans_for<'to_parse>(
         
         let mut depth: u8 = 0;
         loop {
-            if cursor.goto_first_child() {
+            if dbg!(cursor.goto_first_child()) {
                 depth = depth.wrapping_add(1);
             } else {
                 // at leaf node
@@ -126,10 +166,11 @@ fn tree_depth_spans_for<'to_parse>(
                     end_byte_index: cursor.node().end_byte()
                 });
 
-                if cursor.goto_next_sibling() {
+                if dbg!(cursor.goto_next_sibling()) {
                     continue;
                 } else {
-                    if cursor.goto_parent() {
+                    if dbg!(cursor.goto_parent()) {
+                        dbg!(cursor.node().end_byte());
                         depth = depth.wrapping_sub(1);
                         continue;
                     } else {
@@ -297,6 +338,14 @@ mod tests {
     const PLAIN: SpanKind = SpanKind::PLAIN;
     const STRING: SpanKind = SpanKind::STRING;
 
+    fn get_rust_parser() -> Parser {
+        let mut rust = Parser::new();
+        let rust_lang = unsafe { tree_sitter_rust() };
+        rust.set_language(rust_lang).unwrap();
+
+        rust
+    }
+
     fn get_rust_parser_and_query(query_source: &str) -> (Parser, Query) {
         let mut rust = Parser::new();
         let rust_lang = unsafe { tree_sitter_rust() };
@@ -438,6 +487,56 @@ mod tests {
                 SpanView { kind: PLAIN, end_byte_index: foo.len()},
             ]
         )
+    }
+
+    // We had a bug that turned out not to be this part.
+    #[test]
+    fn parser_kind_iteration_does_not_produce_the_same_thing_twice() {
+        let mut seen = Vec::with_capacity(16);
+        let mut kind = ParserKind::default();
+        
+        seen.push(kind);
+        for k in kind {
+            dbg!(&k, seen.contains(&k));
+            assert!(
+                !seen.contains(&k),
+                "{:?} already in {:?}",
+                k,
+                seen
+            );
+            seen.push(k);
+        }
+    }
+
+    // This test failed at least once.
+    #[test]
+    fn tree_depth_spans_for_terminates_on_this_tree() {
+        let text = 
+"fn main() {
+    let hi = \"hi there\";
+    // TODO
+}
+/*
+fn uncommentable_function() {
+    let _ = \"foo/*.rs\"; //  */\r
+}
+*/";
+
+        let mut rust = get_rust_parser();
+
+        let tree = rust.parse(text, None);
+
+        let (send, recv) = std::sync::mpsc::channel();
+
+        std::thread::spawn(move || {
+            tree_depth_spans_for(tree.as_ref(), text);
+            send.send(()).unwrap();
+        });
+        
+        assert_eq!(
+            recv.recv_timeout(std::time::Duration::from_millis(16)),
+            Ok(())
+        );
     }
 }
 

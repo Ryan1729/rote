@@ -3,7 +3,7 @@
 // opengl folder, to the extent that the code remains as it was
 // (at commit 90e7c7c331e9f991e11de6404b2ca073c0a09e61)
 
-use glutin::{dpi::LogicalPosition, Api, GlProfile, GlRequest};
+use glutin::{dpi::LogicalPosition, event::ModifiersState, Api, GlProfile, GlRequest};
 use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -715,7 +715,10 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         }
                     }
 
-
+                    const ALT: ModifiersState = ModifiersState::ALT;
+                    const CTRL: ModifiersState = ModifiersState::CTRL;
+                    const SHIFT: ModifiersState = ModifiersState::SHIFT;
+                    
                     // As of this writing, issues on https://github.com/rust-windowing/winit ,
                     // specifically #1124 and #883, suggest that the it is up in the air as to
                     // whether the modifiers field on some of the matches below will actually
@@ -754,10 +757,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                                 },
                             ..
                         } 
-                        if 
-                        modifiers.ctrl() 
-                        && !modifiers.shift() 
-                        && !modifiers.alt() => match keypress {
+                        if modifiers == CTRL => match keypress {
                             VirtualKeyCode::Key0 => {
                                 if wimp_render::inside_tab_area(ui.mouse_pos, font_info) {
                                     let width = dimensions.width;
@@ -867,11 +867,12 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                                 },
                             ..
                         } if 
-                        modifiers.ctrl() 
-                        && !modifiers.shift()
-                        && modifiers.alt() => match keypress {
+                        modifiers == ALT | CTRL => match keypress {
                             VirtualKeyCode::Key0 => {
                                 call_u_and_r!(Input::InsertNumbersAtCursors);
+                            }
+                            VirtualKeyCode::L => {
+                                call_u_and_r!(Input::NextLanguage);
                             }
                             _ => (),
                         },
@@ -884,7 +885,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                                     ..
                                 },
                             ..
-                        } if modifiers.ctrl() && modifiers.shift() => match keypress {
+                        } if modifiers == CTRL | SHIFT => match keypress {
                             VirtualKeyCode::Home => {
                                 call_u_and_r!(Input::ExtendSelectionForAllCursors(
                                     Move::ToBufferStart
@@ -930,7 +931,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                                     ..
                                 },
                             ..
-                        } if !modifiers.ctrl() && !modifiers.shift() => match if cfg!(debug_assertions) {dbg!(keypress)} else {keypress} {
+                        } if modifiers.is_empty() => match if cfg!(debug_assertions) {dbg!(keypress)} else {keypress} {
                             VirtualKeyCode::Escape => {
                                 call_u_and_r!(Input::SetSizeDependents(SizeDependents {
                                     buffer_xywh: wimp_render::get_edit_buffer_xywh(
@@ -986,7 +987,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                                     ..
                                 },
                             ..
-                        } if !modifiers.ctrl() && modifiers.shift() => match keypress {
+                        } if modifiers == SHIFT => match keypress {
                             VirtualKeyCode::Up => {
                                 call_u_and_r!(Input::ExtendSelectionForAllCursors(Move::Up));
                                 ui.navigation = Navigation::Up;
@@ -1063,7 +1064,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                             delta: MouseScrollDelta::LineDelta(_, y),
                             modifiers,
                             ..
-                        } if !modifiers.shift() => {
+                        } if modifiers.is_empty() => {
                             let scroll_y = y * wimp_render::SCROLL_MULTIPLIER;
                             if wimp_render::inside_tab_area(ui.mouse_pos, font_info) {
                                 ui.tab_scroll += scroll_y;
@@ -1075,7 +1076,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                             delta: MouseScrollDelta::LineDelta(_, y),
                             modifiers,
                             ..
-                        } if modifiers.shift() => {
+                        } if modifiers == SHIFT => {
                             let scroll_y = y * wimp_render::SCROLL_MULTIPLIER;
                             if wimp_render::inside_tab_area(ui.mouse_pos, font_info) {
                                 ui.tab_scroll += scroll_y;
@@ -1095,7 +1096,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                             };
 
                             match modifiers {
-                                m if !m.shift() && !m.ctrl() => {
+                                m if m.is_empty() => {
                                     let cursor_icon = if wimp_render::should_show_text_cursor(
                                         ui.mouse_pos,
                                         view.menu.get_mode(),
@@ -1121,7 +1122,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                             state: ElementState::Pressed,
                             modifiers,
                             ..
-                        } if !modifiers.shift() => {
+                        } if modifiers.shift() => {
                             ui.left_mouse_state = PhysicalButtonState::PressedThisFrame;
 
                             let replace_or_add = if modifiers.ctrl() {

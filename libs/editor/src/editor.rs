@@ -118,6 +118,8 @@ struct EditorBuffer {
     scrollable: ScrollableBuffer,
     name: BufferName,
     search_results: SearchResults,
+    // If this is none, then it was not set by the user, and
+    // we will use the default.
     parser_kind: Option<ParserKind>,
 }
 
@@ -601,6 +603,23 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
         };
     }
 
+    macro_rules! editor_buffer_call {
+        (sync $buffer: ident . $($method_call:tt)*) => {
+            editor_buffer_call!($buffer . $($method_call)*)
+        };
+        ($buffer: ident . $($method_call:tt)*) => {
+            editor_buffer_call!($buffer {$buffer.$($method_call)*})
+        };
+        (sync $buffer: ident $tokens:block) => {{
+            editor_buffer_call!($buffer $tokens)
+        }};
+        ($buffer: ident $tokens:block) => {{
+            if let Some($buffer) = state.buffers.get_mut(state.current_buffer_id.index) {
+                $tokens;
+            }
+        }}
+    }
+
     macro_rules! buffer_call {
         (sync $buffer: ident . $($method_call:tt)*) => {
             let output = buffer_call!($buffer . $($method_call)*);
@@ -897,6 +916,13 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                     // will understand where the cursor is.
                 });
             }
+        }
+        NextLanguage => {
+            editor_buffer_call!(b {
+                b.parser_kind = Some(
+                    dbg!(b.get_parser_kind().next().unwrap_or_default())
+                );
+            });
         }
         SubmitForm => match state.current_buffer_id.kind {
             BufferIdKind::None | BufferIdKind::Text => {}
