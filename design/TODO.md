@@ -69,6 +69,16 @@
 * soft focus follows mouse on menus?
     * if the cursor is on the main text when, for example, the find menu is up, then the main text should be scrolled, not the find box.
 
+* open file menu relative to the current tab's path if any
+
+* make Ctrl-D show the new cursors
+
+* make Ctrl-D match cursor's direction with the initial selection
+    * "[abc|]" repesents a selection of "abc" with the cursor at the larger of the two positions
+    * current: [abc|] abc abc => [abc|] [|abc] abc
+    * desired: [abc|] abc abc => [abc|] [abc|] abc
+    * also desired: [|abc] abc abc => [|abc] [|abc] abc
+
 * Ctrl-shift-f to open a within current project folder search
   * implies some way to know what the project is. Options:
     * custom file format that specifies the paths. Open one of those at startup

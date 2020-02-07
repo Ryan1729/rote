@@ -1,6 +1,6 @@
 #![deny(unused_variables)]
 use macros::{d, fmt_debug};
-use platform_types::{SpanView, SpanKind};
+use platform_types::{SpanView, SpanKind, sk};
 
 use tree_sitter::{Parser, Language, LanguageError, Node, Query, QueryCapture, QueryCursor, QueryError, Tree};
 
@@ -146,45 +146,6 @@ impl InitializedParsers {
     }
 }
 
-fn tree_depth_spans_for<'to_parse>(
-    tree: Option<&Tree>,
-    _to_parse: &'to_parse str,
-) -> Spans {
-    let mut spans = Vec::with_capacity(1024);
-
-    if let Some(t) = tree {
-        let mut cursor = t.walk();
-        
-        let mut depth: u8 = 0;
-        loop {
-            if dbg!(cursor.goto_first_child()) {
-                depth = depth.wrapping_add(1);
-            } else {
-                // at leaf node
-                spans.push(SpanView {
-                    kind: SpanKind::new(depth),
-                    end_byte_index: cursor.node().end_byte()
-                });
-
-                if dbg!(cursor.goto_next_sibling()) {
-                    continue;
-                } else {
-                    if dbg!(cursor.goto_parent()) {
-                        dbg!(cursor.node().end_byte());
-                        depth = depth.wrapping_sub(1);
-                        continue;
-                    } else {
-                        break;
-                    }
-                }
-            }
-            
-        }
-    }
-
-    spans
-}
-
 struct Match<'capture> {
     pattern_index: usize,
     capture: QueryCapture<'capture>
@@ -265,6 +226,88 @@ fn query_spans_for<'to_parse>(
     spans
 }
 
+type Depth = u8;
+
+fn tree_depth_spans_for<'to_parse>(
+    tree: Option<&Tree>,
+    _to_parse: &'to_parse str,
+) -> Spans {
+    let mut spans = Vec::with_capacity(1024);
+
+    if let Some(t) = tree {
+        let mut cursor = t.walk();
+        
+        let mut depth: Depth = 0;
+        'outer: loop{
+            if cursor.goto_first_child() {
+                 depth = depth.wrapping_add(1);
+             } else {
+                 // at leaf node
+                 spans.push(SpanView {
+                     kind: sk!(depth),
+                     end_byte_index: cursor.node().end_byte()
+                 });
+ 
+                 while !cursor.goto_next_sibling() {
+                     if cursor.goto_parent() {
+                         depth = depth.wrapping_sub(1);
+                         continue;
+                     } else {
+                         break 'outer;
+                     }
+                 }
+             }
+             
+         }
+    }
+
+    spans
+}
+
+/*
+struct DepthFirst<'tree> {
+    depth: Depth,
+    cursor: Option<TreeCursor<'tree>>,
+}
+
+impl DepthFirst {
+    fn new(tree: Option<&Tree>) -> Self {
+        DepthFirst {
+            depth: 0,
+            cursor: tree.map(|t| t.walk()),
+        }
+    }
+}
+
+impl <'tree> Iterator for DepthFirst<'tree> {
+    type Item = (Depth, Node<'tree>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        'outer: loop{
+            if cursor.goto_first_child() {
+                self.depth = self.depth.wrapping_add(1);
+                return Some((self.depth, cursor.node()));
+            } else {
+                // at leaf node
+                //spans.push(SpanView {
+                //    kind: sk!(self.depth),
+                //    end_byte_index: cursor.node().end_byte()
+                //});
+
+                while !cursor.goto_next_sibling() {
+                    if cursor.goto_parent() {
+                        self.depth = self.depth.wrapping_sub(1);
+                        continue;
+                    } else {
+                        break 'outer;
+                    }
+                }
+            }
+        }
+    }
+}
+*/
+
 fn plaintext_spans_for(s: &str) -> Spans {
     vec![plaintext_end_span_for(s)]
 }
@@ -334,6 +377,50 @@ fn rust_span_kind_from_match(Match {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::proptest;
+
+    const SOME_AMOUNT: usize = 16;
+
+    mod arb {
+        use proptest::{collection, sample, prelude::{Strategy, any}};
+        pub use pub_arb::rust_code;
+
+        // TODO parse the /tree-sitter-rust/src/node-types.json file
+        // so we get them all.
+        const RUST_NODE_TYPES: [&'static str; 10] = [
+            "source_file",
+            "function_item",
+            "identifier",
+            "block",
+            "let_declaration",
+            "pattern",
+            "pattern",
+            "line_comment",
+            "block_comment",
+            "primitive_type",
+        ];
+
+        pub fn rust_node_type() -> impl Strategy<Value = String> {
+            any::<sample::Selector>().prop_map(|s| (*s.select(&RUST_NODE_TYPES)).to_owned())
+        }
+
+        pub fn query_source(max_size: usize) -> impl Strategy<Value = String> {
+            
+            collection::vec(rust_node_type(), 0..max_size).prop_map(move |v| {
+                let mut src = String::with_capacity(max_size * 16);
+
+                let mut index = 0;
+                for s in v {
+                    src.push_str(&format!("({}) @cap{}", s, index));
+                    src.push_str("\n");
+                    index += 1;
+                }
+
+                src
+            })
+        }
+    }
+
     const COMMENT: SpanKind = SpanKind::COMMENT;
     const PLAIN: SpanKind = SpanKind::PLAIN;
     const STRING: SpanKind = SpanKind::STRING;
@@ -344,6 +431,29 @@ mod tests {
         rust.set_language(rust_lang).unwrap();
 
         rust
+    }
+
+    macro_rules! spans_assert {
+        ($spans: expr) => {
+            let spans = $spans;
+
+            let mut previous_kind = None;
+            let mut previous_end_byte_index = 0;
+            for s in spans.clone() {
+                if let Some(prev) = previous_kind {
+                    assert_ne!(s.kind, prev);
+                }
+                previous_kind = Some(s.kind);
+
+                assert!(
+                    previous_end_byte_index <= s.end_byte_index,
+                    "{} > {}",
+                    previous_end_byte_index,
+                    s.end_byte_index,
+                );
+                previous_end_byte_index = s.end_byte_index;
+            }
+        }
     }
 
     fn get_rust_parser_and_query(query_source: &str) -> (Parser, Query) {
@@ -359,10 +469,34 @@ mod tests {
         return (rust, query);
     }
 
+    fn arbitary_span_kind_from_match(Match {    
+        pattern_index,
+        capture: _
+    } : Match) -> SpanKind {
+        sk!(pattern_index.to_le_bytes()[0])
+        
+    }
+
+    proptest!{
+        #[test]
+        fn query_spans_for_produces_valid_rust_spans(
+            code in arb::rust_code(SOME_AMOUNT),
+            query_source in arb::query_source(SOME_AMOUNT)
+        ) {
+            let (mut rust, query) = get_rust_parser_and_query(&query_source);
+
+            let tree = rust.parse(&code, None);
+        
+            let spans = query_spans_for(tree.as_ref(), &query, &code, arbitary_span_kind_from_match);
+
+            spans_assert!(spans);
+        }
+    }
+
     #[test]
     fn query_spans_for_produces_the_right_result_on_this_multiple_match_case() {
-        const OUTER: SpanKind = SpanKind::new(1);
-        const INNER: SpanKind = SpanKind::new(2);
+        const OUTER: SpanKind = sk!(1);
+        const INNER: SpanKind = sk!(2);
         // As of this writing this only works if OTHER is the default.
         const OTHER: SpanKind = SpanKind::PLAIN; 
         fn span_kind_from_match_example(Match {    
@@ -508,10 +642,7 @@ mod tests {
         }
     }
 
-    // This test failed at least once.
-    #[test]
-    fn tree_depth_spans_for_terminates_on_this_tree() {
-        let text = 
+    const NESTED_COMMENT_EXAMPLE: &'static str = 
 "fn main() {
     let hi = \"hi there\";
     // TODO
@@ -522,14 +653,17 @@ fn uncommentable_function() {
 }
 */";
 
+    // This test failed at least once.
+    #[test]
+    fn tree_depth_spans_for_terminates_on_the_nested_comment_tree() {
         let mut rust = get_rust_parser();
 
-        let tree = rust.parse(text, None);
+        let tree = rust.parse(NESTED_COMMENT_EXAMPLE, None);
 
         let (send, recv) = std::sync::mpsc::channel();
 
         std::thread::spawn(move || {
-            tree_depth_spans_for(tree.as_ref(), text);
+            tree_depth_spans_for(tree.as_ref(), NESTED_COMMENT_EXAMPLE);
             send.send(()).unwrap();
         });
         
@@ -537,6 +671,64 @@ fn uncommentable_function() {
             recv.recv_timeout(std::time::Duration::from_millis(16)),
             Ok(())
         );
+    }
+
+    #[test]
+    fn tree_depth_spans_for_gets_the_right_answer_for_the_nested_comment_tree() {
+        let mut rust = get_rust_parser();
+
+        let tree = rust.parse(NESTED_COMMENT_EXAMPLE, None);
+
+        let spans = tree_depth_spans_for(tree.as_ref(), NESTED_COMMENT_EXAMPLE);
+
+        /*
+        This is what we get from the tree-sitter playground 
+        (https://tree-sitter.github.io/tree-sitter/playground)
+        for the NESTED_COMMENT_EXAMPLE.
+
+        source_file [0, 0] - [9, 0])
+          function_item [0, 0] - [3, 1])
+            name: identifier [0, 3] - [0, 7])
+            parameters: parameters [0, 7] - [0, 9])
+            body: block [0, 10] - [3, 1])
+              let_declaration [1, 4] - [1, 24])
+                pattern: identifier [1, 8] - [1, 10])
+                value: string_literal [1, 13] - [1, 23])
+              line_comment [2, 4] - [2, 11])
+          block_comment [4, 0] - [8, 2])
+        */
+
+        assert_eq!(
+            spans,
+            vec![
+                SpanView { kind: sk!(1), end_byte_index: 3 },
+                SpanView { kind: sk!(2), end_byte_index: 10 },
+                SpanView { kind: sk!(3), end_byte_index: 11 + 8 },
+                SpanView { kind: sk!(4), end_byte_index: 11 + 10 },
+                SpanView { kind: sk!(3), end_byte_index: 11 + 13 },
+                SpanView { kind: sk!(4), end_byte_index: 11 + 23 },
+                SpanView { kind: sk!(3), end_byte_index: 11 + 25 },
+                SpanView { kind: sk!(2), end_byte_index: 36 + 4 },
+                SpanView { kind: sk!(3), end_byte_index: 36 + 11 },
+                SpanView { kind: sk!(0), end_byte_index: 47 },
+                SpanView { kind: sk!(1), end_byte_index: NESTED_COMMENT_EXAMPLE.len() },
+            ]
+        )
+    }
+
+    proptest!{
+        #[test]
+        fn tree_depth_spans_for_produces_valid_rust_spans(
+            code in arb::rust_code(SOME_AMOUNT)
+        ) {
+            let mut rust = get_rust_parser();
+
+            let tree = rust.parse(&code, None);
+        
+            let spans = tree_depth_spans_for(tree.as_ref(), &code);
+
+            spans_assert!(spans);
+        }
     }
 }
 

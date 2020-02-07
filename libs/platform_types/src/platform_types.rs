@@ -713,17 +713,34 @@ pub struct BufferView {
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct SpanKind(u8);
 
+#[macro_export]
+macro_rules! sk {
+    (PLAIN) => {
+        sk!(0)
+    };
+    (COMMENT) => {
+        sk!(1)
+    };
+    (STRING) => {
+        sk!(2)
+    };
+    ($kind_val: expr) => {
+        SpanKind::new($kind_val)
+    }
+}
+
 impl SpanKind {
-    pub const fn new(byte: u8) -> Self { SpanKind(byte) }
-    #[allow(non_snake_case)]
+    pub const fn new(byte: u8) -> Self { 
+        SpanKind(byte)
+    }
 
     /// The justification for using all values of a given size
     /// notwithstanding, it is still useful to have clear 
     /// conventions, (which can be ignored as necessary,)
     /// hence these constants.
-    pub  const PLAIN: SpanKind = SpanKind(0);
-    pub  const COMMENT: SpanKind = SpanKind(1);
-    pub  const STRING: SpanKind = SpanKind(2);
+    pub const PLAIN: SpanKind = sk!(PLAIN);
+    pub const COMMENT: SpanKind = sk!(COMMENT);
+    pub const STRING: SpanKind = sk!(STRING);
 
     fn get_byte(&self) -> u8 {
         self.0
