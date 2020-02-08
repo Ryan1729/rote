@@ -387,14 +387,15 @@ mod tests {
 
         // TODO parse the /tree-sitter-rust/src/node-types.json file
         // so we get them all.
-        const RUST_NODE_TYPES: [&'static str; 10] = [
+        const RUST_NODE_TYPES: [&'static str; 11] = [
             "source_file",
             "function_item",
             "identifier",
+            "parameters",
             "block",
+            "string_literal",
             "let_declaration",
-            "pattern",
-            "pattern",
+            "match_pattern",
             "line_comment",
             "block_comment",
             "primitive_type",
@@ -439,9 +440,16 @@ mod tests {
 
             let mut previous_kind = None;
             let mut previous_end_byte_index = 0;
-            for s in spans.clone() {
+            for (i, s) in spans.clone().into_iter().enumerate() {
                 if let Some(prev) = previous_kind {
-                    assert_ne!(s.kind, prev);
+                    assert_ne!(
+                        s.kind,
+                        prev,
+                        "at index {} in spans was {:?} which as the same as the previous span: {:?}", 
+                        i,
+                        s,
+                        spans,
+                    );
                 }
                 previous_kind = Some(s.kind);
 
@@ -477,19 +485,29 @@ mod tests {
         
     }
 
+    fn query_spans_for_produces_valid_rust_spans_on(
+        code: &str,
+        query_source: &str,
+    ) {
+        let (mut rust, query) = get_rust_parser_and_query(query_source);
+
+        let tree = rust.parse(&code, None);
+        
+        let spans = query_spans_for(tree.as_ref(), &query, code, arbitary_span_kind_from_match);
+
+        spans_assert!(spans);
+    }
+
     proptest!{
         #[test]
         fn query_spans_for_produces_valid_rust_spans(
             code in arb::rust_code(SOME_AMOUNT),
             query_source in arb::query_source(SOME_AMOUNT)
         ) {
-            let (mut rust, query) = get_rust_parser_and_query(&query_source);
-
-            let tree = rust.parse(&code, None);
-        
-            let spans = query_spans_for(tree.as_ref(), &query, &code, arbitary_span_kind_from_match);
-
-            spans_assert!(spans);
+            query_spans_for_produces_valid_rust_spans_on(
+                &code,
+                &query_source
+            )
         }
     }
 
@@ -716,19 +734,52 @@ fn uncommentable_function() {
         )
     }
 
+    fn tree_depth_spans_for_produces_valid_rust_spans_on(code: &str) {
+        let mut rust = get_rust_parser();
+
+        let tree = rust.parse(&code, None);
+    
+        let spans = tree_depth_spans_for(tree.as_ref(), &code);
+
+        spans_assert!(spans);
+    }
+
     proptest!{
         #[test]
         fn tree_depth_spans_for_produces_valid_rust_spans(
             code in arb::rust_code(SOME_AMOUNT)
         ) {
-            let mut rust = get_rust_parser();
-
-            let tree = rust.parse(&code, None);
-        
-            let spans = tree_depth_spans_for(tree.as_ref(), &code);
-
-            spans_assert!(spans);
+            tree_depth_spans_for_produces_valid_rust_spans_on(&code);
         }
+    }
+
+    #[test]
+    fn tree_depth_spans_for_produces_valid_rust_spans_in_this_generated_case() {
+        tree_depth_spans_for_produces_valid_rust_spans_on(
+            "fn r#A() -> bool{false}"
+        );
+    }
+
+    #[test]
+    fn tree_depth_spans_for_produces_valid_rust_spans_in_this_incomplete_case() {
+        tree_depth_spans_for_produces_valid_rust_spans_on(
+            "fn"
+        );
+    }
+
+    #[test]
+    fn tree_depth_spans_for_produces_valid_rust_spans_in_this_larger_incomplete_case() {
+        tree_depth_spans_for_produces_valid_rust_spans_on(
+            "fn a"
+        );
+    }
+
+
+    #[test]
+    fn tree_depth_spans_for_produces_valid_rust_spans_in_this_minimal_case() {
+        tree_depth_spans_for_produces_valid_rust_spans_on(
+            "struct A;"
+        );
     }
 }
 

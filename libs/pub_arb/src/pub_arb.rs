@@ -50,7 +50,7 @@ prop_compose! {
         s.push_str(&format!("{}", expr_type));
         s.push_str("{\n");
         s.push_str(&expression);
-        s.push_str("}\n");
+        s.push_str("\n}\n");
 
         s
     }
