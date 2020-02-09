@@ -2,7 +2,7 @@
 use macros::{d, fmt_debug};
 use platform_types::{SpanView, SpanKind, sk};
 
-use tree_sitter::{Parser, Language, LanguageError, Node, Query, QueryCapture, QueryCursor, QueryError, Tree};
+use tree_sitter::{Parser, Language, LanguageError, Node, Query, QueryCapture, QueryCursor, QueryError, Tree, TreeCursor};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Style {
@@ -232,46 +232,42 @@ fn tree_depth_spans_for<'to_parse>(
     tree: Option<&Tree>,
     _to_parse: &'to_parse str,
 ) -> Spans {
-    let mut spans = Vec::with_capacity(1024);
+    let mut spans: Spans = Vec::with_capacity(1024);
 
-    if let Some(t) = tree {
-        let mut cursor = t.walk();
-        
-        let mut depth: Depth = 0;
-        'outer: loop{
-            if cursor.goto_first_child() {
-                 depth = depth.wrapping_add(1);
-             } else {
-                 // at leaf node
-                 spans.push(SpanView {
-                     kind: sk!(depth),
-                     end_byte_index: cursor.node().end_byte()
-                 });
- 
-                 while !cursor.goto_next_sibling() {
-                     if cursor.goto_parent() {
-                         depth = depth.wrapping_sub(1);
-                         continue;
-                     } else {
-                         break 'outer;
-                     }
-                 }
-             }
-             
-         }
+    for (depth, node) in DepthFirst::new(tree) {
+        let new_end_byte_index = node.end_byte();
+        let new = SpanView {
+            kind: sk!(depth),
+            end_byte_index: new_end_byte_index
+        };
+
+        if let Some(prev) = spans.pop() {
+            dbg!(&prev, &new);
+            if prev.end_byte_index >= new_end_byte_index {
+                dbg!("prev.end_byte_index >= new_end_byte_index");
+                spans.push(new);
+                if prev.end_byte_index != new_end_byte_index {
+                    spans.push(prev);
+                }
+            } else {
+                spans.push(prev);
+                spans.push(new);
+            }
+        } else {
+            spans.push(new);
+        }
     }
 
     spans
 }
 
-/*
 struct DepthFirst<'tree> {
     depth: Depth,
     cursor: Option<TreeCursor<'tree>>,
 }
 
-impl DepthFirst {
-    fn new(tree: Option<&Tree>) -> Self {
+impl <'tree> DepthFirst<'tree> {
+    fn new(tree: Option<&'tree Tree>) -> Self {
         DepthFirst {
             depth: 0,
             cursor: tree.map(|t| t.walk()),
@@ -283,30 +279,36 @@ impl <'tree> Iterator for DepthFirst<'tree> {
     type Item = (Depth, Node<'tree>);
 
     fn next(&mut self) -> Option<Self::Item> {
-        'outer: loop{
-            if cursor.goto_first_child() {
-                self.depth = self.depth.wrapping_add(1);
-                return Some((self.depth, cursor.node()));
-            } else {
-                // at leaf node
-                //spans.push(SpanView {
-                //    kind: sk!(self.depth),
-                //    end_byte_index: cursor.node().end_byte()
-                //});
-
-                while !cursor.goto_next_sibling() {
-                    if cursor.goto_parent() {
-                        self.depth = self.depth.wrapping_sub(1);
-                        continue;
-                    } else {
-                        break 'outer;
+        let mut done = false;
+        let depth = &mut self.depth;
+        let output = self.cursor.as_mut().and_then(|cursor| {
+            let output = Some((*depth, cursor.node()));
+            dbg!(&output);
+            
+            'outer: loop {
+                if cursor.goto_first_child() {
+                    *depth = depth.wrapping_add(1);
+                    break output;
+                } else {                    while !cursor.goto_next_sibling() {
+                        if cursor.goto_parent() {
+                            *depth = depth.wrapping_sub(1);
+                            continue;
+                        } else {
+                            done = true;
+                            break 'outer output;
+                        }
                     }
                 }
             }
+        });
+
+        if done {
+            self.cursor = None;
         }
+
+        output
     }
 }
-*/
 
 fn plaintext_spans_for(s: &str) -> Spans {
     vec![plaintext_end_span_for(s)]
@@ -436,6 +438,9 @@ mod tests {
 
     macro_rules! spans_assert {
         ($spans: expr) => {
+            spans_assert!($spans, "");
+        };
+        ($spans: expr, $suffix: expr) => {
             let spans = $spans;
 
             let mut previous_kind = None;
@@ -455,9 +460,11 @@ mod tests {
 
                 assert!(
                     previous_end_byte_index <= s.end_byte_index,
-                    "{} > {}",
+                    "{} > {} {}\n\n{:?}",
                     previous_end_byte_index,
                     s.end_byte_index,
+                    $suffix,
+                    spans
                 );
                 previous_end_byte_index = s.end_byte_index;
             }
@@ -691,14 +698,26 @@ fn uncommentable_function() {
         );
     }
 
-    #[test]
-    fn tree_depth_spans_for_gets_the_right_answer_for_the_nested_comment_tree() {
+    fn get_rust_tree(code: &str) -> Option<Tree> {
         let mut rust = get_rust_parser();
 
-        let tree = rust.parse(NESTED_COMMENT_EXAMPLE, None);
+        rust.parse(code, None)
+    }
 
-        let spans = tree_depth_spans_for(tree.as_ref(), NESTED_COMMENT_EXAMPLE);
+    fn tree_depth_spans_for_gets_the_right_answer_for(code: &str, expected_spans: Vec<SpanView>) {
+        spans_assert!(&expected_spans, "expected_spans is not valid!");
 
+        let tree = get_rust_tree(code);
+
+        let spans = tree_depth_spans_for(tree.as_ref(), code);
+
+        spans_assert!(&spans, "tree_depth_spans_for produced invalid spans!");
+
+        assert_eq!(spans, expected_spans);
+    }
+
+    #[test]
+    fn tree_depth_spans_for_gets_the_right_answer_for_the_nested_comment_tree() {
         /*
         This is what we get from the tree-sitter playground 
         (https://tree-sitter.github.io/tree-sitter/playground)
@@ -716,8 +735,8 @@ fn uncommentable_function() {
           block_comment [4, 0] - [8, 2])
         */
 
-        assert_eq!(
-            spans,
+        tree_depth_spans_for_gets_the_right_answer_for(
+            NESTED_COMMENT_EXAMPLE,
             vec![
                 SpanView { kind: sk!(1), end_byte_index: 3 },
                 SpanView { kind: sk!(2), end_byte_index: 10 },
@@ -731,13 +750,11 @@ fn uncommentable_function() {
                 SpanView { kind: sk!(0), end_byte_index: 47 },
                 SpanView { kind: sk!(1), end_byte_index: NESTED_COMMENT_EXAMPLE.len() },
             ]
-        )
+        );
     }
 
     fn tree_depth_spans_for_produces_valid_rust_spans_on(code: &str) {
-        let mut rust = get_rust_parser();
-
-        let tree = rust.parse(&code, None);
+        let tree = get_rust_tree(code);
     
         let spans = tree_depth_spans_for(tree.as_ref(), &code);
 
@@ -774,11 +791,41 @@ fn uncommentable_function() {
         );
     }
 
+    const MINIMAL_ITEM_CASE: &'static str = "struct A;";
 
     #[test]
     fn tree_depth_spans_for_produces_valid_rust_spans_in_this_minimal_case() {
         tree_depth_spans_for_produces_valid_rust_spans_on(
-            "struct A;"
+            MINIMAL_ITEM_CASE
+        );
+    }
+
+    #[test]
+    fn tree_depth_spans_for_gets_the_right_answer_for_this_minimal_case() {
+        tree_depth_spans_for_gets_the_right_answer_for(
+            MINIMAL_ITEM_CASE,
+            vec![
+                SpanView { kind: sk!(2), end_byte_index: 6 },
+                SpanView { kind: sk!(1), end_byte_index: 9 },
+            ]
+        );
+    }
+
+    #[test]
+    fn collecting_depth_first_produces_the_expected_answer_on_this_minimal_case() {
+        let tree = get_rust_tree(MINIMAL_ITEM_CASE);
+
+        let collected: Vec<_> = DepthFirst::new(tree.as_ref())
+            .map(|(depth, node)| (depth, node.end_byte(), node.kind()))
+            .collect();
+
+        assert_eq!(
+            collected,
+            vec![
+                (0, 9, "source_file"),
+                (1, 9, "struct_item"),
+                (2, 6, "struct"),
+            ]
         );
     }
 }
