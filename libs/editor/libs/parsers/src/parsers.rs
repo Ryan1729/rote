@@ -241,22 +241,33 @@ fn tree_depth_spans_for<'to_parse>(
             end_byte_index: new_end_byte_index
         };
 
-        if let Some(prev) = spans.pop() {
-            dbg!(&prev, &new);
-            if prev.end_byte_index >= new_end_byte_index {
-                dbg!("prev.end_byte_index >= new_end_byte_index");
+        if let Some(previous) = spans.pop() {
+            dbg!(&previous, &new);
+            if previous.end_byte_index >= new_end_byte_index {
+                dbg!("previous.end_byte_index >= new_end_byte_index");
                 spans.push(new);
-                if prev.end_byte_index != new_end_byte_index {
-                    spans.push(prev);
+                if previous.end_byte_index != new_end_byte_index {
+                    spans.push(previous);
                 }
             } else {
-                spans.push(prev);
+                spans.push(previous);
                 spans.push(new);
             }
         } else {
             spans.push(new);
         }
     }
+
+    let mut write = 0;
+    for i in 0..spans.len() {
+        let prev_kind = spans[write].kind;
+        spans[write] = spans[i];
+        if prev_kind != spans[i].kind {
+            write += 1;
+        }
+    }
+
+    spans.truncate(write);
 
     spans
 }
@@ -283,23 +294,18 @@ impl <'tree> Iterator for DepthFirst<'tree> {
         let depth = &mut self.depth;
         let output = self.cursor.as_mut().and_then(|cursor| {
             let output = Some((*depth, cursor.node()));
-            dbg!(&output);
-            
-            'outer: loop {
-                if cursor.goto_first_child() {
-                    *depth = depth.wrapping_add(1);
-                    break output;
-                } else {                    while !cursor.goto_next_sibling() {
-                        if cursor.goto_parent() {
-                            *depth = depth.wrapping_sub(1);
-                            continue;
-                        } else {
-                            done = true;
-                            break 'outer output;
-                        }
+            if cursor.goto_first_child() {
+                *depth = depth.wrapping_add(1);
+            } else {                while !cursor.goto_next_sibling() {
+                    if cursor.goto_parent() {
+                        *depth = depth.wrapping_sub(1);
+                    } else {
+                        done = true;
+                        break;
                     }
                 }
             }
+            output
         });
 
         if done {
@@ -376,6 +382,34 @@ fn rust_span_kind_from_match(Match {
     
 }
 
+#[allow(dead_code)]
+fn recursive_dbg(node: Option<Node>) {
+    recursive_dbg_helper(node, 0)
+}
+
+fn recursive_dbg_helper(node: Option<Node>, mut depth: Depth) {
+    if let Some(n) = node {
+        dbg!((depth, n));
+
+        depth += 1;
+        for i in 0..n.child_count() {
+            dbg!(i);
+            recursive_dbg_helper(n.child(i), depth);
+        }
+    }
+}
+
+macro_rules! recursive_dbg_code {
+    (rust $code: expr) => {
+        let tree = get_rust_tree!($code);
+        if let Some(t) = tree {
+            recursive_dbg(Some(t.root_node()));
+        } else {
+            dbg!(tree);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -408,7 +442,6 @@ mod tests {
         }
 
         pub fn query_source(max_size: usize) -> impl Strategy<Value = String> {
-            
             collection::vec(rust_node_type(), 0..max_size).prop_map(move |v| {
                 let mut src = String::with_capacity(max_size * 16);
 
@@ -428,12 +461,14 @@ mod tests {
     const PLAIN: SpanKind = SpanKind::PLAIN;
     const STRING: SpanKind = SpanKind::STRING;
 
-    fn get_rust_parser() -> Parser {
-        let mut rust = Parser::new();
-        let rust_lang = unsafe { tree_sitter_rust() };
-        rust.set_language(rust_lang).unwrap();
+    macro_rules! get_rust_tree {
+        ($code: expr) => {{
+            let mut rust = Parser::new();
+            let rust_lang = unsafe { tree_sitter_rust() };
+            rust.set_language(rust_lang).unwrap();
 
-        rust
+            rust.parse($code, None)
+        }}
     }
 
     macro_rules! spans_assert {
@@ -678,36 +713,65 @@ fn uncommentable_function() {
 }
 */";
 
-    // This test failed at least once.
-    #[test]
-    fn tree_depth_spans_for_terminates_on_the_nested_comment_tree() {
-        let mut rust = get_rust_parser();
-
-        let tree = rust.parse(NESTED_COMMENT_EXAMPLE, None);
+    fn tree_depth_spans_for_terminates_on(code: &'static str) {
+        let tree = get_rust_tree!(code);
 
         let (send, recv) = std::sync::mpsc::channel();
 
         std::thread::spawn(move || {
-            tree_depth_spans_for(tree.as_ref(), NESTED_COMMENT_EXAMPLE);
+            tree_depth_spans_for(tree.as_ref(), code);
             send.send(()).unwrap();
         });
         
         assert_eq!(
-            recv.recv_timeout(std::time::Duration::from_millis(16)),
+            recv.recv_timeout(std::time::Duration::from_millis(1000)),
             Ok(())
         );
     }
 
-    fn get_rust_tree(code: &str) -> Option<Tree> {
-        let mut rust = get_rust_parser();
+    // This test failed at least once.
+    #[test]
+    fn tree_depth_spans_for_terminates_on_the_nested_comment_tree() {
+        tree_depth_spans_for_terminates_on(NESTED_COMMENT_EXAMPLE);
+    }
 
-        rust.parse(code, None)
+    const SMALLER_NESTED_COMMENT_EXAMPLE: &'static str = 
+"/*
+fn uncommentable_function() {
+    let _ = \"foo/*.rs\"; //  */\r
+}
+*/";
+
+    #[test]
+    fn tree_depth_spans_for_terminates_on_the_smaller_nested_comment_tree() {
+        tree_depth_spans_for_terminates_on(SMALLER_NESTED_COMMENT_EXAMPLE);
+    }
+
+    const HI_THERE_EXAMPLE: &'static str = 
+"fn main() {
+    let hi = \"hi there\";
+    // TODO
+}";
+
+    #[test]
+    fn tree_depth_spans_for_terminates_on_the_hi_there_example_tree() {
+        tree_depth_spans_for_terminates_on(HI_THERE_EXAMPLE);
+    }
+
+    #[test]
+    fn tree_depth_spans_for_terminates_on_fn_main() {
+        tree_depth_spans_for_terminates_on("fn main() {}");
+    }
+
+    #[test]
+    fn tree_depth_spans_for_terminates_on_an_empty_tuple_struct() {
+        tree_depth_spans_for_terminates_on("struct A ();");
     }
 
     fn tree_depth_spans_for_gets_the_right_answer_for(code: &str, expected_spans: Vec<SpanView>) {
         spans_assert!(&expected_spans, "expected_spans is not valid!");
 
-        let tree = get_rust_tree(code);
+        let tree = get_rust_tree!(code);
 
         let spans = tree_depth_spans_for(tree.as_ref(), code);
 
@@ -754,7 +818,7 @@ fn uncommentable_function() {
     }
 
     fn tree_depth_spans_for_produces_valid_rust_spans_on(code: &str) {
-        let tree = get_rust_tree(code);
+        let tree = get_rust_tree!(code);
     
         let spans = tree_depth_spans_for(tree.as_ref(), &code);
 
@@ -774,6 +838,13 @@ fn uncommentable_function() {
     fn tree_depth_spans_for_produces_valid_rust_spans_in_this_generated_case() {
         tree_depth_spans_for_produces_valid_rust_spans_on(
             "fn r#A() -> bool{false}"
+        );
+    }
+
+    #[test]
+    fn tree_depth_spans_for_produces_valid_rust_spans_in_this_predicate_case() {
+        tree_depth_spans_for_produces_valid_rust_spans_on(
+            "fn no() -> bool {false}"
         );
     }
 
@@ -811,9 +882,13 @@ fn uncommentable_function() {
         );
     }
 
-    #[test]
-    fn collecting_depth_first_produces_the_expected_answer_on_this_minimal_case() {
-        let tree = get_rust_tree(MINIMAL_ITEM_CASE);
+    type Collectings = (Depth, usize, &'static str);
+
+    fn collecting_depth_first_produces_the_expected_answer_on(
+        code: &str,
+        expected_spans: Vec<Collectings>
+    ) {
+        let tree = get_rust_tree!(code);
 
         let collected: Vec<_> = DepthFirst::new(tree.as_ref())
             .map(|(depth, node)| (depth, node.end_byte(), node.kind()))
@@ -821,11 +896,64 @@ fn uncommentable_function() {
 
         assert_eq!(
             collected,
+            expected_spans
+        );
+    }
+
+    #[test]
+    fn collecting_depth_first_produces_the_expected_answer_on_this_minimal_case() {
+        collecting_depth_first_produces_the_expected_answer_on(
+            MINIMAL_ITEM_CASE,
             vec![
                 (0, 9, "source_file"),
                 (1, 9, "struct_item"),
                 (2, 6, "struct"),
+                (2, 8, "type_identifier"),
+                (2, 9, ";"),
             ]
+        );
+    }
+
+    #[test]
+    fn collecting_depth_first_produces_the_expected_answer_on_this_predicate_case() {
+        collecting_depth_first_produces_the_expected_answer_on(
+            "fn no() -> bool{false}",
+            vec![
+                (0, 22, "source_file"),
+                (1, 22, "function_item"),
+                (2,  2, "fn"),
+                (2,  5, "identifier"),
+                (2,  7, "parameters"),
+                (3,  6, "("),
+                (3,  7, ")"),
+                (2, 10, "->"),
+                (2, 15, "primitive_type"),
+                (2, 22, "block"),
+                (3, 16, "{"),
+                (3, 21, "boolean_literal"),
+                (4, 21, "false"),
+                (3, 22, "}"),
+            ]
+        );
+    }
+
+    // This test failed at least once.
+    #[test]
+    fn depth_first_terminates_on_the_nested_comment_tree() {
+        let tree = get_rust_tree!(NESTED_COMMENT_EXAMPLE);
+
+        let (send, recv) = std::sync::mpsc::channel();
+
+        std::thread::spawn(move || {
+            for e in DepthFirst::new(tree.as_ref()) {
+                dbg!(e);
+            }
+            send.send(()).unwrap();
+        });
+        
+        assert_eq!(
+            recv.recv_timeout(std::time::Duration::from_millis(16000)),
+            Ok(())
         );
     }
 }

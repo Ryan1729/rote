@@ -748,7 +748,7 @@ impl SpanKind {
 }
 d!(for SpanKind: SpanKind::PLAIN);
 
-#[derive(Clone, Default, Debug, PartialEq)]
+#[derive(Copy, Clone, Default, Debug, PartialEq)]
 pub struct SpanView {
     pub end_byte_index: usize,
     pub kind: SpanKind,
