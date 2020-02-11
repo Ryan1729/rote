@@ -232,9 +232,30 @@ fn tree_depth_spans_for<'to_parse>(
     tree: Option<&Tree>,
     _to_parse: &'to_parse str,
 ) -> Spans {
-    let mut spans: Spans = Vec::with_capacity(1024);
+    const CAP: usize = 1024;
+    let mut spans: Spans = Vec::with_capacity(CAP);
 
     for (depth, node) in DepthFirst::new(tree) {
+    /*
+            vec![d  eb
+                (0, 22, "source_file"),
+                (1, 22, "function_item"),
+                (2,  2, "fn"),
+                (2,  5, "identifier"),
+                (2,  7, "parameters"),
+                (3,  6, "("),
+                (3,  7, ")"),
+                (2, 10, "->"),
+                (2, 15, "primitive_type"),
+                (2, 22, "block"),
+                (3, 16, "{"),
+                (3, 21, "boolean_literal"),
+                (4, 21, "false"),
+                (3, 22, "}"),
+            ]
+    */
+
+        //let new_start_byte_index = node.start_byte();
         let new_end_byte_index = node.end_byte();
         let new = SpanView {
             kind: sk!(depth),
@@ -258,17 +279,65 @@ fn tree_depth_spans_for<'to_parse>(
         }
     }
 
-    let mut write = 0;
-    for i in 0..spans.len() {
-        let prev_kind = spans[write].kind;
-        spans[write] = spans[i];
-        if prev_kind != spans[i].kind {
-            write += 1;
+    dbg!(&spans);
+
+    /*
+            vec![d  eb
+                (2,  2, ),
+                (2,  5, ),
+                (2,  7, ),
+                (3,  6,),
+                (3,  7,),
+                (2, 10,),
+                (2, 15, ),
+                (2, 22, ),
+                (3, 16,),
+                (3, 21, ),
+                (4, 21, ),
+                (3, 22,),
+            ]
+    */
+
+    let len = spans.len();
+    if len <= 1 {
+        return spans;
+    }
+
+    // scan backwards getting rid of the ones that are overlapped.
+    let mut prev_max = 0;
+
+    for i in (0..(spans.len() - 1)).rev() {
+        if spans[i].end_byte_index > prev_max {
+            prev_max = spans[i].end_byte_index;
+        }
+        dbg!(prev_max, spans[i + 1], spans[i]);
+        if spans[i + 1].kind != spans[i].kind {
+            if spans[i + 1].end_byte_index <= spans[i].end_byte_index
+            {
+                if spans[i].end_byte_index >= prev_max {
+                    spans.remove(i);
+                }
+            }
+
+            prev_max = spans[i].end_byte_index;
         }
     }
 
-    spans.truncate(write);
+    dbg!(&spans);
 
+    // dedup by kind, keeping last
+    let mut write = 0;
+    for i in 0..spans.len() {
+        let prev_kind = spans[write].kind;
+        if prev_kind != spans[i].kind {
+            write += 1;
+        }
+        spans[write] = spans[i];
+    }
+
+    spans.truncate(write + 1);
+
+    
     spans
 }
 
@@ -882,6 +951,23 @@ fn uncommentable_function() {
         );
     }
 
+    const PREDICATE_EXAMPLE: &'static str = "fn no() -> bool{false}";
+
+    #[test]
+    fn tree_depth_spans_for_gets_the_right_answer_for_this_predicate_case() {
+        tree_depth_spans_for_gets_the_right_answer_for(
+            PREDICATE_EXAMPLE,
+            vec![
+                SpanView { kind: sk!(2), end_byte_index: 5 },
+                SpanView { kind: sk!(3), end_byte_index: 7 },
+                SpanView { kind: sk!(2), end_byte_index: 15 },
+                SpanView { kind: sk!(3), end_byte_index: 16 },
+                SpanView { kind: sk!(4), end_byte_index: 21 },
+                SpanView { kind: sk!(3), end_byte_index: 22 },
+            ]
+        );
+    }
+
     type Collectings = (Depth, usize, &'static str);
 
     fn collecting_depth_first_produces_the_expected_answer_on(
@@ -917,7 +1003,7 @@ fn uncommentable_function() {
     #[test]
     fn collecting_depth_first_produces_the_expected_answer_on_this_predicate_case() {
         collecting_depth_first_produces_the_expected_answer_on(
-            "fn no() -> bool{false}",
+            PREDICATE_EXAMPLE,
             vec![
                 (0, 22, "source_file"),
                 (1, 22, "function_item"),
