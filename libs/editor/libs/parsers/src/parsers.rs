@@ -2,7 +2,7 @@
 use macros::{d, fmt_debug};
 use platform_types::{SpanView, SpanKind, sk};
 
-use tree_sitter::{Parser, Language, LanguageError, Node, Query, QueryCapture, QueryCursor, QueryError, Tree, TreeCursor};
+use tree_sitter::{Parser, Language, LanguageError, Node, Query, QueryMatch, QueryCapture, QueryCursor, QueryError, Tree, TreeCursor};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Style {
@@ -159,6 +159,75 @@ fn query_spans_for<'to_parse>(
 ) -> Spans {
     let mut spans = Vec::with_capacity(1024);
 
+    let mut span_stack = Vec::with_capacity(16);
+
+    let mut receive_match = |m: Match| {
+        let node = m.capture.node;
+        let kind = span_kind_from_match(m);
+    
+        macro_rules! get_prev {
+            () => {
+                span_stack.last().cloned().unwrap_or_else(|| SpanView {
+                    kind: SpanKind::PLAIN,
+                    end_byte_index: 0xFFFF_FFFF_FFFF_FFFF
+                })
+            }
+        }
+    
+        if get_prev!().end_byte_index <= node.start_byte() {
+            if let Some(s) = span_stack.pop() {
+                spans.push(s);
+            }
+        }
+    
+        spans.push(SpanView {
+            end_byte_index: node.start_byte(),
+            kind: get_prev!().kind,
+        });
+    
+        span_stack.push(SpanView {
+            end_byte_index: node.end_byte(),
+            kind,
+        });
+    };
+
+    query_spans_for_inner(
+        tree,
+        query,
+        to_parse,
+        receive_match
+    );
+
+    while let Some(s) = span_stack.pop() {
+        spans.push(s);
+    }
+
+    let len = to_parse.len();
+    if spans.last().map(|s| s.end_byte_index < len).unwrap_or(true) {
+        spans.push(SpanView {
+            end_byte_index: len,
+            kind: SpanKind::PLAIN,
+        });
+    }
+
+    // TODO there is probably a clever way to change the above code so this line,
+    // and the associted O(n log n) running time, is unnecessary.
+    spans.sort_by(|s1, s2|{
+        s1.end_byte_index.cmp(&s2.end_byte_index)
+    });
+
+    // TODO there is probably a way to avoid this extra iteration.
+    dedup_by_kind_keeping_last(&mut spans);
+
+    spans
+}
+
+fn query_spans_for_inner<'to_parse, F: FnMut(Match)>(
+    tree: Option<&Tree>,
+    query: &Query,
+    to_parse: &'to_parse str,
+    mut receive_match: F
+) {
     let mut query_cursor = QueryCursor::new();
 
     if let Some(r_t) = tree {
@@ -166,8 +235,6 @@ fn query_spans_for<'to_parse>(
             let r = n.range();
             &to_parse[r.start_byte..r.end_byte]
         };
-
-        let mut span_stack = Vec::with_capacity(16);
 
         for q_match in query_cursor.matches(
             query,
@@ -177,53 +244,13 @@ fn query_spans_for<'to_parse>(
             let pattern_index: usize = q_match.pattern_index;
 
             for q_capture in q_match.captures.iter() {
-                let node = q_capture.node;
-                let kind = span_kind_from_match(Match {
+                receive_match(Match {
                     pattern_index,
                     capture: *q_capture
                 });
-
-                macro_rules! get_prev {
-                    () => {
-                        span_stack.last().cloned().unwrap_or_else(|| SpanView {
-                            kind: SpanKind::PLAIN,
-                            end_byte_index: 0xFFFF_FFFF_FFFF_FFFF
-                        })
-                    }
-                }
-
-                if get_prev!().end_byte_index <= node.start_byte() {
-                    if let Some(s) = span_stack.pop() {
-                        spans.push(s);
-                    }
-                }
-
-                spans.push(SpanView {
-                    end_byte_index: node.start_byte(),
-                    kind: get_prev!().kind,
-                });
-
-                span_stack.push(SpanView {
-                    end_byte_index: node.end_byte(),
-                    kind,
-                });
             }
         }
-
-        while let Some(s) = span_stack.pop() {
-            spans.push(s);
-        }
-
-        let len = to_parse.len();
-        if spans.last().map(|s| s.end_byte_index < len).unwrap_or(true) {
-            spans.push(SpanView {
-                end_byte_index: len,
-                kind: SpanKind::PLAIN,
-            });
-        }
     }
-
-    spans
 }
 
 type Depth = u8;
@@ -237,7 +264,6 @@ fn tree_depth_spans_for<'to_parse>(
 
     tree_depth_extract_sorted(tree, &mut spans);
 
-    dbg!("after first pass", &spans);
 
     let len = spans.len();
     if len <= 1 {
@@ -251,7 +277,6 @@ fn tree_depth_spans_for<'to_parse>(
         if spans[i].end_byte_index > prev_max {
             prev_max = spans[i].end_byte_index;
         }
-        dbg!(prev_max, spans[i + 1], spans[i]);
         if spans[i + 1].kind != spans[i].kind {
             if spans[i + 1].end_byte_index <= spans[i].end_byte_index
             {
@@ -264,20 +289,8 @@ fn tree_depth_spans_for<'to_parse>(
         }
     }
 
-    dbg!(&spans);
-
-    // dedup by kind, keeping last
-    let mut write = 0;
-    for i in 0..spans.len() {
-        let prev_kind = spans[write].kind;
-        if prev_kind != spans[i].kind {
-            write += 1;
-        }
-        spans[write] = spans[i];
-    }
-
-    spans.truncate(write + 1);
-
+    
+    dedup_by_kind_keeping_last(&mut spans);
     
     spans
 }
@@ -294,9 +307,7 @@ fn tree_depth_extract_sorted(
         };
 
         if let Some(previous) = spans.pop() {
-            dbg!(&previous, &new);
             if previous.end_byte_index >= new_end_byte_index {
-                dbg!("previous.end_byte_index >= new_end_byte_index");
                 spans.push(new);
                 if previous.end_byte_index != new_end_byte_index {
                     spans.push(previous);
@@ -309,6 +320,12 @@ fn tree_depth_extract_sorted(
             spans.push(new);
         }
     }
+
+    // TODO there is probably a clever way to change the above loop so this line,
+    // and the associted O(n log n) running time, is unnecessary.
+    spans.sort_by(|s1, s2|{
+        s1.end_byte_index.cmp(&s2.end_byte_index)
+    });
 }
 
 struct DepthFirst<'tree> {
@@ -353,6 +370,19 @@ impl <'tree> Iterator for DepthFirst<'tree> {
 
         output
     }
+}
+
+fn dedup_by_kind_keeping_last(spans: &mut Spans) {
+    let mut write = 0;
+    for i in 0..spans.len() {
+        let prev_kind = spans[write].kind;
+        if prev_kind != spans[i].kind {
+            write += 1;
+        }
+        spans[write] = spans[i];
+    }
+
+    spans.truncate(write + 1);
 }
 
 fn plaintext_spans_for(s: &str) -> Spans {

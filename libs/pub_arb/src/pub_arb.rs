@@ -17,10 +17,10 @@ use proptest::collection;
 const FUNCTION_SIZE_ESTIMATE: usize = 128 + PARAM_SIZE_ESTIMATE;
 const PARAM_SIZE_ESTIMATE: usize = 64;
 
-/// This should be produce Strings which are syntactically valid rust code
-/// but which will likely produce warnings about unused variable etc. if
-/// compiled.
 prop_compose! {
+    /// This should be produce Strings which are syntactically valid rust code
+    /// but which will likely produce warnings about unused variable etc. if
+    /// compiled.
     pub fn rust_code(max_size: usize)(
         functions in collection::vec(rust_function(max_size), 0..max_size),
     ) -> String {

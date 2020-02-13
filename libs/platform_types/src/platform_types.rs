@@ -742,6 +742,7 @@ impl SpanKind {
     pub const COMMENT: SpanKind = sk!(COMMENT);
     pub const STRING: SpanKind = sk!(STRING);
 
+    #[allow(dead_code)]
     fn get_byte(&self) -> u8 {
         self.0
     }
