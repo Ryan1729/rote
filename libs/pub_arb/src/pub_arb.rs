@@ -146,7 +146,6 @@ fmt_display!(for RustType : t in "{}", match t {
 });
 
 pub fn rust_expression(max_size: usize) -> impl Strategy<Value = (String, RustType)> {
-    use RustPrimitiveType::*;
     rust_type().prop_flat_map(rust_expression_from_type)
 }
 

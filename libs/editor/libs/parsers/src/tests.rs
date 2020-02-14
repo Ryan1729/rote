@@ -47,11 +47,19 @@ const COMMENT: SpanKind = SpanKind::COMMENT;
 const PLAIN: SpanKind = SpanKind::PLAIN;
 const STRING: SpanKind = SpanKind::STRING;
 
-macro_rules! get_rust_tree {
-    ($code: expr) => {{
+macro_rules! get_rust_parser {
+    () => {{
         let mut rust = Parser::new();
         let rust_lang = unsafe { tree_sitter_rust() };
         rust.set_language(rust_lang).unwrap();
+
+        rust
+    }}
+}
+
+macro_rules! get_rust_tree {
+    ($code: expr) => {{
+        let mut rust = get_rust_parser!();
 
         rust.parse($code, None)
     }}
@@ -94,8 +102,8 @@ macro_rules! spans_assert {
             
 
             assert!(
-                previous_end_byte_index <= s.end_byte_index,
-                "{} > {} {}\n\n{:?}",
+                previous_end_byte_index < s.end_byte_index,
+                "{} >= {} {}\n\n{:?}",
                 previous_end_byte_index,
                 s.end_byte_index,
                 $suffix,
@@ -124,7 +132,6 @@ fn arbitary_span_kind_from_match(Match {
     capture: _
 } : Match) -> SpanKind {
     sk!(pattern_index.to_le_bytes()[0])
-    
 }
 
 fn query_spans_for_produces_valid_rust_spans_on(
@@ -309,11 +316,185 @@ let yo = \"yo\";
     )
 }
 
+fn arbitary_span_kind_from_node(node: Node) -> SpanKind {
+    sk!(node.kind_id().to_le_bytes()[0])
+}
+
+fn totally_classified_spans_for_produces_valid_rust_spans_on(code: &str) {
+    let tree = get_rust_tree!(code);
+
+    let spans = totally_classified_spans_for(tree.as_ref(), code, arbitary_span_kind_from_node);
+
+    spans_assert!(spans);
+}
+
+proptest!{
+    #[test]
+    fn totally_classified_spans_for_produces_valid_rust_spans(
+        code in arb::rust_code(SOME_AMOUNT),
+    ) {
+        totally_classified_spans_for_produces_valid_rust_spans_on(
+            &code,
+        )
+    }
+}
+
+#[test]
+fn totally_classified_spans_for_produces_valid_rust_spans_on_unit() {
+    totally_classified_spans_for_produces_valid_rust_spans_on(
+        "()",
+    );
+}
+
+fn preceding_backslash_count_is_even(s: &str, mut byte_index: usize) -> bool {
+    let mut count = 0;
+
+    if byte_index > 0 {
+        byte_index -= 1;
+        while byte_index > 0 && s.get(byte_index..=byte_index) == Some("\\") {
+            count += 1;
+        }
+    }
+
+    count & 1 == 0
+}
+
+fn rust_extra_spans_should_not_give_paired_tokens_different_kinds_on(
+    code: &str,
+) {
+    let pairs = {
+        const PAIRED_TOKENS_IN_N_BYTES_ESTIMATE: usize = 16;
+        let cap = code.len() / PAIRED_TOKENS_IN_N_BYTES_ESTIMATE;
+
+        let mut pairs: Vec<(usize, usize)> = Vec::with_capacity(cap / 2);
+        let mut stack = Vec::with_capacity(cap);
+
+        // The different character pairs
+        for (i, c) in code.char_indices() {
+            if "({".find(c).is_some() {
+                stack.push((i, c));
+            } else if ")}".find(c).is_some() {
+                let (prev_i, prev_c) = stack.pop().expect("not enough paired tokens!");
+
+                match (prev_c, c) {
+                    ('(', ')')|('{', '}') => {
+                         pairs.push((prev_i, i));
+                    }
+                    _ => {
+                        panic!("{:?} was incorrectly looped around {:?}", prev_c, c);
+                    }
+                }
+            }
+        }
+
+        assert!(stack.len() == 0, "leftover token(s): {:?}", stack);
+
+        // The identical character pairs
+        for (i, c) in code.char_indices() {
+            if "\"'".find(c).is_some() && preceding_backslash_count_is_even(code, i) {
+                if let Some((prev_i, prev_c)) = stack.pop() {
+                    match (prev_c, c) {
+                        ('\'', '\'')|('"', '"') => {
+                             pairs.push((prev_i, i));
+                        },
+                        _ => {
+                            panic!("{:?} was incorrectly looped around {:?}", prev_c, c);
+                        }
+                    }
+                }
+            }
+        }
+
+        assert!(stack.len() == 0, "leftover token(s): {:?}", stack);
+        
+        pairs
+    };
+
+    let spans = Parsers::default().get_spans_with_previous(code, ParserKind::Rust(Style::Extra), None);
+    
+    spans_assert!(&spans);
+
+    for (start, end) in pairs.iter() {
+        let start_kind = span_for_byte_index(&spans, *start).expect("start was not in spans!").kind;
+        let end_kind = span_for_byte_index(&spans, *end).expect("end was not in spans!").kind;
+        assert_eq!(
+            start_kind,
+            end_kind,
+            "{:?} != {:?} for byte {} and byte {} in {:?}",
+            start_kind,
+            end_kind,
+            start,
+            end, 
+            spans,
+        );
+    }
+}
+
+fn span_for_byte_index(spans: &Spans, byte_index: usize) -> Option<SpanView> {
+    for span in spans.iter() {
+        if span.end_byte_index > byte_index {
+            return Some(*span);
+        }
+    }
+
+    None
+}
+
+proptest!{
+    #[test]
+    fn rust_extra_spans_should_not_give_paired_tokens_different_kinds(
+        code in arb::rust_code(SOME_AMOUNT),
+    ) {
+        rust_extra_spans_should_not_give_paired_tokens_different_kinds_on(
+            &code,
+        )
+    }
+}
+
+#[test]
+fn rust_extra_spans_should_not_give_paired_tokens_different_kinds_on_the_predicate_example() {
+    rust_extra_spans_should_not_give_paired_tokens_different_kinds_on(
+        PREDICATE_EXAMPLE,
+    )
+}
+
+#[test]
+fn rust_extra_spans_should_not_give_paired_tokens_different_kinds_on_unit() {
+    rust_extra_spans_should_not_give_paired_tokens_different_kinds_on(
+        "()",
+    )
+}
+
+fn rust_extra_spans_produces_valid_spans_on(code: &str) {
+    let spans = Parsers::default().get_spans_with_previous(code, ParserKind::Rust(Style::Extra), None);
+
+    spans_assert!(spans);
+}
+
+proptest!{
+    #[test]
+    #[ignore] // Takes a long time
+    fn rust_extra_spans_produces_valid_spans(
+        code in arb::rust_code(SOME_AMOUNT),
+    ) {
+        rust_extra_spans_produces_valid_spans_on(
+            &code,
+        )
+    }
+}
+
+#[test]
+fn rust_extra_spans_produces_valid_spans_on_unit() {
+    rust_extra_spans_produces_valid_spans_on(
+        "()",
+    )
+}
+
 // We had a bug that turned out not to be this part.
 #[test]
 fn parser_kind_iteration_does_not_produce_the_same_thing_twice() {
     let mut seen = Vec::with_capacity(16);
-    let mut kind = ParserKind::default();
+    let kind = ParserKind::default();
     
     seen.push(kind);
     for k in kind {

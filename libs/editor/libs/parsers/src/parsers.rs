@@ -6,10 +6,11 @@ use tree_sitter::{Parser, Language, LanguageError, Node, Query, QueryMatch, Quer
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Style {
+    Extra,
     Basic,
     TreeDepth
 }
-d!(for Style: Style::Basic);
+d!(for Style: Style::Extra);
 
 impl Iterator for Style {
     type Item = Style;
@@ -17,6 +18,9 @@ impl Iterator for Style {
     fn next(&mut self) -> Option<Self::Item> {
         use Style::*;
         match self {
+            Extra => {
+                Some(Basic)
+            },
             Basic => {
                 Some(TreeDepth)
             },
@@ -85,14 +89,16 @@ impl From<QueryError> for InitializationError {
 pub struct InitializedParsers {
     rust: Parser,
     rust_tree: Option<Tree>,
-    rust_query: Query,
+    rust_basic_query: Query,
+    rust_extra_query: Query,
 }
 impl std::fmt::Debug for InitializedParsers {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
         fmt.debug_struct("InitializedParsers")
            .field("rust", &("TODO rust: Parser Debug".to_string()))
            .field("rust_tree", &self.rust_tree)
-           .field("rust_query", &self.rust_query)
+           .field("rust_basic_query", &self.rust_basic_query)
+           .field("rust_extra_query", &self.rust_extra_query)
            .finish()
     }
 }
@@ -101,11 +107,18 @@ type Spans = Vec<SpanView>;
 
 impl Parsers {
     pub fn get_spans(&mut self, to_parse: &str, kind: ParserKind) -> Spans {
+        // TODO edit the tree properly as we go, and pass it down so we get faster parses
+        self.get_spans_with_previous(to_parse, kind, None)
+    }
+
+    pub fn get_spans_with_previous(&mut self, to_parse: &str, kind: ParserKind, previous: Option<&Tree>) -> Spans {
         use Parsers::*;
         self.attempt_init();
 
         match self {
-            Initialized(p) => p.get_spans(to_parse, kind),
+            Initialized(p) => {
+                p.get_spans_with_previous(to_parse, kind, previous)
+            },
             NotInitializedYet | FailedToInitialize(_) => {
                 plaintext_spans_for(to_parse)
             }
@@ -113,7 +126,12 @@ impl Parsers {
     }
 }
 impl InitializedParsers {
-    fn get_spans(&mut self, to_parse: &str, kind: ParserKind) -> Spans {
+    fn get_spans_with_previous(
+        &mut self,
+        to_parse: &str,
+        kind: ParserKind,
+        previous: Option<&Tree>
+    ) -> Spans {
         use ParserKind::*;
         use Style::*;
         match kind {
@@ -121,16 +139,22 @@ impl InitializedParsers {
                 plaintext_spans_for(to_parse)
             }
             Rust(style) => {
-                // TODO edit the tree properly so and pass it down so we get faster parses
-                self.rust_tree = self.rust.parse(to_parse, None);
+                self.rust_tree = self.rust.parse(to_parse, previous);
 
                 match style {
                     Basic => {
                         query_spans_for(
                             self.rust_tree.as_ref(),
-                            &self.rust_query,
+                            &self.rust_basic_query,
                             to_parse,
-                            rust_span_kind_from_match
+                            rust_basic_span_kind_from_match
+                        )
+                    },
+                    Extra => {
+                        totally_classified_spans_for(
+                            self.rust_tree.as_ref(),
+                            to_parse,
+                            rust_extra_span_kind_from_node
                         )
                     },
                     TreeDepth => {
@@ -151,17 +175,24 @@ struct Match<'capture> {
     capture: QueryCapture<'capture>
 }
 
+fn get_spans_capacity(to_parse: &str) -> usize {
+    const AVERAGE_BYTES_PER_TOKEN: usize = 4;
+    return to_parse.len() / AVERAGE_BYTES_PER_TOKEN;
+}
+
 fn query_spans_for<'to_parse>(
     tree: Option<&Tree>,
     query: &Query,
     to_parse: &'to_parse str,
     span_kind_from_match: fn(Match) -> SpanKind,
 ) -> Spans {
-    let mut spans = Vec::with_capacity(1024);
+    let mut spans = Vec::with_capacity(get_spans_capacity(
+        to_parse
+    ));
 
     let mut span_stack = Vec::with_capacity(16);
 
-    let mut receive_match = |m: Match| {
+    let receive_match = |m: Match| {
         let node = m.capture.node;
         let kind = span_kind_from_match(m);
     
@@ -253,17 +284,43 @@ fn query_spans_for_inner<'to_parse, F: FnMut(Match)>(
     }
 }
 
+fn totally_classified_spans_for<'to_parse>(
+    tree: Option<&Tree>,
+    to_parse: &'to_parse str,
+    span_kind_from_node: fn(Node) -> SpanKind,
+) -> Spans {
+    let mut spans = Vec::with_capacity(get_spans_capacity(
+        to_parse
+    ));
+
+    for (_, node) in DepthFirst::new(tree) {
+        spans.push(SpanView {
+            end_byte_index: node.end_byte(),
+            kind: span_kind_from_node(node),
+        });
+    }
+
+    // TODO maybe there's a way to do this without an O(n log n) sort?
+    spans.sort_by(|s1, s2|{
+        s1.end_byte_index.cmp(&s2.end_byte_index)
+    });
+
+    dedup_by_kind_keeping_last(&mut spans);
+
+    spans
+}
+
 type Depth = u8;
 
 fn tree_depth_spans_for<'to_parse>(
     tree: Option<&Tree>,
-    _to_parse: &'to_parse str,
+    to_parse: &'to_parse str,
 ) -> Spans {
-    const CAP: usize = 1024;
-    let mut spans: Spans = Vec::with_capacity(CAP);
+    let mut spans = Vec::with_capacity(get_spans_capacity(
+        to_parse
+    ));
 
     tree_depth_extract_sorted(tree, &mut spans);
-
 
     let len = spans.len();
     if len <= 1 {
@@ -420,26 +477,39 @@ impl InitializedParsers {
 
         let rust_tree: Option<Tree> = None;
 
-        let rust_query = Query::new(
+        let rust_basic_query = Query::new(
             rust_lang,
-            RUST_QUERY_SOURCE
+            RUST_BASIC_QUERY_SOURCE
+        )?;
+
+        let rust_extra_query = Query::new(
+            rust_lang,
+            RUST_EXTRA_QUERY_SOURCE
         )?;
 
         Ok(InitializedParsers {
             rust,
             rust_tree,
-            rust_query,
+            rust_basic_query,
+            rust_extra_query,
         })
     }
 }
 
-const RUST_QUERY_SOURCE: &'static str = "
+const RUST_BASIC_QUERY_SOURCE: &'static str = "
 (line_comment) @c1
 (block_comment) @c2
 (string_literal) @s
 ";
 
-fn rust_span_kind_from_match(Match {    
+const RUST_EXTRA_QUERY_SOURCE: &'static str = "
+(line_comment) @c1
+(block_comment) @c2
+(string_literal) @s
+(source_file) @rest
+";
+
+fn rust_basic_span_kind_from_match(Match {    
     pattern_index,
     capture: _
 } : Match) -> SpanKind {
@@ -448,7 +518,21 @@ fn rust_span_kind_from_match(Match {
         2 => SpanKind::STRING,
         _ => SpanKind::PLAIN,
     }
-    
+}
+
+fn rust_extra_span_kind_from_node(node: Node) -> SpanKind {
+    dbg!((node, node.kind(), node.is_named()));
+    dbg!(match node.kind() {
+        s if s.ends_with("comment") => SpanKind::COMMENT,
+        s if s.starts_with("string") => SpanKind::STRING,
+        _ => {
+            if node.is_named() {
+                SpanKind::PLAIN
+            } else {
+                sk!(SpanKind::FIRST_UNASSIGNED_RAW)
+            }
+        },
+    })
 }
 
 #[allow(dead_code)]

@@ -699,6 +699,9 @@ pub struct BufferView {
     pub data: BufferViewData,
 }
 
+/// We might change this later, but it will always be an integer of some sort.
+type SpanKindRaw = u8;
+
 /// We want to allow different kinds of span classifiers to have 
 /// different sets of span kinds, and to be able to invent new ones
 /// without needing to list them all here. Additionally we want 
@@ -711,7 +714,7 @@ pub struct BufferView {
 /// values of the structs size as possible values, rather than an
 /// enum where only certain values are allowed.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct SpanKind(u8);
+pub struct SpanKind(SpanKindRaw);
 
 #[macro_export]
 macro_rules! sk {
@@ -723,6 +726,11 @@ macro_rules! sk {
     };
     (STRING) => {
         sk!(2)
+    };
+    // When adding a new one of these, increment 
+    // the value below for each new one.
+    (FIRST_UNASSIGNED_RAW) => {
+        3
     };
     ($kind_val: expr) => {
         SpanKind::new($kind_val)
@@ -742,8 +750,17 @@ impl SpanKind {
     pub const COMMENT: SpanKind = sk!(COMMENT);
     pub const STRING: SpanKind = sk!(STRING);
 
-    #[allow(dead_code)]
-    fn get_byte(&self) -> u8 {
+    /// Given we have conventions, we want to be able to 
+    /// conform with them, but also allow new conventions
+    /// to be created. This value represents the smallest 
+    /// value that does not have a conventional meaning.
+    /// all the valued of a SpanKindRaw will not have a
+    /// conventional meaning, so different span 
+    /// classifiers can assign those values whatever 
+    /// meaning they wish.
+    pub const FIRST_UNASSIGNED_RAW: SpanKindRaw = sk!(FIRST_UNASSIGNED_RAW);
+
+    pub fn get_byte(&self) -> u8 {
         self.0
     }
 }
@@ -765,9 +782,9 @@ pub struct BufferViewData {
     pub spans: Vec<SpanView>
 }
 
-// Short form "Command".
-// This is for telling the platform layer that it should do something in addition to
-// rendering the view.
+/// Short form of "Command".
+/// This is for telling the platform layer that it should do something in addition to
+/// rendering the view.
 #[derive(Debug, Clone)]
 pub enum Cmd {
     NoCmd,

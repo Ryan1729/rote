@@ -1,17 +1,20 @@
 ## TODO
 
+* have the text be coloured based on the parse
+    * show scope nesting level?
+        * this turned out to be harder than I expect the results to be worth.
+    * I want to have at least one aspect/mode of the highlighting be something 
+    useful that simple regexes would not be able to do, in order to justify 
+    using tree-sitter, if I assume that I never add more stuff that relies on it.
+        * named/unnamed nodes is a predicate that tree-sitter allows us to query.
+        lets colour otherwise plain named and unnamed nodes differently, and see 
+        if that seems useful.
+
 * fix recenty introduced mouse bugs
     * happened when we changed the way the modifier keys were checked.
 
-* try to integrate tree-sitter
-    * get a parser working
-    * have the text be coloured based on the parse
-        * show scope nesting level?
-
 * do parsing and highlighting selectively
     * default based on file extension
-    * allow cycling through options for current tab with keyboard shortcut
-        * use Alt-L maybe?
 
 * Ctrl-E to toggle single line comments
   * could probably reuse tab insertion/deletion code.            
