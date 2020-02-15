@@ -83,6 +83,14 @@ macro_rules! spans_assert {
         let mut previous_kind = None;
         let mut previous_end_byte_index = 0;
         for (i, s) in spans.clone().into_iter().enumerate() {
+            assert_ne!(
+                s.end_byte_index,
+                0,
+                "the span at index {}, {:?} has an end_byte_index of 0. This indicates a useless 0 length span, and so it should be removed.",
+                i,
+                s
+            );
+
             match mode {
                 1 => {}
                 _ => {
@@ -90,20 +98,28 @@ macro_rules! spans_assert {
                         assert_ne!(
                             s.kind,
                             prev,
-                            "at index {} in spans was {:?} which as the same as the previous span: {:?}", 
+                            "at index {} in spans was {:?} which has the same kind as the previous span: {:?}", 
                             i,
                             s,
                             spans,
                         );
                     }
                     previous_kind = Some(s.kind);
+
+                    assert_ne!(
+                        s.end_byte_index,
+                        previous_end_byte_index,
+                        "at index {} in spans was {:?} which has the same end_byte_index as the previous span: {:?}", 
+                        i,
+                        s,
+                        spans,
+                    );
                 }
             }
             
-
             assert!(
-                previous_end_byte_index < s.end_byte_index,
-                "{} >= {} {}\n\n{:?}",
+                previous_end_byte_index <= s.end_byte_index,
+                "{} > {} {}\n\n{:?}",
                 previous_end_byte_index,
                 s.end_byte_index,
                 $suffix,
@@ -353,64 +369,141 @@ fn preceding_backslash_count_is_even(s: &str, mut byte_index: usize) -> bool {
         byte_index -= 1;
         while byte_index > 0 && s.get(byte_index..=byte_index) == Some("\\") {
             count += 1;
+            byte_index -= 1;
         }
     }
 
     count & 1 == 0
 }
 
-fn rust_extra_spans_should_not_give_paired_tokens_different_kinds_on(
-    code: &str,
-) {
-    let pairs = {
-        const PAIRED_TOKENS_IN_N_BYTES_ESTIMATE: usize = 16;
-        let cap = code.len() / PAIRED_TOKENS_IN_N_BYTES_ESTIMATE;
+fn remove_pair_characters_from_embedded_strings_and_chars(code: &str) -> String {
+    let mut output = String::with_capacity(code.len());
+    
+    let mut eating_until: Option<char> = None;
 
-        let mut pairs: Vec<(usize, usize)> = Vec::with_capacity(cap / 2);
-        let mut stack = Vec::with_capacity(cap);
+    for (_, c) in code.char_indices() {
+        match eating_until {
+            None => {
+                if "\"'".find(c).is_some() {
+                    eating_until = Some(c);
+                }
+            }
+            Some(terminator) => {
+                if c == terminator {
+                    eating_until = None;
+                } else if "\"'".find(c).is_some() {
+                    continue;
+                }
+            }
+        }
+        output.push(c);
+    }
 
-        // The different character pairs
-        for (i, c) in code.char_indices() {
-            if "({".find(c).is_some() {
-                stack.push((i, c));
-            } else if ")}".find(c).is_some() {
-                let (prev_i, prev_c) = stack.pop().expect("not enough paired tokens!");
+    output
+}
 
+proptest!{
+    #[test]
+    fn remove_pair_characters_from_embedded_strings_and_chars_is_idempotent(
+        s in ".*"
+    ) {
+        let applied_once = remove_pair_characters_from_embedded_strings_and_chars(&s);
+        assert_eq!(
+            remove_pair_characters_from_embedded_strings_and_chars(&applied_once),
+            applied_once
+        );
+    }
+}
+
+#[test]
+fn remove_pair_characters_from_embedded_strings_and_chars_works_on_a_backslash_char_literal() {
+    assert_eq!(remove_pair_characters_from_embedded_strings_and_chars("'\\'"), "'\\'");
+}
+
+fn get_rust_token_pairs(code: &str) -> Vec<(usize, usize)> {
+    const PAIRED_TOKENS_IN_N_BYTES_ESTIMATE: usize = 16;
+    let cap = code.len() / PAIRED_TOKENS_IN_N_BYTES_ESTIMATE;
+
+    let mut pairs: Vec<(usize, usize)> = Vec::with_capacity(cap / 2);
+    let mut stack = Vec::with_capacity(cap);
+
+    // The different character pairs
+    for (i, c) in code.char_indices() {
+        if "({".find(c).is_some() {
+            stack.push((i, c));
+        } else if ")}".find(c).is_some() {
+            let (prev_i, prev_c) = stack.pop().expect("not enough paired tokens!");
+
+            match (prev_c, c) {
+                ('(', ')')|('{', '}') => {
+                     pairs.push((prev_i, i));
+                }
+                _ => {
+                    panic!("{:?} was incorrectly looped around {:?}", prev_c, c);
+                }
+            }
+        }
+    }
+
+    assert!(stack.len() == 0, "leftover token(s): {:?}", stack);
+
+    // The identical character pairs
+    for (i, c) in code.char_indices() {
+        if "\"'".find(c).is_some() {
+            if let Some(&(prev_i, prev_c)) = stack.last() {
                 match (prev_c, c) {
-                    ('(', ')')|('{', '}') => {
-                         pairs.push((prev_i, i));
-                    }
+                    ('\'', '\'')|('"', '"') => {
+                        stack.pop();
+                        pairs.push((prev_i, i));
+                    },
                     _ => {
-                        panic!("{:?} was incorrectly looped around {:?}", prev_c, c);
+                        stack.push((i, c));
                     }
                 }
+            } else {
+                stack.push((i, c));
             }
         }
+    }
 
-        assert!(stack.len() == 0, "leftover token(s): {:?}", stack);
+    assert!(stack.len() == 0, "leftover token(s): {:?}", stack);
+    
+    pairs
+}
 
-        // The identical character pairs
-        for (i, c) in code.char_indices() {
-            if "\"'".find(c).is_some() && preceding_backslash_count_is_even(code, i) {
-                if let Some((prev_i, prev_c)) = stack.pop() {
-                    match (prev_c, c) {
-                        ('\'', '\'')|('"', '"') => {
-                             pairs.push((prev_i, i));
-                        },
-                        _ => {
-                            panic!("{:?} was incorrectly looped around {:?}", prev_c, c);
-                        }
-                    }
-                }
-            }
-        }
+#[test]
+fn get_rust_token_pairs_should_work_on_this_identical_wrapped_in_marked_example() {
+    let output = get_rust_token_pairs("{'a'}");
+    assert_eq!(output.len(), 2);
 
-        assert!(stack.len() == 0, "leftover token(s): {:?}", stack);
-        
-        pairs
-    };
+    assert!(output.contains(&(0, 4)));
+    assert!(output.contains(&(1, 3)));
+}
 
-    let spans = Parsers::default().get_spans_with_previous(code, ParserKind::Rust(Style::Extra), None);
+const RETURN_BACKSLASH_EXAMPLE: &'static str = "fn bs() -> char{'\\\\'}";
+
+#[test]
+fn get_rust_token_pairs_should_work_on_the_return_backslash_example() {
+    let output = get_rust_token_pairs(RETURN_BACKSLASH_EXAMPLE);
+    assert_eq!(output.len(), 3, "{:?} was expected to have 3 elements", output);
+
+    assert!(output.contains(&(5, 6)));
+    assert!(output.contains(&(15, 20)));
+    assert!(output.contains(&(16, 19)));
+}
+
+fn rust_extra_spans_should_not_give_paired_tokens_different_kinds_on(
+    unfiltered_code: &str,
+) {
+    let code = remove_pair_characters_from_embedded_strings_and_chars(unfiltered_code);
+
+    let pairs = get_rust_token_pairs(&code);
+    
+    if pairs.len() == 0 {
+        return
+    }
+
+    let spans = Parsers::default().get_spans_with_previous(&code, ParserKind::Rust(Style::Extra), None);
     
     spans_assert!(&spans);
 
@@ -447,7 +540,7 @@ proptest!{
     ) {
         rust_extra_spans_should_not_give_paired_tokens_different_kinds_on(
             &code,
-        )
+        );
     }
 }
 
@@ -462,6 +555,37 @@ fn rust_extra_spans_should_not_give_paired_tokens_different_kinds_on_the_predica
 fn rust_extra_spans_should_not_give_paired_tokens_different_kinds_on_unit() {
     rust_extra_spans_should_not_give_paired_tokens_different_kinds_on(
         "()",
+    )
+}
+
+// This example came from the proptest after we temporairily added a termination check.
+#[test]
+fn rust_extra_spans_should_not_give_paired_tokens_different_kinds_on_empty_string() {
+    rust_extra_spans_should_not_give_paired_tokens_different_kinds_on(
+        "",
+    )
+}
+
+#[test]
+fn rust_extra_spans_should_not_give_paired_tokens_different_kinds_on_the_return_backslash_example() {
+    rust_extra_spans_should_not_give_paired_tokens_different_kinds_on(
+        RETURN_BACKSLASH_EXAMPLE,
+    )
+}
+
+#[test]
+fn rust_extra_spans_should_not_give_paired_tokens_different_kinds_on_the_return_backslash_example_with_embedded_pairs_removed() {
+    rust_extra_spans_should_not_give_paired_tokens_different_kinds_on(
+        &dbg!(remove_pair_characters_from_embedded_strings_and_chars(RETURN_BACKSLASH_EXAMPLE)),
+    )
+}
+
+
+#[test]
+fn rust_extra_spans_should_not_give_paired_tokens_different_kinds_on_this_reduced_char_example() {
+    rust_extra_spans_should_not_give_paired_tokens_different_kinds_on(
+        // this will become the string with a "'", two backslashes and another "'".
+        "'\\\\'",
     )
 }
 
@@ -708,6 +832,13 @@ fn tree_depth_spans_for_produces_valid_rust_spans_in_this_minimal_case() {
 }
 
 #[test]
+fn tree_depth_spans_for_produces_valid_rust_spans_on_empty_string() {
+    tree_depth_spans_for_produces_valid_rust_spans_on(
+        ""
+    );
+}
+
+#[test]
 fn tree_depth_spans_for_gets_the_right_answer_for_this_minimal_case() {
     tree_depth_spans_for_gets_the_right_answer_for(
         MINIMAL_ITEM_CASE,
@@ -797,9 +928,12 @@ fn depth_first_terminates_on_the_nested_comment_tree() {
     let (send, recv) = std::sync::mpsc::channel();
 
     std::thread::spawn(move || {
+        // Do something so we are sure this isn't optimized out.
+        let mut dummy_count = 0;
         for e in DepthFirst::new(tree.as_ref()) {
-            dbg!(e);
+            dummy_count += e.0;
         }
+        dbg!(dummy_count);
         send.send(()).unwrap();
     });
     
@@ -838,3 +972,54 @@ fn tree_depth_extract_sorted_produces_sorted_rust_spans_on_the_nested_comment_ex
     tree_depth_extract_sorted_produces_sorted_rust_spans_on(NESTED_COMMENT_EXAMPLE);
 }
 
+#[test]
+fn dedup_by_kind_keeping_last_in_this_case_with_three_in_a_row() {
+    let mut spans = vec![
+        SpanView {
+            end_byte_index: 5,
+            kind: d!()
+        },
+        SpanView {
+            end_byte_index: 6,
+            kind: d!()
+        },
+        SpanView {
+            end_byte_index: 7,
+            kind: d!()
+        },
+    ];
+
+    dedup_by_kind_keeping_last(&mut spans);
+
+    assert_eq!(
+        spans,
+        vec![
+            SpanView {
+                end_byte_index: 7,
+                kind: d!()
+            }
+        ]
+    );
+}
+
+#[test]
+fn filter_spans_produces_valid_spans_in_this_three_in_a_row_case() {
+    let mut spans = vec![
+        SpanView {
+            end_byte_index: 5,
+            kind: sk!(5)
+        },
+        SpanView {
+            end_byte_index: 5,
+            kind: sk!(6)
+        },
+        SpanView {
+            end_byte_index: 5,
+            kind: sk!(7)
+        },
+    ];
+
+    filter_spans(&mut spans);
+
+     spans_assert!(spans);
+}

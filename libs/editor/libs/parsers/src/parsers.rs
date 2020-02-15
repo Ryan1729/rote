@@ -247,8 +247,7 @@ fn query_spans_for<'to_parse>(
         s1.end_byte_index.cmp(&s2.end_byte_index)
     });
 
-    // TODO there is probably a way to avoid this extra iteration.
-    dedup_by_kind_keeping_last(&mut spans);
+    filter_spans(&mut spans);
 
     spans
 }
@@ -305,7 +304,7 @@ fn totally_classified_spans_for<'to_parse>(
         s1.end_byte_index.cmp(&s2.end_byte_index)
     });
 
-    dedup_by_kind_keeping_last(&mut spans);
+    filter_spans(&mut spans);
 
     spans
 }
@@ -324,6 +323,7 @@ fn tree_depth_spans_for<'to_parse>(
 
     let len = spans.len();
     if len <= 1 {
+        filter_spans(&mut spans);
         return spans;
     }
 
@@ -345,9 +345,8 @@ fn tree_depth_spans_for<'to_parse>(
             prev_max = spans[i].end_byte_index;
         }
     }
-
     
-    dedup_by_kind_keeping_last(&mut spans);
+    filter_spans(&mut spans);
     
     spans
 }
@@ -429,11 +428,35 @@ impl <'tree> Iterator for DepthFirst<'tree> {
     }
 }
 
+fn filter_spans(spans: &mut Spans) {
+    dedup_by_end_byte_keeping_last(spans);
+    dedup_by_kind_keeping_last(spans);
+    
+    for i in (0..spans.len()).rev() {
+        if spans[i].end_byte_index == 0 {
+            spans.remove(i);
+        }
+    }
+}
+
 fn dedup_by_kind_keeping_last(spans: &mut Spans) {
     let mut write = 0;
     for i in 0..spans.len() {
         let prev_kind = spans[write].kind;
         if prev_kind != spans[i].kind {
+            write += 1;
+        }
+        spans[write] = spans[i];
+    }
+
+    spans.truncate(write + 1);
+}
+
+fn dedup_by_end_byte_keeping_last(spans: &mut Spans) {
+    let mut write = 0;
+    for i in 0..spans.len() {
+        let prev_end_byte_index = spans[write].end_byte_index;
+        if prev_end_byte_index != spans[i].end_byte_index {
             write += 1;
         }
         spans[write] = spans[i];
@@ -521,8 +544,7 @@ fn rust_basic_span_kind_from_match(Match {
 }
 
 fn rust_extra_span_kind_from_node(node: Node) -> SpanKind {
-    dbg!((node, node.kind(), node.is_named()));
-    dbg!(match node.kind() {
+    match node.kind() {
         s if s.ends_with("comment") => SpanKind::COMMENT,
         s if s.starts_with("string") => SpanKind::STRING,
         _ => {
@@ -532,7 +554,7 @@ fn rust_extra_span_kind_from_node(node: Node) -> SpanKind {
                 sk!(SpanKind::FIRST_UNASSIGNED_RAW)
             }
         },
-    })
+    }
 }
 
 #[allow(dead_code)]

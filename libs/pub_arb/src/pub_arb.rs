@@ -207,8 +207,31 @@ pub fn rust_primitive_type_string(p_t: RustPrimitiveType) -> impl Strategy<Value
         Isize => any::<isize>().prop_map(|x| x.to_string()).boxed(),
         F32 => any::<f32>().prop_map(|x| x.to_string()).boxed(),
         F64 => any::<f64>().prop_map(|x| x.to_string()).boxed(),
-        Char => any::<char>().prop_map(|x| format!("'{}'", x)).boxed(),
-        String => any::<std::string::String>().prop_map(|x| format!("{:?}", x)).boxed(),
+        Char => rust_char_string().boxed(),
+        String => any::<std::string::String>().prop_map(|x| x.escape_unicode().collect()).boxed(),
         Never => "!".boxed(),
+    }
+}
+
+pub fn rust_char_string() -> impl Strategy<Value = String> {
+    any::<char>().prop_map(|x| x.escape_unicode().collect())
+}
+
+proptest!{
+    #[test]
+    fn rust_char_string_should_not_produce_strings_that_when_debug_formatted_contain_more_than_two_consecutive_backslashes(
+        s in rust_char_string()
+    ) {
+        let debug_formatted = format!("{:?}", s);
+
+        let mut count = 0;
+        for c in debug_formatted.chars() {
+            if c == '\\' {
+                count += 1;
+                assert!(count <= 2);
+            } else {
+                count = 0;
+            }
+        }
     }
 }
