@@ -332,8 +332,8 @@ let yo = \"yo\";
     )
 }
 
-fn arbitary_span_kind_from_node(node: Node) -> SpanKind {
-    sk!(node.kind_id().to_le_bytes()[0])
+fn arbitary_span_kind_from_node(node: Node) -> SpanKindSpec {
+    SpanKindSpec::Kind(sk!(node.kind_id().to_le_bytes()[0]))
 }
 
 fn totally_classified_spans_for_produces_valid_rust_spans_on(code: &str) {

@@ -10,21 +10,40 @@
         lets colour otherwise plain named and unnamed nodes differently, and see 
         if that seems useful.
 
-* fix recenty introduced mouse bugs
-    * happened when we changed the way the modifier keys were checked.
-
-* do parsing and highlighting selectively
-    * default based on file extension
-
-* Ctrl-E to toggle single line comments
-  * could probably reuse tab insertion/deletion code.            
-
 * put all keyboard responses into a menu so that any command can be dispatched with the mouse or the keyboard.
     * keyboard responses should be defined in a single place where they end up in the menu and wired up to
         the keyboard
         * would setting up a space to put the menu population code be a good first step?
     * a list of labeled buttons with the keyboard control for each shown
         * make keyboard shortcut manadatory for each action
+    * macro that looks like this I guess:
+        * register_cmd!(CTRL | SHIFT, S, "Save new file", vars {
+            if let Some(i) = vars.view.visible_buffer {
+                file_chooser_call!(
+                    vars.save,
+                    p in CustomEvent::SaveNewFile(p, i)
+                );
+            }
+        });
+        * Okay, what would that get expanded to?
+            * Can we expand the block to a fn definition?
+                * If so, then we could store a pointer to that inside a BTreeMap,
+                keyed with the keyboard shortcut. The name can be stored in the same place.
+                * So an example would be:
+                {
+                    fn cmd_fn(vars: CmdVars) {
+                        if let Some(i) = vars.view.visible_buffer {
+                            file_chooser_call!(
+                                vars.save,
+                                p in CustomEvent::SaveNewFile(p, i)
+                            );
+                        }
+                    }
+                    cmds[(CTRL | ALT, S)] = ("Save New File", cmd_fn);
+                }
+
+* Ctrl-E to toggle single line comments
+  * could probably reuse tab insertion/deletion code.
 
 * Make Esc pick only one of the mulitple cursors to keep and remove that one's selection if there is one.
 

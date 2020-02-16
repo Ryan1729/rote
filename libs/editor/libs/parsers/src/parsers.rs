@@ -2,7 +2,7 @@
 use macros::{d, fmt_debug};
 use platform_types::{SpanView, SpanKind, sk};
 
-use tree_sitter::{Parser, Language, LanguageError, Node, Query, QueryMatch, QueryCapture, QueryCursor, QueryError, Tree, TreeCursor};
+use tree_sitter::{Parser, Language, LanguageError, Node, Query, QueryCapture, QueryCursor, QueryError, Tree, TreeCursor};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Style {
@@ -90,7 +90,6 @@ pub struct InitializedParsers {
     rust: Parser,
     rust_tree: Option<Tree>,
     rust_basic_query: Query,
-    rust_extra_query: Query,
 }
 impl std::fmt::Debug for InitializedParsers {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -98,7 +97,6 @@ impl std::fmt::Debug for InitializedParsers {
            .field("rust", &("TODO rust: Parser Debug".to_string()))
            .field("rust_tree", &self.rust_tree)
            .field("rust_basic_query", &self.rust_basic_query)
-           .field("rust_extra_query", &self.rust_extra_query)
            .finish()
     }
 }
@@ -286,17 +284,44 @@ fn query_spans_for_inner<'to_parse, F: FnMut(Match)>(
 fn totally_classified_spans_for<'to_parse>(
     tree: Option<&Tree>,
     to_parse: &'to_parse str,
-    span_kind_from_node: fn(Node) -> SpanKind,
+    span_kind_from_node: fn(Node) -> SpanKindSpec,
 ) -> Spans {
     let mut spans = Vec::with_capacity(get_spans_capacity(
         to_parse
     ));
 
+    let mut drop_until_end_byte = None;
+
     for (_, node) in DepthFirst::new(tree) {
-        spans.push(SpanView {
-            end_byte_index: node.end_byte(),
-            kind: span_kind_from_node(node),
-        });
+        use SpanKindSpec::*;
+
+        let end_byte_index = node.end_byte();
+
+        if let Some(end_byte) = drop_until_end_byte {
+            if end_byte_index > end_byte {
+                drop_until_end_byte = None;
+            } else {
+                continue;
+            }
+        }
+
+        match span_kind_from_node(node) {
+            DropNode => {}
+            Kind(kind) => {
+                spans.push(SpanView {
+                    end_byte_index,
+                    kind,
+                });
+            }
+            KindAndDropBelow(kind) => {
+                drop_until_end_byte = Some(end_byte_index);
+
+                spans.push(SpanView {
+                    end_byte_index,
+                    kind,
+                });
+            }
+        }
     }
 
     // TODO maybe there's a way to do this without an O(n log n) sort?
@@ -505,31 +530,19 @@ impl InitializedParsers {
             RUST_BASIC_QUERY_SOURCE
         )?;
 
-        let rust_extra_query = Query::new(
-            rust_lang,
-            RUST_EXTRA_QUERY_SOURCE
-        )?;
-
         Ok(InitializedParsers {
             rust,
             rust_tree,
             rust_basic_query,
-            rust_extra_query,
         })
     }
 }
 
 const RUST_BASIC_QUERY_SOURCE: &'static str = "
-(line_comment) @c1
-(block_comment) @c2
-(string_literal) @s
-";
-
-const RUST_EXTRA_QUERY_SOURCE: &'static str = "
-(line_comment) @c1
-(block_comment) @c2
-(string_literal) @s
-(source_file) @rest
+(line_comment) @comment
+(block_comment) @comment
+(string_literal) @string
+(char_literal) @string
 ";
 
 fn rust_basic_span_kind_from_match(Match {    
@@ -543,15 +556,28 @@ fn rust_basic_span_kind_from_match(Match {
     }
 }
 
-fn rust_extra_span_kind_from_node(node: Node) -> SpanKind {
+enum SpanKindSpec {
+    DropNode,
+    KindAndDropBelow(SpanKind),
+    Kind(SpanKind)
+}
+
+fn rust_extra_span_kind_from_node(node: Node) -> SpanKindSpec {
+    use SpanKindSpec::*;
     match node.kind() {
-        s if s.ends_with("comment") => SpanKind::COMMENT,
-        s if s.starts_with("string") => SpanKind::STRING,
+        "\"" | "'" | "escape_sequence" => {DropNode},
+        "token_tree" => {
+            KindAndDropBelow(sk!(SpanKind::FIRST_UNASSIGNED_RAW + 1))
+        },
+        s if s.ends_with("comment") => Kind(SpanKind::COMMENT),
+        s if s.starts_with("string") | s.starts_with("char") => {
+            Kind(SpanKind::STRING)
+        },
         _ => {
             if node.is_named() {
-                SpanKind::PLAIN
+                Kind(sk!(SpanKind::FIRST_UNASSIGNED_RAW))
             } else {
-                sk!(SpanKind::FIRST_UNASSIGNED_RAW)
+                Kind(SpanKind::PLAIN)
             }
         },
     }
@@ -574,6 +600,7 @@ fn recursive_dbg_helper(node: Option<Node>, mut depth: Depth) {
     }
 }
 
+#[allow(unused_macros)]
 macro_rules! recursive_dbg_code {
     (rust $code: expr) => {
         let tree = get_rust_tree!($code);

@@ -3,7 +3,7 @@
 // opengl folder, to the extent that the code remains as it was
 // (at commit 90e7c7c331e9f991e11de6404b2ca073c0a09e61)
 
-use glutin::{dpi::LogicalPosition, event::ModifiersState, Api, GlProfile, GlRequest};
+use glutin::{dpi::LogicalPosition, Api, GlProfile, GlRequest};
 use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -1122,7 +1122,8 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                             state: ElementState::Pressed,
                             modifiers,
                             ..
-                        } if modifiers.shift() => {
+                        } // allow things like Shift-Alt-Click
+                        if (!modifiers).intersects(!CTRL) => {
                             ui.left_mouse_state = PhysicalButtonState::PressedThisFrame;
 
                             let replace_or_add = if modifiers.ctrl() {
