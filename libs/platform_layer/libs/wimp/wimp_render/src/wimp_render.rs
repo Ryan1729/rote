@@ -176,6 +176,44 @@ macro_rules! darken {
         ]
     }};
 }
+/// All I claim about this is that it favours dimmer colours sometimes.
+macro_rules! grey_scale_dim {
+    ($colour: expr) => {{
+        let colour = $colour;
+        let new_colour = if colour[0] < colour[1] {
+            colour[0]
+        } else if colour[1] < colour[2] {
+            colour[1]
+        } else {
+            colour[2]
+        };
+        [
+            new_colour,
+            new_colour,
+            new_colour,
+            colour[3],
+        ]
+    }};
+}
+/// All I claim about this is that it favours brighter colours sometimes.
+macro_rules! grey_scale_bright {
+    ($colour: expr) => {{
+        let colour = $colour;
+        let new_colour = if colour[0] > colour[1] {
+            colour[0]
+        } else if colour[1] > colour[2] {
+            colour[1]
+        } else {
+            colour[2]
+        };
+        [
+            new_colour,
+            new_colour,
+            new_colour,
+            colour[3],
+        ]
+    }};
+}
 
 macro_rules! palette {
   (black $($tokens:tt)*) => {   c![0x22 as f32 / 255.0, 0x22 as f32 / 255.0, 0x22 as f32 / 255.0 $($tokens)*] };
@@ -839,6 +877,25 @@ pub fn view<'view>(
         },
     }));
 
+    if !ui.window_is_focused {
+        for t_or_r in text_or_rects.iter_mut() {
+            use TextOrRect::*;
+            match t_or_r {
+                Rect(ref mut spec) => {
+                    spec.color = grey_scale_dim!(spec.color);
+                },
+                Text(ref mut spec) => {
+                    spec.spec.color = grey_scale_bright!(spec.spec.color);
+                },
+                MulticolourText(ref mut spec) => {
+                    for ColouredText { ref mut color, .. } in spec.text.iter_mut() {
+                        *color = grey_scale_bright!(*color)
+                    }
+                }
+            }
+        }
+    }
+
     end_view(ui);
 
     (text_or_rects, input)
@@ -1065,15 +1122,16 @@ pub struct UIState {
     pub left_mouse_state: PhysicalButtonState,
     pub enter_key_state: PhysicalButtonState,
     pub tab_scroll: f32,
-    pub mouse: UIFocus,
-    pub keyboard: UIFocus,
-    pub navigation: Navigation,
     /// This is should be in the range [0.0, 2.0]. This needs the extra space to repesent the down
     /// side of the sawtooth pattern.
     pub fade_alpha_accumulator: f32,
     // If the user has recently made or is making an input, we don't want a distracting animation
     // during that time. Afterwards though, we do want the animation to start again.
     pub fade_solid_override_accumulator: f32,
+    pub mouse: UIFocus,
+    pub keyboard: UIFocus,
+    pub navigation: Navigation,
+    pub window_is_focused: bool,
 }
 
 impl UIState {

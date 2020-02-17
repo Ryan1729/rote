@@ -1,14 +1,14 @@
 ## TODO
 
-* have the text be coloured based on the parse
-    * show scope nesting level?
-        * this turned out to be harder than I expect the results to be worth.
-    * I want to have at least one aspect/mode of the highlighting be something 
-    useful that simple regexes would not be able to do, in order to justify 
-    using tree-sitter, if I assume that I never add more stuff that relies on it.
-        * named/unnamed nodes is a predicate that tree-sitter allows us to query.
-        lets colour otherwise plain named and unnamed nodes differently, and see 
-        if that seems useful.
+* make it more obvious when the editor window is not focused
+    * just darken all the colours?
+    * make all colours black or white?
+        * duplicate one of the channels? i.e. 0x123456 =-> 0x121212
+    * fix bug where doing the above makes the cursor get stuck grey
+
+* make buffer tabs reorderable, at least with with a keyboard shortcut
+    * swap selected tab left
+    * swap selected tab right
 
 * put all keyboard responses into a menu so that any command can be dispatched with the mouse or the keyboard.
     * keyboard responses should be defined in a single place where they end up in the menu and wired up to
@@ -45,7 +45,7 @@
 * Ctrl-E to toggle single line comments
   * could probably reuse tab insertion/deletion code.
 
-* Make Esc pick only one of the mulitple cursors to keep and remove that one's selection if there is one.
+ * Make Esc pick only one of the mulitple cursors to keep and remove that one's selection if there is one.
 
 * Add a more advanced high-level code manipulation: Extract function
     * user perspective:

@@ -303,6 +303,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
     let (mut last_click_x, mut last_click_y) = (std::f32::NAN, std::f32::NAN);
 
     let mut ui: UIState = d!();
+    ui.window_is_focused = true;
 
     let mut dt = Duration::from_nanos(((1.0 / TARGET_RATE) * 1_000_000_000.0) as u64);
 
@@ -746,6 +747,10 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                                 hidpi_factor as _,
                                 (dimensions.width as _, dimensions.height as _),
                             );
+                        }
+                        WindowEvent::Focused(is_focused) => {
+                            dbg!("set to ", is_focused);
+                            ui.window_is_focused = is_focused;
                         }
                         WindowEvent::KeyboardInput {
                             input:
