@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 74610aa9899e1f5b1dae82738cc117d458a2dc48610004d7aca5f1670ede1be5 # shrinks to buffer = TextBuffer { rope: [], cursors: Cursors { cursors: Vec1([cur!{l 0 o 0}]) }, history: [], history_index: 0 }, edits = [Delete, Delete, Delete, MoveAllCursors(Up), MoveAllCursors(Up), Delete, TabOut]

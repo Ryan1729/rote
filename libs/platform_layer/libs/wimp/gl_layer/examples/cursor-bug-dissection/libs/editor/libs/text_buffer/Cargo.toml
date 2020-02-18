@@ -1,0 +1,34 @@
+[package]
+name = "text_buffer"
+version = "0.1.0"
+authors = ["Ryan1729 <Ryan1729@gmail.com>"]
+edition = "2018"
+
+[lib]
+path = "./src/text_buffer.rs"
+
+[dependencies]
+regex = "1.1.9"
+lazy_static = "1.3.0"
+
+[dependencies.editor_types]
+path = "../editor_types"
+
+[dependencies.if_changed]
+path = "../../../if_changed"
+
+[dependencies.macros]
+path = "../../../macros"
+
+[dependencies.panic_safe_rope]
+path = "../panic_safe_rope"
+
+[dependencies.perf_viz]
+path = "../../../perf_viz"
+
+[dependencies.platform_types]
+path = "../../../platform_types"
+
+[dev-dependencies]
+proptest = "0.9.3"
+pretty_assertions = "0.6.1"

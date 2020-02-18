@@ -1,0 +1,28 @@
+[package]
+name = "glyph_brush"
+version = "0.4.1"
+authors = ["Alex Butler <alexheretic@gmail.com>"]
+edition = "2018"
+description = "Fast cached text render library using rusttype"
+repository = "https://github.com/alexheretic/gfx-glyph"
+keywords = ["font", "ttf", "truetype", "text"]
+license = "Apache-2.0"
+readme="README.md"
+
+[dependencies]
+glyph_brush_layout = { path = "../glyph-brush-layout" }
+log = "0.4.4"
+ordered-float = "1"
+full_rusttype = { features = ["gpu_cache"], package = "rusttype", path = "../rusttype" }
+hashbrown = "0.2"
+twox-hash = "1"
+perf_viz = { path = "../../../../perf_viz" }
+macros = { path = "../../../../macros" }
+if_changed = { path = "../../../../if_changed" }
+
+[dev-dependencies]
+env_logger = { version = "0.6", default-features = false }
+lazy_static = "1"
+gl = "0.11"
+glutin = "0.20"
+spin_sleep = "0.3"

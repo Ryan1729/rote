@@ -42,6 +42,10 @@
                     cmds[(CTRL | ALT, S)] = ("Save New File", cmd_fn);
                 }
 
+* fix slowness that shows up when selecting things wit the mouse
+    * seems to have appeared when the parsing started so we could probably just start caching
+    previous trees, or actually complete the TODO to edit the tree with each keyboard edit.
+
 * Ctrl-E to toggle single line comments
   * could probably reuse tab insertion/deletion code.
 

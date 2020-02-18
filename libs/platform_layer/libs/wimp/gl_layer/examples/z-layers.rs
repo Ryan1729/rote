@@ -1,7 +1,7 @@
 /// This is an example/test demonstrating that all of the 2^16 = 65536 values for z that this crate
 /// allows, actually work. This might seems like a silly thing to have to test, but GPUs and OpenGL
 /// are silly things. Besides, this should be a nice simple example of how to setup a simple
-/// sceene with this crate.
+/// scene with this crate.
 use gl_layer::{TextLayout, TextOrRect, TextSpec, VisualSpec};
 use glutin::{Api, GlProfile, GlRequest};
 use platform_types::*;

@@ -498,7 +498,6 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         };
                     }
 
-                    // TODO limit to `EVENTS_PER_FRAME` loops total?
                     for _ in 0..EVENTS_PER_FRAME {
                         match edited_files_out_source.try_recv() {
                             Ok((index, transition)) => {

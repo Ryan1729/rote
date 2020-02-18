@@ -1,0 +1,11 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 62f9104798455882cf7ae092e8b9283224de536bf951a198351ada3aed0a7680 # shrinks to code = "fn r#a() -> bool{\nfalse\n}\n\n"
+cc 98d0ebd46106d405578b96cef84c9b9055218add7ec203cb69e8e6cc28a2490d # shrinks to code = "fn r#f() -> bool{\nfalse\n}\n\n", query_source = "(source_file) @cap0\n"
+cc 4499ee0d3df42aa33d315c311caeab1725b46da5f37d9e59eef32f02874d44ec # shrinks to code = ""
+cc cc58c352f2dfe4327fad926058ce58c02bf2437feb821ad1d8dbea6cc8847904 # shrinks to code = "fn r#A() -> char{\n\'{\'\n}\n\n"
+cc 0e2a5dc4c0e22847428381b8d73f81eec36d01bf6e32494ae4d63157da178a44 # shrinks to code = "fn r#a() -> char{\n\'\\\'\n}\n\n"
