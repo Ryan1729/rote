@@ -695,13 +695,6 @@ pub struct MulticolourTextSpec<'text> {
     pub text: Vec<ColouredText<'text>>
 }
 
-#[derive(Clone, Debug)]
-pub enum TextOrRect<'text> {
-    Rect(VisualSpec),
-    Text(TextSpec<'text>),
-    MulticolourText(MulticolourTextSpec<'text>)
-}
-
 /// As of this writing, casting f32 to i32 is undefined behaviour if the value does not fit!
 /// https://github.com/rust-lang/rust/issues/10184
 fn f32_to_i32_or_max(f: f32) -> i32 {
@@ -722,42 +715,20 @@ pub fn render(
         hidpi_factor,
         ..
     }: &mut State,
-    text_and_rects: Vec<TextOrRect>,
+    text_and_rects: Vec<TextSpec>,
     width: u32,
     height: u32,
 ) -> Res<()> {
-    use TextOrRect::*;
     let hidpi_factor = *hidpi_factor;
-    let mut highlight_ranges = Vec::new();
     perf_viz::start_record!("for &text_and_rects");
     for t_or_r in text_and_rects {
         match t_or_r {
-            Rect(VisualSpec {
-                rect: ssr!(min_x, min_y, max_x, max_y),
-                color,
-                z,
-            }) => {
-                let mut pixel_coords: PixelCoords = d!();
-                pixel_coords.min.x = f32_to_i32_or_max(min_x);
-                pixel_coords.min.y = f32_to_i32_or_max(min_y);
-                pixel_coords.max.x = f32_to_i32_or_max(max_x);
-                pixel_coords.max.y = f32_to_i32_or_max(max_y);
-
-                let mut bounds: Bounds = d!();
-                bounds.max = (max_x, max_y).into();
-                highlight_ranges.push(HighlightRange {
-                    pixel_coords,
-                    bounds,
-                    color,
-                    z: z_to_f32(z),
-                });
-            }
-            Text(TextSpec {
+            TextSpec {
                 text,
                 size,
                 layout,
                 spec: VisualSpec { rect, color, z },
-            }) => {
+            } => {
                 let section = Section {
                     text: &text,
                     scale: get_scale(size, hidpi_factor),
@@ -785,74 +756,15 @@ pub fn render(
                     }
                 };
             }
-            MulticolourText(MulticolourTextSpec{
-                size,
-                layout,
-                rect,
-                z,
-                text,
-            }) => {
-                let scale = get_scale(size, hidpi_factor);
-                let section = VariedSection {
-                    screen_position: rect.min,
-                    bounds: rect.max,
-                    layout: match layout {
-                        TextLayout::SingleLine => Layout::default_single_line(),
-                        TextLayout::Wrap | TextLayout::WrapInRect(_) | TextLayout::Unbounded => {
-                            Layout::default_wrap().line_breaker(glyph_brush::BuiltInLineBreaker::AnyCharLineBreaker)
-                        }
-                    },
-                    z: z_to_f32(z),
-                    text: text.into_iter().map(|ColouredText { text, color }| {
-                        SectionText {
-                            text,
-                            scale,
-                            color,
-                            ..d!()
-                        }
-                    }).collect(),
-                    ..d!()
-                };
-
-                match layout {
-                    TextLayout::SingleLine => glyph_brush.queue(section),
-                    TextLayout::Wrap => glyph_brush.queue_custom_layout(section, &Wrap {}),
-                    TextLayout::WrapInRect(rect) => {
-                        glyph_brush.queue_custom_layout(section, &WrapInRect { rect })
-                    }
-                    TextLayout::Unbounded => {
-                        glyph_brush.queue_custom_layout(section, &Unbounded {})
-                    }
-                };
-            }
         }
     }
     perf_viz::end_record!("for &text_and_rects");
 
-    let query_ids = [0; 1];
-    if cfg!(feature = "time-render") {
-        // Adding and then retreving this query for how long the gl rendering took,
-        // "implicitly flushes the GL pipeline" according to this docs page:
-        // https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/glBeginQuery.xhtml
-        // Without something flushing the queue, as of this writing, the frames do not
-        // appear to render as quickly. That is, after user input the updated frame does
-        // shows up after a noticably longer delay. Oddly enough, `glFinish` produces the
-        // same speed up, and but it takes longer than this query does, (around a ms or so)
-        // at least on my current machine + driver setup. Here's a question abotut this:
-        // https://gamedev.stackexchange.com/q/172737
-        // For the time being, I'm making this feature enabled by default since it is
-        // currently faster, but thi may well not be true any more on a future machine/driver
-        // so it seems worth it to keep it a feature.
-        unsafe {
-            gl::GenQueries(1, query_ids.as_ptr() as _);
-            gl::BeginQuery(gl::TIME_ELAPSED, query_ids[0])
-        }
-    }
     let dimensions = (width, height);
-    let mut brush_action;
+    let mut vertices;
     loop {
         perf_viz::start_record!("process_queued");
-        brush_action = glyph_brush.process_queued(
+        vertices = glyph_brush.process_queued(
             dimensions,
             |rect, tex_data| unsafe {
                 perf_viz::start_record!("|rect, tex_data|");
@@ -871,42 +783,12 @@ pub fn render(
                 gl_assert_ok!();
                 perf_viz::end_record!("|rect, tex_data|");
             },
-            to_vertex,
-            Some(AdditionalRects {
-                set_full_alpha,
-                extract_tex_coords,
-                highlight_ranges: highlight_ranges.clone(),
-            }),
+            to_vertex
         );
         perf_viz::end_record!("process_queued");
 
-        match brush_action {
-            Ok(_) => break,
-            Err(BrushError::TextureTooSmall { suggested, .. }) => unsafe {
-                perf_viz::record_guard!("BrushError::TextureTooSmall");
-                let (new_width, new_height) = suggested;
-                eprint!("\r                            \r");
-                eprintln!("Resizing glyph texture -> {}x{}", new_width, new_height);
-                // Recreate texture as a larger size to fit more
-                gl::TexImage2D(
-                    gl::TEXTURE_2D,
-                    0,
-                    gl::R8 as _,
-                    new_width as _,
-                    new_height as _,
-                    0,
-                    gl::RED,
-                    gl::UNSIGNED_BYTE,
-                    ptr::null(),
-                );
-                gl_assert_ok!();
-                glyph_brush.resize_texture(new_width, new_height);
-            },
-        }
+        break
     }
-    match brush_action? {
-        BrushAction::Draw(mut vertices) => {
-            perf_viz::record_guard!("BrushAction::Draw");
             vertices.sort_by(|v1, v2| {
                 use std::cmp::Ordering::*;
                 let z1 = v1[2];
@@ -941,28 +823,11 @@ pub fn render(
                 }
             }
             *vertex_max = *vertex_max.max(vertex_count);
-        }
-        BrushAction::ReDraw => {}
-    }
 
     unsafe {
         perf_viz::record_guard!("DrawArraysInstanced");
         gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
         gl::DrawArraysInstanced(gl::TRIANGLE_STRIP, 0, 4, *vertex_count as _);
-    }
-
-    //See comment in above "time-render" check.
-    if cfg!(feature = "time-render") {
-        let mut time_elapsed = 0;
-        unsafe {
-            gl::EndQuery(gl::TIME_ELAPSED);
-            gl::GetQueryObjectiv(query_ids[0], gl::QUERY_RESULT, &mut time_elapsed);
-            gl::DeleteQueries(1, query_ids.as_ptr() as _);
-        }
-    } else {
-        unsafe {
-            gl::Finish();
-        }
     }
 
     Ok(())

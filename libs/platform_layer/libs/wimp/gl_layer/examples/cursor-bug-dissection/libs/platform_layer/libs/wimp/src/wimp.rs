@@ -4,16 +4,11 @@
 // (at commit 90e7c7c331e9f991e11de6404b2ca073c0a09e61)
 
 use glutin::{dpi::LogicalPosition, Api, GlProfile, GlRequest};
-use std::collections::VecDeque;
-use std::path::PathBuf;
 use std::time::Duration;
-use wimp_render::{get_find_replace_info, FindReplaceInfo, get_go_to_position_info, GoToPositionInfo};
 
-use file_chooser;
-use macros::d;
+use macros::{c, d};
 use platform_types::{screen_positioning::screen_to_text_box, *};
-use shared::{transform_status, BufferStatus, BufferStatusMap, BufferStatusTransition, Res};
-use wimp_render::{Navigation, PhysicalButtonState, UIState};
+use shared::{Res};
 
 mod clipboard_layer {
     pub use clipboard::ClipboardProvider;
@@ -60,16 +55,9 @@ mod clipboard_layer {
         }
     }
 
-    pub fn get_clipboard() -> Clipboard {
-        // As you can see in the implementation of the `new` method, it always returns `Ok`
-        Clipboard::new().unwrap()
-    }
-}
-use clipboard_layer::{get_clipboard, Clipboard, ClipboardProvider};
-
+}
 #[perf_viz::record]
-pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
-    const EVENTS_PER_FRAME: usize = 16;
+pub fn run(_: UpdateAndRender) -> Res<()> {
 
     if cfg!(target_os = "linux") {
         use std::env;
@@ -85,10 +73,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
 
     let title = "dissection";
 
-    let mut clipboard: Clipboard = get_clipboard();
-
     let events = glutin::event_loop::EventLoop::new();
-    let event_proxy = events.create_proxy();
 
     let glutin_context = glutin::ContextBuilder::new()
         .with_gl_profile(GlProfile::Core)
@@ -113,16 +98,14 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
         }
     }
 
-    dbg!(glutin_context.get_pixel_format());
+pub const TEXT_SIZES: [f32; 1] = [72.0];
 
     let (mut gl_state, char_dims) = gl_layer::init(
         get_hidpi_factor!() as f32,
-        &wimp_render::TEXT_SIZES,
-        wimp_render::TEXT_BACKGROUND_COLOUR,
+        &TEXT_SIZES,
+        c![0x22 as f32  / 255.0, 0x22 as f32  / 255.0, 0x22 as f32  / 255.0],
         |symbol| glutin_context.get_proc_address(symbol) as _,
     )?;
-
-    let font_info = wimp_render::get_font_info(&char_dims);
 
     const TARGET_RATE: f64 = 128.0; //250.0);
 
@@ -142,157 +125,96 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
         };
     }
 
-    macro_rules! get_non_font_size_dependents {
-        ($mode: expr) => {{
-            let wh = screen_wh!();
-            let FindReplaceInfo {
-                find_text_xywh,
-                replace_text_xywh,
-                ..
-            } = get_find_replace_info(font_info, wh);
-            let GoToPositionInfo {
-                input_text_xywh,
-                ..
-            } = get_go_to_position_info(font_info, wh);
-            SizeDependents {
-                buffer_xywh: wimp_render::get_edit_buffer_xywh(
-                    $mode,
-                    font_info,
-                    screen_wh!()
-                )
-                .into(),
-                find_xywh: find_text_xywh.into(),
-                replace_xywh: replace_text_xywh.into(),
-                go_to_position_xywh: input_text_xywh.into(),
-                font_info: font_info.into(),
-            }
-        }};
-    }
+#[derive(Debug, Default)]
+pub struct UIState {
+    /// This is should be in the range [0.0, 2.0]. This needs the extra space to repesent the down
+    /// side of the sawtooth pattern.
+    pub fade_alpha_accumulator: f32,
+    pub window_is_focused: bool,
+}
 
-    let (mut view, mut cmds) = {
-        let (v, c) = update_and_render(Input::SetSizeDependents(
-            get_non_font_size_dependents!(d!())
-        ));
-
-        let mut cs = VecDeque::with_capacity(EVENTS_PER_FRAME);
-        cs.push_back(c);
-
-        (v, cs)
-    };
-
-    // If you didn't click on the same symbol, counting that as a double click seems like it
-    // would be annoying.
-    let mouse_epsilon_radius: f32 = {
-        let (w, h) = (font_info.text_char_dim.w, font_info.text_char_dim.h);
-
-        (if w < h { w } else { h }) / 2.0
-    };
-
-    let (mut last_click_x, mut last_click_y) = (std::f32::NAN, std::f32::NAN);
 
     let mut ui: UIState = d!();
 
     let mut dt = Duration::from_nanos(((1.0 / TARGET_RATE) * 1_000_000_000.0) as u64);
 
-    macro_rules! mouse_within_radius {
-        () => {
-            false
-        };
-    }
-
-    use std::sync::mpsc::channel;
-    enum EditedFilesThread {
-        Quit,
-        Buffers(g_i::State, Vec<edited_storage::BufferInfo>),
-    }
-
-    // into the editor thread
-    let (editor_in_sink, editor_in_source) = channel();
-    // out of the editor thread
-    let (editor_out_sink, editor_out_source) = channel();
-
-    let mut editor_join_handle = Some(
-        std::thread::Builder::new()
-            .name("editor".to_string())
-            .spawn(move || {
-                while let Ok(input) = editor_in_source.recv() {
-                    let was_quit = Input::Quit == input;
-                    let pair = update_and_render(input);
-                    let _hope_it_gets_there = editor_out_sink.send(pair);
-                    if was_quit {
-                        return;
-                    }
-                }
-            })
-            .expect("Could not start editor thread!"),
-    );
-
     {
         macro_rules! call_u_and_r {
             ($input:expr) => {
-                ui.note_interaction();
             };
         }
 
         events.run(move |event, _, control_flow| {
             use glutin::event::*;
 
-            // eventually we'll likely want to tell the editor, and have it decide whether/how
-            // to display it to the user.
-            macro_rules! handle_platform_error {
-                ($err: expr) => {
-                    let error = format!("{},{}: {}", file!(), line!(), $err);
-                    eprintln!("{}", error);
-                    call_u_and_r!(Input::NewScratchBuffer(Some(error)));
-                };
-            }
-
             match event {
                 Event::MainEventsCleared if running => {
-                    for _ in 0..EVENTS_PER_FRAME {
-                        match editor_out_source.try_recv() {
-                            Ok((v, c)) => {
-                                view = v;
-                                cmds.push_back(c);
-                            }
-                            _ => break,
-                        };
-                    }
-
                     // Queue a RedrawRequested event so we draw the updated view quickly.
                     glutin_context.window().request_redraw();
                 }
                 Event::RedrawRequested(_) => {
-                    ui.frame_init();
-                    if_changed::dbg!(&ui.keyboard);
+use gl_layer::{TextLayout, TextSpec, VisualSpec};
+        let offset = ((dt.as_millis() as u64 as f32) / 1000.0) * 1.5;
 
-                    let (text_and_rects, input) =
-                        wimp_render::view(
-                            &mut ui,
-                            &view,
-                            &font_info,
-                            screen_wh!(),
-                            dt
-                        );
+            ui.fade_alpha_accumulator += offset;
+            ui.fade_alpha_accumulator = ui.fade_alpha_accumulator.rem_euclid(2.0);
+
+        let fade_alpha = if ui.fade_alpha_accumulator > 1.0 {
+                2.0 - ui.fade_alpha_accumulator
+            } else {
+                ui.fade_alpha_accumulator
+            };
+    
+        let mut text_or_rects =
+            Vec::with_capacity(1);
+
+        let edit_buffer_text_rect: ScreenSpaceRect = ScreenSpaceRect {
+            min: (
+                0.0,
+                28.0,
+            ),
+            max: (
+                1024.0,
+                550.0,
+            ),
+        };
+
+        text_or_rects.push(TextSpec {
+            text: "▏text_or_rects ▏",
+            size: 72.0,
+            layout: TextLayout::WrapInRect(edit_buffer_text_rect),
+            spec: VisualSpec {
+                rect: edit_buffer_text_rect,
+                color: c![0xde as f32 / 255.0, 0x49 as f32 / 255.0, 0x49 as f32 / 255.0, fade_alpha],
+                z: 32768,
+            },
+        });
+    
+
+    if !ui.window_is_focused {
+        dbg!("should be white");
+        for t in text_or_rects.iter_mut() {
+            t.spec.color = [
+                t.spec.color[0],
+                t.spec.color[0],
+                t.spec.color[0],
+                t.spec.color[3],
+            ];
+        }
+    } else {
+        dbg!("should be red");
+    }
+
                     let width = dimensions.width;
                     let height = dimensions.height;
 
-                    gl_layer::render(&mut gl_state, text_and_rects, width as _, height as _)
+                    gl_layer::render(&mut gl_state, text_or_rects, width as _, height as _)
                         .expect("gl_layer::render didn't work");
 
                     glutin_context
                         .swap_buffers()
                         .expect("swap_buffers didn't work!");
 
-                    if let Some(input) = input {
-                        call_u_and_r!(input);
-                    }
-
-                    if let Some(rate) = loop_helper.report_rate() {
-                        glutin_context.window().set_title(title);
-                    }
-
-                    ui.frame_end();
                     perf_viz::start_record!("sleepin'");
                     loop_helper.loop_sleep();
                     perf_viz::end_record!("sleepin'");
@@ -316,12 +238,6 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
 
                             running = false;
 
-                            // If we got here, we assume that we've sent a Quit input to the editor thread so it will stop.
-                            match editor_join_handle.take() {
-                                Some(j_h) => j_h.join().expect("Could not join editor thread!"),
-                                None => {}
-                            };
-
                             perf_viz::output!();
 
                             let _ = gl_layer::cleanup(&gl_state);
@@ -329,45 +245,6 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                             *control_flow = glutin::event_loop::ControlFlow::Exit;
                         }};
                     }
-
-                    macro_rules! text_box_xy {
-                        () => {{
-                            let xy = wimp_render::get_current_buffer_rect(
-                                view.current_buffer_id,
-                                view.menu.get_mode(),
-                                font_info,
-                                screen_wh!(),
-                            )
-                            .xy;
-
-                            d!()
-                        }};
-                    }
-
-                    macro_rules! switch_menu_mode {
-                        ($mode: expr) => {
-                            let mode = $mode;
-
-                            call_u_and_r!(Input::SetMenuMode(mode));
-
-                            call_u_and_r!(Input::SetSizeDependents(SizeDependents {
-                                buffer_xywh: wimp_render::get_edit_buffer_xywh(
-                                    mode,
-                                    font_info,
-                                    screen_wh!()
-                                )
-                                .into(),
-                                find_xywh: None,
-                                replace_xywh: None,
-                                go_to_position_xywh: None,
-                                font_info: None,
-                            }));
-                        };
-                    }
-
-                    const ALT: ModifiersState = ModifiersState::ALT;
-                    const CTRL: ModifiersState = ModifiersState::CTRL;
-                    const SHIFT: ModifiersState = ModifiersState::SHIFT;
                     
                     // As of this writing, issues on https://github.com/rust-windowing/winit ,
                     // specifically #1124 and #883, suggest that the it is up in the air as to
@@ -400,48 +277,6 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         WindowEvent::Focused(is_focused) => {
                             dbg!("set to ", is_focused);
                             ui.window_is_focused = is_focused;
-                        }
-                        WindowEvent::KeyboardInput {
-                            input:
-                                KeyboardInput {
-                                    state: ElementState::Pressed,
-                                    virtual_keycode: Some(keypress),
-                                    modifiers,
-                                    ..
-                                },
-                            ..
-                        } if modifiers.is_empty() => match if cfg!(debug_assertions) {dbg!(keypress)} else {keypress} {
-                            VirtualKeyCode::Escape => {
-                                call_u_and_r!(Input::SetSizeDependents(SizeDependents {
-                                    buffer_xywh: wimp_render::get_edit_buffer_xywh(
-                                        d!(),
-                                        font_info,
-                                        screen_wh!()
-                                    )
-                                    .into(),
-                                    find_xywh: None,
-                                    replace_xywh: None,
-                                    go_to_position_xywh: None,
-                                    font_info: None,
-                                }));
-                                call_u_and_r!(Input::CloseMenuIfAny);
-                            }
-                            _ => (),
-                        },
-                        WindowEvent::MouseInput {
-                            button: MouseButton::Left,
-                            state: ElementState::Pressed,
-                            modifiers,
-                            ..
-                        } // allow things like Shift-Alt-Click
-                        if (!modifiers).intersects(!CTRL) => {
-                            let replace_or_add = if modifiers.ctrl() {
-                                ReplaceOrAdd::Add
-                            } else {
-                                ReplaceOrAdd::Replace
-                            };
-
-                            call_u_and_r!(Input::SetCursor(text_box_xy!(), replace_or_add));
                         }
                         _ => {}
                     }

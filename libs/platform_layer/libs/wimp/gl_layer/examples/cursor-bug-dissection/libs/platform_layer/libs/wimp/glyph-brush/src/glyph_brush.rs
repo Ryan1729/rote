@@ -192,7 +192,8 @@ impl<'font, V: Clone + 'static, H: BuildHasher> GlyphBrush<'font, V, H> {
             perf_viz::record_guard!("if self.cache_glyph_positioning");
             if !self.calculate_glyph_cache.contains_key(&section_hash.full) {
                 let geometry = SectionGeometry::from(section);
-
+                let text_colour = section.text[0].color;
+                //dbg!(section);
                 let recalculated_glyphs = self
                     .last_frame_seq_id_sections
                     .get(frame_seq_id)
@@ -204,6 +205,14 @@ impl<'font, V: Clone + 'static, H: BuildHasher> GlyphBrush<'font, V, H> {
                             SectionHashDiff::AlphaChange => GlyphChange::Alpha,
                             SectionHashDiff::Different => return None,
                         };
+                        match change {
+                            GlyphChange::Alpha => {
+                                
+                            }
+                            _ =>{
+                                //dbg!(&change);
+                            }
+                        }
 
                         let old_glyphs = if self.keep_in_cache.contains(&hash.full) {
                             let cached = self.calculate_glyph_cache.get(&hash.full)?;
@@ -213,13 +222,17 @@ impl<'font, V: Clone + 'static, H: BuildHasher> GlyphBrush<'font, V, H> {
                             Cow::Owned(old.positioned.glyphs)
                         };
 
-                        Some(layout.recalculate_glyphs(
+                        let gs = layout.recalculate_glyphs(
                             old_glyphs,
                             change,
                             &self.fonts,
                             &geometry,
                             &section.text,
-                        ))
+                        );
+
+                        if_changed::dbg!(gs.iter().map(|g| g.1).any(|c| c == text_colour));
+
+                        Some(gs)
                     });
 
                 self.calculate_glyph_cache.insert(
@@ -268,8 +281,7 @@ impl<'font, V: Clone + 'static, H: BuildHasher> GlyphBrush<'font, V, H> {
         (screen_w, screen_h): (u32, u32),
         update_texture: F1,
         to_vertex: F2,
-        additional_rects: Option<AdditionalRects<V>>,
-    ) -> Result<BrushAction<V>, BrushError>
+    ) -> Vec<V>
     where
         F1: FnMut(Rect<u32>, &[u8]),
         F2: Fn(GlyphVertex) -> V + Copy,
@@ -280,79 +292,14 @@ impl<'font, V: Clone + 'static, H: BuildHasher> GlyphBrush<'font, V, H> {
             self.section_buffer.hash(s_ref);
             screen_w.hash(s_ref);
             screen_h.hash(s_ref);
-            if let Some(AdditionalRects {
-                highlight_ranges, ..
-            }) = additional_rects.as_ref()
-            {
-                for HighlightRange {
-                    pixel_coords,
-                    bounds,
-                    color,
-                    z,
-                } in highlight_ranges.iter()
-                {
-                    pixel_coords.hash(s_ref);
-                    bounds.min.x.to_bits().hash(s_ref);
-                    bounds.min.y.to_bits().hash(s_ref);
-                    bounds.max.x.to_bits().hash(s_ref);
-                    bounds.max.y.to_bits().hash(s_ref);
-                    for n in color {
-                        n.to_bits().hash(s_ref);
-                    }
-                    z.to_bits().hash(s_ref);
-                }
-            }
             s.finish()
         };
 
-        let result = if !self.cache_glyph_drawing
-            || self.last_draw.text_state != current_text_state
-            || self.last_pre_positioned != self.pre_positioned
-        {
-            let mut some_text = false;
+
             // Everything in the section_buffer should also be here. The extras should also
             // be retained in the texture cache avoiding cache thrashing if they are rendered
             // in a 2-draw per frame style.
 
-            // This additional rects stuff was hacked in here to fix a perf issue arising from
-            // the previous method that used multiple instances of the character
-            let rect_hash = additional_rects.map(
-                |AdditionalRects {
-                     set_full_alpha,
-                     extract_tex_coords,
-                     highlight_ranges,
-                 }| {
-                    let section = Section {
-                        // This is here so that the rectangle always stays in the cache.
-                        // It should not acually show up visually
-                        text: "█",
-                        // if this is too low, the rect's are inappropriately transparent.
-                        // If it's too high then the cache gets filled up.
-                        // TODO FIXME?
-                        scale: Scale::uniform(8.0),
-                        screen_position: (0.0, 0.0),
-                        bounds: (std::f32::INFINITY, std::f32::INFINITY),
-                        color: d!(),
-                        layout: Layout::default_single_line(),
-                        z: std::f32::INFINITY,
-                        ..Section::default()
-                    }
-                    .into();
-
-                    let section_hash = self.cache_glyphs(&section, &section.layout);
-                    self.section_buffer.push(section_hash);
-                    self.keep_in_cache.insert(section_hash);
-
-                    (
-                        set_full_alpha,
-                        extract_tex_coords,
-                        section_hash,
-                        highlight_ranges,
-                    )
-                },
-            );
-
-            perf_viz::start_record!("keep_in_cache");
             for section_hash in &self.keep_in_cache {
                 for &(ref glyph, _, font_id) in self
                     .calculate_glyph_cache
@@ -360,52 +307,21 @@ impl<'font, V: Clone + 'static, H: BuildHasher> GlyphBrush<'font, V, H> {
                     .iter()
                     .flat_map(|gs| &gs.positioned.glyphs)
                 {
-                    perf_viz::start_record!("calculate_glyph_cache loop");
                     self.texture_cache.queue_glyph(font_id.0, glyph.clone());
-                    some_text = true;
-                    perf_viz::end_record!("calculate_glyph_cache loop");
                 }
             }
-            perf_viz::end_record!("keep_in_cache");
 
-            perf_viz::start_record!("&(ref glyph, _, font_id)");
             for &(ref glyph, _, font_id) in self
                 .pre_positioned
                 .iter()
                 .flat_map(|p| &p.positioned.glyphs)
             {
-                perf_viz::start_record!("pre_positioned loop");
                 self.texture_cache.queue_glyph(font_id.0, glyph.clone());
-                some_text = true;
-                perf_viz::end_record!("pre_positioned loop");
-            }
-            perf_viz::end_record!("&(ref glyph, _, font_id)");
-
-            if some_text {
-                perf_viz::record_guard!("if some_text");
-                match self.texture_cache.cache_queued(update_texture) {
-                    Ok(CachedBy::Adding) => {}
-                    Ok(CachedBy::Reordering) => {
-                        perf_viz::record_guard!("CachedBy::Reordering calculate_glyph_cache");
-                        for glyphed in self.calculate_glyph_cache.values_mut() {
-                            perf_viz::start_record!("CachedBy::Reordering calculate_glyph_cache");
-                            glyphed.invalidate_texture_positions();
-                            perf_viz::end_record!("CachedBy::Reordering calculate_glyph_cache");
-                        }
-                    }
-                    Err(_) => {
-                        perf_viz::record_guard!("Create TextureTooSmall");
-                        let (width, height) = self.texture_cache.dimensions();
-                        return Err(BrushError::TextureTooSmall {
-                            suggested: (width * 2, height * 2),
-                        });
-                    }
-                }
             }
 
+            self.texture_cache.cache_queued(update_texture);
             self.last_draw.text_state = current_text_state;
-
-            BrushAction::Draw({
+            let result = {
                 let screen_dims = (screen_w as f32, screen_h as f32);
 
                 let mut verts = Vec::new();
@@ -427,64 +343,12 @@ impl<'font, V: Clone + 'static, H: BuildHasher> GlyphBrush<'font, V, H> {
                     perf_viz::end_record!("BrushAction::Draw pre_positioned");
                 }
 
-                // This status line stuff was hacked in here to fix a perf issue arising from
-                // the previous method that used multiple instances of the character
-                if let Some((set_full_alpha, extract_tex_coords, rect_hash, highlight_ranges)) =
-                    rect_hash
-                {
-                    let glyphed = self.calculate_glyph_cache.get_mut(&rect_hash).unwrap();
-                    glyphed.ensure_vertices(&self.texture_cache, screen_dims, to_vertex);
-                    if let Some(mut vertex) = glyphed.vertices.pop() {
-                        let tex_coords = {
-                            let mut tex_coords = extract_tex_coords(&vertex);
-
-                            // Hacky way to prevent sampling outside of the texture.
-                            let x_apron = (tex_coords.max.x - tex_coords.min.x) * 0.25;
-                            let y_apron = (tex_coords.max.y - tex_coords.min.y) * 0.25;
-                            tex_coords.min.x += x_apron;
-                            tex_coords.min.y += y_apron;
-                            tex_coords.max.x -= x_apron;
-                            tex_coords.max.y -= y_apron;
-
-                            tex_coords
-                        };
-
-                        set_full_alpha(&mut vertex);
-
-                        verts.push(vertex);
-
-                        let highlight_base = GlyphVertex {
-                            tex_coords,
-                            screen_dimensions: screen_dims,
-                            ..d!()
-                        };
-                        for range in highlight_ranges {
-                            let HighlightRange {
-                                pixel_coords,
-                                bounds,
-                                color,
-                                z,
-                            } = range;
-                            verts.push(to_vertex(GlyphVertex {
-                                tex_coords,
-                                pixel_coords,
-                                bounds,
-                                color,
-                                z,
-                                ..highlight_base
-                            }));
-                        }
-                    }
-                }
-
                 verts
-            })
-        } else {
-            BrushAction::ReDraw
-        };
+            }
+        ;
 
         self.cleanup_frame();
-        Ok(result)
+        result
     }
 
     /// Rebuilds the logical texture cache with new dimensions. Should be avoided if possible.
