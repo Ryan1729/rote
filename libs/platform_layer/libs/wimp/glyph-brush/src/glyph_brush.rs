@@ -707,7 +707,10 @@ impl SectionHashDetail {
             if self.text_no_color == other.text_no_color {
                 return SectionHashDiff::ColorChange;
             } else if self.text_no_color_alpha == other.text_no_color_alpha {
-                return SectionHashDiff::AlphaChange;
+                // returning ColorChange instead if a workaround for changing the 
+                // alpha _and_ colour at the same time leaving the colour unchanged.
+                //return SectionHashDiff::AlphaChange;
+                return SectionHashDiff::ColorChange;
             }
         }
         SectionHashDiff::Different

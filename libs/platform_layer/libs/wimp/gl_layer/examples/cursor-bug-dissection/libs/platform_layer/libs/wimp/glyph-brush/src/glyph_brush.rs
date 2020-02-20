@@ -199,20 +199,13 @@ impl<'font, V: Clone + 'static, H: BuildHasher> GlyphBrush<'font, V, H> {
                     .get(frame_seq_id)
                     .cloned()
                     .and_then(|hash| {
-                        let change = match section_hash.diff(hash) {
+                        dbg!(section_hash, hash);
+                        let change = match dbg!(section_hash.diff(hash)) {
                             SectionHashDiff::GeometryChange => GlyphChange::Geometry(hash.geometry),
                             SectionHashDiff::ColorChange => GlyphChange::Color,
                             SectionHashDiff::AlphaChange => GlyphChange::Alpha,
                             SectionHashDiff::Different => return None,
                         };
-                        match change {
-                            GlyphChange::Alpha => {
-                                
-                            }
-                            _ =>{
-                                //dbg!(&change);
-                            }
-                        }
 
                         let old_glyphs = if self.keep_in_cache.contains(&hash.full) {
                             let cached = self.calculate_glyph_cache.get(&hash.full)?;
