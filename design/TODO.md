@@ -48,6 +48,9 @@
 * Fix buggy/slow Ctrl-P menu.
     * allow scrolling the list.
 
+* refresh search spans on tab-in/out 
+    * Should be all edits really; are there other ones we missed? We should only need to put the refresh in one place.
+
 * Add a more advanced high-level code manipulation: Extract function
     * user perspective:
         * select an expression
