@@ -8,7 +8,7 @@ edition = "2018"
 path = "./src/gl_layer.rs"
 
 [dependencies]
-glyph_brush = { path = "../glyph-brush" }
+glyph_brush = { path = "./libs/glyph-brush" }
 gl = "0.14"
 perf_viz = { path = "../../../../perf_viz" }
 platform_types = { path = "../../../../platform_types" }

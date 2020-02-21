@@ -1,11 +1,5 @@
 ## TODO
 
-* make it more obvious when the editor window is not focused
-    * just darken all the colours?
-    * make all colours black or white?
-        * duplicate one of the channels? i.e. 0x123456 =-> 0x121212
-    * fix bug where doing the above makes the cursor get stuck grey
-
 * make buffer tabs reorderable, at least with with a keyboard shortcut
     * swap selected tab left
     * swap selected tab right
@@ -42,14 +36,17 @@
                     cmds[(CTRL | ALT, S)] = ("Save New File", cmd_fn);
                 }
 
-* fix slowness that shows up when selecting things wit the mouse
+* fix slowness that shows up when selecting things with the mouse
     * seems to have appeared when the parsing started so we could probably just start caching
     previous trees, or actually complete the TODO to edit the tree with each keyboard edit.
 
 * Ctrl-E to toggle single line comments
   * could probably reuse tab insertion/deletion code.
 
- * Make Esc pick only one of the mulitple cursors to keep and remove that one's selection if there is one.
+* Make Esc pick only one of the mulitple cursors to keep and remove that one's selection if there is one.
+
+* Fix buggy/slow Ctrl-P menu.
+    * allow scrolling the list.
 
 * Add a more advanced high-level code manipulation: Extract function
     * user perspective:
