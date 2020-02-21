@@ -1,0 +1,15 @@
+[package]
+name = "open_gl"
+version = "0.1.0"
+authors = ["Ryan1729 <ryan1729@gmail.com>"]
+edition = "2018"
+
+[lib]
+path = "./src/open_gl.rs"
+
+[dependencies]
+gl = "0.14"
+gl_layer_types = { path = "../gl_layer_types" }
+perf_viz = { path = "../../../../../../perf_viz" }
+macros = { path = "../../../../../../macros" }
+if_changed = { path = "../../../../../../if_changed" }

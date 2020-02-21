@@ -799,14 +799,23 @@ dependencies = [
 name = "gl_layer"
 version = "0.1.0"
 dependencies = [
- "gl 0.14.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "gl_layer_types 0.1.0",
  "glutin 0.22.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "glyph_brush 0.4.1",
  "macros 0.1.0",
+ "open_gl 0.1.0",
  "perf_viz 0.1.0",
  "platform_types 0.1.0",
  "shared 0.1.0",
  "spin_sleep 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)",
+ "text_rendering 0.1.0",
+]
+
+[[package]]
+name = "gl_layer_types"
+version = "0.1.0"
+dependencies = [
+ "macros 0.1.0",
+ "platform_types 0.1.0",
 ]
 
 [[package]]
@@ -1331,6 +1340,17 @@ dependencies = [
 name = "opaque-debug"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "open_gl"
+version = "0.1.0"
+dependencies = [
+ "gl 0.14.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "gl_layer_types 0.1.0",
+ "if_changed 0.1.0",
+ "macros 0.1.0",
+ "perf_viz 0.1.0",
+]
 
 [[package]]
 name = "ordered-float"
@@ -2189,6 +2209,19 @@ dependencies = [
  "pretty_assertions 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "proptest 0.9.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "regex 1.1.9 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "text_rendering"
+version = "0.1.0"
+dependencies = [
+ "gl_layer_types 0.1.0",
+ "glyph_brush 0.4.1",
+ "glyph_brush_layout 0.1.5",
+ "macros 0.1.0",
+ "perf_viz 0.1.0",
+ "platform_types 0.1.0",
+ "rusttype 0.7.5",
 ]
 
 [[package]]

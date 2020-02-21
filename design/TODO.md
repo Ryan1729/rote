@@ -51,6 +51,12 @@
 * refresh search spans on tab-in/out 
     * Should be all edits really; are there other ones we missed? We should only need to put the refresh in one place.
 
+* fix Ctrl-F not looping properly
+    * repro
+        * scroll to bottom of multi-screen-length file
+        * search for something that is known to be near the top.
+        * observe that you are not jumped to the beginning of the file.
+
 * Add a more advanced high-level code manipulation: Extract function
     * user perspective:
         * select an expression
