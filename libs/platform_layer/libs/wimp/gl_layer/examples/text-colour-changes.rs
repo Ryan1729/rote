@@ -33,13 +33,13 @@ fn main() -> Res<()> {
     const TEXT_SIZE: f32 = 128.0;
     const HELP_SIZE: f32 = 16.0;
 
-    let text_sizes = [TEXT_SIZE, HELP_SIZE];
+    const TEXT_SIZES: [f32; 2] = [TEXT_SIZE, HELP_SIZE];
 
     let mut hidpi_factor = 1.0;
 
     let (mut gl_state, _) = gl_layer::init(
         hidpi_factor as f32,
-        &text_sizes,
+        &TEXT_SIZES,
         [0.3, 0.3, 0.3, 1.0],
         |symbol| glutin_context.get_proc_address(symbol) as _,
     )?;
