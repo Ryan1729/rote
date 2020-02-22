@@ -3,6 +3,36 @@
 * make buffer tabs reorderable, at least with with a keyboard shortcut
     * swap selected tab left
     * swap selected tab right
+    * which shortcut to use?
+        * it would be vaguely nice if it used the `Tab` key.
+            * mnemonically pleasant
+            * fits with existing Ctrl-Tab
+            * but is there anything left? 
+                * There are the four traditional modifier keys: Ctrl, Shift, Alt and "Super"/"Windows". We'll abbreviate them below.
+                * This table shows the modifier keys with the Tab key and whetter they are taken or not, and why.
+                    W    A    S    C    Taken
+                    0    0    0    0    Yes: indent
+                    0    0    0    1    Yes: switch to next tab
+                    0    0    1    0    Yes: un-indent
+                    0    0    1    1    Yes: switch to previous tab
+                    0    1    0    0    Yes: used by windows OS for simple next application
+                    0    1    0    1    Yes: used by windows OS (same function as above)
+                    0    1    1    0    Yes: used by windows OS for simple previous application
+                    0    1    1    1    Yes: used by windows OS (same function as above)
+                    1    0    0    0    Yes: used by windows OS for fancy next application
+                    1    0    0    1     No:
+                    1    0    1    0     No: suprisingly not fancy previous tab.
+                    1    0    1    1     No: 
+                    1    1    0    0    Yes: same as Alt-Tab
+                    1    1    0    1    Yes: used by windows OS for old-school next application
+                    1    1    1    0    Yes: same as Alt-Shift-Tab
+                    1    1    1    1    Yes: used by windows OS for old-school previous application
+                    * So it loks like we'll use Ctrl-Super-Tab and Ctrl-Shift-Super-Tab for this then.
+        * Tab, Shift-Tab, Ctrl-Tab, Ctrl-Shift-Tab, and Alt-Tab,
+        * Having Firefox's Ctrl-Shift-Home/End work seems nice but we end up with the same awkward
+            need to select the tabs somehow for the same reason: Ctrl-Shift-Home is used in text editing.
+            * But we still want the tab functionality Ctrl-Shift-Home/End brings: sending a tab to the very beginning/end of the list.
+            * Given we have Ctrl-Super-Tab meaning swap selected tab right, using Ctrl-Super-Home/End for this seems reasonable.
 
 * put all keyboard responses into a menu so that any command can be dispatched with the mouse or the keyboard.
     * keyboard responses should be defined in a single place where they end up in the menu and wired up to
@@ -35,6 +65,9 @@
                     }
                     cmds[(CTRL | ALT, S)] = ("Save New File", cmd_fn);
                 }
+    * We will need a way to activate the menu from the keyboard. The appropriate key seems to be the "menu" key.
+        * That key is not available on some laptop keyboards, so we'll want an alternate way. 
+            * clicakble menu button?
 
 * fix slowness that shows up when selecting things with the mouse
     * seems to have appeared when the parsing started so we could probably just start caching
@@ -111,6 +144,17 @@
     * desired: [abc|] abc abc => [abc|] [abc|] abc
     * also desired: [|abc] abc abc => [|abc] [|abc] abc
 
+* Ctrl, and up and down arrow keys to swap the current line with the one above it.
+    * If mulktiple lines are selected, swap all of them
+    * maybe Ctrl-Alt-Up/Down to swap pased on parse?
+        * move smallest entire node that encompasses selection
+
+* prevent "No buffer selected" when re-opening already opened file
+    * seems fixed?
+    * this still happens but only after extended usage apparently.
+        * Okay, we can try running a proptest over the relevant code.
+    * the Ctrl-P menu is also capable of provoking this FWIW
+
 * Ctrl-shift-f to open a within current project folder search
   * implies some way to know what the project is. Options:
     * custom file format that specifies the paths. Open one of those at startup
@@ -120,15 +164,12 @@
   * fallback to open files search if there is no project info
     * Ctrl-alt-f for always open files search?
 
+* add markdown highlighting/parse-enabled features
+    * https://github.com/ikatyang/tree-sitter-markdown
+
 * draw an underline below matching braces, parens, brackets when a cursor is next to them.
   * draw a different thing (dotted line?) if there is no matching brace found.
   * jump to matching brace?
-
-* prevent "No buffer selected" when re-opening already opened file
-    * seems fixed?
-    * this still happens but only after extended usage apparently.
-        * Okay, we can try running a proptest over the relevant code.
-    * the Ctrl-P menu is also capable of provoking this FWIW
 
 * when tabbing in (and out I guess?) insert, (/remove?) extra tab strs automatically depending on the surrounding text.
     * given these lines
