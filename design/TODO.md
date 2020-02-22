@@ -27,7 +27,7 @@
                     1    1    0    1    Yes: used by windows OS for old-school next application
                     1    1    1    0    Yes: same as Alt-Shift-Tab
                     1    1    1    1    Yes: used by windows OS for old-school previous application
-                    * So it loks like we'll use Ctrl-Super-Tab and Ctrl-Shift-Super-Tab for this then.
+                    * So it looks like we'll use Ctrl-Super-Tab and Ctrl-Shift-Super-Tab for this then.
         * Tab, Shift-Tab, Ctrl-Tab, Ctrl-Shift-Tab, and Alt-Tab,
         * Having Firefox's Ctrl-Shift-Home/End work seems nice but we end up with the same awkward
             need to select the tabs somehow for the same reason: Ctrl-Shift-Home is used in text editing.
@@ -68,10 +68,19 @@
     * We will need a way to activate the menu from the keyboard. The appropriate key seems to be the "menu" key.
         * That key is not available on some laptop keyboards, so we'll want an alternate way. 
             * clicakble menu button?
+                * we can use U+2261 ≡ "IDENTICAL TO"
 
 * fix slowness that shows up when selecting things with the mouse
     * seems to have appeared when the parsing started so we could probably just start caching
     previous trees, or actually complete the TODO to edit the tree with each keyboard edit.
+
+* fix Ctrl-Left/Right acting weird around unicode characters
+    * for example, try using Ctrl-Left/Right on the folowing line
+        * U+2261 ≡ "IDENTICAL TO"
+        * as of this writing, placing the cursor after the "L" then pressing Ctrl-Left does puts you *after* the I.
+    * possible proptest: for any set of characters and cursor position Ctrl-Left then Ctrl-Right then Ctrl-Left should put you in the same spot you were in after the first Ctrl-Left
+        * also with Left and Right swapped
+    * possible proptest: given you are not on either the first or final line, then Ctrl-Left should always move you at least one character back and Ctrl-Right should move you one character Right.
 
 * Ctrl-E to toggle single line comments
   * could probably reuse tab insertion/deletion code.
@@ -131,6 +140,16 @@
 
 * when a tab is switched to, any fullscreen menus should be hidden
 
+* prevent "No buffer selected" when re-opening already opened file
+    * seems fixed?
+    * this still happens but only after extended usage apparently.
+        * Okay, we can try running a proptest over the relevant code.
+    * the Ctrl-P menu is also capable of provoking this FWIW
+    * I suspect an issue with the generational indexes based on nothing but intuition.
+    * Does it make sense to make a proptest that claims that you can never get to the "No buffer selected" state,
+        and then make the relevant generator avoid any cases that really cannot happen? That would hopefully 
+        identify the problem, at least.
+
 * soft focus follows mouse on menus?
     * if the cursor is on the main text when, for example, the find menu is up, then the main text should be scrolled, not the find box.
 
@@ -148,12 +167,6 @@
     * If mulktiple lines are selected, swap all of them
     * maybe Ctrl-Alt-Up/Down to swap pased on parse?
         * move smallest entire node that encompasses selection
-
-* prevent "No buffer selected" when re-opening already opened file
-    * seems fixed?
-    * this still happens but only after extended usage apparently.
-        * Okay, we can try running a proptest over the relevant code.
-    * the Ctrl-P menu is also capable of provoking this FWIW
 
 * Ctrl-shift-f to open a within current project folder search
   * implies some way to know what the project is. Options:
