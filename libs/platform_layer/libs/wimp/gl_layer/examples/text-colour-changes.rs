@@ -1,7 +1,7 @@
 /// This is an example/test that was originally made wit hthe intent of demonstrating a bug where 
 /// the colour of text, when changed from one colour to another and back again, would get stuck,
 /// and it would not change when it was expected to.
-use gl_layer::{ColouredText, MulticolourTextSpec, TextLayout, TextOrRect, TextSpec, VisualSpec};
+use gl_layer::{ColouredText, TextLayout, TextOrRect, TextSpec, VisualSpec};
 use glutin::{Api, GlProfile, GlRequest};
 use platform_types::*;
 use shared::Res;

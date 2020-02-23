@@ -350,6 +350,16 @@ impl State {
         d!()
     }
 
+    fn move_buffer(&mut self, buffer_move: BufferMove) {
+        use BufferMove::*;
+        match buffer_move {
+            Left,
+            Right,
+            ToStart,
+            ToEnd,
+        }
+    }
+
     fn next_buffer(&mut self) {
         self.set_id_index((self.current_buffer_id.index.saturating_add(1)) % self.buffers.len());
     }
@@ -816,6 +826,9 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
         }
         TabOut => {
             text_buffer_call!(sync b.tab_out());
+        }
+        MoveBuffer(buffer_move) => {
+            state.move_buffer(buffer_move);
         }
         NextBuffer => {
             state.next_buffer();

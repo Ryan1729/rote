@@ -715,6 +715,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         }
                     }
 
+                    const LOGO: ModifiersState = ModifiersState::LOGO;
                     const ALT: ModifiersState = ModifiersState::ALT;
                     const CTRL: ModifiersState = ModifiersState::CTRL;
                     const SHIFT: ModifiersState = ModifiersState::SHIFT;
@@ -1021,6 +1022,42 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                                 call_u_and_r!(Input::Insert('\n'));
                             }
                             _ => (),
+                        },
+                        WindowEvent::KeyboardInput {
+                            input:
+                                KeyboardInput {
+                                    state: ElementState::Pressed,
+                                    virtual_keycode: Some(keypress),
+                                    modifiers,
+                                    ..
+                                },
+                            ..
+                        } if modifiers == LOGO | CTRL => match keypress {
+                            VirtualKeyCode::Tab => {
+                                call_u_and_r!(Input::MoveBuffer(BufferMove::Right));
+                            }
+                            VirtualKeyCode::Home => {
+                                call_u_and_r!(Input::MoveBuffer(BufferMove::ToStart));
+                            }
+                            VirtualKeyCode::End => {
+                                call_u_and_r!(Input::MoveBuffer(BufferMove::ToEnd));
+                            }
+                            _ => {}
+                        },
+                        WindowEvent::KeyboardInput {
+                            input:
+                                KeyboardInput {
+                                    state: ElementState::Pressed,
+                                    virtual_keycode: Some(keypress),
+                                    modifiers,
+                                    ..
+                                },
+                            ..
+                        } if modifiers == LOGO | CTRL | SHIFT => match keypress {
+                            VirtualKeyCode::Tab => {
+                                call_u_and_r!(Input::MoveBuffer(BufferMove::Left));
+                            }
+                            _ => {}
                         },
                         WindowEvent::ReceivedCharacter(mut c) => {
                             if c != '\u{1}'     // "start of heading" (sent with Ctrl-a)

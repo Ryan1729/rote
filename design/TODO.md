@@ -8,7 +8,7 @@
             * mnemonically pleasant
             * fits with existing Ctrl-Tab
             * but is there anything left? 
-                * There are the four traditional modifier keys: Ctrl, Shift, Alt and "Super"/"Windows". We'll abbreviate them below.
+                * There are the four traditional modifier keys: Ctrl, Shift, Alt and "Super"/"Windows", (winit calls this the Logo key). We'll abbreviate them below.
                 * This table shows the modifier keys with the Tab key and whetter they are taken or not, and why.
                     W    A    S    C    Taken
                     0    0    0    0    Yes: indent
@@ -69,6 +69,8 @@
         * That key is not available on some laptop keyboards, so we'll want an alternate way. 
             * clicakble menu button?
                 * we can use U+2261 ≡ "IDENTICAL TO"
+    * I'll note here that keyboard shortcuts are, and should remain, a platform-layer phenomenon. This is just an
+        improvement to the wimp platform layer.
 
 * fix slowness that shows up when selecting things with the mouse
     * seems to have appeared when the parsing started so we could probably just start caching

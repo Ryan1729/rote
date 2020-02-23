@@ -49,6 +49,7 @@ pub enum Input {
     NewScratchBuffer(Option<String>),
     TabIn,
     TabOut,
+    MoveBuffer(BufferMove),
     NextBuffer,
     PreviousBuffer,
     NextLanguage,
@@ -59,6 +60,31 @@ pub enum Input {
     SubmitForm,
 }
 d!(for Input : Input::None);
+
+#[derive(Clone, Copy, Debug)]
+pub enum BufferMove {
+    Left,
+    Right,
+    ToStart,
+    ToEnd,
+}
+
+macro_rules! buffer_move_to_num {
+    ($m: expr) => {{
+        use BufferMove::*;
+        match $m {
+            Left => 0,
+            Right => 1,
+            ToStart => 2,
+            ToEnd => 3,
+        }
+    }};
+}
+
+ord!(and friends for BufferMove: buffer_move, other in 
+        buffer_move_to_num!(buffer_move)
+            .cmp(&buffer_move_to_num!(other))
+);
 
 #[derive(Clone, Copy, Default, Debug)]
 pub struct BufferId {
