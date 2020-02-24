@@ -33,6 +33,10 @@
             need to select the tabs somehow for the same reason: Ctrl-Shift-Home is used in text editing.
             * But we still want the tab functionality Ctrl-Shift-Home/End brings: sending a tab to the very beginning/end of the list.
             * Given we have Ctrl-Super-Tab meaning swap selected tab right, using Ctrl-Super-Home/End for this seems reasonable.
+            * this does the wrong thing (it swaps instead of moves), and we sometimes end up without a buffer selected.
+                * let's write a test for the no buffer selected thing against the editor.rs State struct, since the bug may well be in the combination of all these things.
+                    * we can also write a test for the proper ToStart and ToEnd behaviour against the State too.
+    
 
 * put all keyboard responses into a menu so that any command can be dispatched with the mouse or the keyboard.
     * keyboard responses should be defined in a single place where they end up in the menu and wired up to

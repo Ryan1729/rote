@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 601a568bad38593c81f157426e125785cf7fc312d500290ce6ce73a58870fa24 # shrinks to (previous_index, mut state, mut vector, (swap_i1, swap_i2)) = (Index { generation: 0, index: 5 }, State { current: 0, invalidation: RemovedAt(0) }, [3660081637250347465, 18293880129535223982, 4380167370645960593, 5069618756514270747, 16983951054639971746], (Index { generation: 0, index: 0 }, Index { generation: 0, index: 0 }))

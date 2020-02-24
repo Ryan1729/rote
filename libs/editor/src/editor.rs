@@ -192,7 +192,12 @@ impl EditorBuffers {
         g_i::Length::or_max(self.buffers.len())
     }
 
-    /// The index of the last buffer
+    /// The index of the first buffer.
+    fn first_index(&self) -> g_i::Index {
+        self.index_state.new_index(g_i::IndexPart::or_max(0))
+    }
+
+    /// The index of the last buffer.
     fn last_index(&self) -> g_i::Index {
         let len: usize = self.len().into();
         self.index_state.new_index(g_i::IndexPart::or_max(len - 1))
@@ -215,6 +220,19 @@ impl EditorBuffers {
         debug_assert!(will_fit);
         if will_fit {
             self.buffers.push(buffer);
+        }
+    }
+
+    fn swap_or_ignore(&mut self, index1: g_i::Index, index2: g_i::Index) {
+        if index1 < self.len() && index2 < self.len() {
+            if let Some((i1, i2)) = index1.get(self.index_state)
+                .and_then(|i1| {
+                    index2.get(self.index_state)
+                        .map(|i2| (i1, i2))
+                }) {
+                self.buffers.swap(i1, i2);
+                self.index_state.swapped_at_or_ignore(index1, index2);
+            }
         }
     }
 
@@ -352,26 +370,39 @@ impl State {
 
     fn move_buffer(&mut self, buffer_move: BufferMove) {
         use BufferMove::*;
-        match buffer_move {
-            Left,
-            Right,
-            ToStart,
-            ToEnd,
-        }
+        let target_index = match buffer_move {
+            Left => self.previous_index(),
+            Right => self.next_index(),
+            ToStart => self.buffers.first_index(),
+            ToEnd => self.buffers.last_index(),
+        };
+
+        self.buffers.swap_or_ignore(
+            target_index,
+            self.current_buffer_id.index,
+        );
     }
 
-    fn next_buffer(&mut self) {
-        self.set_id_index((self.current_buffer_id.index.saturating_add(1)) % self.buffers.len());
+    fn next_index(&self) -> g_i::Index {
+        (self.current_buffer_id.index.saturating_add(1)) % self.buffers.len()
     }
 
-    fn previous_buffer(&mut self) {
+    fn previous_index(&self) -> g_i::Index {
         let current_buffer_index = self.current_buffer_id.index;
         let i: usize = current_buffer_index.into();
-        self.set_id_index(if i == 0 {
+        if i == 0 {
             self.buffers.last_index()
         } else {
             current_buffer_index.saturating_sub(1)
-        });
+        }
+    }
+
+    fn select_next_buffer(&mut self) {
+        self.set_id_index(self.next_index());
+    }
+
+    fn select_previous_buffer(&mut self) {
+        self.set_id_index(self.previous_index());
     }
 
     fn set_id_index(&mut self, index: g_i::Index) {
@@ -831,10 +862,10 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             state.move_buffer(buffer_move);
         }
         NextBuffer => {
-            state.next_buffer();
+            state.select_next_buffer();
         }
         PreviousBuffer => {
-            state.previous_buffer();
+            state.select_previous_buffer();
         }
         SelectBuffer(id) => {
             state.set_id(id);

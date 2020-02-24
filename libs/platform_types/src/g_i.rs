@@ -167,11 +167,12 @@ impl State {
         self.advance(Invalidation::RemovedAt(index));
     }
 
-    /*
     pub fn swapped_at_or_ignore(&mut self, index1: Index, index2: Index) {
-
+        self.swapped_at_or_ignore_index_part(index1.index, index2.index);
     }
-    */
+    pub fn swapped_at_or_ignore_index_part(&mut self, index1: IndexPart, index2: IndexPart) {
+        self.advance(Invalidation::SwappedAt(index1, index2));
+    }
 
     /// Attempt to convert an index from a given gerneation to the current generation.
     pub fn migrate(self, index: Index) -> Option<Index> {
@@ -222,8 +223,9 @@ impl Index {
         if self.generation == state.current {
             Some(self.index)
         } else if self.generation == state.current.wrapping_sub(1) {
+            use Invalidation::*;
             match state.invalidation {
-                Invalidation::RemovedAt(i) => {
+                RemovedAt(i) => {
                     use std::cmp::Ordering::*;
                     // Imagine the vec looks like this:
                     // `vec![10, 11, 12, 13, 14]`.
@@ -236,6 +238,13 @@ impl Index {
                         Equal => None,
                         Less => Some(self.index),
                         Greater => (self.index.0).checked_sub(1).map(IndexPart),
+                    }
+                }
+                SwappedAt(i1, i2) => {
+                    match self.index {
+                        i if i == i1 => Some(i2),
+                        i if i == i2 => Some(i1),
+                        _ => Some(self.index)
                     }
                 }
             }
@@ -339,10 +348,10 @@ mod tests {
         }
     
         macro_rules! define_invalidation {
-            ($invalidation: ident, $max_len: ident, {
-                $($variant: pat => $strategy: expr),+
-            }) => {
-                fn $invalidation($max_len: LengthSize) -> impl Strategy<Value = Invalidation> {
+            ($invalidation: ident, $max_index: ident, 
+                $($variant: pat => $strategy: block),+
+            ) => {
+                fn $invalidation($max_index: LengthSize) -> impl Strategy<Value = Invalidation> {
                     use Invalidation::*;
                     // if this compiles then all variants are generated
                     fn match_compile_check(in_define_invalidation: Invalidation) {
@@ -354,29 +363,36 @@ mod tests {
                     prop_oneof![
                         $(
                             $strategy
-                        )+
+                        ),+
                     ]
                 }
             }
         }
 
         define_invalidation![
-            invalidation, max_len, {
-                RemovedAt(_) => index_part(max_len).prop_map(RemovedAt)
-            }
+            invalidation,
+            max_index,
+            RemovedAt(_) => { index_part(max_index).prop_map(RemovedAt) },
+            SwappedAt(_, _) => { 
+                (0..=max_index, 0..=max_index).prop_map(|(a, b)| {
+                    Invalidation::SwappedAt(
+                        IndexPart::or_max(a as usize),
+                        IndexPart::or_max(b as usize)
+                    )
+                })
+           }
         ];
-        // Invalidation::SwappedAt => (0..max_len, 0..max_len).prop_map(|a, b| Variant(a, b))
     
-        pub fn state(max_len: LengthSize) -> impl Strategy<Value = State> {
-            (any::<Generation>(), invalidation(max_len)).prop_map(|(current, invalidation)| State {
+        pub fn state(max_index: LengthSize) -> impl Strategy<Value = State> {
+            (any::<Generation>(), invalidation(max_index)).prop_map(|(current, invalidation)| State {
                 current,
                 invalidation,
             })
         }
 
         prop_compose!{
-            pub fn state_with_index(max_len: LengthSize)
-               (s in {state(max_len)}, i_p in index_part(max_len))
+            pub fn state_with_index(max_index: LengthSize)
+               (s in {state(max_index)}, i_p in index_part(max_index))
                -> (Index, State) {
                (Index::new_from_parts(s.current, i_p), s) 
             }
@@ -384,22 +400,40 @@ mod tests {
 
         prop_compose!{
             pub fn vector_with_valid_index(max_len: LengthSize)
-                (vector in proptest::collection::vec(any::<usize>(), 0usize..(max_len as _)))
-                ((i, s) in state_with_index(vector.len().try_into().unwrap()), v in Just(vector))
+                (vector in proptest::collection::vec(any::<usize>(), 1usize..(max_len as _)))
+                (
+                    (i, s) in state_with_index({ 
+                        let len: LengthSize = vector.len().try_into().unwrap();
+                        len - 1u32
+                    }),
+                    v in Just(vector)
+                )
                 -> (Index, State, Vec<usize>) {
                     (i, s, v)
             }
         }
 
+        pub type SwapTestKit = (Index, State, Vec<usize>, (Index, Index));
+
         prop_compose!{
             pub fn swap_test_kit(max_len: LengthSize)
                                 ((index, state, vector) in vector_with_valid_index(max_len))
                                 ((s_i1, s_i2) in (0..vector.len(), 0..vector.len()), (i, s, v) in Just((index, state, vector)))
-             -> (Index, State, Vec<usize>, (Index, Index)) {
+             -> SwapTestKit {
                 (i, s, v, (s.new_index_or_max(s_i1), s.new_index_or_max(s_i2)))
             }
         }
-    
+
+        proptest!{    
+            #[test]
+            fn swap_test_kit_always_returns_valid_indexes(
+                (previous_index, state, vector, (swap_i1, swap_i2)) in swap_test_kit(16)
+            ) {
+                vector.get(previous_index.get(state).expect("previous_index.get")).expect("vector.get with previous_index");
+                vector.get(swap_i1.get(state).expect("swap_i1.get")).expect("vector.get with swap_i1");
+                vector.get(swap_i2.get(state).expect("swap_i2.get")).expect("vector.get with swap_i2");
+            }
+        }
     }
 
     #[test]
@@ -431,18 +465,43 @@ mod tests {
         assert_eq!(current_vec[index_for_13.get(state).unwrap()], 13);
     }
 
+    fn every_previous_generation_index_works_after_a_swap_on(
+        (previous_index, mut state, mut vector, (swap_i1, swap_i2)): arb::SwapTestKit,
+    ) {
+        let previous_value = vector[previous_index.get(state).unwrap()];
+
+        vector.swap(swap_i1.get(state).unwrap(), swap_i2.get(state).unwrap());
+        state.swapped_at_or_ignore(swap_i1, swap_i2);
+
+        assert_eq!(
+            vector[previous_index.get(state).unwrap()],
+            previous_value,
+            "{:?} mapped to {:?} which corresponds to {} not {} in {:?}",
+            previous_index,
+            previous_index.get(state).unwrap(),
+            vector[previous_index.get(state).unwrap()],
+            previous_value,
+            vector,
+        );
+    }
+
     proptest!{
         #[test]
         fn every_previous_generation_index_works_after_a_swap(
-            (previous_index, mut state, mut vector, (swap_i1, swap_i2)) in arb::swap_test_kit(16),
+            kit in arb::swap_test_kit(16),
         ) {
-            let previous_value = vector[previous_index.get(state).unwrap()];
-
-            vector.swap(swap_i1.get(state).unwrap(), swap_i2.get(state).unwrap());
-            state.swapped_at_or_ignore(swap_i1, swap_i2);
-
-            assert_eq!(vector[previous_index.get(state).unwrap()], previous_value);
+            every_previous_generation_index_works_after_a_swap_on(kit);
         }
+    }
+
+    #[test]
+    fn every_previous_generation_index_works_after_a_swap_in_this_generated_case() {
+        every_previous_generation_index_works_after_a_swap_on((
+            d!(),
+            d!(),
+            vec![5069618756514270747, 16983951054639971746],
+            (Index::new_from_parts(0, IndexPart::or_max(1)), d!())
+        ));
     }
 }
 
