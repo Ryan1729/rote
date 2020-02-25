@@ -298,6 +298,31 @@ macro_rules! d {
     };
 }
 
+/// This is intended mainly for enum imports.
+/// So 
+/// ```
+/// use SomeEnum::*;
+/// ```
+/// can become
+/// ```
+/// u!{SomeEnum}
+/// ```
+/// which is four characters shorter.
+/// In my opinion it is no less understandable, so it seems worth the import in cases
+/// where it is used in more than `"macros::{u};".len()/4 == 3` usages.
+#[macro_export]
+macro_rules! u {
+    ($path: path) => {
+        use $path::*;
+    };
+    () => {
+        /// This seems like the most common use case that that is not specific to a particular file.
+        /// Note that you cannot always use this to import itself, so you may need to spell out either
+        /// `use super::*;` or the macro import. 
+        use super::*;
+    }
+}
+
 #[macro_export]
 macro_rules! fmt_display {
     ($(<$generics:tt>)? for $name:ty : $pattern:pat in $($args:tt)+) => (

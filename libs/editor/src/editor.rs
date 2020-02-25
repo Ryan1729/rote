@@ -1,5 +1,5 @@
 use editor_types::{Cursor, Vec1};
-use macros::{d, SaturatingAdd, SaturatingSub};
+use macros::{d, u, SaturatingAdd, SaturatingSub};
 use platform_types::{screen_positioning::*, *};
 use parsers::{Parsers, ParserKind};
 
@@ -70,221 +70,325 @@ impl ClipboardHistory {
     }
 }
 
-#[derive(Debug, Default)]
-struct ScrollableBuffer {
-    text_buffer: TextBuffer,
-    scroll: ScrollXY,
-}
+/// This module was originally created to make sure every change to the current index went 
+/// through a single path so we could more easily track down a bug where the index was 
+/// improperly set.
+mod editor_buffers {
+    use super::*;
 
-fn try_to_show_cursors_on(
-    buffer: &mut ScrollableBuffer,
-    xywh: TextBoxXYWH,
-    char_dim: CharDim,
-) -> VisibilityAttemptResult {
-    let scroll = &mut buffer.scroll;
-    let cursors = buffer.text_buffer.borrow_cursors_vec();
-
-    // We try first with this smaller xywh to make the cursor appear
-    // in the center more often.
-    let mut small_xywh = xywh.clone();
-    //small_xywh.xy.x += small_xywh.wh.w / 4.0;
-    //small_xywh.wh.w /= 2.0;
-    small_xywh.xy.y += small_xywh.wh.h / 4.0;
-    small_xywh.wh.h /= 2.0;
-
-    let mut attempt_result;
-    attempt_result = attempt_to_make_sure_at_least_one_cursor_is_visible(
-        scroll,
-        small_xywh,
-        char_dim,
-        cursors,
-    );
-
-    if attempt_result != VisibilityAttemptResult::Succeeded {
-        dbg!();
+    #[derive(Debug, Default)]
+    pub struct ScrollableBuffer {
+        pub text_buffer: TextBuffer,
+        pub scroll: ScrollXY,
+    }
+    
+    pub fn try_to_show_cursors_on(
+        buffer: &mut ScrollableBuffer,
+        xywh: TextBoxXYWH,
+        char_dim: CharDim,
+    ) -> VisibilityAttemptResult {
+        let scroll = &mut buffer.scroll;
+        let cursors = buffer.text_buffer.borrow_cursors_vec();
+    
+        // We try first with this smaller xywh to make the cursor appear
+        // in the center more often.
+        let mut small_xywh = xywh.clone();
+        //small_xywh.xy.x += small_xywh.wh.w / 4.0;
+        //small_xywh.wh.w /= 2.0;
+        small_xywh.xy.y += small_xywh.wh.h / 4.0;
+        small_xywh.wh.h /= 2.0;
+    
+        let mut attempt_result;
         attempt_result = attempt_to_make_sure_at_least_one_cursor_is_visible(
             scroll,
-            xywh,
+            small_xywh,
             char_dim,
             cursors,
         );
+    
+        if attempt_result != VisibilityAttemptResult::Succeeded {
+            dbg!();
+            attempt_result = attempt_to_make_sure_at_least_one_cursor_is_visible(
+                scroll,
+                xywh,
+                char_dim,
+                cursors,
+            );
+        }
+    
+        attempt_result
     }
 
-    attempt_result
-}
+    #[derive(Debug, Default)]
+    pub struct SearchResults {
+        pub needle: String,
+        pub ranges: Vec<(Position, Position)>,
+        pub current_range: usize,
+    }
+    
+    pub fn update_search_results(needle: &TextBuffer, haystack: &mut EditorBuffer) {
+        perf_viz::record_guard!("update_search_results");
+        let ranges = get_search_ranges(
+            needle.borrow_rope().full_slice(),
+            &haystack.scrollable.text_buffer.borrow_rope(),
+            d!(),
+            d!(),
+        );
+    
+        //TODO: Set `current_range` to something as close as possible to being on screen of haystack
+        haystack.search_results = SearchResults {
+            needle: needle.into(),
+            ranges,
+            current_range: 0,
+        };
+    }
 
-#[derive(Debug, Default)]
-struct EditorBuffer {
-    scrollable: ScrollableBuffer,
-    name: BufferName,
-    search_results: SearchResults,
-    // If this is none, then it was not set by the user, and
-    // we will use the default.
-    parser_kind: Option<ParserKind>,
-}
-
-impl EditorBuffer {
-    fn new<I: Into<TextBuffer>>(name: BufferName, s: I) -> Self {
-        Self {
-            name,
-            scrollable: ScrollableBuffer {
-                text_buffer: s.into(),
+    #[derive(Debug, Default)]
+    pub struct EditorBuffer {
+        pub scrollable: ScrollableBuffer,
+        pub name: BufferName,
+        pub search_results: SearchResults,
+        // If this is none, then it was not set by the user, and
+        // we will use the default.
+        pub parser_kind: Option<ParserKind>,
+    }
+    
+    impl EditorBuffer {
+        pub fn new<I: Into<TextBuffer>>(name: BufferName, s: I) -> Self {
+            Self {
+                name,
+                scrollable: ScrollableBuffer {
+                    text_buffer: s.into(),
+                    ..d!()
+                },
                 ..d!()
-            },
-            ..d!()
-        }
-    }
-
-    fn get_parser_kind(&self) -> ParserKind {
-        use ParserKind::*;
-        self.parser_kind.unwrap_or_else(|| {
-            match self.name.get_extension_or_empty() {
-                "rs" => Rust(d!()),
-                _ => Plaintext,
-            }
-        })
-    }
-}
-
-#[derive(Debug, Default)]
-struct SearchResults {
-    needle: String,
-    ranges: Vec<(Position, Position)>,
-    current_range: usize,
-}
-
-fn update_search_results(needle: &TextBuffer, haystack: &mut EditorBuffer) {
-    perf_viz::record_guard!("update_search_results");
-    let ranges = get_search_ranges(
-        needle.borrow_rope().full_slice(),
-        &haystack.scrollable.text_buffer.borrow_rope(),
-        d!(),
-        d!(),
-    );
-
-    //TODO: Set `current_range` to something as close as possible to being on screen of haystack
-    haystack.search_results = SearchResults {
-        needle: needle.into(),
-        ranges,
-        current_range: 0,
-    };
-}
-
-/// The collection of files opened for editing, and/or in-memory scratch buffers.
-/// Guarenteed to have at least one buffer in it at all times.
-#[derive(Default)]
-struct EditorBuffers {
-    buffers: Vec1<EditorBuffer>,
-    index_state: g_i::State,
-}
-
-impl EditorBuffers {
-    fn new(buffer: EditorBuffer) -> Self {
-        Self {
-            buffers: Vec1::new(buffer),
-            ..d!()
-        }
-    }
-
-    /// Since there is always at least one buffer, this always returns at least 1.
-    fn len(&self) -> g_i::Length {
-        debug_assert!(self.buffers.len() <= g_i::Length::max_value());
-        g_i::Length::or_max(self.buffers.len())
-    }
-
-    /// The index of the first buffer.
-    fn first_index(&self) -> g_i::Index {
-        self.index_state.new_index(g_i::IndexPart::or_max(0))
-    }
-
-    /// The index of the last buffer.
-    fn last_index(&self) -> g_i::Index {
-        let len: usize = self.len().into();
-        self.index_state.new_index(g_i::IndexPart::or_max(len - 1))
-    }
-
-    fn get_mut(&mut self, index: g_i::Index) -> Option<&mut EditorBuffer> {
-        index
-            .get(self.index_state)
-            .and_then(move |i| self.buffers.get_mut(i))
-    }
-
-    fn get(&self, index: g_i::Index) -> Option<&EditorBuffer> {
-        index
-            .get(self.index_state)
-            .and_then(|i| self.buffers.get(i))
-    }
-
-    fn push(&mut self, buffer: EditorBuffer) {
-        let will_fit = self.buffers.len() < g_i::Length::max_value();
-        debug_assert!(will_fit);
-        if will_fit {
-            self.buffers.push(buffer);
-        }
-    }
-
-    fn swap_or_ignore(&mut self, index1: g_i::Index, index2: g_i::Index) {
-        if index1 < self.len() && index2 < self.len() {
-            if let Some((i1, i2)) = index1.get(self.index_state)
-                .and_then(|i1| {
-                    index2.get(self.index_state)
-                        .map(|i2| (i1, i2))
-                }) {
-                self.buffers.swap(i1, i2);
-                self.index_state.swapped_at_or_ignore(index1, index2);
             }
         }
-    }
-
-    fn remove_if_present(&mut self, index: g_i::Index) -> Option<EditorBuffer> {
-        if index < self.len() {
-            index.get(self.index_state).and_then(|i| {
-                let output = self.buffers.try_remove(i).ok();
-
-                if output.is_some() {
-                    // No reason to update the index state if we didn't remove anything.
-                    self.index_state.removed_at(index);
+    
+        pub fn get_parser_kind(&self) -> ParserKind {
+            u!{ParserKind}
+            self.parser_kind.unwrap_or_else(|| {
+                match self.name.get_extension_or_empty() {
+                    "rs" => Rust(d!()),
+                    _ => Plaintext,
                 }
-
-                output
             })
-        } else {
-            None
+        }
+    
+        pub fn reset_cursor_states(&mut self) {
+            self.scrollable.text_buffer.reset_cursor_states();
+        }
+    }
+
+    /// The collection of files opened for editing, and/or in-memory scratch buffers.
+    /// Guarenteed to have at least one buffer in it at all times.
+    #[derive(Default)]
+    pub struct EditorBuffers {
+        buffers: Vec1<EditorBuffer>,
+        index_state: g_i::State,
+        current_index: g_i::Index,
+    }
+    
+    impl EditorBuffers {
+        pub fn new(buffer: EditorBuffer) -> Self {
+            Self {
+                buffers: Vec1::new(buffer),
+                ..d!()
+            }
+        }
+    
+        /// Since there is always at least one buffer, this always returns at least 1.
+        pub fn len(&self) -> g_i::Length {
+            debug_assert!(self.buffers.len() <= g_i::Length::max_value());
+            g_i::Length::or_max(self.buffers.len())
+        }
+    
+        /// The index of the first buffer.
+        pub fn first_index(&self) -> g_i::Index {
+            self.index_state.new_index(g_i::IndexPart::or_max(0))
+        }
+    
+        /// The index of the last buffer.
+        pub fn last_index(&self) -> g_i::Index {
+            let len: usize = self.len().into();
+            self.index_state.new_index(g_i::IndexPart::or_max(len - 1))
+        }
+
+        /// The index of the currectly selected buffer.
+        pub fn current_index(&self) -> g_i::Index {
+            self.current_index
+        }
+    
+        pub fn get_mut(&mut self, index: g_i::Index) -> Option<&mut EditorBuffer> {
+            index
+                .get(self.index_state)
+                .and_then(move |i| self.buffers.get_mut(i))
+        }
+    
+        pub fn get(&self, index: g_i::Index) -> Option<&EditorBuffer> {
+            index
+                .get(self.index_state)
+                .and_then(|i| self.buffers.get(i))
+        }
+    
+        pub fn set_current_index(&mut self, index: g_i::Index) {
+            if index < self.len() {
+                self.current_index = index;
+
+                if let Some(buffer) = self.get_mut(self.current_index) {
+                    // These need to be cleared so that the `platform_types::View` that is passed down
+                    // can be examined to detemine if the user wants to navigate away from the given
+                    // buffer. We do this with each buffer, even though a client might only care about
+                    // buffers of a given menu kind, since a different client might care about different
+                    // ones, including plain `Text` buffers.
+                    buffer.reset_cursor_states();
+                }
+            }
+        }
+
+        pub fn get_current_buffer(&self) -> Option<&EditorBuffer> {
+            self.get(self.current_index())
+        }
+
+        pub fn get_current_buffer_mut(&mut self) -> Option<&mut EditorBuffer> {
+            self.get_mut(self.current_index())
+        }
+
+        pub fn push(&mut self, buffer: EditorBuffer) {
+            let will_fit = self.buffers.len() < g_i::Length::max_value();
+            debug_assert!(will_fit);
+            if will_fit {
+                self.buffers.push(buffer);
+            }
+        }
+
+        pub fn move_buffer(&mut self, buffer_move: BufferMove) {
+            u!{BufferMove}
+            let target_index = match buffer_move {
+                Left => self.previous_index(),
+                Right => self.next_index(),
+                ToStart => self.first_index(),
+                ToEnd => self.last_index(),
+            };
+    
+            self.swap_or_ignore(
+                target_index,
+                self.current_index,
+            );
+        }
+
+        pub fn close_buffer(&mut self, index: g_i::Index) {
+            self.remove_if_present(index);
+
+            self.set_current_index(
+                self.index_state
+                .migrate(self.current_index)
+                .or_else(|| self.index_state.migrate(self.previous_index()))
+                .unwrap_or_else(||
+                    // if the current index is zero and we remove it we end up pointing at the new
+                    // first element. In this case, this is desired.
+                    self.index_state.new_index(d!())
+                )
+            );
+        }
+
+        pub fn select_next_buffer(&mut self) {
+            self.set_current_index(self.next_index());
+        }
+
+        pub fn select_previous_buffer(&mut self) {
+            self.set_current_index(self.previous_index());
+        }
+
+        pub fn next_index(&self) -> g_i::Index {
+            (self.current_index.saturating_add(1)) % self.len()
+        }
+
+        pub fn previous_index(&self) -> g_i::Index {
+            let current_buffer_index = self.current_index;
+            let i: usize = current_buffer_index.into();
+            if i == 0 {
+                self.last_index()
+            } else {
+                current_buffer_index.saturating_sub(1)
+            }
+        }
+    
+        pub fn swap_or_ignore(&mut self, index1: g_i::Index, index2: g_i::Index) {
+            if index1 < self.len() && index2 < self.len() {
+                if let Some((i1, i2)) = index1.get(self.index_state)
+                    .and_then(|i1| {
+                        index2.get(self.index_state)
+                            .map(|i2| (i1, i2))
+                    }) {
+                    self.buffers.swap(i1, i2);
+                    self.index_state.swapped_at_or_ignore(index1, index2);
+                }
+            }
+        }
+    
+        pub fn remove_if_present(&mut self, index: g_i::Index) -> Option<EditorBuffer> {
+            if index < self.len() {
+                index.get(self.index_state).and_then(|i| {
+                    let output = self.buffers.try_remove(i).ok();
+    
+                    if output.is_some() {
+                        // No reason to update the index state if we didn't remove anything.
+                        self.index_state.removed_at(index);
+                    }
+    
+                    output
+                })
+            } else {
+                None
+            }
+        }
+
+        pub fn index_state(&self) -> g_i::State {
+            self.index_state
+        }
+    }
+    
+    pub struct IterWithIndexes<'iter> {
+        index: g_i::Index,
+        iter: std::slice::Iter<'iter, EditorBuffer>,
+    }
+    
+    impl<'iter> Iterator for IterWithIndexes<'iter> {
+        type Item = (g_i::Index, &'iter EditorBuffer);
+    
+        fn next(&mut self) -> Option<Self::Item> {
+            self.iter.next().map(|b| {
+                let i = self.index.clone();
+    
+                self.index = self.index.saturating_add(1);
+    
+                (i, b)
+            })
+        }
+    }
+    
+    impl EditorBuffers {
+        pub fn iter(&self) -> std::slice::Iter<EditorBuffer> {
+            self.buffers.iter()
+        }
+    
+        pub fn iter_with_indexes(&self) -> IterWithIndexes {
+            IterWithIndexes {
+                index: d!(),
+                iter: self.iter(),
+            }
         }
     }
 }
-
-struct IterWithIndexes<'iter> {
-    index: g_i::Index,
-    iter: std::slice::Iter<'iter, EditorBuffer>,
-}
-
-impl<'iter> Iterator for IterWithIndexes<'iter> {
-    type Item = (g_i::Index, &'iter EditorBuffer);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.iter.next().map(|b| {
-            let i = self.index.clone();
-
-            self.index = self.index.saturating_add(1);
-
-            (i, b)
-        })
-    }
-}
-
-impl EditorBuffers {
-    fn iter(&self) -> std::slice::Iter<EditorBuffer> {
-        self.buffers.iter()
-    }
-
-    fn iter_with_indexes(&self) -> IterWithIndexes {
-        IterWithIndexes {
-            index: d!(),
-            iter: self.iter(),
-        }
-    }
-}
+use editor_buffers::{
+    EditorBuffers, 
+    EditorBuffer, 
+    SearchResults, 
+    update_search_results, 
+    ScrollableBuffer, 
+    try_to_show_cursors_on
+};
 
 #[derive(Default)]
 pub struct State {
@@ -292,7 +396,7 @@ pub struct State {
     // visible_buffers: VisibleBuffers,
     buffers: EditorBuffers,
     buffer_xywh: TextBoxXYWH,
-    current_buffer_id: BufferId,
+    current_buffer_kind: BufferIdKind,
     menu_mode: MenuMode,
     file_switcher: ScrollableBuffer,
     file_switcher_results: FileSwitcherResults,
@@ -310,15 +414,11 @@ pub struct State {
 // this macro helps the borrow checker figure out that borrows are valid.
 macro_rules! get_scrollable_buffer_mut {
     /* -> Option<&mut ScrollableBuffer> */
-    ($state: expr) => {
-        get_scrollable_buffer_mut!($state, $state.current_buffer_id)
-    };
-    ($state: expr, $id: expr) => {{
-        use BufferIdKind::*;
-        let id = $id;
-        match $id.kind {
+    ($state: expr) => {{
+        u!{BufferIdKind}
+        match $state.current_buffer_kind {
             None => Option::None,
-            Text => $state.buffers.get_mut(id.index).map(|b| &mut b.scrollable),
+            Text => $state.buffers.get_current_buffer_mut().map(|b| &mut b.scrollable),
             Find => Some(&mut $state.find),
             Replace => Some(&mut $state.replace),
             FileSwitcher => Some(&mut $state.file_switcher),
@@ -369,59 +469,28 @@ impl State {
     }
 
     fn move_buffer(&mut self, buffer_move: BufferMove) {
-        use BufferMove::*;
-        let target_index = match buffer_move {
-            Left => self.previous_index(),
-            Right => self.next_index(),
-            ToStart => self.buffers.first_index(),
-            ToEnd => self.buffers.last_index(),
-        };
-
-        self.buffers.swap_or_ignore(
-            target_index,
-            self.current_buffer_id.index,
-        );
-    }
-
-    fn next_index(&self) -> g_i::Index {
-        (self.current_buffer_id.index.saturating_add(1)) % self.buffers.len()
-    }
-
-    fn previous_index(&self) -> g_i::Index {
-        let current_buffer_index = self.current_buffer_id.index;
-        let i: usize = current_buffer_index.into();
-        if i == 0 {
-            self.buffers.last_index()
-        } else {
-            current_buffer_index.saturating_sub(1)
-        }
+        self.buffers.move_buffer(buffer_move);
     }
 
     fn select_next_buffer(&mut self) {
-        self.set_id_index(self.next_index());
+        self.buffers.select_next_buffer();
     }
 
     fn select_previous_buffer(&mut self) {
-        self.set_id_index(self.previous_index());
+        self.buffers.select_previous_buffer();
     }
 
-    fn set_id_index(&mut self, index: g_i::Index) {
-        if index < self.buffers.len() {
-            self.current_buffer_id.index = index;
-        }
+    fn close_buffer(&mut self, index: g_i::Index) {
+        self.buffers.close_buffer(index);
+    }
+
+    fn get_id(&self) -> BufferId {
+        b_id!(self.current_buffer_kind, self.buffers.current_index())
     }
 
     fn set_id(&mut self, id: BufferId) {
-        if id.index < self.buffers.len() {
-            self.current_buffer_id = id;
-
-            if let Some(buffer) = get_scrollable_buffer_mut!(self) {
-                // These need to be cleared so that the `platform_types::View` that is passed down
-                // can be examined to detemine if the user wants to navigate away from the given
-                // buffer
-                buffer.text_buffer.reset_cursor_states();
-            }
-        }
+        self.current_buffer_kind = id.kind;
+        self.buffers.set_current_index(id.index);
     }
 
     fn add_or_select_buffer(&mut self, name: BufferName, str: String) {
@@ -457,25 +526,32 @@ impl State {
         output.wrapping_add(1)
     }
 
+    fn get_current_buffer(&self) -> Option<&EditorBuffer> {
+        self.buffers.get_current_buffer()
+    }
+
+    fn get_current_buffer_mut(&mut self) -> Option<&mut EditorBuffer> {
+        self.buffers.get_current_buffer_mut()
+    }
+
     fn get_current_char_dim(&self) -> CharDim {
-        Self::char_dim_for_buffer_kind(&self.font_info, self.current_buffer_id.kind)
+        Self::char_dim_for_buffer_kind(&self.font_info, self.current_buffer_kind)
     }
 
     fn char_dim_for_buffer_kind(font_info: &FontInfo, kind: BufferIdKind) -> CharDim {
-        use BufferIdKind::*;
+        u!{BufferIdKind}
         match kind {
             Text => font_info.text_char_dim,
-            // None uses the same char_dim as the menus since it represents keybaord naviagaion in
+            // None uses the same char_dim as the menus since it represents keyboard navigation in
             // the menus.
             None | Find | Replace | FileSwitcher | GoToPosition => font_info.find_replace_char_dim,
         }
     }
 
-    fn try_to_show_cursors_on(&mut self, id: BufferId) -> Option<()> {
-        use BufferIdKind::*;
+    fn try_to_show_cursors_on(&mut self, kind: BufferIdKind) -> Option<()> {
+        u!{BufferIdKind}
 
-        let buffer = get_scrollable_buffer_mut!(self, id)?;
-        let kind = id.kind;
+        let buffer = get_scrollable_buffer_mut!(self)?;
         let xywh = match kind {
             None => return Option::None,
             Text => self.buffer_xywh,
@@ -496,19 +572,21 @@ impl State {
     }
 
     fn set_menu_mode(&mut self, mode: MenuMode) {
+        let current_index = self.buffers.current_index();
+
         self.menu_mode = mode;
         match mode {
             MenuMode::GoToPosition => {
-                self.set_go_to_position_id(self.current_buffer_id.index);
+                self.set_go_to_position_id(current_index);
             }
             MenuMode::FileSwitcher => {
-                self.set_file_switcher_id(self.current_buffer_id.index);
+                self.set_file_switcher_id(current_index);
             }
             MenuMode::FindReplace(_) => {
-                self.set_find_id(self.current_buffer_id.index);
+                self.set_find_id(current_index);
             }
             MenuMode::Hidden => {
-                self.set_text_id(self.current_buffer_id.index);
+                self.set_text_id(current_index);
             }
         }
     }
@@ -606,10 +684,10 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
 
     macro_rules! try_to_show_cursors {
         () => {
-            try_to_show_cursors!(state.current_buffer_id)
+            try_to_show_cursors!(state.current_buffer_kind)
         };
-        ($id: expr) => {
-            state.try_to_show_cursors_on($id);
+        ($kind: expr) => {
+            state.try_to_show_cursors_on($kind);
             // TODO trigger error popup based on result?
         };
     }
@@ -618,7 +696,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
         () => {
             match state.menu_mode {
                 MenuMode::Hidden | MenuMode::FindReplace(_) => {            
-                    if let Some(target_buffer) = state.buffers.get_mut(state.current_buffer_id.index) {
+                    if let Some(target_buffer) = state.buffers.get_current_buffer_mut() {
                         update_search_results(&state.find.text_buffer, target_buffer);
                     }
                 }
@@ -639,7 +717,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
     macro_rules! post_edit_sync {
         () => {
             buffer_view_sync!();
-            edited_buffer_index = Some(state.current_buffer_id.index);
+            edited_buffer_index = Some(state.buffers.current_index());
         };
     }
 
@@ -654,7 +732,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             editor_buffer_call!($buffer $tokens)
         }};
         ($buffer: ident $tokens:block) => {{
-            if let Some($buffer) = state.buffers.get_mut(state.current_buffer_id.index) {
+            if let Some($buffer) = state.buffers.get_current_buffer_mut() {
                 $tokens;
             }
         }}
@@ -709,7 +787,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
         };
     }
 
-    use Input::*;
+    u!{Input}
     match input {
         Input::None => {}
         Quit => {}
@@ -893,17 +971,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             }
         }
         CloseBuffer(index) => {
-            state.buffers.remove_if_present(index);
-
-            let index_state = state.buffers.index_state;
-
-            state.current_buffer_id.index = index_state
-                .migrate(state.current_buffer_id.index)
-                .or_else(|| index_state.migrate(state.current_buffer_id.index.saturating_sub(1)))
-                .unwrap_or_else(||
-                    // if the current index is zero and we remove it we end up pointing at the new
-                    // first element. In this case, this is desired.
-                    index_state.new_index(d!()));
+            state.close_buffer(index);
         }
         SetMenuMode(mode) => {
             if mode == MenuMode::Hidden {
@@ -967,15 +1035,14 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                 );
             });
         }
-        SubmitForm => match state.current_buffer_id.kind {
+        SubmitForm => match state.current_buffer_kind {
             BufferIdKind::None | BufferIdKind::Text => {}
             BufferIdKind::Find => match state.find_replace_mode() {
                 Option::None => {
                     debug_assert!(false, "state.find_replace_mode() returned None");
                 }
                 Some(FindReplaceMode::CurrentFile) => {
-                    let i = state.current_buffer_id.index;
-                    if let Some(haystack) = state.buffers.get_mut(i) {
+                    if let Some(haystack) = state.buffers.get_current_buffer_mut() {
                         let needle = &state.find.text_buffer;
                         let needle_string: String = needle.into();
                         if needle_string == haystack.search_results.needle {
@@ -998,7 +1065,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                                         .scrollable
                                         .text_buffer
                                         .set_cursor(c, ReplaceOrAdd::Replace);
-                                    try_to_show_cursors!(b_id!(BufferIdKind::Text, i));
+                                    try_to_show_cursors!(BufferIdKind::Text);
                                 }
                             }
                         } else {
@@ -1009,14 +1076,14 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                 }
             },
             BufferIdKind::Replace => {
-                let i = state.current_buffer_id.index;
+                let i = state.buffers.current_index();
                 dbg!("TODO BufferIdKind::Replace {}", i);
             }
             BufferIdKind::GoToPosition => {
                 text_buffer_call!(b{
                     let input: String = b.into();
                     if let Ok(position) = parse_for_go_to_position(&input) {
-                        if let Some(edit_b) = state.buffers.get_mut(state.current_buffer_id.index) {
+                        if let Some(edit_b) = state.get_current_buffer_mut() {
                             edit_b.scrollable.text_buffer.set_cursor(position, ReplaceOrAdd::Replace);
                             state.set_menu_mode(MenuMode::Hidden);
                             try_to_show_cursors!();

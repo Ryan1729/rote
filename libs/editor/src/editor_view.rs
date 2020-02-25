@@ -66,10 +66,13 @@ fn editor_to_buffer_view_data(
 
 #[perf_viz::record]
 pub fn render(
-    &mut State {
+    state: &mut State,
+    view: &mut View,
+) {
+    let current_buffer_id = state.get_id();
+    let  &mut State {
         ref buffers,
         font_info: FontInfo { text_char_dim, .. },
-        current_buffer_id,
         menu_mode,
         ref file_switcher_results,
         ref file_switcher,
@@ -81,10 +84,10 @@ pub fn render(
         },
         ref mut parsers,
         ..
-    }: &mut State,
-    view: &mut View,
-) {
-    view.index_state = buffers.index_state;
+    } = state;
+    
+
+    view.index_state = buffers.index_state();
 
     view.buffers.clear();
 

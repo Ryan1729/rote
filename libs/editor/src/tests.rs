@@ -1,8 +1,41 @@
 use super::*;
 use platform_types::pos;
 use editor_types::{cur, vec1};
+use macros::{u};
 
-use proptest::prelude::{Strategy};
+#[derive(Clone, Copy, Debug)]
+enum TabTweak {
+    Move(BufferMove),
+    SelectNext,
+    SelectPrevious,
+}
+
+impl TabTweak {
+    fn apply(self, buffers: &mut EditorBuffers) {
+        u!{TabTweak}
+        match {
+            Move(buffer_move) => buffers.move_buffer(buffer_move),
+            SelectNext => buffers.select_next(),
+            SelectPrevious => buffers.select_previous(),
+        }
+    }
+}
+
+mod arb {
+    use super::*;
+    use proptest::prelude::{Strategy};
+
+    pub fn at_least_one() -> impl Strategy<Value = f32> {
+        proptest::num::f32::POSITIVE.prop_map(|n| 
+            if n >= 1.0 {
+               n 
+            } else {
+                // NaN ends up here
+                1.0
+            }
+        )
+    }
+}
 
 fn update_and_render_shows_the_cursor_when_pressing_home_on(text: &str, buffer_xywh: TextBoxXYWH, char_dim: CharDim) {
     let mut state: State = text.into();
@@ -46,21 +79,6 @@ fn update_and_render_shows_the_cursor_when_pressing_home_in_this_case() {
         tbxywh!(0.0, 0.0, 256.0, 192.0),
         CharDim { w: 4.0, h: 8.0 }
     );
-}
-
-mod arb {
-    use super::*;
-
-    pub fn at_least_one() -> impl Strategy<Value = f32> {
-        proptest::num::f32::POSITIVE.prop_map(|n| 
-            if n >= 1.0 {
-               n 
-            } else {
-                // NaN ends up here
-                1.0
-            }
-        )
-    }
 }
 
 macro_rules! max_one {
@@ -142,15 +160,6 @@ fn update_and_render_shows_the_cursor_when_pressing_home() {
         }
     }).unwrap();
 }
-
-/*#[test]
-fn update_and_render_shows_the_cursor_when_pressing_home_in_this_generated_case() {
-    update_and_render_shows_the_cursor_when_pressing_home_on(
-        CURSOR_SHOW_TEXT,
-        tbxywh!(0.0, 0.0, 1803164.0, 1694881200000000000000.0),
-        CharDim { w: 1.0, h: 723643300000000000.0 }
-    );
-}*/
 
 /* this was from before I decided to change how the screen gets auto-scrolled along the x axis.
 #[test]
@@ -317,7 +326,31 @@ fn attempt_to_make_xy_visible_reports_correctly_in_this_case() {
     } else {
         assert_ne!(attempt_result, VisibilityAttemptResult::Succeeded, "false positive x = {}", scroll.x);
     }
-
-
 }
 
+fn no_tab_tweak_causes_getting_the_current_buffer_to_return_none(
+    mut state: State,
+    tweaks: Vec<TabTweak>,
+) {
+    // precondition
+    assert!(state.get_current_buffer().is_some(), "precondition failed");
+
+    for tweak in tweaks {
+        tweak.apply(&mut state);
+
+        assert!(state.get_current_buffer().is_some(), "{:?} caused get_current_buffer to return None", tweak);
+    }
+}
+
+proptest!{
+    #[test]
+    fn no_tab_tweak_causes_getting_the_current_buffer_to_return_none(
+        state in arb::editor_state(),
+        tweaks in arb::tab_tweaks(16),
+    ) {
+        no_tab_tweak_causes_getting_the_current_buffer_to_return_none_on(
+            state,
+            tweaks,
+        )
+    }
+}
