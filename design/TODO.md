@@ -88,6 +88,14 @@
         * also with Left and Right swapped
     * possible proptest: given you are not on either the first or final line, then Ctrl-Left should always move you at least one character back and Ctrl-Right should move you one character Right.
 
+* if multiple things are copied with multiple cursors then if they are pasted with the smae number of cursors then 
+    they should be pasted separately
+    * given the numbers are selected by three cursors represented by "|"
+        1|  copy then paste should be 11 not 1123 
+        2|                            22     2123 
+        3|                            33     3123
+
+
 * Ctrl-E to toggle single line comments
   * could probably reuse tab insertion/deletion code.
 

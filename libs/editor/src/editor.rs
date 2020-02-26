@@ -9,7 +9,7 @@ use text_buffer::{get_search_ranges, next_instance_of_selected, TextBuffer};
 
 mod editor_view;
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 struct ClipboardHistory {
     entries: VecDeque<String>,
     index: usize,
@@ -182,7 +182,7 @@ mod editor_buffers {
 
     /// The collection of files opened for editing, and/or in-memory scratch buffers.
     /// Guarenteed to have at least one buffer in it at all times.
-    #[derive(Default)]
+    #[derive(Debug, Default)]
     pub struct EditorBuffers {
         buffers: Vec1<EditorBuffer>,
         index_state: g_i::State,
@@ -390,7 +390,7 @@ use editor_buffers::{
     try_to_show_cursors_on
 };
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct State {
     // TODO side by side visible buffers
     // visible_buffers: VisibleBuffers,

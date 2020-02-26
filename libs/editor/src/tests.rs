@@ -1,7 +1,9 @@
 use super::*;
 use platform_types::pos;
 use editor_types::{cur, vec1};
+use arb_macros::{arb_enum};
 use macros::{u};
+use proptest::prelude::{proptest, Strategy};
 
 #[derive(Clone, Copy, Debug)]
 enum TabTweak {
@@ -13,7 +15,7 @@ enum TabTweak {
 impl TabTweak {
     fn apply(self, buffers: &mut EditorBuffers) {
         u!{TabTweak}
-        match {
+        match self {
             Move(buffer_move) => buffers.move_buffer(buffer_move),
             SelectNext => buffers.select_next(),
             SelectPrevious => buffers.select_previous(),
@@ -34,6 +36,15 @@ mod arb {
                 1.0
             }
         )
+    }
+
+    arb_enum!{
+        pub fn tab_tweak() -> TabTweak
+        {
+            Move(_) => buffer_move(),
+            SelectNext => Just(SelectNext),
+            SelectPrevious => Just(SelectPrevious),
+        }
     }
 }
 
@@ -328,7 +339,7 @@ fn attempt_to_make_xy_visible_reports_correctly_in_this_case() {
     }
 }
 
-fn no_tab_tweak_causes_getting_the_current_buffer_to_return_none(
+fn no_tab_tweak_causes_getting_the_current_buffer_to_return_none_on(
     mut state: State,
     tweaks: Vec<TabTweak>,
 ) {

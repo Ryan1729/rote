@@ -1,15 +1,3 @@
-/// This module contains functions that return trait objects implementing `proptest::Strategy`
-/// This allows producint arbitrary instances of the type `Strategy` is parameterized
-/// by. This is most useful in tests. Since consision in tests, regarding things not directly
-/// testing the code, is usually desired, we suggest that when using this crate that you make 
-/// an `arb` module in the crate containing the tests that imports this one. Then, inside there
-/// you can add custom `Strategy` producers for things only that crate cares about. If a crate 
-/// wishes to expose `Strategy` producers for other crates to use, then it can use its own 
-/// `pub_arb` module to do that. then the local `arb` module can import the `pub_arb` module 
-/// and `pub use` things from it. This structure is intended to avoid potential problems where 
-/// a module in a module chain three or more layers deep stops importing something from a crate
-/// and suddenly breaks an unrelated module's tests.
-
 use macros::{fmt_display};
 use proptest::prelude::*;
 use proptest::collection;
