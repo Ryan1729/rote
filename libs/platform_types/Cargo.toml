@@ -9,8 +9,8 @@ path = "./src/platform_types.rs"
 
 [dependencies]
 macros = { path = "../macros" }
-# TODO make this a dev-dep or a feature dep but allow importing `arb` in tests
-# elsewhere
-proptest = "0.9.3"
 
 [dev-dependencies]
+proptest = "0.9.5"
+arb_macros = { path = "../arb_macros" }
+

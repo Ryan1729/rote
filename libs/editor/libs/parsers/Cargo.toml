@@ -22,5 +22,5 @@ path = "../../../platform_types"
 [dev-dependencies]
 proptest = "0.9.5"
 
-[dev-dependencies.pub_arb]
-path = "../../../pub_arb"
+[dev-dependencies.pub_arb_rust_code]
+path = "../../../pub_arb/rust_code"

@@ -8,3 +8,4 @@ edition = "2018"
 path = "./src/arb_macros.rs"
 
 [dependencies]
+proptest = "0.9.5"

@@ -321,6 +321,7 @@ impl std::cmp::PartialEq<Length> for Index {
 mod tests {
     use super::*;
     use proptest::prelude::{proptest, Just};
+    use arb_macros::{arb_enum};
     
     pub mod arb {
         use super::*;
@@ -347,41 +348,19 @@ mod tests {
             (0..=max_len).prop_map(|i| IndexPart::or_max(i as _))
         }
     
-        macro_rules! define_invalidation {
-            ($invalidation: ident, $max_index: ident, 
-                $($variant: pat => $strategy: block),+
-            ) => {
-                fn $invalidation($max_index: LengthSize) -> impl Strategy<Value = Invalidation> {
-                    use Invalidation::*;
-                    // if this compiles then all variants are generated
-                    fn match_compile_check(in_define_invalidation: Invalidation) {
-                        match in_define_invalidation {
-                            $($variant => {})+
-                        }
-                    }
-
-                    prop_oneof![
-                        $(
-                            $strategy
-                        ),+
-                    ]
+        arb_enum!{
+            fn invalidation(max_index: LengthSize) -> Invalidation {
+                RemovedAt(_) => { index_part(max_index).prop_map(RemovedAt) },
+                SwappedAt(_, _) => { 
+                    (0..=max_index, 0..=max_index).prop_map(|(a, b)| {
+                        Invalidation::SwappedAt(
+                            IndexPart::or_max(a as usize),
+                            IndexPart::or_max(b as usize)
+                        )
+                    })
                 }
-            }
-        }
-
-        define_invalidation![
-            invalidation,
-            max_index,
-            RemovedAt(_) => { index_part(max_index).prop_map(RemovedAt) },
-            SwappedAt(_, _) => { 
-                (0..=max_index, 0..=max_index).prop_map(|(a, b)| {
-                    Invalidation::SwappedAt(
-                        IndexPart::or_max(a as usize),
-                        IndexPart::or_max(b as usize)
-                    )
-                })
            }
-        ];
+        }
     
         pub fn state(max_index: LengthSize) -> impl Strategy<Value = State> {
             (any::<Generation>(), invalidation(max_index)).prop_map(|(current, invalidation)| State {

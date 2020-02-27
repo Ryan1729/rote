@@ -5,7 +5,7 @@ const SOME_AMOUNT: usize = 16;
 
 mod arb {
     use proptest::{collection, sample, prelude::{Strategy, any}};
-    pub use pub_arb::rust_code;
+    pub use pub_arb_rust_code::rust_code;
 
     // TODO parse the /tree-sitter-rust/src/node-types.json file
     // so we get them all.

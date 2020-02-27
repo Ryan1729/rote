@@ -27,6 +27,8 @@ mod arb {
     use super::*;
     use proptest::prelude::{Strategy};
 
+    pub use pub_arb_platform_types::buffer_move;
+
     pub fn at_least_one() -> impl Strategy<Value = f32> {
         proptest::num::f32::POSITIVE.prop_map(|n| 
             if n >= 1.0 {
@@ -41,10 +43,14 @@ mod arb {
     arb_enum!{
         pub fn tab_tweak() -> TabTweak
         {
-            Move(_) => buffer_move(),
+            Move(_) => buffer_move().prop_map(Move),
             SelectNext => Just(SelectNext),
             SelectPrevious => Just(SelectPrevious),
         }
+    }
+
+    pub fn tab_tweaks(max_len: usize) -> impl Strategy<Value = Vec<TabTweak>> {
+        proptest::collection::vec(tab_tweak(), max_len)
     }
 }
 
@@ -340,27 +346,27 @@ fn attempt_to_make_xy_visible_reports_correctly_in_this_case() {
 }
 
 fn no_tab_tweak_causes_getting_the_current_buffer_to_return_none_on(
-    mut state: State,
+    mut editor_buffers: EditorBuffers,
     tweaks: Vec<TabTweak>,
 ) {
     // precondition
-    assert!(state.get_current_buffer().is_some(), "precondition failed");
+    assert!(editor_buffers.get_current_buffer().is_some(), "precondition failed");
 
     for tweak in tweaks {
-        tweak.apply(&mut state);
+        tweak.apply(&mut editor_buffers);
 
-        assert!(state.get_current_buffer().is_some(), "{:?} caused get_current_buffer to return None", tweak);
+        assert!(editor_buffers.get_current_buffer().is_some(), "{:?} caused get_current_buffer to return None", tweak);
     }
 }
 
 proptest!{
     #[test]
     fn no_tab_tweak_causes_getting_the_current_buffer_to_return_none(
-        state in arb::editor_state(),
+        editor_buffers in arb::editor_buffers(),
         tweaks in arb::tab_tweaks(16),
     ) {
         no_tab_tweak_causes_getting_the_current_buffer_to_return_none_on(
-            state,
+            editor_buffers,
             tweaks,
         )
     }
