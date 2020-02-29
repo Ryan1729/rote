@@ -4,8 +4,8 @@ use crate::tests::{
     arb::{TestEdit, TestEditSpec, *},
     deep_clone, SOME_AMOUNT, *,
 };
-use editor_types::{cur, vec1, Cursor};
-use platform_types::CursorState;
+use editor_types::{cur, Cursor};
+use platform_types::{CursorState, vec1};
 
 use arb::get_counts;
 

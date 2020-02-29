@@ -858,7 +858,9 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                                 call_u_and_r!(Input::Undo);
                             }
                             VirtualKeyCode::Tab => {
-                                call_u_and_r!(Input::NextBuffer);
+                                call_u_and_r!(Input::AdjustBufferSelection(
+                                    SelectionAdjustment::Next
+                                ));
                             }
                             _ => (),
                         },
@@ -923,7 +925,9 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                                 call_u_and_r!(Input::Redo);
                             }
                             VirtualKeyCode::Tab => {
-                                call_u_and_r!(Input::PreviousBuffer);
+                                call_u_and_r!(Input::AdjustBufferSelection(
+                                    SelectionAdjustment::Previous
+                                ));
                             }
                             _ => (),
                         },
@@ -1034,13 +1038,19 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                             ..
                         } if modifiers == LOGO | CTRL => match keypress {
                             VirtualKeyCode::Tab => {
-                                call_u_and_r!(Input::MoveBuffer(BufferMove::Right));
+                                call_u_and_r!(Input::AdjustBufferSelection(
+                                    SelectionAdjustment::Move(SelectionMove::Right)
+                                ));
                             }
                             VirtualKeyCode::Home => {
-                                call_u_and_r!(Input::MoveBuffer(BufferMove::ToStart));
+                                call_u_and_r!(Input::AdjustBufferSelection(
+                                    SelectionAdjustment::Move(SelectionMove::ToStart)
+                                ));
                             }
                             VirtualKeyCode::End => {
-                                call_u_and_r!(Input::MoveBuffer(BufferMove::ToEnd));
+                                call_u_and_r!(Input::AdjustBufferSelection(
+                                    SelectionAdjustment::Move(SelectionMove::ToEnd)
+                                ));
                             }
                             _ => {}
                         },
@@ -1055,7 +1065,9 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                             ..
                         } if modifiers == LOGO | CTRL | SHIFT => match keypress {
                             VirtualKeyCode::Tab => {
-                                call_u_and_r!(Input::MoveBuffer(BufferMove::Left));
+                                call_u_and_r!(Input::AdjustBufferSelection(
+                                    SelectionAdjustment::Move(SelectionMove::Left)
+                                ));
                             }
                             _ => {}
                         },

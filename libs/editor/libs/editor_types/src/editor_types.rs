@@ -1,5 +1,5 @@
 use macros::{d, fmt_debug, fmt_display, ord};
-use platform_types::{CharOffset, CursorState, Position, vec1, Vec1};
+use platform_types::{CharOffset, CursorState, Position};
 use std::borrow::Borrow;
 
 #[derive(Clone, Copy, Debug)]

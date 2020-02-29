@@ -2,6 +2,7 @@
 /// through a single path so we could more easily track down a bug where the index was 
 /// improperly set.
 use super::*;
+use g_i::SelectableVec1;
 
 #[derive(Debug, Default)]
 pub struct ScrollableBuffer {
@@ -111,7 +112,7 @@ impl EditorBuffer {
 /// Guaranteed to have at least one buffer in it at all times.
 #[derive(Debug, Default)]
 pub struct EditorBuffers {
-    buffers: SelectableVec1<A>,
+    buffers: SelectableVec1<EditorBuffer>,
 }
 
 impl EditorBuffers {
@@ -123,44 +124,18 @@ impl EditorBuffers {
     }
 
     /// Since there is always at least one buffer, this always returns at least 1.
-    /*pub fn len(&self) -> g_i::Length {
-        debug_assert!(self.buffers.len() <= g_i::Length::max_value());
-        g_i::Length::or_max(self.buffers.len())
-    }
-
-    /// The index of the first buffer.
-    pub fn first_index(&self) -> g_i::Index {
-        self.index_state.new_index(g_i::IndexPart::or_max(0))
-    }
-
-    /// The index of the last buffer.
-    pub fn last_index(&self) -> g_i::Index {
-        let len: usize = self.len().into();
-        self.index_state.new_index(g_i::IndexPart::or_max(len - 1))
+    pub fn len(&self) -> g_i::Length {
+        self.buffers.len()
     }
 
     /// The index of the currectly selected buffer.
     pub fn current_index(&self) -> g_i::Index {
-        self.current_index
-    }
-
-    pub fn get_mut(&mut self, index: g_i::Index) -> Option<&mut EditorBuffer> {
-        index
-            .get(self.index_state)
-            .and_then(move |i| self.buffers.get_mut(i))
-    }
-
-    pub fn get(&self, index: g_i::Index) -> Option<&EditorBuffer> {
-        index
-            .get(self.index_state)
-            .and_then(|i| self.buffers.get(i))
+        self.buffers.current_index()
     }
 
     pub fn set_current_index(&mut self, index: g_i::Index) {
-        if index < self.len() {
-            self.current_index = index;
-
-            if let Some(buffer) = self.get_mut(self.current_index) {
+        if self.buffers.set_current_index(index) {
+            if let Some(buffer) = self.buffers.get_mut(self.current_index()) {
                 // These need to be cleared so that the `platform_types::View` that is passed down
                 // can be examined to detemine if the user wants to navigate away from the given
                 // buffer. We do this with each buffer, even though a client might only care about
@@ -172,107 +147,53 @@ impl EditorBuffers {
     }
 
     pub fn get_current_buffer(&self) -> Option<&EditorBuffer> {
-        self.get(self.current_index())
+        self.buffers.get_current_element()
     }
 
     pub fn get_current_buffer_mut(&mut self) -> Option<&mut EditorBuffer> {
-        self.get_mut(self.current_index())
+        self.buffers.get_current_element_mut()
     }
 
-    pub fn push(&mut self, buffer: EditorBuffer) {
-        let will_fit = self.buffers.len() < g_i::Length::max_value();
-        debug_assert!(will_fit);
-        if will_fit {
-            self.buffers.push(buffer);
+    pub fn push_and_select_new(&mut self, buffer: EditorBuffer) {
+        self.buffers.push_and_select_new(buffer);
+    }
+
+    pub fn add_or_select_buffer(&mut self, name: BufferName, str: String) {
+        let matching_buffer_index = {
+            let mut index = None;
+            for (i, buffer) in self.buffers.iter_with_indexes() {
+                if buffer.name == name {
+                    index = Some(i);
+                    break;
+                }
+            }
+            index
+        };
+
+        if let Some(index) = matching_buffer_index {
+            self.set_current_index(index);
+        } else {
+            self.buffers.push_and_select_new(EditorBuffer::new(name, str));
+        };
+    }
+
+    pub fn set_path(&mut self, index: g_i::Index, path: PathBuf) {
+        if let Some(b) = self.buffers.get_mut(index) {
+            (*b).name = BufferName::Path(path);
         }
     }
 
-    pub fn move_buffer(&mut self, buffer_move: BufferMove) {
-        u!{BufferMove}
-        let target_index = match buffer_move {
-            Left => self.previous_index(),
-            Right => self.next_index(),
-            ToStart => self.first_index(),
-            ToEnd => self.last_index(),
-        };
-
-        self.swap_or_ignore(
-            target_index,
-            self.current_index,
-        );
+    pub fn adjust_selection(&mut self, adjustment: SelectionAdjustment) {
+        self.buffers.adjust_selection(adjustment);
     }
 
     pub fn close_buffer(&mut self, index: g_i::Index) {
-        self.remove_if_present(index);
-
-        self.set_current_index(
-            self.index_state
-            .migrate(self.current_index)
-            .or_else(|| self.index_state.migrate(self.previous_index()))
-            .unwrap_or_else(||
-                // if the current index is zero and we remove it we end up pointing at the new
-                // first element. In this case, this is desired.
-                self.index_state.new_index(d!())
-            )
-        );
-    }
-
-    pub fn select_next(&mut self) {
-        self.set_current_index(self.next_index());
-    }
-
-    pub fn select_previous(&mut self) {
-        self.set_current_index(self.previous_index());
-    }
-
-    pub fn next_index(&self) -> g_i::Index {
-        (self.current_index.saturating_add(1)) % self.len()
-    }
-
-    pub fn previous_index(&self) -> g_i::Index {
-        let current_buffer_index = self.current_index;
-        let i: usize = current_buffer_index.into();
-        if i == 0 {
-            self.last_index()
-        } else {
-            current_buffer_index.saturating_sub(1)
-        }
-    }
-
-    pub fn swap_or_ignore(&mut self, index1: g_i::Index, index2: g_i::Index) {
-        if index1 < self.len() && index2 < self.len() {
-            if let Some((i1, i2)) = index1.get(self.index_state)
-                .and_then(|i1| {
-                    index2.get(self.index_state)
-                        .map(|i2| (i1, i2))
-                }) {
-                self.buffers.swap(i1, i2);
-                self.index_state.swapped_at_or_ignore(index1, index2);
-            }
-        }
-    }
-
-    pub fn remove_if_present(&mut self, index: g_i::Index) -> Option<EditorBuffer> {
-        if index < self.len() {
-            index.get(self.index_state).and_then(|i| {
-                let output = self.buffers.try_remove(i).ok();
-
-                if output.is_some() {
-                    // No reason to update the index state if we didn't remove anything.
-                    self.index_state.removed_at(index);
-                }
-
-                output
-            })
-        } else {
-            None
-        }
+        self.buffers.remove_if_present(index);
     }
 
     pub fn index_state(&self) -> g_i::State {
-        self.index_state
+        self.buffers.index_state()
     }
-*/
 }
 
 impl EditorBuffers {

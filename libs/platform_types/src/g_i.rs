@@ -1,6 +1,6 @@
 /// A module containg a Generational Index implementation
 use macros::{d, u, fmt_debug, fmt_display, ord, SaturatingAdd, SaturatingSub};
-use crate::{vec1, Vec1, SelectionMove};
+use crate::{Vec1};
 pub type Generation = u32;
 type LengthSize = u32;
 
@@ -317,6 +317,46 @@ impl std::cmp::PartialEq<Length> for Index {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub enum SelectionMove {
+    Left,
+    Right,
+    ToStart,
+    ToEnd,
+}
+
+macro_rules! selection_move_to_num {
+    ($m: expr) => {{
+        use SelectionMove::*;
+        match $m {
+            Left => 0,
+            Right => 1,
+            ToStart => 2,
+            ToEnd => 3,
+        }
+    }};
+}
+
+ord!(and friends for SelectionMove: (selection_move) {
+    selection_move_to_num!(selection_move)
+});
+
+#[derive(Clone, Copy, Debug)]
+pub enum SelectionAdjustment {
+    Next,
+    Previous,
+    Move(SelectionMove),
+}
+
+ord!(and friends for SelectionAdjustment: (adjustment){
+        use SelectionAdjustment::*;
+        match adjustment {
+            Next => 0,
+            Previous => 1,
+            Move(m) => 2 + selection_move_to_num!(m),
+        }
+});
+
 /// A Vec1 that uses `Index`es and has a notion that one of the elements is
 /// "selected" or is "the current element". This "selected" element can be borrowed
 /// and the operations that change the currently selected index and/or move the selected
@@ -346,26 +386,34 @@ impl<A> SelectableVec1<A> {
         }
     }
 
-    /// Since there is always at least one buffer, this always returns at least 1.
+    /// Since there is always at least one element, this always returns at least 1.
     pub fn len(&self) -> Length {
         debug_assert!(self.elements.len() <= Length::max_value());
         Length::or_max(self.elements.len())
     }
 
-    /// The index of the first buffer.
+    /// The index of the first element.
     pub fn first_index(&self) -> Index {
         self.index_state.new_index(IndexPart::or_max(0))
     }
 
-    /// The index of the last buffer.
+    /// The index of the last element.
     pub fn last_index(&self) -> Index {
         let len: usize = self.len().into();
         self.index_state.new_index(IndexPart::or_max(len - 1))
     }
 
-    /// The index of the currectly selected buffer.
+    /// The index of the currectly selected element.
     pub fn current_index(&self) -> Index {
         self.current_index
+    }
+
+    pub fn get_current_element(&self) -> Option<&A> {
+        self.get(self.current_index())
+    }
+
+    pub fn get_current_element_mut(&mut self) -> Option<&mut A> {
+        self.get_mut(self.current_index())
     }
 
     pub fn get_mut(&mut self, index: Index) -> Option<&mut A> {
@@ -384,22 +432,21 @@ impl<A> SelectableVec1<A> {
     /// the passed index. Returns `true` if the index actually changed, and `false`
     /// otherwise.
     pub fn set_current_index(&mut self, index: Index) -> bool {
-        let valid = self.get(index).is_some();
-        if valid {
+        let mut valid = false;
+        if let Some(index) = self.index_state.migrate(index) {
             self.current_index = index;
+            valid = true;
         }
         valid
     }
 
-    pub fn get_current_buffer(&self) -> Option<&A> {
-        self.get(self.current_index())
+    pub fn push_and_select_new(&mut self, element: A) {
+        self.push(element);
+
+        self.set_current_index(self.last_index());
     }
 
-    pub fn get_current_buffer_mut(&mut self) -> Option<&mut A> {
-        self.get_mut(self.current_index())
-    }
-
-    pub fn push(&mut self, element: A) {
+    fn push(&mut self, element: A) {
         let will_fit = self.elements.len() < Length::max_value();
         debug_assert!(will_fit);
         if will_fit {
@@ -407,22 +454,29 @@ impl<A> SelectableVec1<A> {
         }
     }
 
-    pub fn move_selected(&mut self, selection_move: SelectionMove) {
-        u!{SelectionMove}
-        let target_index = match selection_move {
-            Left => self.previous_index(),
-            Right => self.next_index(),
-            ToStart => self.first_index(),
-            ToEnd => self.last_index(),
-        };
-
-        self.swap_or_ignore(
-            target_index,
-            self.current_index,
-        );
+    pub fn adjust_selection(&mut self, adjustment: SelectionAdjustment) {
+        u!{SelectionAdjustment}
+        match adjustment {
+            Next => { self.set_current_index(self.next_index()); },
+            Previous => { self.set_current_index(self.previous_index()); },
+            Move(selection_move) => {
+                u!{SelectionMove}
+                let target_index = match selection_move {
+                    Left => self.previous_index(),
+                    Right => self.next_index(),
+                    ToStart => self.first_index(),
+                    ToEnd => self.last_index(),
+                };
+        
+                self.swap_or_ignore(
+                    target_index,
+                    self.current_index,
+                );
+            },
+        }
     }
 
-    pub fn close_buffer(&mut self, index: Index) {
+    pub fn close_element(&mut self, index: Index) {
         self.remove_if_present(index);
 
         self.set_current_index(
@@ -437,25 +491,17 @@ impl<A> SelectableVec1<A> {
         );
     }
 
-    pub fn select_next(&mut self) {
-        self.set_current_index(self.next_index());
-    }
-
-    pub fn select_previous(&mut self) {
-        self.set_current_index(self.previous_index());
-    }
-
     pub fn next_index(&self) -> Index {
         (self.current_index.saturating_add(1)) % self.len()
     }
 
     pub fn previous_index(&self) -> Index {
-        let current_buffer_index = self.current_index;
-        let i: usize = current_buffer_index.into();
+        let current_element_index = self.current_index;
+        let i: usize = current_element_index.into();
         if i == 0 {
             self.last_index()
         } else {
-            current_buffer_index.saturating_sub(1)
+            current_element_index.saturating_sub(1)
         }
     }
 
@@ -468,12 +514,20 @@ impl<A> SelectableVec1<A> {
                 }) {
                 self.elements.swap(i1, i2);
                 self.index_state.swapped_at_or_ignore(index1, index2);
+
+                // We specifically do not swap (or we double swap if you prefer,)
+                // so that the selection will follow the swapping.
+                if self.current_index == index1 {
+                    self.set_current_index(index1);
+                } else if self.current_index == index2 {
+                    self.set_current_index(index2);
+                }
             }
         }
     }
 
     pub fn remove_if_present(&mut self, index: Index) -> Option<A> {
-        if index < self.len() {
+        let output = if index < self.len() {
             index.get(self.index_state).and_then(|i| {
                 let output = self.elements.try_remove(i).ok();
 
@@ -486,7 +540,22 @@ impl<A> SelectableVec1<A> {
             })
         } else {
             None
+        };
+
+        if output.is_some() {
+            self.set_current_index(
+                self.index_state
+                .migrate(self.current_index)
+                .or_else(|| self.index_state.migrate(self.previous_index()))
+                .unwrap_or_else(||
+                    // if the current index is zero and we remove it we end up pointing at the new
+                    // first element. In this case, this is desired.
+                    self.index_state.new_index(d!())
+                )
+            );
         }
+
+        output
     }
 
     pub fn index_state(&self) -> State {
@@ -531,27 +600,49 @@ mod tests {
     use super::*;
     use proptest::prelude::{proptest, Just};
     use arb_macros::{arb_enum};
+    use vec1::{vec1};
+
+    macro_rules! g_i_s {
+        (g $generation: literal i $index: literal) => {
+            State::new_removed_at($generation, IndexPart::or_max($index))
+        }
+    }
     
+    impl State {
+        pub fn new_removed_at(current: Generation, index_part: IndexPart) -> Self {
+            State {
+                current,
+                invalidation: Invalidation::RemovedAt(index_part),
+            }
+        }
+    }
+
+    macro_rules! g_i_i {
+        (g $generation: literal i $index: literal) => {
+            Index::new_from_parts($generation, IndexPart::or_max($index))
+        }
+    }
+
+    impl Index {
+        pub fn new_from_parts(generation: Generation, index: IndexPart) -> Self {
+            Index { generation, index }
+        }
+    }
+
+    macro_rules! g_i_as {
+        ($($tokens: tt)*) => {{
+            u!{SelectionAdjustment}
+            u!{SelectionMove}
+
+            vec![$($tokens)*]
+        }}
+    }
+
     pub mod arb {
         use super::*;
-        use proptest::prelude::{any, Strategy, prop_compose, prop_oneof};
+        use proptest::prelude::{any, Strategy, prop_compose};
 
         use std::convert::TryInto;
-    
-        impl State {
-            pub fn new_removed_at(current: Generation, index_part: IndexPart) -> Self {
-                State {
-                    current,
-                    invalidation: Invalidation::RemovedAt(index_part),
-                }
-            }
-        }
-    
-        impl Index {
-            pub fn new_from_parts(generation: Generation, index: IndexPart) -> Self {
-                Index { generation, index }
-            }
-        }
     
         pub fn index_part(max_len: LengthSize) -> impl Strategy<Value = IndexPart> {
             (0..=max_len).prop_map(|i| IndexPart::or_max(i as _))
@@ -588,7 +679,7 @@ mod tests {
 
         prop_compose!{
             pub fn vector_with_valid_index(max_len: LengthSize)
-                (vector in proptest::collection::vec(any::<usize>(), 1usize..(max_len as _)))
+                (vector in proptest::collection::vec(any::<i32>(), 1usize..(max_len as _)))
                 (
                     (i, s) in state_with_index({ 
                         let len: LengthSize = vector.len().try_into().unwrap();
@@ -596,12 +687,12 @@ mod tests {
                     }),
                     v in Just(vector)
                 )
-                -> (Index, State, Vec<usize>) {
+                -> (Index, State, Vec<i32>) {
                     (i, s, v)
             }
         }
 
-        pub type SwapTestKit = (Index, State, Vec<usize>, (Index, Index));
+        pub type SwapTestKit = (Index, State, Vec<i32>, (Index, Index));
 
         prop_compose!{
             pub fn swap_test_kit(max_len: LengthSize)
@@ -620,6 +711,52 @@ mod tests {
                 vector.get(previous_index.get(state).expect("previous_index.get")).expect("vector.get with previous_index");
                 vector.get(swap_i1.get(state).expect("swap_i1.get")).expect("vector.get with swap_i1");
                 vector.get(swap_i2.get(state).expect("swap_i2.get")).expect("vector.get with swap_i2");
+            }
+        }
+
+        prop_compose!{
+            pub fn selectable_vec1_of_i32(max_len: LengthSize)
+                                ((index, state, vector) in vector_with_valid_index(max_len))
+                                ((current_index, index_state) in Just((index, state)), elements in Just(vec1::Vec1::try_from_vec(vector).unwrap()))
+             -> SelectableVec1<i32> {
+                SelectableVec1 {
+                    elements,
+                    index_state,
+                    current_index,
+                }
+            }
+        }
+
+        arb_enum!{
+            pub fn selection_move() -> SelectionMove {
+                Left => Just(Left),
+                Right => Just(Right),
+                ToStart => Just(ToStart),
+                ToEnd => Just(ToEnd),
+            }
+        }
+
+        prop_compose!{
+            pub fn selection_moves(max_len: LengthSize)
+                    (vector in proptest::collection::vec(selection_move(), 0usize..(max_len as _)))
+             -> Vec<SelectionMove> {
+                vector
+            }
+        }
+
+        arb_enum!{
+            pub fn selection_adjustment() -> SelectionAdjustment {
+                Next => Just(Next),
+                Previous => Just(Previous),
+                Move(_) => selection_move().prop_map(Move),
+            }
+        }
+
+        prop_compose!{
+            pub fn selection_adjustments(max_len: LengthSize)
+                    (vector in proptest::collection::vec(selection_adjustment(), 0usize..(max_len as _)))
+             -> Vec<SelectionAdjustment> {
+                vector
             }
         }
     }
@@ -687,9 +824,105 @@ mod tests {
         every_previous_generation_index_works_after_a_swap_on((
             d!(),
             d!(),
-            vec![5069618756514270747, 16983951054639971746],
+            vec![506961, 1698395105],
             (Index::new_from_parts(0, IndexPart::or_max(1)), d!())
         ));
+    }
+
+    fn no_selection_adjustment_causes_getting_the_current_element_to_return_none_on<A: std::fmt::Debug>(
+        mut s_vec1: SelectableVec1<A>,
+        adjustments: Vec<SelectionAdjustment>,
+    ) {
+        // precondition
+        assert!(s_vec1.get_current_element().is_some(), "precondition failed on {:?}", s_vec1);
+    
+        for (i, adjustment) in adjustments.into_iter().enumerate() {
+            dbg!(&s_vec1);
+
+            s_vec1.adjust_selection(adjustment);
+
+            dbg!(&s_vec1);
+    
+            assert!(
+                s_vec1.get_current_element().is_some(),
+                "{:?} (index {}) caused get_current_element to return None",
+                adjustment,
+                i
+            );
+        }
+    }
+    
+    proptest!{
+        #[test]
+        fn no_selection_adjustment_causes_getting_the_current_element_to_return_none(
+            s_vec1 in arb::selectable_vec1_of_i32(16),
+            adjustments in arb::selection_adjustments(16),
+        ) {
+            no_selection_adjustment_causes_getting_the_current_element_to_return_none_on(
+                s_vec1,
+                adjustments,
+            )
+        }
+    }
+
+    #[test]
+    fn no_selection_adjustment_causes_getting_the_current_element_to_return_none_in_this_generated_case() {
+        let s_vec1 = SelectableVec1{
+            elements: vec1![12654029],
+            index_state: g_i_s!(g 39631998 i 0),
+            current_index: g_i_i!(g 39631998 i 0),
+        };
+
+        let adjustments = g_i_as![Next, Move(ToStart), Move(Right), Next, Move(Right), Next, Next, Move(ToEnd), Next, Previous, Next, Next, Next, Previous];
+        
+        no_selection_adjustment_causes_getting_the_current_element_to_return_none_on(
+            s_vec1,
+            adjustments,
+        )
+    }
+
+    #[test]
+    fn no_selection_adjustment_causes_getting_the_current_element_to_return_none_in_this_reduced_case() {
+        no_selection_adjustment_causes_getting_the_current_element_to_return_none_on(
+            SelectableVec1::new(0),
+            g_i_as![Next, Move(ToStart), Move(Right)],
+        )
+    }
+
+    fn no_selection_move_causes_getting_the_current_element_to_return_a_different_element_on(
+        mut s_vec1: SelectableVec1<i32>,
+        moves: Vec<SelectionMove>,
+    ) {
+        let previous_element = *s_vec1.get_current_element().expect("precondition failed");
+    
+        for (i, r#move) in moves.into_iter().enumerate() {
+            dbg!(&s_vec1);
+
+            s_vec1.adjust_selection(SelectionAdjustment::Move(r#move));
+
+            dbg!(&s_vec1);
+    
+            assert_eq!(
+                *s_vec1.get_current_element().expect("get_current_element returned None"),
+                previous_element,
+                "{:?} (index {}) caused the current element to change",
+                r#move,
+                i
+            );
+        }
+    }
+
+    proptest!{
+        #[test]
+        fn no_selection_move_causes_getting_the_current_element_to_return_a_different_element(
+            s_vec1 in arb::selectable_vec1_of_i32(16),
+            moves in arb::selection_moves(16),
+        ) {
+            no_selection_move_causes_getting_the_current_element_to_return_a_different_element_on(
+                s_vec1,
+                moves,
+            )
+        }
     }
 }
 

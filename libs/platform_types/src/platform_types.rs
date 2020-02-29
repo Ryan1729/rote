@@ -14,6 +14,7 @@ mod move_mod;
 pub use move_mod::Move;
 
 pub mod g_i;
+pub use g_i::{SelectionAdjustment, SelectionMove};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ReplaceOrAdd {
@@ -51,9 +52,7 @@ pub enum Input {
     NewScratchBuffer(Option<String>),
     TabIn,
     TabOut,
-    MoveBuffer(SelectionMove),
-    NextBuffer,
-    PreviousBuffer,
+    AdjustBufferSelection(SelectionAdjustment),
     NextLanguage,
     SelectBuffer(BufferId),
     OpenOrSelectBuffer(PathBuf),
@@ -63,30 +62,6 @@ pub enum Input {
 }
 d!(for Input : Input::None);
 
-#[derive(Clone, Copy, Debug)]
-pub enum SelectionMove {
-    Left,
-    Right,
-    ToStart,
-    ToEnd,
-}
-
-macro_rules! selection_move_to_num {
-    ($m: expr) => {{
-        use SelectionMove::*;
-        match $m {
-            Left => 0,
-            Right => 1,
-            ToStart => 2,
-            ToEnd => 3,
-        }
-    }};
-}
-
-ord!(and friends for SelectionMove: selection_move, other in 
-        selection_move_to_num!(selection_move)
-            .cmp(&selection_move_to_num!(other))
-);
 
 #[derive(Clone, Copy, Default, Debug)]
 pub struct BufferId {

@@ -5,3 +5,4 @@
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
 cc 601a568bad38593c81f157426e125785cf7fc312d500290ce6ce73a58870fa24 # shrinks to (previous_index, mut state, mut vector, (swap_i1, swap_i2)) = (Index { generation: 0, index: 5 }, State { current: 0, invalidation: RemovedAt(0) }, [3660081637250347465, 18293880129535223982, 4380167370645960593, 5069618756514270747, 16983951054639971746], (Index { generation: 0, index: 0 }, Index { generation: 0, index: 0 }))
+cc 8a2d9c741470dd35863882e6bc43f23296002ae8a001fe1effb8421bcaf83373 # shrinks to s_vec1 = SelectableVec1 { elements: Vec1([-56362]), index_state: State { current: 11091585, invalidation: SwappedAt(0, 0) }, current_index: Index { generation: 11091585, index: 0 } }, adjustments = [Move(ToStart), Previous, Next, Next, Previous, Move(Right), Next, Previous, Move(Left), Move(Right), Previous, Next, Next, Move(Right)]

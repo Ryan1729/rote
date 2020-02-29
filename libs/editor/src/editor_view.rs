@@ -103,8 +103,8 @@ pub fn render(
     view.status_line.chars.clear();
     view.visible_buffer = d!();
 
-    let current_buffer_index = current_buffer_id.index;
-    match buffers.get(current_buffer_index) {
+    let current_buffer_index = buffers.current_index();
+    match buffers.get_current_buffer() {
         Some(EditorBuffer {
             scrollable:
                 ScrollableBuffer {

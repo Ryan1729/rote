@@ -1,4 +1,4 @@
-use editor_types::{Cursor, Vec1};
+use editor_types::{Cursor};
 use macros::{d, u, SaturatingAdd, SaturatingSub};
 use platform_types::{screen_positioning::*, *};
 use parsers::{Parsers, ParserKind};
@@ -158,16 +158,8 @@ impl State {
         d!()
     }
 
-    fn move_buffer(&mut self, buffer_move: BufferMove) {
-        self.buffers.move_buffer(buffer_move);
-    }
-
-    fn select_next(&mut self) {
-        self.buffers.select_next();
-    }
-
-    fn select_previous(&mut self) {
-        self.buffers.select_previous();
+    fn adjust_buffer_selection(&mut self, adjustment: SelectionAdjustment) {
+        self.buffers.adjust_selection(adjustment);
     }
 
     fn close_buffer(&mut self, index: g_i::Index) {
@@ -184,23 +176,9 @@ impl State {
     }
 
     fn add_or_select_buffer(&mut self, name: BufferName, str: String) {
-        let index = if let Some(index) = self.matching_buffer_index(&name) {
-            index
-        } else {
-            self.buffers.push(EditorBuffer::new(name, str));
-            self.buffers.last_index()
-        };
+        self.buffers.add_or_select_buffer(name, str);
 
-        self.set_text_id(index);
-    }
-
-    fn matching_buffer_index(&self, name: &BufferName) -> Option<g_i::Index> {
-        for (i, buffer) in self.buffers.iter_with_indexes() {
-            if &buffer.name == name {
-                return Some(i);
-            }
-        }
-        None
+        self.current_buffer_kind = BufferIdKind::Text;
     }
 
     fn next_scratch_buffer_number(&self) -> u32 {
@@ -588,9 +566,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             });
         }
         SetBufferPath(buffer_index, path) => {
-            if let Some(b) = state.buffers.get_mut(buffer_index) {
-                (*b).name = BufferName::Path(path);
-            }
+            state.buffers.set_path(buffer_index, path);
         }
         Cut => buffer_call!(sync b {
             if let Some(s) = state.clipboard_history.cut(&mut b.text_buffer) {
@@ -614,11 +590,11 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             buffer_view_sync!();
         }
         NewScratchBuffer(data_op) => {
-            state.buffers.push(EditorBuffer::new(
+            state.buffers.push_and_select_new(EditorBuffer::new(
                 BufferName::Scratch(state.next_scratch_buffer_number()),
                 data_op.unwrap_or_default(),
             ));
-            state.set_text_id(state.buffers.last_index());
+            state.current_buffer_kind = BufferIdKind::Text;
         }
         TabIn => {
             text_buffer_call!(sync b.tab_in());
@@ -626,14 +602,8 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
         TabOut => {
             text_buffer_call!(sync b.tab_out());
         }
-        MoveBuffer(buffer_move) => {
-            state.move_buffer(buffer_move);
-        }
-        NextBuffer => {
-            state.select_next();
-        }
-        PreviousBuffer => {
-            state.select_previous();
+        AdjustBufferSelection(adjustment) => {
+            state.adjust_buffer_selection(adjustment);
         }
         SelectBuffer(id) => {
             state.set_id(id);

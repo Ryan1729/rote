@@ -134,7 +134,7 @@ fmt_display!(for RustType : t in "{}", match t {
 });
 
 pub fn rust_expression(max_size: usize) -> impl Strategy<Value = (String, RustType)> {
-    rust_type().prop_flat_map(rust_expression_from_type)
+    rust_type(max_size).prop_flat_map(rust_expression_from_type)
 }
 
 fn rust_expression_from_type(t: RustType) -> impl Strategy<Value = (String, RustType)> {
@@ -149,7 +149,7 @@ fn rust_expression_from_type(t: RustType) -> impl Strategy<Value = (String, Rust
     }
 }
 
-pub fn rust_type() -> impl Strategy<Value = RustType> {
+pub fn rust_type(_max_size: usize) -> impl Strategy<Value = RustType> {
     rust_primitive_type().prop_map(RustType::Primitive)
 }
 

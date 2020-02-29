@@ -1,4 +1,4 @@
-// Assumes `Add` is already impl'd
+/// Assumes `Add` is already impl'd
 #[macro_export]
 macro_rules! add_assign {
     (for $name: ty) => {
@@ -19,7 +19,7 @@ macro_rules! add_assign {
     };
 }
 
-// Assumes `Sub` is already impl'd
+/// Assumes `Sub` is already impl'd
 #[macro_export]
 macro_rules! sub_assign {
     (for $name: ty) => {
@@ -42,6 +42,24 @@ macro_rules! sub_assign {
 
 #[macro_export]
 macro_rules! ord {
+    (and friends for $name:ty : ($instance:ident) $code:block) => {
+        $crate::ord!(and friends for $name : ordable1, ordable2 in {
+            fn get_key($instance: &$name) -> impl std::cmp::Ord {
+                $code
+            }
+
+            get_key(ordable1).cmp(&get_key(ordable2))
+        });
+    };
+    (for $name:ty : ($instance:ident) $code:block) => {
+        $crate::ord!(for $name : ordable1, ordable2 in {
+            fn get_key($instance: &$name) -> impl std::cmp::Ord {
+                $code
+            }
+
+            get_key(ordable1).cmp(&get_key(ordable2))
+        });
+    };
     (and friends for $name:ty : $self:ident, $other:ident in $code:expr) => {
         $crate::ord!(for $name : $self, $other in $code);
 
@@ -73,33 +91,98 @@ macro_rules! ord {
     };
 }
 
-// TODO move these traits into their own crate?
-// that would require users to import that other crate unless we re-export.
+#[test]
+fn ord_works_in_this_key_function_case_example() {
+    enum OrdBool {
+        False,
+        True
+    }
+
+    ord!(and friends for OrdBool: (o) {
+        use OrdBool::*;
+        match o {
+            False => 0,
+            True => 1,
+        }
+    });
+
+    // it impls Ord
+    assert!(OrdBool::False < OrdBool::True);
+    // it impls PartialEq
+    assert!(OrdBool::False != OrdBool::True);
+}
+
+#[test]
+fn ord_works_in_this_nested_key_function_case_example() {
+    enum OrdBool {
+        False,
+        True
+    }
+    
+    macro_rules! ord_bool_key {
+        ($o: expr) => {{
+            use OrdBool::*;
+            match $o {
+                False => 0,
+                True => 1,
+            }
+        }}
+    }
+
+    // precondition
+    ord!(and friends for OrdBool: (o) {
+        ord_bool_key!(o)
+    });
+
+    enum OrdOptBool {
+        Some(OrdBool),
+        None
+    }
+
+    ord!(and friends for OrdOptBool: (o) {
+        use OrdOptBool::*;
+        match o {
+            None => 0,
+            Some(b) => 1 + ord_bool_key!(b),
+        }
+    });
+
+    // it impls Ord
+    assert!(OrdOptBool::None < OrdOptBool::Some(OrdBool::True));
+    // it impls PartialEq
+    assert!(OrdOptBool::None != OrdOptBool::Some(OrdBool::True));
+}
 
 /// The versions from num-traits don't allow the operands or the result to be different types.
-pub trait CheckedAdd<Rhs = Self> {
-    type Output;
+pub mod traits {
+    // TODO move these Add/Sub traits into their own crate?
+    // that would require users to import that other crate unless we re-export.
 
-    fn checked_add(self, rhs: Rhs) -> Option<Self::Output>;
+    pub trait CheckedAdd<Rhs = Self> {
+        type Output;
+    
+        fn checked_add(self, rhs: Rhs) -> Option<Self::Output>;
+    }
+    
+    pub trait CheckedSub<Rhs = Self> {
+        type Output;
+    
+        fn checked_sub(self, rhs: Rhs) -> Option<Self::Output>;
+    }
+    
+    pub trait SaturatingAdd<Rhs = Self> {
+        type Output;
+    
+        fn saturating_add(self, rhs: Rhs) -> Self::Output;
+    }
+    
+    pub trait SaturatingSub<Rhs = Self> {
+        type Output;
+    
+        fn saturating_sub(self, rhs: Rhs) -> Self::Output;
+    }
 }
-
-pub trait CheckedSub<Rhs = Self> {
-    type Output;
-
-    fn checked_sub(self, rhs: Rhs) -> Option<Self::Output>;
-}
-
-pub trait SaturatingAdd<Rhs = Self> {
-    type Output;
-
-    fn saturating_add(self, rhs: Rhs) -> Self::Output;
-}
-
-pub trait SaturatingSub<Rhs = Self> {
-    type Output;
-
-    fn saturating_sub(self, rhs: Rhs) -> Self::Output;
-}
+u!{pub traits}
 
 #[macro_export]
 macro_rules! usize_newtype {
@@ -278,6 +361,7 @@ macro_rules! integer_newtype {
     };
 }
 
+/// Short for `Default::default()`, also makes implementing `Default` more terse.
 #[macro_export]
 macro_rules! d {
     () => {
@@ -298,20 +382,28 @@ macro_rules! d {
     };
 }
 
+/// Short for `use something::*;`.
+/// 
 /// This is intended mainly for enum imports.
 /// So 
-/// ```
+/// ```rust
+/// # enum SomeEnum { /* ... */ }
 /// use SomeEnum::*;
 /// ```
 /// can become
-/// ```
+/// ```rust
+/// # enum SomeEnum { /* ... */ }
+/// # use macros::{u};
 /// u!{SomeEnum}
 /// ```
-/// which is four characters shorter.
-/// In my opinion it is no less understandable, so it seems worth the import in cases
-/// where it is used in more than `"macros::{u};".len()/4 == 3` usages.
+/// which is four characters shorter, plus th import which gets amortized over all usages
+/// in the file. In my opinion it is no less understandable, so it seems worth the import
+/// in cases where it is used in more than `"macros::{u};".len()/4 == 3` usages.
 #[macro_export]
 macro_rules! u {
+    ($vis: vis $path: path) => {
+        $vis use $path::*;
+    };
     ($path: path) => {
         use $path::*;
     };
@@ -415,6 +507,7 @@ macro_rules! dg {
     };
 }
 
+/// Shortens expressions that evaluate to the usual `[f32; 4] type` used for representing colour.
 #[macro_export]
 macro_rules! c {
     (
@@ -517,8 +610,10 @@ macro_rules! invariant_assert_eq {
     ($($whatever:tt)*) => {};
 }
 
-// This is only slightly nicer to use than using the body of the macro directly, but
-// it's nice to have all the features stuff in one place as a form of documentation.
+/// Short for `cfg!(feature = "invariant-checking")`
+///
+/// This is only slightly nicer to use than using the body of the macro directly, but
+/// it's nice to have all the features stuff in one place as a form of documentation.
 #[macro_export]
 macro_rules! invariants_checked {
     () => {{
