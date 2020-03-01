@@ -144,6 +144,7 @@ impl std::cmp::PartialEq<Length> for IndexPart {
 enum Invalidation {
     RemovedAt(IndexPart),
     SwappedAt(IndexPart, IndexPart),
+    MovedTo(IndexPart, IndexPart),
 }
 
 d!(for Invalidation: Invalidation::RemovedAt(d!()));
@@ -173,6 +174,13 @@ impl State {
     }
     pub fn swapped_at_or_ignore_index_part(&mut self, index1: IndexPart, index2: IndexPart) {
         self.advance(Invalidation::SwappedAt(index1, index2));
+    }
+
+    pub fn moved_to_or_ignore(&mut self, source: Index, target: Index) {
+        self.moved_to_or_ignore_index_part(source.index, target.index);
+    }
+    pub fn moved_to_or_ignore_index_part(&mut self, source: IndexPart, target: IndexPart) {
+        self.advance(Invalidation::MovedTo(source, target));
     }
 
     /// Attempt to convert an index from a given gerneation to the current generation.
@@ -246,6 +254,24 @@ impl Index {
                         i if i == i1 => Some(i2),
                         i if i == i2 => Some(i1),
                         _ => Some(self.index)
+                    }
+                }
+                MovedTo(source, target) => {
+                    if source == target {
+                        Some(self.index)
+                    } else if source >= target {
+                        match self.index {
+                            i if i == source => Some(target),
+                            i if i >= target && i < source => Some(self.index.saturating_add(1)),
+                            _ => Some(self.index)
+                        }
+                    } else {
+                        match self.index {
+                            i if i == source => Some(target),
+                            i if i < target => Some(self.index.saturating_sub(1)),
+                            i if i == target => Some(self.index.saturating_add(1)),
+                            _ => Some(self.index)
+                        }
                     }
                 }
             }
@@ -468,9 +494,9 @@ impl<A> SelectableVec1<A> {
                     ToEnd => self.last_index(),
                 };
         
-                self.swap_or_ignore(
-                    target_index,
+                self.move_or_ignore(
                     self.current_index,
+                    target_index,
                 );
             },
         }
@@ -496,12 +522,11 @@ impl<A> SelectableVec1<A> {
     }
 
     pub fn previous_index(&self) -> Index {
-        let current_element_index = self.current_index;
-        let i: usize = current_element_index.into();
+        let i: usize = self.current_index.into();
         if i == 0 {
             self.last_index()
         } else {
-            current_element_index.saturating_sub(1)
+            self.current_index.saturating_sub(1)
         }
     }
 
@@ -521,6 +546,29 @@ impl<A> SelectableVec1<A> {
                     self.set_current_index(index1);
                 } else if self.current_index == index2 {
                     self.set_current_index(index2);
+                }
+            }
+        }
+    }
+
+    pub fn move_or_ignore(&mut self, index1: Index, index2: Index) {
+        if index1 < self.len() && index2 < self.len() {
+            if let Some((i1, i2)) = index1.get(self.index_state)
+                .and_then(|i1| {
+                    index2.get(self.index_state)
+                        .map(|i2| (i1, i2))
+                }) {
+
+                if let Ok(moved_val) = self.elements.try_remove(i1) {
+                    self.elements.insert(i2, moved_val);
+
+                    self.index_state.moved_to_or_ignore(index1, index2);
+
+                    if self.current_index == index1 {
+                        self.set_current_index(index2);
+                    } else if self.current_index == index2 {
+                        self.set_current_index(index2.saturating_add(1));
+                    }
                 }
             }
         }
@@ -654,6 +702,14 @@ mod tests {
                 SwappedAt(_, _) => { 
                     (0..=max_index, 0..=max_index).prop_map(|(a, b)| {
                         Invalidation::SwappedAt(
+                            IndexPart::or_max(a as usize),
+                            IndexPart::or_max(b as usize)
+                        )
+                    })
+                },
+                MovedTo(_, _) => { 
+                    (0..=max_index, 0..=max_index).prop_map(|(a, b)| {
+                        Invalidation::MovedTo(
                             IndexPart::or_max(a as usize),
                             IndexPart::or_max(b as usize)
                         )
@@ -827,6 +883,38 @@ mod tests {
             vec![506961, 1698395105],
             (Index::new_from_parts(0, IndexPart::or_max(1)), d!())
         ));
+    }
+
+    fn every_previous_generation_index_works_after_a_move_to_on(
+        (previous_index, mut state, mut vector, (source, target)): arb::SwapTestKit,
+    ) {
+        let previous_value = vector[previous_index.get(state).unwrap()];
+
+        {
+            let moved_val = vector.remove(source.get(state).unwrap());
+            vector.insert(target.get(state).unwrap(), moved_val);
+        }
+        state.moved_to_or_ignore(source, target);
+
+        assert_eq!(
+            vector[previous_index.get(state).unwrap()],
+            previous_value,
+            "{:?} mapped to {:?} which corresponds to {} not {} in {:?}",
+            previous_index,
+            previous_index.get(state).unwrap(),
+            vector[previous_index.get(state).unwrap()],
+            previous_value,
+            vector,
+        );
+    }
+
+    proptest!{
+        #[test]
+        fn every_previous_generation_index_works_after_a_move_to(
+            kit in arb::swap_test_kit(16),
+        ) {
+            every_previous_generation_index_works_after_a_move_to_on(kit);
+        }
     }
 
     fn no_selection_adjustment_causes_getting_the_current_element_to_return_none_on<A: std::fmt::Debug>(
