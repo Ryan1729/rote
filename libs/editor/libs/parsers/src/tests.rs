@@ -165,6 +165,7 @@ fn query_spans_for_produces_valid_rust_spans_on(
 
 proptest!{
     #[test]
+    #[ignore] // takes a long time
     fn query_spans_for_produces_valid_rust_spans(
         code in arb::rust_code(SOME_AMOUNT),
         query_source in arb::query_source(SOME_AMOUNT)
@@ -346,6 +347,7 @@ fn totally_classified_spans_for_produces_valid_rust_spans_on(code: &str) {
 
 proptest!{
     #[test]
+    #[ignore] // takes a long time
     fn totally_classified_spans_for_produces_valid_rust_spans(
         code in arb::rust_code(SOME_AMOUNT),
     ) {
@@ -535,6 +537,7 @@ fn span_for_byte_index(spans: &Spans, byte_index: usize) -> Option<SpanView> {
 
 proptest!{
     #[test]
+    #[ignore] // takes a long time
     fn rust_extra_spans_should_not_give_paired_tokens_different_kinds(
         code in arb::rust_code(SOME_AMOUNT),
     ) {
@@ -787,6 +790,7 @@ fn tree_depth_spans_for_produces_valid_rust_spans_on(code: &str) {
 
 proptest!{
     #[test]
+    #[ignore] // takes a long time
     fn tree_depth_spans_for_produces_valid_rust_spans(
         code in arb::rust_code(SOME_AMOUNT)
     ) {

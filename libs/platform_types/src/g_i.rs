@@ -257,19 +257,19 @@ impl Index {
                     }
                 }
                 MovedTo(source, target) => {
+                    dbg!(self.index, source, target);
                     if source == target {
                         Some(self.index)
-                    } else if source >= target {
+                    } else if source > target {
                         match self.index {
                             i if i == source => Some(target),
                             i if i >= target && i < source => Some(self.index.saturating_add(1)),
                             _ => Some(self.index)
                         }
-                    } else {
+                    } else { // source < target
                         match self.index {
                             i if i == source => Some(target),
-                            i if i < target => Some(self.index.saturating_sub(1)),
-                            i if i == target => Some(self.index.saturating_add(1)),
+                            i if i > source && i <= target => Some(self.index.saturating_sub(1)),
                             _ => Some(self.index)
                         }
                     }
@@ -498,6 +498,7 @@ impl<A> SelectableVec1<A> {
                     self.current_index,
                     target_index,
                 );
+                dbg!(self.current_index);
             },
         }
     }
@@ -518,15 +519,23 @@ impl<A> SelectableVec1<A> {
     }
 
     pub fn next_index(&self) -> Index {
-        (self.current_index.saturating_add(1)) % self.len()
+        self.next_index_from(self.current_index)
+    }
+
+    pub fn next_index_from(&self, index: Index) -> Index {
+        (index.saturating_add(1)) % self.len()
     }
 
     pub fn previous_index(&self) -> Index {
-        let i: usize = self.current_index.into();
+        self.previous_index_from(self.current_index)
+    }
+
+    pub fn previous_index_from(&self, index: Index) -> Index {
+        let i: usize = index.into();
         if i == 0 {
             self.last_index()
         } else {
-            self.current_index.saturating_sub(1)
+            index.saturating_sub(1)
         }
     }
 
@@ -552,6 +561,7 @@ impl<A> SelectableVec1<A> {
     }
 
     pub fn move_or_ignore(&mut self, index1: Index, index2: Index) {
+        dbg!(index1, index2);
         if index1 < self.len() && index2 < self.len() {
             if let Some((i1, i2)) = index1.get(self.index_state)
                 .and_then(|i1| {
@@ -564,10 +574,11 @@ impl<A> SelectableVec1<A> {
 
                     self.index_state.moved_to_or_ignore(index1, index2);
 
+                    dbg!(self.current_index, index1, index2);
                     if self.current_index == index1 {
-                        self.set_current_index(index2);
+                        self.set_current_index(index1);
                     } else if self.current_index == index2 {
-                        self.set_current_index(index2.saturating_add(1));
+                        self.set_current_index(self.next_index_from(index2));
                     }
                 }
             }
@@ -651,9 +662,18 @@ mod tests {
     use vec1::{vec1};
 
     macro_rules! g_i_s {
-        (g $generation: literal i $index: literal) => {
+        (g $generation: literal mi $source: literal $target: literal) => {
+            State { 
+                current: $generation,
+                invalidation: Invalidation::MovedTo(source, $target)
+            }
+        };
+        (g $generation: literal ri $index: literal) => {
             State::new_removed_at($generation, IndexPart::or_max($index))
-        }
+        };
+        () => {
+            g_i_s!(g 0 ri 0)
+        };
     }
     
     impl State {
@@ -668,7 +688,10 @@ mod tests {
     macro_rules! g_i_i {
         (g $generation: literal i $index: literal) => {
             Index::new_from_parts($generation, IndexPart::or_max($index))
-        }
+        };
+        () => {
+            g_i_i!(g 0 i 0)
+        };
     }
 
     impl Index {
@@ -684,6 +707,17 @@ mod tests {
 
             vec![$($tokens)*]
         }}
+    }
+
+    macro_rules! g_i_mtk {
+        (g $generation: literal i $index_part: literal ri $invalidation_index: literal [$($g_i_as_tokens: tt)*] ($(i)? $i1: literal, $(i)? $i2: literal)) => {
+            (
+                g_i_i!(g $generation i $index_part),
+                g_i_s!(g $generation ri $invalidation_index),
+                g_i_as![$($g_i_as_tokens)*],
+                (g_i_i!(g $generation i $i1), g_i_i!(g $generation i $i2))
+            )
+        }
     }
 
     pub mod arb {
@@ -748,21 +782,21 @@ mod tests {
             }
         }
 
-        pub type SwapTestKit = (Index, State, Vec<i32>, (Index, Index));
+        pub type MoveTestKit = (Index, State, Vec<i32>, (Index, Index));
 
         prop_compose!{
-            pub fn swap_test_kit(max_len: LengthSize)
+            pub fn move_test_kit(max_len: LengthSize)
                                 ((index, state, vector) in vector_with_valid_index(max_len))
                                 ((s_i1, s_i2) in (0..vector.len(), 0..vector.len()), (i, s, v) in Just((index, state, vector)))
-             -> SwapTestKit {
+             -> MoveTestKit {
                 (i, s, v, (s.new_index_or_max(s_i1), s.new_index_or_max(s_i2)))
             }
         }
 
         proptest!{    
             #[test]
-            fn swap_test_kit_always_returns_valid_indexes(
-                (previous_index, state, vector, (swap_i1, swap_i2)) in swap_test_kit(16)
+            fn move_test_kit_always_returns_valid_indexes(
+                (previous_index, state, vector, (swap_i1, swap_i2)) in move_test_kit(16)
             ) {
                 vector.get(previous_index.get(state).expect("previous_index.get")).expect("vector.get with previous_index");
                 vector.get(swap_i1.get(state).expect("swap_i1.get")).expect("vector.get with swap_i1");
@@ -847,7 +881,7 @@ mod tests {
     }
 
     fn every_previous_generation_index_works_after_a_swap_on(
-        (previous_index, mut state, mut vector, (swap_i1, swap_i2)): arb::SwapTestKit,
+        (previous_index, mut state, mut vector, (swap_i1, swap_i2)): arb::MoveTestKit,
     ) {
         let previous_value = vector[previous_index.get(state).unwrap()];
 
@@ -869,7 +903,7 @@ mod tests {
     proptest!{
         #[test]
         fn every_previous_generation_index_works_after_a_swap(
-            kit in arb::swap_test_kit(16),
+            kit in arb::move_test_kit(16),
         ) {
             every_previous_generation_index_works_after_a_swap_on(kit);
         }
@@ -886,23 +920,27 @@ mod tests {
     }
 
     fn every_previous_generation_index_works_after_a_move_to_on(
-        (previous_index, mut state, mut vector, (source, target)): arb::SwapTestKit,
+        (previous_index, mut state, mut vector, (source, target)): arb::MoveTestKit,
     ) {
+        dbg!((previous_index, state, &vector, (source, target)));
         let previous_value = vector[previous_index.get(state).unwrap()];
-
+        
         {
             let moved_val = vector.remove(source.get(state).unwrap());
             vector.insert(target.get(state).unwrap(), moved_val);
         }
         state.moved_to_or_ignore(source, target);
+        dbg!((previous_index, state, &vector, (source, target)));
+
+        let result_index = previous_index.get(state).unwrap();
 
         assert_eq!(
-            vector[previous_index.get(state).unwrap()],
+            vector[result_index],
             previous_value,
             "{:?} mapped to {:?} which corresponds to {} not {} in {:?}",
             previous_index,
-            previous_index.get(state).unwrap(),
-            vector[previous_index.get(state).unwrap()],
+            result_index,
+            vector[result_index],
             previous_value,
             vector,
         );
@@ -911,10 +949,33 @@ mod tests {
     proptest!{
         #[test]
         fn every_previous_generation_index_works_after_a_move_to(
-            kit in arb::swap_test_kit(16),
+            kit in arb::move_test_kit(16),
         ) {
             every_previous_generation_index_works_after_a_move_to_on(kit);
         }
+    }
+
+    #[test]
+    fn every_previous_generation_index_works_after_a_move_to_in_this_reduced_case() {
+        every_previous_generation_index_works_after_a_move_to_on(g_i_mtk!(
+            g 0 i 1 ri 1 [10, 11] (i 0, i 1)
+        ));
+    }
+
+    #[test]
+    fn every_previous_generation_index_works_after_a_move_to_in_this_generated_case() {
+        every_previous_generation_index_works_after_a_move_to_on(g_i_mtk!(
+            g 59910 i 8 ri 1 [116927047, -350084188, 1481126173, -1185533403, 1753439307, 1329181082, -2060683224, -1418353247, -890176339, 927573044, -740644675, -1681590353]
+            (i 9, i 10)
+        ));
+    }
+
+    #[test]
+    fn every_previous_generation_index_works_after_a_move_to_in_this_differently_reduced_case() {
+        every_previous_generation_index_works_after_a_move_to_on(g_i_mtk!(
+            g 0 i 2 ri 1 [30, 31, 32, 33, 34]
+            (i 3, i 4)
+        ));
     }
 
     fn no_selection_adjustment_causes_getting_the_current_element_to_return_none_on<A: std::fmt::Debug>(
@@ -957,7 +1018,7 @@ mod tests {
     fn no_selection_adjustment_causes_getting_the_current_element_to_return_none_in_this_generated_case() {
         let s_vec1 = SelectableVec1{
             elements: vec1![12654029],
-            index_state: g_i_s!(g 39631998 i 0),
+            index_state: g_i_s!(g 39631998 ri 0),
             current_index: g_i_i!(g 39631998 i 0),
         };
 
@@ -974,6 +1035,22 @@ mod tests {
         no_selection_adjustment_causes_getting_the_current_element_to_return_none_on(
             SelectableVec1::new(0),
             g_i_as![Next, Move(ToStart), Move(Right)],
+        )
+    }
+
+    #[test]
+    fn no_selection_adjustment_causes_getting_the_current_element_to_return_none_in_this_two_element_generated_case() {
+        let s_vec1 = SelectableVec1{
+            elements: vec1![919639994, -804550252],
+            index_state: g_i_s!(g 0 ri 0),
+            current_index: g_i_i!(g 0 i 1),
+        };
+
+        let adjustments = g_i_as![Next, Move(Left), Move(Right), Next, Previous, Move(ToEnd), Move(Right), Previous];
+        
+        no_selection_adjustment_causes_getting_the_current_element_to_return_none_on(
+            s_vec1,
+            adjustments,
         )
     }
 
@@ -1011,6 +1088,38 @@ mod tests {
                 moves,
             )
         }
+    }
+
+    #[test]
+    fn no_selection_move_causes_getting_the_current_element_to_return_a_different_element_in_this_single_right_case() {
+        let s_vec1 = SelectableVec1{
+            elements: vec1![919639994, -804550252],
+            index_state: g_i_s!(),
+            current_index: g_i_i!(),
+        };
+
+        let moves = g_i_as![Right];
+
+        no_selection_move_causes_getting_the_current_element_to_return_a_different_element_on(
+            s_vec1,
+            moves,
+        )
+    }
+
+    #[test]
+    fn no_selection_move_causes_getting_the_current_element_to_return_a_different_element_in_this_larger_single_right_case() {
+        let s_vec1 = SelectableVec1{
+            elements: vec1![20, 21, 22, 23, 24],
+            index_state: g_i_s!(),
+            current_index: g_i_i!(g 0 i 4),
+        };
+
+        let moves = g_i_as![Right];
+
+        no_selection_move_causes_getting_the_current_element_to_return_a_different_element_on(
+            s_vec1,
+            moves,
+        )
     }
 }
 
