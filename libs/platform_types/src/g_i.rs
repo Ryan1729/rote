@@ -257,7 +257,6 @@ impl Index {
                     }
                 }
                 MovedTo(source, target) => {
-                    dbg!(self.index, source, target);
                     if source == target {
                         Some(self.index)
                     } else if source > target {
@@ -498,7 +497,6 @@ impl<A> SelectableVec1<A> {
                     self.current_index,
                     target_index,
                 );
-                dbg!(self.current_index);
             },
         }
     }
@@ -561,7 +559,6 @@ impl<A> SelectableVec1<A> {
     }
 
     pub fn move_or_ignore(&mut self, index1: Index, index2: Index) {
-        dbg!(index1, index2);
         if index1 < self.len() && index2 < self.len() {
             if let Some((i1, i2)) = index1.get(self.index_state)
                 .and_then(|i1| {
@@ -574,7 +571,6 @@ impl<A> SelectableVec1<A> {
 
                     self.index_state.moved_to_or_ignore(index1, index2);
 
-                    dbg!(self.current_index, index1, index2);
                     if self.current_index == index1 {
                         self.set_current_index(index1);
                     } else if self.current_index == index2 {
@@ -922,7 +918,6 @@ mod tests {
     fn every_previous_generation_index_works_after_a_move_to_on(
         (previous_index, mut state, mut vector, (source, target)): arb::MoveTestKit,
     ) {
-        dbg!((previous_index, state, &vector, (source, target)));
         let previous_value = vector[previous_index.get(state).unwrap()];
         
         {
@@ -930,7 +925,6 @@ mod tests {
             vector.insert(target.get(state).unwrap(), moved_val);
         }
         state.moved_to_or_ignore(source, target);
-        dbg!((previous_index, state, &vector, (source, target)));
 
         let result_index = previous_index.get(state).unwrap();
 
@@ -986,11 +980,7 @@ mod tests {
         assert!(s_vec1.get_current_element().is_some(), "precondition failed on {:?}", s_vec1);
     
         for (i, adjustment) in adjustments.into_iter().enumerate() {
-            dbg!(&s_vec1);
-
             s_vec1.adjust_selection(adjustment);
-
-            dbg!(&s_vec1);
     
             assert!(
                 s_vec1.get_current_element().is_some(),
@@ -1061,12 +1051,8 @@ mod tests {
         let previous_element = *s_vec1.get_current_element().expect("precondition failed");
     
         for (i, r#move) in moves.into_iter().enumerate() {
-            dbg!(&s_vec1);
-
             s_vec1.adjust_selection(SelectionAdjustment::Move(r#move));
 
-            dbg!(&s_vec1);
-    
             assert_eq!(
                 *s_vec1.get_current_element().expect("get_current_element returned None"),
                 previous_element,

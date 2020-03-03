@@ -274,12 +274,27 @@ pub fn get_delete_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit
     })
 }
 
-pub fn extend_cursor_to_cover_line(c: &mut Cursor) {
+pub fn extend_cursor_to_cover_line(c: &mut Cursor, rope: &Rope) {
     let position = c.get_position();
     let highlight_position = c.get_highlight_position_or_position();
 
     let min_line = min(position.line, highlight_position.line);
     let max_line = max(position.line, highlight_position.line) + 1;
+
+    let has_no_next_line = rope.len_lines().0 <= max_line;
+    
+    if has_no_next_line {
+        if let Some((previous_line, last_non_newline_offset)) = min_line
+            .checked_sub(1)
+            .and_then(|i| 
+                rope.line(LineIndex(i))
+                    .map(final_non_newline_offset_for_rope_line)
+                    .map(|o| (i, o.0))
+            ) {
+            *c = dbg!(cur!{pos!{l previous_line, o last_non_newline_offset}, pos!{l max_line, o 0}});
+            return
+        }
+    }
 
     *c = dbg!(cur!{pos!{l min_line, o 0}, pos!{l max_line, o 0}});
 }
@@ -288,7 +303,7 @@ pub fn extend_cursor_to_cover_line(c: &mut Cursor) {
 pub fn get_delete_lines_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
     let mut extended_cursors = original_cursors.get_cloned_cursors();
     for c in extended_cursors.iter_mut() {
-        extend_cursor_to_cover_line(c);
+        extend_cursor_to_cover_line(c, original_rope);
     }
 
     let mut edit = get_delete_edit(original_rope, &Cursors::new(original_rope, extended_cursors));

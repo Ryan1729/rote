@@ -479,7 +479,7 @@ impl TestEdit {
             DeleteLines => {
                 let mut cursor_vec = buffer.borrow_cursors_vec().clone();
                 for c in cursor_vec.iter_mut() {
-                    edit::extend_cursor_to_cover_line(c);
+                    edit::extend_cursor_to_cover_line(c, &buffer.rope);
                 }
                 apply_delete_edit(counts, buffer, cursor_vec);
             },

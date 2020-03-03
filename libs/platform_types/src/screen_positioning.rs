@@ -408,7 +408,7 @@ pub enum VisibilityAttemptResult {
     ApronEdgeTooWeird,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct Apron {
     pub left_w: f32,
     pub right_w: f32,

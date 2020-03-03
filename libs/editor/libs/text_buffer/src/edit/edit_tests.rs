@@ -967,17 +967,17 @@ fn get_delete_lines_edit_produces_the_expected_edit_on_this_backslash_example() 
     // Assert
     let expected = {
         let new_cursors = {
-            let expected_rope = r!("\n\\\n\n".to_owned());
+            let expected_rope = r!("\n\\\n".to_owned());
 
-            Cursors::new(&expected_rope, vec1![cur! {l 3 o 0}])
+            Cursors::new(&expected_rope, vec1![cur! {l 2 o 0}])
         };
 
         let range_edits = {
             let insert_range = None;
 
             let delete_range = Some(RangeEdit {
-                range: AbsoluteCharOffsetRange::new(AbsoluteCharOffset(4), AbsoluteCharOffset(6)),
-                chars: "\\a".to_owned(),
+                range: AbsoluteCharOffsetRange::new(AbsoluteCharOffset(3), AbsoluteCharOffset(6)),
+                chars: "\n\\a".to_owned(),
             });
             RangeEdits {
                 insert_range,
@@ -1861,7 +1861,15 @@ fn delete_lines_deletes_the_expected_amount_of_lines_on(mut buffer: TextBuffer) 
 
     TestEdit::apply(&mut buffer, TestEdit::DeleteLines);
 
-    assert_eq!(buffer.rope.len_lines().0, expected_line_count);
+    assert_eq!(
+        buffer.rope.len_lines().0,
+        expected_line_count,
+        "started with {} lines and expected lines {:?} ({} total) to be deleted, but got the wrong count. The rope ended up as {:?}",
+        initial_line_count.0,
+        line_indicies,
+        line_indicies.len(),
+        buffer.rope
+    );
 }
 
 proptest! {
@@ -1877,6 +1885,20 @@ proptest! {
 fn delete_lines_deletes_the_expected_amount_of_lines_in_this_small_case() {
     delete_lines_deletes_the_expected_amount_of_lines_on(
         t_b!("\u{2028}", vec1![cur!{l 0 o 0 h l 1 o 0}]),
+    );
+}
+
+#[test]
+fn delete_lines_deletes_the_expected_amount_of_lines_in_this_less_small_case() {
+    delete_lines_deletes_the_expected_amount_of_lines_on(
+        t_b!("\u{2029}A", vec1![cur!{l 1 o 0}]),
+    );
+}
+
+#[test]
+fn delete_lines_deletes_the_expected_amount_of_lines_in_this_reduced_less_small_case() {
+    delete_lines_deletes_the_expected_amount_of_lines_on(
+        t_b!("\nA", vec1![cur!{l 1 o 0}]),
     );
 }
 

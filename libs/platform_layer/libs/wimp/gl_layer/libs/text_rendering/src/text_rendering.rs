@@ -12,8 +12,6 @@ use glyph_brush::{
     Bounds, GlyphBrush, GlyphBrushBuilder, HighlightRange, Layout, PixelCoords, Section,
 };
 
-pub use glyph_brush::BrushAction;
-
 mod text_layouts {
     use super::*;
     use glyph_brush::{
@@ -320,7 +318,7 @@ impl <'font> State<'font> {
         dimensions: (u32, u32),
         update_texture: Update,
         mut resize_texture: Resize,
-    ) -> BrushAction<Vertex>
+    ) -> Option<Vec<Vertex>>
     where
         for <'r> Update: FnMut(TextureRect, &'r [u8]) + Copy,
         Resize: FnMut(u32, u32) + Copy,
@@ -459,7 +457,8 @@ impl <'font> State<'font> {
             );
     
             match brush_action {
-                Ok(action) => return action,
+                Ok(BrushAction::Draw(verticies)) => return Some(verticies),
+                Ok(BrushAction::ReDraw) => return None,
                 Err(BrushError::TextureTooSmall { suggested: (new_width, new_height), .. }) => {
                     resize_texture(new_width, new_height);
                     self.resize_texture(new_width, new_height);

@@ -1,9 +1,8 @@
 use super::*;
 use platform_types::pos;
 use editor_types::{cur};
-use arb_macros::{arb_enum};
 use macros::{u};
-use proptest::prelude::{proptest, Strategy};
+use proptest::prelude::{proptest};
 
 mod arb {
     use super::*;
@@ -19,6 +18,8 @@ mod arb {
             }
         )
     }
+
+    pub use pub_arb_platform_types::menu_mode;
 }
 
 fn update_and_render_shows_the_cursor_when_pressing_home_on(text: &str, buffer_xywh: TextBoxXYWH, char_dim: CharDim) {
@@ -44,7 +45,7 @@ fn update_and_render_shows_the_cursor_when_pressing_home_on(text: &str, buffer_x
             buffer.text_buffer.borrow_cursors_vec()[0], cur!{pos!{l 0, o text.len()}},
             "*** Cursor Precondition failure! ***"
         );
-        assert_ne!(buffer.scroll.x, 0.0, "*** Scroll Precondition failure! ***");
+        assert_ne!(buffer.scroll.x, 0.0, "*** Scroll X Precondition failure! ***");
     }
     
 
@@ -52,6 +53,7 @@ fn update_and_render_shows_the_cursor_when_pressing_home_on(text: &str, buffer_x
 
     let buffer = get_scrollable_buffer_mut!(state).unwrap();
     assert_eq!(buffer.scroll.x, 0.0);
+    assert_eq!(buffer.scroll.y, 0.0);
 }
 
 const CURSOR_SHOW_TEXT: &'static str = "            abcdefghijklmnopqrstuvwxyz::abcdefghijk::abcdefghijklmnopqrstuvwxyz";
@@ -196,7 +198,7 @@ fn update_and_render_shows_the_cursor_when_pressing_home_in_this_reduced_realist
 
     assert_eq!(buffer.scroll.x, 0.0);
 }
-*/
+
 
 #[test]
 fn update_and_render_shows_the_cursor_when_pressing_home_in_this_further_reduced_realistic_case() {
@@ -262,6 +264,7 @@ fn update_and_render_shows_the_cursor_when_pressing_home_in_this_further_reduced
 
     assert_eq!(buffer.scroll.x, 0.0);
 }
+*/
 
 #[test]
 fn attempt_to_make_sure_at_least_one_cursor_is_visible_reports_correctly_in_this_case() {
@@ -272,11 +275,17 @@ fn attempt_to_make_sure_at_least_one_cursor_is_visible_reports_correctly_in_this
 
     let xywh = tbxywh!(480.0, 270.0, 960.0, 540.0);
 
-    let attempt_result = attempt_to_make_sure_at_least_one_cursor_is_visible(
+    let text_char_dim = CharDim { w: 16.0, h: 32.0 };
+
+    let apron: Apron = text_char_dim.into();
+    
+    let text_space = position_to_text_space(pos!{}, text_char_dim);
+
+    let attempt_result = attempt_to_make_xy_visible(
         &mut scroll,
         xywh,
-        CharDim { w: 16.0, h: 32.0 },
-        &vec1![cur!{}],
+        apron,
+        text_space,
     );
 
     if scroll.x != 320.0 {
@@ -309,5 +318,31 @@ fn attempt_to_make_xy_visible_reports_correctly_in_this_case() {
         assert_eq!(attempt_result, VisibilityAttemptResult::Succeeded, "false negative x = {}", scroll.x);
     } else {
         assert_ne!(attempt_result, VisibilityAttemptResult::Succeeded, "false positive x = {}", scroll.x);
+    }
+}
+
+// There was a bug that came down to this not working, (well really the two parameter version not exisiting, but still.)
+proptest!{
+    #[test]
+    fn get_scrollable_buffer_mut_selects_text_buffer_when_asked_no_matter_what_mode_it_is_in(
+        mode in arb::menu_mode()
+    ) {
+        let some_text = "get_scrollable_buffer_mut_selects_text_buffer_when_asked";
+        let mut state: State = some_text.into();
+    
+        update_and_render(&mut state, Input::SetMenuMode(mode));
+    
+        // precondition
+        assert_eq!(state.menu_mode, mode);
+    
+        let buffer = get_scrollable_buffer_mut!(state, BufferIdKind::Text)
+            .expect("get_scrollable_buffer_mut returned None");
+    
+        let state_str: String = (&buffer.text_buffer).into();
+
+        assert_eq!(
+            &state_str,
+            some_text
+        );
     }
 }

@@ -1,5 +1,4 @@
 pub use gl_layer_types::*;
-use text_rendering::BrushAction;
 
 use platform_types::{CharDim};
 use shared::Res;
@@ -54,7 +53,7 @@ pub fn render(
         open_gl::State::resize_texture(new_width, new_height);
     };
 
-    let brush_action = state.text_rendering.render_vertices(
+    let replacement_verticies = state.text_rendering.render_vertices(
         text_or_rects,
         (width, height),
         |rect: text_rendering::TextureRect, tex_data: &_| {
@@ -70,12 +69,12 @@ pub fn render(
         resize_texture,
     );
     
-    match brush_action {
-        BrushAction::Draw(vertices) => {
-            perf_viz::record_guard!("BrushAction::Draw");
+    match replacement_verticies {
+        Some(vertices) => {
+            perf_viz::record_guard!("open_gl.draw_vertices");
             state.open_gl.draw_vertices(vertices);
         }
-        BrushAction::ReDraw => {}
+        None => {}
     }
 
     state.open_gl.end_frame();

@@ -1,13 +1,21 @@
 use editor_types::{Cursor};
-use macros::{d, u, SaturatingAdd, SaturatingSub};
+use macros::{d, u, SaturatingSub};
 use platform_types::{screen_positioning::*, *};
-use parsers::{Parsers, ParserKind};
+use parsers::{Parsers};
 
 use std::path::PathBuf;
 use std::collections::VecDeque;
-use text_buffer::{get_search_ranges, next_instance_of_selected, TextBuffer};
+use text_buffer::{next_instance_of_selected, TextBuffer};
 
 mod editor_view;
+mod editor_buffers;
+use editor_buffers::{
+    EditorBuffers, 
+    EditorBuffer, 
+    SearchResults, 
+    update_search_results, 
+    ScrollableBuffer
+};
 
 #[derive(Debug, Default)]
 struct ClipboardHistory {
@@ -70,16 +78,6 @@ impl ClipboardHistory {
     }
 }
 
-mod editor_buffers;
-use editor_buffers::{
-    EditorBuffers, 
-    EditorBuffer, 
-    SearchResults, 
-    update_search_results, 
-    ScrollableBuffer, 
-    try_to_show_cursors_on
-};
-
 #[derive(Debug, Default)]
 pub struct State {
     // TODO side by side visible buffers
@@ -105,8 +103,11 @@ pub struct State {
 macro_rules! get_scrollable_buffer_mut {
     /* -> Option<&mut ScrollableBuffer> */
     ($state: expr) => {{
+        get_scrollable_buffer_mut!($state, $state.current_buffer_kind)
+    }};
+    ($state: expr, $kind: expr) => {{
         u!{BufferIdKind}
-        match $state.current_buffer_kind {
+        match $kind {
             None => Option::None,
             Text => $state.buffers.get_current_buffer_mut().map(|b| &mut b.scrollable),
             Find => Some(&mut $state.find),
@@ -114,7 +115,7 @@ macro_rules! get_scrollable_buffer_mut {
             FileSwitcher => Some(&mut $state.file_switcher),
             GoToPosition => Some(&mut $state.go_to_position),
         }
-    }};
+    }}
 }
 
 macro_rules! set_indexed_id {
@@ -194,14 +195,6 @@ impl State {
         output.wrapping_add(1)
     }
 
-    fn get_current_buffer(&self) -> Option<&EditorBuffer> {
-        self.buffers.get_current_buffer()
-    }
-
-    fn get_current_buffer_mut(&mut self) -> Option<&mut EditorBuffer> {
-        self.buffers.get_current_buffer_mut()
-    }
-
     fn get_current_char_dim(&self) -> CharDim {
         Self::char_dim_for_buffer_kind(&self.font_info, self.current_buffer_kind)
     }
@@ -231,7 +224,7 @@ impl State {
 
         let char_dim = Self::char_dim_for_buffer_kind(&self.font_info, kind);
 
-        let attempt_result = try_to_show_cursors_on(buffer, xywh, char_dim);
+        let attempt_result = buffer.try_to_show_cursors_on(xywh, char_dim);
 
         match attempt_result {
             VisibilityAttemptResult::Succeeded => Some(()),
@@ -309,23 +302,6 @@ impl From<&str> for State {
     }
 }
 
-fn attempt_to_make_sure_at_least_one_cursor_is_visible(
-    scroll: &mut ScrollXY,
-    xywh: TextBoxXYWH,
-    text_char_dim: CharDim,
-    cursors: &Vec1<Cursor>,
-) -> VisibilityAttemptResult {
-    let target_cursor = cursors.last();
-
-    let apron: Apron = text_char_dim.into();
-    attempt_to_make_xy_visible(
-        scroll,
-        xywh,
-        apron,
-        position_to_text_space(target_cursor.get_position(), text_char_dim),
-    )
-}
-
 fn parse_for_go_to_position(input: &str) -> Result<Position, std::num::ParseIntError> {
    input.parse::<Position>().map(|p| {
         // The largest use of jumping to a position is to jump to line numbers emitted 
@@ -352,7 +328,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
 
     macro_rules! try_to_show_cursors {
         () => {
-            try_to_show_cursors!(state.current_buffer_kind)
+            try_to_show_cursors!(state.current_buffer_kind);
         };
         ($kind: expr) => {
             state.try_to_show_cursors_on($kind);
@@ -743,7 +719,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                 text_buffer_call!(b{
                     let input: String = b.into();
                     if let Ok(position) = parse_for_go_to_position(&input) {
-                        if let Some(edit_b) = state.get_current_buffer_mut() {
+                        if let Some(edit_b) = state.buffers.get_current_buffer_mut() {
                             edit_b.scrollable.text_buffer.set_cursor(position, ReplaceOrAdd::Replace);
                             state.set_menu_mode(MenuMode::Hidden);
                             try_to_show_cursors!();

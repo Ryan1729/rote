@@ -1,8 +1,13 @@
 /// This module was originally created to make sure every change to the current index went 
 /// through a single path so we could more easily track down a bug where the index was 
 /// improperly set.
-use super::*;
 use g_i::SelectableVec1;
+use macros::{d, u};
+use platform_types::{screen_positioning::*, *};
+use parsers::{ParserKind};
+use text_buffer::{get_search_ranges, TextBuffer};
+
+use std::path::PathBuf;
 
 #[derive(Debug, Default)]
 pub struct ScrollableBuffer {
@@ -10,41 +15,49 @@ pub struct ScrollableBuffer {
     pub scroll: ScrollXY,
 }
 
-pub fn try_to_show_cursors_on(
-    buffer: &mut ScrollableBuffer,
-    xywh: TextBoxXYWH,
-    char_dim: CharDim,
-) -> VisibilityAttemptResult {
-    let scroll = &mut buffer.scroll;
-    let cursors = buffer.text_buffer.borrow_cursors_vec();
-
-    // We try first with this smaller xywh to make the cursor appear
-    // in the center more often.
-    let mut small_xywh = xywh.clone();
-    //small_xywh.xy.x += small_xywh.wh.w / 4.0;
-    //small_xywh.wh.w /= 2.0;
-    small_xywh.xy.y += small_xywh.wh.h / 4.0;
-    small_xywh.wh.h /= 2.0;
-
-    let mut attempt_result;
-    attempt_result = attempt_to_make_sure_at_least_one_cursor_is_visible(
-        scroll,
-        small_xywh,
-        char_dim,
-        cursors,
-    );
-
-    if attempt_result != VisibilityAttemptResult::Succeeded {
-        dbg!();
-        attempt_result = attempt_to_make_sure_at_least_one_cursor_is_visible(
+impl ScrollableBuffer {
+    pub fn try_to_show_cursors_on(
+        &mut self,
+        xywh: TextBoxXYWH,
+        text_char_dim: CharDim,
+    ) -> VisibilityAttemptResult {
+        let scroll = &mut self.scroll;
+        let cursors = self.text_buffer.borrow_cursors_vec();
+    
+        // We try first with this smaller xywh to make the cursor appear
+        // in the center more often.
+        let mut small_xywh = xywh.clone();
+        //small_xywh.xy.x += small_xywh.wh.w / 4.0;
+        //small_xywh.wh.w /= 2.0;
+        small_xywh.xy.y += small_xywh.wh.h / 4.0;
+        small_xywh.wh.h /= 2.0;
+    
+        let apron: Apron = text_char_dim.into();
+    
+        let text_space = position_to_text_space(cursors.last().get_position(), text_char_dim);
+    
+        let mut attempt_result;
+        attempt_result = attempt_to_make_xy_visible(
             scroll,
-            xywh,
-            char_dim,
-            cursors,
+            small_xywh,
+            apron.clone(),
+            text_space,
         );
+    
+        dbg!(&cursors, attempt_result);
+    
+        if attempt_result != VisibilityAttemptResult::Succeeded {
+            attempt_result = attempt_to_make_xy_visible(
+                scroll,
+                xywh,
+                apron,
+                text_space,
+            );
+            dbg!(&cursors, attempt_result);
+        }
+    
+        attempt_result
     }
-
-    attempt_result
 }
 
 #[derive(Debug, Default)]
