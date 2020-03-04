@@ -22,6 +22,12 @@ mod arb {
     pub use pub_arb_platform_types::menu_mode;
 }
 
+const CURSOR_SHOW_TEXT: &'static str = "            abcdefghijklmnopqrstuvwxyz::abcdefghijk::abcdefghijklmnopqrstuvwxyz";
+
+const EXAMPLE_TBXYWH: TextBoxXYWH = tbxywh!(0.0, 0.0, 256.0, 192.0);
+
+const EXAMPLE_CHAR_DIM: CharDim = CharDim { w: 4.0, h: 8.0 };
+
 fn update_and_render_shows_the_cursor_when_pressing_home_on(text: &str, buffer_xywh: TextBoxXYWH, char_dim: CharDim) {
     let mut state: State = text.into();
     state.buffer_xywh = buffer_xywh;
@@ -31,16 +37,11 @@ fn update_and_render_shows_the_cursor_when_pressing_home_on(text: &str, buffer_x
         tab_char_dim: char_dim,
         find_replace_char_dim: char_dim,
     };
-    
-
-    dbg!(get_scrollable_buffer_mut!(state));
 
     update_and_render(&mut state, Input::MoveAllCursors(Move::ToBufferEnd));
 
-    dbg!(get_scrollable_buffer_mut!(state));
-
     {
-        let buffer = get_scrollable_buffer_mut!(state).unwrap();
+        let buffer = get_scrollable_buffer_mut!(state, BufferIdKind::Text).unwrap();
         assert_eq!(
             buffer.text_buffer.borrow_cursors_vec()[0], cur!{pos!{l 0, o text.len()}},
             "*** Cursor Precondition failure! ***"
@@ -51,20 +52,64 @@ fn update_and_render_shows_the_cursor_when_pressing_home_on(text: &str, buffer_x
 
     update_and_render(&mut state, Input::MoveAllCursors(Move::ToBufferStart));
 
-    let buffer = get_scrollable_buffer_mut!(state).unwrap();
+    let buffer = get_scrollable_buffer_mut!(state, BufferIdKind::Text).unwrap();
     assert_eq!(buffer.scroll.x, 0.0);
     assert_eq!(buffer.scroll.y, 0.0);
 }
 
-const CURSOR_SHOW_TEXT: &'static str = "            abcdefghijklmnopqrstuvwxyz::abcdefghijk::abcdefghijklmnopqrstuvwxyz";
-
-#[test]
 fn update_and_render_shows_the_cursor_when_pressing_home_in_this_case() {
     update_and_render_shows_the_cursor_when_pressing_home_on(
         CURSOR_SHOW_TEXT,
-        tbxywh!(0.0, 0.0, 256.0, 192.0),
-        CharDim { w: 4.0, h: 8.0 }
+        EXAMPLE_TBXYWH,
+        EXAMPLE_CHAR_DIM
     );
+}
+
+#[test]
+fn update_and_render_shows_the_cursor_when_searching_in_this_case() {
+    // Arrange
+    let mut text = String::new();
+    
+    // The goal is enough text that it is definitely offscreen
+    for i in 0..(EXAMPLE_TBXYWH.wh.h / EXAMPLE_CHAR_DIM.h) as u128 * 8 {
+        for _ in 0..i {
+            text.push('.');
+        }
+
+        text.push('\n');
+    }
+
+    const NEEDLE: &str = "needle";
+    text.push_str(NEEDLE);
+
+    let mut state: State = text.into();
+    state.buffer_xywh = EXAMPLE_TBXYWH;
+    state.font_info = FontInfo {
+        text_char_dim: EXAMPLE_CHAR_DIM,
+        status_char_dim: EXAMPLE_CHAR_DIM,
+        tab_char_dim: EXAMPLE_CHAR_DIM,
+        find_replace_char_dim: EXAMPLE_CHAR_DIM,
+    };
+
+    {
+        let buffer = get_scrollable_buffer_mut!(state, BufferIdKind::Text).unwrap();
+        assert_eq!(
+            buffer.text_buffer.borrow_cursors_vec()[0], cur!{pos!{l 0 o 0}},
+            "*** Cursor Precondition failure! ***"
+        );
+        assert_eq!(buffer.scroll.y, 0.0, "*** Scroll Y Precondition failure! ***");
+    }
+    
+
+    update_and_render(&mut state, Input::SetMenuMode(MenuMode::FindReplace(d!())));
+
+    // Act
+    update_and_render(&mut state, Input::Insert(NEEDLE.chars().next().unwrap()));
+    update_and_render(&mut state, Input::SubmitForm);
+
+    // Assert
+    let buffer = get_scrollable_buffer_mut!(state, BufferIdKind::Text).unwrap();
+    assert_ne!(buffer.scroll.y, 0.0);
 }
 
 macro_rules! max_one {
@@ -138,7 +183,7 @@ fn update_and_render_shows_the_cursor_when_pressing_home() {
             update_and_render_shows_the_cursor_when_pressing_home_on(
                 CURSOR_SHOW_TEXT,
                 tbxywh!(0.0, 0.0, box_w, box_h),
-                CharDim { w, h }
+                CharDim { w, h },
             );
             Ok(())
         } else {
@@ -321,7 +366,7 @@ fn attempt_to_make_xy_visible_reports_correctly_in_this_case() {
     }
 }
 
-// There was a bug that came down to this not working, (well really the two parameter version not exisiting, but still.)
+// There was a bug that came down to this not working, (well, really the two parameter version not existing, but still.)
 proptest!{
     #[test]
     fn get_scrollable_buffer_mut_selects_text_buffer_when_asked_no_matter_what_mode_it_is_in(

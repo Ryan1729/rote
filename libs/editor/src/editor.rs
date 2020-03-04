@@ -212,7 +212,7 @@ impl State {
     fn try_to_show_cursors_on(&mut self, kind: BufferIdKind) -> Option<()> {
         u!{BufferIdKind}
 
-        let buffer = get_scrollable_buffer_mut!(self)?;
+        let buffer = get_scrollable_buffer_mut!(self, kind)?;
         let xywh = match kind {
             None => return Option::None,
             Text => self.buffer_xywh,
