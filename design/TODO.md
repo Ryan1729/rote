@@ -1,43 +1,5 @@
 ## TODO
 
-* make buffer tabs reorderable, at least with with a keyboard shortcut
-    * swap selected tab left
-    * swap selected tab right
-    * which shortcut to use?
-        * it would be vaguely nice if it used the `Tab` key.
-            * mnemonically pleasant
-            * fits with existing Ctrl-Tab
-            * but is there anything left? 
-                * There are the four traditional modifier keys: Ctrl, Shift, Alt and "Super"/"Windows", (winit calls this the Logo key). We'll abbreviate them below.
-                * This table shows the modifier keys with the Tab key and whetter they are taken or not, and why.
-                    W    A    S    C    Taken
-                    0    0    0    0    Yes: indent
-                    0    0    0    1    Yes: switch to next tab
-                    0    0    1    0    Yes: un-indent
-                    0    0    1    1    Yes: switch to previous tab
-                    0    1    0    0    Yes: used by windows OS for simple next application
-                    0    1    0    1    Yes: used by windows OS (same function as above)
-                    0    1    1    0    Yes: used by windows OS for simple previous application
-                    0    1    1    1    Yes: used by windows OS (same function as above)
-                    1    0    0    0    Yes: used by windows OS for fancy next application
-                    1    0    0    1     No:
-                    1    0    1    0     No: suprisingly not fancy previous tab.
-                    1    0    1    1     No: 
-                    1    1    0    0    Yes: same as Alt-Tab
-                    1    1    0    1    Yes: used by windows OS for old-school next application
-                    1    1    1    0    Yes: same as Alt-Shift-Tab
-                    1    1    1    1    Yes: used by windows OS for old-school previous application
-                    * So it looks like we'll use Ctrl-Super-Tab and Ctrl-Shift-Super-Tab for this then.
-        * Tab, Shift-Tab, Ctrl-Tab, Ctrl-Shift-Tab, and Alt-Tab,
-        * Having Firefox's Ctrl-Shift-Home/End work seems nice but we end up with the same awkward
-            need to select the tabs somehow for the same reason: Ctrl-Shift-Home is used in text editing.
-            * But we still want the tab functionality Ctrl-Shift-Home/End brings: sending a tab to the very beginning/end of the list.
-            * Given we have Ctrl-Super-Tab meaning swap selected tab right, using Ctrl-Super-Home/End for this seems reasonable.
-            * this does the wrong thing (it swaps instead of moves), and we sometimes end up without a buffer selected.
-                * let's write a test for the no buffer selected thing against the editor.rs State struct, since the bug may well be in the combination of all these things.
-                    * we can also write a test for the proper ToStart and ToEnd behaviour against the State too.
-    
-
 * put all keyboard responses into a menu so that any command can be dispatched with the mouse or the keyboard.
     * keyboard responses should be defined in a single place where they end up in the menu and wired up to
         the keyboard
