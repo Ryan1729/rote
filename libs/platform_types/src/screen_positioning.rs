@@ -101,6 +101,37 @@ impl From<ScreenSpaceWH> for (f32, f32) {
     }
 }
 
+pub fn inside_rect(
+    ScreenSpaceXY { x, y }: ScreenSpaceXY,
+    ScreenSpaceRect { min, max }: ScreenSpaceRect,
+) -> bool {
+    x > min.0 && x <= max.0 && y > min.1 && y <= max.1
+}
+
+pub fn clamp_within(rect: &mut ScreenSpaceRect, ScreenSpaceRect { min, max }: ScreenSpaceRect) {
+    if rect.min.0 < min.0 {
+        rect.min.0 = min.0
+    } else {
+        // NaN ends up here
+    };
+    if rect.min.1 < min.1 {
+        rect.min.1 = min.1
+    } else {
+        // NaN ends up here
+    };
+
+    if rect.max.0 > max.0 {
+        rect.max.0 = max.0
+    } else {
+        // NaN ends up here
+    };
+    if rect.max.1 > max.1 {
+        rect.max.1 = max.1
+    } else {
+        // NaN ends up here
+    };
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 /// It's nice for it to be harder to mixup screen dimensions and Character dimension.
 // Plus since `CharDim` came before `ScreenSpaceWH` less code has to change if we keep `CharDim`

@@ -21,6 +21,7 @@ full_rusttype = { version = "0.7.5", features = ["gpu_cache"], package = "rustty
 edited_storage = { path = "edited_storage" }
 shared = { path = "shared" }
 wimp_render = { path = "wimp_render" }
+wimp_types = { path = "wimp_types" }
 glutin = "0.23.0"
 spin_sleep = "0.3"
 clipboard = "0.5.0"

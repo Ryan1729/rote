@@ -1,153 +1,9 @@
 use gl_layer::{ColouredText, MulticolourTextSpec, TextLayout, TextOrRect, TextSpec, VisualSpec};
+#[macro_use]
+use wimp_types::{ui_id, ui, ui::{ButtonState}, BufferStatus, BufferStatusMap, RunState};
 use macros::{c, d, ord};
 use platform_types::{screen_positioning::*, *};
-use shared::{BufferStatus, BufferStatusMap};
 use std::cmp::max;
-
-mod ui_id {
-    use macros::{d, fmt_debug, ord};
-    /// The varaints here represent sections of code that want to be able to store information in the
-    /// ids. For example, so that the ui state can change differently based on which part of soem
-    /// dynamically generated UI is selected.
-    #[derive(Clone, Copy, Debug)]
-    pub enum Tag {
-        FileSwitcherResults,
-    }
-
-    /// 31 to leave space for the enum variant tag.
-    pub const DATA_LEN: usize = 31;
-
-    /// The payload of the `UUId::Data` varaint
-    type Data = [u64; DATA_LEN];
-
-    // This is probably excessive size-wise. We can make this smaller if there is a measuarable
-    // perf impact but given this goes on the stack, that seems unlikely?
-    #[derive(Clone, Copy)]
-    pub enum UIId {
-        /// The generic data variant. Used when the data's sizes are not known ahead of time
-        Data(Data),
-        TaggedUsize(Tag, usize),
-    }
-    d!(for UIId: UIId::Data(d!()));
-
-    fmt_debug!(for UIId: id in "{}", {
-        match id {
-            UIId::Data(data) => {
-                let mut s = String::with_capacity(31 * std::mem::size_of::<u64>());
-
-                'outer: for n in data.iter() {
-                    let bytes = n.to_be_bytes();
-                    for &byte in bytes.iter() {
-                        if byte == 0 {
-                            break 'outer;
-                        }
-                        s.push(byte as char);
-                    }
-                }
-
-                s
-            },
-            UIId::TaggedUsize(tag, payload) => {
-                format!("TaggedUsize{:?}", (tag, payload))
-            }
-        }
-    });
-    ord!(and friends for UIId: id, other in {
-        use UIId::*;
-        use std::cmp::Ordering::*;
-        match (id, other) {
-            (Data(_), TaggedUsize(_, _)) => {
-                Less
-            },
-            (TaggedUsize(_, _), Data(_)) => {
-                Greater
-            },
-            (Data(d1), Data(d2)) => {
-                d1.cmp(&d2)
-            }
-            (TaggedUsize(Tag::FileSwitcherResults, payload1), TaggedUsize(Tag::FileSwitcherResults, payload2)) => {
-                payload1.cmp(&payload2)
-            }
-        }
-    });
-
-    impl UIId {
-        pub const fn new(id: Data) -> Self {
-            UIId::Data(id)
-        }
-    }
-
-    /// This macro creates a UIId based on the expression passed in and the location of the invocation
-    /// in the file. This implies it may assign the same id to multiple `id` invocations inside another
-    /// macro. A suggested fix for that is to pass down the needed ids from outside that macro.
-    #[macro_export]
-    macro_rules! id {
-        ($thing: expr) => {{
-            let mut id = [0; ui_id::DATA_LEN];
-            // TODO is the compilier smart enough to avoid the allocation here?
-            let s = format!(
-                "{},{}",
-                $thing,
-                concat!(column!(), ",", line!(), ",", file!())
-            );
-            let slice = s.as_bytes();
-
-            let mut i = 0;
-            for chunk in slice.chunks_exact(8) {
-                let mut value = 0u64;
-                value |= (chunk[0] as u64) << 56;
-                value |= (chunk[1] as u64) << 48;
-                value |= (chunk[2] as u64) << 40;
-                value |= (chunk[3] as u64) << 32;
-                value |= (chunk[4] as u64) << 24;
-                value |= (chunk[5] as u64) << 16;
-                value |= (chunk[6] as u64) << 8;
-                value |= (chunk[7] as u64) << 0;
-                id[i] = value;
-                i += 1;
-                if i >= id.len() {
-                    break;
-                }
-            }
-
-            // use new so we can use this macro outside this package.
-            UIId::new(id)
-        }};
-    }
-}
-use ui_id::UIId;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Navigation {
-    None,
-    Up,
-    Down,
-    Interact,
-}
-d!(for Navigation: Navigation::None);
-
-fn navigation_from_cursors(cursors: &Vec<CursorView>) -> Navigation {
-    let mut output = d!();
-
-    for c in cursors.iter() {
-        match c.state {
-            CursorState::None => {}
-            CursorState::PressedAgainstWall(dir) => match dir {
-                Move::Up => {
-                    output = Navigation::Up;
-                    break;
-                }
-                Move::Down => {
-                    output = Navigation::Down;
-                    break;
-                }
-                _ => {}
-            },
-        }
-    }
-
-    output
-}
 
 type Colour = [f32; 4];
 
@@ -259,152 +115,19 @@ const TAB_BAR_BACKGROUND_COLOUR: Colour = palette![alt cyan];
 const TAB_BACKGROUND_COLOUR: Colour = palette![cyan];
 const TAB_TEXT_COLOUR: Colour = palette![white];
 
-const TEXT_SIZE: f32 = 32.0;
-const FIND_REPLACE_SIZE: f32 = 26.0;
-const STATUS_SIZE: f32 = 22.0;
-const TAB_SIZE: f32 = 16.0;
-
-const SEPARATOR_LINE_THICKNESS: f32 = 2.0;
-
-pub const TEXT_SIZES: [f32; 4] = [TEXT_SIZE, STATUS_SIZE, TAB_SIZE, FIND_REPLACE_SIZE];
-pub const SCROLL_MULTIPLIER: f32 = TEXT_SIZE * 3.0;
-
-pub fn get_font_info(char_dims: &[CharDim]) -> FontInfo {
-    debug_assert!(
-        char_dims.len() >= TEXT_SIZES.len(),
-        "get_font_info didn't receive enough char_dims"
-    );
-
-    FontInfo {
-        text_char_dim: char_dims[0],
-        status_char_dim: char_dims[1],
-        tab_char_dim: char_dims[2],
-        find_replace_char_dim: char_dims[3],
-    }
-}
-
-/// You can use any u8 as a base, and this function will make a z that allows UI widgets to use
-/// some more layers for other stuff by adding small numbers to it. Say 1, 2, 3 etc.
-const fn z_from_base(base: u8) -> u16 {
-    (base as u16) << 8
-}
-
-// Reminder: smaller means farther away.
-const EDIT_Z: u16 = z_from_base(32);
-const FIND_REPLACE_BACKGROUND_Z: u16 = z_from_base(32 + 8);
-const FIND_REPLACE_Z: u16 = z_from_base(32 + 16);
-const STATUS_BACKGROUND_Z: u16 = z_from_base(64);
-const TAB_BACKGROUND_Z: u16 = STATUS_BACKGROUND_Z;
-const STATUS_Z: u16 = z_from_base(128);
-const TAB_Z: u16 = STATUS_Z;
-
-/// Ratios to tab width
-const TAB_MARGIN_RATIO: f32 = 1.0 / 32.0;
-const TAB_PADDING_RATIO: f32 = 1.0 / 64.0;
-const TAB_MIN_W: f32 = 128.0;
-const TAB_MIN_PADDING: f32 = TAB_MIN_W * TAB_PADDING_RATIO;
-const TAB_MIN_MARGIN: f32 = TAB_MIN_W * TAB_MARGIN_RATIO;
-
-#[derive(Clone, Copy)]
-pub enum Spacing {
-    All(f32),
-    Horizontal(f32),
-    Vertical(f32),
-    Axis(f32, f32),
-    LeftTopRightBottom(f32, f32, f32, f32),
-}
-d!(for Spacing: Spacing::All(0.0));
-
-/// LRTB is short for `LeftTopRightBottom`. This represents what the values of a spacing would be
-/// if the spacing was the `LeftTopRightBottom` variant.
-struct LRTB {
-    l: f32,
-    r: f32,
-    t: f32,
-    b: f32,
-}
-
-impl Spacing {
-    fn into_ltrb(self) -> LRTB {
-        use Spacing::*;
-        let (l, t, r, b) = match self {
-            All(n) => (n, n, n, n),
-            Horizontal(n) => (n, 0.0, n, 0.0),
-            Vertical(n) => (0.0, n, 0.0, n),
-            Axis(x, y) => (x, y, x, y),
-            LeftTopRightBottom(l, t, r, b) => (l, t, r, b),
-        };
-
-        LRTB { l, t, r, b }
-    }
-}
-struct SpacedRect {
-    rect: ScreenSpaceRect,
-    padding: Spacing,
-    margin: Spacing,
-}
-
-impl SpacedRect {
-    fn width(&self) -> f32 {
-        enlarge_by(self.rect, self.margin).width()
-    }
-}
-
-fn get_tab_spaced_rect(
-    ui: &UIState,
-    tab_char_dim: CharDim,
-    tab_index: usize,
-    tab_count: usize,
-    width: f32,
-) -> SpacedRect {
-    let UpperPositionInfo {
-        tab_v_padding,
-        tab_v_margin,
-        tab_y,
-        edit_y
-    } = upper_position_info(&tab_char_dim);
-    let tab_count: f32 = usize_to_f32_or_65536(max(tab_count, 1));
-    let tab_w = width / tab_count;
-    let tab_w = if tab_w > TAB_MIN_W {
-        tab_w
-    } else {
-        // NaN ends up here
-        TAB_MIN_W
-    };
-    let tab_padding = tab_w * TAB_PADDING_RATIO;
-    let tab_margin = tab_w * TAB_MARGIN_RATIO;
-
-    let min_x = usize_to_f32_or_65536(tab_index) * tab_w + tab_padding + ui.tab_scroll;
-    let max_x = usize_to_f32_or_65536(tab_index + 1) * tab_w - tab_padding + ui.tab_scroll;
-
-    SpacedRect {
-        padding: Spacing::Axis(tab_padding, tab_v_padding),
-        margin: Spacing::Axis(tab_margin, tab_v_margin),
-        rect: ssr!((min_x, tab_y), (max_x, edit_y - tab_y)),
-    }
-}
-
-fn begin_view(ui: &mut UIState, view: &View) {
-    if let Some(buffer_view_data) = view.get_current_buffer_view_data() {
-        ui.navigation = navigation_from_cursors(&buffer_view_data.cursors);
-    } else {
-        // use the navigation that was set before `view` was called if there was one.
-    }
-}
-
-fn end_view(ui: &mut UIState) {
-    ui.navigation = d!();
-}
-
 pub fn view<'view>(
-    ui: &mut UIState,
-    view: &'view View,
+    RunState {
+        ref mut ui,
+        ref view,
+        ref buffer_status_map,
+        ..
+    }: &'view mut RunState,
     font_info: &FontInfo,
     wh: ScreenSpaceWH,
     dt: std::time::Duration,
-    buffer_status_map: &BufferStatusMap,
 ) -> (Vec<TextOrRect<'view>>, Option<Input>) {
-    begin_view(ui, view);
+    ui::begin_view(ui, view);
+
     let sswh!(width, height) = wh;
     let FontInfo {
         text_char_dim,
@@ -453,7 +176,7 @@ pub fn view<'view>(
 
         if do_outline_button(
             ui,
-            id!(i),
+            ui_id!(i),
             &mut text_or_rects,
             OutlineButtonSpec {
                 text: &name_string,
@@ -584,7 +307,7 @@ pub fn view<'view>(
                                     *find_replace_char_dim,
                                     FIND_REPLACE_SIZE,
                                     TextBoxColour::Single(CHROME_TEXT_COLOUR),
-                                    $data,
+                                    &$data,
                                     $input,
                                     FIND_REPLACE_Z,
                                     &view.current_buffer_id,
@@ -661,7 +384,7 @@ pub fn view<'view>(
                             *find_replace_char_dim,
                             FIND_REPLACE_SIZE,
                             TextBoxColour::Single(CHROME_TEXT_COLOUR),
-                            $data,
+                            &$data,
                             $input,
                             FIND_REPLACE_Z,
                             &view.current_buffer_id,
@@ -678,30 +401,31 @@ pub fn view<'view>(
 
                 let search_buffer_id = b_id!(BufferIdKind::FileSwitcher, index);
 
-                fn get_result_id(index: usize) -> UIId {
-                    ui_id::UIId::TaggedUsize(ui_id::Tag::FileSwitcherResults, index)
+                fn get_result_id(index: usize) -> ui::Id {
+                    ui::Id::TaggedUsize(ui::Tag::FileSwitcherResults, index)
                 }
 
                 let mut navigated_result = None;
 
                 if input.is_none() {
+                    use ui::Navigation::*;
                     match ui.navigation {
-                        Navigation::None => {
+                        None => {
                             if view.current_buffer_id.kind != BufferIdKind::None {
                                 // do nothing
-                            } else if let UIId::TaggedUsize(
-                                ui_id::Tag::FileSwitcherResults,
+                            } else if let ui::Id::TaggedUsize(
+                                ui::Tag::FileSwitcherResults,
                                 result_index,
                             ) = ui.keyboard.hot
                             {
                                 navigated_result = Some(result_index);
                             }
                         }
-                        Navigation::Up => {
+                        Up => {
                             if view.current_buffer_id.kind != BufferIdKind::None {
                                 // do nothing
-                            } else if let UIId::TaggedUsize(
-                                ui_id::Tag::FileSwitcherResults,
+                            } else if let ui::Id::TaggedUsize(
+                                ui::Tag::FileSwitcherResults,
                                 result_index,
                             ) = ui.keyboard.hot
                             {
@@ -712,7 +436,7 @@ pub fn view<'view>(
                                 }
                             }
                         }
-                        Navigation::Down => {
+                        Down => {
                             if view.current_buffer_id == search_buffer_id {
                                 if results.len() > 0 {
                                     navigated_result = Some(0);
@@ -721,19 +445,19 @@ pub fn view<'view>(
                                 }
                             } else if view.current_buffer_id.kind != BufferIdKind::None {
                                 // do nothing
-                            } else if let UIId::TaggedUsize(
-                                ui_id::Tag::FileSwitcherResults,
+                            } else if let ui::Id::TaggedUsize(
+                                ui::Tag::FileSwitcherResults,
                                 result_index,
                             ) = ui.keyboard.hot
                             {
                                 navigated_result = Some((result_index + 1) % results.len());
                             }
                         }
-                        Navigation::Interact => {
+                        Interact => {
                             if view.current_buffer_id.kind != BufferIdKind::None {
                                 // do nothing
-                            } else if let UIId::TaggedUsize(
-                                ui_id::Tag::FileSwitcherResults,
+                            } else if let ui::Id::TaggedUsize(
+                                ui::Tag::FileSwitcherResults,
                                 result_index,
                             ) = ui.keyboard.hot
                             {
@@ -791,7 +515,7 @@ pub fn view<'view>(
                 }
             }
             MenuView::GoToPosition(GoToPositionView {
-                go_to_position,
+                ref go_to_position,
             }) => {
                 let GoToPositionInfo {
                     padding,
@@ -896,7 +620,7 @@ pub fn view<'view>(
         }
     }
 
-    end_view(ui);
+    ui::end_view(ui);
 
     (text_or_rects, input)
 }
@@ -928,7 +652,7 @@ fn colourize<'text>(text: &'text str, spans: &[SpanView]) -> Vec<ColouredText<'t
 }
 
 fn text_box<'view>(
-    ui: &mut UIState,
+    ui: &mut ui::State,
     text_or_rects: &mut Vec<TextOrRect<'view>>,
     outer_rect: ScreenSpaceRect,
     padding: Spacing,
@@ -950,7 +674,7 @@ fn text_box<'view>(
 ) -> Option<Input> {
     let mut input = None;
 
-    let (clicked, button_state) = do_button_logic(ui, id!(format!("{:?}", buffer_id)), outer_rect);
+    let (clicked, button_state) = ui::do_button_logic(ui, ui_id!(format!("{:?}", buffer_id)), outer_rect);
     if clicked {
         input = Some(Input::SelectBuffer(buffer_id));
     }
@@ -1045,7 +769,7 @@ fn text_box<'view>(
 }
 
 pub fn make_active_tab_visible<'view>(
-    ui: &mut UIState,
+    ui: &mut ui::State,
     view: &'view View,
     FontInfo { tab_char_dim, .. }: &FontInfo,
     (screen_width, _): (f32, f32),
@@ -1061,7 +785,7 @@ pub fn make_active_tab_visible<'view>(
 }
 
 fn make_nth_tab_visible_if_present(
-    ui: &mut UIState,
+    ui: &mut ui::State,
     target_index: usize,
     tab_count: usize,
     tab_width: f32,
@@ -1069,278 +793,7 @@ fn make_nth_tab_visible_if_present(
     if target_index < tab_count {
         ui.tab_scroll = -(target_index as f32 * tab_width);
     }
-}
-
-#[derive(Clone, Copy, Debug)]
-pub enum PhysicalButtonState {
-    Released,
-    Pressed,
-    ReleasedThisFrame,
-    PressedThisFrame,
-}
-ord!(and friends for PhysicalButtonState: s, other in {
-    use PhysicalButtonState::*;
-    let s = match s {
-        Released => 0,
-        Pressed => 1,
-        ReleasedThisFrame => 2,
-        PressedThisFrame => 3,
-    };
-
-    let other = match other {
-        Released => 0,
-        Pressed => 1,
-        ReleasedThisFrame => 2,
-        PressedThisFrame => 3,
-    };
-
-    s.cmp(&other)
-});
-
-d!(for PhysicalButtonState: PhysicalButtonState::Released);
-
-impl PhysicalButtonState {
-    fn decay(&mut self) {
-        *self = match *self {
-            Self::ReleasedThisFrame => Self::Released,
-            Self::PressedThisFrame => Self::Pressed,
-            other => other,
-        }
-    }
-
-    pub fn is_pressed(&self) -> bool {
-        match *self {
-            Self::ReleasedThisFrame | Self::Released => false,
-            Self::PressedThisFrame | Self::Pressed => true,
-        }
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct UIState {
-    pub mouse_pos: ScreenSpaceXY,
-    pub left_mouse_state: PhysicalButtonState,
-    pub enter_key_state: PhysicalButtonState,
-    pub tab_scroll: f32,
-    /// This is should be in the range [0.0, 2.0]. This needs the extra space to repesent the down
-    /// side of the sawtooth pattern.
-    pub fade_alpha_accumulator: f32,
-    // If the user has recently made or is making an input, we don't want a distracting animation
-    // during that time. Afterwards though, we do want the animation to start again.
-    pub fade_solid_override_accumulator: f32,
-    pub mouse: UIFocus,
-    pub keyboard: UIFocus,
-    pub navigation: Navigation,
-    pub window_is_focused: bool,
-}
-
-impl UIState {
-    pub fn note_interaction(&mut self) {
-        self.fade_solid_override_accumulator = 1.5;
-    }
-    fn add_dt(&mut self, dt: std::time::Duration) {
-        let offset = ((dt.as_millis() as u64 as f32) / 1000.0) * 1.5;
-
-        if self.fade_solid_override_accumulator > 0.0 {
-            self.fade_solid_override_accumulator -= offset;
-            if self.fade_solid_override_accumulator < 0.0 {
-                self.fade_solid_override_accumulator = 0.0;
-                // Make sure when the override ends that we don't jump to a random point in the
-                // blink
-                self.fade_alpha_accumulator = 1.0;
-            }
-        } else {
-            self.fade_alpha_accumulator += offset;
-            self.fade_alpha_accumulator = self.fade_alpha_accumulator.rem_euclid(2.0);
-        }
-    }
-    fn get_fade_alpha(&self) -> f32 {
-        if self.fade_solid_override_accumulator > 0.0 {
-            1.0
-        } else if self.fade_alpha_accumulator > 1.0 {
-            2.0 - self.fade_alpha_accumulator
-        } else {
-            self.fade_alpha_accumulator
-        }
-    }
-}
-
-impl UIState {
-    pub fn frame_init(&mut self) {
-        self.mouse.frame_init();
-        self.keyboard.frame_init();
-    }
-    pub fn frame_end(&mut self) {
-        // This needs to go here instead of in init, so that we actually see the undecayed state
-        // for the first frame after the input event.
-        self.left_mouse_state.decay();
-        self.enter_key_state.decay();
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct UIFocus {
-    active: UIId,
-    hot: UIId,
-    next_hot: UIId,
-}
-
-impl UIFocus {
-    pub fn set_not_active(&mut self) {
-        self.active = d!();
-    }
-    pub fn set_active(&mut self, id: UIId) {
-        self.active = id;
-    }
-    pub fn set_next_hot(&mut self, id: UIId) {
-        self.next_hot = id;
-    }
-    #[allow(dead_code)]
-    pub fn set_not_hot(&mut self) {
-        self.hot = d!();
-    }
-    pub fn frame_init(&mut self) {
-        if self.active == d!() {
-            self.hot = self.next_hot;
-        }
-        self.next_hot = d!();
-    }
-}
-
-fn inside_rect(
-    ScreenSpaceXY { x, y }: ScreenSpaceXY,
-    ScreenSpaceRect { min, max }: ScreenSpaceRect,
-) -> bool {
-    x > min.0 && x <= max.0 && y > min.1 && y <= max.1
-}
-
-fn clamp_within(rect: &mut ScreenSpaceRect, ScreenSpaceRect { min, max }: ScreenSpaceRect) {
-    if rect.min.0 < min.0 {
-        rect.min.0 = min.0
-    } else {
-        // NaN ends up here
-    };
-    if rect.min.1 < min.1 {
-        rect.min.1 = min.1
-    } else {
-        // NaN ends up here
-    };
-
-    if rect.max.0 > max.0 {
-        rect.max.0 = max.0
-    } else {
-        // NaN ends up here
-    };
-    if rect.max.1 > max.1 {
-        rect.max.1 = max.1
-    } else {
-        // NaN ends up here
-    };
-}
-
-#[derive(Clone, Copy, Debug)]
-enum InputType {
-    Mouse,
-    Keyboard,
-    Both,
-}
-
-macro_rules! input_type_tag {
-    ($input_type: expr) => {{
-        use InputType::*;
-        match $input_type {
-            Mouse => 1,
-            Keyboard => 2,
-            Both => 3,
-        }
-    }};
-}
-
-ord!(and friends for InputType: t, other in input_type_tag!(t).cmp(&input_type_tag!(other)));
-
-#[derive(Clone, Copy, Debug)]
-enum ButtonState {
-    Usual,
-    Hover(InputType),
-    Pressed(InputType),
-}
-ord!(and friends for ButtonState: s, other in {
-    use ButtonState::*;
-    macro_rules! button_state_tag {
-        ($button_state: expr) => (
-            match $button_state {
-                Usual => (0, 0),
-                Hover(input_type) => (1, input_type_tag!(input_type)),
-                Pressed(input_type) => (2, input_type_tag!(input_type)),
-            }
-        );
-    }
-
-    button_state_tag!(s).cmp(&button_state_tag!(other))
-});
-
-type DoButtonResult = (bool, ButtonState);
-
-/// calling this once will swallow multiple clicks on the button. We could either
-/// pass in and return the number of clicks to fix that, or this could simply be
-/// called multiple times per frame (once for each click).
-fn do_button_logic(ui: &mut UIState, id: UIId, rect: ScreenSpaceRect) -> DoButtonResult {
-    use ButtonState::*;
-    let mut clicked = false;
-
-    let mouse_pos = ui.mouse_pos;
-    let mouse_state = ui.left_mouse_state;
-    let enter_key_state = ui.enter_key_state;
-
-    let inside = inside_rect(mouse_pos, rect);
-
-    if ui.mouse.active == id {
-        if mouse_state == PhysicalButtonState::ReleasedThisFrame {
-            clicked = ui.mouse.hot == id && inside;
-            ui.mouse.set_not_active();
-        }
-    } else if ui.keyboard.active == id {
-        if enter_key_state == PhysicalButtonState::PressedThisFrame {
-            clicked = ui.keyboard.hot == id;
-            ui.keyboard.set_not_active();
-        }
-    } else {
-        if ui.mouse.hot == id {
-            if mouse_state == PhysicalButtonState::PressedThisFrame {
-                ui.mouse.set_active(id);
-            }
-        }
-
-        if ui.keyboard.hot == id {
-            if enter_key_state == PhysicalButtonState::PressedThisFrame {
-                ui.keyboard.set_active(id);
-            }
-        }
-    }
-
-    if inside {
-        ui.mouse.set_next_hot(id);
-    }
-    // keyboard_hot is expected to be set by other ui code, since it depends on what that code
-    // wants to allow regarding movement.
-
-    let state = match (
-        ui.mouse.active == id && mouse_state.is_pressed(),
-        ui.keyboard.active == id && enter_key_state.is_pressed(),
-    ) {
-        (true, true) => Pressed(InputType::Both),
-        (true, false) => Pressed(InputType::Mouse),
-        (false, true) => Pressed(InputType::Keyboard),
-        (false, false) => match (ui.mouse.hot == id, ui.keyboard.hot == id) {
-            (true, true) => Hover(InputType::Both),
-            (true, false) => Hover(InputType::Mouse),
-            (false, true) => Hover(InputType::Keyboard),
-            (false, false) => Usual,
-        },
-    };
-    (clicked, state)
-}
-
+}
 struct LineSpec {
     colour: Colour,
     thickness: f32,
@@ -1369,60 +822,17 @@ d!(for OutlineButtonSpec<'static>: OutlineButtonSpec {
     overline: d!(),
 });
 
-fn enlarge_by(
-    ssr!(min_x, min_y, max_x, max_y): ScreenSpaceRect,
-    enlarge_amount: Spacing,
-) -> ScreenSpaceRect {
-    let LRTB {
-        l: min_x_e,
-        t: min_y_e,
-        r: max_x_e,
-        b: max_y_e,
-    } = enlarge_amount.into_ltrb();
-    ssr!(
-        min_x - min_x_e,
-        min_y - min_y_e,
-        max_x + max_x_e,
-        max_y + max_y_e
-    )
-}
-
-fn shrink_by(
-    ssr!(min_x, min_y, max_x, max_y): ScreenSpaceRect,
-    shrink_amount: Spacing,
-) -> ScreenSpaceRect {
-    let LRTB {
-        l: min_x_s,
-        t: min_y_s,
-        r: max_x_s,
-        b: max_y_s,
-    } = shrink_amount.into_ltrb();
-    ssr!(
-        min_x + min_x_s,
-        min_y + min_y_s,
-        max_x - max_x_s,
-        max_y - max_y_s
-    )
-}
-
 fn do_outline_button<'view>(
-    ui: &mut UIState,
-    id: UIId,
+    ui_state: &mut ui::State,
+    id: ui::Id,
     text_or_rects: &mut Vec<TextOrRect<'view>>,
     spec: OutlineButtonSpec<'view>,
 ) -> bool {
-    let (clicked, state) = do_button_logic(ui, id, spec.rect);
+    let (clicked, state) = ui::do_button_logic(ui_state, id, spec.rect);
 
-    render_outline_button(text_or_rects, spec, state, ui.get_fade_alpha());
+    render_outline_button(text_or_rects, spec, state, ui_state.get_fade_alpha());
 
     clicked
-}
-
-/// returns a rectangle with the passed width and height centered inside the passed rectangle.
-fn center_within((w, h): (f32, f32), rect: ScreenSpaceRect) -> ScreenSpaceRect {
-    let (middle_x, middle_y) = rect.middle();
-    let min = (middle_x - (w / 2.0), middle_y - (h / 2.0));
-    ssr!(min, (min.0 + w, min.1 + h))
 }
 
 fn render_outline_button<'view>(
@@ -1443,9 +853,6 @@ fn render_outline_button<'view>(
 ) {
     use ButtonState::*;
 
-    let text_w = usize_to_f32_or_65536(text.chars().count()) * char_dim.w;
-    let text_rect = center_within((text_w, char_dim.h), rect);
-
     const BACKGROUND_COLOUR: Colour = TAB_BACKGROUND_COLOUR;
     const TEXT_COLOUR: Colour = TAB_TEXT_COLOUR;
 
@@ -1457,7 +864,7 @@ fn render_outline_button<'view>(
 
     macro_rules! highlight_colour {
         ($input_type: expr) => {{
-            use InputType::*;
+            use ui::InputType::*;
             match $input_type {
                 Mouse => palette![yellow, fade_alpha],
                 Keyboard => palette![blue, fade_alpha],
@@ -1473,7 +880,7 @@ fn render_outline_button<'view>(
                 size,
                 layout,
                 spec: VisualSpec {
-                    rect: text_rect,
+                    rect: get_inner_text_rect(text, char_dim, rect),
                     color: TEXT_COLOUR,
                     z: text_z,
                 },
@@ -1530,6 +937,180 @@ fn render_outline_button<'view>(
             z: underline_z,
         }));
     }
+}
+
+pub const TEXT_SIZE: f32 = 32.0;
+pub const FIND_REPLACE_SIZE: f32 = 26.0;
+pub const STATUS_SIZE: f32 = 22.0;
+pub const TAB_SIZE: f32 = 16.0;
+
+pub const SEPARATOR_LINE_THICKNESS: f32 = 2.0;
+
+pub const TEXT_SIZES: [f32; 4] = [TEXT_SIZE, STATUS_SIZE, TAB_SIZE, FIND_REPLACE_SIZE];
+pub const SCROLL_MULTIPLIER: f32 = TEXT_SIZE * 3.0;
+
+pub fn get_font_info(char_dims: &[CharDim]) -> FontInfo {
+    debug_assert!(
+        char_dims.len() >= TEXT_SIZES.len(),
+        "get_font_info didn't receive enough char_dims"
+    );
+
+    FontInfo {
+        text_char_dim: char_dims[0],
+        status_char_dim: char_dims[1],
+        tab_char_dim: char_dims[2],
+        find_replace_char_dim: char_dims[3],
+    }
+}
+
+/// You can use any u8 as a base, and this function will make a z that allows UI widgets to use
+/// some more layers for other stuff by adding small numbers to it. Say 1, 2, 3 etc.
+const fn z_from_base(base: u8) -> u16 {
+    (base as u16) << 8
+}
+
+// Reminder: smaller means farther away.
+pub const EDIT_Z: u16 = z_from_base(32);
+pub const FIND_REPLACE_BACKGROUND_Z: u16 = z_from_base(32 + 8);
+pub const FIND_REPLACE_Z: u16 = z_from_base(32 + 16);
+pub const STATUS_BACKGROUND_Z: u16 = z_from_base(64);
+pub const TAB_BACKGROUND_Z: u16 = STATUS_BACKGROUND_Z;
+pub const STATUS_Z: u16 = z_from_base(128);
+pub const TAB_Z: u16 = STATUS_Z;
+
+/// Ratios to tab width
+const TAB_MARGIN_RATIO: f32 = 1.0 / 32.0;
+const TAB_PADDING_RATIO: f32 = 1.0 / 64.0;
+const TAB_MIN_W: f32 = 128.0;
+const TAB_MIN_PADDING: f32 = TAB_MIN_W * TAB_PADDING_RATIO;
+const TAB_MIN_MARGIN: f32 = TAB_MIN_W * TAB_MARGIN_RATIO;
+
+#[derive(Clone, Copy)]
+pub enum Spacing {
+    All(f32),
+    Horizontal(f32),
+    Vertical(f32),
+    Axis(f32, f32),
+    LeftTopRightBottom(f32, f32, f32, f32),
+}
+d!(for Spacing: Spacing::All(0.0));
+
+/// LRTB is short for `LeftTopRightBottom`. This represents what the values of a spacing would be
+/// if the spacing was the `LeftTopRightBottom` variant.
+struct LRTB {
+    l: f32,
+    r: f32,
+    t: f32,
+    b: f32,
+}
+
+impl Spacing {
+    fn into_ltrb(self) -> LRTB {
+        use Spacing::*;
+        let (l, t, r, b) = match self {
+            All(n) => (n, n, n, n),
+            Horizontal(n) => (n, 0.0, n, 0.0),
+            Vertical(n) => (0.0, n, 0.0, n),
+            Axis(x, y) => (x, y, x, y),
+            LeftTopRightBottom(l, t, r, b) => (l, t, r, b),
+        };
+
+        LRTB { l, t, r, b }
+    }
+}
+struct SpacedRect {
+    rect: ScreenSpaceRect,
+    padding: Spacing,
+    margin: Spacing,
+}
+
+impl SpacedRect {
+    fn width(&self) -> f32 {
+        enlarge_by(self.rect, self.margin).width()
+    }
+}
+
+fn get_tab_spaced_rect(
+    ui: &ui::State,
+    tab_char_dim: CharDim,
+    tab_index: usize,
+    tab_count: usize,
+    width: f32,
+) -> SpacedRect {
+    let UpperPositionInfo {
+        tab_v_padding,
+        tab_v_margin,
+        tab_y,
+        edit_y
+    } = upper_position_info(&tab_char_dim);
+    let tab_count: f32 = usize_to_f32_or_65536(max(tab_count, 1));
+    let tab_w = width / tab_count;
+    let tab_w = if tab_w > TAB_MIN_W {
+        tab_w
+    } else {
+        // NaN ends up here
+        TAB_MIN_W
+    };
+    let tab_padding = tab_w * TAB_PADDING_RATIO;
+    let tab_margin = tab_w * TAB_MARGIN_RATIO;
+
+    let min_x = usize_to_f32_or_65536(tab_index) * tab_w + tab_padding + ui.tab_scroll;
+    let max_x = usize_to_f32_or_65536(tab_index + 1) * tab_w - tab_padding + ui.tab_scroll;
+
+    SpacedRect {
+        padding: Spacing::Axis(tab_padding, tab_v_padding),
+        margin: Spacing::Axis(tab_margin, tab_v_margin),
+        rect: ssr!((min_x, tab_y), (max_x, edit_y - tab_y)),
+    }
+}
+
+fn enlarge_by(
+    ssr!(min_x, min_y, max_x, max_y): ScreenSpaceRect,
+    enlarge_amount: Spacing,
+) -> ScreenSpaceRect {
+    let LRTB {
+        l: min_x_e,
+        t: min_y_e,
+        r: max_x_e,
+        b: max_y_e,
+    } = enlarge_amount.into_ltrb();
+    ssr!(
+        min_x - min_x_e,
+        min_y - min_y_e,
+        max_x + max_x_e,
+        max_y + max_y_e
+    )
+}
+
+fn shrink_by(
+    ssr!(min_x, min_y, max_x, max_y): ScreenSpaceRect,
+    shrink_amount: Spacing,
+) -> ScreenSpaceRect {
+    let LRTB {
+        l: min_x_s,
+        t: min_y_s,
+        r: max_x_s,
+        b: max_y_s,
+    } = shrink_amount.into_ltrb();
+    ssr!(
+        min_x + min_x_s,
+        min_y + min_y_s,
+        max_x - max_x_s,
+        max_y - max_y_s
+    )
+}
+
+pub fn get_inner_text_rect(text: &str, char_dim: CharDim, rect: ScreenSpaceRect) -> ScreenSpaceRect {
+    let text_w = usize_to_f32_or_65536(text.chars().count()) * char_dim.w;
+    
+    center_within((text_w, char_dim.h), rect)
+}
+
+/// returns a rectangle with the passed width and height centered inside the passed rectangle.
+fn center_within((w, h): (f32, f32), rect: ScreenSpaceRect) -> ScreenSpaceRect {
+    let (middle_x, middle_y) = rect.middle();
+    let min = (middle_x - (w / 2.0), middle_y - (h / 2.0));
+    ssr!(min, (min.0 + w, min.1 + h))
 }
 
 fn usize_to_f32_or_65536(n: usize) -> f32 {
@@ -1885,6 +1466,7 @@ pub fn inside_tab_area(
 ) -> bool {
     y < upper_position_info(tab_char_dim).edit_y
 }
+
 
 #[cfg(test)]
 mod wimp_render_tests;

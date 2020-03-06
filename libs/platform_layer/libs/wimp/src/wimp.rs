@@ -8,12 +8,12 @@ use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::time::Duration;
 use wimp_render::{get_find_replace_info, FindReplaceInfo, get_go_to_position_info, GoToPositionInfo};
-
+use wimp_types::{ui, ui::{PhysicalButtonState, Navigation}, transform_status, BufferStatus, BufferStatusMap, BufferStatusTransition, RunState};
 use file_chooser;
 use macros::d;
 use platform_types::{screen_positioning::screen_to_text_box, *};
-use shared::{transform_status, BufferStatus, BufferStatusMap, BufferStatusTransition, Res};
-use wimp_render::{Navigation, PhysicalButtonState, UIState};
+use shared::{Res};
+
 
 mod clipboard_layer {
     pub use clipboard::ClipboardProvider;
@@ -374,14 +374,10 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
             .expect("Could not start editor thread!"),
     );
 
-    struct CommandVars {
-        view: View,
-        cmds: VecDeque<Cmd>,
-        ui: UIState,
-        editor_in_sink: Sender<Input>
-    }
+    let previous_tabs =
+            edited_storage::load_previous_tabs(&edited_files_dir_buf, &edited_files_index_path_buf);
 
-    let mut command_vars = {
+    let mut r_s = {
         let (view, c) = update_and_render(Input::SetSizeDependents(
             get_non_font_size_dependents!(d!())
         ));
@@ -389,18 +385,21 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
         let mut cmds = VecDeque::with_capacity(EVENTS_PER_FRAME);
         cmds.push_back(c);
 
-        let mut ui: UIState = d!();
+        let mut ui: ui::State = d!();
         ui.window_is_focused = true;
 
-        CommandVars {
+        let buffer_status_map = BufferStatusMap::with_capacity((previous_tabs.len() + 1) * 2);
+
+        RunState {
             view,
             cmds,
             ui,
-            editor_in_sink
+            buffer_status_map,
+            editor_in_sink,
         }
     };
 
-// If you didn't click on the same symbol, counting that as a double click seems like it
+    // If you didn't click on the same symbol, counting that as a double click seems like it
     // would be annoying.
     let mouse_epsilon_radius: f32 = {
         let (w, h) = (font_info.text_char_dim.w, font_info.text_char_dim.h);
@@ -414,7 +413,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
 
     macro_rules! mouse_within_radius {
         () => {{
-            let mouse_pos = &command_vars.ui.mouse_pos;
+            let mouse_pos = &r_s.ui.mouse_pos;
             (last_click_x - mouse_pos.x).abs() <= mouse_epsilon_radius
                 && (last_click_y - mouse_pos.y).abs() <= mouse_epsilon_radius
         }};
@@ -423,7 +422,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
     {
         macro_rules! call_u_and_r {
             ($input:expr) => {{
-                call_u_and_r!(command_vars, $input)
+                call_u_and_r!(r_s, $input)
             }};
             ($vars: ident, $input:expr) => {{
                 $vars.ui.note_interaction();
@@ -431,38 +430,44 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
             }};
         }
 
-        let previous_tabs =
-            edited_storage::load_previous_tabs(&edited_files_dir_buf, &edited_files_index_path_buf);
-
-        let mut buffer_status_map = BufferStatusMap::with_capacity((previous_tabs.len() + 1) * 2);
-
         for (i, (name, data)) in previous_tabs.into_iter().enumerate() {
             call_u_and_r!(Input::AddOrSelectBuffer(name, data));
 
-            let index_state = command_vars.view.index_state;
+            let index_state = r_s.view.index_state;
 
             // if we bothered saving them before, they were clearly edited.
-            buffer_status_map.insert(
+            r_s.buffer_status_map.insert(
                 index_state,
                 index_state.new_index(g_i::IndexPart::or_max(i)),
                 BufferStatus::EditedAndSaved,
             );
         }
 
-        let mut commands = std::collections::BTreeMap::new();
+        use std::collections::BTreeMap;
+        let mut commands: BTreeMap<_, (_, fn(&mut RunState))> = std::collections::BTreeMap::new();
 
         macro_rules! register_command {
             ($modifiers: expr, $main_key: ident, $label: literal, $(_)? $code: block) => {
                 register_command!($modifiers, $main_key, $label, _unused_identifier $code)
             };
             ($modifiers: expr, $main_key: ident, $label: literal, $vars: ident $code: block) => {{
-                fn cmd_fn($vars: &mut CommandVars) {
+                fn cmd_fn($vars: &mut RunState) {
                     $code
                 }
                 let key = ($modifiers, VirtualKeyCode::$main_key);  
                 debug_assert!(commands.get(&key).is_none());
                 commands.insert(key, ($label, cmd_fn));
             }}
+        }
+
+        macro_rules! register_commands {
+            ($([$($tokens: tt)*])+) => {
+                $(
+                    register_command!{
+                        $($tokens)*
+                    }
+                )+
+            }
         }
 
         use glutin::event::*;
@@ -472,9 +477,14 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
         const CTRL: ModifiersState = ModifiersState::CTRL;
         const SHIFT: ModifiersState = ModifiersState::SHIFT;
 
-        register_command!{CTRL, Home, "Move cursors to start.", vars {
-            call_u_and_r!(vars, Input::MoveAllCursors(Move::ToBufferStart))
-        }}
+        register_commands!{
+            [CTRL, Home, "Move cursors to start.", state {
+                call_u_and_r!(state, Input::MoveAllCursors(Move::ToBufferStart))
+            }]
+            [CTRL, End, "Move cursors to end.", state {
+                call_u_and_r!(state, Input::MoveAllCursors(Move::ToBufferEnd))
+            }]
+        }
 
         events.run(move |event, _, control_flow| {
             // eventually we'll likely want to tell the editor, and have it decide whether/how
@@ -492,7 +502,8 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                     let index = $buffer_index;
                     match std::fs::write($path, $str) {
                         Ok(_) => {
-                            let view = &command_vars.view;
+                            let view = &r_s.view;
+                            let buffer_status_map = &mut r_s.buffer_status_map;
                             buffer_status_map.insert(
                                 view.index_state,
                                 index,
@@ -570,7 +581,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
 
                     macro_rules! text_box_xy {
                         () => {{
-                            let view = &command_vars.view;
+                            let view = &r_s.view;
                             let xy = wimp_render::get_current_buffer_rect(
                                 view.current_buffer_id,
                                 view.menu.get_mode(),
@@ -579,7 +590,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                             )
                             .xy;
 
-                            screen_to_text_box(command_vars.ui.mouse_pos, xy)
+                            screen_to_text_box(r_s.ui.mouse_pos, xy)
                         }};
                     }
 
@@ -634,7 +645,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         } => {
                             if let Some((label, command)) = commands.get(&(modifiers, keypress)) {
                                 dbg!(label);
-                                command(&mut command_vars);
+                                command(&mut r_s);
                             }
                         }
                         _ => {}
@@ -661,7 +672,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                             dimensions = size;
                             call_u_and_r!(Input::SetSizeDependents(
                                 get_non_font_size_dependents!(
-                                    command_vars.view.menu.get_mode()
+                                    r_s.view.menu.get_mode()
                                 )
                             ));
                             gl_layer::set_dimensions(
@@ -672,7 +683,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         }
                         WindowEvent::Focused(is_focused) => {
                             dbg!("set to ", is_focused);
-                            command_vars.ui.window_is_focused = is_focused;
+                            r_s.ui.window_is_focused = is_focused;
                         }
                         WindowEvent::ReceivedCharacter(mut c) => {
                             if c != '\u{1}'     // "start of heading" (sent with Ctrl-a)
@@ -700,9 +711,9 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
 
                                 if c == '\n' {
                                     use BufferIdKind::*;
-                                    match command_vars.view.current_buffer_id.kind {
+                                    match r_s.view.current_buffer_id.kind {
                                         None => {
-                                            command_vars.ui.navigation = Navigation::Interact;
+                                            r_s.ui.navigation = Navigation::Interact;
                                         }
                                         Text => {
                                             call_u_and_r!(Input::Insert(c));
@@ -721,7 +732,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                             modifiers,
                             ..
                         } if modifiers.is_empty() => {
-                            let ui = &mut command_vars.ui;
+                            let ui = &mut r_s.ui;
                             let scroll_y = y * wimp_render::SCROLL_MULTIPLIER;
                             if wimp_render::inside_tab_area(ui.mouse_pos, font_info) {
                                 ui.tab_scroll += scroll_y;
@@ -734,7 +745,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                             modifiers,
                             ..
                         } if modifiers == SHIFT => {
-                            let ui = &mut command_vars.ui;
+                            let ui = &mut r_s.ui;
                             let scroll_y = y * wimp_render::SCROLL_MULTIPLIER;
                             if wimp_render::inside_tab_area(ui.mouse_pos, font_info) {
                                 ui.tab_scroll += scroll_y;
@@ -747,7 +758,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                             modifiers,
                             ..
                         } => {
-                            let ui = &mut command_vars.ui;
+                            let ui = &mut r_s.ui;
                             let LogicalPosition::<f32> { x, y } = position.to_logical(get_hidpi_factor!());
                             ui.mouse_pos = ScreenSpaceXY {
                                 x,
@@ -758,7 +769,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                                 m if m.is_empty() => {
                                     let cursor_icon = if wimp_render::should_show_text_cursor(
                                         ui.mouse_pos,
-                                        command_vars.view.menu.get_mode(),
+                                        r_s.view.menu.get_mode(),
                                         font_info,
                                         screen_wh!(),
                                     ) {
@@ -783,7 +794,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                             ..
                         } // allow things like Shift-Alt-Click
                         if (!modifiers).intersects(!CTRL) => {
-                            command_vars.ui.left_mouse_state = PhysicalButtonState::PressedThisFrame;
+                            r_s.ui.left_mouse_state = PhysicalButtonState::PressedThisFrame;
 
                             let replace_or_add = if modifiers.ctrl() {
                                 ReplaceOrAdd::Add
@@ -804,7 +815,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                             state: ElementState::Released,
                             ..
                         } => {
-                            let ui = &mut command_vars.ui;
+                            let ui = &mut r_s.ui;
                             ui.left_mouse_state = PhysicalButtonState::ReleasedThisFrame;
                             last_click_x = ui.mouse_pos.x;
                             last_click_y = ui.mouse_pos.y;
@@ -821,26 +832,20 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         } 
                         if modifiers == CTRL => match keypress {
                             VirtualKeyCode::Key0 => {
-                                let ui = &mut command_vars.ui;
+                                let ui = &mut r_s.ui;
                                 if wimp_render::inside_tab_area(ui.mouse_pos, font_info) {
                                     let width = dimensions.width;
                                     let height = dimensions.height;
 
                                     wimp_render::make_active_tab_visible(
                                         ui,
-                                        &command_vars.view,
+                                        &r_s.view,
                                         &font_info,
                                         (width as _, height as _),
                                     );
                                 } else {
                                     call_u_and_r!(Input::ResetScroll);
                                 }
-                            }
-                            VirtualKeyCode::Home => {
-                                call_u_and_r!(Input::MoveAllCursors(Move::ToBufferStart));
-                            }
-                            VirtualKeyCode::End => {
-                                call_u_and_r!(Input::MoveAllCursors(Move::ToBufferEnd));
                             }
                             VirtualKeyCode::Left => {
                                 call_u_and_r!(Input::MoveAllCursors(
@@ -874,7 +879,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                                 switch_menu_mode!(MenuMode::FileSwitcher);
                             }
                             VirtualKeyCode::S => {
-                                if let Some((i, buffer)) = command_vars.view.get_visible_index_and_buffer() {
+                                if let Some((i, buffer)) = r_s.view.get_visible_index_and_buffer() {
                                     match buffer.name {
                                         BufferName::Scratch(_) => {
                                             file_chooser_call!(
@@ -894,7 +899,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                             VirtualKeyCode::V => {
                                 call_u_and_r!(Input::Paste(clipboard.get_contents().ok()));
                             }
-                            VirtualKeyCode::W => match command_vars.view.current_buffer_id {
+                            VirtualKeyCode::W => match r_s.view.current_buffer_id {
                                 BufferId {
                                     kind: BufferIdKind::Text,
                                     index,
@@ -972,7 +977,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                                 ));
                             }
                             VirtualKeyCode::S => {
-                                if let Some(i) = command_vars.view.visible_buffer {
+                                if let Some(i) = r_s.view.visible_buffer {
                                     file_chooser_call!(
                                         save,
                                         p in CustomEvent::SaveNewFile(p, i)
@@ -1022,11 +1027,11 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                             }
                             VirtualKeyCode::Up => {
                                 call_u_and_r!(Input::MoveAllCursors(Move::Up));
-                                command_vars.ui.navigation = Navigation::Up;
+                                r_s.ui.navigation = Navigation::Up;
                             }
                             VirtualKeyCode::Down => {
                                 call_u_and_r!(Input::MoveAllCursors(Move::Down));
-                                command_vars.ui.navigation = Navigation::Down;
+                                r_s.ui.navigation = Navigation::Down;
                             }
                             VirtualKeyCode::Left => {
                                 call_u_and_r!(Input::MoveAllCursors(Move::Left));
@@ -1057,11 +1062,11 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         } if modifiers == SHIFT => match keypress {
                             VirtualKeyCode::Up => {
                                 call_u_and_r!(Input::ExtendSelectionForAllCursors(Move::Up));
-                                command_vars.ui.navigation = Navigation::Up;
+                                r_s.ui.navigation = Navigation::Up;
                             }
                             VirtualKeyCode::Down => {
                                 call_u_and_r!(Input::ExtendSelectionForAllCursors(Move::Down));
-                                command_vars.ui.navigation = Navigation::Down;
+                                r_s.ui.navigation = Navigation::Down;
                             }
                             VirtualKeyCode::Left => {
                                 call_u_and_r!(Input::ExtendSelectionForAllCursors(Move::Left));
@@ -1136,16 +1141,16 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                     for _ in 0..EVENTS_PER_FRAME {
                         match editor_out_source.try_recv() {
                             Ok((v, c)) => {
-                                command_vars.view = v;
-                                if let Some(index) = command_vars.view.edited_buffer_index {
-                                    buffer_status_map.insert(
-                                        command_vars.view.index_state,
+                                r_s.view = v;
+                                if let Some(index) = r_s.view.edited_buffer_index {
+                                    r_s.buffer_status_map.insert(
+                                        r_s.view.index_state,
                                         index,
                                         BufferStatus::EditedAndUnSaved
                                     );
                                 }
 
-                                command_vars.cmds.push_back(c);
+                                r_s.cmds.push_back(c);
                             }
                             _ => break,
                         };
@@ -1154,7 +1159,8 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                     for _ in 0..EVENTS_PER_FRAME {
                         match edited_files_out_source.try_recv() {
                             Ok((index, transition)) => {
-                                let view = &command_vars.view;
+                                let view = &r_s.view;
+                                let buffer_status_map = &mut r_s.buffer_status_map;
                                 buffer_status_map.insert(
                                     view.index_state,
                                     index,
@@ -1174,17 +1180,15 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                     glutin_context.window().request_redraw();
                 }
                 Event::RedrawRequested(_) => {
-                    command_vars.ui.frame_init();
-                    if_changed::dbg!(&command_vars.ui.keyboard);
+                    r_s.ui.frame_init();
+                    if_changed::dbg!(&r_s.ui.keyboard);
 
                     let (text_and_rects, input) =
                         wimp_render::view(
-                            &mut command_vars.ui,
-                            &command_vars.view,
+                            &mut r_s,
                             &font_info,
                             screen_wh!(),
                             dt,
-                            &buffer_status_map
                         );
                     let width = dimensions.width;
                     let height = dimensions.height;
@@ -1197,7 +1201,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         .expect("swap_buffers didn't work!");
 
                     for _ in 0..EVENTS_PER_FRAME {
-                        if let Some(cmd) = command_vars.cmds.pop_front() {
+                        if let Some(cmd) = r_s.cmds.pop_front() {
                             match cmd {
                                 Cmd::SetClipboard(s) => {
                                     if let Err(err) = clipboard.set_contents(s) {
@@ -1226,12 +1230,12 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                                 ""
                             },
                             rate,
-                            (command_vars.ui.mouse_pos.x, command_vars.ui.mouse_pos.y),
+                            (r_s.ui.mouse_pos.x, r_s.ui.mouse_pos.y),
                             (last_click_x, last_click_y),
                         ));
                     }
 
-                    command_vars.ui.frame_end();
+                    r_s.ui.frame_end();
                     perf_viz::start_record!("sleepin'");
                     loop_helper.loop_sleep();
                     perf_viz::end_record!("sleepin'");
@@ -1245,7 +1249,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                 Event::UserEvent(e) => match e {
                     CustomEvent::OpenFile(p) => load_file!(p),
                     CustomEvent::SaveNewFile(ref p, index) => {
-                        let view = &command_vars.view;
+                        let view = &r_s.view;
                         // The fact we need to store the index and retreive it later, potentially
                         // across multiple updates, is why this thread needs to know about the
                         // generational indices.
@@ -1257,12 +1261,15 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         }
                     }
                     CustomEvent::SendBuffersToBeSaved => {
-                        let view = &command_vars.view;
+                        let view = &r_s.view;
                         let _hope_it_gets_there = edited_files_in_sink.send(
                             EditedFilesThread::Buffers(
                                 view.index_state,
                                 view.buffers.iter().enumerate().map(|(i, b)|
-                                    (b.to_owned(), buffer_status_map.get(view.index_state, view.index_state.new_index(g_i::IndexPart::or_max(i))).unwrap_or_default())
+                                    (
+                                        b.to_owned(), 
+                                        r_s.buffer_status_map.get(view.index_state, view.index_state.new_index(g_i::IndexPart::or_max(i))).unwrap_or_default()
+                                    )
                                 ).collect()
                             )
                         );

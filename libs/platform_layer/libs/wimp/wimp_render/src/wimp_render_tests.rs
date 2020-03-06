@@ -4,6 +4,8 @@ use proptest::{
     prelude::{Just, Strategy},
     prop_compose, proptest,
 };
+use wimp_types::{ui_id, ui::{do_button_logic, InputType, PhysicalButtonState}};
+
 pub fn usual() -> f32::Any {
     f32::POSITIVE | f32::NEGATIVE | f32::NORMAL | f32::ZERO
 }
@@ -12,8 +14,8 @@ pub fn usual() -> f32::Any {
 fn do_button_logic_does_not_flash_like_it_used_to() {
     use std::f32::INFINITY;
     use ButtonState::*;
-    let mut ui: UIState = d!();
-    let id = id!(&0);
+    let mut ui: ui::State = d!();
+    let id = ui_id!(&0);
     let rect = ScreenSpaceRect {
         min: (-INFINITY, -INFINITY),
         max: (INFINITY, INFINITY),
@@ -216,7 +218,7 @@ fn make_nth_tab_visible_if_present_works_on(
         tab_width,
     }: MakeNthTabVisibleSpec,
 ) {
-    let mut ui = UIState { tab_scroll, ..d!() };
+    let mut ui = ui::State { tab_scroll, ..d!() };
 
     make_nth_tab_visible_if_present(&mut ui, target_index, tab_count, tab_width);
 
@@ -285,7 +287,7 @@ fn make_nth_tab_visible_if_present_is_idemponent_on(
         tab_width,
     }: MakeNthTabVisibleSpec,
 ) {
-    let mut ui = UIState { tab_scroll, ..d!() };
+    let mut ui = ui::State { tab_scroll, ..d!() };
 
     make_nth_tab_visible_if_present(&mut ui, target_index, tab_count, tab_width);
 

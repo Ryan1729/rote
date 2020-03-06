@@ -1,7 +1,7 @@
 use platform_types::*;
 
 use rand::{thread_rng, Rng};
-use shared::{BufferStatus, BufferStatusTransition};
+use wimp_types::{BufferStatus, BufferStatusTransition};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 

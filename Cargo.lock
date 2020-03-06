@@ -562,7 +562,7 @@ dependencies = [
  "platform_types 0.1.0",
  "proptest 0.9.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "shared 0.1.0",
+ "wimp_types 0.1.0",
 ]
 
 [[package]]
@@ -1934,7 +1934,7 @@ dependencies = [
 
 [[package]]
 name = "rote"
-version = "0.2.80"
+version = "0.2.81"
 dependencies = [
  "check_or_no_panic 0.1.0",
  "editor 0.1.0",
@@ -2092,11 +2092,6 @@ dependencies = [
 [[package]]
 name = "shared"
 version = "0.1.0"
-dependencies = [
- "macros 0.1.0",
- "platform_types 0.1.0",
- "proptest 0.9.5 (registry+https://github.com/rust-lang/crates.io-index)",
-]
 
 [[package]]
 name = "shared_library"
@@ -2542,6 +2537,7 @@ dependencies = [
  "shared 0.1.0",
  "spin_sleep 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "wimp_render 0.1.0",
+ "wimp_types 0.1.0",
 ]
 
 [[package]]
@@ -2555,6 +2551,16 @@ dependencies = [
  "platform_types 0.1.0",
  "proptest 0.9.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "shared 0.1.0",
+ "wimp_types 0.1.0",
+]
+
+[[package]]
+name = "wimp_types"
+version = "0.1.0"
+dependencies = [
+ "macros 0.1.0",
+ "platform_types 0.1.0",
+ "proptest 0.9.5 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

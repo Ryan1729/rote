@@ -50,21 +50,30 @@
         * also with Left and Right swapped
     * possible proptest: given you are not on either the first or final line, then Ctrl-Left should always move you at least one character back and Ctrl-Right should move you one character Right.
 
-* if multiple things are copied with multiple cursors then if they are pasted with the smae number of cursors then 
+* make Ctrl-D show the new cursors
+    * First it should loop around properly.
+    * We want to show whichever cursor was added this time, so I guess add a parameter to `try_to_show_cursors_on`?
+
+* make Ctrl-D match cursor's direction with the initial selection
+    * "[abc|]" repesents a selection of "abc" with the cursor at the larger of the two positions
+    * current: [abc|] abc abc => [abc|] [|abc] abc
+    * desired: [abc|] abc abc => [abc|] [abc|] abc
+    * also desired: [|abc] abc abc => [|abc] [|abc] abc
+
+* if multiple things are copied with multiple cursors then if they are pasted with the same number of cursors then 
     they should be pasted separately
     * given the numbers are selected by three cursors represented by "|"
         1|  copy then paste should be 11 not 1123 
         2|                            22     2123 
         3|                            33     3123
 
-
-* Ctrl-E to toggle single line comments
-  * could probably reuse tab insertion/deletion code.
-
 * Make Esc pick only one of the mulitple cursors to keep and remove that one's selection if there is one.
 
 * Fix buggy/slow Ctrl-P menu.
     * allow scrolling the list.
+
+* Ctrl-E to toggle single line comments
+  * could probably reuse tab insertion/deletion code.
 
 * refresh search spans on tab-in/out 
     * Should be all edits really; are there other ones we missed? We should only need to put the refresh in one place.
@@ -130,14 +139,6 @@
     * if the cursor is on the main text when, for example, the find menu is up, then the main text should be scrolled, not the find box.
 
 * open file menu relative to the current tab's path if any
-
-* make Ctrl-D show the new cursors
-
-* make Ctrl-D match cursor's direction with the initial selection
-    * "[abc|]" repesents a selection of "abc" with the cursor at the larger of the two positions
-    * current: [abc|] abc abc => [abc|] [|abc] abc
-    * desired: [abc|] abc abc => [abc|] [abc|] abc
-    * also desired: [|abc] abc abc => [|abc] [|abc] abc
 
 * Ctrl, and up and down arrow keys to swap the current line with the one above it.
     * If mulktiple lines are selected, swap all of them

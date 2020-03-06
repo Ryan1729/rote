@@ -9,7 +9,7 @@ path = "./src/edited_storage.rs"
 
 [dependencies]
 platform_types = { path = "../../../../platform_types" }
-shared = { path = "../shared" }
+wimp_types = { path = "../wimp_types" }
 rand = "0.7"
 
 [dev-dependencies]

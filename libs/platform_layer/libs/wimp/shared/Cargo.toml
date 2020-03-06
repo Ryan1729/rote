@@ -8,12 +8,8 @@ edition = "2018"
 path = "./src/shared.rs"
 
 [dependencies]
-macros = { path = "../../../../macros" }
-platform_types = { path = "../../../../platform_types" }
 
-[dev-dependencies]
-proptest = "0.9.3"
-
+# TODO remove reliance on this, since as of now it is not needed
 [features]
 default = []
 extra-prints = []
