@@ -1934,7 +1934,7 @@ dependencies = [
 
 [[package]]
 name = "rote"
-version = "0.2.81"
+version = "0.2.82"
 dependencies = [
  "check_or_no_panic 0.1.0",
  "editor 0.1.0",
@@ -2558,6 +2558,8 @@ dependencies = [
 name = "wimp_types"
 version = "0.1.0"
 dependencies = [
+ "clipboard 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "glutin 0.23.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "macros 0.1.0",
  "platform_types 0.1.0",
  "proptest 0.9.5 (registry+https://github.com/rust-lang/crates.io-index)",

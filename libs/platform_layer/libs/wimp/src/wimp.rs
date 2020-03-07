@@ -8,7 +8,7 @@ use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::time::Duration;
 use wimp_render::{get_find_replace_info, FindReplaceInfo, get_go_to_position_info, GoToPositionInfo};
-use wimp_types::{ui, ui::{PhysicalButtonState, Navigation}, transform_status, BufferStatus, BufferStatusMap, BufferStatusTransition, RunState};
+use wimp_types::{ui, ui::{PhysicalButtonState, Navigation}, transform_status, BufferStatus, BufferStatusMap, BufferStatusTransition, CustomEvent, Dimensions, RunState};
 use file_chooser;
 use macros::d;
 use platform_types::{screen_positioning::screen_to_text_box, *};
@@ -186,18 +186,6 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
     let edited_files_dir_buf = data_dir.join("edited_files_v1/");
     let edited_files_index_path_buf = data_dir.join("edited_files_v1_index.txt");
 
-    let mut clipboard: Clipboard = get_clipboard();
-
-    #[derive(Clone, Debug)]
-    enum CustomEvent {
-        OpenFile(PathBuf),
-        SaveNewFile(PathBuf, g_i::Index),
-        SendBuffersToBeSaved,
-        EditedBufferError(String),
-    }
-    unsafe impl Send for CustomEvent {}
-    unsafe impl Sync for CustomEvent {}
-
     use glutin::event_loop::EventLoop;
     let events: EventLoop<CustomEvent> = glutin::event_loop::EventLoop::with_user_event();
     let event_proxy = events.create_proxy();
@@ -234,52 +222,11 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
         |symbol| glutin_context.get_proc_address(symbol) as _,
     )?;
 
-    let font_info = wimp_render::get_font_info(&char_dims);
-
     const TARGET_RATE: f64 = 128.0; //250.0);
 
     let mut loop_helper = spin_sleep::LoopHelper::builder().build_with_target_rate(TARGET_RATE);
 
     let mut running = true;
-    let mut dimensions = glutin_context
-        .window()
-        .inner_size();
-
-    macro_rules! screen_wh {
-        () => {
-            ScreenSpaceWH {
-                w: dimensions.width as f32,
-                h: dimensions.height as f32,
-            }
-        };
-    }
-
-    macro_rules! get_non_font_size_dependents {
-        ($mode: expr) => {{
-            let wh = screen_wh!();
-            let FindReplaceInfo {
-                find_text_xywh,
-                replace_text_xywh,
-                ..
-            } = get_find_replace_info(font_info, wh);
-            let GoToPositionInfo {
-                input_text_xywh,
-                ..
-            } = get_go_to_position_info(font_info, wh);
-            SizeDependents {
-                buffer_xywh: wimp_render::get_edit_buffer_xywh(
-                    $mode,
-                    font_info,
-                    screen_wh!()
-                )
-                .into(),
-                find_xywh: find_text_xywh.into(),
-                replace_xywh: replace_text_xywh.into(),
-                go_to_position_xywh: input_text_xywh.into(),
-                font_info: font_info.into(),
-            }
-        }};
-    }
 
     use std::sync::mpsc::{Sender, channel};
 
@@ -377,9 +324,54 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
     let previous_tabs =
             edited_storage::load_previous_tabs(&edited_files_dir_buf, &edited_files_index_path_buf);
 
+    macro_rules! wh_from_size {
+        ($size: expr) => {{
+            let dimensions = $size;
+            ScreenSpaceWH {
+                w: dimensions.width as f32,
+                h: dimensions.height as f32,
+            }
+        }}
+    }
+
+    macro_rules! get_non_font_size_dependents {
+        ($mode: expr, $dimensions: expr) => {{
+            let dimensions = $dimensions;
+            let FindReplaceInfo {
+                find_text_xywh,
+                replace_text_xywh,
+                ..
+            } = get_find_replace_info(dimensions);
+            let GoToPositionInfo {
+                input_text_xywh,
+                ..
+            } = get_go_to_position_info(dimensions);
+            SizeDependents {
+                buffer_xywh: wimp_render::get_edit_buffer_xywh(
+                    $mode,
+                    dimensions
+                )
+                .into(),
+                find_xywh: find_text_xywh.into(),
+                replace_xywh: replace_text_xywh.into(),
+                go_to_position_xywh: input_text_xywh.into(),
+                font_info: dimensions.font.into(),
+            }
+        }};
+    }
+
     let mut r_s = {
+        let dimensions = Dimensions {
+            font: wimp_render::get_font_info(&char_dims),
+            window: wh_from_size!(
+                glutin_context
+                    .window()
+                    .inner_size()
+            ),
+        };
+
         let (view, c) = update_and_render(Input::SetSizeDependents(
-            get_non_font_size_dependents!(d!())
+            get_non_font_size_dependents!(d!(), dimensions)
         ));
 
         let mut cmds = VecDeque::with_capacity(EVENTS_PER_FRAME);
@@ -390,19 +382,31 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
 
         let buffer_status_map = BufferStatusMap::with_capacity((previous_tabs.len() + 1) * 2);
 
+        let clipboard = get_clipboard();
+
         RunState {
             view,
             cmds,
             ui,
             buffer_status_map,
             editor_in_sink,
+            dimensions,
+            clipboard,
+            event_proxy,
         }
     };
+
+    macro_rules! screen_wh {
+        () => {
+            r_s.dimensions
+        };
+    }
 
     // If you didn't click on the same symbol, counting that as a double click seems like it
     // would be annoying.
     let mouse_epsilon_radius: f32 = {
-        let (w, h) = (font_info.text_char_dim.w, font_info.text_char_dim.h);
+        let char_dim = r_s.dimensions.font.text_char_dim;
+        let (w, h) = (char_dim.w, char_dim.h);
 
         (if w < h { w } else { h }) / 2.0
     };
@@ -443,15 +447,17 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
             );
         }
 
+        type CommandVars = RunState<Clipboard>;
+
         use std::collections::BTreeMap;
-        let mut commands: BTreeMap<_, (_, fn(&mut RunState))> = std::collections::BTreeMap::new();
+        let mut commands: BTreeMap<_, (_, fn(&mut CommandVars))> = std::collections::BTreeMap::new();
 
         macro_rules! register_command {
             ($modifiers: expr, $main_key: ident, $label: literal, $(_)? $code: block) => {
                 register_command!($modifiers, $main_key, $label, _unused_identifier $code)
             };
             ($modifiers: expr, $main_key: ident, $label: literal, $vars: ident $code: block) => {{
-                fn cmd_fn($vars: &mut RunState) {
+                fn cmd_fn($vars: &mut CommandVars) {
                     $code
                 }
                 let key = ($modifiers, VirtualKeyCode::$main_key);  
@@ -470,6 +476,98 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
             }
         }
 
+        // eventually we'll likely want to tell the editor, and have it decide whether/how
+        // to display it to the user.
+        macro_rules! handle_platform_error {
+            ($r_s: ident, $err: expr) => {
+                let error = format!("{},{}: {}", file!(), line!(), $err);
+                eprintln!("{}", error);
+                call_u_and_r!($r_s, Input::NewScratchBuffer(Some(error)));
+            };
+        }
+
+        macro_rules! save_to_disk {
+            ($path: expr, $str: expr, $buffer_index: expr) => {
+                save_to_disk!(r_s, $path, $str, $buffer_index)
+            };
+            ($r_s: expr, $path: expr, $str: expr, $buffer_index: expr) => {
+                let index = $buffer_index;
+                let r_s = $r_s;
+                match std::fs::write($path, $str) {
+                    Ok(_) => {
+                        let view = &r_s.view;
+                        let buffer_status_map = &mut r_s.buffer_status_map;
+                        buffer_status_map.insert(
+                            view.index_state,
+                            index,
+                            transform_status(
+                                buffer_status_map
+                                    .get(view.index_state, index)
+                                    .unwrap_or_default(),
+                                BufferStatusTransition::Save
+                            )
+                        );
+                        call_u_and_r!(r_s, Input::SetBufferPath(index, $path.to_path_buf()));
+                    }
+                    Err(err) => {
+                        handle_platform_error!(r_s, err);
+                    }
+                }
+            };
+        }
+
+        macro_rules! load_file {
+            ($path: expr) => {{
+                let p = $path;
+                match std::fs::read_to_string(&p) {
+                    Ok(s) => {
+                        call_u_and_r!(Input::AddOrSelectBuffer(BufferName::Path(p), s));
+                    }
+                    Err(err) => {
+                        handle_platform_error!(r_s, err);
+                    }
+                }
+            }};
+        }
+
+        macro_rules! file_chooser_call {
+            ($event_proxy: expr, $func: ident, $path: ident in $event: expr) => {
+                let proxy =
+                    std::sync::Arc::new(std::sync::Mutex::new($event_proxy.clone()));
+                let proxy = proxy.clone();
+                file_chooser::$func(move |$path: PathBuf| {
+                    let _bye = proxy
+                        .lock()
+                        .expect("file_chooser thread private mutex locked!?")
+                        .send_event($event);
+                })
+            };
+        }
+
+        macro_rules! switch_menu_mode {
+            ($mode: expr) => {
+                switch_menu_mode!(r_s, $mode)
+            };
+            ($r_s: expr, $mode: expr) => {
+                let r_s = $r_s;
+                let mode = $mode;
+                
+                call_u_and_r!(r_s, Input::SetMenuMode(mode));
+
+                call_u_and_r!(r_s, Input::SetSizeDependents(SizeDependents {
+                    buffer_xywh: wimp_render::get_edit_buffer_xywh(
+                        mode,
+                        r_s.dimensions,
+                    )
+                    .into(),
+                    find_xywh: None,
+                    replace_xywh: None,
+                    go_to_position_xywh: None,
+                    font_info: None,
+                }));
+            };
+        }
+
         use glutin::event::*;
 
         const LOGO: ModifiersState = ModifiersState::LOGO;
@@ -484,59 +582,102 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
             [CTRL, End, "Move cursors to end.", state {
                 call_u_and_r!(state, Input::MoveAllCursors(Move::ToBufferEnd))
             }]
+            [CTRL, Left, "Move cursors to previous likely edit location.", state {
+                call_u_and_r!(state, Input::MoveAllCursors(Move::ToPreviousLikelyEditLocation))
+            }]
+            [CTRL, Right, "Move cursors to next likely edit location.", state {
+                call_u_and_r!(state, Input::MoveAllCursors(Move::ToNextLikelyEditLocation))
+            }]
+            [CTRL, Key0, "Reset scroll", r_s {
+                let ui = &mut r_s.ui;
+                let font_info = r_s.dimensions.font;
+                if wimp_render::inside_tab_area(ui.mouse_pos, font_info) {
+                    wimp_render::make_active_tab_visible(
+                        ui,
+                        &r_s.view,
+                        r_s.dimensions
+                    );
+                } else {
+                    call_u_and_r!(r_s, Input::ResetScroll);
+                }
+            }]
+            [CTRL, A, "Select all.", state {
+                call_u_and_r!(state, Input::SelectAll)
+            }]
+            [CTRL, C, "Copy.", state {
+                call_u_and_r!(state, Input::Copy)
+            }]
+            [CTRL, D, "Extend selection with search.", state {
+                call_u_and_r!(state, Input::ExtendSelectionWithSearch)
+            }]
+            [CTRL, F, "Find/Replace in current file.", r_s {
+                switch_menu_mode!(r_s, MenuMode::FindReplace(FindReplaceMode::CurrentFile));
+            }]
+            [CTRL, G, "Go to position.", r_s {
+                switch_menu_mode!(r_s, MenuMode::GoToPosition);
+            }]
+            [CTRL, O, "Open file.", r_s {
+                file_chooser_call!(r_s.event_proxy, single, p in CustomEvent::OpenFile(p));
+            }]
+            [CTRL, P, "Switch files.", r_s {
+                switch_menu_mode!(r_s, MenuMode::FileSwitcher);
+            }]
+            [CTRL, S, "Save.", r_s {
+                if let Some((i, buffer)) = r_s.view.get_visible_index_and_buffer() {
+                    match buffer.name {
+                        BufferName::Scratch(_) => {
+                            file_chooser_call!(
+                                r_s.event_proxy,
+                                save,
+                                p in CustomEvent::SaveNewFile(p, i)
+                            );
+                        }
+                        BufferName::Path(ref p) => {
+                            save_to_disk!(r_s, p, &buffer.data.chars, i);
+                        }
+                    }
+                }
+            }]
+            [CTRL, T, "New scratch buffer.", state {
+                call_u_and_r!(state, Input::NewScratchBuffer(None));
+            }]
+            [CTRL, V, "Paste.", state {
+                call_u_and_r!(state, Input::Paste(state.clipboard.get_contents().ok()));
+            }]
+            [CTRL, W, "Close tab.", r_s {
+                match r_s.view.current_buffer_id {
+                    BufferId {
+                        kind: BufferIdKind::Text,
+                        index,
+                        ..
+                    } => {
+                        call_u_and_r!(r_s, Input::CloseBuffer(index));
+                    }
+                    _ => {
+                        call_u_and_r!(r_s, Input::CloseMenuIfAny);
+                    }
+                }
+            }]
+            [CTRL, X, "Cut.", state {
+                call_u_and_r!(state, Input::Cut);
+            }]
+            [CTRL, Y, "Cut.", state {
+                call_u_and_r!(state, Input::Redo);
+            }]
+            [CTRL, Z, "Undo.", state {
+                call_u_and_r!(state, Input::Undo);
+            }]
+            [CTRL, Tab, "Next tab.", state {
+                call_u_and_r!(
+                    state,
+                    Input::AdjustBufferSelection(
+                        SelectionAdjustment::Next
+                    )
+                );
+            }]
         }
 
         events.run(move |event, _, control_flow| {
-            // eventually we'll likely want to tell the editor, and have it decide whether/how
-            // to display it to the user.
-            macro_rules! handle_platform_error {
-                ($err: expr) => {
-                    let error = format!("{},{}: {}", file!(), line!(), $err);
-                    eprintln!("{}", error);
-                    call_u_and_r!(Input::NewScratchBuffer(Some(error)));
-                };
-            }
-
-            macro_rules! save_to_disk {
-                ($path: expr, $str: expr, $buffer_index: expr) => {
-                    let index = $buffer_index;
-                    match std::fs::write($path, $str) {
-                        Ok(_) => {
-                            let view = &r_s.view;
-                            let buffer_status_map = &mut r_s.buffer_status_map;
-                            buffer_status_map.insert(
-                                view.index_state,
-                                index,
-                                transform_status(
-                                    buffer_status_map
-                                        .get(view.index_state, index)
-                                        .unwrap_or_default(),
-                                    BufferStatusTransition::Save
-                                )
-                            );
-                            call_u_and_r!(Input::SetBufferPath(index, $path.to_path_buf()));
-                        }
-                        Err(err) => {
-                            handle_platform_error!(err);
-                        }
-                    }
-                };
-            }
-
-            macro_rules! load_file {
-                ($path: expr) => {{
-                    let p = $path;
-                    match std::fs::read_to_string(&p) {
-                        Ok(s) => {
-                            call_u_and_r!(Input::AddOrSelectBuffer(BufferName::Path(p), s));
-                        }
-                        Err(err) => {
-                            handle_platform_error!(err);
-                        }
-                    }
-                }};
-            }
-
             match event {
                 Event::WindowEvent { event, .. } => {
                     macro_rules! quit {
@@ -565,54 +706,18 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         }};
                     }
 
-                    macro_rules! file_chooser_call {
-                        ($func: ident, $path: ident in $event: expr) => {
-                            let proxy =
-                                std::sync::Arc::new(std::sync::Mutex::new(event_proxy.clone()));
-                            let proxy = proxy.clone();
-                            file_chooser::$func(move |$path: PathBuf| {
-                                let _bye = proxy
-                                    .lock()
-                                    .expect("file_chooser thread private mutex locked!?")
-                                    .send_event($event);
-                            })
-                        };
-                    }
-
                     macro_rules! text_box_xy {
                         () => {{
                             let view = &r_s.view;
                             let xy = wimp_render::get_current_buffer_rect(
                                 view.current_buffer_id,
                                 view.menu.get_mode(),
-                                font_info,
-                                screen_wh!(),
+                                r_s.dimensions
                             )
                             .xy;
 
                             screen_to_text_box(r_s.ui.mouse_pos, xy)
                         }};
-                    }
-
-                    macro_rules! switch_menu_mode {
-                        ($mode: expr) => {
-                            let mode = $mode;
-
-                            call_u_and_r!(Input::SetMenuMode(mode));
-
-                            call_u_and_r!(Input::SetSizeDependents(SizeDependents {
-                                buffer_xywh: wimp_render::get_edit_buffer_xywh(
-                                    mode,
-                                    font_info,
-                                    screen_wh!()
-                                )
-                                .into(),
-                                find_xywh: None,
-                                replace_xywh: None,
-                                go_to_position_xywh: None,
-                                font_info: None,
-                            }));
-                        };
                     }
 
                     if cfg!(feature = "print-raw-input") {
@@ -669,16 +774,18 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         WindowEvent::Resized(size) => {
                             let hidpi_factor = get_hidpi_factor!();
                             glutin_context.resize(size);
-                            dimensions = size;
+                            r_s.dimensions.window = wh_from_size!(size);
                             call_u_and_r!(Input::SetSizeDependents(
                                 get_non_font_size_dependents!(
-                                    r_s.view.menu.get_mode()
+                                    r_s.view.menu.get_mode(),
+                                    r_s.dimensions
                                 )
                             ));
+                            let sswh!(w, h) = r_s.dimensions.window;
                             gl_layer::set_dimensions(
                                 &mut gl_state,
                                 hidpi_factor as _,
-                                (dimensions.width as _, dimensions.height as _),
+                                (w as _, h as _),
                             );
                         }
                         WindowEvent::Focused(is_focused) => {
@@ -734,7 +841,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         } if modifiers.is_empty() => {
                             let ui = &mut r_s.ui;
                             let scroll_y = y * wimp_render::SCROLL_MULTIPLIER;
-                            if wimp_render::inside_tab_area(ui.mouse_pos, font_info) {
+                            if wimp_render::inside_tab_area(ui.mouse_pos, r_s.dimensions.font) {
                                 ui.tab_scroll += scroll_y;
                             } else {
                                 call_u_and_r!(Input::ScrollVertically(scroll_y));
@@ -747,7 +854,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         } if modifiers == SHIFT => {
                             let ui = &mut r_s.ui;
                             let scroll_y = y * wimp_render::SCROLL_MULTIPLIER;
-                            if wimp_render::inside_tab_area(ui.mouse_pos, font_info) {
+                            if wimp_render::inside_tab_area(ui.mouse_pos, r_s.dimensions.font) {
                                 ui.tab_scroll += scroll_y;
                             } else {
                                 call_u_and_r!(Input::ScrollHorizontally(scroll_y));
@@ -770,8 +877,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                                     let cursor_icon = if wimp_render::should_show_text_cursor(
                                         ui.mouse_pos,
                                         r_s.view.menu.get_mode(),
-                                        font_info,
-                                        screen_wh!(),
+                                        r_s.dimensions
                                     ) {
                                         glutin::window::CursorIcon::Text
                                     } else {
@@ -829,113 +935,6 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                                     ..
                                 },
                             ..
-                        } 
-                        if modifiers == CTRL => match keypress {
-                            VirtualKeyCode::Key0 => {
-                                let ui = &mut r_s.ui;
-                                if wimp_render::inside_tab_area(ui.mouse_pos, font_info) {
-                                    let width = dimensions.width;
-                                    let height = dimensions.height;
-
-                                    wimp_render::make_active_tab_visible(
-                                        ui,
-                                        &r_s.view,
-                                        &font_info,
-                                        (width as _, height as _),
-                                    );
-                                } else {
-                                    call_u_and_r!(Input::ResetScroll);
-                                }
-                            }
-                            VirtualKeyCode::Left => {
-                                call_u_and_r!(Input::MoveAllCursors(
-                                    Move::ToPreviousLikelyEditLocation
-                                ));
-                            }
-                            VirtualKeyCode::Right => {
-                                call_u_and_r!(Input::MoveAllCursors(
-                                    Move::ToNextLikelyEditLocation
-                                ));
-                            }
-                            VirtualKeyCode::A => {
-                                call_u_and_r!(Input::SelectAll);
-                            }
-                            VirtualKeyCode::C => {
-                                call_u_and_r!(Input::Copy);
-                            }
-                            VirtualKeyCode::D => {
-                                call_u_and_r!(Input::ExtendSelectionWithSearch);
-                            }
-                            VirtualKeyCode::F => {
-                                switch_menu_mode!(MenuMode::FindReplace(FindReplaceMode::CurrentFile));
-                            }
-                            VirtualKeyCode::G => {
-                                switch_menu_mode!(MenuMode::GoToPosition);
-                            }
-                            VirtualKeyCode::O => {
-                                file_chooser_call!(single, p in CustomEvent::OpenFile(p));
-                            }
-                            VirtualKeyCode::P => {
-                                switch_menu_mode!(MenuMode::FileSwitcher);
-                            }
-                            VirtualKeyCode::S => {
-                                if let Some((i, buffer)) = r_s.view.get_visible_index_and_buffer() {
-                                    match buffer.name {
-                                        BufferName::Scratch(_) => {
-                                            file_chooser_call!(
-                                                save,
-                                                p in CustomEvent::SaveNewFile(p, i)
-                                            );
-                                        }
-                                        BufferName::Path(ref p) => {
-                                            save_to_disk!(p, &buffer.data.chars, i);
-                                        }
-                                    }
-                                }
-                            }
-                            VirtualKeyCode::T => {
-                                call_u_and_r!(Input::NewScratchBuffer(None));
-                            }
-                            VirtualKeyCode::V => {
-                                call_u_and_r!(Input::Paste(clipboard.get_contents().ok()));
-                            }
-                            VirtualKeyCode::W => match r_s.view.current_buffer_id {
-                                BufferId {
-                                    kind: BufferIdKind::Text,
-                                    index,
-                                    ..
-                                } => {
-                                    call_u_and_r!(Input::CloseBuffer(index));
-                                }
-                                _ => {
-                                    call_u_and_r!(Input::CloseMenuIfAny);
-                                }
-                            },
-                            VirtualKeyCode::X => {
-                                call_u_and_r!(Input::Cut);
-                            }
-                            VirtualKeyCode::Y => {
-                                call_u_and_r!(Input::Redo);
-                            }
-                            VirtualKeyCode::Z => {
-                                call_u_and_r!(Input::Undo);
-                            }
-                            VirtualKeyCode::Tab => {
-                                call_u_and_r!(Input::AdjustBufferSelection(
-                                    SelectionAdjustment::Next
-                                ));
-                            }
-                            _ => (),
-                        },
-                        WindowEvent::KeyboardInput {
-                            input:
-                                KeyboardInput {
-                                    state: ElementState::Pressed,
-                                    virtual_keycode: Some(keypress),
-                                    modifiers,
-                                    ..
-                                },
-                            ..
                         } if 
                         modifiers == ALT | CTRL => match keypress {
                             VirtualKeyCode::Key0 => {
@@ -979,6 +978,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                             VirtualKeyCode::S => {
                                 if let Some(i) = r_s.view.visible_buffer {
                                     file_chooser_call!(
+                                        r_s.event_proxy,
                                         save,
                                         p in CustomEvent::SaveNewFile(p, i)
                                     );
@@ -1008,8 +1008,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                                 call_u_and_r!(Input::SetSizeDependents(SizeDependents {
                                     buffer_xywh: wimp_render::get_edit_buffer_xywh(
                                         d!(),
-                                        font_info,
-                                        screen_wh!()
+                                        r_s.dimensions
                                     )
                                     .into(),
                                     find_xywh: None,
@@ -1183,15 +1182,13 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                     r_s.ui.frame_init();
                     if_changed::dbg!(&r_s.ui.keyboard);
 
+                    let sswh!(width, height) = r_s.dimensions.window;
+
                     let (text_and_rects, input) =
                         wimp_render::view(
                             &mut r_s,
-                            &font_info,
-                            screen_wh!(),
                             dt,
                         );
-                    let width = dimensions.width;
-                    let height = dimensions.height;
 
                     gl_layer::render(&mut gl_state, text_and_rects, width as _, height as _)
                         .expect("gl_layer::render didn't work");
@@ -1204,8 +1201,8 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         if let Some(cmd) = r_s.cmds.pop_front() {
                             match cmd {
                                 Cmd::SetClipboard(s) => {
-                                    if let Err(err) = clipboard.set_contents(s) {
-                                        handle_platform_error!(err);
+                                    if let Err(err) = r_s.clipboard.set_contents(s) {
+                                        handle_platform_error!(r_s, err);
                                     }
                                 }
                                 Cmd::LoadFile(path) => load_file!(path),
@@ -1249,7 +1246,8 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                 Event::UserEvent(e) => match e {
                     CustomEvent::OpenFile(p) => load_file!(p),
                     CustomEvent::SaveNewFile(ref p, index) => {
-                        let view = &r_s.view;
+                        let r_s = &r_s;
+                        let view = r_s.view;
                         // The fact we need to store the index and retreive it later, potentially
                         // across multiple updates, is why this thread needs to know about the
                         // generational indices.
@@ -1257,7 +1255,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                             .get(view.index_state)
                             .and_then(|i| view.buffers.get(i))
                         {
-                            save_to_disk!(p, &b.data.chars, index);
+                            save_to_disk!(r_s, p, &b.data.chars, index);
                         }
                     }
                     CustomEvent::SendBuffersToBeSaved => {
@@ -1279,7 +1277,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         // without edited file saving or save and restart. If they do, then it
                         // should be made obvious visually that the feature is not working right
                         // now.
-                        handle_platform_error!(e);
+                        handle_platform_error!(r_s, e);
                     }
                 },
                 Event::NewEvents(StartCause::Init) => {

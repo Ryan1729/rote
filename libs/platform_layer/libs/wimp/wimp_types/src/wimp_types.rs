@@ -1,15 +1,44 @@
 use macros::{c, d, ord};
-use std::collections::VecDeque;
 use platform_types::{screen_positioning::*, g_i, *};
-use std::collections::HashMap;
+
+use std::collections::{VecDeque, HashMap};
+use std::path::PathBuf;
+
+pub use clipboard::ClipboardProvider;
+pub use glutin::event_loop::EventLoopProxy;
+
+// Parts of RunState that represent externally chosen, absolute dimensions of things, 
+// including the window, from which the sizes of several UI elements are derived.
+#[derive(Clone, Copy, Debug)]
+pub struct Dimensions {
+    pub window: ScreenSpaceWH,
+    pub font: FontInfo,
+}
+
+#[derive(Clone, Debug)]
+pub enum CustomEvent {
+    OpenFile(PathBuf),
+    SaveNewFile(PathBuf, g_i::Index),
+    SendBuffersToBeSaved,
+    EditedBufferError(String),
+}
+/* TODO justify these then uncomment
+unsafe impl Send for CustomEvent {}
+unsafe impl Sync for CustomEvent {}
+*/
+
 
 // State owned by the `run` function, which can be borrowed by other functions called inside `run`.
-pub struct RunState {
+#[derive(Debug)]
+pub struct RunState<CB: ClipboardProvider> {
     pub view: View,
     pub cmds: VecDeque<Cmd>,
     pub ui: ui::State,
     pub buffer_status_map: BufferStatusMap,
-    pub editor_in_sink: std::sync::mpsc::Sender<Input>
+    pub editor_in_sink: std::sync::mpsc::Sender<Input>,
+    pub dimensions: Dimensions,
+    pub clipboard: CB,
+    pub event_proxy: EventLoopProxy<CustomEvent>, 
 }
 
 pub mod ui {

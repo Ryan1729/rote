@@ -1,6 +1,6 @@
 use gl_layer::{ColouredText, MulticolourTextSpec, TextLayout, TextOrRect, TextSpec, VisualSpec};
 #[macro_use]
-use wimp_types::{ui_id, ui, ui::{ButtonState}, BufferStatus, BufferStatusMap, RunState};
+use wimp_types::{ui_id, ui, ui::{ButtonState}, BufferStatus, BufferStatusMap, ClipboardProvider, Dimensions, RunState};
 use macros::{c, d, ord};
 use platform_types::{screen_positioning::*, *};
 use std::cmp::max;
@@ -115,27 +115,27 @@ const TAB_BAR_BACKGROUND_COLOUR: Colour = palette![alt cyan];
 const TAB_BACKGROUND_COLOUR: Colour = palette![cyan];
 const TAB_TEXT_COLOUR: Colour = palette![white];
 
-pub fn view<'view>(
+pub fn view<'view, CB: ClipboardProvider>(
     RunState {
         ref mut ui,
         ref view,
         ref buffer_status_map,
+        dimensions,
         ..
-    }: &'view mut RunState,
-    font_info: &FontInfo,
-    wh: ScreenSpaceWH,
+    }: &'view mut RunState<CB>,
     dt: std::time::Duration,
 ) -> (Vec<TextOrRect<'view>>, Option<Input>) {
     ui::begin_view(ui, view);
 
-    let sswh!(width, height) = wh;
+    let dimensions = *dimensions;
+    let sswh!(width, height) = dimensions.window;
     let FontInfo {
-        text_char_dim,
-        status_char_dim,
-        tab_char_dim,
-        find_replace_char_dim,
+        ref text_char_dim,
+        ref status_char_dim,
+        ref tab_char_dim,
+        ref find_replace_char_dim,
         ..
-    } = font_info;
+    } = dimensions.font;
     const PER_BUFFER_TEXT_OR_RECT_ESTIMATE: usize =
         4   // 2-4 per tab, usually 2
     ;
@@ -238,7 +238,7 @@ pub fn view<'view>(
         //     // s
         // };
 
-        let edit_buffer_text_rect = get_edit_buffer_xywh(view.menu.get_mode(), *font_info, wh);
+        let edit_buffer_text_rect = get_edit_buffer_xywh(view.menu.get_mode(), dimensions);
 
         let edit_buffer_text_rect: ScreenSpaceRect = edit_buffer_text_rect.into();
         input = text_box(
@@ -275,7 +275,7 @@ pub fn view<'view>(
                     find_outer_rect,
                     replace_outer_rect,
                     ..
-                } = get_find_replace_info(*font_info, wh);
+                } = get_find_replace_info(dimensions);
                 match mode {
                     FindReplaceMode::CurrentFile => {
                         let outer_rect = ScreenSpaceRect {
@@ -338,7 +338,7 @@ pub fn view<'view>(
                     search_outer_rect,
                     search_text_xywh,
                     ..
-                } = get_file_switcher_info(*font_info, wh);
+                } = get_file_switcher_info(dimensions);
                 let outer_rect = ScreenSpaceRect {
                     min: (0.0, top_y),
                     max: (width, bottom_y),
@@ -524,7 +524,7 @@ pub fn view<'view>(
                     label_rect,
                     input_outer_rect,
                     ..
-                } = get_go_to_position_info(*font_info, wh);
+                } = get_go_to_position_info(dimensions);
                 let outer_rect = ScreenSpaceRect {
                     min: (0.0, top_y),
                     max: (width, bottom_y),
@@ -771,12 +771,14 @@ fn text_box<'view>(
 pub fn make_active_tab_visible<'view>(
     ui: &mut ui::State,
     view: &'view View,
-    FontInfo { tab_char_dim, .. }: &FontInfo,
-    (screen_width, _): (f32, f32),
+    Dimensions {
+        font: FontInfo { tab_char_dim, .. },
+        window: sswh!(window_width, _h)
+    }: Dimensions,
 ) -> Option<()> {
     let target_index_or_max = view.get_visible_index_or_max();
     let tab_count = view.buffers.len();
-    let tab_layout = get_tab_spaced_rect(&ui, *tab_char_dim, 0, tab_count, screen_width);
+    let tab_layout = get_tab_spaced_rect(&ui, tab_char_dim, 0, tab_count, window_width);
     let tab_width = tab_layout.width();
 
     make_nth_tab_visible_if_present(ui, target_index_or_max, tab_count, tab_width);
@@ -1187,12 +1189,14 @@ pub struct FindReplaceInfo {
 }
 
 pub fn get_find_replace_info(
-    FontInfo {
-        status_char_dim,
-        find_replace_char_dim,
-        ..
-    }: FontInfo,
-    sswh!(width, height): ScreenSpaceWH,
+    Dimensions {
+        font: FontInfo {
+            status_char_dim,
+            find_replace_char_dim,
+            ..
+        },
+        window: sswh!(width, height),
+    }: Dimensions,
 ) -> FindReplaceInfo {
     let SpacingAllSpec { margin, padding } = get_menu_spacing(height);
 
@@ -1260,13 +1264,15 @@ pub struct FileSwitcherInfo {
 }
 
 pub fn get_file_switcher_info(
-    FontInfo {
-        status_char_dim,
-        find_replace_char_dim,
-        tab_char_dim,
-        ..
-    }: FontInfo,
-    sswh!(width, height): ScreenSpaceWH,
+    Dimensions {
+        font: FontInfo {
+            status_char_dim,
+            find_replace_char_dim,
+            tab_char_dim,
+            ..
+        },
+        window: sswh!(width, height),
+    }: Dimensions,
 ) -> FileSwitcherInfo {
     let SpacingAllSpec { margin, padding } = get_menu_spacing(height);
 
@@ -1325,12 +1331,14 @@ pub struct GoToPositionInfo {
 }
 
 pub fn get_go_to_position_info(
-    FontInfo {
-        find_replace_char_dim,
-        tab_char_dim,
-        ..
-    }: FontInfo,
-    sswh!(width, height): ScreenSpaceWH,
+    Dimensions {
+        font: FontInfo {
+            find_replace_char_dim,
+            tab_char_dim,
+            ..
+        },
+        window: sswh!(width, height),
+    }: Dimensions,
 ) -> GoToPositionInfo {
     let SpacingAllSpec { margin, padding } = get_menu_spacing(height);
 
@@ -1379,17 +1387,22 @@ fn get_status_line_y(status_char_dim: CharDim, height: f32) -> f32 {
     height - (status_char_dim.h + 2.0 * SEPARATOR_LINE_THICKNESS)
 }
 
-pub fn get_edit_buffer_xywh(mode: MenuMode, font_info: FontInfo, wh: ScreenSpaceWH) -> TextBoxXYWH {
-    let sswh!(width, height) = wh;
-    let FontInfo {
-        status_char_dim,
-        ref tab_char_dim,
-        ..
-    } = font_info;
+pub fn get_edit_buffer_xywh(
+    mode: MenuMode,
+    dimensions: Dimensions,
+) -> TextBoxXYWH {
+    let Dimensions {
+        font: FontInfo {
+            status_char_dim,
+            ref tab_char_dim,
+            ..
+        },
+        window: sswh!(width, height),
+    } = dimensions;
     let max_y = match mode {
         MenuMode::Hidden | MenuMode::GoToPosition => get_status_line_y(status_char_dim, height),
-        MenuMode::FindReplace(_) => get_find_replace_info(font_info, wh).top_y,
-        MenuMode::FileSwitcher => wh.h,
+        MenuMode::FindReplace(_) => get_find_replace_info(dimensions).top_y,
+        MenuMode::FileSwitcher => height,
     };
     let y = upper_position_info(tab_char_dim).edit_y;
     TextBoxXYWH {
@@ -1404,17 +1417,16 @@ pub fn get_edit_buffer_xywh(mode: MenuMode, font_info: FontInfo, wh: ScreenSpace
 pub fn get_current_buffer_rect(
     current_buffer_id: BufferId,
     mode: MenuMode,
-    font_info: FontInfo,
-    wh: ScreenSpaceWH,
+    dimensions: Dimensions,
 ) -> TextBoxXYWH {
     use BufferIdKind::*;
     match current_buffer_id.kind {
         None => d!(),
-        Text => get_edit_buffer_xywh(mode, font_info, wh),
-        Find => get_find_replace_info(font_info, wh).find_text_xywh,
-        Replace => get_find_replace_info(font_info, wh).replace_text_xywh,
-        FileSwitcher => get_file_switcher_info(font_info, wh).search_text_xywh,
-        GoToPosition => get_go_to_position_info(font_info, wh).input_text_xywh,
+        Text => get_edit_buffer_xywh(mode, dimensions),
+        Find => get_find_replace_info(dimensions).find_text_xywh,
+        Replace => get_find_replace_info(dimensions).replace_text_xywh,
+        FileSwitcher => get_file_switcher_info(dimensions).search_text_xywh,
+        GoToPosition => get_go_to_position_info(dimensions).input_text_xywh,
     }
 }
 
@@ -1422,10 +1434,9 @@ pub fn get_current_buffer_rect(
 pub fn should_show_text_cursor(
     xy: ScreenSpaceXY,
     mode: MenuMode,
-    font_info: FontInfo,
-    wh: ScreenSpaceWH,
+    dimensions: Dimensions,
 ) -> bool {
-    let inside_edit_buffer = inside_rect(xy, get_edit_buffer_xywh(mode, font_info, wh).into());
+    let inside_edit_buffer = inside_rect(xy, get_edit_buffer_xywh(mode, dimensions).into());
     inside_edit_buffer || match mode {
         MenuMode::Hidden => false,
         MenuMode::FindReplace(_) => {
@@ -1433,7 +1444,7 @@ pub fn should_show_text_cursor(
                 find_outer_rect,
                 replace_outer_rect,
                 ..
-            } = get_find_replace_info(font_info, wh);
+            } = get_find_replace_info(dimensions);
 
             inside_rect(xy, find_outer_rect.into())
             || inside_rect(xy, replace_outer_rect.into())
@@ -1442,7 +1453,7 @@ pub fn should_show_text_cursor(
             let FileSwitcherInfo {
                 search_outer_rect,
                 ..
-            } = get_file_switcher_info(font_info, wh);
+            } = get_file_switcher_info(dimensions);
 
             inside_rect(xy, search_outer_rect.into())
         }
@@ -1450,7 +1461,7 @@ pub fn should_show_text_cursor(
             let GoToPositionInfo {
                 input_outer_rect,
                 ..
-            } = get_go_to_position_info(font_info, wh);
+            } = get_go_to_position_info(dimensions);
 
             inside_rect(xy, input_outer_rect.into())
         }
