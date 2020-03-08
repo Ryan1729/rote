@@ -425,12 +425,15 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
 
     {
         macro_rules! call_u_and_r {
-            ($input:expr) => {{
+            ($input:expr) => {
                 call_u_and_r!(r_s, $input)
-            }};
-            ($vars: ident, $input:expr) => {{
-                $vars.ui.note_interaction();
-                let _hope_it_gets_there = $vars.editor_in_sink.send($input);
+            };
+            ($vars: ident, $input:expr) => {
+                call_u_and_r!(&mut $vars.ui, &mut $vars.editor_in_sink, $input)
+            };
+            ($ui: expr, $editor_in_sink: expr, $input: expr) => {{
+                $ui.note_interaction();
+                let _hope_it_gets_there = $editor_in_sink.send($input);
             }};
         }
 
@@ -480,9 +483,12 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
         // to display it to the user.
         macro_rules! handle_platform_error {
             ($r_s: ident, $err: expr) => {
+                handle_platform_error!(&mut $r_s.ui, &mut $r_s.editor_in_sink, $err)
+            };
+            ($ui: expr, $editor_in_sink: expr, $err: expr) => {
                 let error = format!("{},{}: {}", file!(), line!(), $err);
                 eprintln!("{}", error);
-                call_u_and_r!($r_s, Input::NewScratchBuffer(Some(error)));
+                call_u_and_r!($ui, $editor_in_sink, Input::NewScratchBuffer(Some(error)));
             };
         }
 
@@ -490,13 +496,23 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
             ($path: expr, $str: expr, $buffer_index: expr) => {
                 save_to_disk!(r_s, $path, $str, $buffer_index)
             };
-            ($r_s: expr, $path: expr, $str: expr, $buffer_index: expr) => {
+            ($r_s: ident, $path: expr, $str: expr, $buffer_index: expr) => {
+                save_to_disk!(
+                    &mut $r_s.ui,
+                    &mut $r_s.editor_in_sink,
+                    &mut $r_s.buffer_status_map,
+                    &$r_s.view,
+                    $path,
+                    $str,
+                    $buffer_index
+                )
+            };
+            ($ui: expr, $editor_in_sink: expr, $buffer_status_map: expr, $view: expr, $path: expr, $str: expr, $buffer_index: expr) => {
                 let index = $buffer_index;
-                let r_s = $r_s;
                 match std::fs::write($path, $str) {
                     Ok(_) => {
-                        let view = &r_s.view;
-                        let buffer_status_map = &mut r_s.buffer_status_map;
+                        let view = $view;
+                        let buffer_status_map = $buffer_status_map;
                         buffer_status_map.insert(
                             view.index_state,
                             index,
@@ -507,10 +523,10 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                                 BufferStatusTransition::Save
                             )
                         );
-                        call_u_and_r!(r_s, Input::SetBufferPath(index, $path.to_path_buf()));
+                        call_u_and_r!($ui, $editor_in_sink, Input::SetBufferPath(index, $path.to_path_buf()));
                     }
                     Err(err) => {
-                        handle_platform_error!(r_s, err);
+                        handle_platform_error!($ui, $editor_in_sink, err);
                     }
                 }
             };
@@ -1246,14 +1262,13 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                 Event::UserEvent(e) => match e {
                     CustomEvent::OpenFile(p) => load_file!(p),
                     CustomEvent::SaveNewFile(ref p, index) => {
-                        let r_s = &r_s;
-                        let view = r_s.view;
+                        let r_s = &mut r_s;
                         // The fact we need to store the index and retreive it later, potentially
                         // across multiple updates, is why this thread needs to know about the
                         // generational indices.
                         if let Some(b) = index
-                            .get(view.index_state)
-                            .and_then(|i| view.buffers.get(i))
+                            .get(r_s.view.index_state)
+                            .and_then(|i| r_s.view.buffers.get(i))
                         {
                             save_to_disk!(r_s, p, &b.data.chars, index);
                         }
