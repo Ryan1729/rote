@@ -586,6 +586,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
 
         use glutin::event::*;
 
+        let empty: ModifiersState = ModifiersState::empty();
         const LOGO: ModifiersState = ModifiersState::LOGO;
         const ALT: ModifiersState = ModifiersState::ALT;
         const CTRL: ModifiersState = ModifiersState::CTRL;
@@ -683,6 +684,14 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
             [CTRL, Z, "Undo.", state {
                 call_u_and_r!(state, Input::Undo);
             }]
+            [CTRL | SHIFT, Tab, "Previous Tab.", state {
+                call_u_and_r!(
+                    state,
+                    Input::AdjustBufferSelection(
+                        SelectionAdjustment::Previous
+                    )
+                );
+            }]
             [CTRL, Tab, "Next tab.", state {
                 call_u_and_r!(
                     state,
@@ -690,6 +699,78 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         SelectionAdjustment::Next
                     )
                 );
+            }]
+            [CTRL | ALT, Key0, "Insert sequential numbers at cursors.", state {
+                call_u_and_r!(state, Input::InsertNumbersAtCursors);
+            }]
+            [CTRL | ALT, L, "Insert sequential numbers at cursors.", state {
+                call_u_and_r!(state, Input::NextLanguage);
+            }]
+            [CTRL | SHIFT, Home, "Move all cursors to buffer start.", state {
+                call_u_and_r!(state, Input::ExtendSelectionForAllCursors(
+                    Move::ToBufferStart
+                ));
+            }]
+            [CTRL | SHIFT, End, "Move all cursors to buffer end.", state {
+                call_u_and_r!(state, Input::ExtendSelectionForAllCursors(
+                    Move::ToBufferEnd
+                ));
+            }]
+            [CTRL | SHIFT, Left, "Move all cursors to previous likely edit location.", state {
+                call_u_and_r!(state, Input::ExtendSelectionForAllCursors(
+                    Move::ToPreviousLikelyEditLocation
+                ));
+            }]
+            [CTRL | SHIFT, Right, "Move all cursors to next likely edit location.", state {
+                call_u_and_r!(state, Input::ExtendSelectionForAllCursors(
+                    Move::ToNextLikelyEditLocation
+                ));
+            }]
+            [CTRL | SHIFT, S, "Save new file.", r_s {
+                if let Some(i) = r_s.view.visible_buffer {
+                    file_chooser_call!(
+                        r_s.event_proxy,
+                        save,
+                        p in CustomEvent::SaveNewFile(p, i)
+                    );
+                }
+            }]
+            [CTRL | SHIFT, Z, "Redo.", state {
+                call_u_and_r!(state, Input::Redo);
+            }]
+            [empty, Escape, "Close menus.", r_s {
+                call_u_and_r!(r_s, Input::SetSizeDependents(SizeDependents {
+                    buffer_xywh: wimp_render::get_edit_buffer_xywh(
+                        d!(),
+                        r_s.dimensions
+                    )
+                    .into(),
+                    find_xywh: None,
+                    replace_xywh: None,
+                    go_to_position_xywh: None,
+                    font_info: None,
+                }));
+                call_u_and_r!(r_s, Input::CloseMenuIfAny);
+            }]
+            [empty, F1, "Delete lines.", r_s {
+                call_u_and_r!(r_s, Input::DeleteLines);
+            }]
+            [empty, Back, "Backspace.", r_s {
+                call_u_and_r!(r_s, Input::Delete);
+            }]
+            [empty, Up, "Move all cursors up.", r_s {
+                call_u_and_r!(r_s, Input::MoveAllCursors(Move::Up));
+                r_s.ui.navigation = Navigation::Up;
+            }]
+            [empty, Down, "Move all cursors down.", r_s {
+                call_u_and_r!(r_s, Input::MoveAllCursors(Move::Down));
+                r_s.ui.navigation = Navigation::Down;
+            }]
+            [empty, Left, "Move all cursors left.", r_s {
+                call_u_and_r!(r_s, Input::MoveAllCursors(Move::Left));
+            }]
+            [empty, Right, "Move all cursors right.", r_s {
+                call_u_and_r!(r_s, Input::MoveAllCursors(Move::Right));
             }]
         }
 
@@ -780,6 +861,111 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                     // of work it will be later to grow significantly. Time will tell.
                     #[allow(deprecated)]
                     match event {
+                        WindowEvent::KeyboardInput {
+                            input:
+                                KeyboardInput {
+                                    state: ElementState::Pressed,
+                                    virtual_keycode: Some(keypress),
+                                    modifiers,
+                                    ..
+                                },
+                            ..
+                        } if modifiers.is_empty() => match if cfg!(debug_assertions) {dbg!(keypress)} else {keypress} {
+                            VirtualKeyCode::Home => {
+                                call_u_and_r!(Input::MoveAllCursors(Move::ToLineStart));
+                            }
+                            VirtualKeyCode::End => {
+                                call_u_and_r!(Input::MoveAllCursors(Move::ToLineEnd));
+                            }
+                            VirtualKeyCode::Tab => {
+                                call_u_and_r!(Input::TabIn);
+                            }
+                            _ => (),
+                        },
+                        WindowEvent::KeyboardInput {
+                            input:
+                                KeyboardInput {
+                                    state: ElementState::Pressed,
+                                    virtual_keycode: Some(keypress),
+                                    modifiers,
+                                    ..
+                                },
+                            ..
+                        } if modifiers == SHIFT => match keypress {
+                            VirtualKeyCode::Up => {
+                                call_u_and_r!(Input::ExtendSelectionForAllCursors(Move::Up));
+                                r_s.ui.navigation = Navigation::Up;
+                            }
+                            VirtualKeyCode::Down => {
+                                call_u_and_r!(Input::ExtendSelectionForAllCursors(Move::Down));
+                                r_s.ui.navigation = Navigation::Down;
+                            }
+                            VirtualKeyCode::Left => {
+                                call_u_and_r!(Input::ExtendSelectionForAllCursors(Move::Left));
+                            }
+                            VirtualKeyCode::Right => {
+                                call_u_and_r!(Input::ExtendSelectionForAllCursors(Move::Right));
+                            }
+                            VirtualKeyCode::Home => {
+                                call_u_and_r!(Input::ExtendSelectionForAllCursors(
+                                    Move::ToLineStart
+                                ));
+                            }
+                            VirtualKeyCode::End => {
+                                call_u_and_r!(Input::ExtendSelectionForAllCursors(Move::ToLineEnd));
+                            }
+                            VirtualKeyCode::Tab => {
+                                call_u_and_r!(Input::TabOut);
+                            }
+                            VirtualKeyCode::Return => {
+                                call_u_and_r!(Input::Insert('\n'));
+                            }
+                            _ => (),
+                        },
+                        WindowEvent::KeyboardInput {
+                            input:
+                                KeyboardInput {
+                                    state: ElementState::Pressed,
+                                    virtual_keycode: Some(keypress),
+                                    modifiers,
+                                    ..
+                                },
+                            ..
+                        } if modifiers == LOGO | CTRL => match keypress {
+                            VirtualKeyCode::Tab => {
+                                call_u_and_r!(Input::AdjustBufferSelection(
+                                    SelectionAdjustment::Move(SelectionMove::Right)
+                                ));
+                            }
+                            VirtualKeyCode::Home => {
+                                call_u_and_r!(Input::AdjustBufferSelection(
+                                    SelectionAdjustment::Move(SelectionMove::ToStart)
+                                ));
+                            }
+                            VirtualKeyCode::End => {
+                                call_u_and_r!(Input::AdjustBufferSelection(
+                                    SelectionAdjustment::Move(SelectionMove::ToEnd)
+                                ));
+                            }
+                            _ => {}
+                        },
+                        WindowEvent::KeyboardInput {
+                            input:
+                                KeyboardInput {
+                                    state: ElementState::Pressed,
+                                    virtual_keycode: Some(keypress),
+                                    modifiers,
+                                    ..
+                                },
+                            ..
+                        } if modifiers == LOGO | CTRL | SHIFT => match keypress {
+                            VirtualKeyCode::Tab => {
+                                call_u_and_r!(Input::AdjustBufferSelection(
+                                    SelectionAdjustment::Move(SelectionMove::Left)
+                                ));
+                            }
+                            _ => {}
+                        },
                         WindowEvent::CloseRequested => quit!(),
                         WindowEvent::ScaleFactorChanged {
                             scale_factor,
@@ -941,213 +1127,6 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                             ui.left_mouse_state = PhysicalButtonState::ReleasedThisFrame;
                             last_click_x = ui.mouse_pos.x;
                             last_click_y = ui.mouse_pos.y;
-                        },
-                        WindowEvent::KeyboardInput {
-                            input:
-                                KeyboardInput {
-                                    state: ElementState::Pressed,
-                                    virtual_keycode: Some(keypress),
-                                    modifiers,
-                                    ..
-                                },
-                            ..
-                        } if 
-                        modifiers == ALT | CTRL => match keypress {
-                            VirtualKeyCode::Key0 => {
-                                call_u_and_r!(Input::InsertNumbersAtCursors);
-                            }
-                            VirtualKeyCode::L => {
-                                call_u_and_r!(Input::NextLanguage);
-                            }
-                            _ => (),
-                        },
-                        WindowEvent::KeyboardInput {
-                            input:
-                                KeyboardInput {
-                                    state: ElementState::Pressed,
-                                    virtual_keycode: Some(keypress),
-                                    modifiers,
-                                    ..
-                                },
-                            ..
-                        } if modifiers == CTRL | SHIFT => match keypress {
-                            VirtualKeyCode::Home => {
-                                call_u_and_r!(Input::ExtendSelectionForAllCursors(
-                                    Move::ToBufferStart
-                                ));
-                            }
-                            VirtualKeyCode::End => {
-                                call_u_and_r!(Input::ExtendSelectionForAllCursors(
-                                    Move::ToBufferEnd
-                                ));
-                            }
-                            VirtualKeyCode::Left => {
-                                call_u_and_r!(Input::ExtendSelectionForAllCursors(
-                                    Move::ToPreviousLikelyEditLocation
-                                ));
-                            }
-                            VirtualKeyCode::Right => {
-                                call_u_and_r!(Input::ExtendSelectionForAllCursors(
-                                    Move::ToNextLikelyEditLocation
-                                ));
-                            }
-                            VirtualKeyCode::S => {
-                                if let Some(i) = r_s.view.visible_buffer {
-                                    file_chooser_call!(
-                                        r_s.event_proxy,
-                                        save,
-                                        p in CustomEvent::SaveNewFile(p, i)
-                                    );
-                                }
-                            }
-                            VirtualKeyCode::Z => {
-                                call_u_and_r!(Input::Redo);
-                            }
-                            VirtualKeyCode::Tab => {
-                                call_u_and_r!(Input::AdjustBufferSelection(
-                                    SelectionAdjustment::Previous
-                                ));
-                            }
-                            _ => (),
-                        },
-                        WindowEvent::KeyboardInput {
-                            input:
-                                KeyboardInput {
-                                    state: ElementState::Pressed,
-                                    virtual_keycode: Some(keypress),
-                                    modifiers,
-                                    ..
-                                },
-                            ..
-                        } if modifiers.is_empty() => match if cfg!(debug_assertions) {dbg!(keypress)} else {keypress} {
-                            VirtualKeyCode::Escape => {
-                                call_u_and_r!(Input::SetSizeDependents(SizeDependents {
-                                    buffer_xywh: wimp_render::get_edit_buffer_xywh(
-                                        d!(),
-                                        r_s.dimensions
-                                    )
-                                    .into(),
-                                    find_xywh: None,
-                                    replace_xywh: None,
-                                    go_to_position_xywh: None,
-                                    font_info: None,
-                                }));
-                                call_u_and_r!(Input::CloseMenuIfAny);
-                            }
-                            VirtualKeyCode::F1 => {
-                                call_u_and_r!(Input::DeleteLines);
-                            }
-                            VirtualKeyCode::Back => {
-                                call_u_and_r!(Input::Delete);
-                            }
-                            VirtualKeyCode::Up => {
-                                call_u_and_r!(Input::MoveAllCursors(Move::Up));
-                                r_s.ui.navigation = Navigation::Up;
-                            }
-                            VirtualKeyCode::Down => {
-                                call_u_and_r!(Input::MoveAllCursors(Move::Down));
-                                r_s.ui.navigation = Navigation::Down;
-                            }
-                            VirtualKeyCode::Left => {
-                                call_u_and_r!(Input::MoveAllCursors(Move::Left));
-                            }
-                            VirtualKeyCode::Right => {
-                                call_u_and_r!(Input::MoveAllCursors(Move::Right));
-                            }
-                            VirtualKeyCode::Home => {
-                                call_u_and_r!(Input::MoveAllCursors(Move::ToLineStart));
-                            }
-                            VirtualKeyCode::End => {
-                                call_u_and_r!(Input::MoveAllCursors(Move::ToLineEnd));
-                            }
-                            VirtualKeyCode::Tab => {
-                                call_u_and_r!(Input::TabIn);
-                            }
-                            _ => (),
-                        },
-                        WindowEvent::KeyboardInput {
-                            input:
-                                KeyboardInput {
-                                    state: ElementState::Pressed,
-                                    virtual_keycode: Some(keypress),
-                                    modifiers,
-                                    ..
-                                },
-                            ..
-                        } if modifiers == SHIFT => match keypress {
-                            VirtualKeyCode::Up => {
-                                call_u_and_r!(Input::ExtendSelectionForAllCursors(Move::Up));
-                                r_s.ui.navigation = Navigation::Up;
-                            }
-                            VirtualKeyCode::Down => {
-                                call_u_and_r!(Input::ExtendSelectionForAllCursors(Move::Down));
-                                r_s.ui.navigation = Navigation::Down;
-                            }
-                            VirtualKeyCode::Left => {
-                                call_u_and_r!(Input::ExtendSelectionForAllCursors(Move::Left));
-                            }
-                            VirtualKeyCode::Right => {
-                                call_u_and_r!(Input::ExtendSelectionForAllCursors(Move::Right));
-                            }
-                            VirtualKeyCode::Home => {
-                                call_u_and_r!(Input::ExtendSelectionForAllCursors(
-                                    Move::ToLineStart
-                                ));
-                            }
-                            VirtualKeyCode::End => {
-                                call_u_and_r!(Input::ExtendSelectionForAllCursors(Move::ToLineEnd));
-                            }
-                            VirtualKeyCode::Tab => {
-                                call_u_and_r!(Input::TabOut);
-                            }
-                            VirtualKeyCode::Return => {
-                                call_u_and_r!(Input::Insert('\n'));
-                            }
-                            _ => (),
-                        },
-                        WindowEvent::KeyboardInput {
-                            input:
-                                KeyboardInput {
-                                    state: ElementState::Pressed,
-                                    virtual_keycode: Some(keypress),
-                                    modifiers,
-                                    ..
-                                },
-                            ..
-                        } if modifiers == LOGO | CTRL => match keypress {
-                            VirtualKeyCode::Tab => {
-                                call_u_and_r!(Input::AdjustBufferSelection(
-                                    SelectionAdjustment::Move(SelectionMove::Right)
-                                ));
-                            }
-                            VirtualKeyCode::Home => {
-                                call_u_and_r!(Input::AdjustBufferSelection(
-                                    SelectionAdjustment::Move(SelectionMove::ToStart)
-                                ));
-                            }
-                            VirtualKeyCode::End => {
-                                call_u_and_r!(Input::AdjustBufferSelection(
-                                    SelectionAdjustment::Move(SelectionMove::ToEnd)
-                                ));
-                            }
-                            _ => {}
-                        },
-                        WindowEvent::KeyboardInput {
-                            input:
-                                KeyboardInput {
-                                    state: ElementState::Pressed,
-                                    virtual_keycode: Some(keypress),
-                                    modifiers,
-                                    ..
-                                },
-                            ..
-                        } if modifiers == LOGO | CTRL | SHIFT => match keypress {
-                            VirtualKeyCode::Tab => {
-                                call_u_and_r!(Input::AdjustBufferSelection(
-                                    SelectionAdjustment::Move(SelectionMove::Left)
-                                ));
-                            }
-                            _ => {}
                         },
                         _ => {}
                     }
