@@ -772,6 +772,62 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
             [empty, Right, "Move all cursors right.", r_s {
                 call_u_and_r!(r_s, Input::MoveAllCursors(Move::Right));
             }]
+            [empty, Home, "Move all cursors to line start.", r_s {
+                call_u_and_r!(r_s, Input::MoveAllCursors(Move::ToLineStart));
+            }]
+            [empty, End, "Move all cursors to line end.", r_s {
+                call_u_and_r!(r_s, Input::MoveAllCursors(Move::ToLineEnd));
+            }]
+            [empty, Tab, "Indent in selection/line.", r_s {
+                call_u_and_r!(r_s, Input::TabIn);
+            }]
+            [SHIFT, Tab, "Indent out selection/line.", r_s {
+                call_u_and_r!(r_s, Input::TabOut);
+            }]
+            [SHIFT, Up, "Extend selection(s) upward.", r_s {
+                call_u_and_r!(r_s, Input::ExtendSelectionForAllCursors(Move::Up));
+                r_s.ui.navigation = Navigation::Up;
+            }]
+            [SHIFT, Down, "Extend selection(s) downward.", r_s {
+                call_u_and_r!(r_s, Input::ExtendSelectionForAllCursors(Move::Down));
+                r_s.ui.navigation = Navigation::Down;
+            }]
+            [SHIFT, Left, "Extend selection(s) leftward.", r_s {
+                call_u_and_r!(r_s, Input::ExtendSelectionForAllCursors(Move::Left));
+            }]
+            [SHIFT, Right, "Extend selection(s) rightward.", r_s {
+                call_u_and_r!(r_s, Input::ExtendSelectionForAllCursors(Move::Right));
+            }]
+            [SHIFT, Home, "Extend selection(s) to line start.", r_s {
+                call_u_and_r!(r_s, Input::ExtendSelectionForAllCursors(Move::ToLineStart));
+            }]
+            [SHIFT, End, "Extend selection(s) to line end.", r_s {
+                call_u_and_r!(r_s, Input::ExtendSelectionForAllCursors(Move::ToLineEnd));
+            }]
+            [SHIFT, Return, "Insert new line.", r_s {
+                // TODO: Do we actually need this command?
+                call_u_and_r!(r_s, Input::Insert('\n'));
+            }]
+            [LOGO | CTRL, Tab, "Move current tab right.", r_s {
+                call_u_and_r!(r_s, Input::AdjustBufferSelection(
+                    SelectionAdjustment::Move(SelectionMove::Right)
+                ));
+            }]
+            [LOGO | CTRL | SHIFT, Tab, "Move current tab left.", r_s {
+                call_u_and_r!(r_s, Input::AdjustBufferSelection(
+                    SelectionAdjustment::Move(SelectionMove::Left)
+                ));
+            }]
+            [LOGO | CTRL, Home, "Move current tab to start of row.", r_s {
+                call_u_and_r!(r_s, Input::AdjustBufferSelection(
+                    SelectionAdjustment::Move(SelectionMove::ToStart)
+                ));
+            }]
+            [LOGO | CTRL, End, "Move current tab to end of row.", r_s {
+                call_u_and_r!(r_s, Input::AdjustBufferSelection(
+                    SelectionAdjustment::Move(SelectionMove::ToEnd)
+                ));
+            }]
         }
 
         events.run(move |event, _, control_flow| {
@@ -831,27 +887,6 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                             _ => {}
                         }
                     }
-                    
-                    // The plan is to merge this case into the match below once all the commands have been registered.
-                    #[allow(deprecated)]
-                    match event {
-                        WindowEvent::KeyboardInput {
-                            input:
-                                KeyboardInput {
-                                    state: ElementState::Pressed,
-                                    virtual_keycode: Some(keypress),
-                                    modifiers,
-                                    ..
-                                },
-                            ..
-                        } => {
-                            if let Some((label, command)) = commands.get(&(modifiers, keypress)) {
-                                dbg!(label);
-                                command(&mut r_s);
-                            }
-                        }
-                        _ => {}
-                    }
 
                     // As of this writing, issues on https://github.com/rust-windowing/winit ,
                     // specifically #1124 and #883, suggest that the it is up in the air as to
@@ -861,111 +896,6 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                     // of work it will be later to grow significantly. Time will tell.
                     #[allow(deprecated)]
                     match event {
-                        WindowEvent::KeyboardInput {
-                            input:
-                                KeyboardInput {
-                                    state: ElementState::Pressed,
-                                    virtual_keycode: Some(keypress),
-                                    modifiers,
-                                    ..
-                                },
-                            ..
-                        } if modifiers.is_empty() => match if cfg!(debug_assertions) {dbg!(keypress)} else {keypress} {
-                            VirtualKeyCode::Home => {
-                                call_u_and_r!(Input::MoveAllCursors(Move::ToLineStart));
-                            }
-                            VirtualKeyCode::End => {
-                                call_u_and_r!(Input::MoveAllCursors(Move::ToLineEnd));
-                            }
-                            VirtualKeyCode::Tab => {
-                                call_u_and_r!(Input::TabIn);
-                            }
-                            _ => (),
-                        },
-                        WindowEvent::KeyboardInput {
-                            input:
-                                KeyboardInput {
-                                    state: ElementState::Pressed,
-                                    virtual_keycode: Some(keypress),
-                                    modifiers,
-                                    ..
-                                },
-                            ..
-                        } if modifiers == SHIFT => match keypress {
-                            VirtualKeyCode::Up => {
-                                call_u_and_r!(Input::ExtendSelectionForAllCursors(Move::Up));
-                                r_s.ui.navigation = Navigation::Up;
-                            }
-                            VirtualKeyCode::Down => {
-                                call_u_and_r!(Input::ExtendSelectionForAllCursors(Move::Down));
-                                r_s.ui.navigation = Navigation::Down;
-                            }
-                            VirtualKeyCode::Left => {
-                                call_u_and_r!(Input::ExtendSelectionForAllCursors(Move::Left));
-                            }
-                            VirtualKeyCode::Right => {
-                                call_u_and_r!(Input::ExtendSelectionForAllCursors(Move::Right));
-                            }
-                            VirtualKeyCode::Home => {
-                                call_u_and_r!(Input::ExtendSelectionForAllCursors(
-                                    Move::ToLineStart
-                                ));
-                            }
-                            VirtualKeyCode::End => {
-                                call_u_and_r!(Input::ExtendSelectionForAllCursors(Move::ToLineEnd));
-                            }
-                            VirtualKeyCode::Tab => {
-                                call_u_and_r!(Input::TabOut);
-                            }
-                            VirtualKeyCode::Return => {
-                                call_u_and_r!(Input::Insert('\n'));
-                            }
-                            _ => (),
-                        },
-                        WindowEvent::KeyboardInput {
-                            input:
-                                KeyboardInput {
-                                    state: ElementState::Pressed,
-                                    virtual_keycode: Some(keypress),
-                                    modifiers,
-                                    ..
-                                },
-                            ..
-                        } if modifiers == LOGO | CTRL => match keypress {
-                            VirtualKeyCode::Tab => {
-                                call_u_and_r!(Input::AdjustBufferSelection(
-                                    SelectionAdjustment::Move(SelectionMove::Right)
-                                ));
-                            }
-                            VirtualKeyCode::Home => {
-                                call_u_and_r!(Input::AdjustBufferSelection(
-                                    SelectionAdjustment::Move(SelectionMove::ToStart)
-                                ));
-                            }
-                            VirtualKeyCode::End => {
-                                call_u_and_r!(Input::AdjustBufferSelection(
-                                    SelectionAdjustment::Move(SelectionMove::ToEnd)
-                                ));
-                            }
-                            _ => {}
-                        },
-                        WindowEvent::KeyboardInput {
-                            input:
-                                KeyboardInput {
-                                    state: ElementState::Pressed,
-                                    virtual_keycode: Some(keypress),
-                                    modifiers,
-                                    ..
-                                },
-                            ..
-                        } if modifiers == LOGO | CTRL | SHIFT => match keypress {
-                            VirtualKeyCode::Tab => {
-                                call_u_and_r!(Input::AdjustBufferSelection(
-                                    SelectionAdjustment::Move(SelectionMove::Left)
-                                ));
-                            }
-                            _ => {}
-                        },
                         WindowEvent::CloseRequested => quit!(),
                         WindowEvent::ScaleFactorChanged {
                             scale_factor,
@@ -1034,6 +964,21 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                                 } else {
                                     call_u_and_r!(Input::Insert(c));
                                 }
+                            }
+                        }
+                        WindowEvent::KeyboardInput {
+                            input:
+                                KeyboardInput {
+                                    state: ElementState::Pressed,
+                                    virtual_keycode: Some(keypress),
+                                    modifiers,
+                                    ..
+                                },
+                            ..
+                        } => {
+                            if let Some((label, command)) = commands.get(&(modifiers, keypress)) {
+                                dbg!(label);
+                                command(&mut r_s);
                             }
                         }
                         WindowEvent::MouseWheel {
