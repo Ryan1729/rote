@@ -785,6 +785,15 @@ pub struct BufferViewData {
     pub spans: Vec<SpanView>
 }
 
+#[macro_export]
+macro_rules! bvd {
+    ($chars: expr) => {{
+        let mut data: BufferViewData = d!();
+        data.chars = $chars.to_owned();
+        data
+    }}
+}
+
 /// Short form of "Command".
 /// This is for telling the platform layer that it should do something in addition to
 /// rendering the view.

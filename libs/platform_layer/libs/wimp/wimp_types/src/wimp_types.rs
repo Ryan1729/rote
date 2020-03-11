@@ -1,4 +1,4 @@
-use macros::{c, d, ord};
+use macros::{d, ord};
 use platform_types::{screen_positioning::*, g_i, *};
 
 use std::collections::{VecDeque, HashMap};
@@ -22,11 +22,6 @@ pub enum CustomEvent {
     SendBuffersToBeSaved,
     EditedBufferError(String),
 }
-/* TODO justify these then uncomment
-unsafe impl Send for CustomEvent {}
-unsafe impl Sync for CustomEvent {}
-*/
-
 
 // State owned by the `run` function, which can be borrowed by other functions called inside `run`.
 #[derive(Debug)]
@@ -83,7 +78,11 @@ pub mod ui {
                     }
                 }
 
-                s
+                if s.len() == 0 {
+                    "\"\"".to_string()
+                } else {
+                    s
+                }
             },
             Id::TaggedUsize(tag, payload) => {
                 format!("TaggedUsize{:?}", (tag, payload))

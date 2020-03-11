@@ -1,10 +1,12 @@
 use super::*;
+use wimp_types::{ui_id, ui::{do_button_logic, InputType, PhysicalButtonState, Navigation}};
+use platform_types::{bvd};
+
 use proptest::{
     num::f32,
     prelude::{Just, Strategy},
     prop_compose, proptest,
 };
-use wimp_types::{ui_id, ui::{do_button_logic, InputType, PhysicalButtonState}};
 
 pub fn usual() -> f32::Any {
     f32::POSITIVE | f32::NEGATIVE | f32::NORMAL | f32::ZERO
@@ -340,4 +342,36 @@ fn make_nth_tab_visible_if_present_is_idemponent_on_this_generated_example() {
         tab_count: 2,
         tab_width: SOME_SCREEN_WIDTH,
     });
+}
+
+#[test]
+/// The idea here is to make sure that going off the top of the list leads to the input box being selected.
+fn render_file_switcher_menu_selects_the_fileswitcher_buffer_when_the_navigation_is_up_from_index_0() {
+    use std::path::PathBuf;
+    
+    let index = d!();
+
+    let fs_view = FileSwitcherView {
+        search: bvd!("a"),
+        results: vec!["a".into(), "ab".into(), "abc".into()],
+    };
+
+    let mut ui: ui::State = d!();
+    ui.navigation = Navigation::Up;
+    ui.keyboard.hot = ui::Id::TaggedUsize(
+        ui::Tag::FileSwitcherResults,
+        0,
+    );
+
+    let view: View = d!();
+    let dimensions: Dimensions = Dimensions {
+        window: sswh!(1024.0, 768.0),
+        font: d!(),
+    };
+
+    let mut view_output: ViewOutput = d!();
+
+    render_file_switcher_menu(index, &fs_view, &mut ui, &view, dimensions, &mut view_output);
+
+    assert_eq!(view_output.input, Some(Input::SelectBuffer(b_id!(BufferIdKind::FileSwitcher, index))));
 }

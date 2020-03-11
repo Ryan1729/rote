@@ -44,8 +44,6 @@ impl ScrollableBuffer {
             text_space,
         );
     
-        dbg!(&cursors, attempt_result);
-    
         if attempt_result != VisibilityAttemptResult::Succeeded {
             attempt_result = attempt_to_make_xy_visible(
                 scroll,
@@ -53,10 +51,13 @@ impl ScrollableBuffer {
                 apron,
                 text_space,
             );
-            dbg!(&cursors, attempt_result);
         }
     
         attempt_result
+    }
+
+    pub fn reset_cursor_states(&mut self) {
+        self.text_buffer.reset_cursor_states();
     }
 }
 
@@ -117,7 +118,7 @@ impl EditorBuffer {
     }
 
     pub fn reset_cursor_states(&mut self) {
-        self.scrollable.text_buffer.reset_cursor_states();
+        self.scrollable.reset_cursor_states();
     }
 }
 
@@ -146,17 +147,8 @@ impl EditorBuffers {
         self.buffers.current_index()
     }
 
-    pub fn set_current_index(&mut self, index: g_i::Index) {
-        if self.buffers.set_current_index(index) {
-            if let Some(buffer) = self.buffers.get_mut(self.current_index()) {
-                // These need to be cleared so that the `platform_types::View` that is passed down
-                // can be examined to detemine if the user wants to navigate away from the given
-                // buffer. We do this with each buffer, even though a client might only care about
-                // buffers of a given menu kind, since a different client might care about different
-                // ones, including plain `Text` buffers.
-                buffer.reset_cursor_states();
-            }
-        }
+    pub fn set_current_index(&mut self, index: g_i::Index) -> bool {
+        self.buffers.set_current_index(index)
     }
 
     pub fn get_current_buffer(&self) -> Option<&EditorBuffer> {

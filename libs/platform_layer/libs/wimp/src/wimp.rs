@@ -7,7 +7,7 @@ use glutin::{dpi::LogicalPosition, Api, GlProfile, GlRequest};
 use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::time::Duration;
-use wimp_render::{get_find_replace_info, FindReplaceInfo, get_go_to_position_info, GoToPositionInfo};
+use wimp_render::{get_find_replace_info, FindReplaceInfo, get_go_to_position_info, GoToPositionInfo, ViewOutput};
 use wimp_types::{ui, ui::{PhysicalButtonState, Navigation}, transform_status, BufferStatus, BufferStatusMap, BufferStatusTransition, CustomEvent, Dimensions, RunState};
 use file_chooser;
 use macros::d;
@@ -228,7 +228,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
 
     let mut running = true;
 
-    use std::sync::mpsc::{Sender, channel};
+    use std::sync::mpsc::{channel};
 
     // into the edited files thread
     let (edited_files_in_sink, edited_files_in_source) = channel();
@@ -396,12 +396,6 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
         }
     };
 
-    macro_rules! screen_wh {
-        () => {
-            r_s.dimensions
-        };
-    }
-
     // If you didn't click on the same symbol, counting that as a double click seems like it
     // would be annoying.
     let mouse_epsilon_radius: f32 = {
@@ -433,7 +427,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
             };
             ($ui: expr, $editor_in_sink: expr, $input: expr) => {{
                 $ui.note_interaction();
-                let _hope_it_gets_there = $editor_in_sink.send($input);
+                let _hope_it_gets_there = $editor_in_sink.send(dbg!($input));
             }};
         }
 
@@ -1124,13 +1118,13 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
 
                     let sswh!(width, height) = r_s.dimensions.window;
 
-                    let (text_and_rects, input) =
+                    let ViewOutput { text_or_rects, input } =
                         wimp_render::view(
                             &mut r_s,
                             dt,
                         );
 
-                    gl_layer::render(&mut gl_state, text_and_rects, width as _, height as _)
+                    gl_layer::render(&mut gl_state, text_or_rects, width as _, height as _)
                         .expect("gl_layer::render didn't work");
 
                     glutin_context

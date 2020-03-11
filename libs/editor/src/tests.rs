@@ -57,6 +57,7 @@ fn update_and_render_shows_the_cursor_when_pressing_home_on(text: &str, buffer_x
     assert_eq!(buffer.scroll.y, 0.0);
 }
 
+#[test]
 fn update_and_render_shows_the_cursor_when_pressing_home_in_this_case() {
     update_and_render_shows_the_cursor_when_pressing_home_on(
         CURSOR_SHOW_TEXT,
@@ -192,125 +193,6 @@ fn update_and_render_shows_the_cursor_when_pressing_home() {
     }).unwrap();
 }
 
-/* this was from before I decided to change how the screen gets auto-scrolled along the x axis.
-#[test]
-fn update_and_render_shows_the_cursor_when_pressing_home_in_this_realistic_case() {
-    update_and_render_shows_the_cursor_when_pressing_home_on(
-        CURSOR_SHOW_TEXT,
-        tbxywh!(0.0, 0.0, 1920.0, 1080.0),
-        CharDim { w: 16.0, h: 32.0 }
-    );
-}
-
-#[test]
-fn update_and_render_shows_the_cursor_when_pressing_home_in_this_reduced_realistic_case() {
-    let text = CURSOR_SHOW_TEXT;
-    let buffer_xywh = tbxywh!(0.0, 0.0, 1920.0, 1080.0);
-    let char_dim = CharDim { w: 16.0, h: 32.0 };
-
-    let mut state: State = text.into();
-    state.buffer_xywh = buffer_xywh;
-    state.font_info = FontInfo {
-        text_char_dim: char_dim,
-        status_char_dim: char_dim,
-        tab_char_dim: char_dim,
-        find_replace_char_dim: char_dim,
-    };
-    
-
-    dbg!(get_scrollable_buffer_mut!(state));
-
-    update_and_render(&mut state, Input::MoveAllCursors(Move::ToBufferEnd));
-
-    dbg!(get_scrollable_buffer_mut!(state));
-
-    {
-        let buffer = get_scrollable_buffer_mut!(state).unwrap();
-        assert_eq!(
-            buffer.text_buffer.borrow_cursors_vec()[0], cur!{pos!{l 0, o text.len()}},
-            "*** Cursor Precondition failure! ***"
-        );
-        assert_ne!(buffer.scroll.x, 0.0, "*** Scroll Precondition failure! ***");
-    }
-
-    let buffer = get_scrollable_buffer_mut!(state).unwrap();
-
-    buffer.text_buffer.move_all_cursors(Move::ToBufferStart);
-
-    let result = try_to_show_cursors_on(buffer, buffer_xywh, char_dim);
-    
-    dbg!(result);
-
-    assert_eq!(buffer.scroll.x, 0.0);
-}
-
-
-#[test]
-fn update_and_render_shows_the_cursor_when_pressing_home_in_this_further_reduced_realistic_case() {
-    let text = CURSOR_SHOW_TEXT;
-    let xywh = tbxywh!(0.0, 0.0, 1920.0, 1080.0);
-    let char_dim = CharDim { w: 16.0, h: 32.0 };    
-
-    let mut buffer = ScrollableBuffer {
-        text_buffer: {
-            let mut t: TextBuffer = text.into();
-            t.set_cursor(
-                cur!{pos!{l 0, o text.len()}},
-                ReplaceOrAdd::Replace
-            );
-            t
-        },
-        scroll: ScrollXY {
-            x: 320.0,
-            y: 0.0,
-        },
-    };
-
-    //
-    // update_and_render inlined
-    buffer.text_buffer.move_all_cursors(Move::ToBufferStart);
-
-    let scroll = &mut buffer.scroll;
-    let cursors = buffer.text_buffer.borrow_cursors_vec();
-
-    // We try first with this smaller xywh to make the cursor appear
-    // in the center more often.
-    let mut small_xywh = xywh.clone();
-    small_xywh.xy.x += small_xywh.wh.w / 4.0;
-    small_xywh.wh.w /= 2.0;
-    small_xywh.xy.y += small_xywh.wh.h / 4.0;
-    small_xywh.wh.h /= 2.0;
-
-    let mut attempt_result;
-    attempt_result = attempt_to_make_sure_at_least_one_cursor_is_visible(
-        scroll,
-        small_xywh,
-        char_dim,
-        cursors,
-    );
-
-    assert_eq!(scroll.x, 0.0);
-
-    dbg!(attempt_result);
-
-    if attempt_result != VisibilityAttemptResult::Succeeded {
-        dbg!();
-        attempt_result = attempt_to_make_sure_at_least_one_cursor_is_visible(
-            scroll,
-            xywh,
-            char_dim,
-            cursors,
-        );
-    }
-    //
-    //
-
-    dbg!(attempt_result);
-
-    assert_eq!(buffer.scroll.x, 0.0);
-}
-*/
-
 #[test]
 fn attempt_to_make_sure_at_least_one_cursor_is_visible_reports_correctly_in_this_case() {
     let mut scroll = ScrollXY {
@@ -388,6 +270,53 @@ proptest!{
         assert_eq!(
             &state_str,
             some_text
+        );
+    }
+}
+
+#[test]
+/// The property this test checks for makes it easier for editor clients to implement keyboard navigation by examining
+/// the cursors. It also looks mildly nicer.
+fn update_and_render_resets_the_cursor_states_in_this_case() {
+    // Arrange
+    let mut state: State = String::new().into();
+    state.buffer_xywh = EXAMPLE_TBXYWH;
+    state.font_info = FontInfo {
+        text_char_dim: EXAMPLE_CHAR_DIM,
+        status_char_dim: EXAMPLE_CHAR_DIM,
+        tab_char_dim: EXAMPLE_CHAR_DIM,
+        find_replace_char_dim: EXAMPLE_CHAR_DIM,
+    };
+
+    update_and_render(&mut state, Input::SetMenuMode(MenuMode::FileSwitcher));
+    update_and_render(&mut state, Input::MoveAllCursors(Move::Down));
+
+    {
+        let buffer = get_scrollable_buffer_mut!(state, BufferIdKind::FileSwitcher).unwrap();
+        for c in buffer.text_buffer.borrow_cursors_vec() {
+            assert_eq!(
+                c.state,
+                CursorState::PressedAgainstWall(Move::Down),
+                "*** Cursor Precondition failure! ***"
+            );
+        }
+    }
+
+    // Act
+    update_and_render(&mut state, Input::MoveAllCursors(Move::Up));
+    // We expect the view returned from the to `Move::Up` render to allow the client
+    // to trigger a SelectBuffer input, given that their UI places the input box 
+    // above the results list. We should not require clients to do this, but if they 
+    // do this it should work.
+
+    update_and_render(&mut state, Input::SelectBuffer(b_id!(BufferIdKind::FileSwitcher, d!())));
+
+    // Assert
+    let buffer = get_scrollable_buffer_mut!(state, BufferIdKind::FileSwitcher).unwrap();
+    for c in buffer.text_buffer.borrow_cursors_vec() {
+        assert_eq!(
+            c.state,
+            d!(),
         );
     }
 }

@@ -1,7 +1,6 @@
 use gl_layer::{ColouredText, MulticolourTextSpec, TextLayout, TextOrRect, TextSpec, VisualSpec};
-#[macro_use]
-use wimp_types::{ui_id, ui, ui::{ButtonState}, BufferStatus, BufferStatusMap, ClipboardProvider, Dimensions, RunState};
-use macros::{c, d, ord};
+use wimp_types::{ui_id, ui, ui::{ButtonState}, BufferStatus, ClipboardProvider, Dimensions, RunState};
+use macros::{c, d};
 use platform_types::{screen_positioning::*, *};
 use std::cmp::max;
 
@@ -115,6 +114,12 @@ const TAB_BAR_BACKGROUND_COLOUR: Colour = palette![alt cyan];
 const TAB_BACKGROUND_COLOUR: Colour = palette![cyan];
 const TAB_TEXT_COLOUR: Colour = palette![white];
 
+#[derive(Clone, Default, Debug)]
+pub struct ViewOutput<'view> {
+    pub text_or_rects: Vec<TextOrRect<'view>>,
+    pub input: Option<Input>,
+}
+
 pub fn view<'view, CB: ClipboardProvider>(
     RunState {
         ref mut ui,
@@ -124,7 +129,7 @@ pub fn view<'view, CB: ClipboardProvider>(
         ..
     }: &'view mut RunState<CB>,
     dt: std::time::Duration,
-) -> (Vec<TextOrRect<'view>>, Option<Input>) {
+) -> ViewOutput<'view> {
     ui::begin_view(ui, view);
 
     let dimensions = *dimensions;
@@ -140,18 +145,18 @@ pub fn view<'view, CB: ClipboardProvider>(
         4   // 2-4 per tab, usually 2
     ;
     ui.add_dt(dt);
-    let fade_alpha = ui.get_fade_alpha();
 
-    let mut text_or_rects =
-        Vec::with_capacity(view.buffers.len() * PER_BUFFER_TEXT_OR_RECT_ESTIMATE);
-    let mut input = None;
+    let mut view_output = ViewOutput {
+        text_or_rects: Vec::with_capacity(view.buffers.len() * PER_BUFFER_TEXT_OR_RECT_ESTIMATE),
+        input: None,
+    };
 
     let UpperPositionInfo {
         edit_y,
         ..
     } = upper_position_info(&tab_char_dim);
 
-    text_or_rects.push(TextOrRect::Rect(VisualSpec {
+    view_output.text_or_rects.push(TextOrRect::Rect(VisualSpec {
         rect: ssr!(0.0, 0.0, width, edit_y),
         color: TAB_BAR_BACKGROUND_COLOUR,
         z: TAB_BACKGROUND_Z,
@@ -177,7 +182,7 @@ pub fn view<'view, CB: ClipboardProvider>(
         if do_outline_button(
             ui,
             ui_id!(i),
-            &mut text_or_rects,
+            &mut view_output.text_or_rects,
             OutlineButtonSpec {
                 text: &name_string,
                 size: TAB_SIZE,
@@ -213,7 +218,7 @@ pub fn view<'view, CB: ClipboardProvider>(
                 z: TAB_Z,
             },
         ) {
-            input = Some(Input::SelectBuffer(b_id!(
+            view_output.input = Some(Input::SelectBuffer(b_id!(
                 BufferIdKind::Text,
                 view.index_state.new_index(g_i::IndexPart::or_max(i))
             )))
@@ -241,9 +246,9 @@ pub fn view<'view, CB: ClipboardProvider>(
         let edit_buffer_text_rect = get_edit_buffer_xywh(view.menu.get_mode(), dimensions);
 
         let edit_buffer_text_rect: ScreenSpaceRect = edit_buffer_text_rect.into();
-        input = text_box(
+        view_output.input = text_box(
             ui,
-            &mut text_or_rects,
+            &mut view_output.text_or_rects,
             edit_buffer_text_rect,
             d!(),
             *text_char_dim,
@@ -253,9 +258,8 @@ pub fn view<'view, CB: ClipboardProvider>(
             b_id!(BufferIdKind::Text, index),
             EDIT_Z,
             &view.current_buffer_id,
-            fade_alpha,
         )
-        .or(input);
+        .or(view_output.input);
 
         match &view.menu {
             MenuView::None => {}
@@ -282,12 +286,12 @@ pub fn view<'view, CB: ClipboardProvider>(
                             min: (0.0, top_y),
                             max: (width, bottom_y),
                         };
-                        text_or_rects.push(TextOrRect::Rect(VisualSpec {
+                        view_output.text_or_rects.push(TextOrRect::Rect(VisualSpec {
                             rect: outer_rect,
                             color: CHROME_BACKGROUND_COLOUR,
                             z: FIND_REPLACE_BACKGROUND_Z,
                         }));
-                        text_or_rects.push(TextOrRect::Text(TextSpec {
+                        view_output.text_or_rects.push(TextOrRect::Text(TextSpec {
                             text: "In current file",
                             size: FIND_REPLACE_SIZE,
                             layout: TextLayout::SingleLine,
@@ -299,9 +303,9 @@ pub fn view<'view, CB: ClipboardProvider>(
                         }));
                         macro_rules! spaced_input_box {
                             ($data: expr, $input: expr, $outer_rect: expr) => {{
-                                input = text_box(
+                                view_output.input = text_box(
                                     ui,
-                                    &mut text_or_rects,
+                                    &mut view_output.text_or_rects,
                                     $outer_rect,
                                     padding,
                                     *find_replace_char_dim,
@@ -311,9 +315,8 @@ pub fn view<'view, CB: ClipboardProvider>(
                                     $input,
                                     FIND_REPLACE_Z,
                                     &view.current_buffer_id,
-                                    fade_alpha,
                                 )
-                                .or(input);
+                                .or(view_output.input);
                             }};
                         }
 
@@ -326,192 +329,20 @@ pub fn view<'view, CB: ClipboardProvider>(
                     }
                 }
             }
-            MenuView::FileSwitcher(FileSwitcherView { search, results }) => {
-                let FileSwitcherInfo {
-                    padding,
-                    margin,
-                    list_padding,
-                    list_margin,
-                    top_y,
-                    bottom_y,
-                    label_rect,
-                    search_outer_rect,
-                    search_text_xywh,
-                    ..
-                } = get_file_switcher_info(dimensions);
-                let outer_rect = ScreenSpaceRect {
-                    min: (0.0, top_y),
-                    max: (width, bottom_y),
-                };
-                text_or_rects.push(TextOrRect::Rect(VisualSpec {
-                    rect: outer_rect,
-                    color: CHROME_BACKGROUND_COLOUR,
-                    z: FIND_REPLACE_BACKGROUND_Z,
-                }));
-                text_or_rects.push(TextOrRect::Text(TextSpec {
-                    text: if search.chars.len() == 0 {
-                        "Find File"
-                    } else {
-                        // cheap hack to avoid lifetime issues
-                        match results.len() {
-                            0 => "Find File (0 results)",
-                            1 => "Find File (1 result)",
-                            2 => "Find File (2 results)",
-                            3 => "Find File (3 results)",
-                            4 => "Find File (4 results)",
-                            5 => "Find File (5 results)",
-                            6 => "Find File (6 results)",
-                            7 => "Find File (7 results)",
-                            8 => "Find File (8 results)",
-                            _ => "Find File (9+ results)",
-                        }
-                    },
-                    size: FIND_REPLACE_SIZE,
-                    layout: TextLayout::SingleLine,
-                    spec: VisualSpec {
-                        rect: label_rect,
-                        color: CHROME_TEXT_COLOUR,
-                        z: FIND_REPLACE_Z,
-                    },
-                }));
-                macro_rules! spaced_input_box {
-                    ($data: expr, $input: expr, $outer_rect: expr) => {{
-                        input = text_box(
-                            ui,
-                            &mut text_or_rects,
-                            $outer_rect,
-                            padding,
-                            *find_replace_char_dim,
-                            FIND_REPLACE_SIZE,
-                            TextBoxColour::Single(CHROME_TEXT_COLOUR),
-                            &$data,
-                            $input,
-                            FIND_REPLACE_Z,
-                            &view.current_buffer_id,
-                            fade_alpha,
-                        )
-                        .or(input);
-                    }};
-                }
+            MenuView::FileSwitcher(fs_view) => {
+                render_file_switcher_menu(
+                    index,
+                    fs_view,
+                    ui,
+                    view,
+                    dimensions,
+                    &mut view_output,
+                );
 
-                let mut current_rect = search_outer_rect;
-                let list_bottom_margin = list_margin.into_ltrb().b;
-                let vertical_shift =
-                    search_text_xywh.wh.h + margin.into_ltrb().b - list_bottom_margin;
-
-                let search_buffer_id = b_id!(BufferIdKind::FileSwitcher, index);
-
-                fn get_result_id(index: usize) -> ui::Id {
-                    ui::Id::TaggedUsize(ui::Tag::FileSwitcherResults, index)
-                }
-
-                let mut navigated_result = None;
-
-                if input.is_none() {
-                    use ui::Navigation::*;
-                    match ui.navigation {
-                        None => {
-                            if view.current_buffer_id.kind != BufferIdKind::None {
-                                // do nothing
-                            } else if let ui::Id::TaggedUsize(
-                                ui::Tag::FileSwitcherResults,
-                                result_index,
-                            ) = ui.keyboard.hot
-                            {
-                                navigated_result = Some(result_index);
-                            }
-                        }
-                        Up => {
-                            if view.current_buffer_id.kind != BufferIdKind::None {
-                                // do nothing
-                            } else if let ui::Id::TaggedUsize(
-                                ui::Tag::FileSwitcherResults,
-                                result_index,
-                            ) = ui.keyboard.hot
-                            {
-                                if result_index == 0 {
-                                    input = Some(Input::SelectBuffer(search_buffer_id));
-                                } else {
-                                    navigated_result = Some(result_index - 1);
-                                }
-                            }
-                        }
-                        Down => {
-                            if view.current_buffer_id == search_buffer_id {
-                                if results.len() > 0 {
-                                    navigated_result = Some(0);
-                                    input =
-                                        Some(Input::SelectBuffer(b_id!(BufferIdKind::None, index)));
-                                }
-                            } else if view.current_buffer_id.kind != BufferIdKind::None {
-                                // do nothing
-                            } else if let ui::Id::TaggedUsize(
-                                ui::Tag::FileSwitcherResults,
-                                result_index,
-                            ) = ui.keyboard.hot
-                            {
-                                navigated_result = Some((result_index + 1) % results.len());
-                            }
-                        }
-                        Interact => {
-                            if view.current_buffer_id.kind != BufferIdKind::None {
-                                // do nothing
-                            } else if let ui::Id::TaggedUsize(
-                                ui::Tag::FileSwitcherResults,
-                                result_index,
-                            ) = ui.keyboard.hot
-                            {
-                                input = results
-                                    .get(result_index)
-                                    .cloned()
-                                    .map(Input::OpenOrSelectBuffer);
-                            }
-                        }
-                    }
-                }
-
-                spaced_input_box!(search, search_buffer_id, current_rect);
-                // We add the extra `list_bottom_margin` here but not in the loop so that the
-                // spacing bewteen the textbox and the first button is the same as the spacing
-                // between subsequent buttons. If we added it in both there would be a double
-                // magin between buttons.
-                current_rect.min.1 += vertical_shift;
-                current_rect.min.1 += list_bottom_margin;
-                current_rect.max.1 += vertical_shift;
-                current_rect.max.1 += list_bottom_margin;
-
-                for (result_index, result) in results.iter().enumerate() {
-                    let path_text = result.to_str().unwrap_or("Non-UTF8 Path");
-                    let rect = enlarge_by(shrink_by(current_rect, margin), list_padding);
-
-                    let result_id = get_result_id(result_index);
-
-                    match navigated_result {
-                        Some(i) if i == result_index => {
-                            ui.keyboard.set_next_hot(result_id);
-                        }
-                        _ => {}
-                    };
-
-                    if do_outline_button(
-                        ui,
-                        result_id,
-                        &mut text_or_rects,
-                        OutlineButtonSpec {
-                            text: &path_text,
-                            size: TAB_SIZE,
-                            char_dim: *tab_char_dim,
-                            layout: TextLayout::SingleLine,
-                            margin: list_margin,
-                            rect,
-                            z: TAB_Z,
-                            ..d!()
-                        },
-                    ) {
-                        input = Some(Input::OpenOrSelectBuffer(result.to_owned()));
-                    }
-                    current_rect.min.1 += vertical_shift;
-                    current_rect.max.1 += vertical_shift;
+                if view_output.input.is_none() {
+                    print!(".");
+                } else {
+                    dbg!(&view_output.input);
                 }
             }
             MenuView::GoToPosition(GoToPositionView {
@@ -529,13 +360,13 @@ pub fn view<'view, CB: ClipboardProvider>(
                     min: (0.0, top_y),
                     max: (width, bottom_y),
                 };
-                text_or_rects.push(TextOrRect::Rect(VisualSpec {
+                view_output.text_or_rects.push(TextOrRect::Rect(VisualSpec {
                     rect: outer_rect,
                     color: CHROME_BACKGROUND_COLOUR,
                     z: FIND_REPLACE_BACKGROUND_Z,
                 }));
                 
-                text_or_rects.push(TextOrRect::Text(TextSpec {
+                view_output.text_or_rects.push(TextOrRect::Text(TextSpec {
                     text: "Go to position",
                     size: FIND_REPLACE_SIZE,
                     layout: TextLayout::SingleLine,
@@ -546,9 +377,9 @@ pub fn view<'view, CB: ClipboardProvider>(
                     },
                 }));
 
-                input = text_box(
+                view_output.input = text_box(
                     ui,
-                    &mut text_or_rects,
+                    &mut view_output.text_or_rects,
                     input_outer_rect,
                     padding,
                     *find_replace_char_dim,
@@ -558,8 +389,7 @@ pub fn view<'view, CB: ClipboardProvider>(
                     b_id!(BufferIdKind::GoToPosition, index),
                     FIND_REPLACE_Z,
                     &view.current_buffer_id,
-                    fade_alpha,
-                ).or(input);
+                ).or(view_output.input);
             }
         }
     }
@@ -570,7 +400,7 @@ pub fn view<'view, CB: ClipboardProvider>(
 
     let status_line_y = get_status_line_y(*status_char_dim, height);
 
-    text_or_rects.push(TextOrRect::Rect(VisualSpec {
+    view_output.text_or_rects.push(TextOrRect::Rect(VisualSpec {
         rect: ScreenSpaceRect {
             min: (0.0, status_line_y),
             max: (width, status_line_y + SEPARATOR_LINE_THICKNESS),
@@ -584,13 +414,13 @@ pub fn view<'view, CB: ClipboardProvider>(
         max: (width, height),
     };
 
-    text_or_rects.push(TextOrRect::Rect(VisualSpec {
+    view_output.text_or_rects.push(TextOrRect::Rect(VisualSpec {
         rect,
         color: CHROME_BACKGROUND_COLOUR,
         z: STATUS_BACKGROUND_Z,
     }));
 
-    text_or_rects.push(TextOrRect::Text(TextSpec {
+    view_output.text_or_rects.push(TextOrRect::Text(TextSpec {
         text: &view.status_line.chars,
         size: STATUS_SIZE,
         layout: TextLayout::SingleLine,
@@ -602,7 +432,7 @@ pub fn view<'view, CB: ClipboardProvider>(
     }));
 
     if !ui.window_is_focused {
-        for t_or_r in text_or_rects.iter_mut() {
+        for t_or_r in view_output.text_or_rects.iter_mut() {
             use TextOrRect::*;
             match t_or_r {
                 Rect(ref mut spec) => {
@@ -622,7 +452,211 @@ pub fn view<'view, CB: ClipboardProvider>(
 
     ui::end_view(ui);
 
-    (text_or_rects, input)
+    view_output
+}
+
+fn render_file_switcher_menu<'view>(
+    buffer_index: g_i::Index,
+    FileSwitcherView { search, results }: &'view FileSwitcherView,
+    ui: &mut ui::State,
+    view: &View,
+    dimensions: Dimensions,
+    view_output: &mut ViewOutput<'view>,
+) {
+    let text_or_rects = &mut view_output.text_or_rects;
+    let input = &mut view_output.input;
+
+    let FontInfo {
+        ref tab_char_dim,
+        ref find_replace_char_dim,
+        ..
+    } = dimensions.font;
+
+    let FileSwitcherInfo {
+        padding,
+        margin,
+        list_padding,
+        list_margin,
+        top_y,
+        bottom_y,
+        label_rect,
+        search_outer_rect,
+        search_text_xywh,
+        ..
+    } = get_file_switcher_info(dimensions);
+    let outer_rect = ScreenSpaceRect {
+        min: (0.0, top_y),
+        max: (dimensions.window.w, bottom_y),
+    };
+    text_or_rects.push(TextOrRect::Rect(VisualSpec {
+        rect: outer_rect,
+        color: CHROME_BACKGROUND_COLOUR,
+        z: FIND_REPLACE_BACKGROUND_Z,
+    }));
+    text_or_rects.push(TextOrRect::Text(TextSpec {
+        text: if search.chars.len() == 0 {
+            "Find File"
+        } else {
+            // cheap hack to avoid lifetime issues
+            match results.len() {
+                0 => "Find File (0 results)",
+                1 => "Find File (1 result)",
+                2 => "Find File (2 results)",
+                3 => "Find File (3 results)",
+                4 => "Find File (4 results)",
+                5 => "Find File (5 results)",
+                6 => "Find File (6 results)",
+                7 => "Find File (7 results)",
+                8 => "Find File (8 results)",
+                _ => "Find File (9+ results)",
+            }
+        },
+        size: FIND_REPLACE_SIZE,
+        layout: TextLayout::SingleLine,
+        spec: VisualSpec {
+            rect: label_rect,
+            color: CHROME_TEXT_COLOUR,
+            z: FIND_REPLACE_Z,
+        },
+    }));
+
+    let mut current_rect = search_outer_rect;
+    let list_bottom_margin = list_margin.into_ltrb().b;
+    let vertical_shift =
+        search_text_xywh.wh.h + margin.into_ltrb().b - list_bottom_margin;
+
+    let search_buffer_id = b_id!(BufferIdKind::FileSwitcher, buffer_index);
+
+    fn get_result_id(index: usize) -> ui::Id {
+        ui::Id::TaggedUsize(ui::Tag::FileSwitcherResults, index)
+    }
+
+    let mut navigated_result = None;
+
+    if input.is_none() {
+        use ui::Navigation::*;
+        match if_changed::dbg!(ui.navigation) {
+            None => {
+                if view.current_buffer_id.kind != BufferIdKind::None {
+                    // do nothing
+                } else if let ui::Id::TaggedUsize(
+                    ui::Tag::FileSwitcherResults,
+                    result_index,
+                ) = ui.keyboard.hot
+                {
+                    navigated_result = Some(result_index);
+                }
+            }
+            Up => {
+                dbg!("Up", view.current_buffer_id.kind != BufferIdKind::None, ui.keyboard.hot);
+                if let ui::Id::TaggedUsize(
+                    ui::Tag::FileSwitcherResults,
+                    result_index,
+                ) = ui.keyboard.hot
+                {
+                    if result_index == 0 {
+                        *input = Some(Input::SelectBuffer(search_buffer_id));
+                    } else {
+                        navigated_result = Some(result_index - 1);
+                    }
+                }
+            }
+            Down => {
+                if view.current_buffer_id == search_buffer_id {
+                    if results.len() > 0 {
+                        navigated_result = Some(0);
+                        *input =
+                            Some(Input::SelectBuffer(b_id!(BufferIdKind::None, buffer_index)));
+                    }
+                } else if view.current_buffer_id.kind != BufferIdKind::None {
+                    // do nothing
+                } else if let ui::Id::TaggedUsize(
+                    ui::Tag::FileSwitcherResults,
+                    result_index,
+                ) = ui.keyboard.hot
+                {
+                    navigated_result = Some((result_index + 1) % results.len());
+                }
+            }
+            Interact => {
+                if view.current_buffer_id.kind != BufferIdKind::None {
+                    // do nothing
+                } else if let ui::Id::TaggedUsize(
+                    ui::Tag::FileSwitcherResults,
+                    result_index,
+                ) = ui.keyboard.hot
+                {
+                    *input = results
+                        .get(result_index)
+                        .cloned()
+                        .map(Input::OpenOrSelectBuffer);
+                }
+            }
+        }
+    }
+
+    macro_rules! spaced_input_box {
+        ($data: expr, $input: expr, $outer_rect: expr) => {{
+            *input = text_box(
+                ui,
+                &mut view_output.text_or_rects,
+                $outer_rect,
+                padding,
+                *find_replace_char_dim,
+                FIND_REPLACE_SIZE,
+                TextBoxColour::Single(CHROME_TEXT_COLOUR),
+                &$data,
+                $input,
+                FIND_REPLACE_Z,
+                &view.current_buffer_id,
+            )
+            .or(input.clone());
+        }};
+    }
+
+    spaced_input_box!(search, search_buffer_id, current_rect);
+    // We add the extra `list_bottom_margin` here but not in the loop so that the
+    // spacing bewteen the textbox and the first button is the same as the spacing
+    // between subsequent buttons. If we added it in both, there would be a double
+    // margin between buttons.
+    current_rect.min.1 += vertical_shift;
+    current_rect.min.1 += list_bottom_margin;
+    current_rect.max.1 += vertical_shift;
+    current_rect.max.1 += list_bottom_margin;
+
+    for (result_index, result) in results.iter().enumerate() {
+        let path_text = result.to_str().unwrap_or("Non-UTF8 Path");
+        let rect = enlarge_by(shrink_by(current_rect, margin), list_padding);
+
+        let result_id = get_result_id(result_index);
+
+        match navigated_result {
+            Some(i) if i == result_index => {
+                ui.keyboard.set_next_hot(result_id);
+            }
+            _ => {}
+        };
+
+        if do_outline_button(
+            ui,
+            result_id,
+            &mut view_output.text_or_rects,
+            OutlineButtonSpec {
+                text: &path_text,
+                size: TAB_SIZE,
+                char_dim: *tab_char_dim,
+                layout: TextLayout::SingleLine,
+                margin: list_margin,
+                rect,
+                z: TAB_Z,
+                ..d!()
+            },
+        ) {
+            *input = Some(Input::OpenOrSelectBuffer(result.to_owned()));
+        }
+        current_rect.min.1 += vertical_shift;
+        current_rect.max.1 += vertical_shift;
+    }
 }
 
 enum TextBoxColour {
@@ -670,7 +704,6 @@ fn text_box<'view>(
     buffer_id: BufferId,
     z: u16,
     current_buffer_id: &BufferId,
-    fade_alpha: f32,
 ) -> Option<Input> {
     let mut input = None;
 
@@ -680,7 +713,7 @@ fn text_box<'view>(
     }
 
     let (color, cursor_alpha) = if *current_buffer_id == buffer_id {
-        (TEXT_BACKGROUND_COLOUR, fade_alpha)
+        (TEXT_BACKGROUND_COLOUR, ui.get_fade_alpha())
     } else {
         (
             match button_state {

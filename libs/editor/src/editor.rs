@@ -173,6 +173,16 @@ impl State {
 
     fn set_id(&mut self, id: BufferId) {
         self.current_buffer_kind = id.kind;
+
+        if let Some(buffer) = get_scrollable_buffer_mut!(self) {
+            // These need to be cleared so that the `platform_types::View` that is passed down
+            // can be examined to detemine if the user wants to navigate away from the given
+            // buffer. We do this with each buffer, even though a client might only care about
+            // buffers of a given menu kind, since a different client might care about different
+            // ones, including plain `Text` buffers.
+            buffer.reset_cursor_states();
+        }
+
         self.buffers.set_current_index(id.index);
     }
 
@@ -561,10 +571,6 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
         InsertNumbersAtCursors => buffer_call!(sync b {
             b.text_buffer.insert_at_each_cursor(|i| i.to_string());
         }),
-        AddOrSelectBuffer(name, str) => {
-            state.add_or_select_buffer(name, str);
-            buffer_view_sync!();
-        }
         NewScratchBuffer(data_op) => {
             state.buffers.push_and_select_new(EditorBuffer::new(
                 BufferName::Scratch(state.next_scratch_buffer_number()),
@@ -577,6 +583,10 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
         }
         TabOut => {
             text_buffer_call!(sync b.tab_out());
+        }
+        AddOrSelectBuffer(name, str) => {
+            state.add_or_select_buffer(name, str);
+            buffer_view_sync!();
         }
         AdjustBufferSelection(adjustment) => {
             state.adjust_buffer_selection(adjustment);
