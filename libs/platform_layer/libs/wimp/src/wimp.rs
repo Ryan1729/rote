@@ -8,64 +8,11 @@ use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::time::Duration;
 use wimp_render::{get_find_replace_info, FindReplaceInfo, get_go_to_position_info, GoToPositionInfo, ViewOutput};
-use wimp_types::{ui, ui::{PhysicalButtonState, Navigation}, transform_status, BufferStatus, BufferStatusMap, BufferStatusTransition, CustomEvent, Dimensions, RunState};
+use wimp_types::{ui, ui::{PhysicalButtonState, Navigation}, transform_status, BufferStatus, BufferStatusMap, BufferStatusTransition, CustomEvent, get_clipboard, ClipboardProvider, Dimensions, LabelledCommand, RunConsts, RunState};
 use file_chooser;
 use macros::d;
 use platform_types::{screen_positioning::screen_to_text_box, *};
 use shared::{Res};
-
-
-mod clipboard_layer {
-    pub use clipboard::ClipboardProvider;
-    use shared::Res;
-    /// This enum exists so we can do dynamic dispatch on `ClipboardProvider` instances even though
-    /// the trait requires `Sized`. The reason  we want to do that, is so that if we try to run this
-    /// on a platform where `clipboard::ClipboardContext::new` retirns an `Err` we can continue
-    /// operation, just without system clipboard support.
-    pub enum Clipboard {
-        System(clipboard::ClipboardContext),
-        Fallback(clipboard::nop_clipboard::NopClipboardContext),
-    }
-
-    impl clipboard::ClipboardProvider for Clipboard {
-        fn new() -> Res<Self> {
-            let result: Result<
-                clipboard::ClipboardContext,
-                clipboard::nop_clipboard::NopClipboardContext,
-            > = clipboard::ClipboardContext::new().map_err(|err| {
-                eprintln!("System clipboard not supported. {}", err);
-                // `NopClipboardContext::new` always returns an `Ok`
-                clipboard::nop_clipboard::NopClipboardContext::new().unwrap()
-            });
-
-            let output = match result {
-                Ok(ctx) => Clipboard::System(ctx),
-                Err(ctx) => Clipboard::Fallback(ctx),
-            };
-
-            // `get_clipboard` currently relies on this neer returning `Err`.
-            Ok(output)
-        }
-        fn get_contents(&mut self) -> Res<String> {
-            match self {
-                Clipboard::System(ctx) => ctx.get_contents(),
-                Clipboard::Fallback(ctx) => ctx.get_contents(),
-            }
-        }
-        fn set_contents(&mut self, s: String) -> Res<()> {
-            match self {
-                Clipboard::System(ctx) => ctx.set_contents(s),
-                Clipboard::Fallback(ctx) => ctx.set_contents(s),
-            }
-        }
-    }
-
-    pub fn get_clipboard() -> Clipboard {
-        // As you can see in the implementation of the `new` method, it always returns `Ok`
-        Clipboard::new().unwrap()
-    }
-}
-use clipboard_layer::{get_clipboard, Clipboard, ClipboardProvider};
 
 #[perf_viz::record]
 pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
@@ -444,22 +391,23 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
             );
         }
 
-        type CommandVars = RunState<Clipboard>;
+        type CommandVars = RunState;
 
-        use std::collections::BTreeMap;
-        let mut commands: BTreeMap<_, (_, fn(&mut CommandVars))> = std::collections::BTreeMap::new();
+        let mut r_c: RunConsts = RunConsts {
+            commands: std::collections::BTreeMap::new(),
+        };
 
         macro_rules! register_command {
             ($modifiers: expr, $main_key: ident, $label: literal, $(_)? $code: block) => {
                 register_command!($modifiers, $main_key, $label, _unused_identifier $code)
             };
             ($modifiers: expr, $main_key: ident, $label: literal, $vars: ident $code: block) => {{
-                fn cmd_fn($vars: &mut CommandVars) {
+                fn command($vars: &mut CommandVars) {
                     $code
                 }
                 let key = ($modifiers, VirtualKeyCode::$main_key);  
-                debug_assert!(commands.get(&key).is_none());
-                commands.insert(key, ($label, cmd_fn));
+                debug_assert!(r_c.commands.get(&key).is_none());
+                r_c.commands.insert(key, LabelledCommand{ label: $label, command});
             }}
         }
 
@@ -970,7 +918,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                                 },
                             ..
                         } => {
-                            if let Some((label, command)) = commands.get(&(modifiers, keypress)) {
+                            if let Some(LabelledCommand{ label, command }) = r_c.commands.get(&(modifiers, keypress)) {
                                 dbg!(label);
                                 command(&mut r_s);
                             }
@@ -1121,6 +1069,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                     let ViewOutput { text_or_rects, input } =
                         wimp_render::view(
                             &mut r_s,
+                            &r_c,
                             dt,
                         );
 

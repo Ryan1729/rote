@@ -1,11 +1,78 @@
-use macros::{d, ord};
+use glutin::event::{ModifiersState, VirtualKeyCode};
+use macros::{d, fmt_debug, ord};
 use platform_types::{screen_positioning::*, g_i, *};
 
-use std::collections::{VecDeque, HashMap};
+use std::collections::{VecDeque, HashMap, BTreeMap};
 use std::path::PathBuf;
 
-pub use clipboard::ClipboardProvider;
 pub use glutin::event_loop::EventLoopProxy;
+
+mod clipboard_layer {
+    pub use clipboard::ClipboardProvider;
+    use shared::Res;
+    use macros::fmt_debug;
+
+    
+    /// This enum exists so we can do dynamic dispatch on `ClipboardProvider` instances even though
+    /// the trait requires `Sized`. The reason  we want to do that, is so that if we try to run this
+    /// on a platform where `clipboard::ClipboardContext::new` retirns an `Err` we can continue
+    /// operation, just without system clipboard support.
+    pub enum Clipboard {
+        System(clipboard::ClipboardContext),
+        Fallback(clipboard::nop_clipboard::NopClipboardContext),
+    }
+
+    fmt_debug!(for Clipboard: c in "{}", {
+        use Clipboard::*;
+        match c {
+            System(_) => {
+                "System(_)"
+            },
+            Fallback(_) => {
+                "Fallback(_)"
+            },
+        }
+    });
+
+    impl clipboard::ClipboardProvider for Clipboard {
+        fn new() -> Res<Self> {
+            let result: Result<
+                clipboard::ClipboardContext,
+                clipboard::nop_clipboard::NopClipboardContext,
+            > = clipboard::ClipboardContext::new().map_err(|err| {
+                eprintln!("System clipboard not supported. {}", err);
+                // `NopClipboardContext::new` always returns an `Ok`
+                clipboard::nop_clipboard::NopClipboardContext::new().unwrap()
+            });
+
+            let output = match result {
+                Ok(ctx) => Clipboard::System(ctx),
+                Err(ctx) => Clipboard::Fallback(ctx),
+            };
+
+            // `get_clipboard` currently relies on this neer returning `Err`.
+            Ok(output)
+        }
+        fn get_contents(&mut self) -> Res<String> {
+            match self {
+                Clipboard::System(ctx) => ctx.get_contents(),
+                Clipboard::Fallback(ctx) => ctx.get_contents(),
+            }
+        }
+        fn set_contents(&mut self, s: String) -> Res<()> {
+            match self {
+                Clipboard::System(ctx) => ctx.set_contents(s),
+                Clipboard::Fallback(ctx) => ctx.set_contents(s),
+            }
+        }
+    }
+
+    pub fn get_clipboard() -> Clipboard {
+        // As you can see in the implementation of the `new` method, it always returns `Ok`
+        Clipboard::new().unwrap()
+    }
+}
+pub use clipboard_layer::{get_clipboard, Clipboard, ClipboardProvider};
 
 // Parts of RunState that represent externally chosen, absolute dimensions of things, 
 // including the window, from which the sizes of several UI elements are derived.
@@ -23,17 +90,40 @@ pub enum CustomEvent {
     EditedBufferError(String),
 }
 
-// State owned by the `run` function, which can be borrowed by other functions called inside `run`.
+/// State owned by the `run` function, which can be uniquely borrowed by other functions called inside `run`.
 #[derive(Debug)]
-pub struct RunState<CB: ClipboardProvider> {
+pub struct RunState {
     pub view: View,
     pub cmds: VecDeque<Cmd>,
     pub ui: ui::State,
     pub buffer_status_map: BufferStatusMap,
     pub editor_in_sink: std::sync::mpsc::Sender<Input>,
     pub dimensions: Dimensions,
-    pub clipboard: CB,
     pub event_proxy: EventLoopProxy<CustomEvent>, 
+    pub clipboard: Clipboard,
+}
+
+pub struct LabelledCommand {
+    pub label: &'static str, 
+    pub command: fn(&mut RunState),
+}
+
+impl std::fmt::Debug for LabelledCommand {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.debug_struct("LabelledCommand")
+           .field("label", &self.label)
+           .field("command", &"fn(&mut RunState)")           .finish()
+    }
+}
+
+pub type CommandsMap = BTreeMap<(ModifiersState, VirtualKeyCode), LabelledCommand>;
+
+#[derive(Debug)]
+/// Values that should not be changed (i.e. should be left constant,) whihc were lazily initialized by the `run`
+/// function, which can be shared by other functions called inside `run`. Keeping this separate from `RunState`
+/// also simplifies some borrow checking when using the `commands` map.
+pub struct RunConsts {
+    pub commands: CommandsMap
 }
 
 pub mod ui {

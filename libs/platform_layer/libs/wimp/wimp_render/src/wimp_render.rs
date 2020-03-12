@@ -1,5 +1,5 @@
 use gl_layer::{ColouredText, MulticolourTextSpec, TextLayout, TextOrRect, TextSpec, VisualSpec};
-use wimp_types::{ui_id, ui, ui::{ButtonState}, BufferStatus, ClipboardProvider, Dimensions, RunState};
+use wimp_types::{ui_id, ui, ui::{ButtonState}, BufferStatus, ClipboardProvider, Dimensions, RunConsts, RunState};
 use macros::{c, d};
 use platform_types::{screen_positioning::*, *};
 use std::cmp::max;
@@ -120,14 +120,17 @@ pub struct ViewOutput<'view> {
     pub input: Option<Input>,
 }
 
-pub fn view<'view, CB: ClipboardProvider>(
+pub fn view<'view>(
     RunState {
         ref mut ui,
         ref view,
         ref buffer_status_map,
         dimensions,
         ..
-    }: &'view mut RunState<CB>,
+    }: &'view mut RunState,
+    RunConsts {
+        commands
+    }: &RunConsts,
     dt: std::time::Duration,
 ) -> ViewOutput<'view> {
     ui::begin_view(ui, view);
@@ -334,7 +337,7 @@ pub fn view<'view, CB: ClipboardProvider>(
                     index,
                     fs_view,
                     ui,
-                    view,
+                    view.current_buffer_id,
                     dimensions,
                     &mut view_output,
                 );
@@ -459,7 +462,7 @@ fn render_file_switcher_menu<'view>(
     buffer_index: g_i::Index,
     FileSwitcherView { search, results }: &'view FileSwitcherView,
     ui: &mut ui::State,
-    view: &View,
+    current_buffer_id: BufferId,
     dimensions: Dimensions,
     view_output: &mut ViewOutput<'view>,
 ) {
@@ -537,7 +540,7 @@ fn render_file_switcher_menu<'view>(
         use ui::Navigation::*;
         match if_changed::dbg!(ui.navigation) {
             None => {
-                if view.current_buffer_id.kind != BufferIdKind::None {
+                if current_buffer_id.kind != BufferIdKind::None {
                     // do nothing
                 } else if let ui::Id::TaggedUsize(
                     ui::Tag::FileSwitcherResults,
@@ -548,7 +551,7 @@ fn render_file_switcher_menu<'view>(
                 }
             }
             Up => {
-                dbg!("Up", view.current_buffer_id.kind != BufferIdKind::None, ui.keyboard.hot);
+                dbg!("Up", ui.keyboard.hot);
                 if let ui::Id::TaggedUsize(
                     ui::Tag::FileSwitcherResults,
                     result_index,
@@ -562,13 +565,13 @@ fn render_file_switcher_menu<'view>(
                 }
             }
             Down => {
-                if view.current_buffer_id == search_buffer_id {
+                if current_buffer_id == search_buffer_id {
                     if results.len() > 0 {
                         navigated_result = Some(0);
                         *input =
                             Some(Input::SelectBuffer(b_id!(BufferIdKind::None, buffer_index)));
                     }
-                } else if view.current_buffer_id.kind != BufferIdKind::None {
+                } else if current_buffer_id.kind != BufferIdKind::None {
                     // do nothing
                 } else if let ui::Id::TaggedUsize(
                     ui::Tag::FileSwitcherResults,
@@ -579,7 +582,7 @@ fn render_file_switcher_menu<'view>(
                 }
             }
             Interact => {
-                if view.current_buffer_id.kind != BufferIdKind::None {
+                if current_buffer_id.kind != BufferIdKind::None {
                     // do nothing
                 } else if let ui::Id::TaggedUsize(
                     ui::Tag::FileSwitcherResults,
@@ -608,7 +611,7 @@ fn render_file_switcher_menu<'view>(
                 &$data,
                 $input,
                 FIND_REPLACE_Z,
-                &view.current_buffer_id,
+                &current_buffer_id,
             )
             .or(input.clone());
         }};
