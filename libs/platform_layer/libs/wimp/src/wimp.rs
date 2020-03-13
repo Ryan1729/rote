@@ -8,7 +8,7 @@ use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::time::Duration;
 use wimp_render::{get_find_replace_info, FindReplaceInfo, get_go_to_position_info, GoToPositionInfo, ViewOutput};
-use wimp_types::{ui, ui::{PhysicalButtonState, Navigation}, transform_status, BufferStatus, BufferStatusMap, BufferStatusTransition, CustomEvent, get_clipboard, ClipboardProvider, Dimensions, LabelledCommand, RunConsts, RunState};
+use wimp_types::{ui, ui::{PhysicalButtonState, Navigation}, transform_status, BufferStatus, BufferStatusMap, BufferStatusTransition, CustomEvent, get_clipboard, ClipboardProvider, Dimensions, LabelledCommand, LocalMenu, RunConsts, RunState, advance_local_menu};
 use file_chooser;
 use macros::d;
 use platform_types::{screen_positioning::screen_to_text_box, *};
@@ -333,6 +333,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
 
         RunState {
             view,
+            local_menu: d!(),
             cmds,
             ui,
             buffer_status_map,
@@ -535,6 +536,54 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
         const SHIFT: ModifiersState = ModifiersState::SHIFT;
 
         register_commands!{
+            [empty, Apps, "Open/Close this menu.", r_s {
+                advance_local_menu(&mut r_s.local_menu);
+            }]
+            [empty, Escape, "Close menus.", r_s {
+                r_s.local_menu = None;
+
+                call_u_and_r!(r_s, Input::SetSizeDependents(SizeDependents {
+                    buffer_xywh: wimp_render::get_edit_buffer_xywh(
+                        d!(),
+                        r_s.dimensions
+                    )
+                    .into(),
+                    find_xywh: None,
+                    replace_xywh: None,
+                    go_to_position_xywh: None,
+                    font_info: None,
+                }));
+                call_u_and_r!(r_s, Input::CloseMenuIfAny);
+            }]
+            [empty, F1, "Delete lines.", r_s {
+                call_u_and_r!(r_s, Input::DeleteLines);
+            }]
+            [empty, Back, "Backspace.", r_s {
+                call_u_and_r!(r_s, Input::Delete);
+            }]
+            [empty, Up, "Move all cursors up.", r_s {
+                call_u_and_r!(r_s, Input::MoveAllCursors(Move::Up));
+                r_s.ui.navigation = Navigation::Up;
+            }]
+            [empty, Down, "Move all cursors down.", r_s {
+                call_u_and_r!(r_s, Input::MoveAllCursors(Move::Down));
+                r_s.ui.navigation = Navigation::Down;
+            }]
+            [empty, Left, "Move all cursors left.", r_s {
+                call_u_and_r!(r_s, Input::MoveAllCursors(Move::Left));
+            }]
+            [empty, Right, "Move all cursors right.", r_s {
+                call_u_and_r!(r_s, Input::MoveAllCursors(Move::Right));
+            }]
+            [empty, Home, "Move all cursors to line start.", r_s {
+                call_u_and_r!(r_s, Input::MoveAllCursors(Move::ToLineStart));
+            }]
+            [empty, End, "Move all cursors to line end.", r_s {
+                call_u_and_r!(r_s, Input::MoveAllCursors(Move::ToLineEnd));
+            }]
+            [empty, Tab, "Indent in selection/line.", r_s {
+                call_u_and_r!(r_s, Input::TabIn);
+            }]
             [CTRL, Home, "Move cursors to start.", state {
                 call_u_and_r!(state, Input::MoveAllCursors(Move::ToBufferStart))
             }]
@@ -679,49 +728,6 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
             }]
             [CTRL | SHIFT, Z, "Redo.", state {
                 call_u_and_r!(state, Input::Redo);
-            }]
-            [empty, Escape, "Close menus.", r_s {
-                call_u_and_r!(r_s, Input::SetSizeDependents(SizeDependents {
-                    buffer_xywh: wimp_render::get_edit_buffer_xywh(
-                        d!(),
-                        r_s.dimensions
-                    )
-                    .into(),
-                    find_xywh: None,
-                    replace_xywh: None,
-                    go_to_position_xywh: None,
-                    font_info: None,
-                }));
-                call_u_and_r!(r_s, Input::CloseMenuIfAny);
-            }]
-            [empty, F1, "Delete lines.", r_s {
-                call_u_and_r!(r_s, Input::DeleteLines);
-            }]
-            [empty, Back, "Backspace.", r_s {
-                call_u_and_r!(r_s, Input::Delete);
-            }]
-            [empty, Up, "Move all cursors up.", r_s {
-                call_u_and_r!(r_s, Input::MoveAllCursors(Move::Up));
-                r_s.ui.navigation = Navigation::Up;
-            }]
-            [empty, Down, "Move all cursors down.", r_s {
-                call_u_and_r!(r_s, Input::MoveAllCursors(Move::Down));
-                r_s.ui.navigation = Navigation::Down;
-            }]
-            [empty, Left, "Move all cursors left.", r_s {
-                call_u_and_r!(r_s, Input::MoveAllCursors(Move::Left));
-            }]
-            [empty, Right, "Move all cursors right.", r_s {
-                call_u_and_r!(r_s, Input::MoveAllCursors(Move::Right));
-            }]
-            [empty, Home, "Move all cursors to line start.", r_s {
-                call_u_and_r!(r_s, Input::MoveAllCursors(Move::ToLineStart));
-            }]
-            [empty, End, "Move all cursors to line end.", r_s {
-                call_u_and_r!(r_s, Input::MoveAllCursors(Move::ToLineEnd));
-            }]
-            [empty, Tab, "Indent in selection/line.", r_s {
-                call_u_and_r!(r_s, Input::TabIn);
             }]
             [SHIFT, Tab, "Indent out selection/line.", r_s {
                 call_u_and_r!(r_s, Input::TabOut);

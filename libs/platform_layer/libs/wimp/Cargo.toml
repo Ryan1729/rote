@@ -33,6 +33,7 @@ default = []
 invariant-checking = []
 time-render = ["gl_layer/time-render"]
 extra-prints = ["shared/extra-prints"]
+print-raw-input = []
 
 [dev-dependencies]
 criterion = "0.2"

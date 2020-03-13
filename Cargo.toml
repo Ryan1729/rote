@@ -1,6 +1,6 @@
 [package]
 name = "rote"
-version = "0.2.87"
+version = "0.2.88"
 authors = ["Ryan1729 <Ryan1729@gmail.com>"]
 license = "MIT and Apache 2.0"
 edition = "2018"
@@ -37,6 +37,7 @@ time-render = ["platform_layer/time-render"]
 flame-chart = ["perf_viz/flame-chart"]
 flame-graph = ["perf_viz/flame-graph"]
 extra-prints = ["platform_layer/extra-prints", "editor/extra-prints"]
+print-raw-input = ["platform_layer/print-raw-input"]
 
 [workspace]
 

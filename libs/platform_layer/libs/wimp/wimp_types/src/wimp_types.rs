@@ -90,10 +90,16 @@ pub enum CustomEvent {
     EditedBufferError(String),
 }
 
+#[derive(Clone, Debug)]
+pub enum LocalMenu {
+    Command
+}
+
 /// State owned by the `run` function, which can be uniquely borrowed by other functions called inside `run`.
 #[derive(Debug)]
 pub struct RunState {
     pub view: View,
+    pub local_menu: Option<LocalMenu>,
     pub cmds: VecDeque<Cmd>,
     pub ui: ui::State,
     pub buffer_status_map: BufferStatusMap,
@@ -101,6 +107,13 @@ pub struct RunState {
     pub dimensions: Dimensions,
     pub event_proxy: EventLoopProxy<CustomEvent>, 
     pub clipboard: Clipboard,
+}
+
+pub fn advance_local_menu(local_menu: &mut Option<LocalMenu>) {
+    *local_menu = match local_menu {
+        None => Some(LocalMenu::Command),
+        Some(LocalMenu::Command) => None,
+    };
 }
 
 pub struct LabelledCommand {
@@ -493,6 +506,9 @@ pub mod ui {
 /// macro. A suggested fix for that is to pass down the needed ids from outside that macro.
 #[macro_export]
 macro_rules! ui_id {
+    () => {{
+        ui_id!(0xFFFF_FFFF_FFFF_FFFF)
+    }};
     ($thing: expr) => {{
         let mut id = [0; ui::DATA_LEN];
         // TODO is the compilier smart enough to avoid the allocation here?
