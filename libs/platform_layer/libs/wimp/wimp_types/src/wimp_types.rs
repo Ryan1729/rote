@@ -116,6 +116,8 @@ pub fn advance_local_menu(local_menu: &mut Option<LocalMenu>) {
     };
 }
 
+pub type CommandKey = (ModifiersState, VirtualKeyCode);
+
 pub struct LabelledCommand {
     pub label: &'static str, 
     pub command: fn(&mut RunState),
@@ -129,7 +131,7 @@ impl std::fmt::Debug for LabelledCommand {
     }
 }
 
-pub type CommandsMap = BTreeMap<(ModifiersState, VirtualKeyCode), LabelledCommand>;
+pub type CommandsMap = BTreeMap<CommandKey, LabelledCommand>;
 
 #[derive(Debug)]
 /// Values that should not be changed (i.e. should be left constant,) whihc were lazily initialized by the `run`

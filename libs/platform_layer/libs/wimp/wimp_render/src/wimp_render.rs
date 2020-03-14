@@ -1,5 +1,5 @@
 use gl_layer::{ColouredText, MulticolourTextSpec, TextLayout, TextOrRect, TextSpec, VisualSpec};
-use wimp_types::{ui_id, ui, ui::{ButtonState}, BufferStatus, ClipboardProvider, Dimensions, LocalMenu, RunConsts, RunState, advance_local_menu};
+use wimp_types::{ui_id, ui, ui::{ButtonState}, BufferStatus, ClipboardProvider, CommandKey, Dimensions, LocalMenu, RunConsts, RunState, advance_local_menu};
 use macros::{c, d};
 use platform_types::{screen_positioning::*, *};
 use std::cmp::max;
@@ -114,10 +114,60 @@ const TAB_BAR_BACKGROUND_COLOUR: Colour = palette![alt cyan];
 const TAB_BACKGROUND_COLOUR: Colour = palette![cyan];
 const TAB_TEXT_COLOUR: Colour = palette![white];
 
+#[derive(Clone, Debug)]
+pub enum ViewAction {
+    None,
+    Input(Input),
+    Command(CommandKey),
+}
+d!{for ViewAction: ViewAction::None}
+
+impl ViewAction {
+    pub fn or(self, action: ViewAction) -> ViewAction {
+        match self {
+            ViewAction::None => action,
+            _ => self,
+        }
+    }
+
+    pub fn is_none(&self) -> bool {
+        match self {
+            ViewAction::None => true,
+            _ => false,
+        }
+    } 
+}
+
+
+fn into_action(opt: Option<Input>) -> ViewAction {
+    opt.into()
+}
+
+
+impl From<Option<Input>> for ViewAction {
+    fn from(op: Option<Input>) -> Self {
+        use ViewAction::*;
+        match op {
+            Some(input) => Input(input),
+            Option::None => None
+        }
+    }
+}
+
+impl From<Option<CommandKey>> for ViewAction {
+    fn from(op: Option<CommandKey>) -> Self {
+        use ViewAction::*;
+        match op {
+            Some(key) => Command(key),
+            Option::None => None
+        }
+    }
+}
+
 #[derive(Clone, Default, Debug)]
 pub struct ViewOutput<'view> {
     pub text_or_rects: Vec<TextOrRect<'view>>,
-    pub input: Option<Input>,
+    pub action: ViewAction,
 }
 
 pub fn view<'view>(
@@ -152,7 +202,7 @@ pub fn view<'view>(
 
     let mut view_output = ViewOutput {
         text_or_rects: Vec::with_capacity(view.buffers.len() * PER_BUFFER_TEXT_OR_RECT_ESTIMATE),
-        input: None,
+        action: ViewAction::None,
     };
 
     let UpperPositionInfo {
@@ -222,7 +272,7 @@ pub fn view<'view>(
                 z: TAB_Z,
             },
         ) {
-            view_output.input = Some(Input::SelectBuffer(b_id!(
+            view_output.action = ViewAction::Input(Input::SelectBuffer(b_id!(
                 BufferIdKind::Text,
                 view.index_state.new_index(g_i::IndexPart::or_max(i))
             )))
@@ -250,7 +300,7 @@ pub fn view<'view>(
         let edit_buffer_text_rect = get_edit_buffer_xywh(view.menu.get_mode(), dimensions);
 
         let edit_buffer_text_rect: ScreenSpaceRect = edit_buffer_text_rect.into();
-        view_output.input = text_box(
+        view_output.action = into_action(text_box(
             ui,
             &mut view_output.text_or_rects,
             edit_buffer_text_rect,
@@ -262,8 +312,8 @@ pub fn view<'view>(
             b_id!(BufferIdKind::Text, index),
             EDIT_Z,
             &view.current_buffer_id,
-        )
-        .or(view_output.input);
+        ))
+        .or(view_output.action);
 
         macro_rules! handle_view_menu {
             () => {
@@ -309,7 +359,7 @@ pub fn view<'view>(
                                 }));
                                 macro_rules! spaced_input_box {
                                     ($data: expr, $input: expr, $outer_rect: expr) => {{
-                                        view_output.input = text_box(
+                                        view_output.action = into_action(text_box(
                                             ui,
                                             &mut view_output.text_or_rects,
                                             $outer_rect,
@@ -321,8 +371,8 @@ pub fn view<'view>(
                                             $input,
                                             FIND_REPLACE_Z,
                                             &view.current_buffer_id,
-                                        )
-                                        .or(view_output.input);
+                                        ))
+                                        .or(view_output.action);
                                     }};
                                 }
         
@@ -345,10 +395,10 @@ pub fn view<'view>(
                             &mut view_output,
                         );
         
-                        if view_output.input.is_none() {
+                        if view_output.action.is_none() {
                             print!(".");
                         } else {
-                            dbg!(&view_output.input);
+                            dbg!(&view_output.action);
                         }
                     }
                     MenuView::GoToPosition(GoToPositionView {
@@ -383,7 +433,7 @@ pub fn view<'view>(
                             },
                         }));
         
-                        view_output.input = text_box(
+                        view_output.action = into_action(text_box(
                             ui,
                             &mut view_output.text_or_rects,
                             input_outer_rect,
@@ -395,7 +445,7 @@ pub fn view<'view>(
                             b_id!(BufferIdKind::GoToPosition, index),
                             FIND_REPLACE_Z,
                             &view.current_buffer_id,
-                        ).or(view_output.input);
+                        )).or(view_output.action);
                     }
                 }
             }
@@ -407,8 +457,9 @@ pub fn view<'view>(
                 let CommandMenuInfo {
                     top_y,
                     bottom_y,
-                    label_rect,
-                    ..
+                    padding,
+                    margin,
+                    first_button_rect,
                 } = get_command_menu_info(dimensions);
                 let outer_rect = ScreenSpaceRect {
                     min: (0.0, top_y),
@@ -419,16 +470,112 @@ pub fn view<'view>(
                     color: CHROME_BACKGROUND_COLOUR,
                     z: FIND_REPLACE_BACKGROUND_Z,
                 }));
-                view_output.text_or_rects.push(TextOrRect::Text(TextSpec {
-                    text: "TODO command menu",
-                    size: FIND_REPLACE_SIZE,
-                    layout: TextLayout::SingleLine,
-                    spec: VisualSpec {
-                        rect: label_rect,
-                        color: CHROME_TEXT_COLOUR,
-                        z: FIND_REPLACE_Z,
-                    },
-                }));
+
+                let text_or_rects = &mut view_output.text_or_rects;
+
+                let FontInfo {
+                    ref tab_char_dim,
+                    ref find_replace_char_dim,
+                    ..
+                } = dimensions.font;
+            
+                let mut current_rect = first_button_rect;
+                let vertical_shift = margin.into_ltrb().b;
+            
+                fn get_result_id(index: usize) -> ui::Id {
+                    ui::Id::TaggedUsize(ui::Tag::FileSwitcherResults, index)
+                }
+            
+                let mut navigated_result = None;
+                let results: Vec<CommandKey> = commands.keys().cloned().collect();
+            
+                if view_output.action.is_none() {
+                    use ui::Navigation::*;
+                    match if_changed::dbg!(ui.navigation) {
+                        None => {
+                            if let ui::Id::TaggedUsize(
+                                ui::Tag::FileSwitcherResults,
+                                result_index,
+                            ) = ui.keyboard.hot
+                            {
+                                navigated_result = Some(result_index);
+                            }
+                        }
+                        Up => {
+                            if let ui::Id::TaggedUsize(
+                                ui::Tag::FileSwitcherResults,
+                                result_index,
+                            ) = ui.keyboard.hot
+                            {
+                                if result_index == 0 {
+                                    navigated_result = results.len().checked_sub(1);
+                                } else {
+                                    navigated_result = Some(result_index - 1);
+                                }
+                            }
+                        }
+                        Down => {
+                            if let ui::Id::TaggedUsize(
+                                ui::Tag::FileSwitcherResults,
+                                result_index,
+                            ) = ui.keyboard.hot
+                            {
+                                navigated_result = Some((result_index + 1) % results.len());
+                            }
+                        }
+                        Interact => {
+                            if let ui::Id::TaggedUsize(
+                                ui::Tag::FileSwitcherResults,
+                                result_index,
+                            ) = ui.keyboard.hot
+                            {
+                                view_output.action = results
+                                    .get(result_index)
+                                    .cloned()
+                                    .into();
+                            }
+                        }
+                    }
+                }
+            
+                let list_padding = padding;
+                let list_margin = margin;
+
+                for (result_index, result) in results.iter().enumerate() {
+                    if let Some(cmd) = commands.get(result) {
+                        let rect = enlarge_by(shrink_by(current_rect, margin), list_padding);
+                
+                        let result_id = get_result_id(result_index);
+                
+                        match navigated_result {
+                            Some(i) if i == result_index => {
+                                ui.keyboard.set_next_hot(result_id);
+                            }
+                            _ => {}
+                        };
+                
+                        if do_outline_button(
+                            ui,
+                            result_id,
+                            &mut view_output.text_or_rects,
+                            OutlineButtonSpec {
+                                text: cmd.label,
+                                size: TAB_SIZE,
+                                char_dim: *tab_char_dim,
+                                layout: TextLayout::SingleLine,
+                                margin: list_margin,
+                                rect,
+                                z: TAB_Z,
+                                ..d!()
+                            },
+                        ) {
+                            view_output.action = ViewAction::Command(*result);
+                        }
+                        current_rect.min.1 += vertical_shift;
+                        current_rect.max.1 += vertical_shift;
+                    }
+
+                }
             }
             None => {
                 handle_view_menu!()
@@ -534,7 +681,6 @@ fn render_file_switcher_menu<'view>(
     view_output: &mut ViewOutput<'view>,
 ) {
     let text_or_rects = &mut view_output.text_or_rects;
-    let input = &mut view_output.input;
 
     let FontInfo {
         ref tab_char_dim,
@@ -603,7 +749,7 @@ fn render_file_switcher_menu<'view>(
 
     let mut navigated_result = None;
 
-    if input.is_none() {
+    if view_output.action.is_none() {
         use ui::Navigation::*;
         match if_changed::dbg!(ui.navigation) {
             None => {
@@ -625,7 +771,7 @@ fn render_file_switcher_menu<'view>(
                 ) = ui.keyboard.hot
                 {
                     if result_index == 0 {
-                        *input = Some(Input::SelectBuffer(search_buffer_id));
+                        view_output.action = ViewAction::Input(Input::SelectBuffer(search_buffer_id));
                     } else {
                         navigated_result = Some(result_index - 1);
                     }
@@ -635,8 +781,9 @@ fn render_file_switcher_menu<'view>(
                 if current_buffer_id == search_buffer_id {
                     if results.len() > 0 {
                         navigated_result = Some(0);
-                        *input =
-                            Some(Input::SelectBuffer(b_id!(BufferIdKind::None, buffer_index)));
+                        view_output.action = ViewAction::Input(
+                            Input::SelectBuffer(b_id!(BufferIdKind::None, buffer_index))
+                        );
                     }
                 } else if current_buffer_id.kind != BufferIdKind::None {
                     // do nothing
@@ -656,10 +803,11 @@ fn render_file_switcher_menu<'view>(
                     result_index,
                 ) = ui.keyboard.hot
                 {
-                    *input = results
+                    view_output.action = results
                         .get(result_index)
                         .cloned()
-                        .map(Input::OpenOrSelectBuffer);
+                        .map(Input::OpenOrSelectBuffer)
+                        .into();
                 }
             }
         }
@@ -667,7 +815,7 @@ fn render_file_switcher_menu<'view>(
 
     macro_rules! spaced_input_box {
         ($data: expr, $input: expr, $outer_rect: expr) => {{
-            *input = text_box(
+            view_output.action = into_action(text_box(
                 ui,
                 &mut view_output.text_or_rects,
                 $outer_rect,
@@ -679,8 +827,8 @@ fn render_file_switcher_menu<'view>(
                 $input,
                 FIND_REPLACE_Z,
                 &current_buffer_id,
-            )
-            .or(input.clone());
+            ))
+            .or(view_output.action.clone());
         }};
     }
 
@@ -722,7 +870,7 @@ fn render_file_switcher_menu<'view>(
                 ..d!()
             },
         ) {
-            *input = Some(Input::OpenOrSelectBuffer(result.to_owned()));
+            view_output.action = ViewAction::Input(Input::OpenOrSelectBuffer(result.to_owned()));
         }
         current_rect.min.1 += vertical_shift;
         current_rect.max.1 += vertical_shift;
@@ -1491,13 +1639,13 @@ pub struct CommandMenuInfo {
     pub padding: Spacing,
     pub top_y: f32,
     pub bottom_y: f32,
-    pub label_rect: ScreenSpaceRect,
+    pub first_button_rect: ScreenSpaceRect,
 }
 
 pub fn get_command_menu_info(
     Dimensions {
         font: FontInfo {
-            find_replace_char_dim,
+            status_char_dim,
             tab_char_dim,
             ..
         },
@@ -1507,36 +1655,15 @@ pub fn get_command_menu_info(
     let SpacingAllSpec { margin, padding } = get_menu_spacing(height);
 
     let top_y = upper_position_info(&tab_char_dim).edit_y;
+    let bottom_y = get_status_line_y(status_char_dim, height);
 
-    let mut current_y = top_y + margin;
-    let text_height = 2.0 * padding + find_replace_char_dim.h;
-
-    macro_rules! text_rect {
-        () => {
-            text_rect!(padding)
-        };
-        ($h_padding: expr) => {
-            tbxywh!(
-                margin + $h_padding,
-                current_y + padding,
-                width - 2.0 * (margin + $h_padding),
-                text_height - 2.0 * padding
-            )
-        };
-    }
-
-    let label_rect = text_rect!(0.0).into();
-
-    current_y += text_height + margin;
-
-    let bottom_y = current_y + text_height + padding + margin;
-
-    CommandMenuInfo {
+    let first_button_rect = ssr!(margin, top_y + margin, width - margin, bottom_y - margin);
+    CommandMenuInfo {
         margin: Spacing::All(margin),
         padding: Spacing::All(padding),
         top_y,
         bottom_y,
-        label_rect,
+        first_button_rect,
     }
 }
 

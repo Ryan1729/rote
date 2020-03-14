@@ -7,7 +7,7 @@ use glutin::{dpi::LogicalPosition, Api, GlProfile, GlRequest};
 use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::time::Duration;
-use wimp_render::{get_find_replace_info, FindReplaceInfo, get_go_to_position_info, GoToPositionInfo, ViewOutput};
+use wimp_render::{get_find_replace_info, FindReplaceInfo, get_go_to_position_info, GoToPositionInfo, ViewOutput, ViewAction};
 use wimp_types::{ui, ui::{PhysicalButtonState, Navigation}, transform_status, BufferStatus, BufferStatusMap, BufferStatusTransition, CustomEvent, get_clipboard, ClipboardProvider, Dimensions, LabelledCommand, LocalMenu, RunConsts, RunState, advance_local_menu};
 use file_chooser;
 use macros::d;
@@ -778,6 +778,15 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
             }]
         }
 
+        macro_rules! perform_command {
+            ($key: expr) => {
+                if let Some(LabelledCommand{ label, command }) = r_c.commands.get($key) {
+                    dbg!(label);
+                    command(&mut r_s);
+                }
+            }
+        }
+
         events.run(move |event, _, control_flow| {
             match event {
                 Event::WindowEvent { event, .. } => {
@@ -924,10 +933,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                                 },
                             ..
                         } => {
-                            if let Some(LabelledCommand{ label, command }) = r_c.commands.get(&(modifiers, keypress)) {
-                                dbg!(label);
-                                command(&mut r_s);
-                            }
+                            perform_command!(&(modifiers, keypress))
                         }
                         WindowEvent::MouseWheel {
                             delta: MouseScrollDelta::LineDelta(_, y),
@@ -1072,7 +1078,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
 
                     let sswh!(width, height) = r_s.dimensions.window;
 
-                    let ViewOutput { text_or_rects, input } =
+                    let ViewOutput { text_or_rects, action } =
                         wimp_render::view(
                             &mut r_s,
                             &r_c,
@@ -1102,8 +1108,14 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         }
                     }
 
-                    if let Some(input) = input {
-                        call_u_and_r!(input);
+                    match action {
+                        ViewAction::Input(input) => {
+                            call_u_and_r!(input);
+                        }
+                        ViewAction::Command(key) => {
+                            perform_command!(&key);
+                        }
+                        ViewAction::None => {}
                     }
 
                     if let Some(rate) = loop_helper.report_rate() {
