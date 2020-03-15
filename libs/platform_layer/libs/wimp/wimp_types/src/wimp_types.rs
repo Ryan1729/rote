@@ -144,8 +144,9 @@ pub struct RunConsts {
 pub mod ui {
     use super::*;
     use macros::{fmt_debug};
+
     /// The varaints here represent sections of code that want to be able to store information in the
-    /// ids. For example, so that the ui state can change differently based on which part of soem
+    /// ids. For example, so that the ui state can change differently based on which part of some
     /// dynamically generated UI is selected.
     #[derive(Clone, Copy, Debug)]
     pub enum Tag {

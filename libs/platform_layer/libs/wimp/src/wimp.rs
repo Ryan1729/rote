@@ -596,7 +596,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
             [CTRL, Right, "Move cursors to next likely edit location.", state {
                 call_u_and_r!(state, Input::MoveAllCursors(Move::ToNextLikelyEditLocation))
             }]
-            [CTRL, Key0, "Reset scroll", r_s {
+            [CTRL, Key0, "Reset scroll (context sensitive).", r_s {
                 let ui = &mut r_s.ui;
                 let font_info = r_s.dimensions.font;
                 if wimp_render::inside_tab_area(ui.mouse_pos, font_info) {

@@ -1,5 +1,11 @@
 ## TODO
 
+* I find my self doubting whether putting the keyboard menu selection in the ui::Id was a good idea.
+    * if nothing else, it seems like it would be nice to have the scroll state of the command menu stick around,
+        given we have a way to reset the scroll, similarly to the text buffer itself.
+        * why not the same keyboard shortcut? There is precedent for that in the tab scroll.
+    * So, add fields to the ui::State for the file-switcher state and the command menu state.
+
 * put all keyboard responses into a menu so that any command can be dispatched with the mouse or the keyboard.
     * keyboard responses should be defined in a single place where they end up in the menu and wired up to
         the keyboard

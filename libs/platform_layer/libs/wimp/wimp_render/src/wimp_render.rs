@@ -457,6 +457,8 @@ pub fn view<'view>(
                     bottom_y,
                     padding,
                     margin,
+                    list_padding,
+                    list_margin,
                     first_button_rect,
                 } = get_command_menu_info(dimensions);
                 let outer_rect = ScreenSpaceRect {
@@ -473,12 +475,11 @@ pub fn view<'view>(
 
                 let FontInfo {
                     ref tab_char_dim,
-                    ref find_replace_char_dim,
                     ..
                 } = dimensions.font;
             
                 let mut current_rect = first_button_rect;
-                let vertical_shift = margin.into_ltrb().b;
+                let vertical_shift = first_button_rect.height() + list_margin.into_ltrb().b;
             
                 fn get_result_id(index: usize) -> ui::Id {
                     ui::Id::TaggedUsize(ui::Tag::FileSwitcherResults, index)
@@ -535,13 +536,10 @@ pub fn view<'view>(
                         }
                     }
                 }
-            
-                let list_padding = padding;
-                let list_margin = margin;
 
                 for (result_index, result) in results.iter().enumerate() {
                     if let Some(cmd) = commands.get(result) {
-                        let rect = enlarge_by(shrink_by(current_rect, margin), list_padding);
+                        let rect = current_rect;
                 
                         let result_id = get_result_id(result_index);
                 
@@ -572,7 +570,6 @@ pub fn view<'view>(
                         current_rect.min.1 += vertical_shift;
                         current_rect.max.1 += vertical_shift;
                     }
-
                 }
             }
             None => {
@@ -1512,6 +1509,8 @@ pub struct FileSwitcherInfo {
     pub search_text_xywh: TextBoxXYWH,
 }
 
+const LIST_MARGIN_TO_PADDING_RATIO: f32 = 1.0 / 8.0;
+
 pub fn get_file_switcher_info(
     Dimensions {
         font: FontInfo {
@@ -1553,8 +1552,6 @@ pub fn get_file_switcher_info(
         (width - margin, current_y + text_height)
     );
     let search_text_xywh = text_rect!();
-
-    const LIST_MARGIN_TO_PADDING_RATIO: f32 = 1.0 / 8.0;
 
     FileSwitcherInfo {
         margin: Spacing::All(margin),
@@ -1635,6 +1632,8 @@ pub fn get_go_to_position_info(
 pub struct CommandMenuInfo {
     pub margin: Spacing,
     pub padding: Spacing,
+    pub list_margin: Spacing,
+    pub list_padding: Spacing,
     pub top_y: f32,
     pub bottom_y: f32,
     pub first_button_rect: ScreenSpaceRect,
@@ -1655,10 +1654,18 @@ pub fn get_command_menu_info(
     let top_y = upper_position_info(&tab_char_dim).edit_y;
     let bottom_y = get_status_line_y(status_char_dim, height);
 
-    let first_button_rect = ssr!(margin, top_y + margin, width - margin, bottom_y - margin);
+    let list_margin = margin * LIST_MARGIN_TO_PADDING_RATIO;
+    let list_padding = margin * (1.0 - LIST_MARGIN_TO_PADDING_RATIO);
+
+    let first_button_rect = shrink_by(
+        ssr!(0.0, 0.0, width, top_y + 2.0 * padding + tab_char_dim.h),
+        Spacing::Horizontal(margin)
+    ).with_min_y(top_y + list_margin);
     CommandMenuInfo {
         margin: Spacing::All(margin),
         padding: Spacing::All(padding),
+        list_margin: Spacing::All(list_margin),
+        list_padding: Spacing::All(list_padding),
         top_y,
         bottom_y,
         first_button_rect,
