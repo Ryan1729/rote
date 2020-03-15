@@ -372,5 +372,5 @@ fn render_file_switcher_menu_selects_the_fileswitcher_buffer_when_the_navigation
 
     render_file_switcher_menu(index, &fs_view, &mut ui, b_id!(BufferIdKind::FileSwitcher, index), dimensions, &mut view_output);
 
-    assert_eq!(view_output.input, Some(Input::SelectBuffer(b_id!(BufferIdKind::FileSwitcher, index))));
+    assert_eq!(view_output.action, ViewAction::Input(Input::SelectBuffer(b_id!(BufferIdKind::FileSwitcher, index))));
 }

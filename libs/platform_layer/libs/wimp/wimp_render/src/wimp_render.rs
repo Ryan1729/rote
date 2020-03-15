@@ -114,7 +114,7 @@ const TAB_BAR_BACKGROUND_COLOUR: Colour = palette![alt cyan];
 const TAB_BACKGROUND_COLOUR: Colour = palette![cyan];
 const TAB_TEXT_COLOUR: Colour = palette![white];
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum ViewAction {
     None,
     Input(Input),
@@ -138,11 +138,9 @@ impl ViewAction {
     } 
 }
 
-
 fn into_action(opt: Option<Input>) -> ViewAction {
     opt.into()
 }
-
 
 impl From<Option<Input>> for ViewAction {
     fn from(op: Option<Input>) -> Self {
