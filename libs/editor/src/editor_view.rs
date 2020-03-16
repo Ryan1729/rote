@@ -103,9 +103,7 @@ pub fn render(
     view.status_line.chars.clear();
     view.visible_buffer = d!();
 
-    let current_buffer_index = buffers.current_index();
-    match buffers.get_current_buffer() {
-        Some(EditorBuffer {
+    let current_buffer_index = buffers.current_index();    let EditorBuffer {
             scrollable:
                 ScrollableBuffer {
                     text_buffer: buffer,
@@ -113,52 +111,48 @@ pub fn render(
                     ..
                 },
             ..
-        }) => {
-            let scroll = *scroll;
-            view.visible_buffer = Some(current_buffer_index);
-            fn display_option_compactly<A: ToString>(op: Option<A>) -> String {
-                match op {
-                    None => "N".to_string(),
-                    Some(a) => a.to_string(),
-                }
-            }
+        } = buffers.get_current_buffer();
 
-            use std::fmt::Write;
-            let chars = &mut view.status_line.chars;
-
-            let _cannot_actually_fail = write!(
-                chars,
-                "{}/{}",
-                display_option_compactly(
-                    current_buffer_index
-                        .get(view.index_state)
-                        .map(|i| i.saturating_add(1))
-                ),
-                usize::from(buffers.len())
-            );
-
-            // debugging
-            let _cannot_actually_fail = write!(chars, "  ? t{} s{}", text_char_dim, scroll);
-
-            for c in buffer.borrow_cursors().iter() {
-                let _cannot_actually_fail = write!(
-                    chars,
-                    "{} {} ({}|{}), ",
-                    c,
-                    position_to_screen_space(c.get_position(), text_char_dim, scroll, text_box_pos),
-                    display_option_compactly(buffer.find_index(c).and_then(|o| if o == 0 {
-                        None
-                    } else {
-                        Some(o - 1)
-                    })),
-                    display_option_compactly(buffer.find_index(c)),
-                );
-            }
+    let scroll = *scroll;
+    view.visible_buffer = Some(current_buffer_index);
+    fn display_option_compactly<A: ToString>(op: Option<A>) -> String {
+        match op {
+            None => "N".to_string(),
+            Some(a) => a.to_string(),
         }
-        None => {
-            view.status_line.chars.push_str(DEFAULT_STATUS_LINE_CHARS);
-        }
-    };
+    }
+
+    use std::fmt::Write;
+    let chars = &mut view.status_line.chars;
+
+    let _cannot_actually_fail = write!(
+        chars,
+        "{}/{}",
+        display_option_compactly(
+            current_buffer_index
+                .get(view.index_state)
+                .map(|i| i.saturating_add(1))
+        ),
+        usize::from(buffers.len())
+    );
+
+    // debugging
+    let _cannot_actually_fail = write!(chars, "  ? t{} s{}", text_char_dim, scroll);
+
+    for c in buffer.borrow_cursors().iter() {
+        let _cannot_actually_fail = write!(
+            chars,
+            "{} {} ({}|{}), ",
+            c,
+            position_to_screen_space(c.get_position(), text_char_dim, scroll, text_box_pos),
+            display_option_compactly(buffer.find_index(c).and_then(|o| if o == 0 {
+                None
+            } else {
+                Some(o - 1)
+            })),
+            display_option_compactly(buffer.find_index(c)),
+        );
+    }
 
     const FIND_REPLACE_AVERAGE_SELECTION_LINES_ESTIMATE: usize = 1;
 

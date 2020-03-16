@@ -1,7 +1,7 @@
 use gl_layer::{ColouredText, MulticolourTextSpec, TextLayout, TextOrRect, TextSpec, VisualSpec};
 use wimp_types::{ui_id, ui, ui::{ButtonState}, BufferStatus, ClipboardProvider, CommandKey, Dimensions, LocalMenu, RunConsts, RunState, advance_local_menu};
 use macros::{c, d};
-use platform_types::{screen_positioning::*, *};
+use platform_types::{screen_positioning::*};
 use std::cmp::max;
 
 type Colour = [f32; 4];
@@ -295,7 +295,7 @@ pub fn view<'view>(
         //     // s
         // };
 
-        let edit_buffer_text_rect = get_edit_buffer_xywh(view.menu.get_mode(), dimensions);
+        let edit_buffer_text_rect = get_edit_buffer_xywh(view.menu_mode(), dimensions);
 
         let edit_buffer_text_rect: ScreenSpaceRect = edit_buffer_text_rect.into();
         view_output.action = into_action(text_box(
@@ -309,13 +309,13 @@ pub fn view<'view>(
             &data,
             b_id!(BufferIdKind::Text, index),
             EDIT_Z,
-            &view.current_buffer_id,
+            view.current_buffer_id(),
         ))
         .or(view_output.action);
 
         macro_rules! handle_view_menu {
             () => {
-                match &view.menu {
+                match view.menu() {
                     MenuView::None => {}
                     MenuView::FindReplace(FindReplaceView {
                         mode,
@@ -368,7 +368,7 @@ pub fn view<'view>(
                                             &$data,
                                             $input,
                                             FIND_REPLACE_Z,
-                                            &view.current_buffer_id,
+                                            view.current_buffer_id(),
                                         ))
                                         .or(view_output.action);
                                     }};
@@ -383,12 +383,12 @@ pub fn view<'view>(
                             }
                         }
                     }
-                    MenuView::FileSwitcher(fs_view) => {
+                    MenuView::FileSwitcher(ref fs_view) => {
                         render_file_switcher_menu(
                             index,
                             fs_view,
                             ui,
-                            view.current_buffer_id,
+                            view.current_buffer_id(),
                             dimensions,
                             &mut view_output,
                         );
@@ -442,7 +442,7 @@ pub fn view<'view>(
                             go_to_position,
                             b_id!(BufferIdKind::GoToPosition, index),
                             FIND_REPLACE_Z,
-                            &view.current_buffer_id,
+                            view.current_buffer_id(),
                         )).or(view_output.action);
                     }
                 }
@@ -481,70 +481,44 @@ pub fn view<'view>(
                 let mut current_rect = first_button_rect;
                 let vertical_shift = first_button_rect.height() + list_margin.into_ltrb().b;
             
-                fn get_result_id(index: usize) -> ui::Id {
-                    ui::Id::TaggedUsize(ui::Tag::FileSwitcherResults, index)
-                }
-            
                 let mut navigated_result = None;
                 let results: Vec<CommandKey> = commands.keys().cloned().collect();
             
                 if view_output.action.is_none() {
                     use ui::Navigation::*;
+
                     match if_changed::dbg!(ui.navigation) {
-                        None => {
-                            if let ui::Id::TaggedUsize(
-                                ui::Tag::FileSwitcherResults,
-                                result_index,
-                            ) = ui.keyboard.hot
-                            {
-                                navigated_result = Some(result_index);
-                            }
-                        }
+                        None => {}
                         Up => {
-                            if let ui::Id::TaggedUsize(
-                                ui::Tag::FileSwitcherResults,
-                                result_index,
-                            ) = ui.keyboard.hot
-                            {
-                                if result_index == 0 {
-                                    navigated_result = results.len().checked_sub(1);
-                                } else {
-                                    navigated_result = Some(result_index - 1);
-                                }
-                            }
+                            ui.file_switcher_pos.index = if ui.file_switcher_pos.index == 0 {
+                                results.len().checked_sub(1).unwrap_or(0)
+                            } else {
+                                ui.file_switcher_pos.index - 1
+                            };
                         }
                         Down => {
-                            if let ui::Id::TaggedUsize(
-                                ui::Tag::FileSwitcherResults,
-                                result_index,
-                            ) = ui.keyboard.hot
-                            {
-                                navigated_result = Some((result_index + 1) % results.len());
-                            }
+                            ui.file_switcher_pos.index = (ui.file_switcher_pos.index + 1) % results.len();
                         }
                         Interact => {
-                            if let ui::Id::TaggedUsize(
-                                ui::Tag::FileSwitcherResults,
-                                result_index,
-                            ) = ui.keyboard.hot
-                            {
-                                view_output.action = results
-                                    .get(result_index)
-                                    .cloned()
-                                    .into();
-                            }
+                            view_output.action = results
+                                .get(ui.file_switcher_pos.index)
+                                .cloned()
+                                .into();
                         }
                     }
+
+                    navigated_result = Some(ui.file_switcher_pos.index);
                 }
 
                 for (result_index, result) in results.iter().enumerate() {
                     if let Some(cmd) = commands.get(result) {
                         let rect = current_rect;
                 
-                        let result_id = get_result_id(result_index);
+                        let result_id = ui_id!(result_index);
                 
                         match navigated_result {
                             Some(i) if i == result_index => {
+                                if_changed::dbg!((result_index, result_id));
                                 ui.keyboard.set_next_hot(result_id);
                             }
                             _ => {}
@@ -605,7 +579,7 @@ pub fn view<'view>(
     }));
 
     view_output.text_or_rects.push(TextOrRect::Text(TextSpec {
-        text: &view.status_line.chars,
+        text: &view.status_line().chars,
         size: STATUS_SIZE,
         layout: TextLayout::SingleLine,
         spec: VisualSpec {
@@ -821,7 +795,7 @@ fn render_file_switcher_menu<'view>(
                 &$data,
                 $input,
                 FIND_REPLACE_Z,
-                &current_buffer_id,
+                current_buffer_id,
             ))
             .or(view_output.action.clone());
         }};
@@ -916,7 +890,7 @@ fn text_box<'view>(
     }: &'view BufferViewData,
     buffer_id: BufferId,
     z: u16,
-    current_buffer_id: &BufferId,
+    current_buffer_id: BufferId,
 ) -> Option<Input> {
     let mut input = None;
 
@@ -925,7 +899,7 @@ fn text_box<'view>(
         input = Some(Input::SelectBuffer(buffer_id));
     }
 
-    let (color, cursor_alpha) = if *current_buffer_id == buffer_id {
+    let (color, cursor_alpha) = if current_buffer_id == buffer_id {
         (TEXT_BACKGROUND_COLOUR, ui.get_fade_alpha())
     } else {
         (

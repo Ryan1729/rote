@@ -585,7 +585,7 @@ pub enum MenuMode {
 }
 d!(for MenuMode: MenuMode::Hidden);
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum MenuView {
     None,
     FileSwitcher(FileSwitcherView),
@@ -607,7 +607,7 @@ impl MenuView {
 
 pub type FileSwitcherResults = Vec<PathBuf>;
 
-#[derive(Default, Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct FileSwitcherView {
     pub search: BufferViewData,
     pub results: FileSwitcherResults,
@@ -619,14 +619,14 @@ pub enum FindReplaceMode {
 }
 d!(for FindReplaceMode: FindReplaceMode::CurrentFile);
 
-#[derive(Default, Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct FindReplaceView {
     pub mode: FindReplaceMode,
     pub find: BufferViewData,
     pub replace: BufferViewData,
 }
 
-#[derive(Default, Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct GoToPositionView {
     pub go_to_position: BufferViewData,
 }
@@ -638,7 +638,6 @@ pub struct View {
     pub current_buffer_id: BufferId,
     pub index_state: g_i::State,
     pub visible_buffer: VisibleBuffer,
-    pub edited_buffer_index: Option<g_i::Index>,
     pub buffers: Vec<BufferView>,
     pub menu: MenuView,
     pub status_line: StatusLineView,

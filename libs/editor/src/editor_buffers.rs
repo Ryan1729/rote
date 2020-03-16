@@ -151,11 +151,11 @@ impl EditorBuffers {
         self.buffers.set_current_index(index)
     }
 
-    pub fn get_current_buffer(&self) -> Option<&EditorBuffer> {
+    pub fn get_current_buffer(&self) -> &EditorBuffer {
         self.buffers.get_current_element()
     }
 
-    pub fn get_current_buffer_mut(&mut self) -> Option<&mut EditorBuffer> {
+    pub fn get_current_buffer_mut(&mut self) -> &mut EditorBuffer {
         self.buffers.get_current_element_mut()
     }
 

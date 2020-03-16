@@ -109,7 +109,7 @@ macro_rules! get_scrollable_buffer_mut {
         u!{BufferIdKind}
         match $kind {
             None => Option::None,
-            Text => $state.buffers.get_current_buffer_mut().map(|b| &mut b.scrollable),
+            Text => &mut $state.buffers.get_current_buffer_mut().scrollable,
             Find => Some(&mut $state.find),
             Replace => Some(&mut $state.replace),
             FileSwitcher => Some(&mut $state.file_switcher),

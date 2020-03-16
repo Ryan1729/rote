@@ -1,5 +1,5 @@
 /// A module containg a Generational Index implementation
-use macros::{d, u, fmt_debug, fmt_display, ord, SaturatingAdd, SaturatingSub};
+use macros::{d, u, fmt_debug, fmt_display, ord, some_or, SaturatingAdd, SaturatingSub};
 use crate::{Vec1};
 pub type Generation = u32;
 type LengthSize = u32;
@@ -382,222 +382,152 @@ ord!(and friends for SelectionAdjustment: (adjustment){
         }
 });
 
-/// A Vec1 that uses `Index`es and has a notion that one of the elements is
-/// "selected" or is "the current element". This "selected" element can be borrowed
-/// and the operations that change the currently selected index and/or move the selected
-/// element around are also made more convenient.
-#[derive(Debug)]
-pub struct SelectableVec1<A> {
-    elements: Vec1<A>,
-    index_state: State,
-    current_index: Index,
-}
-
-impl<A> Default for SelectableVec1<A>
-where
-    A: Default,
-{
-    fn default() -> Self {
-        Self::new(A::default())
+/// This module exists so we can be sure that only the methods that mutate
+/// SelectableVec1 can change its fields.
+mod selectable_vec1 {
+    /// A Vec1 that uses `Index`es and has a notion that one of the elements is
+    /// "selected" or is "the current element". This "selected" element can be borrowed
+    /// and the operations that change the currently selected index and/or move the selected
+    /// element around are also made more convenient.
+    #[derive(Debug)]
+    pub struct SelectableVec1<A> {
+        elements: Vec1<A>,
+        index_state: State,
+        current_index: Index,
     }
-}
-
-impl<A> SelectableVec1<A> {
-    pub fn new(inital_element: A) -> Self {
-        Self {
-            elements: Vec1::new(inital_element),
-            index_state: d!(),
-            current_index: d!(),
+    
+    impl<A> Default for SelectableVec1<A>
+    where
+        A: Default,
+    {
+        fn default() -> Self {
+            Self::new(A::default())
         }
     }
-
-    /// Since there is always at least one element, this always returns at least 1.
-    pub fn len(&self) -> Length {
-        debug_assert!(self.elements.len() <= Length::max_value());
-        Length::or_max(self.elements.len())
-    }
-
-    /// The index of the first element.
-    pub fn first_index(&self) -> Index {
-        self.index_state.new_index(IndexPart::or_max(0))
-    }
-
-    /// The index of the last element.
-    pub fn last_index(&self) -> Index {
-        let len: usize = self.len().into();
-        self.index_state.new_index(IndexPart::or_max(len - 1))
-    }
-
-    /// The index of the currectly selected element.
-    pub fn current_index(&self) -> Index {
-        self.current_index
-    }
-
-    pub fn get_current_element(&self) -> Option<&A> {
-        self.get(self.current_index())
-    }
-
-    pub fn get_current_element_mut(&mut self) -> Option<&mut A> {
-        self.get_mut(self.current_index())
-    }
-
-    pub fn get_mut(&mut self, index: Index) -> Option<&mut A> {
-        index
-            .get(self.index_state)
-            .and_then(move |i| self.elements.get_mut(i))
-    }
-
-    pub fn get(&self, index: Index) -> Option<&A> {
-        index
-            .get(self.index_state)
-            .and_then(|i| self.elements.get(i))
-    }
-
-    /// Only actually updates the current index if an element can be retreived with 
-    /// the passed index. Returns `true` if the index actually changed, and `false`
-    /// otherwise.
-    pub fn set_current_index(&mut self, index: Index) -> bool {
-        let mut valid = false;
-        if let Some(index) = self.index_state.migrate(index) {
-            self.current_index = index;
-            valid = true;
+    
+    impl<A> SelectableVec1<A> {
+        pub fn new(inital_element: A) -> Self {
+            Self {
+                elements: Vec1::new(inital_element),
+                index_state: d!(),
+                current_index: d!(),
+            }
         }
-        valid
-    }
-
-    pub fn push_and_select_new(&mut self, element: A) {
-        self.push(element);
-
-        self.set_current_index(self.last_index());
-    }
-
-    fn push(&mut self, element: A) {
-        let will_fit = self.elements.len() < Length::max_value();
-        debug_assert!(will_fit);
-        if will_fit {
-            self.elements.push(element);
+    
+        /// Since there is always at least one element, this always returns at least 1.
+        pub fn len(&self) -> Length {
+            debug_assert!(self.elements.len() <= Length::max_value());
+            Length::or_max(self.elements.len())
         }
-    }
-
-    pub fn adjust_selection(&mut self, adjustment: SelectionAdjustment) {
-        u!{SelectionAdjustment}
-        match adjustment {
-            Next => { self.set_current_index(self.next_index()); },
-            Previous => { self.set_current_index(self.previous_index()); },
-            Move(selection_move) => {
-                u!{SelectionMove}
-                let target_index = match selection_move {
-                    Left => self.previous_index(),
-                    Right => self.next_index(),
-                    ToStart => self.first_index(),
-                    ToEnd => self.last_index(),
-                };
-        
-                self.move_or_ignore(
-                    self.current_index,
-                    target_index,
-                );
-            },
+    
+        /// The index of the first element.
+        pub fn first_index(&self) -> Index {
+            self.index_state.new_index(IndexPart::or_max(0))
         }
-    }
-
-    pub fn close_element(&mut self, index: Index) {
-        self.remove_if_present(index);
-
-        self.set_current_index(
-            self.index_state
-            .migrate(self.current_index)
-            .or_else(|| self.index_state.migrate(self.previous_index()))
-            .unwrap_or_else(||
-                // if the current index is zero and we remove it we end up pointing at the new
-                // first element. In this case, this is desired.
-                self.index_state.new_index(d!())
+    
+        /// The index of the last element.
+        pub fn last_index(&self) -> Index {
+            let len: usize = self.len().into();
+            self.index_state.new_index(IndexPart::or_max(len - 1))
+        }
+    
+        /// The index of the currectly selected element.
+        pub fn current_index(&self) -> Index {
+            self.current_index
+        }
+    
+        pub fn get_current_element(&self) -> &A {
+            some_or!(
+                self.get_current_element_or_none(),
+                self.elements.first()
             )
-        );
-    }
-
-    pub fn next_index(&self) -> Index {
-        self.next_index_from(self.current_index)
-    }
-
-    pub fn next_index_from(&self, index: Index) -> Index {
-        (index.saturating_add(1)) % self.len()
-    }
-
-    pub fn previous_index(&self) -> Index {
-        self.previous_index_from(self.current_index)
-    }
-
-    pub fn previous_index_from(&self, index: Index) -> Index {
-        let i: usize = index.into();
-        if i == 0 {
-            self.last_index()
-        } else {
-            index.saturating_sub(1)
         }
-    }
-
-    pub fn swap_or_ignore(&mut self, index1: Index, index2: Index) {
-        if index1 < self.len() && index2 < self.len() {
-            if let Some((i1, i2)) = index1.get(self.index_state)
-                .and_then(|i1| {
-                    index2.get(self.index_state)
-                        .map(|i2| (i1, i2))
-                }) {
-                self.elements.swap(i1, i2);
-                self.index_state.swapped_at_or_ignore(index1, index2);
-
-                // We specifically do not swap (or we double swap if you prefer,)
-                // so that the selection will follow the swapping.
-                if self.current_index == index1 {
-                    self.set_current_index(index1);
-                } else if self.current_index == index2 {
-                    self.set_current_index(index2);
-                }
+    
+        pub fn get_current_element_mut(&mut self) -> &mut A {
+            // We can't use the same thing as we do in `get_current_element` because of the 
+            // borrow checker. This may eventually be resolved by non-lexical lifetimes.
+            let i = self.current_index().get(self.index_state).unwrap_or(usize::max_value());
+            if i < self.elements.len() {
+                // This unwrap is valid because of the length check. Additionally, `set_current_index` 
+                // doesn't set the value if it is invalid. There's also a proptest checking that this 
+                // method doesn't panic when all of the &mut ation
+                self.elements.get_mut(i).unwrap()
+            } else {
+                self.elements.first_mut()    
             }
         }
-    }
-
-    pub fn move_or_ignore(&mut self, index1: Index, index2: Index) {
-        if index1 < self.len() && index2 < self.len() {
-            if let Some((i1, i2)) = index1.get(self.index_state)
-                .and_then(|i1| {
-                    index2.get(self.index_state)
-                        .map(|i2| (i1, i2))
-                }) {
-
-                if let Ok(moved_val) = self.elements.try_remove(i1) {
-                    self.elements.insert(i2, moved_val);
-
-                    self.index_state.moved_to_or_ignore(index1, index2);
-
-                    if self.current_index == index1 {
-                        self.set_current_index(index1);
-                    } else if self.current_index == index2 {
-                        self.set_current_index(self.next_index_from(index2));
-                    }
-                }
+    
+        pub fn get_current_element_or_none(&self) -> Option<&A> {
+            self.get(self.current_index())
+        }
+    
+        pub fn get_current_element_or_none_mut(&mut self) -> Option<&mut A> {
+            self.get_mut(self.current_index())
+        }
+    
+        pub fn get_mut(&mut self, index: Index) -> Option<&mut A> {
+            index
+                .get(self.index_state)
+                .and_then(move |i| self.elements.get_mut(i))
+        }
+    
+        pub fn get(&self, index: Index) -> Option<&A> {
+            index
+                .get(self.index_state)
+                .and_then(|i| self.elements.get(i))
+        }
+    
+        /// Only actually updates the current index if an element can be retreived with 
+        /// the passed index. Returns `true` if the index actually changed, and `false`
+        /// otherwise.
+        pub fn set_current_index(&mut self, index: Index) -> bool {
+            let mut valid = false;
+            if let Some(index) = self.index_state.migrate(index) {
+                self.current_index = index;
+                valid = true;
+            }
+            valid
+        }
+    
+        pub fn push_and_select_new(&mut self, element: A) {
+            self.push(element);
+    
+            self.set_current_index(self.last_index());
+        }
+    
+        fn push(&mut self, element: A) {
+            let will_fit = self.elements.len() < Length::max_value();
+            debug_assert!(will_fit);
+            if will_fit {
+                self.elements.push(element);
             }
         }
-    }
-
-    pub fn remove_if_present(&mut self, index: Index) -> Option<A> {
-        let output = if index < self.len() {
-            index.get(self.index_state).and_then(|i| {
-                let output = self.elements.try_remove(i).ok();
-
-                if output.is_some() {
-                    // No reason to update the index state if we didn't remove anything.
-                    self.index_state.removed_at(index);
-                }
-
-                output
-            })
-        } else {
-            None
-        };
-
-        if output.is_some() {
+    
+        pub fn adjust_selection(&mut self, adjustment: SelectionAdjustment) {
+            u!{SelectionAdjustment}
+            match adjustment {
+                Next => { self.set_current_index(self.next_index()); },
+                Previous => { self.set_current_index(self.previous_index()); },
+                Move(selection_move) => {
+                    u!{SelectionMove}
+                    let target_index = match selection_move {
+                        Left => self.previous_index(),
+                        Right => self.next_index(),
+                        ToStart => self.first_index(),
+                        ToEnd => self.last_index(),
+                    };
+            
+                    self.move_or_ignore(
+                        self.current_index,
+                        target_index,
+                    );
+                },
+            }
+        }
+    
+        pub fn close_element(&mut self, index: Index) {
+            self.remove_if_present(index);
+    
             self.set_current_index(
                 self.index_state
                 .migrate(self.current_index)
@@ -609,46 +539,142 @@ impl<A> SelectableVec1<A> {
                 )
             );
         }
-
-        output
-    }
-
-    pub fn index_state(&self) -> State {
-        self.index_state
-    }
-}
-
-pub struct IterWithIndexes<'iter, A> {
-    index: Index,
-    iter: std::slice::Iter<'iter, A>,
-}
-
-impl<'iter, A> Iterator for IterWithIndexes<'iter, A> {
-    type Item = (Index, &'iter A);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.iter.next().map(|b| {
-            let i = self.index.clone();
-
-            self.index = self.index.saturating_add(1);
-
-            (i, b)
-        })
-    }
-}
-
-impl<A> SelectableVec1<A> {
-    pub fn iter(&self) -> std::slice::Iter<A> {
-        self.elements.iter()
-    }
-
-    pub fn iter_with_indexes(&self) -> IterWithIndexes<A> {
-        IterWithIndexes {
-            index: d!(),
-            iter: self.iter(),
+    
+        pub fn next_index(&self) -> Index {
+            self.next_index_from(self.current_index)
+        }
+    
+        pub fn next_index_from(&self, index: Index) -> Index {
+            (index.saturating_add(1)) % self.len()
+        }
+    
+        pub fn previous_index(&self) -> Index {
+            self.previous_index_from(self.current_index)
+        }
+    
+        pub fn previous_index_from(&self, index: Index) -> Index {
+            let i: usize = index.into();
+            if i == 0 {
+                self.last_index()
+            } else {
+                index.saturating_sub(1)
+            }
+        }
+    
+        pub fn swap_or_ignore(&mut self, index1: Index, index2: Index) {
+            if index1 < self.len() && index2 < self.len() {
+                if let Some((i1, i2)) = index1.get(self.index_state)
+                    .and_then(|i1| {
+                        index2.get(self.index_state)
+                            .map(|i2| (i1, i2))
+                    }) {
+                    self.elements.swap(i1, i2);
+                    self.index_state.swapped_at_or_ignore(index1, index2);
+    
+                    // We specifically do not swap (or we double swap if you prefer,)
+                    // so that the selection will follow the swapping.
+                    if self.current_index == index1 {
+                        self.set_current_index(index1);
+                    } else if self.current_index == index2 {
+                        self.set_current_index(index2);
+                    }
+                }
+            }
+        }
+    
+        pub fn move_or_ignore(&mut self, index1: Index, index2: Index) {
+            if index1 < self.len() && index2 < self.len() {
+                if let Some((i1, i2)) = index1.get(self.index_state)
+                    .and_then(|i1| {
+                        index2.get(self.index_state)
+                            .map(|i2| (i1, i2))
+                    }) {
+    
+                    if let Ok(moved_val) = self.elements.try_remove(i1) {
+                        self.elements.insert(i2, moved_val);
+    
+                        self.index_state.moved_to_or_ignore(index1, index2);
+    
+                        if self.current_index == index1 {
+                            self.set_current_index(index1);
+                        } else if self.current_index == index2 {
+                            self.set_current_index(self.next_index_from(index2));
+                        }
+                    }
+                }
+            }
+        }
+    
+        pub fn remove_if_present(&mut self, index: Index) -> Option<A> {
+            let output = if index < self.len() {
+                index.get(self.index_state).and_then(|i| {
+                    let output = self.elements.try_remove(i).ok();
+    
+                    if output.is_some() {
+                        // No reason to update the index state if we didn't remove anything.
+                        self.index_state.removed_at(index);
+                    }
+    
+                    output
+                })
+            } else {
+                None
+            };
+    
+            if output.is_some() {
+                self.set_current_index(
+                    self.index_state
+                    .migrate(self.current_index)
+                    .or_else(|| self.index_state.migrate(self.previous_index()))
+                    .unwrap_or_else(||
+                        // if the current index is zero and we remove it we end up pointing at the new
+                        // first element. In this case, this is desired.
+                        self.index_state.new_index(d!())
+                    )
+                );
+            }
+    
+            output
+        }
+    
+        pub fn index_state(&self) -> State {
+            self.index_state
         }
     }
-}
+    
+    pub struct IterWithIndexes<'iter, A> {
+        index: Index,
+        iter: std::slice::Iter<'iter, A>,
+    }
+    
+    impl<'iter, A> Iterator for IterWithIndexes<'iter, A> {
+        type Item = (Index, &'iter A);
+    
+        fn next(&mut self) -> Option<Self::Item> {
+            self.iter.next().map(|b| {
+                let i = self.index.clone();
+    
+                self.index = self.index.saturating_add(1);
+    
+                (i, b)
+            })
+        }
+    }
+    
+    impl<A> SelectableVec1<A> {
+        pub fn iter(&self) -> std::slice::Iter<A> {
+            self.elements.iter()
+        }
+    
+        pub fn iter_with_indexes(&self) -> IterWithIndexes<A> {
+            IterWithIndexes {
+                index: d!(),
+                iter: self.iter(),
+            }
+        }
+    }
+} 
+pub use selectable_vec1::{SelectableVec1, IterWithIndexes};
 
 #[cfg(test)]
 mod tests {
@@ -977,13 +1003,13 @@ mod tests {
         adjustments: Vec<SelectionAdjustment>,
     ) {
         // precondition
-        assert!(s_vec1.get_current_element().is_some(), "precondition failed on {:?}", s_vec1);
+        assert!(s_vec1.get_current_element_or_none().is_some(), "precondition failed on {:?}", s_vec1);
     
         for (i, adjustment) in adjustments.into_iter().enumerate() {
             s_vec1.adjust_selection(adjustment);
     
             assert!(
-                s_vec1.get_current_element().is_some(),
+                s_vec1.get_current_element_or_none().is_some(),
                 "{:?} (index {}) caused get_current_element to return None",
                 adjustment,
                 i
@@ -994,6 +1020,34 @@ mod tests {
     proptest!{
         #[test]
         fn no_selection_adjustment_causes_getting_the_current_element_to_return_none(
+            s_vec1 in arb::selectable_vec1_of_i32(16),
+            adjustments in arb::selection_adjustments(16),
+        ) {
+            no_selection_adjustment_causes_getting_the_current_element_to_return_none_on(
+                s_vec1,
+                adjustments,
+            )
+        }
+    }
+
+    fn no_selection_adjustment_causes_getting_the_current_element_mut_to_panic_on<A: std::fmt::Debug>(
+        mut s_vec1: SelectableVec1<A>,
+        adjustments: Vec<SelectionAdjustment>,
+    ) {
+        // precondition: this doesn't panic
+        s_vec1.get_current_element_mut();
+    
+        for (i, adjustment) in adjustments.into_iter().enumerate() {
+            s_vec1.adjust_selection(adjustment);
+
+            // if this doesn't panic, the test passes
+            s_vec1.get_current_element_mut();
+        }
+    }
+    
+    proptest!{
+        #[test]
+        fn no_selection_adjustment_causes_getting_the_current_element_mut_to_return_none(
             s_vec1 in arb::selectable_vec1_of_i32(16),
             adjustments in arb::selection_adjustments(16),
         ) {
@@ -1044,17 +1098,49 @@ mod tests {
         )
     }
 
-    fn no_selection_move_causes_getting_the_current_element_to_return_a_different_element_on(
+    fn no_selection_move_causes_getting_the_current_element_mut_to_return_a_different_element_on(
         mut s_vec1: SelectableVec1<i32>,
         moves: Vec<SelectionMove>,
     ) {
-        let previous_element = *s_vec1.get_current_element().expect("precondition failed");
+        let previous_element = *s_vec1.get_current_element_mut();
     
         for (i, r#move) in moves.into_iter().enumerate() {
             s_vec1.adjust_selection(SelectionAdjustment::Move(r#move));
 
             assert_eq!(
-                *s_vec1.get_current_element().expect("get_current_element returned None"),
+                *s_vec1.get_current_element_mut(),
+                previous_element,
+                "{:?} (index {}) caused the current element to change",
+                r#move,
+                i
+            );
+        }
+    }
+
+    proptest!{
+        #[test]
+        fn no_selection_move_causes_getting_the_current_element_mut_to_return_a_different_element(
+            s_vec1 in arb::selectable_vec1_of_i32(16),
+            moves in arb::selection_moves(16),
+        ) {
+            no_selection_move_causes_getting_the_current_element_to_return_a_different_element_on(
+                s_vec1,
+                moves,
+            )
+        }
+    }
+
+    fn no_selection_move_causes_getting_the_current_element_to_return_a_different_element_on(
+        mut s_vec1: SelectableVec1<i32>,
+        moves: Vec<SelectionMove>,
+    ) {
+        let previous_element = *s_vec1.get_current_element();
+    
+        for (i, r#move) in moves.into_iter().enumerate() {
+            s_vec1.adjust_selection(SelectionAdjustment::Move(r#move));
+
+            assert_eq!(
+                *s_vec1.get_current_element(),
                 previous_element,
                 "{:?} (index {}) caused the current element to change",
                 r#move,

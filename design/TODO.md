@@ -1,6 +1,13 @@
 ## TODO
 
-* I find my self doubting whether putting the keyboard menu selection in the ui::Id was a good idea.
+* I have decided that it is worth it to change the `SelectableVec1::get_current_element` methods to return 
+    direct references instead of `Option`s. But, because of borrow checking issues, AFAICT we need an unwrap
+    and we need a default case as well. I decided to return the first element, in that case. I find myself 
+    only mostly sure that the case there will not ome up. This means we should test all the mutating methods 
+    of `SelectableVec1` and make sure that they don't cause a problem where the get_current_element_mut panics
+    or returns the wrong value, simlarly to the tests we already have, but including all mutating methods.
+
+* I find myself doubting whether putting the keyboard menu selection in the ui::Id was a good idea.
     * if nothing else, it seems like it would be nice to have the scroll state of the command menu stick around,
         given we have a way to reset the scroll, similarly to the text buffer itself.
         * why not the same keyboard shortcut? There is precedent for that in the tab scroll.
@@ -65,6 +72,13 @@
     * current: [abc|] abc abc => [abc|] [|abc] abc
     * desired: [abc|] abc abc => [abc|] [abc|] abc
     * also desired: [|abc] abc abc => [|abc] [|abc] abc
+
+* add code folding
+    * Ctrl-. to collapse largest uncollapsed region by cursor(s)
+    * Ctrl-Shift-. to uncollapse smallest uncollapsed region by cursor(s)
+    * maybe Logo-(Shift-). to do full collapse/uncollapse?
+    * also a way to do it with mouse?
+        
 
 * if multiple things are copied with multiple cursors then if they are pasted with the same number of cursors then 
     they should be pasted separately

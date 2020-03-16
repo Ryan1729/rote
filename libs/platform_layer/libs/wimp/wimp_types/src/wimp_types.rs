@@ -1,6 +1,6 @@
 use glutin::event::{ModifiersState, VirtualKeyCode};
-use macros::{d, fmt_debug, ord};
-use platform_types::{screen_positioning::*, g_i, *};
+use macros::{d, ord};
+use platform_types::{screen_positioning::*, g_i, Input, Cmd};
 
 use std::collections::{VecDeque, HashMap, BTreeMap};
 use std::path::PathBuf;
@@ -90,16 +90,184 @@ pub enum CustomEvent {
     EditedBufferError(String),
 }
 
-#[derive(Clone, Debug)]
-pub enum LocalMenu {
-    Command
+/// This module exists because when adding WIMP only UI elements we found that 
+/// we wanted to have several parts of the code start checking the whether a 
+/// WIMP only menu was up. Because I was not sure where all the places that 
+/// parts of the code were that were talking directly to the 
+/// `platform_types::View` and therefore might need to be changed, I wanted to 
+/// lean on the compiler to find all those places for me.
+mod view {
+    use macros::{d};
+    use super::ui; // Your app's written in Electron? Shoulda used Super UI.
+    use platform_types::{CursorView, BufferViewData, FileSwitcherView, FindReplaceMode, FindReplaceView, GoToPositionView};
+
+    #[derive(Clone, Copy, Debug, PartialEq)]
+    enum LocalMenuMode {
+        Command
+    }
+
+    #[derive(Clone, Copy, Debug, PartialEq)]
+    pub enum MenuMode {
+        Hidden,
+        FileSwitcher,
+        FindReplace(FindReplaceMode),
+        GoToPosition,
+        Command,
+    }
+    d!(for MenuMode: MenuMode::Hidden);
+
+    #[derive(Debug)]
+    enum LocalMenuView {
+        Command
+    }
+
+    #[derive(Debug)]
+    pub enum MenuView {
+        None,
+        FileSwitcher(FileSwitcherView),
+        FindReplace(FindReplaceView),
+        GoToPosition(GoToPositionView),
+        Command,
+    }
+    d!(for MenuView: MenuView::None);
+    
+    impl MenuView {
+        pub fn get_mode(&self) -> MenuMode {
+            match self {
+                Self::None => MenuMode::Hidden,
+                Self::FileSwitcher(_) => MenuMode::FileSwitcher,
+                Self::FindReplace(v) => MenuMode::FindReplace(v.mode),
+                Self::GoToPosition(_) => MenuMode::GoToPosition,
+                Self::Command => MenuMode::Command,
+            }
+        }
+
+        pub fn platform(&self) -> Option<platform_types::MenuMode> {
+            match self {
+                Self::None => Some(platform_types::MenuMode::Hidden),
+                Self::FileSwitcher(_) => Some(platform_types::MenuMode::FileSwitcher),
+                Self::FindReplace(v) => Some(platform_types::MenuMode::FindReplace(v.mode)),
+                Self::GoToPosition(_) => Some(platform_types::MenuMode::GoToPosition),
+                Self::Command => None
+            }
+        }
+    }
+
+    impl From<platform_types::MenuView> for MenuView {
+        fn from(p_m: platform_types::MenuView) -> Self {
+            match p_m {
+                platform_types::MenuView::None => MenuView::None,
+                platform_types::MenuView::FileSwitcher(v) => MenuView::FileSwitcher(v),
+                platform_types::MenuView::FindReplace(v) => MenuView::FindReplace(v),
+                platform_types::MenuView::GoToPosition(v) => MenuView::GoToPosition(v)
+            }
+        }
+    }
+
+    impl From<platform_types::MenuMode> for MenuMode {
+        fn from(p_m: platform_types::MenuMode) -> Self {
+            match p_m {
+                platform_types::MenuMode::Hidden => MenuMode::Hidden,
+                platform_types::MenuMode::FileSwitcher => MenuMode::FileSwitcher,
+                platform_types::MenuMode::FindReplace(m) => MenuMode::FindReplace(m),
+                platform_types::MenuMode::GoToPosition => MenuMode::GoToPosition
+            }
+        }
+    }
+
+    #[derive(Default, Debug)]
+    pub struct View {
+        platform_view: platform_types::View,
+        local_menu: Option<LocalMenuView>
+    }
+
+    impl View {
+        fn get_current_buffer_view_data(&self) -> Option<&BufferViewData> {
+            if let Some(_) = self.menu().platform() {
+                return self.platform_view.get_current_buffer_view_data();
+            }
+            None
+        }
+
+        pub fn get_fresh_navigation(&self) -> Option<ui::Navigation> {
+            self.get_current_buffer_view_data()
+                .map(|bvd| {
+                    navigation_from_cursors(&bvd.cursors)
+                })
+        }
+
+        pub fn toggle_command_menu(&mut self) {
+            match self.local_menu {
+                None => match self.platform_view.menu {
+                    platform_types::MenuView::None => {
+                        self.local_menu = Some(LocalMenuView::Command)
+                    },
+                    _ => { 
+                        // We don't want to be able to layer the local menus on top of the editor menus,
+                        // because that makes them feel different/less integrated.
+                    }
+                },
+                Some(LocalMenuView::Command) => {
+                    self.local_menu = None
+                },
+            }
+        }
+
+        pub fn current_buffer_id(&self) -> platform_types::BufferId {
+            self.platform_view.current_buffer_id
+        }
+
+        pub fn menu(&self) -> MenuView {
+            match self.local_menu {
+                Some(LocalMenuView::Command) => MenuView::Command,
+                None => self.platform_view.menu.clone().into()
+            }
+        }
+
+        // This method is preferred over `.menu().get_mode()` because this one 
+        // avoids copying the buffers.
+        pub fn menu_mode(&self) -> MenuMode {
+            match self.local_menu {
+                Some(LocalMenuView::Command) => MenuMode::Command,
+                None => self.platform_view.menu.get_mode().into()
+            }
+        }
+
+        pub fn status_line(&self) -> &platform_types::StatusLineView {
+            &self.platform_view.status_line
+        }
+    }
+
+    fn navigation_from_cursors(cursors: &Vec<CursorView>) -> ui::Navigation {
+        let mut output = d!();
+    
+        for c in cursors.iter() {
+            use platform_types::{CursorState, Move};
+            match c.state {
+                CursorState::None => {}
+                CursorState::PressedAgainstWall(dir) => match dir {
+                    Move::Up => {
+                        output = ui::Navigation::Up;
+                        break;
+                    }
+                    Move::Down => {
+                        output = ui::Navigation::Down;
+                        break;
+                    }
+                    _ => {}
+                },
+            }
+        }
+    
+        output
+    }
 }
+pub use view::View;
 
 /// State owned by the `run` function, which can be uniquely borrowed by other functions called inside `run`.
 #[derive(Debug)]
 pub struct RunState {
     pub view: View,
-    pub local_menu: Option<LocalMenu>,
     pub cmds: VecDeque<Cmd>,
     pub ui: ui::State,
     pub buffer_status_map: BufferStatusMap,
@@ -107,13 +275,6 @@ pub struct RunState {
     pub dimensions: Dimensions,
     pub event_proxy: EventLoopProxy<CustomEvent>, 
     pub clipboard: Clipboard,
-}
-
-pub fn advance_local_menu(local_menu: &mut Option<LocalMenu>) {
-    *local_menu = match local_menu {
-        None => Some(LocalMenu::Command),
-        Some(LocalMenu::Command) => None,
-    };
 }
 
 pub type CommandKey = (ModifiersState, VirtualKeyCode);
@@ -266,11 +427,19 @@ pub mod ui {
     }
 
     #[derive(Debug, Default)]
+    pub struct ListPosition {
+        pub index: usize,
+        pub scroll: f32,
+    }
+
+    #[derive(Debug, Default)]
     pub struct State {
         pub mouse_pos: ScreenSpaceXY,
         pub left_mouse_state: PhysicalButtonState,
         pub enter_key_state: PhysicalButtonState,
         pub tab_scroll: f32,
+        pub file_switcher_pos: ListPosition,
+        pub command_menu_pos: ListPosition,
         /// This is should be in the range [0.0, 2.0]. This needs the extra space to repesent the down
         /// side of the sawtooth pattern.
         pub fade_alpha_accumulator: f32,
@@ -468,32 +637,9 @@ pub mod ui {
     }
     d!(for Navigation: Navigation::None);
     
-    fn navigation_from_cursors(cursors: &Vec<CursorView>) -> Navigation {
-        let mut output = d!();
-    
-        for c in cursors.iter() {
-            match c.state {
-                CursorState::None => {}
-                CursorState::PressedAgainstWall(dir) => match dir {
-                    Move::Up => {
-                        output = Navigation::Up;
-                        break;
-                    }
-                    Move::Down => {
-                        output = Navigation::Down;
-                        break;
-                    }
-                    _ => {}
-                },
-            }
-        }
-    
-        output
-    }
-
     pub fn begin_view(ui: &mut State, view: &View) {
-        if let Some(buffer_view_data) = view.get_current_buffer_view_data() {
-            ui.navigation = navigation_from_cursors(&buffer_view_data.cursors);
+        if let Some(navigation) = view.get_fresh_navigation() {
+            ui.navigation = navigation;
         } else {
             // use the navigation that was set before `view` was called if there was one.
         }
