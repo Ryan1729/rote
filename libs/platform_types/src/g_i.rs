@@ -384,7 +384,10 @@ ord!(and friends for SelectionAdjustment: (adjustment){
 
 /// This module exists so we can be sure that only the methods that mutate
 /// SelectableVec1 can change its fields.
+#[mut_methods::mut_methods]
 mod selectable_vec1 {
+    use super::*;
+
     /// A Vec1 that uses `Index`es and has a notion that one of the elements is
     /// "selected" or is "the current element". This "selected" element can be borrowed
     /// and the operations that change the currently selected index and/or move the selected
@@ -673,6 +676,21 @@ mod selectable_vec1 {
             }
         }
     }
+
+    #[cfg(test)]
+    impl<A> SelectableVec1<A> {
+        pub fn from_parts(
+            elements: Vec1<A>,
+            index_state: State,
+            current_index: Index,
+        ) -> Self {
+            Self {
+                elements,
+                index_state,
+                current_index,
+            }
+        }
+    }
 } 
 pub use selectable_vec1::{SelectableVec1, IterWithIndexes};
 
@@ -831,11 +849,11 @@ mod tests {
                                 ((index, state, vector) in vector_with_valid_index(max_len))
                                 ((current_index, index_state) in Just((index, state)), elements in Just(vec1::Vec1::try_from_vec(vector).unwrap()))
              -> SelectableVec1<i32> {
-                SelectableVec1 {
+                SelectableVec1::from_parts(
                     elements,
                     index_state,
                     current_index,
-                }
+                )
             }
         }
 
@@ -1060,11 +1078,11 @@ mod tests {
 
     #[test]
     fn no_selection_adjustment_causes_getting_the_current_element_to_return_none_in_this_generated_case() {
-        let s_vec1 = SelectableVec1{
-            elements: vec1![12654029],
-            index_state: g_i_s!(g 39631998 ri 0),
-            current_index: g_i_i!(g 39631998 i 0),
-        };
+        let s_vec1 = SelectableVec1::from_parts(
+            vec1![12654029],
+            g_i_s!(g 39631998 ri 0),
+            g_i_i!(g 39631998 i 0),
+        );
 
         let adjustments = g_i_as![Next, Move(ToStart), Move(Right), Next, Move(Right), Next, Next, Move(ToEnd), Next, Previous, Next, Next, Next, Previous];
         
@@ -1084,11 +1102,11 @@ mod tests {
 
     #[test]
     fn no_selection_adjustment_causes_getting_the_current_element_to_return_none_in_this_two_element_generated_case() {
-        let s_vec1 = SelectableVec1{
-            elements: vec1![919639994, -804550252],
-            index_state: g_i_s!(g 0 ri 0),
-            current_index: g_i_i!(g 0 i 1),
-        };
+        let s_vec1 = SelectableVec1::from_parts(
+            vec1![919639994, -804550252],
+            g_i_s!(g 0 ri 0),
+            g_i_i!(g 0 i 1),
+        );
 
         let adjustments = g_i_as![Next, Move(Left), Move(Right), Next, Previous, Move(ToEnd), Move(Right), Previous];
         
@@ -1164,11 +1182,11 @@ mod tests {
 
     #[test]
     fn no_selection_move_causes_getting_the_current_element_to_return_a_different_element_in_this_single_right_case() {
-        let s_vec1 = SelectableVec1{
-            elements: vec1![919639994, -804550252],
-            index_state: g_i_s!(),
-            current_index: g_i_i!(),
-        };
+        let s_vec1 = SelectableVec1::from_parts(
+            vec1![919639994, -804550252],
+            g_i_s!(),
+            g_i_i!(),
+        );
 
         let moves = g_i_as![Right];
 
@@ -1180,11 +1198,11 @@ mod tests {
 
     #[test]
     fn no_selection_move_causes_getting_the_current_element_to_return_a_different_element_in_this_larger_single_right_case() {
-        let s_vec1 = SelectableVec1{
-            elements: vec1![20, 21, 22, 23, 24],
-            index_state: g_i_s!(),
-            current_index: g_i_i!(g 0 i 4),
-        };
+        let s_vec1 = SelectableVec1::from_parts(
+            vec1![20, 21, 22, 23, 24],
+            g_i_s!(),
+            g_i_i!(g 0 i 4),
+        );
 
         let moves = g_i_as![Right];
 
@@ -1192,6 +1210,14 @@ mod tests {
             s_vec1,
             moves,
         )
+    }
+
+    #[test]
+    fn all_the_mut_methods_are_at_least_clamed_to_be_tested() {
+        assert_eq!(
+            ["TODO"].to_vec(),
+            super::selectable_vec1::MUT_METHODS.to_vec()
+        );
     }
 }
 
