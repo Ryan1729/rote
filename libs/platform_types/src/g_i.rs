@@ -760,8 +760,88 @@ mod tests {
         }
     }
 
+    #[derive(Debug)]
+    enum MutMethodSpec<A> {
+        GetCurrentElementMut,
+        GetCurrentElementOrNoneMut,
+        GetMut(Index),
+        SetCurrentIndex(Index),
+        RemoveIfPresent(Index),
+        MoveOrIgnore(Index, Index),
+        SwapOrIgnore(Index, Index),
+        CloseElement(Index),
+        AdjustSelection(SelectionAdjustment),
+        Push(A),
+        PushAndSelectNew(A),
+        Next,
+    }
+    d!(<A> for MutMethodSpec<A>: MutMethodSpec::GetCurrentElementMut);
+
+    impl <A> MutMethodSpec<A> {
+        fn apply(&self, svec1: &mut SelectableVec1<A>) {
+            match self {
+                GetCurrentElementMut => {
+                    svec1.get_current_element_mut();
+                },
+                GetCurrentElementOrNoneMut => {
+                    svec1.get_current_element_or_none_mut();
+                },
+                GetMut(index) => {
+                    svec1.get_mut(index);
+                },
+                SetCurrentIndex(index) => {
+                    svec1.set_current_index(index);
+                },
+                PushAndSelectNew(a) => {
+                    svec1.push_and_select_new(a);
+                },
+                Push(a) => {
+                    svec1.push(a);
+                },
+                AdjustSelection(adjustment) => {
+                    svec1.adjust_selection(adjustment);
+                },
+                CloseElement(index) => {
+                    svec1.close_element(index);
+                },
+                SwapOrIgnore(index1, index2) => {
+                    svec1.swap_or_ignore(index1, index2);
+                },
+                MoveOrIgnore(index1, index2) => {
+                    svec1.move_or_ignore(index1, index2);
+                },
+                RemoveIfPresent(index) => {
+                    svec1.remove_if_present(index);
+                }
+                Next => {
+                    // I guess it's *possible* we accidentally make this mutate the 
+                    // vec itself later?.
+                    let iter = svec1.iter_with_index();
+                    while let Some(_) = iter.next() {}
+                },
+            }
+        }
+
+        fn method_names() -> Vec<&'static str> {
+            vec![
+                "get_current_element_mut", 
+                "get_current_element_or_none_mut",
+                "get_mut",
+                "set_current_index",
+                "push_and_select_new",
+                "push",
+                "adjust_selection",
+                "close_element",
+                "swap_or_ignore",
+                "move_or_ignore",
+                "remove_if_present",
+                "next"
+            ]
+        }
+    }
+
     pub mod arb {
-        use super::*;
+        use super::{MutMethodSpec::*, *};
         use proptest::prelude::{any, Strategy, prop_compose};
 
         use std::convert::TryInto;
@@ -887,6 +967,23 @@ mod tests {
                     (vector in proptest::collection::vec(selection_adjustment(), 0usize..(max_len as _)))
              -> Vec<SelectionAdjustment> {
                 vector
+            }
+        }
+
+        arb_enum!{
+            pub fn mut_method_specs(max_index: LengthSize) -> MutMethodSpec<i32> {
+                GetCurrentElementMut => Just(GetCurrentElementMut),
+                GetCurrentElementOrNoneMut => Just(GetCurrentElementOrNoneMut),
+                GetMut(_) => index().prop_map(GetMut),
+                SetCurrentIndex(_) => index().prop_map(SetCurrentIndex),
+                RemoveIfPresent(_) => index().prop_map(RemoveIfPresent),
+                MoveOrIgnore(_, _) => (index(), index()).prop_map(|(i1, i2)| MoveOrIgnore(i1, i2)),
+                SwapOrIgnore(_, _) => (index(), index()).prop_map(|(i1, i2)| SwapOrIgnore(i1, i2)),
+                CloseElement(_) => index().prop_map(CloseElement),
+                AdjustSelection(SelectionAdjustment) => selection_adjustment().prop_map(AdjustSelection),
+                Push(_) => any::<i32>().prop_map(Push),
+                PushAndSelectNew(_) => any::<i32>().prop_map(PushAndSelectNew)
+                Next => Just(Next),
             }
         }
     }
@@ -1065,11 +1162,11 @@ mod tests {
     
     proptest!{
         #[test]
-        fn no_selection_adjustment_causes_getting_the_current_element_mut_to_return_none(
+        fn no_selection_adjustment_causes_getting_the_current_element_mut_to_panic(
             s_vec1 in arb::selectable_vec1_of_i32(16),
             adjustments in arb::selection_adjustments(16),
         ) {
-            no_selection_adjustment_causes_getting_the_current_element_to_return_none_on(
+            no_selection_adjustment_causes_getting_the_current_element_mut_to_panic_on(
                 s_vec1,
                 adjustments,
             )
@@ -1212,10 +1309,38 @@ mod tests {
         )
     }
 
+    fn no_mut_method_spec_causes_getting_the_current_element_mut_to_panic_on<A: std::fmt::Debug>(
+        mut s_vec1: SelectableVec1<A>,
+        specs: Vec<MutMethodSpec<A>>,
+    ) {
+        // precondition: this doesn't panic
+        s_vec1.get_current_element_mut();
+    
+        for spec in adjustments.into_iter() {
+            spec.apply(&mut s_vec1);
+
+            // if this doesn't panic, the test passes
+            s_vec1.get_current_element_mut();
+        }
+    }
+    
+    proptest!{
+        #[test]
+        fn no_mut_method_spec_causes_getting_the_current_element_mut_to_panic_on(
+            s_vec1 in arb::selectable_vec1_of_i32(16),
+            specs in arb::mut_method_specs(16),
+        ) {
+            no_mut_method_spec_causes_getting_the_current_element_mut_to_panic_on(
+                s_vec1,
+                specs,
+            )
+        }
+    }
+
     #[test]
-    fn all_the_mut_methods_are_at_least_clamed_to_be_tested() {
+    fn all_the_mut_methods_are_at_least_claimed_to_be_tested() {
         assert_eq!(
-            ["TODO"].to_vec(),
+            MutMethodSpec::method_names(),
             super::selectable_vec1::MUT_METHODS.to_vec()
         );
     }
