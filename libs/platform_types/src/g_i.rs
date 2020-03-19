@@ -760,8 +760,8 @@ mod tests {
         }
     }
 
-    #[derive(Debug)]
-    enum MutMethodSpec<A> {
+    #[derive(Clone, Debug)]
+    pub enum MutMethodSpec<A> {
         GetCurrentElementMut,
         GetCurrentElementOrNoneMut,
         GetMut(Index),
@@ -771,14 +771,13 @@ mod tests {
         SwapOrIgnore(Index, Index),
         CloseElement(Index),
         AdjustSelection(SelectionAdjustment),
-        Push(A),
         PushAndSelectNew(A),
-        Next,
     }
     d!(<A> for MutMethodSpec<A>: MutMethodSpec::GetCurrentElementMut);
 
     impl <A> MutMethodSpec<A> {
-        fn apply(&self, svec1: &mut SelectableVec1<A>) {
+        fn apply(self, svec1: &mut SelectableVec1<A>) {
+            use MutMethodSpec::*;
             match self {
                 GetCurrentElementMut => {
                     svec1.get_current_element_mut();
@@ -795,9 +794,6 @@ mod tests {
                 PushAndSelectNew(a) => {
                     svec1.push_and_select_new(a);
                 },
-                Push(a) => {
-                    svec1.push(a);
-                },
                 AdjustSelection(adjustment) => {
                     svec1.adjust_selection(adjustment);
                 },
@@ -813,12 +809,6 @@ mod tests {
                 RemoveIfPresent(index) => {
                     svec1.remove_if_present(index);
                 }
-                Next => {
-                    // I guess it's *possible* we accidentally make this mutate the 
-                    // vec itself later?.
-                    let iter = svec1.iter_with_index();
-                    while let Some(_) = iter.next() {}
-                },
             }
         }
 
@@ -829,13 +819,11 @@ mod tests {
                 "get_mut",
                 "set_current_index",
                 "push_and_select_new",
-                "push",
                 "adjust_selection",
                 "close_element",
                 "swap_or_ignore",
                 "move_or_ignore",
                 "remove_if_present",
-                "next"
             ]
         }
     }
@@ -884,6 +872,14 @@ mod tests {
                (s in {state(max_index)}, i_p in index_part(max_index))
                -> (Index, State) {
                (Index::new_from_parts(s.current, i_p), s) 
+            }
+        }
+
+        prop_compose!{
+            pub fn index(max_index: LengthSize)
+               ((i, _) in state_with_index(max_index))
+               -> Index {
+               i
             }
         }
 
@@ -971,19 +967,25 @@ mod tests {
         }
 
         arb_enum!{
-            pub fn mut_method_specs(max_index: LengthSize) -> MutMethodSpec<i32> {
+            pub fn mut_method_spec(max_index: LengthSize) -> MutMethodSpec<i32> as MutMethodSpec {
                 GetCurrentElementMut => Just(GetCurrentElementMut),
                 GetCurrentElementOrNoneMut => Just(GetCurrentElementOrNoneMut),
-                GetMut(_) => index().prop_map(GetMut),
-                SetCurrentIndex(_) => index().prop_map(SetCurrentIndex),
-                RemoveIfPresent(_) => index().prop_map(RemoveIfPresent),
-                MoveOrIgnore(_, _) => (index(), index()).prop_map(|(i1, i2)| MoveOrIgnore(i1, i2)),
-                SwapOrIgnore(_, _) => (index(), index()).prop_map(|(i1, i2)| SwapOrIgnore(i1, i2)),
-                CloseElement(_) => index().prop_map(CloseElement),
+                GetMut(_) => index(max_index).prop_map(GetMut),
+                SetCurrentIndex(_) => index(max_index).prop_map(SetCurrentIndex),
+                RemoveIfPresent(_) => index(max_index).prop_map(RemoveIfPresent),
+                MoveOrIgnore(_, _) => (index(max_index), index(max_index)).prop_map(|(i1, i2)| MoveOrIgnore(i1, i2)),
+                SwapOrIgnore(_, _) => (index(max_index), index(max_index)).prop_map(|(i1, i2)| SwapOrIgnore(i1, i2)),
+                CloseElement(_) => index(max_index).prop_map(CloseElement),
                 AdjustSelection(SelectionAdjustment) => selection_adjustment().prop_map(AdjustSelection),
-                Push(_) => any::<i32>().prop_map(Push),
-                PushAndSelectNew(_) => any::<i32>().prop_map(PushAndSelectNew)
-                Next => Just(Next),
+                PushAndSelectNew(_) => any::<i32>().prop_map(PushAndSelectNew),
+            }
+        }
+
+        prop_compose!{
+            pub fn mut_method_specs(max_len: LengthSize)
+                    (vector in proptest::collection::vec(mut_method_spec(max_len), 0usize..(max_len as _)))
+             -> Vec<MutMethodSpec<i32>> {
+                vector
             }
         }
     }
@@ -1316,7 +1318,7 @@ mod tests {
         // precondition: this doesn't panic
         s_vec1.get_current_element_mut();
     
-        for spec in adjustments.into_iter() {
+        for spec in specs.into_iter() {
             spec.apply(&mut s_vec1);
 
             // if this doesn't panic, the test passes
@@ -1326,7 +1328,7 @@ mod tests {
     
     proptest!{
         #[test]
-        fn no_mut_method_spec_causes_getting_the_current_element_mut_to_panic_on(
+        fn no_mut_method_spec_causes_getting_the_current_element_mut_to_panic(
             s_vec1 in arb::selectable_vec1_of_i32(16),
             specs in arb::mut_method_specs(16),
         ) {
@@ -1340,7 +1342,7 @@ mod tests {
     #[test]
     fn all_the_mut_methods_are_at_least_claimed_to_be_tested() {
         assert_eq!(
-            MutMethodSpec::method_names(),
+            MutMethodSpec::<i32>::method_names(),
             super::selectable_vec1::MUT_METHODS.to_vec()
         );
     }

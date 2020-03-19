@@ -1,5 +1,5 @@
 use proc_macro::TokenStream;
-use syn::{parse_quote, FnArg, ItemConst, ItemMod, Signature, visit_mut::{visit_item_mod_mut, visit_signature_mut}, parse_macro_input, visit_mut::VisitMut};
+use syn::{parse_quote, FnArg, ItemMod, ImplItemMethod, Visibility, visit_mut::{visit_item_mod_mut, visit_impl_item_method_mut}, parse_macro_input, visit_mut::VisitMut};
 use quote::{ToTokens};
 
 #[derive(Default)]
@@ -29,15 +29,21 @@ impl VisitMut for MutMethods {
         }
     }
 
-    fn visit_signature_mut(&mut self, signature: &mut Signature) {
-        visit_signature_mut(self, signature);
+    fn visit_impl_item_method_mut(&mut self, method: &mut ImplItemMethod) {
+        visit_impl_item_method_mut(self, method);
 
-        match signature.receiver() {
-            Some(FnArg::Receiver(r)) => {
-                if r.mutability.is_some() {
-                    self.method_names.push(signature.ident.to_string())
+        match method.vis {
+            Visibility::Public(_) => {
+                let signature = &method.sig;
+                match signature.receiver() {
+                    Some(FnArg::Receiver(r)) => {
+                        if r.mutability.is_some() {
+                            self.method_names.push(signature.ident.to_string())
+                        }
+                    }, 
+                    _ => {}
                 }
-            } 
+            },
             _ => {}
         }
     }
