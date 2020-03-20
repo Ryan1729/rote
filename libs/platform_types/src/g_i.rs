@@ -643,6 +643,27 @@ mod selectable_vec1 {
         pub fn index_state(&self) -> State {
             self.index_state
         }
+
+        // mutates the vec1 in place, replacing the elements with those produced
+        // by applying the mapper to the iterators If there is nothing in the iterator, then the 
+        // SelectableVec1 will be reset to the default state. This is an unexpected 
+        // case though, so in debug mode an error will be logged
+        pub fn replace_with_mapped_or_ignore<B, Iter, F>(&mut self, iter: Iter, mapper: F)
+        where 
+            Iter: impl std::iter::ExactSizeIterator<Item = &EditorBuffer>
+            F: FnMut(B) -> A {
+            if let Some(first) = iter.next() {
+                // This never returns Err if the param is not 0.
+                let _ = self.elements.try_truncate(1);
+
+                self.elements
+            } else {
+                if cfg!(debug_assertions) {
+                    eprintln!("clear_map_extend passed empty iter!");
+                }
+                *self = d!();
+            }
+        }
     }
     
     pub struct IterWithIndexes<'iter, A> {

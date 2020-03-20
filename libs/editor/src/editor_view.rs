@@ -89,16 +89,14 @@ pub fn render(
 
     view.index_state = buffers.index_state();
 
-    view.buffers.clear();
-
-    for editor_buffer in buffers.iter() {
+    view.buffers.replace_with_mapped_or_ignore(buffers.iter(), |editor_buffer| {
         let name = &editor_buffer.name;
-        view.buffers.push(BufferView {
+        BufferView {
             name: name.clone(),
             name_string: name.to_string(),
             data: editor_to_buffer_view_data(parsers, &editor_buffer, AVERAGE_SELECTION_LINES_ESTIMATE),
-        });
-    }
+        }
+    });
 
     view.status_line.chars.clear();
     view.visible_buffer = d!();

@@ -631,14 +631,10 @@ pub struct GoToPositionView {
     pub go_to_position: BufferViewData,
 }
 
-pub type VisibleBuffer = Option<g_i::Index>;
-
 #[derive(Default, Debug)]
 pub struct View {
     pub current_buffer_id: BufferId,
-    pub index_state: g_i::State,
-    pub visible_buffer: VisibleBuffer,
-    pub buffers: Vec<BufferView>,
+    pub buffers: SelectableVec1<BufferView>,
     pub menu: MenuView,
     pub status_line: StatusLineView,
 }

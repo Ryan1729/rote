@@ -199,6 +199,12 @@ impl EditorBuffers {
     pub fn index_state(&self) -> g_i::State {
         self.buffers.index_state()
     }
+
+    pub fn replace_with_mapped_or_ignore<Iter, F>(&mut self, iter: Iter, mapper: F)
+    where Iter: impl Iter<Item = &EditorBuffer>
+        F: FnMut(&EditorBuffer) -> BufferViewData {
+        self.buffers.replace_with_mapped_or_ignore(iter, mapper)
+    }
 }
 
 impl EditorBuffers {

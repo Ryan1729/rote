@@ -820,7 +820,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         () => {{
                             let view = &r_s.view;
                             let xy = wimp_render::get_current_buffer_rect(
-                                view.current_buffer_id,
+                                view.current_buffer_id.kind,
                                 view.menu.get_mode(),
                                 r_s.dimensions
                             )

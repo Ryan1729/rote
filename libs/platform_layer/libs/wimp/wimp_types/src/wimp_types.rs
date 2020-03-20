@@ -182,6 +182,14 @@ mod view {
     }
 
     impl View {
+        pub fn buffers_count(&self) -> usize {
+            self.platform_view.buffers.len()
+        }
+
+        pub fn buffer_iter(&self) -> impl Iterator<Item = (usize, &platform_types::BufferView)> {
+            self.platform_view.buffers.iter().enumerate()
+        }
+
         fn get_current_buffer_view_data(&self) -> Option<&BufferViewData> {
             if let Some(_) = self.menu().platform() {
                 return self.platform_view.get_current_buffer_view_data();

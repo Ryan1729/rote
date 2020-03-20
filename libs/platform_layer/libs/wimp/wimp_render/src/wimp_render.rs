@@ -1,7 +1,7 @@
 use gl_layer::{ColouredText, MulticolourTextSpec, TextLayout, TextOrRect, TextSpec, VisualSpec};
 use wimp_types::{ui_id, ui, ui::{ButtonState}, BufferStatus, ClipboardProvider, CommandKey, Dimensions, LocalMenu, RunConsts, RunState, advance_local_menu};
 use macros::{c, d};
-use platform_types::{screen_positioning::*};
+use platform_types::{BufferIdKind, screen_positioning::*};
 use std::cmp::max;
 
 type Colour = [f32; 4];
@@ -173,7 +173,6 @@ pub fn view<'view>(
         ref mut ui,
         ref view,
         ref buffer_status_map,
-        ref mut local_menu,
         dimensions,
         ..
     }: &'view mut RunState,
@@ -198,8 +197,10 @@ pub fn view<'view>(
     ;
     ui.add_dt(dt);
 
+    let buffer_count = view.buffers_count();
+
     let mut view_output = ViewOutput {
-        text_or_rects: Vec::with_capacity(view.buffers.len() * PER_BUFFER_TEXT_OR_RECT_ESTIMATE),
+        text_or_rects: Vec::with_capacity(buffer_count * PER_BUFFER_TEXT_OR_RECT_ESTIMATE),
         action: ViewAction::None,
     };
 
@@ -220,8 +221,8 @@ pub fn view<'view>(
 
     let selected_index = view.get_visible_index_or_max();
 
-    let tab_count = view.buffers.len();
-    for (i, BufferView { name_string, .. }) in view.buffers.iter().enumerate() {
+    let tab_count = buffer_count;
+    for (i, BufferView { name_string, .. }) in view.buffer_iter().enumerate() {
         let SpacedRect {
             padding,
             margin,
@@ -277,7 +278,7 @@ pub fn view<'view>(
         }
     }
 
-    if let Some((index, BufferView { data, .. })) = view.get_visible_index_and_buffer() {
+    let (index, BufferView { data, .. }) = view.get_visible_index_and_buffer()
         // let text = {
         //     chars
         //     // perf_viz::record_guard!("map unprinatbles to symbols for themselves");
@@ -550,7 +551,7 @@ pub fn view<'view>(
                 handle_view_menu!()
             }
         }
-    }
+    
 
     //
     //    Status line
@@ -1678,12 +1679,12 @@ pub fn get_edit_buffer_xywh(
 }
 
 pub fn get_current_buffer_rect(
-    current_buffer_id: BufferId,
+    current_buffer_kind: BufferIdKind,
     mode: MenuMode,
     dimensions: Dimensions,
 ) -> TextBoxXYWH {
     use BufferIdKind::*;
-    match current_buffer_id.kind {
+    match current_buffer_kind {
         None => d!(),
         Text => get_edit_buffer_xywh(mode, dimensions),
         Find => get_find_replace_info(dimensions).find_text_xywh,

@@ -109,7 +109,7 @@ macro_rules! get_scrollable_buffer_mut {
         u!{BufferIdKind}
         match $kind {
             None => Option::None,
-            Text => &mut $state.buffers.get_current_buffer_mut().scrollable,
+            Text => Some(&mut $state.buffers.get_current_buffer_mut().scrollable),
             Find => Some(&mut $state.find),
             Replace => Some(&mut $state.replace),
             FileSwitcher => Some(&mut $state.file_switcher),
@@ -350,9 +350,10 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
         () => {
             match state.menu_mode {
                 MenuMode::Hidden | MenuMode::FindReplace(_) => {            
-                    if let Some(target_buffer) = state.buffers.get_current_buffer_mut() {
-                        update_search_results(&state.find.text_buffer, target_buffer);
-                    }
+                    update_search_results(
+                        &state.find.text_buffer,
+                        state.buffers.get_current_buffer_mut()
+                    );
                 }
                 MenuMode::FileSwitcher => {
                     let needle_string: String =
@@ -386,9 +387,8 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             editor_buffer_call!($buffer $tokens)
         }};
         ($buffer: ident $tokens:block) => {{
-            if let Some($buffer) = state.buffers.get_current_buffer_mut() {
-                $tokens;
-            }
+            let $buffer = state.buffers.get_current_buffer_mut();
+            $tokens;
         }}
     }
 
@@ -688,37 +688,37 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                     debug_assert!(false, "state.find_replace_mode() returned None");
                 }
                 Some(FindReplaceMode::CurrentFile) => {
-                    if let Some(haystack) = state.buffers.get_current_buffer_mut() {
-                        let needle = &state.find.text_buffer;
-                        let needle_string: String = needle.into();
-                        if needle_string == haystack.search_results.needle {
-                            // advance to next search result
-                            if needle_string.len() > 0 {
-                                let search_results = &mut haystack.search_results;
-                                let len = search_results.ranges.len();
-                                search_results.current_range += 1;
-                                if search_results.current_range >= len {
-                                    search_results.current_range = 0;
-                                }
-
-                                if let Some(pair) = haystack
-                                    .search_results
-                                    .ranges
-                                    .get(haystack.search_results.current_range)
-                                {
-                                    let c: Cursor = pair.into();
-                                    haystack
-                                        .scrollable
-                                        .text_buffer
-                                        .set_cursor(c, ReplaceOrAdd::Replace);
-                                    try_to_show_cursors!(BufferIdKind::Text);
-                                }
+                    let haystack = state.buffers.get_current_buffer_mut();
+                    let needle = &state.find.text_buffer;
+                    let needle_string: String = needle.into();
+                    if needle_string == haystack.search_results.needle {
+                        // advance to next search result
+                        if needle_string.len() > 0 {
+                            let search_results = &mut haystack.search_results;
+                            let len = search_results.ranges.len();
+                            search_results.current_range += 1;
+                            if search_results.current_range >= len {
+                                search_results.current_range = 0;
                             }
-                        } else {
-                            update_search_results(needle, haystack);
+
+                            if let Some(pair) = haystack
+                                .search_results
+                                .ranges
+                                .get(haystack.search_results.current_range)
+                            {
+                                let c: Cursor = pair.into();
+                                haystack
+                                    .scrollable
+                                    .text_buffer
+                                    .set_cursor(c, ReplaceOrAdd::Replace);
+                                try_to_show_cursors!(BufferIdKind::Text);
+                            }
                         }
-                        try_to_show_cursors!();
+                    } else {
+                        update_search_results(needle, haystack);
                     }
+                    try_to_show_cursors!();
+                    
                 }
             },
             BufferIdKind::Replace => {
@@ -729,11 +729,9 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                 text_buffer_call!(b{
                     let input: String = b.into();
                     if let Ok(position) = parse_for_go_to_position(&input) {
-                        if let Some(edit_b) = state.buffers.get_current_buffer_mut() {
-                            edit_b.scrollable.text_buffer.set_cursor(position, ReplaceOrAdd::Replace);
-                            state.set_menu_mode(MenuMode::Hidden);
-                            try_to_show_cursors!();
-                        }
+                        state.buffers.get_current_buffer_mut().scrollable.text_buffer.set_cursor(position, ReplaceOrAdd::Replace);
+                        state.set_menu_mode(MenuMode::Hidden);
+                        try_to_show_cursors!();
                     }
                     // TODO: show Err case
                 });
@@ -745,9 +743,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
     }
     let mut view = d!();
 
-    editor_view::render(state, &mut view);
-    view.edited_buffer_index = edited_buffer_index;
-
+    editor_view::render(state, &mut view);
     (view, cmd)
 }
 
