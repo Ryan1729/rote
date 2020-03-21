@@ -1,7 +1,7 @@
 use gl_layer::{ColouredText, MulticolourTextSpec, TextLayout, TextOrRect, TextSpec, VisualSpec};
-use wimp_types::{ui_id, ui, ui::{ButtonState}, BufferStatus, ClipboardProvider, CommandKey, Dimensions, LocalMenu, RunConsts, RunState, advance_local_menu};
+use wimp_types::{View, MenuMode, ui_id, ui, ui::{ButtonState}, BufferStatus, ClipboardProvider, CommandKey, Dimensions, LocalMenu, RunConsts, RunState, advance_local_menu};
 use macros::{c, d};
-use platform_types::{BufferIdKind, screen_positioning::*};
+use platform_types::{g_i, BufferView, BufferViewData, BufferIdKind, BufferId, b_id, CursorState, Highlight, HighlightKind, tbxy, tbxywh, Input, sswh, ssr, screen_positioning::*, SpanView};
 use std::cmp::max;
 
 type Colour = [f32; 4];
@@ -197,7 +197,7 @@ pub fn view<'view>(
     ;
     ui.add_dt(dt);
 
-    let buffer_count = view.buffers_count();
+    let buffer_count: usize = view.buffers_count().into();
 
     let mut view_output = ViewOutput {
         text_or_rects: Vec::with_capacity(buffer_count * PER_BUFFER_TEXT_OR_RECT_ESTIMATE),
@@ -219,10 +219,11 @@ pub fn view<'view>(
     // Tabs
     //
 
-    let selected_index = view.get_visible_index_or_max();
+    let selected_index = view.visible_index();
 
+    let mut i = 0;
     let tab_count = buffer_count;
-    for (i, BufferView { name_string, .. }) in view.buffer_iter().enumerate() {
+    for (index, BufferView { name_string, .. }) in view.buffer_iter() {
         let SpacedRect {
             padding,
             margin,
@@ -243,7 +244,7 @@ pub fn view<'view>(
                 layout: TextLayout::SingleLine,
                 margin,
                 rect,
-                underline: if i == selected_index {
+                underline: if index == selected_index {
                     Some(LineSpec {
                         colour: palette![blue],
                         thickness: padding.into_ltrb().b,
@@ -253,8 +254,8 @@ pub fn view<'view>(
                 },
                 overline: match buffer_status_map
                     .get(
-                        view.index_state,
-                        view.index_state.new_index(g_i::IndexPart::or_max(i)),
+                        view.index_state(),
+                        index,
                     )
                     .unwrap_or_default()
                 {
@@ -273,12 +274,14 @@ pub fn view<'view>(
         ) {
             view_output.action = ViewAction::Input(Input::SelectBuffer(b_id!(
                 BufferIdKind::Text,
-                view.index_state.new_index(g_i::IndexPart::or_max(i))
+                index
             )))
         }
+
+        i += 1;
     }
 
-    let (index, BufferView { data, .. }) = view.get_visible_index_and_buffer()
+    let (index, BufferView { data, .. }) = view.visible_index_and_buffer();
         // let text = {
         //     chars
         //     // perf_viz::record_guard!("map unprinatbles to symbols for themselves");
@@ -997,8 +1000,8 @@ pub fn make_active_tab_visible<'view>(
         window: sswh!(window_width, _h)
     }: Dimensions,
 ) -> Option<()> {
-    let target_index_or_max = view.get_visible_index_or_max();
-    let tab_count = view.buffers.len();
+    let target_index_or_max: usize = view.visible_index().into();
+    let tab_count = view.buffers_count().into();
     let tab_layout = get_tab_spaced_rect(&ui, tab_char_dim, 0, tab_count, window_width);
     let tab_width = tab_layout.width();
 

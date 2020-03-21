@@ -69,7 +69,6 @@ pub fn render(
     state: &mut State,
     view: &mut View,
 ) {
-    let current_buffer_id = state.get_id();
     let  &mut State {
         ref buffers,
         font_info: FontInfo { text_char_dim, .. },
@@ -86,9 +85,6 @@ pub fn render(
         ..
     } = state;
     
-
-    view.index_state = buffers.index_state();
-
     view.buffers.replace_with_mapped_or_ignore(buffers.iter(), |editor_buffer| {
         let name = &editor_buffer.name;
         BufferView {
@@ -99,9 +95,8 @@ pub fn render(
     });
 
     view.status_line.chars.clear();
-    view.visible_buffer = d!();
 
-    let current_buffer_index = buffers.current_index();    let EditorBuffer {
+    let EditorBuffer {
             scrollable:
                 ScrollableBuffer {
                     text_buffer: buffer,
@@ -112,7 +107,7 @@ pub fn render(
         } = buffers.get_current_buffer();
 
     let scroll = *scroll;
-    view.visible_buffer = Some(current_buffer_index);
+    
     fn display_option_compactly<A: ToString>(op: Option<A>) -> String {
         match op {
             None => "N".to_string(),
@@ -126,11 +121,7 @@ pub fn render(
     let _cannot_actually_fail = write!(
         chars,
         "{}/{}",
-        display_option_compactly(
-            current_buffer_index
-                .get(view.index_state)
-                .map(|i| i.saturating_add(1))
-        ),
+        buffers.current_index_part().saturating_add(1).to_string(),
         usize::from(buffers.len())
     );
 
@@ -188,5 +179,5 @@ pub fn render(
         },
     };
 
-    view.current_buffer_id = current_buffer_id;
+    view.current_buffer_kind = state.get_id().kind;
 }

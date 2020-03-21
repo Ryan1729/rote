@@ -99,6 +99,7 @@ pub enum CustomEvent {
 mod view {
     use macros::{d};
     use super::ui; // Your app's written in Electron? Shoulda used Super UI.
+    use super::g_i;
     use platform_types::{CursorView, BufferViewData, FileSwitcherView, FindReplaceMode, FindReplaceView, GoToPositionView};
 
     #[derive(Clone, Copy, Debug, PartialEq)]
@@ -182,12 +183,12 @@ mod view {
     }
 
     impl View {
-        pub fn buffers_count(&self) -> usize {
+        pub fn buffers_count(&self) -> g_i::Length {
             self.platform_view.buffers.len()
         }
 
-        pub fn buffer_iter(&self) -> impl Iterator<Item = (usize, &platform_types::BufferView)> {
-            self.platform_view.buffers.iter().enumerate()
+        pub fn buffer_iter(&self) -> impl Iterator<Item = (g_i::Index, &platform_types::BufferView)> {
+            self.platform_view.buffers.iter_with_indexes()
         }
 
         fn get_current_buffer_view_data(&self) -> Option<&BufferViewData> {
@@ -221,8 +222,20 @@ mod view {
             }
         }
 
+        pub fn current_buffer_kind(&self) -> platform_types::BufferIdKind {
+            self.platform_view.current_buffer_kind
+        }
+
         pub fn current_buffer_id(&self) -> platform_types::BufferId {
-            self.platform_view.current_buffer_id
+            self.platform_view.current_buffer_id()
+        }
+
+        pub fn visible_index(&self) -> g_i::Index {
+            self.platform_view.visible_index()
+        }
+
+        pub fn visible_index_and_buffer(&self) -> (g_i::Index, &platform_types::BufferView) {
+            self.platform_view.visible_index_and_buffer()
         }
 
         pub fn menu(&self) -> MenuView {
@@ -243,6 +256,10 @@ mod view {
 
         pub fn status_line(&self) -> &platform_types::StatusLineView {
             &self.platform_view.status_line
+        }
+
+        pub fn index_state(&self) -> g_i::State {
+            self.platform_view.index_state()
         }
     }
 
@@ -270,7 +287,7 @@ mod view {
         output
     }
 }
-pub use view::View;
+pub use view::{View, MenuMode, MenuView};
 
 /// State owned by the `run` function, which can be uniquely borrowed by other functions called inside `run`.
 #[derive(Debug)]

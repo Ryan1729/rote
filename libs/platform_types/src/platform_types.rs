@@ -14,7 +14,7 @@ mod move_mod;
 pub use move_mod::Move;
 
 pub mod g_i;
-pub use g_i::{SelectionAdjustment, SelectionMove};
+pub use g_i::{SelectionAdjustment, SelectionMove, SelectableVec1};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ReplaceOrAdd {
@@ -633,42 +633,42 @@ pub struct GoToPositionView {
 
 #[derive(Default, Debug)]
 pub struct View {
-    pub current_buffer_id: BufferId,
+    pub current_buffer_kind: BufferIdKind,
     pub buffers: SelectableVec1<BufferView>,
     pub menu: MenuView,
     pub status_line: StatusLineView,
 }
 
 impl View {
-    pub fn get_visible_index_or_max(&self) -> usize {
-        self.visible_buffer
-            .and_then(|index| index.get(self.index_state))
-            .unwrap_or(usize::max_value())
+    /// returns the currently visible editor buffer index.
+    pub fn visible_index(&self) -> g_i::Index {
+        self.buffers.current_index()
     }
 
-    pub fn get_visible_index_and_buffer(&self) -> Option<(g_i::Index, &BufferView)> {
-        self.visible_buffer.and_then(|index| {
-            index
-                .get(self.index_state)
-                .and_then(|i| self.buffers.get(i).map(|b| (index, b)))
-        })
+    /// returns the currently visible editor buffer view and its index.
+    pub fn visible_index_and_buffer(&self) -> (g_i::Index, &BufferView) {
+        (
+            self.buffers.current_index(),
+            self.buffers.get_current_element()
+        )
     }
 
+
+    pub fn current_buffer_id(&self) -> BufferId {
+        b_id!(
+            self.current_buffer_kind,
+            self.buffers.current_index()
+        )
+    }
+
+    /// returns the selected menu buffer view data if there is a menu containing a buffer
+    /// currently visible, or the current text buffer view data if not.
     pub fn get_current_buffer_view_data(&self) -> Option<&BufferViewData> {
         use BufferIdKind::*;
-        match self.current_buffer_id.kind {
+        match self.current_buffer_kind {
             None => Option::None,
             Text => {
-                for (index, buffer) in self.buffers.iter().enumerate() {
-                    // This seems like it should be correct given that the `current_buffer_id` is
-                    // of the current generation
-                    let i: usize = self.current_buffer_id.index.into();
-                    if index == i {
-                        return Some(&buffer.data);
-                    }
-                }
-                Option::None
-            }
+                Some(&self.buffers.get_current_element().data)            }
             Find => match &self.menu {
                 MenuView::FindReplace(ref fr) => Some(&fr.find),
                 _ => Option::None,
@@ -686,6 +686,10 @@ impl View {
                 _ => Option::None,
             },
         }
+    }
+
+    pub fn index_state(&self) -> g_i::State {
+        self.buffers.index_state()
     }
 }
 
