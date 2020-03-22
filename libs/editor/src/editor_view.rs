@@ -1,6 +1,8 @@
 use super::*;
 const AVERAGE_SELECTION_LINES_ESTIMATE: usize = 4;
 
+use macros::{SaturatingAdd};
+
 fn scrollable_to_buffer_view_data(
     scrollable: &ScrollableBuffer,
     selection_lines_estimate: usize,

@@ -100,12 +100,18 @@ mod view {
     use macros::{d};
     use super::ui; // Your app's written in Electron? Shoulda used Super UI.
     use super::g_i;
-    use platform_types::{CursorView, BufferViewData, FileSwitcherView, FindReplaceMode, FindReplaceView, GoToPositionView};
+    use platform_types::{CursorView, BufferViewData, FileSwitcherView, FindReplaceView, GoToPositionView};
 
     #[derive(Clone, Copy, Debug, PartialEq)]
     enum LocalMenuMode {
         Command
     }
+
+    #[derive(Clone, Copy, Debug, PartialEq)]
+    pub enum FindReplaceMode {
+        CurrentFile,
+    }
+    d!(for FindReplaceMode: FindReplaceMode::CurrentFile);
 
     #[derive(Clone, Copy, Debug, PartialEq)]
     pub enum MenuMode {
@@ -117,12 +123,12 @@ mod view {
     }
     d!(for MenuMode: MenuMode::Hidden);
 
-    #[derive(Debug)]
+    #[derive(Clone, Debug)]
     enum LocalMenuView {
         Command
     }
 
-    #[derive(Debug)]
+    #[derive(Clone, Debug)]
     pub enum MenuView {
         None,
         FileSwitcher(FileSwitcherView),
@@ -137,17 +143,20 @@ mod view {
             match self {
                 Self::None => MenuMode::Hidden,
                 Self::FileSwitcher(_) => MenuMode::FileSwitcher,
-                Self::FindReplace(v) => MenuMode::FindReplace(v.mode),
+                Self::FindReplace(v) => MenuMode::FindReplace(v.mode.into()),
                 Self::GoToPosition(_) => MenuMode::GoToPosition,
                 Self::Command => MenuMode::Command,
             }
         }
 
         pub fn platform(&self) -> Option<platform_types::MenuMode> {
+            use FindReplaceMode::*;
             match self {
                 Self::None => Some(platform_types::MenuMode::Hidden),
                 Self::FileSwitcher(_) => Some(platform_types::MenuMode::FileSwitcher),
-                Self::FindReplace(v) => Some(platform_types::MenuMode::FindReplace(v.mode)),
+                Self::FindReplace(v) => {
+                    Some(platform_types::MenuMode::FindReplace(v.mode.into()))
+                },
                 Self::GoToPosition(_) => Some(platform_types::MenuMode::GoToPosition),
                 Self::Command => None
             }
@@ -170,8 +179,17 @@ mod view {
             match p_m {
                 platform_types::MenuMode::Hidden => MenuMode::Hidden,
                 platform_types::MenuMode::FileSwitcher => MenuMode::FileSwitcher,
-                platform_types::MenuMode::FindReplace(m) => MenuMode::FindReplace(m),
+                platform_types::MenuMode::FindReplace(m) => MenuMode::FindReplace(m.into()),
                 platform_types::MenuMode::GoToPosition => MenuMode::GoToPosition
+            }
+        }
+    }
+
+    impl From<platform_types::FindReplaceMode> for FindReplaceMode {
+        fn from(p_m: platform_types::FindReplaceMode) -> Self {
+            use FindReplaceMode::*;
+            match p_m {
+                platform_types::FindReplaceMode::CurrentFile => CurrentFile,
             }
         }
     }
@@ -287,7 +305,7 @@ mod view {
         output
     }
 }
-pub use view::{View, MenuMode, MenuView};
+pub use view::{View, MenuMode, MenuView, FindReplaceMode};
 
 /// State owned by the `run` function, which can be uniquely borrowed by other functions called inside `run`.
 #[derive(Debug)]

@@ -147,7 +147,7 @@ impl EditorBuffers {
         self.buffers.current_index()
     }
 
-    pub fn current_index_part(&self) -> g_i::Index {
+    pub fn current_index_part(&self) -> g_i::IndexPart {
         self.buffers.current_index_part()
     }
 
@@ -202,12 +202,6 @@ impl EditorBuffers {
 
     pub fn index_state(&self) -> g_i::State {
         self.buffers.index_state()
-    }
-
-    pub fn replace_with_mapped_or_ignore<'iter, Iter, F>(&mut self, iter: Iter, mapper: F) -> bool
-    where Iter: Iterator<Item = &'iter EditorBuffer>,
-        F: FnMut(&EditorBuffer) -> BufferViewData {
-        self.buffers.replace_with_mapped_or_ignore(iter, mapper)
     }
 }
 
