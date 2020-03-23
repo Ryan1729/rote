@@ -370,7 +370,15 @@ fn render_file_switcher_menu_selects_the_fileswitcher_buffer_when_the_navigation
 
     let mut view_output: ViewOutput = d!();
 
-    render_file_switcher_menu(index, &fs_view, &mut ui, b_id!(BufferIdKind::FileSwitcher, index), dimensions, &mut view_output);
+    render_file_switcher_menu(
+        index, 
+        &fs_view, 
+        &mut ui, 
+        b_id!(BufferIdKind::FileSwitcher, index), 
+        dimensions, 
+        &mut view_output.text_or_rects,
+        &mut view_output.action,
+    );
 
     assert_eq!(view_output.action, ViewAction::Input(Input::SelectBuffer(b_id!(BufferIdKind::FileSwitcher, index))));
 }

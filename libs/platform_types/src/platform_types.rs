@@ -641,18 +641,21 @@ pub struct View {
 
 impl View {
     /// returns the currently visible editor buffer index.
-    pub fn visible_index(&self) -> g_i::Index {
+    pub fn current_text_index(&self) -> g_i::Index {
         self.buffers.current_index()
     }
 
     /// returns the currently visible editor buffer view and its index.
-    pub fn visible_index_and_buffer(&self) -> (g_i::Index, &BufferView) {
+    pub fn current_text_index_and_buffer(&self) -> (g_i::Index, &BufferView) {
         (
             self.buffers.current_index(),
             self.buffers.get_current_element()
         )
     }
 
+    pub fn get_buffer(&self, index: g_i::Index) -> Option<&BufferView> {
+        self.buffers.get(index)
+    }
 
     pub fn current_buffer_id(&self) -> BufferId {
         b_id!(
@@ -663,7 +666,7 @@ impl View {
 
     /// returns the selected menu buffer view data if there is a menu containing a buffer
     /// currently visible, or the current text buffer view data if not.
-    pub fn get_current_buffer_view_data(&self) -> Option<&BufferViewData> {
+    pub fn get_selected_buffer_view_data(&self) -> Option<&BufferViewData> {
         use BufferIdKind::*;
         match self.current_buffer_kind {
             None => Option::None,

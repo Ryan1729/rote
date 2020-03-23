@@ -799,10 +799,11 @@ mod tests {
         CloseElement(Index),
         AdjustSelection(SelectionAdjustment),
         PushAndSelectNew(A),
+        ReplaceWithMappedOrIgnore(Vec<A>),
     }
     d!(<A> for MutMethodSpec<A>: MutMethodSpec::GetCurrentElementMut);
 
-    impl <A> MutMethodSpec<A> {
+    impl <A: Clone> MutMethodSpec<A> {
         fn apply(self, svec1: &mut SelectableVec1<A>) {
             use MutMethodSpec::*;
             match self {
@@ -836,6 +837,9 @@ mod tests {
                 RemoveIfPresent(index) => {
                     svec1.remove_if_present(index);
                 }
+                ReplaceWithMappedOrIgnore(vec) => {
+                    svec1.replace_with_mapped_or_ignore(vec.iter(), |a| a.clone());
+                }
             }
         }
 
@@ -851,6 +855,7 @@ mod tests {
                 "swap_or_ignore",
                 "move_or_ignore",
                 "remove_if_present",
+                "replace_with_mapped_or_ignore",
             ]
         }
     }
@@ -1005,6 +1010,20 @@ mod tests {
                 CloseElement(_) => index(max_index).prop_map(CloseElement),
                 AdjustSelection(SelectionAdjustment) => selection_adjustment().prop_map(AdjustSelection),
                 PushAndSelectNew(_) => any::<i32>().prop_map(PushAndSelectNew),
+                ReplaceWithMappedOrIgnore(_) => any::<bool>().prop_flat_map(move |is_full| {
+                    let m_i = max_index as usize;
+                    if is_full {
+                        proptest::collection::vec(
+                            any::<i32>(),
+                            m_i..=m_i,
+                        )
+                    } else {
+                        proptest::collection::vec(
+                            any::<i32>(),
+                            0..=m_i,
+                        )
+                    }
+                }).prop_map(ReplaceWithMappedOrIgnore),
             }
         }
 
@@ -1338,7 +1357,7 @@ mod tests {
         )
     }
 
-    fn no_mut_method_spec_causes_getting_the_current_element_mut_to_panic_on<A: std::fmt::Debug>(
+    fn no_mut_method_spec_causes_getting_the_current_element_mut_to_panic_on<A: std::fmt::Debug + Clone>(
         mut s_vec1: SelectableVec1<A>,
         specs: Vec<MutMethodSpec<A>>,
     ) {

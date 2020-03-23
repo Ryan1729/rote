@@ -100,7 +100,7 @@ mod view {
     use macros::{d};
     use super::ui; // Your app's written in Electron? Shoulda used Super UI.
     use super::g_i;
-    use platform_types::{CursorView, BufferViewData, FileSwitcherView, FindReplaceView, GoToPositionView};
+    pub use platform_types::{CursorView, BufferViewData, FileSwitcherView, FindReplaceView, GoToPositionView, MenuMode, MenuView};
 
     #[derive(Clone, Copy, Debug, PartialEq)]
     enum LocalMenuMode {
@@ -114,79 +114,56 @@ mod view {
     d!(for FindReplaceMode: FindReplaceMode::CurrentFile);
 
     #[derive(Clone, Copy, Debug, PartialEq)]
-    pub enum MenuMode {
+    pub enum WimpMenuMode {
         Hidden,
         FileSwitcher,
         FindReplace(FindReplaceMode),
         GoToPosition,
         Command,
     }
-    d!(for MenuMode: MenuMode::Hidden);
+    d!(for WimpMenuMode: WimpMenuMode::Hidden);
 
     #[derive(Clone, Debug)]
-    enum LocalMenuView {
+    pub enum LocalMenuView {
         Command
     }
 
     #[derive(Clone, Debug)]
-    pub enum MenuView {
-        None,
-        FileSwitcher(FileSwitcherView),
-        FindReplace(FindReplaceView),
-        GoToPosition(GoToPositionView),
-        Command,
-    }
-    d!(for MenuView: MenuView::None);
-    
-    impl MenuView {
-        pub fn get_mode(&self) -> MenuMode {
-            match self {
-                Self::None => MenuMode::Hidden,
-                Self::FileSwitcher(_) => MenuMode::FileSwitcher,
-                Self::FindReplace(v) => MenuMode::FindReplace(v.mode.into()),
-                Self::GoToPosition(_) => MenuMode::GoToPosition,
-                Self::Command => MenuMode::Command,
-            }
-        }
-
-        pub fn platform(&self) -> Option<platform_types::MenuMode> {
-            use FindReplaceMode::*;
-            match self {
-                Self::None => Some(platform_types::MenuMode::Hidden),
-                Self::FileSwitcher(_) => Some(platform_types::MenuMode::FileSwitcher),
-                Self::FindReplace(v) => {
-                    Some(platform_types::MenuMode::FindReplace(v.mode.into()))
-                },
-                Self::GoToPosition(_) => Some(platform_types::MenuMode::GoToPosition),
-                Self::Command => None
+    pub struct WimpMenuView<'view> {
+        pub platform_menu: &'view MenuView,
+        pub local_menu: &'view Option<LocalMenuView>,
+    }    
+    impl WimpMenuView<'_> {
+        pub fn get_mode(&self) -> WimpMenuMode {
+            match self.local_menu {
+                Some(LocalMenuView::Command) => WimpMenuMode::Command,
+                None => self.platform_menu.get_mode().clone().into()
             }
         }
     }
 
-    impl From<platform_types::MenuView> for MenuView {
-        fn from(p_m: platform_types::MenuView) -> Self {
-            match p_m {
-                platform_types::MenuView::None => MenuView::None,
-                platform_types::MenuView::FileSwitcher(v) => MenuView::FileSwitcher(v),
-                platform_types::MenuView::FindReplace(v) => MenuView::FindReplace(v),
-                platform_types::MenuView::GoToPosition(v) => MenuView::GoToPosition(v)
-            }
-        }
-    }
-
-    impl From<platform_types::MenuMode> for MenuMode {
+    impl From<platform_types::MenuMode> for WimpMenuMode {
         fn from(p_m: platform_types::MenuMode) -> Self {
             match p_m {
-                platform_types::MenuMode::Hidden => MenuMode::Hidden,
-                platform_types::MenuMode::FileSwitcher => MenuMode::FileSwitcher,
-                platform_types::MenuMode::FindReplace(m) => MenuMode::FindReplace(m.into()),
-                platform_types::MenuMode::GoToPosition => MenuMode::GoToPosition
+                platform_types::MenuMode::Hidden => WimpMenuMode::Hidden,
+                platform_types::MenuMode::FileSwitcher => WimpMenuMode::FileSwitcher,
+                platform_types::MenuMode::FindReplace(m) => WimpMenuMode::FindReplace(m.into()),
+                platform_types::MenuMode::GoToPosition => WimpMenuMode::GoToPosition
             }
         }
     }
 
     impl From<platform_types::FindReplaceMode> for FindReplaceMode {
         fn from(p_m: platform_types::FindReplaceMode) -> Self {
+            use FindReplaceMode::*;
+            match p_m {
+                platform_types::FindReplaceMode::CurrentFile => CurrentFile,
+            }
+        }
+    }
+
+    impl From<&platform_types::FindReplaceMode> for FindReplaceMode {
+        fn from(p_m: &platform_types::FindReplaceMode) -> Self {
             use FindReplaceMode::*;
             match p_m {
                 platform_types::FindReplaceMode::CurrentFile => CurrentFile,
@@ -201,26 +178,9 @@ mod view {
     }
 
     impl View {
-        pub fn buffers_count(&self) -> g_i::Length {
-            self.platform_view.buffers.len()
-        }
-
-        pub fn buffer_iter(&self) -> impl Iterator<Item = (g_i::Index, &platform_types::BufferView)> {
-            self.platform_view.buffers.iter_with_indexes()
-        }
-
-        fn get_current_buffer_view_data(&self) -> Option<&BufferViewData> {
-            if let Some(_) = self.menu().platform() {
-                return self.platform_view.get_current_buffer_view_data();
-            }
-            None
-        }
-
-        pub fn get_fresh_navigation(&self) -> Option<ui::Navigation> {
-            self.get_current_buffer_view_data()
-                .map(|bvd| {
-                    navigation_from_cursors(&bvd.cursors)
-                })
+        pub fn close_menus(&mut self) {
+            self.local_menu = None;
+            self.platform_view.menu = platform_types::MenuView::None;
         }
 
         pub fn toggle_command_menu(&mut self) {
@@ -240,6 +200,34 @@ mod view {
             }
         }
 
+        pub fn update(&mut self, p_view: platform_types::View) {
+            self.platform_view = p_view;
+        }
+    }
+
+    impl View {
+        pub fn buffers_count(&self) -> g_i::Length {
+            self.platform_view.buffers.len()
+        }
+
+        pub fn buffer_iter(&self) -> impl Iterator<Item = (g_i::Index, &platform_types::BufferView)> {
+            self.platform_view.buffers.iter_with_indexes()
+        }
+
+        fn get_selected_buffer_view_data(&self) -> Option<&BufferViewData> {
+            if self.local_menu.is_none() {
+                return self.platform_view.get_selected_buffer_view_data();
+            }
+            None
+        }
+
+        pub fn get_fresh_navigation(&self) -> Option<ui::Navigation> {
+            self.get_selected_buffer_view_data()
+                .map(|bvd| {
+                    navigation_from_cursors(&bvd.cursors)
+                })
+        }
+
         pub fn current_buffer_kind(&self) -> platform_types::BufferIdKind {
             self.platform_view.current_buffer_kind
         }
@@ -248,28 +236,27 @@ mod view {
             self.platform_view.current_buffer_id()
         }
 
-        pub fn visible_index(&self) -> g_i::Index {
-            self.platform_view.visible_index()
+        pub fn current_text_index(&self) -> g_i::Index {
+            self.platform_view.current_text_index()
         }
 
-        pub fn visible_index_and_buffer(&self) -> (g_i::Index, &platform_types::BufferView) {
-            self.platform_view.visible_index_and_buffer()
+        pub fn current_text_index_and_buffer(&self) -> (g_i::Index, &platform_types::BufferView) {
+            self.platform_view.current_text_index_and_buffer()
         }
 
-        pub fn menu(&self) -> MenuView {
-            match self.local_menu {
-                Some(LocalMenuView::Command) => MenuView::Command,
-                None => self.platform_view.menu.clone().into()
+        pub fn get_buffer(&self, index: g_i::Index) -> Option<&platform_types::BufferView> {
+            self.platform_view.get_buffer(index)
+        }
+
+        pub fn menu(&self) -> WimpMenuView {
+            WimpMenuView {
+                platform_menu: &self.platform_view.menu,
+                local_menu: &self.local_menu,
             }
         }
 
-        // This method is preferred over `.menu().get_mode()` because this one 
-        // avoids copying the buffers.
-        pub fn menu_mode(&self) -> MenuMode {
-            match self.local_menu {
-                Some(LocalMenuView::Command) => MenuMode::Command,
-                None => self.platform_view.menu.get_mode().into()
-            }
+        pub fn menu_mode(&self) -> WimpMenuMode {
+            self.menu().get_mode()
         }
 
         pub fn status_line(&self) -> &platform_types::StatusLineView {
@@ -305,7 +292,7 @@ mod view {
         output
     }
 }
-pub use view::{View, MenuMode, MenuView, FindReplaceMode};
+pub use view::{View, MenuMode, WimpMenuMode, MenuView, WimpMenuView, FindReplaceMode};
 
 /// State owned by the `run` function, which can be uniquely borrowed by other functions called inside `run`.
 #[derive(Debug)]
@@ -321,6 +308,10 @@ pub struct RunState {
 }
 
 pub type CommandKey = (ModifiersState, VirtualKeyCode);
+
+pub fn command_menu_key() -> CommandKey {
+    (ModifiersState::empty(), VirtualKeyCode::Apps)
+}
 
 pub struct LabelledCommand {
     pub label: &'static str, 

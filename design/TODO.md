@@ -10,12 +10,15 @@
 * It inconveniently turns out to be difficult to make enums that wrap other enums and have them appear to have
      an extra variant but to otherwise be as convenient to use as before. Specifically we want to do this with
      the MenuView enum. Altertantives include:
-    * sucking it up and just "double match" on an option and the original enum.
+    * suck it up and just "double match" on an option and the original enum.
         * could write a macro for this I guess.
+        * another alternative is to pass function pointers for each variant.
     * copy the enum to another enum once, at the time the view changes.
-        * copying on demand, causes lifetime problems.
+        * copying on demand, causes lifetime problems. Will this actually fix them?
     * Try to transmute the value or something? Probably unsafe, and likely to cause hard to fix bugs.
-    * 
+    * use a numerical discrimiant, that would have extra possible values, and just use one of those.
+        Say a u8 where the editor promises to never use 128 and up.
+        * how do we store extra information that only makes sense in that mode?
     
        
 

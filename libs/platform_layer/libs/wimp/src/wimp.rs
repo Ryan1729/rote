@@ -8,7 +8,7 @@ use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::time::Duration;
 use wimp_render::{get_find_replace_info, FindReplaceInfo, get_go_to_position_info, GoToPositionInfo, ViewOutput, ViewAction};
-use wimp_types::{ui, ui::{PhysicalButtonState, Navigation}, transform_status, BufferStatus, BufferStatusMap, BufferStatusTransition, CustomEvent, get_clipboard, ClipboardProvider, Dimensions, LabelledCommand, LocalMenu, RunConsts, RunState, advance_local_menu};
+use wimp_types::{ui, ui::{PhysicalButtonState, Navigation}, transform_status, BufferStatus, BufferStatusMap, BufferStatusTransition, CustomEvent, get_clipboard, ClipboardProvider, Dimensions, LabelledCommand, RunConsts, RunState, WimpMenuMode, MenuMode};
 use file_chooser;
 use macros::d;
 use platform_types::{screen_positioning::screen_to_text_box, *};
@@ -317,7 +317,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
             ),
         };
 
-        let (view, c) = update_and_render(Input::SetSizeDependents(
+        let (v, c) = update_and_render(Input::SetSizeDependents(
             get_non_font_size_dependents!(d!(), dimensions)
         ));
 
@@ -331,9 +331,11 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
 
         let clipboard = get_clipboard();
 
+        let mut view: wimp_types::View = d!();
+        view.update(v);
+
         RunState {
             view,
-            local_menu: d!(),
             cmds,
             ui,
             buffer_status_map,
@@ -382,7 +384,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
         for (i, (name, data)) in previous_tabs.into_iter().enumerate() {
             call_u_and_r!(Input::AddOrSelectBuffer(name, data));
 
-            let index_state = r_s.view.index_state;
+            let index_state = r_s.view.index_state();
 
             // if we bothered saving them before, they were clearly edited.
             r_s.buffer_status_map.insert(
@@ -457,11 +459,11 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         let view = $view;
                         let buffer_status_map = $buffer_status_map;
                         buffer_status_map.insert(
-                            view.index_state,
+                            view.index_state(),
                             index,
                             transform_status(
                                 buffer_status_map
-                                    .get(view.index_state, index)
+                                    .get(view.index_state(), index)
                                     .unwrap_or_default(),
                                 BufferStatusTransition::Save
                             )
@@ -509,13 +511,13 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
             };
             ($r_s: expr, $mode: expr) => {
                 let r_s = $r_s;
-                let mode = $mode;
+                let mode: MenuMode = $mode;
                 
                 call_u_and_r!(r_s, Input::SetMenuMode(mode));
 
                 call_u_and_r!(r_s, Input::SetSizeDependents(SizeDependents {
                     buffer_xywh: wimp_render::get_edit_buffer_xywh(
-                        mode,
+                        mode.into(),
                         r_s.dimensions,
                     )
                     .into(),
@@ -537,10 +539,10 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
 
         register_commands!{
             [empty, Apps, "Open/Close this menu.", r_s {
-                advance_local_menu(&mut r_s.local_menu);
+                r_s.view.toggle_command_menu();
             }]
             [empty, Escape, "Close menus.", r_s {
-                r_s.local_menu = None;
+                r_s.view.close_menus();
 
                 call_u_and_r!(r_s, Input::SetSizeDependents(SizeDependents {
                     buffer_xywh: wimp_render::get_edit_buffer_xywh(
@@ -631,18 +633,17 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                 switch_menu_mode!(r_s, MenuMode::FileSwitcher);
             }]
             [CTRL, S, "Save.", r_s {
-                if let Some((i, buffer)) = r_s.view.get_visible_index_and_buffer() {
-                    match buffer.name {
-                        BufferName::Scratch(_) => {
-                            file_chooser_call!(
-                                r_s.event_proxy,
-                                save,
-                                p in CustomEvent::SaveNewFile(p, i)
-                            );
-                        }
-                        BufferName::Path(ref p) => {
-                            save_to_disk!(r_s, p, &buffer.data.chars, i);
-                        }
+                let (i, buffer) = r_s.view.current_text_index_and_buffer();
+                match buffer.name {
+                    BufferName::Scratch(_) => {
+                        file_chooser_call!(
+                            r_s.event_proxy,
+                            save,
+                            p in CustomEvent::SaveNewFile(p, i)
+                        );
+                    }
+                    BufferName::Path(ref p) => {
+                        save_to_disk!(r_s, p, &buffer.data.chars, i);
                     }
                 }
             }]
@@ -653,7 +654,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                 call_u_and_r!(state, Input::Paste(state.clipboard.get_contents().ok()));
             }]
             [CTRL, W, "Close tab.", r_s {
-                match r_s.view.current_buffer_id {
+                match r_s.view.current_buffer_id() {
                     BufferId {
                         kind: BufferIdKind::Text,
                         index,
@@ -718,13 +719,12 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                 ));
             }]
             [CTRL | SHIFT, S, "Save new file.", r_s {
-                if let Some(i) = r_s.view.visible_buffer {
-                    file_chooser_call!(
-                        r_s.event_proxy,
-                        save,
-                        p in CustomEvent::SaveNewFile(p, i)
-                    );
-                }
+                let i = r_s.view.current_text_index();
+                file_chooser_call!(
+                    r_s.event_proxy,
+                    save,
+                    p in CustomEvent::SaveNewFile(p, i)
+                );
             }]
             [CTRL | SHIFT, Z, "Redo.", state {
                 call_u_and_r!(state, Input::Redo);
@@ -820,8 +820,8 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         () => {{
                             let view = &r_s.view;
                             let xy = wimp_render::get_current_buffer_rect(
-                                view.current_buffer_id.kind,
-                                view.menu.get_mode(),
+                                view.current_buffer_kind(),
+                                view.menu_mode(),
                                 r_s.dimensions
                             )
                             .xy;
@@ -866,7 +866,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                             r_s.dimensions.window = wh_from_size!(size);
                             call_u_and_r!(Input::SetSizeDependents(
                                 get_non_font_size_dependents!(
-                                    r_s.view.menu.get_mode(),
+                                    r_s.view.menu_mode(),
                                     r_s.dimensions
                                 )
                             ));
@@ -907,7 +907,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
 
                                 if c == '\n' {
                                     use BufferIdKind::*;
-                                    match r_s.view.current_buffer_id.kind {
+                                    match r_s.view.current_buffer_kind() {
                                         None => {
                                             r_s.ui.navigation = Navigation::Interact;
                                         }
@@ -977,7 +977,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                                 m if m.is_empty() => {
                                     let cursor_icon = if wimp_render::should_show_text_cursor(
                                         ui.mouse_pos,
-                                        r_s.view.menu.get_mode(),
+                                        r_s.view.menu_mode(),
                                         r_s.dimensions
                                     ) {
                                         glutin::window::CursorIcon::Text
@@ -1034,14 +1034,12 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                     for _ in 0..EVENTS_PER_FRAME {
                         match editor_out_source.try_recv() {
                             Ok((v, c)) => {
-                                r_s.view = v;
-                                if let Some(index) = r_s.view.edited_buffer_index {
-                                    r_s.buffer_status_map.insert(
-                                        r_s.view.index_state,
-                                        index,
-                                        BufferStatus::EditedAndUnSaved
-                                    );
-                                }
+                                r_s.view.update(v);
+                                r_s.buffer_status_map.insert(
+                                    r_s.view.index_state(),
+                                    r_s.view.current_text_index(),
+                                    BufferStatus::EditedAndUnSaved
+                                );
 
                                 r_s.cmds.push_back(c);
                             }
@@ -1049,17 +1047,17 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         };
                     }
 
+                    let index_state = r_s.view.index_state();
                     for _ in 0..EVENTS_PER_FRAME {
                         match edited_files_out_source.try_recv() {
                             Ok((index, transition)) => {
-                                let view = &r_s.view;
                                 let buffer_status_map = &mut r_s.buffer_status_map;
                                 buffer_status_map.insert(
-                                    view.index_state,
+                                    index_state,
                                     index,
                                     transform_status(
                                         buffer_status_map
-                                            .get(view.index_state, index)
+                                            .get(index_state, index)
                                             .unwrap_or_default(),
                                         transition
                                     )
@@ -1151,22 +1149,21 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         // The fact we need to store the index and retreive it later, potentially
                         // across multiple updates, is why this thread needs to know about the
                         // generational indices.
-                        if let Some(b) = index
-                            .get(r_s.view.index_state)
-                            .and_then(|i| r_s.view.buffers.get(i))
+                        if let Some(b) = r_s.view.get_buffer(index)
                         {
                             save_to_disk!(r_s, p, &b.data.chars, index);
                         }
                     }
                     CustomEvent::SendBuffersToBeSaved => {
                         let view = &r_s.view;
+                        let index_state = view.index_state();
                         let _hope_it_gets_there = edited_files_in_sink.send(
                             EditedFilesThread::Buffers(
-                                view.index_state,
-                                view.buffers.iter().enumerate().map(|(i, b)|
+                                index_state,
+                                view.buffer_iter().map(|(i, b)|
                                     (
                                         b.to_owned(), 
-                                        r_s.buffer_status_map.get(view.index_state, view.index_state.new_index(g_i::IndexPart::or_max(i))).unwrap_or_default()
+                                        r_s.buffer_status_map.get(index_state, i).unwrap_or_default()
                                     )
                                 ).collect()
                             )

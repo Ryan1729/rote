@@ -1,5 +1,5 @@
 use gl_layer::{ColouredText, MulticolourTextSpec, TextLayout, TextOrRect, TextSpec, VisualSpec};
-use wimp_types::{View, MenuMode, MenuView, FindReplaceMode, ui_id, ui, ui::{ButtonState}, BufferStatus, ClipboardProvider, CommandKey, Dimensions, RunConsts, RunState};
+use wimp_types::{View, WimpMenuMode, MenuMode, MenuView, WimpMenuView, FindReplaceMode, ui_id, ui, ui::{ButtonState}, BufferStatus, ClipboardProvider, CommandKey, Dimensions, RunConsts, RunState, command_menu_key};
 use macros::{c, d};
 use platform_types::{g_i, BufferView, GoToPositionView, FindReplaceView, FileSwitcherView, BufferViewData, BufferIdKind, BufferId, b_id, CursorState, Highlight, HighlightKind, tbxy, tbxywh, Input, sswh, ssr, screen_positioning::*, SpanView};
 use std::cmp::max;
@@ -192,6 +192,7 @@ pub fn view<'view>(
         ref find_replace_char_dim,
         ..
     } = dimensions.font;
+
     const PER_BUFFER_TEXT_OR_RECT_ESTIMATE: usize =
         4   // 2-4 per tab, usually 2
     ;
@@ -217,7 +218,7 @@ pub fn view<'view>(
     // Tabs
     //
 
-    let selected_index = view.visible_index();
+    let selected_index = view.current_text_index();
 
     let mut i = 0;
     let tab_count = buffer_count;
@@ -279,7 +280,7 @@ pub fn view<'view>(
         i += 1;
     }
 
-    let (index, BufferView { data, .. }) = view.visible_index_and_buffer();
+    let (index, BufferView { data, .. }) = view.current_text_index_and_buffer();
     // let text = {
     //     chars
     //     // perf_viz::record_guard!("map unprinatbles to symbols for themselves");
@@ -316,28 +317,105 @@ pub fn view<'view>(
     ))
     .or(action);
 
-    let menu = view.menu().clone();
-    match menu {
-        MenuView::None => {}
-        MenuView::FindReplace(FindReplaceView {
-            mode,
-            find,
-            replace,
-        }) => {
-            //
-            //    Find/Replace
-            //
-            let FindReplaceInfo {
-                padding,
-                top_y,
-                bottom_y,
-                label_rect,
-                find_outer_rect,
-                replace_outer_rect,
-                ..
-            } = get_find_replace_info(dimensions);
-            match mode.into() {
-                FindReplaceMode::CurrentFile => {
+    
+    match view.menu() {
+        WimpMenuView { local_menu: &None, platform_menu } => {
+            match platform_menu {
+                MenuView::None => {}
+                MenuView::FindReplace(FindReplaceView {
+                    mode,
+                    find,
+                    replace,
+                }) => {
+                    //
+                    //    Find/Replace
+                    //
+                    let FindReplaceInfo {
+                        padding,
+                        top_y,
+                        bottom_y,
+                        label_rect,
+                        find_outer_rect,
+                        replace_outer_rect,
+                        ..
+                    } = get_find_replace_info(dimensions);
+                    match mode.into() {
+                        FindReplaceMode::CurrentFile => {
+                            let outer_rect = ScreenSpaceRect {
+                                min: (0.0, top_y),
+                                max: (width, bottom_y),
+                            };
+                            text_or_rects.push(TextOrRect::Rect(VisualSpec {
+                                rect: outer_rect,
+                                color: CHROME_BACKGROUND_COLOUR,
+                                z: FIND_REPLACE_BACKGROUND_Z,
+                            }));
+                            text_or_rects.push(TextOrRect::Text(TextSpec {
+                                text: "In current file",
+                                size: FIND_REPLACE_SIZE,
+                                layout: TextLayout::SingleLine,
+                                spec: VisualSpec {
+                                    rect: label_rect,
+                                    color: CHROME_TEXT_COLOUR,
+                                    z: FIND_REPLACE_Z,
+                                },
+                            }));
+                            macro_rules! spaced_input_box {
+                                ($data: expr, $input: expr, $outer_rect: expr) => {{
+                                    action = into_action(text_box(
+                                        ui,
+                                        &mut text_or_rects,
+                                        $outer_rect,
+                                        padding,
+                                        *find_replace_char_dim,
+                                        FIND_REPLACE_SIZE,
+                                        TextBoxColour::Single(CHROME_TEXT_COLOUR),
+                                        &$data,
+                                        $input,
+                                        FIND_REPLACE_Z,
+                                        view.current_buffer_id(),
+                                    ))
+                                    .or(action);
+                                }};
+                            }
+            
+                            spaced_input_box!(find, b_id!(BufferIdKind::Find, index), find_outer_rect);
+                            spaced_input_box!(
+                                replace,
+                                b_id!(BufferIdKind::Replace, index),
+                                replace_outer_rect
+                            );
+                        }
+                    }
+                }
+                MenuView::FileSwitcher(ref fs_view) => {
+                    render_file_switcher_menu(
+                        index,
+                        fs_view,
+                        ui,
+                        view.current_buffer_id(),
+                        dimensions,
+                        &mut text_or_rects,
+                        &mut action,
+                    );
+            
+                    if action.is_none() {
+                        print!(".");
+                    } else {
+                        dbg!(&action);
+                    }
+                }
+                MenuView::GoToPosition(GoToPositionView {
+                    ref go_to_position,
+                }) => {
+                    let GoToPositionInfo {
+                        padding,
+                        top_y,
+                        bottom_y,
+                        label_rect,
+                        input_outer_rect,
+                        ..
+                    } = get_go_to_position_info(dimensions);
                     let outer_rect = ScreenSpaceRect {
                         min: (0.0, top_y),
                         max: (width, bottom_y),
@@ -347,8 +425,9 @@ pub fn view<'view>(
                         color: CHROME_BACKGROUND_COLOUR,
                         z: FIND_REPLACE_BACKGROUND_Z,
                     }));
+                    
                     text_or_rects.push(TextOrRect::Text(TextSpec {
-                        text: "In current file",
+                        text: "Go to position",
                         size: FIND_REPLACE_SIZE,
                         layout: TextLayout::SingleLine,
                         spec: VisualSpec {
@@ -357,189 +436,119 @@ pub fn view<'view>(
                             z: FIND_REPLACE_Z,
                         },
                     }));
-                    macro_rules! spaced_input_box {
-                        ($data: expr, $input: expr, $outer_rect: expr) => {{
-                            action = into_action(text_box(
-                                ui,
-                                &mut text_or_rects,
-                                $outer_rect,
-                                padding,
-                                *find_replace_char_dim,
-                                FIND_REPLACE_SIZE,
-                                TextBoxColour::Single(CHROME_TEXT_COLOUR),
-                                &$data,
-                                $input,
-                                FIND_REPLACE_Z,
-                                view.current_buffer_id(),
-                            ))
-                            .or(action);
-                        }};
-                    }
-    
-                    spaced_input_box!(find, b_id!(BufferIdKind::Find, index), find_outer_rect);
-                    spaced_input_box!(
-                        replace,
-                        b_id!(BufferIdKind::Replace, index),
-                        replace_outer_rect
-                    );
-                }
-            }
-        }
-        MenuView::FileSwitcher(fs_view) => {
-            render_file_switcher_menu(
-                index,
-                fs_view,
-                ui,
-                view.current_buffer_id(),
-                dimensions,
-                &mut text_or_rects,
-                &mut action,
-            );
-    
-            if action.is_none() {
-                print!(".");
-            } else {
-                dbg!(&action);
-            }
-        }
-        MenuView::GoToPosition(GoToPositionView {
-            ref go_to_position,
-        }) => {
-            let GoToPositionInfo {
-                padding,
-                top_y,
-                bottom_y,
-                label_rect,
-                input_outer_rect,
-                ..
-            } = get_go_to_position_info(dimensions);
-            let outer_rect = ScreenSpaceRect {
-                min: (0.0, top_y),
-                max: (width, bottom_y),
-            };
-            text_or_rects.push(TextOrRect::Rect(VisualSpec {
-                rect: outer_rect,
-                color: CHROME_BACKGROUND_COLOUR,
-                z: FIND_REPLACE_BACKGROUND_Z,
-            }));
             
-            text_or_rects.push(TextOrRect::Text(TextSpec {
-                text: "Go to position",
-                size: FIND_REPLACE_SIZE,
-                layout: TextLayout::SingleLine,
-                spec: VisualSpec {
-                    rect: label_rect,
-                    color: CHROME_TEXT_COLOUR,
-                    z: FIND_REPLACE_Z,
-                },
-            }));
-    
-            action = into_action(text_box(
-                ui,
-                &mut text_or_rects,
-                input_outer_rect,
-                padding,
-                *find_replace_char_dim,
-                FIND_REPLACE_SIZE,
-                TextBoxColour::Single(CHROME_TEXT_COLOUR),
-                go_to_position,
-                b_id!(BufferIdKind::GoToPosition, index),
-                FIND_REPLACE_Z,
-                view.current_buffer_id(),
-            )).or(action);
-        }
-        MenuView::Command => {
-            let CommandMenuInfo {
-                top_y,
-                bottom_y,
-                padding,
-                margin,
-                list_padding,
-                list_margin,
-                first_button_rect,
-            } = get_command_menu_info(dimensions);
-            let outer_rect = ScreenSpaceRect {
-                min: (0.0, top_y),
-                max: (dimensions.window.w, bottom_y),
-            };
-            text_or_rects.push(TextOrRect::Rect(VisualSpec {
-                rect: outer_rect,
-                color: CHROME_BACKGROUND_COLOUR,
-                z: FIND_REPLACE_BACKGROUND_Z,
-            }));
-    
-            let text_or_rects = &mut text_or_rects;
-    
-            let FontInfo {
-                ref tab_char_dim,
-                ..
-            } = dimensions.font;
-        
-            let mut current_rect = first_button_rect;
-            let vertical_shift = first_button_rect.height() + list_margin.into_ltrb().b;
-        
-            let mut navigated_result = None;
-            let results: Vec<CommandKey> = commands.keys().cloned().collect();
-        
-            if action.is_none() {
-                use ui::Navigation::*;
-    
-                match if_changed::dbg!(ui.navigation) {
-                    None => {}
-                    Up => {
-                        ui.file_switcher_pos.index = if ui.file_switcher_pos.index == 0 {
-                            results.len().clone().checked_sub(1).unwrap_or(0)
-                        } else {
-                            ui.file_switcher_pos.index - 1
-                        };
-                    }
-                    Down => {
-                        ui.file_switcher_pos.index = (ui.file_switcher_pos.index + 1) % results.len();
-                    }
-                    Interact => {
-                        action = results
-                            .get(ui.file_switcher_pos.index)
-                            .cloned()
-                            .into();
-                    }
-                }
-    
-                navigated_result = Some(ui.file_switcher_pos.index);
-            }
-    
-            for (result_index, result) in results.iter().enumerate() {
-                if let Some(cmd) = commands.get(result) {
-                    let rect = current_rect;
-            
-                    let result_id = ui_id!(result_index);
-            
-                    match navigated_result {
-                        Some(i) if i == result_index => {
-                            if_changed::dbg!((result_index, result_id));
-                            ui.keyboard.set_next_hot(result_id);
-                        }
-                        _ => {}
-                    };
-            
-                    if do_outline_button(
+                    action = into_action(text_box(
                         ui,
-                        result_id,
-                        text_or_rects,
-                        OutlineButtonSpec {
-                            text: cmd.label,
-                            size: TAB_SIZE,
-                            char_dim: *tab_char_dim,
-                            layout: TextLayout::SingleLine,
-                            margin: list_margin,
-                            rect,
-                            z: TAB_Z,
-                            ..d!()
-                        },
-                    ) {
-                        action = ViewAction::Command(*result);
+                        &mut text_or_rects,
+                        input_outer_rect,
+                        padding,
+                        *find_replace_char_dim,
+                        FIND_REPLACE_SIZE,
+                        TextBoxColour::Single(CHROME_TEXT_COLOUR),
+                        go_to_position,
+                        b_id!(BufferIdKind::GoToPosition, index),
+                        FIND_REPLACE_Z,
+                        view.current_buffer_id(),
+                    )).or(action);
+                }
+            }
+        }
+        WimpMenuView { local_menu: Some(local_menu), .. } => {
+            match local_menu {
+                Command => {
+                    let CommandMenuInfo {
+                        top_y,
+                        bottom_y,
+                        padding,
+                        margin,
+                        list_padding,
+                        list_margin,
+                        first_button_rect,
+                    } = get_command_menu_info(dimensions);
+                    let outer_rect = ScreenSpaceRect {
+                        min: (0.0, top_y),
+                        max: (dimensions.window.w, bottom_y),
+                    };
+                    text_or_rects.push(TextOrRect::Rect(VisualSpec {
+                        rect: outer_rect,
+                        color: CHROME_BACKGROUND_COLOUR,
+                        z: FIND_REPLACE_BACKGROUND_Z,
+                    }));
+            
+                    let text_or_rects = &mut text_or_rects;
+            
+                    let FontInfo {
+                        ref tab_char_dim,
+                        ..
+                    } = dimensions.font;
+                
+                    let mut current_rect = first_button_rect;
+                    let vertical_shift = first_button_rect.height() + list_margin.into_ltrb().b;
+                
+                    let mut navigated_result = None;
+                    let results: Vec<CommandKey> = commands.keys().cloned().collect();
+                
+                    if action.is_none() {
+                        use ui::Navigation::*;
+            
+                        match if_changed::dbg!(ui.navigation) {
+                            None => {}
+                            Up => {
+                                ui.file_switcher_pos.index = if ui.file_switcher_pos.index == 0 {
+                                    results.len().clone().checked_sub(1).unwrap_or(0)
+                                } else {
+                                    ui.file_switcher_pos.index - 1
+                                };
+                            }
+                            Down => {
+                                ui.file_switcher_pos.index = (ui.file_switcher_pos.index + 1) % results.len();
+                            }
+                            Interact => {
+                                action = results
+                                    .get(ui.file_switcher_pos.index)
+                                    .cloned()
+                                    .into();
+                            }
+                        }
+            
+                        navigated_result = Some(ui.file_switcher_pos.index);
                     }
-                    current_rect.min.1 += vertical_shift;
-                    current_rect.max.1 += vertical_shift;
+            
+                    for (result_index, result) in results.iter().enumerate() {
+                        if let Some(cmd) = commands.get(result) {
+                            let rect = current_rect;
+                    
+                            let result_id = ui_id!(result_index);
+                    
+                            match navigated_result {
+                                Some(i) if i == result_index => {
+                                    if_changed::dbg!((result_index, result_id));
+                                    ui.keyboard.set_next_hot(result_id);
+                                }
+                                _ => {}
+                            };
+                    
+                            if do_outline_button(
+                                ui,
+                                result_id,
+                                text_or_rects,
+                                OutlineButtonSpec {
+                                    text: cmd.label,
+                                    size: TAB_SIZE,
+                                    char_dim: *tab_char_dim,
+                                    layout: TextLayout::SingleLine,
+                                    margin: list_margin,
+                                    rect,
+                                    z: TAB_Z,
+                                    ..d!()
+                                },
+                            ) {
+                                action = ViewAction::Command(*result);
+                            }
+                            current_rect.min.1 += vertical_shift;
+                            current_rect.max.1 += vertical_shift;
+                        }
+                    }
                 }
             }
         }
@@ -602,7 +611,7 @@ pub fn view<'view>(
             ..d!()
         },
     ) {
-        view.toggle_command_menu();
+        action = Some(command_menu_key()).into()
     }
       
 
@@ -639,7 +648,7 @@ pub fn view<'view>(
 
 fn render_file_switcher_menu<'view>(
     buffer_index: g_i::Index,
-    FileSwitcherView { search, results }: FileSwitcherView,
+    FileSwitcherView { search, results }: &'view FileSwitcherView,
     ui: &mut ui::State,
     current_buffer_id: BufferId,
     dimensions: Dimensions,
@@ -992,7 +1001,7 @@ pub fn make_active_tab_visible<'view>(
         window: sswh!(window_width, _h)
     }: Dimensions,
 ) -> Option<()> {
-    let target_index_or_max: usize = view.visible_index().into();
+    let target_index_or_max: usize = view.current_text_index().into();
     let tab_count = view.buffers_count().into();
     let tab_layout = get_tab_spaced_rect(&ui, tab_char_dim, 0, tab_count, window_width);
     let tab_width = tab_layout.width();
@@ -1647,7 +1656,7 @@ fn get_status_line_y(status_char_dim: CharDim, height: f32) -> f32 {
 }
 
 pub fn get_edit_buffer_xywh(
-    mode: MenuMode,
+    mode: WimpMenuMode,
     dimensions: Dimensions,
 ) -> TextBoxXYWH {
     let Dimensions {
@@ -1659,9 +1668,9 @@ pub fn get_edit_buffer_xywh(
         window: sswh!(width, height),
     } = dimensions;
     let max_y = match mode {
-        MenuMode::Hidden | MenuMode::GoToPosition => get_status_line_y(status_char_dim, height),
-        MenuMode::FindReplace(_) => get_find_replace_info(dimensions).top_y,
-        MenuMode::FileSwitcher | MenuMode::Command => height,
+        WimpMenuMode::Hidden | WimpMenuMode::GoToPosition => get_status_line_y(status_char_dim, height),
+        WimpMenuMode::FindReplace(_) => get_find_replace_info(dimensions).top_y,
+        WimpMenuMode::FileSwitcher | WimpMenuMode::Command => height,
     };
     let y = upper_position_info(tab_char_dim).edit_y;
     TextBoxXYWH {
@@ -1675,7 +1684,7 @@ pub fn get_edit_buffer_xywh(
 
 pub fn get_current_buffer_rect(
     current_buffer_kind: BufferIdKind,
-    mode: MenuMode,
+    mode: WimpMenuMode,
     dimensions: Dimensions,
 ) -> TextBoxXYWH {
     use BufferIdKind::*;
@@ -1692,13 +1701,13 @@ pub fn get_current_buffer_rect(
 /// This function determines whether the mouse cursor should use the text selection icon ot not.
 pub fn should_show_text_cursor(
     xy: ScreenSpaceXY,
-    mode: MenuMode,
+    mode: WimpMenuMode,
     dimensions: Dimensions,
 ) -> bool {
     let inside_edit_buffer = inside_rect(xy, get_edit_buffer_xywh(mode, dimensions).into());
     inside_edit_buffer || match mode {
-        MenuMode::Hidden | MenuMode::Command => false,
-        MenuMode::FindReplace(_) => {
+        WimpMenuMode::Hidden | WimpMenuMode::Command => false,
+        WimpMenuMode::FindReplace(_) => {
             let FindReplaceInfo {
                 find_outer_rect,
                 replace_outer_rect,
@@ -1708,7 +1717,7 @@ pub fn should_show_text_cursor(
             inside_rect(xy, find_outer_rect.into())
             || inside_rect(xy, replace_outer_rect.into())
         }
-        MenuMode::FileSwitcher => {
+        WimpMenuMode::FileSwitcher => {
             let FileSwitcherInfo {
                 search_outer_rect,
                 ..
@@ -1716,7 +1725,7 @@ pub fn should_show_text_cursor(
 
             inside_rect(xy, search_outer_rect.into())
         }
-        MenuMode::GoToPosition => {
+        WimpMenuMode::GoToPosition => {
             let GoToPositionInfo {
                 input_outer_rect,
                 ..
