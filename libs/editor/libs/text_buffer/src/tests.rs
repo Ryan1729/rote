@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+#![deny(array_into_iter)]
 use super::{cursor_assert, r, t_b, *};
 
 use arb::TestEdit;
@@ -316,7 +317,7 @@ fn final_non_newline_offset_for_rope_line_works_when_iterating_over_lines() {
     }
 
     let expected: Vec<_> = [1, 2, 3, 4, 5, 0, 1, 2, 3]
-        .into_iter()
+        .iter()
         .map(|&n| CharOffset(n))
         .collect();
 
@@ -337,7 +338,7 @@ fn final_non_newline_offset_for_rope_line_works_on_these_examples() {
     }
 
     let expected: Vec<_> = [0, 1, 2, 2, 3]
-        .into_iter()
+        .iter()
         .map(|&n| CharOffset(n))
         .collect();
 

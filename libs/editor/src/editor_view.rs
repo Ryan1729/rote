@@ -87,7 +87,9 @@ pub fn render(
         ..
     } = state;
     
-    view.buffers.replace_with_mapped_or_ignore(buffers.iter(), |editor_buffer| {
+    dbg!(buffers.len());
+    dbg!(view.buffers.len());
+    let replace_worked = view.buffers.replace_with_mapped_or_ignore(buffers.iter(), |editor_buffer| {
         let name = &editor_buffer.name;
         BufferView {
             name: name.clone(),
@@ -95,6 +97,7 @@ pub fn render(
             data: editor_to_buffer_view_data(parsers, &editor_buffer, AVERAGE_SELECTION_LINES_ESTIMATE),
         }
     });
+    debug_assert!(replace_worked);
 
     view.status_line.chars.clear();
 
@@ -181,5 +184,11 @@ pub fn render(
         },
     };
 
+    dbg!(buffers.len());
+    dbg!(view.buffers.len());
+
     view.current_buffer_kind = state.get_id().kind;
 }
+
+#[cfg(test)]
+mod editor_view_tests;

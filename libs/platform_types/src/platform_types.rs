@@ -95,7 +95,7 @@ macro_rules! b_id {
 pub enum BufferIdKind {
     /// Used to indicate that the keyboard is focused on a non-buffer.
     None,
-    /// Indicates A buffer repesenting an open file or an imemory scratch file.
+    /// Indicates a buffer repesenting an open file or an in memory scratch file.
     /// Almost all buffers are `Text` buffers.
     Text,
     Find,
@@ -705,7 +705,7 @@ pub struct BufferView {
 }
 
 /// We might change this later, but it will always be an integer of some sort.
-type SpanKindRaw = u8;
+pub type SpanKindRaw = u8;
 
 /// We want to allow different kinds of span classifiers to have 
 /// different sets of span kinds, and to be able to invent new ones

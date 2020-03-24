@@ -79,10 +79,7 @@ impl ClipboardHistory {
 }
 
 #[derive(Debug, Default)]
-pub struct State {
-    // TODO side by side visible buffers
-    // visible_buffers: VisibleBuffers,
-    buffers: EditorBuffers,
+pub struct State {    buffers: EditorBuffers,
     buffer_xywh: TextBoxXYWH,
     current_buffer_kind: BufferIdKind,
     menu_mode: MenuMode,

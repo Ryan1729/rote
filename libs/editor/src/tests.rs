@@ -6,7 +6,50 @@ use proptest::prelude::{proptest};
 
 mod arb {
     use super::*;
-    use proptest::prelude::{Strategy};
+    use proptest::prelude::{prop_compose, Strategy};
+
+    prop_compose!{
+        pub fn state()(
+            buffers in editor_buffers(),
+            /* TODO since we don't need the rest for the current test
+            buffer_xywh in tbxywh(),
+            current_buffer_kind in buffer_id_kind(),
+            mm in menu_mode(),
+            file_switcher in scrollable_buffer(),
+            fsr in file_switcher_results(),
+            find in scrollable_buffer(),
+            find_xywh in tbxywh(),
+            replace in scrollable_buffer(),
+            replace_xywh in tbxywh(),
+            go_to_position in scrollable_buffer(),
+            go_to_position_xywh in tbxywh(),
+            fi in font_info(),
+            ch in clipboard_history(),
+            p in parsers(),
+            */
+        ) -> State {
+            State {
+                buffers,
+                ..d!()
+                /*
+                buffer_xywh,
+                current_buffer_kind,
+                menu_mode: mm,
+                file_switcher,
+                file_switcher_results: fsr,
+                find,
+                find_xywh,
+                replace,
+                replace_xywh,
+                go_to_position,
+                go_to_position_xywh,
+                font_info: fi,
+                clipboard_history: ch,
+                parsers: p,
+                */
+            }
+        }
+    }
 
     pub fn at_least_one() -> impl Strategy<Value = f32> {
         proptest::num::f32::POSITIVE.prop_map(|n| 
@@ -19,7 +62,7 @@ mod arb {
         )
     }
 
-    pub use pub_arb_platform_types::menu_mode;
+    pub use pub_arb_platform_types::{menu_mode, view};
 }
 
 const CURSOR_SHOW_TEXT: &'static str = "            abcdefghijklmnopqrstuvwxyz::abcdefghijk::abcdefghijklmnopqrstuvwxyz";
@@ -318,5 +361,21 @@ fn update_and_render_resets_the_cursor_states_in_this_case() {
             c.state,
             d!(),
         );
+    }
+}
+
+proptest!{
+    fn render_updates_the_amount_of_buffers(
+        state in arb::state(),
+        view in arb::view(),
+    ) {
+        // they can be different or the same here
+        render(&mut state, &mut view);
+
+        // but the must be the same here
+        assert_eq!(
+            state.buffers.len(),
+            view.buffers.len(),
+        )
     }
 }

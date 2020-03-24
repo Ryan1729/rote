@@ -1,5 +1,6 @@
+#![deny(bindings_with_variant_name)]
 use gl_layer::{ColouredText, MulticolourTextSpec, TextLayout, TextOrRect, TextSpec, VisualSpec};
-use wimp_types::{View, WimpMenuMode, MenuMode, MenuView, WimpMenuView, FindReplaceMode, ui_id, ui, ui::{ButtonState}, BufferStatus, ClipboardProvider, CommandKey, Dimensions, RunConsts, RunState, command_menu_key};
+use wimp_types::{LocalMenuView, View, WimpMenuMode, MenuMode, MenuView, WimpMenuView, FindReplaceMode, ui_id, ui, ui::{ButtonState}, BufferStatus, ClipboardProvider, CommandKey, Dimensions, RunConsts, RunState, command_menu_key};
 use macros::{c, d};
 use platform_types::{g_i, BufferView, GoToPositionView, FindReplaceView, FileSwitcherView, BufferViewData, BufferIdKind, BufferId, b_id, CursorState, Highlight, HighlightKind, tbxy, tbxywh, Input, sswh, ssr, screen_positioning::*, SpanView};
 use std::cmp::max;
@@ -455,7 +456,7 @@ pub fn view<'view>(
         }
         WimpMenuView { local_menu: Some(local_menu), .. } => {
             match local_menu {
-                Command => {
+                LocalMenuView::Command => {
                     let CommandMenuInfo {
                         top_y,
                         bottom_y,

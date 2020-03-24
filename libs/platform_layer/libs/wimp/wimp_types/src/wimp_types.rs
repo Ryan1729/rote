@@ -292,7 +292,7 @@ mod view {
         output
     }
 }
-pub use view::{View, MenuMode, WimpMenuMode, MenuView, WimpMenuView, FindReplaceMode};
+pub use view::{View, LocalMenuView, MenuMode, WimpMenuMode, MenuView, WimpMenuView, FindReplaceMode};
 
 /// State owned by the `run` function, which can be uniquely borrowed by other functions called inside `run`.
 #[derive(Debug)]

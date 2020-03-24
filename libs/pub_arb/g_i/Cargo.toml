@@ -1,0 +1,11 @@
+[package]
+name = "pub_arb_platform_types"
+version = "0.1.0"
+authors = ["Ryan1729 <ryan1729@gmail.com>"]
+edition = "2018"
+
+[lib]
+path = "./src/pub_arb_platform_types.rs"
+
+[dependencies]
+proptest = "0.9"

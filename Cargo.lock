@@ -1563,6 +1563,7 @@ dependencies = [
  "macros 0.1.0",
  "mut_methods 0.1.0",
  "proptest 0.9.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pub_arb_platform_types 0.1.0",
  "vec1 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -1943,7 +1944,7 @@ dependencies = [
 
 [[package]]
 name = "rote"
-version = "0.2.90"
+version = "0.2.91"
 dependencies = [
  "check_or_no_panic 0.1.0",
  "editor 0.1.0",
