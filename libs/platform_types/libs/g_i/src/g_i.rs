@@ -1,8 +1,10 @@
 /// A module containg a Generational Index implementation
 use macros::{d, u, fmt_debug, fmt_display, ord, some_or, SaturatingAdd, SaturatingSub};
-use crate::{Vec1};
+pub use vec1::{vec1, Vec1};
+pub use move_mod::Move;
+
 pub type Generation = u32;
-type LengthSize = u32;
+pub type LengthSize = u32;
 
 /// The amount of elements in the collection using generational indexes. Not a valid index.
 #[derive(Clone, Copy, Default, Hash)]
@@ -704,7 +706,7 @@ mod selectable_vec1 {
         }
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "pub_arb"))]
     impl<A> SelectableVec1<A> {
         pub fn from_parts(
             elements: Vec1<A>,
@@ -721,8 +723,8 @@ mod selectable_vec1 {
 } 
 pub use selectable_vec1::{SelectableVec1, IterWithIndexes};
 
-#[cfg(test)]
-mod tests {
+#[cfg(any(test, feature = "pub_arb"))]
+pub mod tests {
     use super::*;
     use proptest::prelude::{proptest, Just};
     use arb_macros::{arb_enum};

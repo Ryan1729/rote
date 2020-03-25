@@ -10,10 +10,9 @@ pub mod floating_point;
 pub mod screen_positioning;
 pub use screen_positioning::*;
 
-mod move_mod;
 pub use move_mod::Move;
 
-pub mod g_i;
+pub use g_i;
 pub use g_i::{SelectionAdjustment, SelectionMove, SelectableVec1};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

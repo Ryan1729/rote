@@ -1,11 +1,12 @@
 [package]
-name = "pub_arb_platform_types"
+name = "pub_arb_g_i"
 version = "0.1.0"
 authors = ["Ryan1729 <ryan1729@gmail.com>"]
 edition = "2018"
 
 [lib]
-path = "./src/pub_arb_platform_types.rs"
+path = "./src/pub_arb_g_i.rs"
 
 [dependencies]
+g_i = { path = "../../../libs/platform_types/libs/g_i", features = ["pub_arb"]}
 proptest = "0.9"

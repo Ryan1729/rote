@@ -1,4 +1,5 @@
 pub use platform_types::{*, screen_positioning::*};
+use pub_arb_g_i::selectable_vec1;
 use arb_macros::{arb_enum};
 use proptest::num::f32;
 use proptest::collection::vec;
@@ -222,8 +223,8 @@ prop_compose!{
 prop_compose!{
     pub fn view()(
         current_buffer_kind in buffer_id_kind(),
-        buffers in selectable_vec1(buffer_view()),
-        menu in menu_mode(),
+        buffers in selectable_vec1(buffer_view(), 16),
+        menu in menu_view(),
         status_line in status_line_view(),
     ) -> View {
         View {

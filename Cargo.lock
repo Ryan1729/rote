@@ -730,6 +730,18 @@ version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
+name = "g_i"
+version = "0.1.0"
+dependencies = [
+ "arb_macros 0.1.0",
+ "macros 0.1.0",
+ "move_mod 0.1.0",
+ "mut_methods 0.1.0",
+ "proptest 0.9.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "vec1 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "gcc"
 version = "0.3.55"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1245,6 +1257,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "move_mod"
+version = "0.1.0"
+dependencies = [
+ "macros 0.1.0",
+]
+
+[[package]]
 name = "mut_methods"
 version = "0.1.0"
 dependencies = [
@@ -1560,8 +1579,9 @@ name = "platform_types"
 version = "0.1.0"
 dependencies = [
  "arb_macros 0.1.0",
+ "g_i 0.1.0",
  "macros 0.1.0",
- "mut_methods 0.1.0",
+ "move_mod 0.1.0",
  "proptest 0.9.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "pub_arb_platform_types 0.1.0",
  "vec1 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1630,12 +1650,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "pub_arb_g_i"
+version = "0.1.0"
+dependencies = [
+ "g_i 0.1.0",
+ "proptest 0.9.5 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "pub_arb_platform_types"
 version = "0.1.0"
 dependencies = [
  "arb_macros 0.1.0",
  "platform_types 0.1.0",
  "proptest 0.9.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pub_arb_g_i 0.1.0",
 ]
 
 [[package]]

@@ -9,8 +9,11 @@ path = "./src/platform_types.rs"
 
 [dependencies]
 vec1 = "1.4"
+g_i = { path = "./libs/g_i" }
 macros = { path = "../macros" }
-mut_methods = { path = "./libs/mut_methods" }
+move_mod = { path = "./libs/move_mod" }
+
+
 
 [dev-dependencies]
 proptest = "0.9.5"
