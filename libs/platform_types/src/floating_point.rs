@@ -63,9 +63,12 @@ pub fn next_smallest_f32_if_normal_or_0(x: f32) -> f32 {
 mod floating_point_tests {
     use super::*;
     use crate::tests::arb;
+    use proptest::num::f32;
     use proptest::proptest;
     use std::f32::{MAX, MIN, MIN_POSITIVE};
     use std::num::FpCategory::{Infinite, Normal, Zero};
+    
+
     // note, the following tests demostates that prop testing is not the same thing as testing every
     // case!
     proptest! {

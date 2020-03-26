@@ -12,11 +12,12 @@ vec1 = "1.4"
 g_i = { path = "./libs/g_i" }
 macros = { path = "../macros" }
 move_mod = { path = "./libs/move_mod" }
-
-
+proptest = { version = "0.9.5", optional = true }
+arb_macros = { path = "../arb_macros", optional = true }
+pub_arb_g_i = { path = "../pub_arb/g_i", optional = true }
 
 [dev-dependencies]
-proptest = "0.9.5"
-arb_macros = { path = "../arb_macros" }
-pub_arb_platform_types = { path = "../pub_arb/platform_types" }
 
+[features]
+default = []
+pub_arb = ["pub_arb_g_i", "arb_macros", "proptest"]

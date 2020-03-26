@@ -816,5 +816,5 @@ impl Cmd {
 pub type UpdateAndRenderOutput = (View, Cmd);
 pub type UpdateAndRender = fn(Input) -> UpdateAndRenderOutput;
 
-#[cfg(test)]
+#[cfg(any(test, feature = "pub_arb"))]
 pub mod tests;

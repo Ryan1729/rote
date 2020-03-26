@@ -9,6 +9,14 @@ mod arb {
     use proptest::prelude::{prop_compose, Strategy};
 
     prop_compose!{
+        pub fn editor_buffers()(
+            buffers in selectable_vec1(buffer_view(), 16),
+        ) -> EditorBuffers {
+            
+        }
+    }
+
+    prop_compose!{
         pub fn state()(
             buffers in editor_buffers(),
             /* TODO since we don't need the rest for the current test

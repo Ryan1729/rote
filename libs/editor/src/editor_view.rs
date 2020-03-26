@@ -189,6 +189,3 @@ pub fn render(
 
     view.current_buffer_kind = state.get_id().kind;
 }
-
-#[cfg(test)]
-mod editor_view_tests;

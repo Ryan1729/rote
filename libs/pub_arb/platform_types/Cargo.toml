@@ -8,11 +8,7 @@ edition = "2018"
 path = "./src/pub_arb_platform_types.rs"
 
 [dependencies]
-proptest = "0.9"
-pub_arb_g_i = { path = "../g_i" }
-
-[dependencies.arb_macros]
-path = "../../arb_macros"
 
 [dependencies.platform_types]
 path = "../../platform_types"
+features = ["pub_arb"]
