@@ -1,24 +1,20 @@
 use super::*;
+
 use platform_types::pos;
+
 use editor_types::{cur};
+use arb_macros::{arb_enum};
 use macros::{u};
 use proptest::prelude::{proptest};
 
 mod arb {
     use super::*;
-    use proptest::prelude::{prop_compose, Strategy};
-
-    prop_compose!{
-        pub fn editor_buffers()(
-            buffers in selectable_vec1(buffer_view(), 16),
-        ) -> EditorBuffers {
-            
-        }
-    }
+    use proptest::collection::vec;
+    use proptest::prelude::{prop_compose, Strategy, Just};
 
     prop_compose!{
         pub fn state()(
-            buffers in editor_buffers(),
+            buffers in editor_buffers::tests::arb::editor_buffers(),
             /* TODO since we don't need the rest for the current test
             buffer_xywh in tbxywh(),
             current_buffer_kind in buffer_id_kind(),
@@ -374,11 +370,11 @@ fn update_and_render_resets_the_cursor_states_in_this_case() {
 
 proptest!{
     fn render_updates_the_amount_of_buffers(
-        state in arb::state(),
-        view in arb::view(),
+        mut state in arb::state(),
+        mut view in arb::view(),
     ) {
         // they can be different or the same here
-        render(&mut state, &mut view);
+        editor_view::render(&mut state, &mut view);
 
         // but the must be the same here
         assert_eq!(

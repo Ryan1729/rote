@@ -17,6 +17,9 @@ arb_macros = { path = "../arb_macros", optional = true }
 pub_arb_g_i = { path = "../pub_arb/g_i", optional = true }
 
 [dev-dependencies]
+proptest = { version = "0.9.5"}
+arb_macros = { path = "../arb_macros"}
+pub_arb_g_i = { path = "../pub_arb/g_i"}
 
 [features]
 default = []

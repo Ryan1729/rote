@@ -1,7 +1,8 @@
 use super::*;
-use pub_arb_g_i::selectable_vec1;
+pub use pub_arb_g_i::selectable_vec1;
 use arb_macros::{arb_enum};
 use proptest::collection::vec;
+use proptest::num::f32;
 use proptest::prelude::{prop_compose, any, Strategy};
 use std::path::PathBuf;
 

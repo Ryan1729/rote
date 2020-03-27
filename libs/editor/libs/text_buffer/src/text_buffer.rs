@@ -1071,9 +1071,9 @@ impl TextBuffer {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "pub_arb"))]
 #[macro_use]
 pub mod test_macros;
-#[cfg(test)]
+#[cfg(any(test, feature = "pub_arb"))]
 #[macro_use]
 pub mod tests;

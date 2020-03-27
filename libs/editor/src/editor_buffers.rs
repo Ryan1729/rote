@@ -9,7 +9,7 @@ use text_buffer::{get_search_ranges, TextBuffer};
 
 use std::path::PathBuf;
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct ScrollableBuffer {
     pub text_buffer: TextBuffer,
     pub scroll: ScrollXY,
@@ -61,7 +61,7 @@ impl ScrollableBuffer {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct SearchResults {
     pub needle: String,
     pub ranges: Vec<(Position, Position)>,
@@ -85,7 +85,7 @@ pub fn update_search_results(needle: &TextBuffer, haystack: &mut EditorBuffer) {
     };
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct EditorBuffer {
     pub scrollable: ScrollableBuffer,
     pub name: BufferName,
@@ -212,5 +212,71 @@ impl EditorBuffers {
 
     pub fn iter_with_indexes(&self) -> g_i::IterWithIndexes<EditorBuffer> {
         self.buffers.iter_with_indexes()
+    }
+}
+
+#[cfg(any(test, feature = "pub_arb"))]
+pub mod tests {
+    use super::*;
+    pub mod arb {
+        use super::*;
+        use proptest::collection::vec;
+        use pub_arb_text_buffer::{no_history_text_buffer};
+        use pub_arb_platform_types::{buffer_name, position, selectable_vec1, scroll_xy, usual};
+        use proptest::prelude::{prop_compose, Strategy, Just};
+
+        prop_compose!{
+            pub fn search_results(max_len: usize)(
+                needle in ".*",
+                ranges_vec in vec((position(), position()), 0..max_len),
+            )(
+                needle in Just(needle), 
+                current_range in 0..ranges_vec.len(), 
+                ranges in Just(ranges_vec)
+            ) -> SearchResults {
+                SearchResults {
+                    needle,
+                    ranges,
+                    current_range,
+                }
+            }
+        }
+
+        prop_compose!{
+            pub fn editor_buffers()(
+                buffers in selectable_vec1(editor_buffer(), 16),
+            ) -> EditorBuffers {
+                EditorBuffers {
+                    buffers
+                }
+            }
+        }
+
+        prop_compose!{
+            pub fn editor_buffer()(
+                scrollable in scrollable_buffer(),
+                name in buffer_name(),
+                s_r in search_results(16),
+            ) -> EditorBuffer {
+                EditorBuffer {
+                    scrollable,
+                    name,
+                    search_results: s_r,
+                    parser_kind: None, // TODO if it ever matters
+                }
+            }
+        }
+    
+        prop_compose!{
+            pub fn scrollable_buffer()(
+                t_b in no_history_text_buffer(),
+                scroll in scroll_xy(usual()),
+            ) -> ScrollableBuffer {
+                ScrollableBuffer {
+                    text_buffer: t_b,
+                    scroll,
+                }
+            }
+        }
     }
 }

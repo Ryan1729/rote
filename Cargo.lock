@@ -582,6 +582,7 @@ dependencies = [
  "platform_types 0.1.0",
  "proptest 0.9.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "pub_arb_platform_types 0.1.0",
+ "pub_arb_text_buffer 0.1.0",
  "text_buffer 0.1.0",
 ]
 
@@ -1670,6 +1671,13 @@ version = "0.1.0"
 dependencies = [
  "macros 0.1.0",
  "proptest 0.9.5 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "pub_arb_text_buffer"
+version = "0.1.0"
+dependencies = [
+ "text_buffer 0.1.0",
 ]
 
 [[package]]
