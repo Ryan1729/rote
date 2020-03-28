@@ -418,6 +418,14 @@ mod selectable_vec1 {
                 current_index: d!(),
             }
         }
+
+        pub fn new_from_vec1(elements: Vec1<A>) -> Self {
+            Self {
+                elements,
+                index_state: d!(),
+                current_index: d!(),
+            }
+        }
     
         /// Since there is always at least one element, this always returns at least 1.
         pub fn len(&self) -> Length {
@@ -653,24 +661,28 @@ mod selectable_vec1 {
         }
 
         // Mutates the vec1 in place, replacing the elements with those produced
-        // by applying the mapper to the output of the iterator, if the iterator
-        // has exactly the same amount of elements as `self`. Otherwise this 
-        // method does nothing. If the elements were replaced, then `true` is 
-        // returned, otherwise `false` is.
-        pub fn replace_with_mapped_or_ignore<B, Iter, F>(&mut self, iter: Iter, mut mapper: F) -> bool
+        // by applying the mapper to the elements of the `other`. The selected 
+        // element will become the one that corresponded to the one from `other`.
+        // This implies that indexes saved from interactions with `other` should
+        // work with `self` afterwards, but ones previously obtained from 
+        // interactions with `self` are not guarenteed to.
+        pub fn replace_with_mapped<B, F>(&mut self, other: &SelectableVec1<B>, mut mapper: F)
         where
-            Iter: std::iter::ExactSizeIterator<Item = B>,
-            F: FnMut(B) -> A {
-            if iter.len() != self.len().0 as usize {
-                return false
-            }
+            F: FnMut(&B) -> A {
             
-            let slice = self.elements.as_mut_slice();
-            for (i, e) in iter.enumerate() {
-                slice[i] = mapper(e);
+            let _ = self.elements.try_truncate(1);
+
+            *self.elements.first_mut() = mapper(other.elements.first());
+            
+            let mut iter = other.elements.iter();
+            iter.next(); // skip first
+
+            for e in iter {
+                self.elements.push(mapper(e));
             }
 
-            true
+            self.index_state = other.index_state;
+            self.current_index = other.current_index;
         }
     }
     
@@ -801,7 +813,7 @@ pub mod tests {
         CloseElement(Index),
         AdjustSelection(SelectionAdjustment),
         PushAndSelectNew(A),
-        ReplaceWithMappedOrIgnore(Vec<A>),
+        ReplaceWithMapped(Vec<A>),
     }
     d!(<A> for MutMethodSpec<A>: MutMethodSpec::GetCurrentElementMut);
 
@@ -839,8 +851,15 @@ pub mod tests {
                 RemoveIfPresent(index) => {
                     svec1.remove_if_present(index);
                 }
-                ReplaceWithMappedOrIgnore(vec) => {
-                    svec1.replace_with_mapped_or_ignore(vec.iter(), |a| a.clone());
+                ReplaceWithMapped(vec) => {
+                    svec1.replace_with_mapped(
+                        &SelectableVec1::new_from_vec1(
+                            Vec1::try_from_vec(vec)
+                                // TODO put this in the generation step
+                                .expect("should contain at least one element")
+                        ),
+                        |a| a.clone()
+                    );
                 }
             }
         }
@@ -857,7 +876,7 @@ pub mod tests {
                 "swap_or_ignore",
                 "move_or_ignore",
                 "remove_if_present",
-                "replace_with_mapped_or_ignore",
+                "replace_with_mapped",
             ]
         }
     }
@@ -1012,7 +1031,7 @@ pub mod tests {
                 CloseElement(_) => index(max_index).prop_map(CloseElement),
                 AdjustSelection(SelectionAdjustment) => selection_adjustment().prop_map(AdjustSelection),
                 PushAndSelectNew(_) => any::<i32>().prop_map(PushAndSelectNew),
-                ReplaceWithMappedOrIgnore(_) => any::<bool>().prop_flat_map(move |is_full| {
+                ReplaceWithMapped(_) => any::<bool>().prop_flat_map(move |is_full| {
                     let m_i = max_index as usize;
                     if is_full {
                         proptest::collection::vec(
@@ -1025,7 +1044,7 @@ pub mod tests {
                             0..=m_i,
                         )
                     }
-                }).prop_map(ReplaceWithMappedOrIgnore),
+                }).prop_map(ReplaceWithMapped),
             }
         }
 

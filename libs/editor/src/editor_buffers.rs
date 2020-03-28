@@ -203,6 +203,10 @@ impl EditorBuffers {
     pub fn index_state(&self) -> g_i::State {
         self.buffers.index_state()
     }
+
+    pub fn buffers(&self) -> &SelectableVec1<EditorBuffer> {
+        &self.buffers
+    }
 }
 
 impl EditorBuffers {

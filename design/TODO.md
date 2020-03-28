@@ -1,26 +1,8 @@
 ## TODO
 
-* I have decided that it is worth it to change the `SelectableVec1::get_current_element` methods to return 
-    direct references instead of `Option`s. But, because of borrow checking issues, AFAICT we need an unwrap
-    and we need a default case as well. I decided to return the first element, in that case. I find myself 
-    only mostly sure that the case there will not come up. This means we should test all the mutating methods 
-    of `SelectableVec1` and make sure that they don't cause a problem where the get_current_element_mut panics
-    or returns the wrong value, simlarly to the tests we already have, but including all mutating methods.
+* fix tab/responsiveness bugs
 
-* It inconveniently turns out to be difficult to make enums that wrap other enums and have them appear to have
-     an extra variant but to otherwise be as convenient to use as before. Specifically we want to do this with
-     the MenuView enum. Altertantives include:
-    * suck it up and just "double match" on an option and the original enum.
-        * could write a macro for this I guess.
-        * another alternative is to pass function pointers for each variant.
-    * copy the enum to another enum once, at the time the view changes.
-        * copying on demand, causes lifetime problems. Will this actually fix them?
-    * Try to transmute the value or something? Probably unsafe, and likely to cause hard to fix bugs.
-    * use a numerical discrimiant, that would have extra possible values, and just use one of those.
-        Say a u8 where the editor promises to never use 128 and up.
-        * how do we store extra information that only makes sense in that mode?
-    
-       
+* get both command menu and file switcher menus scrolling
 
 * I find myself doubting whether putting the keyboard menu selection in the ui::Id was a good idea.
     * if nothing else, it seems like it would be nice to have the scroll state of the command menu stick around,

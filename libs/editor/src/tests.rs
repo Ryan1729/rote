@@ -369,6 +369,7 @@ fn update_and_render_resets_the_cursor_states_in_this_case() {
 }
 
 proptest!{
+    #[test]
     fn render_updates_the_amount_of_buffers(
         mut state in arb::state(),
         mut view in arb::view(),
