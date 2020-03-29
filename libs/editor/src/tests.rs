@@ -33,7 +33,7 @@ mod arb {
             */
         ) -> State {
             State {
-                buffers,
+                //buffers,
                 ..d!()
                 /*
                 buffer_xywh,

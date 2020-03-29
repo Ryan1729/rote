@@ -225,17 +225,17 @@ pub mod tests {
     pub mod arb {
         use super::*;
         use proptest::collection::vec;
-        use pub_arb_text_buffer::{no_history_text_buffer};
+        use pub_arb_text_buffer::{text_buffer_with_valid_cursors};
         use pub_arb_platform_types::{buffer_name, position, selectable_vec1, scroll_xy, usual};
         use proptest::prelude::{prop_compose, Strategy, Just};
 
         prop_compose!{
             pub fn search_results(max_len: usize)(
                 needle in ".*",
-                ranges_vec in vec((position(), position()), 0..max_len),
+                ranges_vec in vec((position(), position()), 1..max_len),
             )(
                 needle in Just(needle), 
-                current_range in 0..ranges_vec.len(), 
+                current_range in 0..=(ranges_vec.len() - 1), 
                 ranges in Just(ranges_vec)
             ) -> SearchResults {
                 SearchResults {
@@ -273,12 +273,13 @@ pub mod tests {
     
         prop_compose!{
             pub fn scrollable_buffer()(
-                t_b in no_history_text_buffer(),
+                t_b in text_buffer_with_valid_cursors(),
                 scroll in scroll_xy(usual()),
             ) -> ScrollableBuffer {
                 ScrollableBuffer {
-                    text_buffer: t_b,
-                    scroll,
+                    ..d!()
+                    /*text_buffer: t_b,
+                    scroll,*/
                 }
             }
         }

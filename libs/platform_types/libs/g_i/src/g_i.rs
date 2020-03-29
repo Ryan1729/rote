@@ -813,7 +813,7 @@ pub mod tests {
         CloseElement(Index),
         AdjustSelection(SelectionAdjustment),
         PushAndSelectNew(A),
-        ReplaceWithMapped(Vec<A>),
+        ReplaceWithMapped(Vec1<A>),
     }
     d!(<A> for MutMethodSpec<A>: MutMethodSpec::GetCurrentElementMut);
 
@@ -851,12 +851,10 @@ pub mod tests {
                 RemoveIfPresent(index) => {
                     svec1.remove_if_present(index);
                 }
-                ReplaceWithMapped(vec) => {
+                ReplaceWithMapped(vec1) => {
                     svec1.replace_with_mapped(
                         &SelectableVec1::new_from_vec1(
-                            Vec1::try_from_vec(vec)
-                                // TODO put this in the generation step
-                                .expect("should contain at least one element")
+                            vec1
                         ),
                         |a| a.clone()
                     );
@@ -1033,6 +1031,7 @@ pub mod tests {
                 PushAndSelectNew(_) => any::<i32>().prop_map(PushAndSelectNew),
                 ReplaceWithMapped(_) => any::<bool>().prop_flat_map(move |is_full| {
                     let m_i = max_index as usize;
+
                     if is_full {
                         proptest::collection::vec(
                             any::<i32>(),
@@ -1041,10 +1040,14 @@ pub mod tests {
                     } else {
                         proptest::collection::vec(
                             any::<i32>(),
-                            0..=m_i,
+                            1..=m_i,
                         )
                     }
-                }).prop_map(ReplaceWithMapped),
+                })
+                .prop_map(|v| {
+                    Vec1::try_from_vec(v).expect("should contain at least one element")
+                })
+                .prop_map(ReplaceWithMapped),
             }
         }
 
