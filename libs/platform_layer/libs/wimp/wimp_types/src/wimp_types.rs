@@ -313,6 +313,10 @@ pub fn command_menu_key() -> CommandKey {
     (ModifiersState::empty(), VirtualKeyCode::Apps)
 }
 
+pub fn debug_menu_key() -> CommandKey {
+    (ModifiersState::CTRL | ModifiersState::SHIFT, VirtualKeyCode::Slash)
+}
+
 pub struct LabelledCommand {
     pub label: &'static str, 
     pub command: fn(&mut RunState),

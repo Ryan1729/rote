@@ -1,6 +1,8 @@
 ## TODO
 
-* fix tab/responsiveness bugs
+* fix tab order changing bugs
+    * after changing the order of the tabs the selection indicator no longer seems to work, and generally
+        it just seems like to indexing is incorrect
 
 * get both command menu and file switcher menus scrolling
 

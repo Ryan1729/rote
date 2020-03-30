@@ -729,6 +729,9 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
             [CTRL | SHIFT, Z, "Redo.", state {
                 call_u_and_r!(state, Input::Redo);
             }]
+            [CTRL | SHIFT, Slash, "Toggle debug menu.", r_s {
+                r_s.view.toggle_debug_menu();
+            }]
             [SHIFT, Tab, "Indent out selection/line.", r_s {
                 call_u_and_r!(r_s, Input::TabOut);
             }]

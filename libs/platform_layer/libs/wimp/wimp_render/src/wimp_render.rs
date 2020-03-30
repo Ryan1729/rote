@@ -1,6 +1,6 @@
 #![deny(bindings_with_variant_name)]
 use gl_layer::{ColouredText, MulticolourTextSpec, TextLayout, TextOrRect, TextSpec, VisualSpec};
-use wimp_types::{LocalMenuView, View, WimpMenuMode, MenuMode, MenuView, WimpMenuView, FindReplaceMode, ui_id, ui, ui::{ButtonState}, BufferStatus, ClipboardProvider, CommandKey, Dimensions, RunConsts, RunState, command_menu_key};
+use wimp_types::{LocalMenuView, View, WimpMenuMode, MenuMode, MenuView, WimpMenuView, FindReplaceMode, ui_id, ui, ui::{ButtonState}, BufferStatus, ClipboardProvider, CommandKey, Dimensions, RunConsts, RunState, command_menu_key, debug_menu_key};
 use macros::{c, d};
 use platform_types::{g_i, BufferView, GoToPositionView, FindReplaceView, FileSwitcherView, BufferViewData, BufferIdKind, BufferId, b_id, CursorState, Highlight, HighlightKind, tbxy, tbxywh, Input, sswh, ssr, screen_positioning::*, SpanView};
 use std::cmp::max;
@@ -465,11 +465,8 @@ pub fn view<'view>(
                         list_padding,
                         list_margin,
                         first_button_rect,
+                        outer_rect,
                     } = get_command_menu_info(dimensions);
-                    let outer_rect = ScreenSpaceRect {
-                        min: (0.0, top_y),
-                        max: (dimensions.window.w, bottom_y),
-                    };
                     text_or_rects.push(TextOrRect::Rect(VisualSpec {
                         rect: outer_rect,
                         color: CHROME_BACKGROUND_COLOUR,
@@ -551,6 +548,33 @@ pub fn view<'view>(
                         }
                     }
                 }
+                LocalMenuView::Debug => {
+                    let DebugMenuInfo {
+                        top_y,
+                        bottom_y,
+                        padding,
+                        margin,
+                        outer_rect,
+                    } = get_debug_menu_info(dimensions);
+                    text_or_rects.push(TextOrRect::Rect(VisualSpec {
+                        rect: outer_rect,
+                        color: CHROME_BACKGROUND_COLOUR,
+                        z: FIND_REPLACE_BACKGROUND_Z,
+                    }));
+
+                    text_box_view(
+                        &mut text_or_rects,
+                        edit_buffer_text_rect,
+                        d!(),
+                        *text_char_dim,
+                        TEXT_SIZE,
+                        TextBoxColour::FromSpans,
+                        &data,
+                        TEXT_BACKGROUND_COLOUR,
+                        ui.get_fade_alpha(),
+                        EDIT_Z,
+                    );
+                }
             }
         }
     }
@@ -592,6 +616,34 @@ pub fn view<'view>(
         },
     }));
 
+    let far_right_button_rect = ssr!(
+        rect.max.0 - (status_char_dim.w + SEPARATOR_LINE_THICKNESS),
+        status_line_y + SEPARATOR_LINE_THICKNESS,
+        rect.max.0 - SEPARATOR_LINE_THICKNESS,
+        rect.max.1 - SEPARATOR_LINE_THICKNESS
+    );
+
+    if do_outline_button(
+        ui,
+        ui_id!(),
+        &mut text_or_rects,
+        OutlineButtonSpec {
+            text: "?", // 0x3F
+            size: STATUS_SIZE,
+            char_dim: *status_char_dim,
+            layout: TextLayout::SingleLine,
+            margin: Spacing::All(SEPARATOR_LINE_THICKNESS),
+            rect: far_right_button_rect.with_min_x(
+                far_right_button_rect.min.0 - (status_char_dim.w + 2.0 * SEPARATOR_LINE_THICKNESS)
+            ),
+            z: STATUS_Z,
+            ..d!()
+        },
+    ) {
+        action = Some(debug_menu_key()).into()
+    }
+
+
     if do_outline_button(
         ui,
         ui_id!(),
@@ -602,12 +654,7 @@ pub fn view<'view>(
             char_dim: *status_char_dim,
             layout: TextLayout::SingleLine,
             margin: Spacing::All(SEPARATOR_LINE_THICKNESS),
-            rect: ssr!(
-                rect.max.0 - (status_char_dim.w + SEPARATOR_LINE_THICKNESS),
-                status_line_y + SEPARATOR_LINE_THICKNESS,
-                rect.max.0 - SEPARATOR_LINE_THICKNESS,
-                rect.max.1 - SEPARATOR_LINE_THICKNESS
-            ),
+            rect: far_right_button_rect,
             z: STATUS_Z,
             ..d!()
         },
@@ -886,14 +933,7 @@ fn text_box<'view>(
     char_dim: CharDim,
     size: f32,
     text_color: TextBoxColour,
-    BufferViewData {
-        highlights,
-        cursors,
-        scroll,
-        chars,
-        spans,
-        ..
-    }: &'view BufferViewData,
+    buffer_view_data: &'view BufferViewData,
     buffer_id: BufferId,
     z: u16,
     current_buffer_id: BufferId,
@@ -905,7 +945,7 @@ fn text_box<'view>(
         input = Some(Input::SelectBuffer(buffer_id));
     }
 
-    let (color, cursor_alpha) = if current_buffer_id == buffer_id {
+    let (background_color, cursor_alpha) = if current_buffer_id == buffer_id {
         (TEXT_BACKGROUND_COLOUR, ui.get_fade_alpha())
     } else {
         (
@@ -918,9 +958,44 @@ fn text_box<'view>(
         )
     };
 
+    text_box_view(
+        text_or_rects,
+        outer_rect,
+        padding,
+        char_dim,
+        size,
+        text_color,
+        buffer_view_data,
+        background_color,
+        cursor_alpha,
+        z,
+    );
+
+    input
+}
+
+fn text_box_view<'view>(
+    text_or_rects: &mut Vec<TextOrRect<'view>>,
+    outer_rect: ScreenSpaceRect,
+    padding: Spacing,
+    char_dim: CharDim,
+    size: f32,
+    text_color: TextBoxColour,
+    BufferViewData {
+        highlights,
+        cursors,
+        scroll,
+        chars,
+        spans,
+        ..
+    }: &'view BufferViewData,
+    background_color: Colour,
+    cursor_alpha: f32,
+    z: u16,
+) {
     text_or_rects.push(TextOrRect::Rect(VisualSpec {
         rect: outer_rect,
-        color,
+        color: background_color,
         z: z.saturating_sub(1),
     }));
 
@@ -990,8 +1065,6 @@ fn text_box<'view>(
                 }
             }),
     );
-
-    input
 }
 
 pub fn make_active_tab_visible<'view>(
@@ -1612,27 +1685,33 @@ pub fn get_go_to_position_info(
 pub struct CommandMenuInfo {
     pub margin: Spacing,
     pub padding: Spacing,
-    pub list_margin: Spacing,
-    pub list_padding: Spacing,
     pub top_y: f32,
     pub bottom_y: f32,
+    pub outer_rect: ScreenSpaceRect,
     pub first_button_rect: ScreenSpaceRect,
+    pub list_margin: Spacing,
+    pub list_padding: Spacing,
 }
 
 pub fn get_command_menu_info(
-    Dimensions {
+    dimensions: Dimensions,
+) -> CommandMenuInfo {
+    let Dimensions {
         font: FontInfo {
             status_char_dim,
             tab_char_dim,
             ..
         },
         window: sswh!(width, height),
-    }: Dimensions,
-) -> CommandMenuInfo {
-    let SpacingAllSpec { margin, padding } = get_menu_spacing(height);
+    } = dimensions;
 
-    let top_y = upper_position_info(&tab_char_dim).edit_y;
-    let bottom_y = get_status_line_y(status_char_dim, height);
+    let CoverTextAreaInfo {
+        margin,
+        padding,
+        top_y,
+        bottom_y,
+        outer_rect,
+    } = cover_text_area_info(dimensions);
 
     let list_margin = margin * LIST_MARGIN_TO_PADDING_RATIO;
     let list_padding = margin * (1.0 - LIST_MARGIN_TO_PADDING_RATIO);
@@ -1644,11 +1723,86 @@ pub fn get_command_menu_info(
     CommandMenuInfo {
         margin: Spacing::All(margin),
         padding: Spacing::All(padding),
-        list_margin: Spacing::All(list_margin),
-        list_padding: Spacing::All(list_padding),
         top_y,
         bottom_y,
+        outer_rect,
+        list_margin: Spacing::All(list_margin),
+        list_padding: Spacing::All(list_padding),
         first_button_rect,
+    }
+}
+
+pub struct DebugMenuInfo {
+    pub margin: Spacing,
+    pub padding: Spacing,
+    pub top_y: f32,
+    pub bottom_y: f32,
+    pub outer_rect: ScreenSpaceRect,
+}
+
+pub fn get_debug_menu_info(
+    dimensions: Dimensions,
+) -> DebugMenuInfo {
+    let Dimensions {
+        font: FontInfo {
+            status_char_dim,
+            tab_char_dim,
+            ..
+        },
+        window: sswh!(width, height),
+    } = dimensions;
+
+    let CoverTextAreaInfo {
+        margin,
+        padding,
+        top_y,
+        bottom_y,
+        outer_rect,
+    } = cover_text_area_info(dimensions);
+    DebugMenuInfo {
+        margin: Spacing::All(margin),
+        padding: Spacing::All(padding),
+        top_y,
+        bottom_y,
+        outer_rect,
+    }
+}
+
+/// Info for making a rect that completely covers the text area.
+pub struct CoverTextAreaInfo {
+    pub margin: f32,
+    pub padding: f32,
+    pub top_y: f32,
+    pub bottom_y: f32,
+    pub outer_rect: ScreenSpaceRect,
+}
+
+pub fn cover_text_area_info(
+    Dimensions {
+        font: FontInfo {
+            status_char_dim,
+            tab_char_dim,
+            ..
+        },
+        window: sswh!(width, height),
+    }: Dimensions,
+) -> CoverTextAreaInfo {
+    let SpacingAllSpec { margin, padding } = get_menu_spacing(height);
+
+    let top_y = upper_position_info(&tab_char_dim).edit_y;
+    let bottom_y = get_status_line_y(status_char_dim, height);
+
+    let outer_rect = ScreenSpaceRect {
+        min: (0.0, top_y),
+        max: (width, bottom_y),
+    };
+
+    CoverTextAreaInfo {
+        margin,
+        padding,
+        top_y,
+        bottom_y,
+        outer_rect,
     }
 }
 
