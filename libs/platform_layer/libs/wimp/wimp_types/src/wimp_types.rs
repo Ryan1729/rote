@@ -120,12 +120,14 @@ mod view {
         FindReplace(FindReplaceMode),
         GoToPosition,
         Command,
+        Debug,
     }
     d!(for WimpMenuMode: WimpMenuMode::Hidden);
 
     #[derive(Clone, Debug)]
     pub enum LocalMenuView {
-        Command
+        Command,
+        Debug,
     }
 
     #[derive(Clone, Debug)]
@@ -137,6 +139,7 @@ mod view {
         pub fn get_mode(&self) -> WimpMenuMode {
             match self.local_menu {
                 Some(LocalMenuView::Command) => WimpMenuMode::Command,
+                Some(LocalMenuView::Debug) => WimpMenuMode::Debug,
                 None => self.platform_menu.get_mode().clone().into()
             }
         }
@@ -177,6 +180,28 @@ mod view {
         local_menu: Option<LocalMenuView>
     }
 
+    macro_rules! toggle_impl {
+        ($view: expr,  $toggled: path $(,)?) => {
+            match $view.local_menu {
+                None => match $view.platform_view.menu {
+                    platform_types::MenuView::None => {
+                        $view.local_menu = Some($toggled)
+                    },
+                    _ => { 
+                        // We don't want to be able to layer the local menus on top of the editor menus,
+                        // because that makes them feel different/less integrated.
+                    }
+                },
+                Some($toggled) => {
+                    $view.local_menu = None;
+                },
+                Some(_) => {
+                    $view.local_menu = Some($toggled);
+                }
+            }
+        }
+    }
+
     impl View {
         pub fn close_menus(&mut self) {
             self.local_menu = None;
@@ -184,19 +209,16 @@ mod view {
         }
 
         pub fn toggle_command_menu(&mut self) {
-            match self.local_menu {
-                None => match self.platform_view.menu {
-                    platform_types::MenuView::None => {
-                        self.local_menu = Some(LocalMenuView::Command)
-                    },
-                    _ => { 
-                        // We don't want to be able to layer the local menus on top of the editor menus,
-                        // because that makes them feel different/less integrated.
-                    }
-                },
-                Some(LocalMenuView::Command) => {
-                    self.local_menu = None
-                },
+            toggle_impl!{
+                self,
+                LocalMenuView::Command,
+            }
+        }
+
+        pub fn toggle_debug_menu(&mut self) {
+            toggle_impl!{
+                self,
+                LocalMenuView::Debug,
             }
         }
 
@@ -309,13 +331,23 @@ pub struct RunState {
 
 pub type CommandKey = (ModifiersState, VirtualKeyCode);
 
-pub fn command_menu_key() -> CommandKey {
-    (ModifiersState::empty(), VirtualKeyCode::Apps)
+pub mod command_keys {
+    use super::{CommandKey, ModifiersState, VirtualKeyCode};
+
+    pub fn command_menu() -> CommandKey {
+        (ModifiersState::empty(), VirtualKeyCode::Apps)
+    }
+    
+    pub fn debug_menu() -> CommandKey {
+        (ModifiersState::CTRL | ModifiersState::SHIFT, VirtualKeyCode::Slash)
+    }
+
+    pub fn add_run_state_snapshot() -> CommandKey {
+        (ModifiersState::CTRL | ModifiersState::ALT, VirtualKeyCode::F1)
+    }
 }
 
-pub fn debug_menu_key() -> CommandKey {
-    (ModifiersState::CTRL | ModifiersState::SHIFT, VirtualKeyCode::Slash)
-}
+
 
 pub struct LabelledCommand {
     pub label: &'static str, 

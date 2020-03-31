@@ -496,17 +496,6 @@ macro_rules! ok_or {
     }};
 }
 
-#[macro_export]
-macro_rules! dg {
-    ($thing:expr) => {
-        if cfg!(debug_assertions) {
-            dbg!($thing)
-        } else {
-            $thing
-        }
-    };
-}
-
 /// Shortens expressions that evaluate to the usual `[f32; 4] type` used for representing colour.
 #[macro_export]
 macro_rules! c {

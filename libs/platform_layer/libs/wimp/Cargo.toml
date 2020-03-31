@@ -30,7 +30,7 @@ directories = "2.0"
 
 [features]
 default = []
-invariant-checking = []
+invariant-checking = ["wimp_render/invariant-checking"]
 time-render = ["gl_layer/time-render"]
 extra-prints = ["shared/extra-prints"]
 print-raw-input = []

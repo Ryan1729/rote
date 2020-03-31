@@ -8,3 +8,7 @@ edition = "2018"
 path = "./src/macros.rs"
 
 [dependencies]
+
+[features]
+default = []
+invariant-checking = []

@@ -81,6 +81,12 @@ macro_rules! sswh {
     //
     // Pattern matching
     //
+    (_, $h: ident) => {
+        ScreenSpaceWH { w: _, h: $h }
+    };
+    ($w: ident, _) => {
+        ScreenSpaceWH { w: $w, h: _ }
+    };
     ($w: ident, $h: ident) => {
         ScreenSpaceWH { w: $w, h: $h }
     };

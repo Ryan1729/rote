@@ -18,3 +18,7 @@ macros = { path = "../../../../macros" }
 
 [dev-dependencies]
 proptest = "0.9.3"
+
+[features]
+default = []
+invariant-checking = ["macros/invariant-checking"]

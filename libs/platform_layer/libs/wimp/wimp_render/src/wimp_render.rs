@@ -1,7 +1,7 @@
-#![deny(bindings_with_variant_name)]
+#![deny(bindings_with_variant_name, dead_code, unused_variables)]
 use gl_layer::{ColouredText, MulticolourTextSpec, TextLayout, TextOrRect, TextSpec, VisualSpec};
-use wimp_types::{LocalMenuView, View, WimpMenuMode, MenuMode, MenuView, WimpMenuView, FindReplaceMode, ui_id, ui, ui::{ButtonState}, BufferStatus, ClipboardProvider, CommandKey, Dimensions, RunConsts, RunState, command_menu_key, debug_menu_key};
-use macros::{c, d};
+use wimp_types::{CommandsMap, LocalMenuView, View, WimpMenuMode, MenuMode, MenuView, WimpMenuView, FindReplaceMode, ui_id, ui, ui::{ButtonState}, BufferStatus, ClipboardProvider, CommandKey, Dimensions, RunConsts, RunState, command_keys};
+use macros::{c, d, invariant_assert, u};
 use platform_types::{g_i, BufferView, GoToPositionView, FindReplaceView, FileSwitcherView, BufferViewData, BufferIdKind, BufferId, b_id, CursorState, Highlight, HighlightKind, tbxy, tbxywh, Input, sswh, ssr, screen_positioning::*, SpanView};
 use std::cmp::max;
 
@@ -101,7 +101,7 @@ const RESULT_HIGHLIGHT_COLOUR: Colour = palette![yellow, HIGHLIGHT_ALPHA];
 const CURRENT_RESULT_HIGHLIGHT_COLOUR: Colour = palette![green, HIGHLIGHT_ALPHA];
 
 fn highlight_kind_colour(kind: HighlightKind) -> Colour {
-    use HighlightKind::*;
+    u!{HighlightKind}
     match kind {
         User => USER_HIGHLIGHT_COLOUR,
         Result => RESULT_HIGHLIGHT_COLOUR,
@@ -145,7 +145,7 @@ fn into_action(opt: Option<Input>) -> ViewAction {
 
 impl From<Option<Input>> for ViewAction {
     fn from(op: Option<Input>) -> Self {
-        use ViewAction::*;
+        u!{ViewAction}
         match op {
             Some(input) => Input(input),
             Option::None => None
@@ -155,7 +155,7 @@ impl From<Option<Input>> for ViewAction {
 
 impl From<Option<CommandKey>> for ViewAction {
     fn from(op: Option<CommandKey>) -> Self {
-        use ViewAction::*;
+        u!{ViewAction}
         match op {
             Some(key) => Command(key),
             Option::None => None
@@ -458,14 +458,10 @@ pub fn view<'view>(
             match local_menu {
                 LocalMenuView::Command => {
                     let CommandMenuInfo {
-                        top_y,
-                        bottom_y,
-                        padding,
-                        margin,
-                        list_padding,
                         list_margin,
                         first_button_rect,
                         outer_rect,
+                        ..
                     } = get_command_menu_info(dimensions);
                     text_or_rects.push(TextOrRect::Rect(VisualSpec {
                         rect: outer_rect,
@@ -474,11 +470,6 @@ pub fn view<'view>(
                     }));
             
                     let text_or_rects = &mut text_or_rects;
-            
-                    let FontInfo {
-                        ref tab_char_dim,
-                        ..
-                    } = dimensions.font;
                 
                     let mut current_rect = first_button_rect;
                     let vertical_shift = first_button_rect.height() + list_margin.into_ltrb().b;
@@ -487,7 +478,7 @@ pub fn view<'view>(
                     let results: Vec<CommandKey> = commands.keys().cloned().collect();
                 
                     if action.is_none() {
-                        use ui::Navigation::*;
+                        u!{ui::Navigation}
             
                         match if_changed::dbg!(ui.navigation) {
                             None => {}
@@ -513,48 +504,35 @@ pub fn view<'view>(
                     }
             
                     for (result_index, result) in results.iter().enumerate() {
-                        if let Some(cmd) = commands.get(result) {
-                            let rect = current_rect;
-                    
-                            let result_id = ui_id!(result_index);
-                    
-                            match navigated_result {
-                                Some(i) if i == result_index => {
-                                    if_changed::dbg!((result_index, result_id));
-                                    ui.keyboard.set_next_hot(result_id);
-                                }
-                                _ => {}
-                            };
-                    
-                            if do_outline_button(
-                                ui,
-                                result_id,
-                                text_or_rects,
-                                OutlineButtonSpec {
-                                    text: cmd.label,
-                                    size: TAB_SIZE,
-                                    char_dim: *tab_char_dim,
-                                    layout: TextLayout::SingleLine,
-                                    margin: list_margin,
-                                    rect,
-                                    z: TAB_Z,
-                                    ..d!()
-                                },
-                            ) {
-                                action = ViewAction::Command(*result);
+                        let result_id = ui_id!(result_index);
+                
+                        match navigated_result {
+                            Some(i) if i == result_index => {
+                                ui.keyboard.set_next_hot(result_id);
                             }
-                            current_rect.min.1 += vertical_shift;
-                            current_rect.max.1 += vertical_shift;
-                        }
+                            _ => {}
+                        };
+                    
+                        command_button(
+                            ui,
+                            ui_id!(),
+                            text_or_rects,
+                            current_rect,
+                            dimensions,
+                            &commands,
+                            result,
+                            &mut action,
+                        );
+                            
+                        current_rect.min.1 += vertical_shift;
+                        current_rect.max.1 += vertical_shift;
                     }
                 }
                 LocalMenuView::Debug => {
                     let DebugMenuInfo {
-                        top_y,
-                        bottom_y,
-                        padding,
-                        margin,
                         outer_rect,
+                        first_button_rect,
+                        ..
                     } = get_debug_menu_info(dimensions);
                     text_or_rects.push(TextOrRect::Rect(VisualSpec {
                         rect: outer_rect,
@@ -562,17 +540,15 @@ pub fn view<'view>(
                         z: FIND_REPLACE_BACKGROUND_Z,
                     }));
 
-                    text_box_view(
+                    command_button(
+                        ui,
+                        ui_id!(),
                         &mut text_or_rects,
-                        edit_buffer_text_rect,
-                        d!(),
-                        *text_char_dim,
-                        TEXT_SIZE,
-                        TextBoxColour::FromSpans,
-                        &data,
-                        TEXT_BACKGROUND_COLOUR,
-                        ui.get_fade_alpha(),
-                        EDIT_Z,
+                        first_button_rect,
+                        dimensions,
+                        &commands,
+                        &command_keys::add_run_state_snapshot(),
+                        &mut action,
                     );
                 }
             }
@@ -623,6 +599,14 @@ pub fn view<'view>(
         rect.max.1 - SEPARATOR_LINE_THICKNESS
     );
 
+    let second_button_min_x = far_right_button_rect.min.0 - (status_char_dim.w + 2.0 * SEPARATOR_LINE_THICKNESS);
+
+    let second_button_rect = far_right_button_rect
+    .with_min_x(second_button_min_x)
+    .with_max_x(
+        second_button_min_x + (far_right_button_rect.max.0 - far_right_button_rect.min.0)
+    );
+
     if do_outline_button(
         ui,
         ui_id!(),
@@ -633,14 +617,12 @@ pub fn view<'view>(
             char_dim: *status_char_dim,
             layout: TextLayout::SingleLine,
             margin: Spacing::All(SEPARATOR_LINE_THICKNESS),
-            rect: far_right_button_rect.with_min_x(
-                far_right_button_rect.min.0 - (status_char_dim.w + 2.0 * SEPARATOR_LINE_THICKNESS)
-            ),
+            rect: second_button_rect,
             z: STATUS_Z,
             ..d!()
         },
     ) {
-        action = Some(debug_menu_key()).into()
+        action = Some(command_keys::debug_menu()).into()
     }
 
 
@@ -659,7 +641,7 @@ pub fn view<'view>(
             ..d!()
         },
     ) {
-        action = Some(command_menu_key()).into()
+        action = Some(command_keys::command_menu()).into()
     }
       
 
@@ -669,7 +651,7 @@ pub fn view<'view>(
 
     if !ui.window_is_focused {
         for t_or_r in text_or_rects.iter_mut() {
-            use TextOrRect::*;
+            u!{TextOrRect}
             match t_or_r {
                 Rect(ref mut spec) => {
                     spec.color = grey_scale_dim!(spec.color);
@@ -691,6 +673,46 @@ pub fn view<'view>(
     ViewOutput {
         text_or_rects,
         action,
+    }
+}
+
+fn command_button<'view> (
+    ui: &mut ui::State,
+    id: ui::Id,
+    text_or_rects: &mut Vec<TextOrRect<'view>>,
+    rect: ScreenSpaceRect,
+    dimensions: Dimensions,
+    commands: &CommandsMap,
+    command_key: &CommandKey,
+    action: &mut ViewAction,
+) {
+    let cmd_option = commands.get(command_key);
+    invariant_assert!(cmd_option.is_some(), "{:?} has no command associated with it!", command_key);
+
+    if let Some(cmd) = cmd_option {
+        let Dimensions {
+            window: sswh!(_w, height),
+            ..
+        } = dimensions;
+        let SpacingAllSpec { margin, .. } = get_menu_spacing(height);
+
+        if do_outline_button(
+            ui,
+            id,
+            text_or_rects,
+            OutlineButtonSpec {
+                text: cmd.label,
+                size: TAB_SIZE,
+                char_dim: dimensions.font.tab_char_dim,
+                layout: TextLayout::SingleLine,
+                margin: Spacing::All(margin * LIST_MARGIN_TO_PADDING_RATIO),
+                rect,
+                z: TAB_Z,
+                ..d!()
+            },
+        ) {
+            *action = ViewAction::Command(*command_key);
+        }
     }
 }
 
@@ -772,7 +794,7 @@ fn render_file_switcher_menu<'view>(
     let mut navigated_result = None;
 
     if action.is_none() {
-        use ui::Navigation::*;
+        u!{ui::Navigation}
         match if_changed::dbg!(ui.navigation) {
             None => {
                 if current_buffer_id.kind != BufferIdKind::None {
@@ -1152,7 +1174,7 @@ fn render_outline_button<'view>(
     state: ButtonState,
     fade_alpha: f32,
 ) {
-    use ButtonState::*;
+    u!{ButtonState}
 
     const BACKGROUND_COLOUR: Colour = TAB_BACKGROUND_COLOUR;
     const TEXT_COLOUR: Colour = TAB_TEXT_COLOUR;
@@ -1165,7 +1187,7 @@ fn render_outline_button<'view>(
 
     macro_rules! highlight_colour {
         ($input_type: expr) => {{
-            use ui::InputType::*;
+            u!{ui::InputType}
             match $input_type {
                 Mouse => palette![yellow, fade_alpha],
                 Keyboard => palette![blue, fade_alpha],
@@ -1307,7 +1329,7 @@ struct LRTB {
 
 impl Spacing {
     fn into_ltrb(self) -> LRTB {
-        use Spacing::*;
+        u!{Spacing}
         let (l, t, r, b) = match self {
             All(n) => (n, n, n, n),
             Horizontal(n) => (n, 0.0, n, 0.0),
@@ -1698,11 +1720,10 @@ pub fn get_command_menu_info(
 ) -> CommandMenuInfo {
     let Dimensions {
         font: FontInfo {
-            status_char_dim,
             tab_char_dim,
             ..
         },
-        window: sswh!(width, height),
+        window: sswh!(width, _),
     } = dimensions;
 
     let CoverTextAreaInfo {
@@ -1732,12 +1753,16 @@ pub fn get_command_menu_info(
     }
 }
 
+// If we end up with a third menu like this and CommandMenu, merge the infos.
 pub struct DebugMenuInfo {
     pub margin: Spacing,
     pub padding: Spacing,
     pub top_y: f32,
     pub bottom_y: f32,
     pub outer_rect: ScreenSpaceRect,
+    pub first_button_rect: ScreenSpaceRect,
+    pub list_margin: Spacing,
+    pub list_padding: Spacing,
 }
 
 pub fn get_debug_menu_info(
@@ -1745,11 +1770,10 @@ pub fn get_debug_menu_info(
 ) -> DebugMenuInfo {
     let Dimensions {
         font: FontInfo {
-            status_char_dim,
             tab_char_dim,
             ..
         },
-        window: sswh!(width, height),
+        window: sswh!(width, _),
     } = dimensions;
 
     let CoverTextAreaInfo {
@@ -1759,12 +1783,23 @@ pub fn get_debug_menu_info(
         bottom_y,
         outer_rect,
     } = cover_text_area_info(dimensions);
+
+    let list_margin = margin * LIST_MARGIN_TO_PADDING_RATIO;
+    let list_padding = margin * (1.0 - LIST_MARGIN_TO_PADDING_RATIO);
+
+    let first_button_rect = shrink_by(
+        ssr!(0.0, 0.0, width, top_y + 2.0 * padding + tab_char_dim.h),
+        Spacing::Horizontal(margin)
+    ).with_min_y(top_y + list_margin);
     DebugMenuInfo {
         margin: Spacing::All(margin),
         padding: Spacing::All(padding),
         top_y,
         bottom_y,
         outer_rect,
+        list_margin: Spacing::All(list_margin),
+        list_padding: Spacing::All(list_padding),
+        first_button_rect,
     }
 }
 
@@ -1822,10 +1857,11 @@ pub fn get_edit_buffer_xywh(
         },
         window: sswh!(width, height),
     } = dimensions;
+    u!{WimpMenuMode}
     let max_y = match mode {
-        WimpMenuMode::Hidden | WimpMenuMode::GoToPosition => get_status_line_y(status_char_dim, height),
-        WimpMenuMode::FindReplace(_) => get_find_replace_info(dimensions).top_y,
-        WimpMenuMode::FileSwitcher | WimpMenuMode::Command => height,
+        Hidden | GoToPosition => get_status_line_y(status_char_dim, height),
+        FindReplace(_) => get_find_replace_info(dimensions).top_y,
+        FileSwitcher | Command | Debug => height,
     };
     let y = upper_position_info(tab_char_dim).edit_y;
     TextBoxXYWH {
@@ -1842,7 +1878,7 @@ pub fn get_current_buffer_rect(
     mode: WimpMenuMode,
     dimensions: Dimensions,
 ) -> TextBoxXYWH {
-    use BufferIdKind::*;
+    u!{BufferIdKind}
     match current_buffer_kind {
         None => d!(),
         Text => get_edit_buffer_xywh(mode, dimensions),
@@ -1853,16 +1889,19 @@ pub fn get_current_buffer_rect(
     }
 }
 
-/// This function determines whether the mouse cursor should use the text selection icon ot not.
+/// This function determines whether the mouse cursor should use the text selection icon or not.
 pub fn should_show_text_cursor(
     xy: ScreenSpaceXY,
     mode: WimpMenuMode,
     dimensions: Dimensions,
 ) -> bool {
+    u!{WimpMenuMode}
+
     let inside_edit_buffer = inside_rect(xy, get_edit_buffer_xywh(mode, dimensions).into());
+
     inside_edit_buffer || match mode {
-        WimpMenuMode::Hidden | WimpMenuMode::Command => false,
-        WimpMenuMode::FindReplace(_) => {
+        Hidden | Command | Debug => false,
+        FindReplace(_) => {
             let FindReplaceInfo {
                 find_outer_rect,
                 replace_outer_rect,
@@ -1872,7 +1911,7 @@ pub fn should_show_text_cursor(
             inside_rect(xy, find_outer_rect.into())
             || inside_rect(xy, replace_outer_rect.into())
         }
-        WimpMenuMode::FileSwitcher => {
+        FileSwitcher => {
             let FileSwitcherInfo {
                 search_outer_rect,
                 ..
@@ -1880,7 +1919,7 @@ pub fn should_show_text_cursor(
 
             inside_rect(xy, search_outer_rect.into())
         }
-        WimpMenuMode::GoToPosition => {
+        GoToPosition => {
             let GoToPositionInfo {
                 input_outer_rect,
                 ..
