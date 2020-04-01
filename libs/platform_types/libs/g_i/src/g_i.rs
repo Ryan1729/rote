@@ -199,6 +199,16 @@ impl State {
     pub fn new_index_or_max(&self, i: usize) -> Index {
         self.new_index(IndexPart::or_max(i))
     }
+
+    /// Returns true if both indexes are valid and they match
+    /// after being converted to usizes
+    fn indexes_point_to_same_element(&self, index1: Index, index2: Index) -> bool {
+        match (index1.get(*self), index2.get(*self)) {
+            (Some(i1), Some(i2)) => { i1 == i2 }
+            _ => { false }
+        }
+        
+    }
 }
 
 #[derive(Clone, Copy, Default, Debug, Hash)]

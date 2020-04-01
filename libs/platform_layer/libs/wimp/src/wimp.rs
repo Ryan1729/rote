@@ -692,6 +692,10 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                     )
                 );
             }]
+            [CTRL | SHIFT, F1, "Add RunState snapshot", r_s {
+                let snapshot = format!("{:#?}", r_s);
+                call_u_and_r!(r_s, Input::NewScratchBuffer(snapshot.into()));
+            }]
             [CTRL | ALT, Key0, "Insert sequential numbers at cursors.", state {
                 call_u_and_r!(state, Input::InsertNumbersAtCursors);
             }]

@@ -100,7 +100,7 @@ mod view {
     use macros::{d};
     use super::ui; // Your app's written in Electron? Shoulda used Super UI.
     use super::g_i;
-    pub use platform_types::{CursorView, BufferViewData, FileSwitcherView, FindReplaceView, GoToPositionView, MenuMode, MenuView};
+    pub use platform_types::{CursorView, BufferName, BufferViewData, FileSwitcherView, FindReplaceView, GoToPositionView, MenuMode, MenuView};
 
     #[derive(Clone, Copy, Debug, PartialEq)]
     enum LocalMenuMode {
@@ -333,17 +333,21 @@ pub type CommandKey = (ModifiersState, VirtualKeyCode);
 
 pub mod command_keys {
     use super::{CommandKey, ModifiersState, VirtualKeyCode};
+    const CTRL: ModifiersState = ModifiersState::CTRL;
+    const SHIFT: ModifiersState = ModifiersState::SHIFT;
+    const ALT: ModifiersState = ModifiersState::ALT;
+    const LOGO: ModifiersState = ModifiersState::LOGO;
 
     pub fn command_menu() -> CommandKey {
         (ModifiersState::empty(), VirtualKeyCode::Apps)
     }
     
     pub fn debug_menu() -> CommandKey {
-        (ModifiersState::CTRL | ModifiersState::SHIFT, VirtualKeyCode::Slash)
+        (CTRL | SHIFT, VirtualKeyCode::Slash)
     }
 
     pub fn add_run_state_snapshot() -> CommandKey {
-        (ModifiersState::CTRL | ModifiersState::ALT, VirtualKeyCode::F1)
+        (CTRL | SHIFT, VirtualKeyCode::F1)
     }
 }
 

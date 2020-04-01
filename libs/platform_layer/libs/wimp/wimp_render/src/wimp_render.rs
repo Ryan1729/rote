@@ -220,6 +220,7 @@ pub fn view<'view>(
     //
 
     let selected_index = view.current_text_index();
+    if_changed::dbg!(selected_index);
 
     let mut i = 0;
     let tab_count = buffer_count;
