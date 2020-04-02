@@ -630,12 +630,24 @@ pub struct GoToPositionView {
     pub go_to_position: BufferViewData,
 }
 
+#[derive(Clone, Default, Debug)]
+pub struct EditedIndicies(Option<g_i::Index>);
+
+impl IntoIterator for EditedIndicies {
+    type Item = g_i::Index;
+    type IntoIter = std::option::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
 #[derive(Default, Debug)]
-pub struct View {
-    pub current_buffer_kind: BufferIdKind,
-    pub buffers: SelectableVec1<BufferView>,
+pub struct View {    pub buffers: SelectableVec1<BufferView>,
     pub menu: MenuView,
     pub status_line: StatusLineView,
+    pub current_buffer_kind: BufferIdKind,
+    pub edited_indices: EditedIndicies,
 }
 
 impl View {

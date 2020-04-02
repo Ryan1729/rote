@@ -457,13 +457,14 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                 match std::fs::write($path, $str) {
                     Ok(_) => {
                         let view = $view;
+                        let index_state = view.index_state();
                         let buffer_status_map = $buffer_status_map;
                         buffer_status_map.insert(
-                            view.index_state(),
+                            index_state,
                             index,
                             transform_status(
                                 buffer_status_map
-                                    .get(view.index_state(), index)
+                                    .get(index_state, index)
                                     .unwrap_or_default(),
                                 BufferStatusTransition::Save
                             )
@@ -1042,11 +1043,14 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         match editor_out_source.try_recv() {
                             Ok((v, c)) => {
                                 r_s.view.update(v);
-                                r_s.buffer_status_map.insert(
-                                    r_s.view.index_state(),
-                                    r_s.view.current_text_index(),
-                                    BufferStatus::EditedAndUnSaved
-                                );
+                                for i in r_s.view.edited_indices() {
+                                    r_s.buffer_status_map.insert(
+                                        r_s.view.index_state(),
+                                        i,
+                                        BufferStatus::EditedAndUnSaved
+                                    );
+                                }
+                                
 
                                 r_s.cmds.push_back(c);
                             }

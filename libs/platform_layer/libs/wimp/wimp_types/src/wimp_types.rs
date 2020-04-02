@@ -228,6 +228,10 @@ mod view {
     }
 
     impl View {
+        pub fn edited_indices(&self) -> impl Iterator<Item = g_i::Index> {
+            self.platform_view.edited_indices.clone().into_iter()
+        }
+
         pub fn buffers_count(&self) -> g_i::Length {
             self.platform_view.buffers.len()
         }
@@ -819,11 +823,12 @@ impl BufferStatusMap {
     }
 
     pub fn insert(&mut self, state: g_i::State, current_index: g_i::Index, status: BufferStatus) {
+        dbg!(&self, state, current_index, status);
         if let Some(current_index) = current_index.get(state) {
             let last_state = self.last_state;
             if Some(state) != last_state {
                 let mut keys: Vec<_> = self.map.keys().cloned().collect();
-                //currently all the state fixups work if we use thie reverse order.
+                //currently all the state fixups work if we use this reverse order.
                 keys.sort();
                 keys.reverse();
                 for key in keys {

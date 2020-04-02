@@ -275,17 +275,27 @@ prop_compose!{
 }
 
 prop_compose!{
+    pub fn edited_indices()(
+        inner in proptest::option::of(pub_arb_g_i::index(16)),
+    ) -> EditedIndicies {
+        EditedIndicies(inner)
+    }
+}
+
+prop_compose!{
     pub fn view()(
         current_buffer_kind in buffer_id_kind(),
         buffers in selectable_vec1(buffer_view(), 16),
         menu in menu_view(),
         status_line in status_line_view(),
+        e_i in edited_indices(),
     ) -> View {
         View {
             current_buffer_kind,
             buffers,
             menu,
             status_line,
+            edited_indices: e_i,
         }
     }
 }
@@ -304,4 +314,10 @@ pub fn plausible_scrollable_screen() -> impl Strategy<Value = ScrollableScreen> 
         scroll: ScrollXY { x, y },
         wh: ScreenSpaceWH { w, h },
     })
+}
+
+arb_enum!{
+    pub fn input() -> Input {
+        
+    }
 }

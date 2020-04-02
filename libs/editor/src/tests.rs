@@ -3,19 +3,17 @@ use super::*;
 use platform_types::pos;
 
 use editor_types::{cur};
-use arb_macros::{arb_enum};
 use macros::{u};
 use proptest::prelude::{proptest};
 
 mod arb {
     use super::*;
-    use proptest::collection::vec;
-    use proptest::prelude::{prop_compose, Strategy, Just};
+    use proptest::prelude::{prop_compose, Strategy};
 
     prop_compose!{
         pub fn state()(
             buffers in editor_buffers::tests::arb::editor_buffers(),
-            /* TODO since we don't need the rest for the current test
+            /* TODO since we don't need the rest for the current tests
             buffer_xywh in tbxywh(),
             current_buffer_kind in buffer_id_kind(),
             mm in menu_mode(),
@@ -66,7 +64,7 @@ mod arb {
         )
     }
 
-    pub use pub_arb_platform_types::{menu_mode, view};
+    pub use pub_arb_platform_types::{menu_mode, view, input};
 }
 
 const CURSOR_SHOW_TEXT: &'static str = "            abcdefghijklmnopqrstuvwxyz::abcdefghijk::abcdefghijklmnopqrstuvwxyz";
@@ -377,10 +375,84 @@ proptest!{
         // they can be different or the same here
         editor_view::render(&mut state, &mut view);
 
-        // but the must be the same here
+        // but they must be the same here
         assert_eq!(
             state.buffers.len(),
             view.buffers.len(),
+        )
+    }
+}
+
+/// This is important since clients want to be able to report this information
+/// (or information derived from it) to the user.
+proptest!{
+    #[test]
+    fn update_and_render_reports_the_correct_edited_index(
+        mut state in arb::state(),
+        mut input in arb::input(),
+    ) {
+        u!{Input}
+        let expected = match input {
+            None |
+            Quit |
+            CloseMenuIfAny | 
+            ResetScroll |
+            ScrollVertically(_) |
+            ScrollHorizontally(_) |
+            SetSizeDependents(_) |
+            MoveAllCursors(_) |
+            ExtendSelectionForAllCursors(_) |
+            SelectAll |
+            SetCursor(_, _) |
+            DragCursors(_) |
+            SelectCharTypeGrouping(_, _) |
+            ExtendSelectionWithSearch |
+            Copy | 
+            AdjustBufferSelection(_) |
+            CloseBuffer(_) |
+            NextLanguage |
+            SelectBuffer(_) |
+            SetMenuMode(_) |
+            SubmitForm => {
+                vec![]
+            },
+            Insert(_) |
+            Delete |
+            DeleteLines |
+            SetBufferPath(_, _) |
+            Undo |
+            Redo |
+            Cut |
+            Paste(_) |
+            InsertNumbersAtCursors |
+            TabIn |
+            TabOut
+            => {
+                vec![state.buffers.current_index()]
+            },            AddOrSelectBuffer(name, _) => {
+                if state.buffer_has_name(name) {
+                    vec![]
+                } else {
+                    vec![state.buffers.new_index()]
+                }
+            },
+            NewScratchBuffer(_) => {
+                vec![state.buffers.new_index()]
+            },
+            OpenOrSelectBuffer(path) => {
+                if state.buffer_has_name(BufferName::Path(path)) {
+                    vec![]
+                } else {
+                    vec![state.buffers.new_index()]
+                }
+            },
+        };
+        
+        let (view, _) = update_and_render(&mut state, input);
+
+        assert_eq!(
+            view.edited_indices.into_iter().collect::<Vec<_>>(),
+            expected,
         )
     }
 }

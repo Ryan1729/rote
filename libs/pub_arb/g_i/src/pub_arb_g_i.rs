@@ -1,4 +1,5 @@
-use g_i::{LengthSize, SelectableVec1, Vec1, tests::arb::state_with_index};
+use g_i::{LengthSize, SelectableVec1, Vec1};
+pub use g_i::tests::arb::*;
 use proptest::collection::vec;
 use proptest::prelude::{BoxedStrategy, Strategy, prop_compose, Just};
 
