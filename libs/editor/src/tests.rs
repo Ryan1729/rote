@@ -389,7 +389,7 @@ proptest!{
     #[test]
     fn update_and_render_reports_the_correct_edited_index(
         mut state in arb::state(),
-        mut input in arb::input(),
+        input in arb::input(),
     ) {
         u!{Input}
         let expected = match input {
@@ -429,21 +429,21 @@ proptest!{
             TabOut
             => {
                 vec![state.buffers.current_index()]
-            },            AddOrSelectBuffer(name, _) => {
-                if state.buffer_has_name(name) {
+            },            AddOrSelectBuffer(ref name, _) => {
+                if state.buffers.index_with_name(name).is_some() {
                     vec![]
                 } else {
-                    vec![state.buffers.new_index()]
+                    vec![state.buffers.append_index()]
                 }
             },
             NewScratchBuffer(_) => {
-                vec![state.buffers.new_index()]
+                vec![state.buffers.append_index()]
             },
-            OpenOrSelectBuffer(path) => {
-                if state.buffer_has_name(BufferName::Path(path)) {
+            OpenOrSelectBuffer(ref path) => {
+                if state.buffers.index_with_name(&BufferName::Path(path.clone())).is_some() {
                     vec![]
                 } else {
-                    vec![state.buffers.new_index()]
+                    vec![state.buffers.append_index()]
                 }
             },
         };

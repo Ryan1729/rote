@@ -453,6 +453,12 @@ mod selectable_vec1 {
             let len: usize = self.len().into();
             self.index_state.new_index(IndexPart::or_max(len - 1))
         }
+
+        /// The index of an element would have if one was immeadiately appended.
+        pub fn append_index(&self) -> Index {
+            let len: usize = self.len().into();
+            self.index_state.new_index(IndexPart::or_max(len))
+        }
     
         /// The index of the currectly selected element.
         pub fn current_index(&self) -> Index {

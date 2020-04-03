@@ -8,7 +8,7 @@ use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::time::Duration;
 use wimp_render::{get_find_replace_info, FindReplaceInfo, get_go_to_position_info, GoToPositionInfo, ViewOutput, ViewAction};
-use wimp_types::{ui, ui::{PhysicalButtonState, Navigation}, transform_status, BufferStatus, BufferStatusMap, BufferStatusTransition, CustomEvent, get_clipboard, ClipboardProvider, Dimensions, LabelledCommand, RunConsts, RunState, WimpMenuMode, MenuMode};
+use wimp_types::{ui, ui::{PhysicalButtonState, Navigation}, transform_status, BufferStatus, BufferStatusMap, BufferStatusTransition, CustomEvent, get_clipboard, ClipboardProvider, Dimensions, LabelledCommand, RunConsts, RunState, MenuMode};
 use file_chooser;
 use macros::d;
 use platform_types::{screen_positioning::screen_to_text_box, *};
@@ -215,10 +215,9 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                                             }
                                         }
                                         Err(e) => {
-                                            use std::error::Error;
                                             let _hope_it_gets_there =
                                                 proxy.send_event(CustomEvent::EditedBufferError(
-                                                    e.description().to_owned(),
+                                                    e.to_string(),
                                                 ));
                                         }
                                     }

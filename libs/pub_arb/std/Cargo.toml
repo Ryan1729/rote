@@ -1,0 +1,11 @@
+[package]
+name = "pub_arb_std"
+version = "0.1.0"
+authors = ["Ryan1729 <ryan1729@gmail.com>"]
+edition = "2018"
+
+[lib]
+path = "./src/std.rs"
+
+[dependencies]
+proptest = "0.9"

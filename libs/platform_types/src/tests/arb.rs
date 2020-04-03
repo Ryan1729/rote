@@ -1,10 +1,10 @@
 use super::*;
-pub use pub_arb_g_i::selectable_vec1;
+pub use pub_arb_g_i::{selection_adjustment, selectable_vec1};
 use arb_macros::{arb_enum};
 use proptest::collection::vec;
 use proptest::num::f32;
 use proptest::prelude::{prop_compose, any, Strategy};
-use std::path::PathBuf;
+use pub_arb_std::path_buf;
 
 pub fn usual() -> f32::Any {
     f32::POSITIVE | f32::NEGATIVE | f32::NORMAL | f32::ZERO
@@ -24,6 +24,14 @@ pub fn text_xy(spec: f32::Any) -> impl Strategy<Value = TextSpaceXY> {
 
 pub fn text_box_xy(spec: f32::Any) -> impl Strategy<Value = TextBoxXY> {
     (spec, spec).prop_map(|(x, y)| TextBoxXY { x, y })
+}
+
+pub fn text_box_space_xy(spec: f32::Any) -> impl Strategy<Value = TextBoxSpaceXY> {
+    (spec, spec).prop_map(|(x, y)| TextBoxSpaceXY { x, y })
+}
+
+pub fn text_box_xywh(spec: f32::Any) -> impl Strategy<Value = TextBoxXYWH> {
+    (text_box_xy(spec), wh(spec)).prop_map(|(xy, wh)| TextBoxXYWH { xy, wh })
 }
 
 pub fn rounded_non_negative_text_xy() -> impl Strategy<Value = TextSpaceXY> {
@@ -123,7 +131,7 @@ arb_enum!{
 
 prop_compose!{
     pub fn file_switcher_results(max_len: usize)(
-        paths in vec(".*".prop_map(PathBuf::from), 0..=max_len),
+        paths in vec(path_buf(), 0..=max_len),
     ) -> FileSwitcherResults {
         paths
     }
@@ -173,7 +181,7 @@ prop_compose!{
 
 arb_enum!{
     pub fn buffer_name() -> BufferName {
-        Path(_) => ".*\\.fakefile".prop_map(|s| { let p: PathBuf = s.into(); p }).prop_map(Path),
+        Path(_) => path_buf().prop_map(Path),
         Scratch(_) => any::<u32>().prop_map(Scratch),
     }
 }
@@ -261,6 +269,51 @@ arb_enum!{
     }
 }
 
+prop_compose!{
+    pub fn font_info()(
+        text_char_dim in char_dim(usual()),
+        status_char_dim in char_dim(usual()),
+        tab_char_dim in char_dim(usual()),
+        find_replace_char_dim in char_dim(usual()),
+    ) -> FontInfo {
+        FontInfo {
+            text_char_dim,
+            status_char_dim,
+            tab_char_dim,
+            find_replace_char_dim,
+        }
+    }
+}
+
+prop_compose!{
+    pub fn size_dependents()(
+        f_i in proptest::option::of(font_info()),
+        buffer_xywh in proptest::option::of(text_box_xywh(usual())),
+        find_xywh in proptest::option::of(text_box_xywh(usual())),
+        replace_xywh in proptest::option::of(text_box_xywh(usual())),
+        go_to_position_xywh in proptest::option::of(text_box_xywh(usual())),
+    ) -> SizeDependents {
+        SizeDependents {
+            font_info: f_i,
+            buffer_xywh,
+            find_xywh,
+            replace_xywh,
+            go_to_position_xywh,
+        }
+    }
+}
+
+prop_compose!{
+    pub fn buffer_id()(
+        kind in buffer_id_kind(),
+        index in pub_arb_g_i::index(16),
+    ) -> BufferId {
+        BufferId {
+            kind,
+            index,
+        }
+    }
+}
 
 prop_compose!{
     pub fn cursor_view()(
@@ -317,7 +370,52 @@ pub fn plausible_scrollable_screen() -> impl Strategy<Value = ScrollableScreen> 
 }
 
 arb_enum!{
+    pub fn replace_or_add() -> ReplaceOrAdd {
+        Replace => Just(Replace),
+        Add => Just(Add),
+    }
+}
+
+arb_enum!{
     pub fn input() -> Input {
-        
+        None => Just(None),
+        Quit => Just(Quit),
+        CloseMenuIfAny => Just(CloseMenuIfAny),
+        Insert(char) => any::<char>().prop_map(Insert),
+        Delete => Just(Delete),
+        DeleteLines => Just(DeleteLines),
+        ResetScroll => Just(ResetScroll),
+        ScrollVertically(_) => usual().prop_map(ScrollVertically),
+        ScrollHorizontally(f32) => usual().prop_map(ScrollHorizontally),
+        SetSizeDependents(_) => size_dependents().prop_map(SetSizeDependents),
+        MoveAllCursors(_) => r#move().prop_map(MoveAllCursors),
+        ExtendSelectionForAllCursors(_) => r#move().prop_map(ExtendSelectionForAllCursors),
+        SelectAll => Just(SelectAll),
+        SetCursor(_, _) => (text_box_space_xy(usual()), replace_or_add())
+            .prop_map(|(xy, r_or_add)| SetCursor(xy, r_or_add)),
+        DragCursors(_) => text_box_space_xy(usual()).prop_map(DragCursors),
+        SelectCharTypeGrouping(_, _) => (text_box_space_xy(usual()), replace_or_add())
+            .prop_map(|(xy, r_or_add)| SelectCharTypeGrouping(xy, r_or_add)),
+        ExtendSelectionWithSearch => Just(ExtendSelectionWithSearch),
+        SetBufferPath(_, _) => (pub_arb_g_i::index(16), path_buf())
+            .prop_map(|(i, p)| SetBufferPath(i, p)),
+        Undo => Just(Undo),
+        Redo => Just(Redo),
+        Cut => Just(Cut),
+        Copy => Just(Copy),
+        Paste(_) => proptest::option::of(".*").prop_map(Paste),
+        InsertNumbersAtCursors => Just(InsertNumbersAtCursors),
+        AddOrSelectBuffer(_, _) => (buffer_name(), ".*").prop_map(|(bn, s)| AddOrSelectBuffer(bn, s)),
+        NewScratchBuffer(_) => proptest::option::of(".*").prop_map(NewScratchBuffer),
+        TabIn => Just(TabIn),
+        TabOut => Just(TabOut),
+        AdjustBufferSelection(_) => selection_adjustment()
+            .prop_map(AdjustBufferSelection),
+        NextLanguage => Just(NextLanguage),
+        SelectBuffer(_) => buffer_id().prop_map(SelectBuffer),
+        OpenOrSelectBuffer(_) => path_buf().prop_map(OpenOrSelectBuffer),
+        CloseBuffer(_) => pub_arb_g_i::index(16).prop_map(CloseBuffer),
+        SetMenuMode(_) => menu_mode().prop_map(SetMenuMode),
+        SubmitForm => Just(SubmitForm),
     }
 }

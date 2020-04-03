@@ -163,23 +163,27 @@ impl EditorBuffers {
         self.buffers.get_current_element_mut()
     }
 
+    pub fn append_index(&self) -> g_i::Index {
+        self.buffers.append_index()
+    }
+
     pub fn push_and_select_new(&mut self, buffer: EditorBuffer) {
         self.buffers.push_and_select_new(buffer);
     }
 
-    pub fn add_or_select_buffer(&mut self, name: BufferName, str: String) {
-        let matching_buffer_index = {
-            let mut index = None;
-            for (i, buffer) in self.buffers.iter_with_indexes() {
-                if buffer.name == name {
-                    index = Some(i);
-                    break;
-                }
+    pub fn index_with_name(&self, name: &BufferName) -> Option<g_i::Index> {
+        let mut index = None;
+        for (i, buffer) in self.buffers.iter_with_indexes() {
+            if buffer.name == *name {
+                index = Some(i);
+                break;
             }
-            index
-        };
+        }
+        index
+    }
 
-        if let Some(index) = matching_buffer_index {
+    pub fn add_or_select_buffer(&mut self, name: BufferName, str: String) {
+        if let Some(index) = self.index_with_name(&name) {
             self.set_current_index(index);
         } else {
             self.buffers.push_and_select_new(EditorBuffer::new(name, str));
@@ -227,7 +231,7 @@ pub mod tests {
         use proptest::collection::vec;
         use pub_arb_text_buffer::{text_buffer_with_valid_cursors};
         use pub_arb_platform_types::{buffer_name, position, selectable_vec1, scroll_xy, usual};
-        use proptest::prelude::{prop_compose, Strategy, Just};
+        use proptest::prelude::{prop_compose, Just};
 
         prop_compose!{
             pub fn search_results(max_len: usize)(
