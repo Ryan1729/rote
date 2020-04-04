@@ -1,6 +1,6 @@
 use glutin::event::{ModifiersState, VirtualKeyCode};
-use macros::{d, ord};
-use platform_types::{screen_positioning::*, g_i, Input, Cmd};
+use macros::{d, ord, u};
+use platform_types::{screen_positioning::*, g_i, Input, Cmd, EditedTransition};
 
 use std::collections::{VecDeque, HashMap, BTreeMap};
 use std::path::PathBuf;
@@ -100,7 +100,7 @@ mod view {
     use macros::{d};
     use super::ui; // Your app's written in Electron? Shoulda used Super UI.
     use super::g_i;
-    pub use platform_types::{CursorView, BufferName, BufferViewData, FileSwitcherView, FindReplaceView, GoToPositionView, MenuMode, MenuView};
+    pub use platform_types::{CursorView, BufferName, BufferViewData, FileSwitcherView, FindReplaceView, GoToPositionView, MenuMode, MenuView, IndexedEditedTransition};
 
     #[derive(Clone, Copy, Debug, PartialEq)]
     enum LocalMenuMode {
@@ -228,8 +228,8 @@ mod view {
     }
 
     impl View {
-        pub fn edited_indices(&self) -> impl Iterator<Item = g_i::Index> {
-            self.platform_view.edited_indices.clone().into_iter()
+        pub fn edited_transitions(&self) -> impl Iterator<Item = IndexedEditedTransition> {
+            self.platform_view.edited_transitions.clone().into_iter()
         }
 
         pub fn buffers_count(&self) -> g_i::Length {
@@ -794,9 +794,20 @@ pub enum BufferStatusTransition {
     Save,
 }
 
+impl From<EditedTransition> for BufferStatusTransition {
+    fn from(e_t: EditedTransition) -> Self {
+        u!{BufferStatusTransition};
+        u!{EditedTransition};
+        match e_t {
+            ToEdited => Edit,
+            ToUnedited => Save,
+        }
+    }
+}
+
 pub fn transform_status(status: BufferStatus, transition: BufferStatusTransition) -> BufferStatus {
-    use BufferStatus::*;
-    use BufferStatusTransition::*;
+    u!{BufferStatus}
+    u!{BufferStatusTransition}
     match (status, transition) {
         (_, Edit) => EditedAndUnSaved,
         (_, Save) | (Unedited, SaveTemp) => Unedited,
@@ -849,6 +860,24 @@ impl BufferStatusMap {
 
             self.map.insert(current_index, status);
         }
+    }
+
+    pub fn transform_at(
+        &mut self,
+        index_state: g_i::State,
+        index: g_i::Index,
+        transition: BufferStatusTransition
+    ) {
+        self.insert(
+            index_state,
+            index,
+            transform_status(
+                self
+                    .get(index_state, index)
+                    .unwrap_or_default(),
+                transition
+            )
+        );
     }
 }
 

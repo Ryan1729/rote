@@ -468,7 +468,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                                 BufferStatusTransition::Save
                             )
                         );
-                        call_u_and_r!($ui, $editor_in_sink, Input::SetBufferPath(index, $path.to_path_buf()));
+                        call_u_and_r!($ui, $editor_in_sink, Input::SavedAs(index, $path.to_path_buf()));
                     }
                     Err(err) => {
                         handle_platform_error!($ui, $editor_in_sink, err);
@@ -1042,11 +1042,11 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         match editor_out_source.try_recv() {
                             Ok((v, c)) => {
                                 r_s.view.update(v);
-                                for i in r_s.view.edited_indices() {
-                                    r_s.buffer_status_map.insert(
+                                for (i, e_t) in r_s.view.edited_transitions() {
+                                    r_s.buffer_status_map.transform_at(
                                         r_s.view.index_state(),
                                         i,
-                                        BufferStatus::EditedAndUnSaved
+                                        BufferStatusTransition::from(e_t)
                                     );
                                 }
                                 
@@ -1062,15 +1062,10 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         match edited_files_out_source.try_recv() {
                             Ok((index, transition)) => {
                                 let buffer_status_map = &mut r_s.buffer_status_map;
-                                buffer_status_map.insert(
+                                buffer_status_map.transform_at(
                                     index_state,
                                     index,
-                                    transform_status(
-                                        buffer_status_map
-                                            .get(index_state, index)
-                                            .unwrap_or_default(),
-                                        transition
-                                    )
+                                    transition
                                 );
                             }
                             _ => break,

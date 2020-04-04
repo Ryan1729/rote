@@ -15,6 +15,18 @@ pub struct ScrollableBuffer {
     pub scroll: ScrollXY,
 }
 
+impl From<&ScrollableBuffer> for String {
+    fn from(s_b: &ScrollableBuffer) -> Self {
+        (&s_b.text_buffer).into()
+    }
+}
+
+impl From<&mut ScrollableBuffer> for String {
+    fn from(s_b: &mut ScrollableBuffer) -> Self {
+        (&s_b.text_buffer).into()
+    }
+}
+
 impl ScrollableBuffer {
     pub fn try_to_show_cursors_on(
         &mut self,
@@ -95,6 +107,18 @@ pub struct EditorBuffer {
     pub parser_kind: Option<ParserKind>,
 }
 
+impl From<&EditorBuffer> for String {
+    fn from(e_b: &EditorBuffer) -> Self {
+        (&e_b.scrollable).into()
+    }
+}
+
+impl From<&mut EditorBuffer> for String {
+    fn from(e_b: &mut EditorBuffer) -> Self {
+        (&e_b.scrollable).into()
+    }
+}
+
 impl EditorBuffer {
     pub fn new<I: Into<TextBuffer>>(name: BufferName, s: I) -> Self {
         Self {
@@ -124,7 +148,7 @@ impl EditorBuffer {
 
 /// The collection of files opened for editing, and/or in-memory scratch buffers.
 /// Guaranteed to have at least one buffer in it at all times.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct EditorBuffers {
     buffers: SelectableVec1<EditorBuffer>,
 }
@@ -202,10 +226,6 @@ impl EditorBuffers {
 
     pub fn close_buffer(&mut self, index: g_i::Index) {
         self.buffers.remove_if_present(index);
-    }
-
-    pub fn index_state(&self) -> g_i::State {
-        self.buffers.index_state()
     }
 
     pub fn buffers(&self) -> &SelectableVec1<EditorBuffer> {

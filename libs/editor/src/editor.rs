@@ -430,11 +430,27 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
         if_changed::dbg!(&input);
     }
 
+    let mut view: View = d!();
     let mut cmd = Cmd::NoCmd;
-
+    
     macro_rules! close_menu_if_any {
         () => {
             state.set_menu_mode(MenuMode::Hidden);
+        };
+    }
+
+    macro_rules! mark_as_edited {
+        (current) => {
+            view.edited_transitions.push((
+                state.buffers.current_index(),
+                EditedTransition::ToEdited,
+            ));
+        };
+        (append) => {
+            view.edited_transitions.push((
+                state.buffers.append_index(),
+                EditedTransition::ToUnedited,
+            ));
         };
     }
 
@@ -447,15 +463,19 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
         }
         Insert(c) => buffer_call!(sync b{
             b.text_buffer.insert(c);
+            mark_as_edited!(current);
         }),
         Delete => buffer_call!(sync b {
             b.text_buffer.delete();
+            mark_as_edited!(current);
         }),
         DeleteLines => buffer_call!(sync b {
             b.text_buffer.delete_lines();
+            mark_as_edited!(current);
         }),
         Redo => buffer_call!(sync b {
             b.text_buffer.redo();
+            mark_as_edited!(current);
         }),
         Undo => buffer_call!(sync b {
             b.text_buffer.undo();
@@ -548,7 +568,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                 }
             });
         }
-        SetBufferPath(buffer_index, path) => {
+        SavedAs(buffer_index, path) => {
             state.buffers.set_path(buffer_index, path);
         }
         Cut => buffer_call!(sync b {
@@ -738,7 +758,6 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             }
         },
     }
-    let mut view = d!();
 
     editor_view::render(state, &mut view);
     (view, cmd)

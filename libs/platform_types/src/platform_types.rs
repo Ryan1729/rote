@@ -40,7 +40,7 @@ pub enum Input {
     DragCursors(TextBoxSpaceXY),
     SelectCharTypeGrouping(TextBoxSpaceXY, ReplaceOrAdd),
     ExtendSelectionWithSearch,
-    SetBufferPath(g_i::Index, PathBuf),
+    SavedAs(g_i::Index, PathBuf),
     Undo,
     Redo,
     Cut,
@@ -630,12 +630,26 @@ pub struct GoToPositionView {
     pub go_to_position: BufferViewData,
 }
 
-#[derive(Clone, Default, Debug)]
-pub struct EditedIndicies(Option<g_i::Index>);
+#[derive(Copy, Clone, Debug)]
+pub enum EditedTransition {
+    ToEdited,
+    ToUnedited,
+}
 
-impl IntoIterator for EditedIndicies {
-    type Item = g_i::Index;
-    type IntoIter = std::option::IntoIter<Self::Item>;
+pub type IndexedEditedTransition = (g_i::Index, EditedTransition);
+
+#[derive(Clone, Default, Debug)]
+pub struct EditedTransitions(Vec<IndexedEditedTransition>);
+
+impl EditedTransitions {
+    pub fn push(&mut self, iet: IndexedEditedTransition) {
+        self.0.push(iet);
+    }
+}
+
+impl IntoIterator for EditedTransitions {
+    type Item = IndexedEditedTransition;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
@@ -647,7 +661,7 @@ pub struct View {    pub buffers: SelectableVec1<BufferView>,
     pub menu: MenuView,
     pub status_line: StatusLineView,
     pub current_buffer_kind: BufferIdKind,
-    pub edited_indices: EditedIndicies,
+    pub edited_transitions: EditedTransitions,
 }
 
 impl View {

@@ -327,11 +327,27 @@ prop_compose!{
     }
 }
 
+arb_enum!{
+    pub fn edited_transition() -> EditedTransition {
+        ToEdited => Just(ToEdited),
+        ToUnedited => Just(ToUnedited),
+    }
+}
+
 prop_compose!{
-    pub fn edited_indices()(
-        inner in proptest::option::of(pub_arb_g_i::index(16)),
-    ) -> EditedIndicies {
-        EditedIndicies(inner)
+    pub fn indexed_edited_transition(max_len: g_i::LengthSize)(
+        i in pub_arb_g_i::index(max_len),
+        e_t in edited_transition(),
+    ) -> IndexedEditedTransition {
+        (i, e_t)
+    }
+}
+
+prop_compose!{
+    pub fn edited_transitions()(
+        inner in proptest::collection::vec(indexed_edited_transition(16), 0..=16),
+    ) -> EditedTransitions {
+        EditedTransitions(inner)
     }
 }
 
@@ -341,14 +357,14 @@ prop_compose!{
         buffers in selectable_vec1(buffer_view(), 16),
         menu in menu_view(),
         status_line in status_line_view(),
-        e_i in edited_indices(),
+        e_t in edited_transitions(),
     ) -> View {
         View {
             current_buffer_kind,
             buffers,
             menu,
             status_line,
-            edited_indices: e_i,
+            edited_transitions: e_t,
         }
     }
 }
@@ -397,8 +413,8 @@ arb_enum!{
         SelectCharTypeGrouping(_, _) => (text_box_space_xy(usual()), replace_or_add())
             .prop_map(|(xy, r_or_add)| SelectCharTypeGrouping(xy, r_or_add)),
         ExtendSelectionWithSearch => Just(ExtendSelectionWithSearch),
-        SetBufferPath(_, _) => (pub_arb_g_i::index(16), path_buf())
-            .prop_map(|(i, p)| SetBufferPath(i, p)),
+        SavedAs(_, _) => (pub_arb_g_i::index(16), path_buf())
+            .prop_map(|(i, p)| SavedAs(i, p)),
         Undo => Just(Undo),
         Redo => Just(Redo),
         Cut => Just(Cut),

@@ -6,6 +6,8 @@ use editor_types::{cur};
 use macros::{u};
 use proptest::prelude::{proptest};
 
+use std::collections::HashMap;
+
 mod arb {
     use super::*;
     use proptest::prelude::{prop_compose, Strategy};
@@ -387,7 +389,7 @@ proptest!{
 /// (or information derived from it) to the user.
 proptest!{
     #[test]
-    fn update_and_render_reports_the_correct_edited_index(
+    fn update_and_render_reports_a_change_at_the_correct_edited_index(
         mut state in arb::state(),
         input in arb::input(),
     ) {
@@ -419,7 +421,7 @@ proptest!{
             Insert(_) |
             Delete |
             DeleteLines |
-            SetBufferPath(_, _) |
+            SavedAs(_, _) |
             Undo |
             Redo |
             Cut |
@@ -451,8 +453,66 @@ proptest!{
         let (view, _) = update_and_render(&mut state, input);
 
         assert_eq!(
-            view.edited_indices.into_iter().collect::<Vec<_>>(),
+            view.edited_transitions
+                .into_iter()
+                .map(|(i, _)| {
+                    i
+                }).collect::<Vec<_>>(),
             expected,
         )
+    }
+}
+
+/// This test simulates what we expected clients to do if they want to keep track of which
+/// buffers are currently different from what is on disk. This is a little complicated 
+/// because the editor is the one who knows about the undo history, and the client is the
+/// one who knows about when things are saved to disk or not.
+proptest!{
+    #[test]
+    fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers(
+        mut state in arb::state(),
+        inputs in proptest::collection::vec(arb::input(), 0..=16),
+    ) {
+        let original_buffer_states = state.buffers.buffers().clone();
+
+        let mut expected_edited_states: HashMap<g_i::Index, bool> = HashMap::new();
+
+        for input in inputs {
+            if let Input::SavedAs(index, _) = input {
+                expected_edited_states.insert(index, false);
+            }
+
+            let (view, _) = update_and_render(&mut state, input);
+            
+            for (i, transition) in view.edited_transitions {
+                u!{EditedTransition}
+                match transition {
+                    ToEdited => {
+                        expected_edited_states.insert(i, true);
+                    }
+                    ToUnedited => {
+                        expected_edited_states.insert(i, false);
+                    }
+                }
+            }
+        }
+
+        assert_eq!(expected_edited_states.len(), usize::from(state.buffers.len()));
+
+        for (i, is_edited) in expected_edited_states {
+            let actual_data: String = state.buffers.buffers().get(i).expect("actual_data was None").into();
+            let original_data: String = original_buffer_states.get(i).expect("original_data was None").into();
+            if is_edited {
+                assert_ne!(
+                    actual_data,
+                    original_data,
+                );
+            } else {
+                assert_eq!(
+                    actual_data,
+                    original_data,
+                );
+            }
+        }
     }
 }

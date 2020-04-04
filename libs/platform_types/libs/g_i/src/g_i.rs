@@ -419,6 +419,19 @@ mod selectable_vec1 {
             Self::new(A::default())
         }
     }
+
+    impl<A> Clone for SelectableVec1<A>
+    where
+        A: Clone,
+    {
+        fn clone(&self) -> Self {
+            Self {
+                elements: self.elements.clone(),
+                index_state: self.index_state.clone(),
+                current_index: self.current_index.clone(),
+            }
+        }
+    }
     
     impl<A> SelectableVec1<A> {
         pub fn new(inital_element: A) -> Self {
