@@ -439,17 +439,19 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
         };
     }
 
-    macro_rules! mark_as_edited {
-        (current) => {
+    u!{EditedTransition};
+
+    macro_rules! mark_edited_transition {
+        (current, $transition: expr) => {
             view.edited_transitions.push((
                 state.buffers.current_index(),
-                EditedTransition::ToEdited,
+                $transition,
             ));
         };
-        (append) => {
+        (append, $transition: expr) => {
             view.edited_transitions.push((
                 state.buffers.append_index(),
-                EditedTransition::ToUnedited,
+                $transition,
             ));
         };
     }
@@ -463,19 +465,19 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
         }
         Insert(c) => buffer_call!(sync b{
             b.text_buffer.insert(c);
-            mark_as_edited!(current);
+            mark_edited_transition!(current);
         }),
         Delete => buffer_call!(sync b {
             b.text_buffer.delete();
-            mark_as_edited!(current);
+            mark_edited_transition!(current);
         }),
         DeleteLines => buffer_call!(sync b {
             b.text_buffer.delete_lines();
-            mark_as_edited!(current);
+            mark_edited_transition!(current);
         }),
         Redo => buffer_call!(sync b {
             b.text_buffer.redo();
-            mark_as_edited!(current);
+            mark_edited_transition!(current);
         }),
         Undo => buffer_call!(sync b {
             b.text_buffer.undo();
