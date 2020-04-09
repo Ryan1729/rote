@@ -1,6 +1,6 @@
 // this module is inside `text_buffer`
-use super::{
-    char_offset_to_pos, final_non_newline_offset_for_rope_line, in_cursor_bounds, max, min,
+use rope_pos::{
+    char_offset_to_pos, final_non_newline_offset_for_rope_line, in_cursor_bounds,
     nearest_valid_position_on_same_line,
 };
 use editor_types::{Cursor, SetPositionAction};
@@ -8,6 +8,7 @@ use macros::d;
 use panic_safe_rope::{LineIndex, Rope, RopeLine, RopeSliceTrait};
 use platform_types::*;
 use std::borrow::{Borrow, Cow};
+use std::cmp::{max, min};
 
 use lazy_static::lazy_static;
 use regex::Regex;

@@ -1,11 +1,14 @@
 /// This module was originally created to make sure every change to the current index went 
 /// through a single path so we could more easily track down a bug where the index was 
 /// improperly set.
+use editor_types::{Cursor};
 use g_i::SelectableVec1;
 use macros::{d, u};
 use platform_types::{screen_positioning::*, *};
 use parsers::{ParserKind};
-use text_buffer::{get_search_ranges, TextBuffer};
+use text_buffer::{TextBuffer};
+use search::{SearchResults};
+use panic_safe_rope::{RopeSlice, RopeSliceTrait};
 
 use std::path::PathBuf;
 
@@ -74,33 +77,11 @@ impl ScrollableBuffer {
 }
 
 #[derive(Clone, Debug, Default)]
-pub struct SearchResults {
-    pub needle: String,
-    pub ranges: Vec<(Position, Position)>,
-    pub current_range: usize,
-}
-
-pub fn update_search_results(needle: &TextBuffer, haystack: &mut EditorBuffer) {
-    perf_viz::record_guard!("update_search_results");
-    let ranges = get_search_ranges(
-        needle.borrow_rope().full_slice(),
-        &haystack.scrollable.text_buffer.borrow_rope(),
-        d!(),
-        d!(),
-    );
-
-    //TODO: Set `current_range` to something as close as possible to being on screen of haystack
-    haystack.search_results = SearchResults {
-        needle: needle.into(),
-        ranges,
-        current_range: 0,
-    };
-}
-
-#[derive(Clone, Debug, Default)]
 pub struct EditorBuffer {
     pub scrollable: ScrollableBuffer,
     pub name: BufferName,
+    //TODO: Set `current_range` to something as close as possible to being on screen of haystack
+    // whenever this changes
     pub search_results: SearchResults,
     // If this is none, then it was not set by the user, and
     // we will use the default.
@@ -143,6 +124,37 @@ impl EditorBuffer {
 
     pub fn reset_cursor_states(&mut self) {
         self.scrollable.reset_cursor_states();
+    }
+
+    pub fn update_search_results(&mut self, needle: RopeSlice) {
+        if needle == self.search_results.needle {
+            // advance to next search result
+            if needle.len_bytes() > 0 {
+                let search_results = &mut self.search_results;
+                let len = search_results.ranges.len();
+                search_results.current_range += 1;
+                if search_results.current_range >= len {
+                    search_results.current_range = 0;
+                }
+
+                if let Some(pair) = self
+                    .search_results
+                    .ranges
+                    .get(self.search_results.current_range)
+                {
+                    let c: Cursor = pair.into();
+                    self
+                        .scrollable
+                        .text_buffer
+                        .set_cursor(c, ReplaceOrAdd::Replace);            
+                }
+            }
+        } else {
+            self.search_results = SearchResults::new(
+                needle,
+                self.scrollable.text_buffer.borrow_rope()
+            );
+        }
     }
 }
 

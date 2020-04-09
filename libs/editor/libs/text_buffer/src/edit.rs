@@ -1,6 +1,7 @@
 use super::*;
 use macros::CheckedSub;
 use editor_types::cur;
+use rope_pos::{final_non_newline_offset_for_rope_line, get_first_non_white_space_offset_in_range};
 
 pub fn apply<'rope, 'cursors>(mut applier: EditApplier, edit: &Edit) {
     // we assume that the edits are in the proper order so we won't mess up our indexes with our
@@ -682,95 +683,6 @@ impl<T> std::ops::Not for Change<T> {
     }
 }
 
-mod absolute_char_offset_range {
-    use super::*;
-
-    #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-    pub struct AbsoluteCharOffsetRange {
-        min: AbsoluteCharOffset,
-        max: AbsoluteCharOffset,
-    }
-
-    impl AbsoluteCharOffsetRange {
-        pub fn new(o1: AbsoluteCharOffset, o2: AbsoluteCharOffset) -> Self {
-            let min = std::cmp::min(o1, o2);
-            let max = std::cmp::max(o1, o2);
-
-            AbsoluteCharOffsetRange { min, max }
-        }
-
-        pub fn new_usize(o1: usize, o2: usize) -> Self {
-            AbsoluteCharOffsetRange::new(
-                AbsoluteCharOffset(o1),
-                AbsoluteCharOffset(o2)
-            )
-        }
-
-        pub fn range(&self) -> std::ops::Range<AbsoluteCharOffset> {
-            self.min..self.max
-        }
-
-        pub fn min(&self) -> AbsoluteCharOffset {
-            self.min
-        }
-
-        pub fn max(&self) -> AbsoluteCharOffset {
-            self.max
-        }
-
-        #[allow(dead_code)]
-        pub fn add_to_min<A>(&self, min: A) -> Self
-        where
-            AbsoluteCharOffset: std::ops::Add<A, Output = AbsoluteCharOffset>,
-        {
-            Self::new(self.min + min, self.max)
-        }
-
-        pub fn add_to_max<A>(&self, max: A) -> Self
-        where
-            AbsoluteCharOffset: std::ops::Add<A, Output = AbsoluteCharOffset>,
-        {
-            Self::new(self.min, self.max + max)
-        }
-
-        #[allow(dead_code)]
-        pub fn sub_from_min<A>(&self, min: A) -> Self
-        where
-            AbsoluteCharOffset: std::ops::Sub<A, Output = AbsoluteCharOffset>,
-        {
-            Self::new(self.min - min, self.max)
-        }
-
-        #[allow(dead_code)]
-        pub fn sub_from_max<A>(&self, max: A) -> Self
-        where
-            AbsoluteCharOffset: std::ops::Sub<A, Output = AbsoluteCharOffset>,
-        {
-            Self::new(self.min, self.max - max)
-        }
-
-        #[allow(dead_code)]
-        pub fn checked_sub_from_min<A>(&self, min: A) -> Option<Self>
-        where
-            AbsoluteCharOffset: macros::CheckedSub<A, Output = AbsoluteCharOffset>,
-        {
-            self.min
-                .checked_sub(min)
-                .map(|min| Self::new(min, self.max))
-        }
-
-        pub fn checked_sub_from_max<A>(&self, max: A) -> Option<Self>
-        where
-            AbsoluteCharOffset: macros::CheckedSub<A, Output = AbsoluteCharOffset>,
-        {
-            self.max
-                .checked_sub(max)
-                .map(|max| Self::new(self.min, max))
-        }
-    }
-}
-pub use absolute_char_offset_range::AbsoluteCharOffsetRange;
-
 #[perf_viz::record]
 fn sort_cursors(cursors: Vec1<Cursor>) -> Vec1<Cursor> {
     let mut cursors = cursors.to_vec();
@@ -826,47 +738,6 @@ pub fn line_indicies_touched_by(
 
     output.extend((min_index.0 + 1..=max_index.0).map(LineIndex));
     Some(output)
-}
-
-fn get_line_char_iterator<'line, R: std::ops::RangeBounds<CharOffset>>(
-    line: RopeLine<'line>,
-    range: R,
-) -> impl Iterator<Item = (CharOffset, char)> + 'line {
-    use std::ops::Bound::*;
-
-    let skip = match range.start_bound() {
-        Included(CharOffset(o)) => *o,
-        Excluded(CharOffset(o)) => (*o).saturating_add(1),
-        Unbounded => 0,
-    };
-
-    let take = match range.end_bound() {
-        Included(CharOffset(o)) => *o,
-        Excluded(CharOffset(o)) => (*o).saturating_sub(1),
-        Unbounded => usize::max_value(),
-    } - skip;
-    
-    let final_offset = final_non_newline_offset_for_rope_line(line);
-
-    line
-        .chars()
-        .enumerate()
-        .map(|(i, c)| (CharOffset(i), c))
-        .skip(skip)
-        .take(std::cmp::min(take, final_offset.0))
-}
-
-fn get_first_non_white_space_offset_in_range<R: std::ops::RangeBounds<CharOffset>>(
-    line: RopeLine,
-    range: R,
-) -> Option<CharOffset> {
-    for (i, c) in get_line_char_iterator(line, range) {
-        if !c.is_whitespace() {
-            return Some(i);
-        }
-    }
-
-    None
 }
 
 pub fn copy_string(rope: &Rope, range: AbsoluteCharOffsetRange) -> String {

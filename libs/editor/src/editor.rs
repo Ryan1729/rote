@@ -12,8 +12,6 @@ mod editor_buffers;
 use editor_buffers::{
     EditorBuffers, 
     EditorBuffer, 
-    SearchResults, 
-    update_search_results, 
     ScrollableBuffer
 };
 
@@ -346,10 +344,9 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
     macro_rules! buffer_view_sync {
         () => {
             match state.menu_mode {
-                MenuMode::Hidden | MenuMode::FindReplace(_) => {            
-                    update_search_results(
-                        &state.find.text_buffer,
-                        state.buffers.get_current_buffer_mut()
+                MenuMode::Hidden | MenuMode::FindReplace(_) => {
+                    state.buffers.get_current_buffer_mut().update_search_results(
+                        (&state.find.text_buffer).into(),
                     );
                 }
                 MenuMode::FileSwitcher => {
@@ -465,19 +462,19 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
         }
         Insert(c) => buffer_call!(sync b{
             b.text_buffer.insert(c);
-            mark_edited_transition!(current);
+            mark_edited_transition!(current, ToEdited);
         }),
         Delete => buffer_call!(sync b {
             b.text_buffer.delete();
-            mark_edited_transition!(current);
+            mark_edited_transition!(current, ToEdited);
         }),
         DeleteLines => buffer_call!(sync b {
             b.text_buffer.delete_lines();
-            mark_edited_transition!(current);
+            mark_edited_transition!(current, ToEdited);
         }),
         Redo => buffer_call!(sync b {
             b.text_buffer.redo();
-            mark_edited_transition!(current);
+            mark_edited_transition!(current, ToEdited);
         }),
         Undo => buffer_call!(sync b {
             b.text_buffer.undo();
@@ -709,33 +706,8 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                 Some(FindReplaceMode::CurrentFile) => {
                     let haystack = state.buffers.get_current_buffer_mut();
                     let needle = &state.find.text_buffer;
-                    let needle_string: String = needle.into();
-                    if needle_string == haystack.search_results.needle {
-                        // advance to next search result
-                        if needle_string.len() > 0 {
-                            let search_results = &mut haystack.search_results;
-                            let len = search_results.ranges.len();
-                            search_results.current_range += 1;
-                            if search_results.current_range >= len {
-                                search_results.current_range = 0;
-                            }
-
-                            if let Some(pair) = haystack
-                                .search_results
-                                .ranges
-                                .get(haystack.search_results.current_range)
-                            {
-                                let c: Cursor = pair.into();
-                                haystack
-                                    .scrollable
-                                    .text_buffer
-                                    .set_cursor(c, ReplaceOrAdd::Replace);
-                                try_to_show_cursors!(BufferIdKind::Text);
-                            }
-                        }
-                    } else {
-                        update_search_results(needle, haystack);
-                    }
+                    haystack.update_search_results(needle.into());
+                    try_to_show_cursors!(BufferIdKind::Text);
                     try_to_show_cursors!();
                     
                 }

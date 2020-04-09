@@ -5,7 +5,7 @@ use conversion::{to_chunk, to_rope_line, to_slice_range};
 pub use slice::{RopeLine, RopeSlice, RopeSliceTrait};
 
 use macros::{fmt_debug, fmt_display, integer_newtype, some_if, usize_newtype};
-pub use platform_types::{AbsoluteCharOffset, CharOffset};
+pub use editor_types::{AbsoluteCharOffset, CharOffset};
 use std::io;
 use std::iter::FromIterator;
 use std::ops::RangeBounds;

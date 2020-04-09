@@ -3,14 +3,17 @@ use editor_types::{Cursor, SetPositionAction};
 use macros::{d, some_or, CheckedSub};
 use panic_safe_rope::{ByteIndex, LineIndex, Rope, RopeLine, RopeSlice, RopeSliceTrait};
 use platform_types::*;
+use rope_pos::{AbsoluteCharOffsetRange, clamp_position, in_cursor_bounds, nearest_valid_position_on_same_line};
+
 use std::borrow::Borrow;
 use std::cmp::{max, min};
 use std::collections::VecDeque;
 
 mod edit;
-mod move_cursor;
+use edit::{Edit};
 
-use edit::{AbsoluteCharOffsetRange, Edit};
+mod move_cursor;
+use rope_pos::{char_offset_to_pos, pos_to_char_offset};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Cursors {
@@ -192,6 +195,35 @@ impl Cursors {
     }
 }
 
+type OffsetPair = (Option<AbsoluteCharOffset>, Option<AbsoluteCharOffset>);
+
+/// This will return `Some` if the offset is one-past the last index.
+// TODO do we actually need both of these? Specifically, will `strict_offset_pair` work everywhere?
+fn offset_pair(rope: &Rope, cursor: &Cursor) -> OffsetPair {
+    (
+        pos_to_char_offset(rope, &cursor.get_position()),
+        cursor
+            .get_highlight_position()
+            .and_then(|p| pos_to_char_offset(rope, &p)),
+    )
+}
+
+/// This will return `None` if the offset is one-past the last index.
+fn strict_offset_pair(rope: &Rope, cursor: &Cursor) -> OffsetPair {
+    let filter_out_of_bounds =
+        |position: Position| macros::some_if!(in_cursor_bounds(rope, position) => position);
+
+    (
+        Some(cursor.get_position())
+            .and_then(filter_out_of_bounds)
+            .and_then(|p| pos_to_char_offset(rope, &p)),
+        cursor
+            .get_highlight_position()
+            .and_then(filter_out_of_bounds)
+            .and_then(|p| pos_to_char_offset(rope, &p)),
+    )
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct TextBuffer {
     rope: Rope,
@@ -258,247 +290,16 @@ impl From<&mut TextBuffer> for String {
     }
 }
 
-
-/// A `haystack_range` of `None` means use the whole haystack. AKA no limit.
-/// A `max_needed` of `None` means return all the results. AKA no limit.
-pub fn get_search_ranges(
-    needle: RopeSlice,
-    haystack: &Rope,
-    haystack_range: Option<AbsoluteCharOffsetRange>,
-    max_needed: Option<std::num::NonZeroUsize>,
-) -> Vec<(Position, Position)> {
-    perf_viz::record_guard!("get_search_ranges");
-    let (min, slice) = haystack_range
-        .and_then(|r| haystack.slice(r.range()).map(|s| (r.min().0, s)))
-        .unwrap_or_else(|| (0, haystack.full_slice()));
-
-    let offsets = get_search_ranges_impl(needle, slice, max_needed);
-
-    perf_viz::start_record!("offsets.into_iter() char_offset_to_pos");
-    let output = offsets
-        .into_iter()
-        .filter_map(|(o_min, o_max)| {
-            let a_o_min = AbsoluteCharOffset(o_min.0 + min);
-            let a_o_max = AbsoluteCharOffset(o_max.0 + min);
-
-            char_offset_to_pos(haystack, a_o_min)
-                .and_then(|p_min| char_offset_to_pos(haystack, a_o_max).map(|p_max| (p_min, p_max)))
-        })
-        .collect();
-    perf_viz::end_record!("offsets.into_iter() char_offset_to_pos");
-    output
+impl <'t_b> From<&'t_b TextBuffer> for RopeSlice<'t_b> {
+    fn from(t_b: &'t_b TextBuffer) -> Self {
+        t_b.rope.full_slice()
+    }
 }
 
-fn get_search_ranges_impl(
-    needle: RopeSlice,
-    haystack: RopeSlice,
-    max_needed: Option<std::num::NonZeroUsize>,
-) -> Vec<(CharOffset, CharOffset)> {
-    perf_viz::record_guard!("get_search_ranges_impl");
-    // Two-way string matching based on http://www-igm.univ-mlv.fr/~lecroq/string/node26.html
-
-    macro_rules! max_suffix {
-        ($name: ident, >) => {
-            max_suffix!($name, a, b, a > b)
-        };
-        ($name: ident, <) => {
-            max_suffix!($name, a, b, a < b)
-        };
-        ($name: ident, $a: ident, $b: ident, $test: expr) => {
-            fn $name(rope: &RopeSlice) -> Option<(isize, isize)> {
-                perf_viz::record_guard!(stringify!($name));
-                let len = rope.len_chars().0 as isize;
-                let mut ms: isize = -1;
-                let mut j: isize = 0;
-                let mut p: isize = 1;
-                let mut k: isize = p;
-
-                while j + k < len {
-                    let $a = rope.char(CharOffset((j + k) as usize))?;
-                    let $b = rope.char(CharOffset((ms + k) as usize))?;
-                    if $test {
-                        j += k;
-                        k = 1;
-                        p = j - ms;
-                    } else {
-                        if $a == $b {
-                            if k != p {
-                                k += 1;
-                            } else {
-                                j += p;
-                                k = 1;
-                            }
-                        } else {
-                            ms = j;
-                            j = ms + 1;
-                            p = 1;
-                            k = p;
-                        }
-                    }
-                }
-
-                Some((ms, p))
-            }
-        };
+impl <'t_b> From<&'t_b mut TextBuffer> for RopeSlice<'t_b> {
+    fn from(t_b: &'t_b mut TextBuffer) -> Self {
+        t_b.rope.full_slice()
     }
-
-    /* Computing of the maximal suffix for <= */
-    max_suffix!(max_suffix_le, <);
-    /* Computing of the maximal suffix for >= */
-    max_suffix!(max_suffix_ge, >);
-
-    let mut output = Vec::new();
-    let needle_len = needle.len_chars().0 as isize;
-    let haystack_len = haystack.len_chars().0 as isize;
-    macro_rules! push {
-        ($start_offset: expr) => {
-            let start_offset = $start_offset as usize;
-            let end_offset = start_offset + needle_len as usize;
-
-            output.push((CharOffset(start_offset), CharOffset(end_offset)));
-            if let Some(max_needed) = max_needed {
-                if max_needed.get() >= output.len() {
-                    return output;
-                }
-            }
-        };
-    }
-
-    /* Two Way string matching algorithm. */
-    //void TW(char *x, int m, char *y, int n) {
-    let ell;
-    let mut period;
-    {
-        /* Preprocessing */
-        match (max_suffix_le(&needle), max_suffix_ge(&needle)) {
-            (Some((i, p)), Some((j, q))) => {
-                if i > j {
-                    ell = i;
-                    period = p;
-                } else {
-                    ell = j;
-                    period = q;
-                }
-            }
-            (le, ge) => {
-                if cfg!(debug_assertions) {
-                    panic!("le {:?}, ge {:?}", le, ge);
-                } else {
-                    return output;
-                }
-            }
-        }
-    }
-
-    macro_rules! opt_iters_match_once {
-        ($method: ident : $op_iter1: expr, $op_iter2: expr) => {
-            match (&mut $op_iter1, &mut $op_iter2) {
-                (Some(ref mut i1), Some(ref mut i2)) => match (i1.$method(), i2.$method()) {
-                    (Some(e1), Some(e2)) if e1 == e2 => true,
-                    (None, None) => true,
-                    _ => false,
-                },
-                (None, None) => true,
-                _ => false,
-            }
-        };
-    }
-
-    /* Searching */
-    let period_matches = {
-        let mut start_chars = needle.chars();
-        let mut period_chars = needle.chars().skip(period as usize);
-        let mut matches = true;
-        for _ in 0..(ell + 1) {
-            match (start_chars.next(), period_chars.next()) {
-                (Some(e1), Some(e2)) if e1 == e2 => {}
-                (None, None) => {}
-                _ => {
-                    matches = false;
-                    break;
-                }
-            }
-        }
-        matches
-    };
-
-    // this avoids trapping the ropey `Chars` in a `Skip` struct, so we can still call `prev`.
-    macro_rules! get_chars_at {
-        ($rope: expr, $n: expr) => {{
-            perf_viz::record_guard!("get_chars_at");
-            use std::convert::TryInto;
-            $n.try_into()
-                .ok()
-                .map(CharOffset)
-                .and_then(|offset| $rope.chars_at(offset))
-        }};
-    }
-
-    let mut i: isize;
-    let mut j: isize = 0;
-    if period_matches {
-        let mut memory: isize = -1;
-        while j <= haystack_len - needle_len {
-            i = std::cmp::max(ell, memory) + 1;
-            {
-                let mut n_chars = get_chars_at!(needle, i);
-                let mut h_chars = get_chars_at!(haystack, i + j);
-                while i < needle_len && opt_iters_match_once!(next: n_chars, h_chars) {
-                    i += 1;
-                }
-            }
-            if i >= needle_len {
-                i = ell;
-                {
-                    let mut n_chars = get_chars_at!(needle, i + 1);
-                    let mut h_chars = get_chars_at!(haystack, i + j + 1);
-                    while i > memory && opt_iters_match_once!(prev: n_chars, h_chars) {
-                        i -= 1;
-                    }
-                }
-                if i <= memory {
-                    push!(j);
-                }
-                j += period;
-                memory = needle_len - period - 1;
-            } else {
-                j += i - ell;
-                memory = -1;
-            }
-        }
-    } else {
-        perf_viz::record_guard!("!period_matches");
-        period = std::cmp::max(ell + 1, needle_len - ell - 1) + 1;
-        while j <= haystack_len - needle_len {
-            i = ell + 1;
-            {
-                let mut n_chars = get_chars_at!(needle, i);
-                let mut h_chars = get_chars_at!(haystack, i + j);
-                while i < needle_len && opt_iters_match_once!(next: n_chars, h_chars) {
-                    i += 1;
-                }
-            }
-            if i >= needle_len {
-                i = ell;
-                {
-                    let mut n_chars = get_chars_at!(needle, i + 1);
-                    let mut h_chars = get_chars_at!(haystack, i + j + 1);
-
-                    while i >= 0 && opt_iters_match_once!(prev: n_chars, h_chars) {
-                        i -= 1;
-                    }
-                }
-                if i < 0 {
-                    push!(j);
-                }
-                j += period;
-            } else {
-                j += i - ell;
-            }
-        }
-    }
-
-    output
 }
 
 pub fn next_instance_of_selected(rope: &Rope, cursor: &Cursor) -> Option<(Position, Position)> {
@@ -507,7 +308,7 @@ pub fn next_instance_of_selected(rope: &Rope, cursor: &Cursor) -> Option<(Positi
             let range = AbsoluteCharOffsetRange::new(p_offset, h_offset);
             let selected_text = rope.slice(range.range())?;
 
-            get_search_ranges(
+            search::get_ranges(
                 selected_text,
                 rope,
                 Some(AbsoluteCharOffsetRange::new(range.max(), rope.len_chars())),
@@ -515,7 +316,7 @@ pub fn next_instance_of_selected(rope: &Rope, cursor: &Cursor) -> Option<(Positi
             )
             .pop()
             .or_else(|| {
-                get_search_ranges(
+                search::get_ranges(
                     selected_text,
                     rope,
                     Some(AbsoluteCharOffsetRange::new(d!(), range.min())),
@@ -526,37 +327,7 @@ pub fn next_instance_of_selected(rope: &Rope, cursor: &Cursor) -> Option<(Positi
         }
         _ => None,
     }
-}
-
-type OffsetPair = (Option<AbsoluteCharOffset>, Option<AbsoluteCharOffset>);
-
-/// This will return `Some` if the offset is one-past the last index.
-// TODO do we actually need both of these? Specifically, will `strict_offset_pair` work everywhere?
-fn offset_pair(rope: &Rope, cursor: &Cursor) -> OffsetPair {
-    (
-        pos_to_char_offset(rope, &cursor.get_position()),
-        cursor
-            .get_highlight_position()
-            .and_then(|p| pos_to_char_offset(rope, &p)),
-    )
-}
-
-/// This will return `None` if the offset is one-past the last index.
-fn strict_offset_pair(rope: &Rope, cursor: &Cursor) -> OffsetPair {
-    let filter_out_of_bounds =
-        |position: Position| macros::some_if!(in_cursor_bounds(rope, position) => position);
-
-    (
-        Some(cursor.get_position())
-            .and_then(filter_out_of_bounds)
-            .and_then(|p| pos_to_char_offset(rope, &p)),
-        cursor
-            .get_highlight_position()
-            .and_then(filter_out_of_bounds)
-            .and_then(|p| pos_to_char_offset(rope, &p)),
-    )
-}
-
+}
 enum ApplyKind {
     Record,
     Playback,
@@ -876,158 +647,6 @@ impl<'rope, 'cursors> EditApplier<'rope, 'cursors> {
     fn set_cursors(&mut self, new: Cursors) {
         set_cursors(self.rope, self.cursors, new);
     }
-}
-
-/// returns `None` if the input position's line does not refer to a line in the `Rope`.
-fn nearest_valid_position_on_same_line<P: Borrow<Position>>(rope: &Rope, p: P) -> Option<Position> {
-    let p = p.borrow();
-
-    final_non_newline_offset_for_line(rope, LineIndex(p.line)).map(|final_offset| Position {
-        offset: min(p.offset, final_offset),
-        ..*p
-    })
-}
-
-/// Returns `None` if that line is not in the `Rope`.
-#[perf_viz::record]
-fn final_non_newline_offset_for_line(rope: &Rope, line_index: LineIndex) -> Option<CharOffset> {
-    rope.line(line_index)
-        .map(final_non_newline_offset_for_rope_line)
-}
-
-#[perf_viz::record]
-fn final_non_newline_offset_for_rope_line(line: RopeLine) -> CharOffset {
-    final_non_newline_offset_for_rope_line_(line)
-}
-fn final_non_newline_offset_for_rope_line_(line: RopeLine) -> CharOffset {
-    let mut len = line.len_chars();
-
-    macro_rules! get_char_before_len {
-        () => {
-            if let Some(c) = line.char(len - 1) {
-                c
-            } else {
-                // We know that the index we are passing in is less than `len_chars()`
-                // so this case should not actually happen. But, we have a reasonable
-                // value to return so why no just do that?
-                return CharOffset(0);
-            };
-        };
-    }
-
-    macro_rules! return_if_0 {
-        () => {
-            if len == 0 {
-                return CharOffset(0);
-            }
-        };
-    }
-
-    return_if_0!();
-
-    let last = get_char_before_len!();
-
-    if last == '\n' {
-        len -= 1;
-
-        return_if_0!();
-
-        let second_last = get_char_before_len!();
-
-        if second_last == '\r' {
-            len -= 1;
-            return_if_0!();
-        }
-    } else if is_linebreak_char(last)
-    {
-        len -= 1;
-        return_if_0!();
-    }
-
-    len
-}
-
-pub fn is_linebreak_char(c: char) -> bool {
-    // The rope library we are using treats these as line breaks, so we do too.
-    // See also https://www.unicode.org/reports/tr14/tr14-32.html
-    (c >= '\u{a}' && c <= '\r')
-        || c == '\u{0085}'
-        || c == '\u{2028}'
-        || c == '\u{2029}'
-}
-
-#[perf_viz::record]
-fn in_cursor_bounds<P: Borrow<Position>>(rope: &Rope, position: P) -> bool {
-    let p = position.borrow();
-    final_non_newline_offset_for_line(rope, LineIndex(p.line))
-        .map(|l| p.offset <= l)
-        .unwrap_or(false)
-}
-
-/// Returns `None` iff the position is not valid for the given rope.
-#[perf_viz::record]
-fn pos_to_char_offset(rope: &Rope, position: &Position) -> Option<AbsoluteCharOffset> {
-    let line_index = LineIndex(position.line);
-
-    let line_start = rope.line_to_char(line_index)?;
-    let line = rope.line(line_index)?;
-    let offset = position.offset;
-    if offset == 0 || offset <= line.len_chars() {
-        Some(line_start + offset)
-    } else {
-        None
-    }
-}
-
-#[perf_viz::record]
-fn char_offset_to_pos(rope: &Rope, offset: AbsoluteCharOffset) -> Option<Position> {
-    if rope.len_chars() == offset {
-        Some(LineIndex(rope.len_lines().0 - 1))
-    } else {
-        rope.char_to_line(offset)
-    }
-    .and_then(|line_index| {
-        let start_of_line = rope.line_to_char(line_index)?;
-
-        offset
-            .checked_sub(start_of_line)
-            .map(|o: CharOffset| Position {
-                line: line_index.0,
-                offset: o.into(),
-            })
-    })
-}
-
-fn clamp_position(rope: &Rope, position: Position) -> Position {
-    clamp_position_helper(rope, position)
-        .unwrap_or_else(|| char_offset_to_pos(rope, rope.len_chars()).unwrap_or_default())
-}
-
-fn clamp_position_helper(rope: &Rope, position: Position) -> Option<Position> {
-    let line_index = LineIndex(position.line);
-
-    let line_start = rope.line_to_char(line_index)?;
-    let line = rope.line(line_index)?;
-    let offset = position.offset;
-
-    let abs_offset = line_start + min(offset, final_non_newline_offset_for_rope_line(line));
-
-    let line_index = if rope.len_chars() == abs_offset {
-        Some(LineIndex(rope.len_lines().0 - 1))
-    } else {
-        rope.char_to_line(abs_offset)
-    };
-
-    line_index.and_then(|line_index| {
-        let start_of_line = rope.line_to_char(line_index)?;
-
-        abs_offset
-            .checked_sub(start_of_line)
-            .map(|o: CharOffset| Position {
-                line: line_index.0,
-                offset: o.into(),
-            })
-    })
 }
 
 impl<'rope> TextBuffer {

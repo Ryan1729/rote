@@ -18,6 +18,9 @@ path = "libs/editor_types"
 [dependencies.if_changed]
 path = "../if_changed"
 
+[dependencies.panic_safe_rope]
+path = "libs/panic_safe_rope"
+
 [dependencies.perf_viz]
 path = "../perf_viz"
 
@@ -35,6 +38,9 @@ path = "libs/parsers"
 
 [dependencies.paths]
 path = "libs/paths"
+
+[dependencies.search]
+path = "libs/search"
 
 [dependencies.text_buffer]
 path = "libs/text_buffer"
