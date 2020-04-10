@@ -13,72 +13,8 @@ use panic_safe_rope::{RopeSlice, RopeSliceTrait};
 use std::path::PathBuf;
 
 #[derive(Clone, Debug, Default)]
-pub struct ScrollableBuffer {
-    pub text_buffer: TextBuffer,
-    pub scroll: ScrollXY,
-}
-
-impl From<&ScrollableBuffer> for String {
-    fn from(s_b: &ScrollableBuffer) -> Self {
-        (&s_b.text_buffer).into()
-    }
-}
-
-impl From<&mut ScrollableBuffer> for String {
-    fn from(s_b: &mut ScrollableBuffer) -> Self {
-        (&s_b.text_buffer).into()
-    }
-}
-
-impl ScrollableBuffer {
-    pub fn try_to_show_cursors_on(
-        &mut self,
-        xywh: TextBoxXYWH,
-        text_char_dim: CharDim,
-    ) -> VisibilityAttemptResult {
-        let scroll = &mut self.scroll;
-        let cursors = self.text_buffer.borrow_cursors_vec();
-    
-        // We try first with this smaller xywh to make the cursor appear
-        // in the center more often.
-        let mut small_xywh = xywh.clone();
-        //small_xywh.xy.x += small_xywh.wh.w / 4.0;
-        //small_xywh.wh.w /= 2.0;
-        small_xywh.xy.y += small_xywh.wh.h / 4.0;
-        small_xywh.wh.h /= 2.0;
-    
-        let apron: Apron = text_char_dim.into();
-    
-        let text_space = position_to_text_space(cursors.last().get_position(), text_char_dim);
-    
-        let mut attempt_result;
-        attempt_result = attempt_to_make_xy_visible(
-            scroll,
-            small_xywh,
-            apron.clone(),
-            text_space,
-        );
-    
-        if attempt_result != VisibilityAttemptResult::Succeeded {
-            attempt_result = attempt_to_make_xy_visible(
-                scroll,
-                xywh,
-                apron,
-                text_space,
-            );
-        }
-    
-        attempt_result
-    }
-
-    pub fn reset_cursor_states(&mut self) {
-        self.text_buffer.reset_cursor_states();
-    }
-}
-
-#[derive(Clone, Debug, Default)]
 pub struct EditorBuffer {
-    pub scrollable: ScrollableBuffer,
+    pub text_buffer: TextBuffer,
     pub name: BufferName,
     //TODO: Set `current_range` to something as close as possible to being on screen of haystack
     // whenever this changes
@@ -90,24 +26,20 @@ pub struct EditorBuffer {
 
 impl From<&EditorBuffer> for String {
     fn from(e_b: &EditorBuffer) -> Self {
-        (&e_b.scrollable).into()
+        (&e_b.text_buffer).into()
     }
 }
 
 impl From<&mut EditorBuffer> for String {
     fn from(e_b: &mut EditorBuffer) -> Self {
-        (&e_b.scrollable).into()
+        (&e_b.text_buffer).into()
     }
 }
 
 impl EditorBuffer {
     pub fn new<I: Into<TextBuffer>>(name: BufferName, s: I) -> Self {
         Self {
-            name,
-            scrollable: ScrollableBuffer {
-                text_buffer: s.into(),
-                ..d!()
-            },
+            name,            text_buffer: s.into(),
             ..d!()
         }
     }
@@ -123,7 +55,7 @@ impl EditorBuffer {
     }
 
     pub fn reset_cursor_states(&mut self) {
-        self.scrollable.reset_cursor_states();
+        self.text_buffer.reset_cursor_states();
     }
 
     pub fn update_search_results(&mut self, needle: RopeSlice) {
@@ -143,16 +75,14 @@ impl EditorBuffer {
                     .get(self.search_results.current_range)
                 {
                     let c: Cursor = pair.into();
-                    self
-                        .scrollable
-                        .text_buffer
+                    self                        .text_buffer
                         .set_cursor(c, ReplaceOrAdd::Replace);            
                 }
             }
         } else {
             self.search_results = SearchResults::new(
                 needle,
-                self.scrollable.text_buffer.borrow_rope()
+                self.text_buffer.borrow_rope()
             );
         }
     }

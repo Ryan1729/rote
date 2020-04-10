@@ -5,10 +5,9 @@ use macros::{SaturatingAdd};
 use search::SearchResults;
 
 fn scrollable_to_buffer_view_data(
-    scrollable: &ScrollableBuffer,
+    buffer: &TextBuffer,
     selection_lines_estimate: usize,
 ) -> BufferViewData {
-    let buffer = &scrollable.text_buffer;
     let buffer_cursors = buffer.borrow_cursors();
     let cursors_len = buffer_cursors.len();
     let mut cursors = Vec::with_capacity(cursors_len);
@@ -28,7 +27,7 @@ fn scrollable_to_buffer_view_data(
     let chars = buffer.chars().collect::<String>();
 
     BufferViewData {
-        scroll: scrollable.scroll,
+        scroll: buffer.scroll,
         chars,
         cursors,
         highlights,
@@ -42,7 +41,7 @@ fn editor_to_buffer_view_data(
     selection_lines_estimate: usize,
 ) -> BufferViewData {
     let mut buffer_view_data =
-        scrollable_to_buffer_view_data(&editor_buffer.scrollable, selection_lines_estimate);
+        scrollable_to_buffer_view_data(&editor_buffer.text_buffer, selection_lines_estimate);
 
     buffer_view_data.spans = parsers.get_spans(
         &buffer_view_data.chars,
@@ -100,16 +99,11 @@ pub fn render(
     view.status_line.chars.clear();
 
     let EditorBuffer {
-            scrollable:
-                ScrollableBuffer {
-                    text_buffer: buffer,
-                    scroll,
-                    ..
-                },
-            ..
-        } = buffers.get_current_buffer();
+        text_buffer: buffer,
+        ..
+    } = buffers.get_current_buffer();
 
-    let scroll = *scroll;
+    let scroll = buffer.scroll;
     
     fn display_option_compactly<A: ToString>(op: Option<A>) -> String {
         match op {

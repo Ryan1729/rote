@@ -11,8 +11,7 @@ mod editor_view;
 mod editor_buffers;
 use editor_buffers::{
     EditorBuffers, 
-    EditorBuffer, 
-    ScrollableBuffer
+    EditorBuffer
 };
 
 #[derive(Debug, Default)]
@@ -81,13 +80,13 @@ pub struct State {    buffers: EditorBuffers,
     buffer_xywh: TextBoxXYWH,
     current_buffer_kind: BufferIdKind,
     menu_mode: MenuMode,
-    file_switcher: ScrollableBuffer,
+    file_switcher: TextBuffer,
     file_switcher_results: FileSwitcherResults,
-    find: ScrollableBuffer,
+    find: TextBuffer,
     find_xywh: TextBoxXYWH,
-    replace: ScrollableBuffer,
+    replace: TextBuffer,
     replace_xywh: TextBoxXYWH,
-    go_to_position: ScrollableBuffer,
+    go_to_position: TextBuffer,
     go_to_position_xywh: TextBoxXYWH,
     font_info: FontInfo,
     clipboard_history: ClipboardHistory,
@@ -95,16 +94,16 @@ pub struct State {    buffers: EditorBuffers,
 }
 
 // this macro helps the borrow checker figure out that borrows are valid.
-macro_rules! get_scrollable_buffer_mut {
-    /* -> Option<&mut ScrollableBuffer> */
+macro_rules! get_text_buffer_mut {
+    /* -> Option<&mut TextBuffer> */
     ($state: expr) => {{
-        get_scrollable_buffer_mut!($state, $state.current_buffer_kind)
+        get_text_buffer_mut!($state, $state.current_buffer_kind)
     }};
     ($state: expr, $kind: expr) => {{
         u!{BufferIdKind}
         match $kind {
             None => Option::None,
-            Text => Some(&mut $state.buffers.get_current_buffer_mut().scrollable),
+            Text => Some(&mut $state.buffers.get_current_buffer_mut().text_buffer),
             Find => Some(&mut $state.find),
             Replace => Some(&mut $state.replace),
             FileSwitcher => Some(&mut $state.file_switcher),
@@ -169,7 +168,7 @@ impl State {
     fn set_id(&mut self, id: BufferId) {
         self.current_buffer_kind = id.kind;
 
-        if let Some(buffer) = get_scrollable_buffer_mut!(self) {
+        if let Some(buffer) = get_text_buffer_mut!(self) {
             // These need to be cleared so that the `platform_types::View` that is passed down
             // can be examined to detemine if the user wants to navigate away from the given
             // buffer. We do this with each buffer, even though a client might only care about
@@ -217,7 +216,7 @@ impl State {
     fn try_to_show_cursors_on(&mut self, kind: BufferIdKind) -> Option<()> {
         u!{BufferIdKind}
 
-        let buffer = get_scrollable_buffer_mut!(self, kind)?;
+        let buffer = get_text_buffer_mut!(self, kind)?;
         let xywh = match kind {
             None => return Option::None,
             Text => self.buffer_xywh,
@@ -346,12 +345,12 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             match state.menu_mode {
                 MenuMode::Hidden | MenuMode::FindReplace(_) => {
                     state.buffers.get_current_buffer_mut().update_search_results(
-                        (&state.find.text_buffer).into(),
+                        (&state.find).into(),
                     );
                 }
                 MenuMode::FileSwitcher => {
                     let needle_string: String =
-                        state.file_switcher.text_buffer.borrow_rope().into();
+                        state.file_switcher.borrow_rope().into();
                     let needle_str: &str = &needle_string;
                     state.file_switcher_results =
                         paths::find_in(state.opened_paths().iter().map(|p| p.as_path()), needle_str);
@@ -372,13 +371,16 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
 
     macro_rules! editor_buffer_call {
         (sync $buffer: ident . $($method_call:tt)*) => {
-            editor_buffer_call!($buffer . $($method_call)*)
+            let output = editor_buffer_call!(sync $buffer . $($method_call)*);
+            post_edit_sync!();
+            output
         };
         ($buffer: ident . $($method_call:tt)*) => {
             editor_buffer_call!($buffer {$buffer.$($method_call)*})
         };
         (sync $buffer: ident $tokens:block) => {{
             editor_buffer_call!($buffer $tokens)
+            post_edit_sync!();
         }};
         ($buffer: ident $tokens:block) => {{
             let $buffer = state.buffers.get_current_buffer_mut();
@@ -386,37 +388,21 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
         }}
     }
 
-    macro_rules! buffer_call {
-        (sync $buffer: ident . $($method_call:tt)*) => {
-            let output = buffer_call!($buffer . $($method_call)*);
-            post_edit_sync!();
-            output
-        };
-        ($buffer: ident . $($method_call:tt)*) => {
-            buffer_call!($buffer {$buffer.$($method_call)*})
-        };
-        (sync $buffer: ident $tokens:block) => {{
-            buffer_call!($buffer $tokens);
-            post_edit_sync!();
-        }};
-        ($buffer: ident $tokens:block) => {{
-            if let Some($buffer) = get_scrollable_buffer_mut!(state) {
-                $tokens;
-            }
-        }}
-    }
     macro_rules! text_buffer_call {
         (sync $buffer: ident . $($method_call:tt)*) => {
-            text_buffer_call!($buffer . $($method_call)*)
+            let output = text_buffer_call!($buffer . $($method_call)*);
+            post_edit_sync!();
+            output
         };
         ($buffer: ident . $($method_call:tt)*) => {
             text_buffer_call!($buffer {$buffer.$($method_call)*})
         };
         (sync $buffer: ident $tokens:block) => {{
-            text_buffer_call!($buffer $tokens)
+            text_buffer_call!($buffer $tokens);
+            post_edit_sync!();
         }};
         ($buffer: ident $tokens:block) => {{
-            if let Some($buffer) = get_scrollable_buffer_mut!(state).map(|b| &mut b.text_buffer) {
+            if let Some($buffer) = get_text_buffer_mut!(state) {
                 $tokens;
             }
         }}
@@ -460,34 +446,34 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
         CloseMenuIfAny => {
             close_menu_if_any!();
         }
-        Insert(c) => buffer_call!(sync b{
-            b.text_buffer.insert(c);
+        Insert(c) => text_buffer_call!(sync b{
+            b.insert(c);
             mark_edited_transition!(current, ToEdited);
         }),
-        Delete => buffer_call!(sync b {
-            b.text_buffer.delete();
+        Delete => text_buffer_call!(sync b {
+            b.delete();
             mark_edited_transition!(current, ToEdited);
         }),
-        DeleteLines => buffer_call!(sync b {
-            b.text_buffer.delete_lines();
+        DeleteLines => text_buffer_call!(sync b {
+            b.delete_lines();
             mark_edited_transition!(current, ToEdited);
         }),
-        Redo => buffer_call!(sync b {
-            b.text_buffer.redo();
+        Redo => text_buffer_call!(sync b {
+            b.redo();
             mark_edited_transition!(current, ToEdited);
         }),
-        Undo => buffer_call!(sync b {
-            b.text_buffer.undo();
+        Undo => text_buffer_call!(sync b {
+            b.undo();
         }),
         MoveAllCursors(r#move) => {
-            buffer_call!(b{
-                b.text_buffer.move_all_cursors(r#move);
+            text_buffer_call!(b{
+                b.move_all_cursors(r#move);
                 try_to_show_cursors!();
             });
         }
         ExtendSelectionForAllCursors(r#move) => {
-            buffer_call!(b{
-                b.text_buffer.extend_selection_for_all_cursors(r#move);
+            text_buffer_call!(b{
+                b.extend_selection_for_all_cursors(r#move);
                 try_to_show_cursors!();
             });
         }
@@ -496,13 +482,13 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             // We don't need to make sure a cursor is visible here since the user
             // will understand where the cursor is.
         }
-        ScrollVertically(amount) => buffer_call!(b{
+        ScrollVertically(amount) => text_buffer_call!(b{
             b.scroll.y -= amount;
         }),
-        ScrollHorizontally(amount) => buffer_call!(b{
+        ScrollHorizontally(amount) => text_buffer_call!(b{
             b.scroll.x += amount;
         }),
-        ResetScroll => buffer_call!(b{
+        ResetScroll => text_buffer_call!(b{
             b.scroll = d!();
         }),
         SetSizeDependents(sds) => {
@@ -514,19 +500,19 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
         }
         SetCursor(xy, replace_or_add) => {
             let char_dim = state.get_current_char_dim();
-            buffer_call!(b{
+            text_buffer_call!(b{
                 let position = text_space_to_position(
                     text_box_to_text(xy, b.scroll),
                     char_dim,
                     PositionRound::Up,
                 );
 
-                b.text_buffer.set_cursor(position, replace_or_add);
+                b.set_cursor(position, replace_or_add);
             });
         }
         DragCursors(xy) => {
             let char_dim = state.get_current_char_dim();
-            buffer_call!(b{
+            text_buffer_call!(b{
                 let position = text_space_to_position(
                     text_box_to_text(xy, b.scroll),
                     char_dim,
@@ -535,12 +521,12 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                 // In practice we currently expect this to be sent only immeadately after an
                 // `Input::SetCursors` input, so there will be only one cursor. But it seems like
                 // we might as well just do it to all the cursors
-                b.text_buffer.drag_cursors(position);
+                b.drag_cursors(position);
             })
         }
         SelectCharTypeGrouping(xy, replace_or_add) => {
             let char_dim = state.get_current_char_dim();
-            buffer_call!(b{
+            text_buffer_call!(b{
                 // We want different rounding for selections so that if we trigger a selection on the
                 // right side of a character, we select that character rather than the next character.
                 let position = text_space_to_position(
@@ -549,19 +535,19 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                     PositionRound::TowardsZero,
                 );
 
-                b.text_buffer.select_char_type_grouping(position, replace_or_add)
+                b.select_char_type_grouping(position, replace_or_add)
             })
         }
         ExtendSelectionWithSearch => {
-            buffer_call!(b{
-                let cursor = b.text_buffer.borrow_cursors().first().clone();
+            text_buffer_call!(b{
+                let cursor = b.borrow_cursors().first().clone();
                 match cursor.get_highlight_position() {
                     Option::None => {
-                        b.text_buffer.select_char_type_grouping(cursor.get_position(), ReplaceOrAdd::Add);
+                        b.select_char_type_grouping(cursor.get_position(), ReplaceOrAdd::Add);
                     }
                     Some(_) => {
-                        if let Some(pair) = next_instance_of_selected(b.text_buffer.borrow_rope(), &cursor) {
-                            b.text_buffer.set_cursor(pair, ReplaceOrAdd::Add);
+                        if let Some(pair) = next_instance_of_selected(b.borrow_rope(), &cursor) {
+                            b.set_cursor(pair, ReplaceOrAdd::Add);
                         }
                     }
                 }
@@ -570,22 +556,22 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
         SavedAs(buffer_index, path) => {
             state.buffers.set_path(buffer_index, path);
         }
-        Cut => buffer_call!(sync b {
-            if let Some(s) = state.clipboard_history.cut(&mut b.text_buffer) {
+        Cut => text_buffer_call!(sync b {
+            if let Some(s) = state.clipboard_history.cut(b) {
                 cmd = Cmd::SetClipboard(s);
             }
         }),
-        Copy => buffer_call!(b {
-            if let Some(s) = state.clipboard_history.copy(&mut b.text_buffer) {
+        Copy => text_buffer_call!(b {
+            if let Some(s) = state.clipboard_history.copy(b) {
                 cmd = Cmd::SetClipboard(s);
             }
             try_to_show_cursors!();
         }),
-        Paste(op_s) => buffer_call!(sync b {
-            state.clipboard_history.paste(&mut b.text_buffer, op_s);
+        Paste(op_s) => text_buffer_call!(sync b {
+            state.clipboard_history.paste(b, op_s);
         }),
-        InsertNumbersAtCursors => buffer_call!(sync b {
-            b.text_buffer.insert_at_each_cursor(|i| i.to_string());
+        InsertNumbersAtCursors => text_buffer_call!(sync b {
+            b.insert_at_each_cursor(|i| i.to_string());
         }),
         NewScratchBuffer(data_op) => {
             state.buffers.push_and_select_new(EditorBuffer::new(
@@ -704,9 +690,9 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                     debug_assert!(false, "state.find_replace_mode() returned None");
                 }
                 Some(FindReplaceMode::CurrentFile) => {
-                    let haystack = state.buffers.get_current_buffer_mut();
-                    let needle = &state.find.text_buffer;
-                    haystack.update_search_results(needle.into());
+                    state.buffers.get_current_buffer_mut().update_search_results(
+                        (&state.find).into(),
+                    );
                     try_to_show_cursors!(BufferIdKind::Text);
                     try_to_show_cursors!();
                     
@@ -720,7 +706,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                 text_buffer_call!(b{
                     let input: String = b.into();
                     if let Ok(position) = parse_for_go_to_position(&input) {
-                        state.buffers.get_current_buffer_mut().scrollable.text_buffer.set_cursor(position, ReplaceOrAdd::Replace);
+                        state.buffers.get_current_buffer_mut().text_buffer.set_cursor(position, ReplaceOrAdd::Replace);
                         state.set_menu_mode(MenuMode::Hidden);
                         try_to_show_cursors!();
                     }

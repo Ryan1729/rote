@@ -226,10 +226,14 @@ fn strict_offset_pair(rope: &Rope, cursor: &Cursor) -> OffsetPair {
 
 #[derive(Clone, Debug, Default)]
 pub struct TextBuffer {
+    /// We keep the rope private, and only allow non-mut borrows
+    /// so we know that the history contains all the changes made
+    /// to the rope.
     rope: Rope,
     cursors: Cursors,
     history: VecDeque<Edit>,
     history_index: usize,
+    pub scroll: ScrollXY,
 }
 
 impl TextBuffer {
@@ -255,6 +259,45 @@ impl TextBuffer {
 
     pub fn reset_cursor_states(&mut self) {
         self.cursors.reset_states();
+    }
+
+    pub fn try_to_show_cursors_on(
+        &mut self,
+        xywh: TextBoxXYWH,
+        text_char_dim: CharDim,
+    ) -> VisibilityAttemptResult {
+        let scroll = &mut self.scroll;
+    
+        // We try first with this smaller xywh to make the cursor appear
+        // in the center more often.
+        let mut small_xywh = xywh.clone();
+        //small_xywh.xy.x += small_xywh.wh.w / 4.0;
+        //small_xywh.wh.w /= 2.0;
+        small_xywh.xy.y += small_xywh.wh.h / 4.0;
+        small_xywh.wh.h /= 2.0;
+    
+        let apron: Apron = text_char_dim.into();
+    
+        let text_space = position_to_text_space(self.cursors.last().get_position(), text_char_dim);
+    
+        let mut attempt_result;
+        attempt_result = attempt_to_make_xy_visible(
+            scroll,
+            small_xywh,
+            apron.clone(),
+            text_space,
+        );
+    
+        if attempt_result != VisibilityAttemptResult::Succeeded {
+            attempt_result = attempt_to_make_xy_visible(
+                scroll,
+                xywh,
+                apron,
+                text_space,
+            );
+        }
+    
+        attempt_result
     }
 }
 
