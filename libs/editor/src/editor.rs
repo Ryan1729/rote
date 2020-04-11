@@ -5,7 +5,7 @@ use parsers::{Parsers};
 
 use std::path::PathBuf;
 use std::collections::VecDeque;
-use text_buffer::{next_instance_of_selected, TextBuffer};
+use text_buffer::{TextBuffer};
 
 mod editor_view;
 mod editor_buffers;
@@ -361,19 +361,16 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
         };
     }
 
-    let mut edited_buffer_index: Option<g_i::Index> = Option::None;
     macro_rules! post_edit_sync {
         () => {
             buffer_view_sync!();
-            edited_buffer_index = Some(state.buffers.current_index());
         };
     }
 
     macro_rules! editor_buffer_call {
         (sync $buffer: ident . $($method_call:tt)*) => {
-            let output = editor_buffer_call!(sync $buffer . $($method_call)*);
+            editor_buffer_call!(sync $buffer . $($method_call)*);
             post_edit_sync!();
-            output
         };
         ($buffer: ident . $($method_call:tt)*) => {
             editor_buffer_call!($buffer {$buffer.$($method_call)*})
@@ -390,9 +387,8 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
 
     macro_rules! text_buffer_call {
         (sync $buffer: ident . $($method_call:tt)*) => {
-            let output = text_buffer_call!($buffer . $($method_call)*);
+            text_buffer_call!($buffer . $($method_call)*);
             post_edit_sync!();
-            output
         };
         ($buffer: ident . $($method_call:tt)*) => {
             text_buffer_call!($buffer {$buffer.$($method_call)*})
@@ -527,31 +523,17 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
         SelectCharTypeGrouping(xy, replace_or_add) => {
             let char_dim = state.get_current_char_dim();
             text_buffer_call!(b{
-                // We want different rounding for selections so that if we trigger a selection on the
-                // right side of a character, we select that character rather than the next character.
-                let position = text_space_to_position(
-                    text_box_to_text(xy, b.scroll),
-                    char_dim,
-                    PositionRound::TowardsZero,
-                );
-
-                b.select_char_type_grouping(position, replace_or_add)
+                b.select_char_type_grouping(
+                    b.xy_to_position(
+                        char_dim,
+                        xy,
+                    ),
+                    replace_or_add
+                )
             })
         }
         ExtendSelectionWithSearch => {
-            text_buffer_call!(b{
-                let cursor = b.borrow_cursors().first().clone();
-                match cursor.get_highlight_position() {
-                    Option::None => {
-                        b.select_char_type_grouping(cursor.get_position(), ReplaceOrAdd::Add);
-                    }
-                    Some(_) => {
-                        if let Some(pair) = next_instance_of_selected(b.borrow_rope(), &cursor) {
-                            b.set_cursor(pair, ReplaceOrAdd::Add);
-                        }
-                    }
-                }
-            });
+            text_buffer_call!(b.extend_selection_with_search());
         }
         SavedAs(buffer_index, path) => {
             state.buffers.set_path(buffer_index, path);
@@ -627,7 +609,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             } else {
                 let mut selections = d!();
 
-                text_buffer_call!(b {
+                text_buffer_call!(b { 
                     selections = b.copy_selections();
                 });
 
@@ -642,7 +624,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                 selection = match (selection, mode) {
                     (Option::None, _) => {Option::None}
                     (Some(selection), MenuMode::GoToPosition) => {
-                        if dbg!(parse_for_go_to_position(&selection)).is_err() {
+                        if parse_for_go_to_position(&selection).is_err() {
                             Option::None
                         } else {
                             Some(selection)
@@ -677,11 +659,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             }
         }
         NextLanguage => {
-            editor_buffer_call!(b {
-                b.parser_kind = Some(
-                    dbg!(b.get_parser_kind().next().unwrap_or_default())
-                );
-            });
+            editor_buffer_call!(b.next_language());
         }
         SubmitForm => match state.current_buffer_kind {
             BufferIdKind::None | BufferIdKind::Text => {}

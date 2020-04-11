@@ -1986,6 +1986,7 @@ dependencies = [
  "macros 0.1.0",
  "panic_safe_rope 0.1.0",
  "perf_viz 0.1.0",
+ "proptest 0.9.5 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -2123,6 +2124,7 @@ dependencies = [
  "macros 0.1.0",
  "panic_safe_rope 0.1.0",
  "perf_viz 0.1.0",
+ "proptest 0.9.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "rope_pos 0.1.0",
 ]
 

@@ -20,3 +20,6 @@ path = "../panic_safe_rope"
 
 [dependencies.perf_viz]
 path = "../../../perf_viz"
+
+[dev-dependencies]
+proptest = "0.9"

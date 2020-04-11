@@ -1,6 +1,7 @@
 // This module is inside `tests`
 use super::*;
 
+use rope_pos::is_linebreak_char;
 
 use std::collections::HashMap;
 
@@ -23,38 +24,7 @@ prop_compose! {
         r!(s)
     }
 }
-
-prop_compose! {
-    pub fn needle_and_haystack()
-    (needle in "\\PC+", needleless_haystack in "\\PC*")
-    (insert_point in 0..=needleless_haystack.chars().count(), needle in Just(needle), needleless_haystack in Just(needleless_haystack)) -> (String, String) {
-        let mut haystack = String::with_capacity(needleless_haystack.len() + needle.len());
-
-        let mut inserted_count = 0;
-        for (i, c) in needleless_haystack.chars().enumerate() {
-            if i == insert_point {
-                inserted_count += 1;
-                haystack.push_str(&needle);
-            }
-            haystack.push(c);
-        }
-        if needleless_haystack.chars().count() == insert_point {
-            inserted_count += 1;
-            haystack.push_str(&needle);
-        }
-        self::assert_eq!(inserted_count, 1,
-            "insert_point {}, needle {:?}, needleless_haystack: {:?}, needleless_haystack.chars().count() {}",
-            insert_point,
-            needle,
-            needleless_haystack,
-            needleless_haystack.chars().count()
-        );
-
-        (needle, haystack)
-    }
-}
-
-pub fn vec1<D: Debug>(
+pub fn vec1<D: Debug>(
     strat: impl Strategy<Value = D>,
     max_len: usize,
 ) -> impl Strategy<Value = Vec1<D>> {
@@ -426,7 +396,7 @@ impl TestEdit {
             SetCursor(position, replace_or_add) => buffer.set_cursor(position, *replace_or_add),
             DragCursors(position) => buffer.drag_cursors(position),
             SelectCharTypeGrouping(position, replace_or_add) => {
-                buffer.select_char_type_grouping(position, *replace_or_add)
+                buffer.select_char_type_grouping(*position, *replace_or_add)
             }
             SelectAll => buffer.select_all(),
             Cut => {

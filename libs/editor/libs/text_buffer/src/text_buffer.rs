@@ -1,7 +1,7 @@
 use crate::move_cursor::{forward, get_next_selection_point, get_previous_selection_point};
 use editor_types::{Cursor, SetPositionAction};
-use macros::{d, some_or, CheckedSub};
-use panic_safe_rope::{ByteIndex, LineIndex, Rope, RopeLine, RopeSlice, RopeSliceTrait};
+use macros::{d, some_or};
+use panic_safe_rope::{ByteIndex, LineIndex, Rope, RopeSlice, RopeSliceTrait};
 use platform_types::*;
 use rope_pos::{AbsoluteCharOffsetRange, clamp_position, in_cursor_bounds, nearest_valid_position_on_same_line};
 
@@ -32,7 +32,7 @@ macro_rules! curs {
 }
 
 impl Cursors {
-    /// We require a rope paramter only so we can make sure the cursors are within the given
+    /// We require a rope parameter only so we can make sure the cursors are within the given
     /// rope's bounds.
     pub fn new(rope: &Rope, mut cursors: Vec1<Cursor>) -> Self {
         cursors.sort();
@@ -264,7 +264,7 @@ impl TextBuffer {
     pub fn try_to_show_cursors_on(
         &mut self,
         xywh: TextBoxXYWH,
-        text_char_dim: CharDim,
+        char_dim: CharDim,
     ) -> VisibilityAttemptResult {
         let scroll = &mut self.scroll;
     
@@ -276,9 +276,9 @@ impl TextBuffer {
         small_xywh.xy.y += small_xywh.wh.h / 4.0;
         small_xywh.wh.h /= 2.0;
     
-        let apron: Apron = text_char_dim.into();
+        let apron: Apron = char_dim.into();
     
-        let text_space = position_to_text_space(self.cursors.last().get_position(), text_char_dim);
+        let text_space = position_to_text_space(self.cursors.last().get_position(), char_dim);
     
         let mut attempt_result;
         attempt_result = attempt_to_make_xy_visible(
@@ -345,7 +345,7 @@ impl <'t_b> From<&'t_b mut TextBuffer> for RopeSlice<'t_b> {
     }
 }
 
-pub fn next_instance_of_selected(rope: &Rope, cursor: &Cursor) -> Option<(Position, Position)> {
+fn next_instance_of_selected(rope: &Rope, cursor: &Cursor) -> Option<(Position, Position)> {
     match offset_pair(rope, cursor) {
         (Some(p_offset), Some(h_offset)) => {
             let range = AbsoluteCharOffsetRange::new(p_offset, h_offset);
@@ -523,7 +523,21 @@ impl TextBuffer {
         }
     }
 
-    /// Selects a grouping oof characters with a single character type, where the character types
+    pub fn xy_to_position(
+        &self,
+        char_dim: CharDim,
+        xy: TextBoxSpaceXY,
+    ) -> Position {
+        text_space_to_position(
+            text_box_to_text(xy, self.scroll),
+            char_dim,
+            // We want different rounding for selections so that if we trigger a selection on the
+            // right side of a character, we select that character rather than the next character.
+            PositionRound::TowardsZero,
+        )
+    }
+
+    /// Selects a grouping of characters with a single character type, where the character types
     /// are as follows:
     /// * Word characters, as defined by the `regex` crate
     /// * Whitspace characters, again as defined by the `regex` crate
@@ -532,12 +546,12 @@ impl TextBuffer {
     ///
     /// If it helps, you can think of it as "select_word" if the cursor is on a word, and other
     /// stuff otherwise
-    pub fn select_char_type_grouping<C: Into<Cursor>>(
+    pub fn select_char_type_grouping(
         &mut self,
-        cursor: C,
+        position: Position,
         replace_or_add: ReplaceOrAdd,
     ) {
-        if let Some(mut new) = self.get_new_cursors(cursor, replace_or_add) {
+        if let Some(mut new) = self.get_new_cursors(position, replace_or_add) {
             let c = new.last_mut();
 
             let rope = &self.rope;
@@ -583,6 +597,23 @@ impl TextBuffer {
             },
             r#move,
         );
+    }
+
+    pub fn extend_selection_with_search(&mut self) {
+        let cursor = self.borrow_cursors().first().clone();
+        match cursor.get_highlight_position() {
+            Option::None => {
+                self.select_char_type_grouping(
+                    cursor.get_position(),
+                    ReplaceOrAdd::Add
+                );
+            }
+            Some(_) => {
+                if let Some(pair) = next_instance_of_selected(self.borrow_rope(), &cursor) {
+                    self.set_cursor(pair, ReplaceOrAdd::Add);
+                }
+            }
+        }
     }
 
     fn move_cursors(&mut self, spec: CursorMoveSpec, r#move: Move) -> Option<()> {

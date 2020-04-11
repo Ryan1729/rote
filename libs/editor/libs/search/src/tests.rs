@@ -1,68 +1,174 @@
-use macros::{d};
-use panic_safe_rope::{Rope, RopeSlice, RopeSliceTrait};
-use editor_types::{Position, CharOffset, AbsoluteCharOffset};
-use rope_pos::{char_offset_to_pos, AbsoluteCharOffsetRange};
+use super::*;
 
-#[derive(Clone, Debug, Default)]
-pub struct SearchResults {
-    pub needle: String,
-    pub ranges: Vec<(Position, Position)>,
-    pub current_range: usize,
-}
+use proptest::proptest;
+use rope_pos::{pos_to_char_offset};
 
-impl SearchResults {
-    pub fn new(needle: RopeSlice, haystack: &Rope) -> SearchResults {
-        let ranges = get_ranges(
-            needle,
-            haystack,
-            d!(),
-            d!(),
-        );
+mod arb {
+    use super::*;
+    use proptest::prelude::{Just, prop_compose};
 
-        SearchResults {
-            needle: needle.into(),
-            ranges,
-            current_range: 0,
+    prop_compose! {
+        pub fn needle_and_haystack()
+        (needle in "\\PC+", needleless_haystack in "\\PC*")
+        (insert_point in 0..=needleless_haystack.chars().count(), needle in Just(needle), needleless_haystack in Just(needleless_haystack)) -> (String, String) {
+            let mut haystack = String::with_capacity(needleless_haystack.len() + needle.len());
+    
+            let mut inserted_count = 0;
+            for (i, c) in needleless_haystack.chars().enumerate() {
+                if i == insert_point {
+                    inserted_count += 1;
+                    haystack.push_str(&needle);
+                }
+                haystack.push(c);
+            }
+            if needleless_haystack.chars().count() == insert_point {
+                inserted_count += 1;
+                haystack.push_str(&needle);
+            }
+            assert_eq!(inserted_count, 1,
+                "insert_point {}, needle {:?}, needleless_haystack: {:?}, needleless_haystack.chars().count() {}",
+                insert_point,
+                needle,
+                needleless_haystack,
+                needleless_haystack.chars().count()
+            );
+    
+            (needle, haystack)
         }
     }
 }
 
-/// A `haystack_range` of `None` means use the whole haystack. AKA no limit.
-/// A `max_needed` of `None` means return all the results. AKA no limit.
-pub fn get_ranges(
-    needle: RopeSlice,
-    haystack: &Rope,
-    haystack_range: Option<AbsoluteCharOffsetRange>,
-    max_needed: Option<std::num::NonZeroUsize>,
-) -> Vec<(Position, Position)> {
-    perf_viz::record_guard!("get_ranges");
-    let (min, slice) = haystack_range
-        .and_then(|r| haystack.slice(r.range()).map(|s| (r.min().0, s)))
-        .unwrap_or_else(|| (0, haystack.full_slice()));
+fn get_ranges_works_on(needle: &str, haystack: &str) {
+    // precondition
+    assert!(needle.len() > 0);
 
-    let offsets = get_ranges_impl(needle, slice, max_needed);
+    let needle: Rope = needle.into();
+    let haystack: Rope = haystack.into();
 
-    perf_viz::start_record!("offsets.into_iter() char_offset_to_pos");
-    let output = offsets
-        .into_iter()
-        .filter_map(|(o_min, o_max)| {
-            let a_o_min = AbsoluteCharOffset(o_min.0 + min);
-            let a_o_max = AbsoluteCharOffset(o_max.0 + min);
+    let ranges = get_ranges(needle.full_slice(), &haystack, None, None);
 
-            char_offset_to_pos(haystack, a_o_min)
-                .and_then(|p_min| char_offset_to_pos(haystack, a_o_max).map(|p_max| (p_min, p_max)))
-        })
-        .collect();
-    perf_viz::end_record!("offsets.into_iter() char_offset_to_pos");
-    output
+    assert!(ranges.len() > 0);
+
+    let mut chars = haystack.chars();
+    let mut previously_used = AbsoluteCharOffset(0);
+    for (start, end) in ranges {
+        let start_offset = pos_to_char_offset(&haystack, &start).unwrap();
+        let end_offset = pos_to_char_offset(&haystack, &end).unwrap();
+
+        for _ in previously_used.0..start_offset.0 {
+            chars.next().unwrap();
+        }
+
+        let mut n_chars = needle.chars();
+        for _ in start_offset.0..end_offset.0 {
+            assert_eq!(chars.next(), n_chars.next());
+        }
+
+        previously_used = end_offset;
+    }
 }
 
-fn get_ranges_impl(
+proptest! {
+    #[test]
+    fn get_ranges_works(
+        (needle, haystack) in arb::needle_and_haystack()
+    ) {
+        get_ranges_works_on(&needle, &haystack);
+    }
+}
+
+proptest! {
+    #[test]
+    fn get_ranges_does_not_make_stuff_up(
+        needle in "[0-9]+",
+        needleless_haystack in "[a-z]+"
+    ) {
+        let needle: Rope = needle.into();
+        let needleless_haystack: Rope = needleless_haystack.into();
+        assert_eq!(get_ranges(
+            needle.full_slice(),
+            &needleless_haystack,
+            None,
+            None
+        ).len(), 0);
+    }
+}
+
+#[test]
+fn get_ranges_works_on_this_identical_needle_and_haystack() {
+    get_ranges_works_on("0 ", "0 ");
+}
+
+#[test]
+fn get_ranges_works_on_this_generated_example() {
+    get_ranges_works_on("0 ", "0 A");
+}
+
+#[test]
+fn get_ranges_works_on_this_second_generated_example() {
+    get_ranges_works_on("0 ", "A0 ");
+}
+
+#[test]
+fn get_ranges_works_on_this_late_found_generated_example() {
+    get_ranges_works_on("0¡", "::0¡");
+}
+
+#[test]
+fn get_ranges_works_on_this_reduction_of_the_late_found_generated_example() {
+    get_ranges_works_on("0A", "::0A");
+}
+
+#[test]
+fn get_ranges_works_on_this_second_identical_needle_and_haystack() {
+    get_ranges_works_on("\"#\"", "\"#\"");
+}
+
+#[test]
+fn get_ranges_works_on_this_reduction_of_the_second_identical_needle_and_haystack() {
+    get_ranges_works_on("123", "123");
+}
+
+#[test]
+fn get_ranges_works_on_this_fffd_generated_example() {
+    get_ranges_works_on("\"#\"", "�\"#\"");
+}
+
+#[test]
+fn get_ranges_works_on_this_reduction_of_the_fffd_generated_example() {
+    get_ranges_works_on("121", "A121");
+}
+
+#[test]
+fn get_ranges_works_on_this_registered_trademark_generated_example() {
+    get_ranges_works_on("\"#\"", "®�\"#\"");
+}
+
+#[test]
+fn get_ranges_works_on_this_reduction_of_the_registered_trademark_generated_example() {
+    get_ranges_works_on("121", "34121");
+}
+
+proptest! {
+    #[test]
+    fn get_ranges_impl_matches_refernce_impl(
+        (needle, haystack) in arb::needle_and_haystack()
+    ) {
+        let needle: Rope = needle.into();
+        let haystack: Rope = haystack.into();
+        assert_eq!(
+            get_ranges_impl(needle.full_slice(), haystack.full_slice(), None),
+            get_ranges_reference_impl(needle.full_slice(), haystack.full_slice(), None)
+        );
+    }
+}
+
+/// This version is slow (`skip_manually` in particular) but has previously passed the `get_ranges_works` test.
+fn get_ranges_reference_impl(
     needle: RopeSlice,
     haystack: RopeSlice,
     max_needed: Option<std::num::NonZeroUsize>,
 ) -> Vec<(CharOffset, CharOffset)> {
-    perf_viz::record_guard!("get_ranges_impl");
     // Two-way string matching based on http://www-igm.univ-mlv.fr/~lecroq/string/node26.html
 
     macro_rules! max_suffix {
@@ -74,7 +180,6 @@ fn get_ranges_impl(
         };
         ($name: ident, $a: ident, $b: ident, $test: expr) => {
             fn $name(rope: &RopeSlice) -> Option<(isize, isize)> {
-                perf_viz::record_guard!(stringify!($name));
                 let len = rope.len_chars().0 as isize;
                 let mut ms: isize = -1;
                 let mut j: isize = 0;
@@ -235,7 +340,6 @@ fn get_ranges_impl(
             }
         }
     } else {
-        perf_viz::record_guard!("!period_matches");
         period = std::cmp::max(ell + 1, needle_len - ell - 1) + 1;
         while j <= haystack_len - needle_len {
             i = ell + 1;
@@ -268,6 +372,3 @@ fn get_ranges_impl(
 
     output
 }
-
-#[cfg(test)]
-mod tests;

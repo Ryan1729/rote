@@ -88,9 +88,9 @@ fn update_and_render_shows_the_cursor_when_pressing_home_on(text: &str, buffer_x
     update_and_render(&mut state, Input::MoveAllCursors(Move::ToBufferEnd));
 
     {
-        let buffer = get_scrollable_buffer_mut!(state, BufferIdKind::Text).unwrap();
+        let buffer = get_text_buffer_mut!(state, BufferIdKind::Text).unwrap();
         assert_eq!(
-            buffer.text_buffer.borrow_cursors_vec()[0], cur!{pos!{l 0, o text.len()}},
+            buffer.borrow_cursors_vec()[0], cur!{pos!{l 0, o text.len()}},
             "*** Cursor Precondition failure! ***"
         );
         assert_ne!(buffer.scroll.x, 0.0, "*** Scroll X Precondition failure! ***");
@@ -99,7 +99,7 @@ fn update_and_render_shows_the_cursor_when_pressing_home_on(text: &str, buffer_x
 
     update_and_render(&mut state, Input::MoveAllCursors(Move::ToBufferStart));
 
-    let buffer = get_scrollable_buffer_mut!(state, BufferIdKind::Text).unwrap();
+    let buffer = get_text_buffer_mut!(state, BufferIdKind::Text).unwrap();
     assert_eq!(buffer.scroll.x, 0.0);
     assert_eq!(buffer.scroll.y, 0.0);
 }
@@ -140,9 +140,9 @@ fn update_and_render_shows_the_cursor_when_searching_in_this_case() {
     };
 
     {
-        let buffer = get_scrollable_buffer_mut!(state, BufferIdKind::Text).unwrap();
+        let buffer = get_text_buffer_mut!(state, BufferIdKind::Text).unwrap();
         assert_eq!(
-            buffer.text_buffer.borrow_cursors_vec()[0], cur!{pos!{l 0 o 0}},
+            buffer.borrow_cursors_vec()[0], cur!{pos!{l 0 o 0}},
             "*** Cursor Precondition failure! ***"
         );
         assert_eq!(buffer.scroll.y, 0.0, "*** Scroll Y Precondition failure! ***");
@@ -156,7 +156,7 @@ fn update_and_render_shows_the_cursor_when_searching_in_this_case() {
     update_and_render(&mut state, Input::SubmitForm);
 
     // Assert
-    let buffer = get_scrollable_buffer_mut!(state, BufferIdKind::Text).unwrap();
+    let buffer = get_text_buffer_mut!(state, BufferIdKind::Text).unwrap();
     assert_ne!(buffer.scroll.y, 0.0);
 }
 
@@ -183,15 +183,15 @@ fn passes_preconditions(text: &str, buffer_xywh: TextBoxXYWH, char_dim: CharDim)
     };
     
 
-    dbg!(get_scrollable_buffer_mut!(state));
+    dbg!(get_text_buffer_mut!(state));
 
     update_and_render(&mut state, Input::MoveAllCursors(Move::ToBufferEnd));
 
-    dbg!(get_scrollable_buffer_mut!(state));
+    dbg!(get_text_buffer_mut!(state));
 
-    let buffer = get_scrollable_buffer_mut!(state).unwrap();
+    let buffer = get_text_buffer_mut!(state).unwrap();
 
-    buffer.text_buffer.borrow_cursors_vec()[0] == cur!{pos!{l 0, o text.len()}}
+    buffer.borrow_cursors_vec()[0] == cur!{pos!{l 0, o text.len()}}
     && buffer.scroll.x != 0.0
 }
 
@@ -298,10 +298,10 @@ fn attempt_to_make_xy_visible_reports_correctly_in_this_case() {
 // There was a bug that came down to this not working, (well, really the two parameter version not existing, but still.)
 proptest!{
     #[test]
-    fn get_scrollable_buffer_mut_selects_text_buffer_when_asked_no_matter_what_mode_it_is_in(
+    fn get_text_buffer_mut_selects_text_buffer_when_asked_no_matter_what_mode_it_is_in(
         mode in arb::menu_mode()
     ) {
-        let some_text = "get_scrollable_buffer_mut_selects_text_buffer_when_asked";
+        let some_text = "get_text_buffer_mut_selects_text_buffer_when_asked";
         let mut state: State = some_text.into();
     
         update_and_render(&mut state, Input::SetMenuMode(mode));
@@ -309,10 +309,10 @@ proptest!{
         // precondition
         assert_eq!(state.menu_mode, mode);
     
-        let buffer = get_scrollable_buffer_mut!(state, BufferIdKind::Text)
-            .expect("get_scrollable_buffer_mut returned None");
+        let buffer = get_text_buffer_mut!(state, BufferIdKind::Text)
+            .expect("get_text_buffer_mut returned None");
     
-        let state_str: String = (&buffer.text_buffer).into();
+        let state_str: String = buffer.into();
 
         assert_eq!(
             &state_str,
@@ -339,8 +339,8 @@ fn update_and_render_resets_the_cursor_states_in_this_case() {
     update_and_render(&mut state, Input::MoveAllCursors(Move::Down));
 
     {
-        let buffer = get_scrollable_buffer_mut!(state, BufferIdKind::FileSwitcher).unwrap();
-        for c in buffer.text_buffer.borrow_cursors_vec() {
+        let buffer = get_text_buffer_mut!(state, BufferIdKind::FileSwitcher).unwrap();
+        for c in buffer.borrow_cursors_vec() {
             assert_eq!(
                 c.state,
                 CursorState::PressedAgainstWall(Move::Down),
@@ -359,8 +359,8 @@ fn update_and_render_resets_the_cursor_states_in_this_case() {
     update_and_render(&mut state, Input::SelectBuffer(b_id!(BufferIdKind::FileSwitcher, d!())));
 
     // Assert
-    let buffer = get_scrollable_buffer_mut!(state, BufferIdKind::FileSwitcher).unwrap();
-    for c in buffer.text_buffer.borrow_cursors_vec() {
+    let buffer = get_text_buffer_mut!(state, BufferIdKind::FileSwitcher).unwrap();
+    for c in buffer.borrow_cursors_vec() {
         assert_eq!(
             c.state,
             d!(),

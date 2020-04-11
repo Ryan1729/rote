@@ -285,3 +285,6 @@ pub fn get_first_non_white_space_offset_in_range<R: std::ops::RangeBounds<CharOf
 
     None
 }
+
+#[cfg(test)]
+mod tests;

@@ -21,7 +21,7 @@ pub struct EditorBuffer {
     pub search_results: SearchResults,
     // If this is none, then it was not set by the user, and
     // we will use the default.
-    pub parser_kind: Option<ParserKind>,
+    parser_kind: Option<ParserKind>,
 }
 
 impl From<&EditorBuffer> for String {
@@ -54,8 +54,10 @@ impl EditorBuffer {
         })
     }
 
-    pub fn reset_cursor_states(&mut self) {
-        self.text_buffer.reset_cursor_states();
+    pub fn next_language(&mut self) {
+        self.parser_kind = Some(
+            self.get_parser_kind().next().unwrap_or_default()
+        );
     }
 
     pub fn update_search_results(&mut self, needle: RopeSlice) {
@@ -224,28 +226,15 @@ pub mod tests {
 
         prop_compose!{
             pub fn editor_buffer()(
-                scrollable in scrollable_buffer(),
+                text_buffer in text_buffer_with_valid_cursors(),
                 name in buffer_name(),
                 s_r in search_results(16),
             ) -> EditorBuffer {
                 EditorBuffer {
-                    scrollable,
+                    text_buffer,
                     name,
                     search_results: s_r,
                     parser_kind: None, // TODO if it ever matters
-                }
-            }
-        }
-    
-        prop_compose!{
-            pub fn scrollable_buffer()(
-                t_b in text_buffer_with_valid_cursors(),
-                scroll in scroll_xy(usual()),
-            ) -> ScrollableBuffer {
-                ScrollableBuffer {
-                    ..d!()
-                    /*text_buffer: t_b,
-                    scroll,*/
                 }
             }
         }
