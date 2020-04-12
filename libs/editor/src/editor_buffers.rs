@@ -4,7 +4,7 @@
 use editor_types::{Cursor};
 use g_i::SelectableVec1;
 use macros::{d, u};
-use platform_types::{screen_positioning::*, *};
+use platform_types::*;
 use parsers::{ParserKind};
 use text_buffer::{TextBuffer};
 use search::{SearchResults};
@@ -194,7 +194,7 @@ pub mod tests {
         use super::*;
         use proptest::collection::vec;
         use pub_arb_text_buffer::{text_buffer_with_valid_cursors};
-        use pub_arb_platform_types::{buffer_name, position, selectable_vec1, scroll_xy, usual};
+        use pub_arb_platform_types::{buffer_name, position, selectable_vec1};
         use proptest::prelude::{prop_compose, Just};
 
         prop_compose!{

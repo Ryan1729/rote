@@ -176,6 +176,9 @@ mod view {
 
     #[derive(Default, Debug)]
     pub struct View {
+        // We want to hide the `platform_types::View` from the rest of the code
+        // because we had a bug when LocalMenuView was introduced that hiding
+        // the `platform_types::View` prevents.
         platform_view: platform_types::View,
         local_menu: Option<LocalMenuView>
     }
@@ -290,7 +293,7 @@ mod view {
         }
 
         pub fn index_state(&self) -> g_i::State {
-            self.platform_view.index_state()
+            self.platform_view.buffers.index_state()
         }
     }
 
@@ -834,7 +837,6 @@ impl BufferStatusMap {
     }
 
     pub fn insert(&mut self, state: g_i::State, current_index: g_i::Index, status: BufferStatus) {
-        dbg!(&self, state, current_index, status);
         if let Some(current_index) = current_index.get(state) {
             let last_state = self.last_state;
             if Some(state) != last_state {

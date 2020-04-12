@@ -741,7 +741,7 @@ mod selectable_vec1 {
     
         pub fn iter_with_indexes(&self) -> IterWithIndexes<A> {
             IterWithIndexes {
-                index: d!(),
+                index: self.first_index(),
                 iter: self.iter(),
             }
         }
@@ -909,7 +909,7 @@ pub mod tests {
     }
 
     pub mod arb {
-        use super::{MutMethodSpec::*, *};
+        use super::{*};
         use proptest::prelude::{any, Strategy, prop_compose};
 
         use std::convert::TryInto;
@@ -1056,7 +1056,7 @@ pub mod tests {
                 MoveOrIgnore(_, _) => (index(max_index), index(max_index)).prop_map(|(i1, i2)| MoveOrIgnore(i1, i2)),
                 SwapOrIgnore(_, _) => (index(max_index), index(max_index)).prop_map(|(i1, i2)| SwapOrIgnore(i1, i2)),
                 CloseElement(_) => index(max_index).prop_map(CloseElement),
-                AdjustSelection(SelectionAdjustment) => selection_adjustment().prop_map(AdjustSelection),
+                AdjustSelection(_) => selection_adjustment().prop_map(AdjustSelection),
                 PushAndSelectNew(_) => any::<i32>().prop_map(PushAndSelectNew),
                 ReplaceWithMapped(_) => any::<bool>().prop_flat_map(move |is_full| {
                     let m_i = max_index as usize;
@@ -1444,6 +1444,64 @@ pub mod tests {
             MutMethodSpec::<i32>::method_names(),
             super::selectable_vec1::MUT_METHODS.to_vec()
         );
+    }
+
+    proptest!{
+        #[test]
+        fn calling_replace_with_mapped_after_each_mut_method_call_allows_indexes_from_the_first_s_vec1_to_be_used_on_the_second(
+            mut target in arb::selectable_vec1_of_i32(16),
+            specs in arb::mut_method_specs(16),
+        ) {
+            let mut source = SelectableVec1::new(0);
+            source.push_and_select_new(1);
+            source.push_and_select_new(2);
+            
+            target.replace_with_mapped(&source, |&x| x);
+
+            {
+                let mut index = source.first_index();
+                
+                assert_eq!(target.get(index), Some(&0), "precondition failure");
+    
+                index = source.next_index_from(index);
+                assert_eq!(target.get(index), Some(&1), "precondition failure");
+
+                index = source.next_index_from(index);
+                assert_eq!(target.get(index), Some(&2), "precondition failure");
+            }
+
+            for spec in specs.into_iter() {
+                spec.apply(&mut source);
+
+                target.replace_with_mapped(&source, |&x| x);
+            }
+
+            {
+                let mut index = source.first_index();
+                
+                assert_eq!(target.get(index), source.get(index));
+    
+                index = source.next_index_from(index);
+                assert_eq!(target.get(index), source.get(index));
+
+                index = source.next_index_from(index);
+                assert_eq!(target.get(index), source.get(index));
+            }
+        }
+    }
+
+    // This did in fact fail at one point because we left `d!()` there instead of `first_index()`.
+    proptest!{
+        #[test]
+        fn iter_with_indexes_returns_indexes_that_match_the_s_vec1s_generation(
+            s_vec1 in arb::selectable_vec1_of_i32(16),
+        ) {
+            let generation = s_vec1.current_index().generation;
+
+            for (index, _) in s_vec1.iter_with_indexes() {
+                assert_eq!(index.generation, generation);
+            }
+        }
     }
 }
 

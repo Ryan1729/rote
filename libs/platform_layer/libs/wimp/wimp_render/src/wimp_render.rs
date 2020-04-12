@@ -224,7 +224,9 @@ pub fn view<'view>(
 
     let mut i = 0;
     let tab_count = buffer_count;
+    let mut indexes_debug = Vec::new();
     for (index, BufferView { name_string, .. }) in view.buffer_iter() {
+        indexes_debug.push(index);
         let SpacedRect {
             padding,
             margin,
@@ -281,6 +283,7 @@ pub fn view<'view>(
 
         i += 1;
     }
+    if_changed::dbg!(indexes_debug);
 
     let (index, BufferView { data, .. }) = view.current_text_index_and_buffer();
     // let text = {

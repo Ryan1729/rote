@@ -715,10 +715,6 @@ impl View {
             },
         }
     }
-
-    pub fn index_state(&self) -> g_i::State {
-        self.buffers.index_state()
-    }
 }
 
 #[derive(Clone, Default, Debug)]

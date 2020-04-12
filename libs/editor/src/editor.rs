@@ -460,6 +460,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
         }),
         Undo => text_buffer_call!(sync b {
             b.undo();
+            mark_edited_transition!(current, ToEdited);
         }),
         MoveAllCursors(r#move) => {
             text_buffer_call!(b{
@@ -537,11 +538,13 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
         }
         SavedAs(buffer_index, path) => {
             state.buffers.set_path(buffer_index, path);
+            mark_edited_transition!(current, ToUnedited);
         }
         Cut => text_buffer_call!(sync b {
             if let Some(s) = state.clipboard_history.cut(b) {
                 cmd = Cmd::SetClipboard(s);
             }
+            mark_edited_transition!(current, ToEdited);
         }),
         Copy => text_buffer_call!(b {
             if let Some(s) = state.clipboard_history.copy(b) {
@@ -551,9 +554,11 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
         }),
         Paste(op_s) => text_buffer_call!(sync b {
             state.clipboard_history.paste(b, op_s);
+            mark_edited_transition!(current, ToEdited);
         }),
         InsertNumbersAtCursors => text_buffer_call!(sync b {
             b.insert_at_each_cursor(|i| i.to_string());
+            mark_edited_transition!(current, ToEdited);
         }),
         NewScratchBuffer(data_op) => {
             state.buffers.push_and_select_new(EditorBuffer::new(
@@ -561,16 +566,20 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                 data_op.unwrap_or_default(),
             ));
             state.current_buffer_kind = BufferIdKind::Text;
+            mark_edited_transition!(current, ToEdited);
         }
         TabIn => {
             text_buffer_call!(sync b.tab_in());
+            mark_edited_transition!(current, ToEdited);
         }
         TabOut => {
             text_buffer_call!(sync b.tab_out());
+            mark_edited_transition!(current, ToEdited);
         }
         AddOrSelectBuffer(name, str) => {
             state.add_or_select_buffer(name, str);
             buffer_view_sync!();
+            mark_edited_transition!(current, ToEdited);
         }
         AdjustBufferSelection(adjustment) => {
             state.adjust_buffer_selection(adjustment);
@@ -598,6 +607,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                 close_menu_if_any!();
             } else {
                 cmd = Cmd::LoadFile(path);
+                mark_edited_transition!(append, ToEdited);
             }
         }
         CloseBuffer(index) => {
