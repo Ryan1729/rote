@@ -463,7 +463,27 @@ proptest!{
     }
 }
 
+proptest!{
+    #[test]
+    fn passing_add_or_select_buffer_to_update_and_render_updates_and_selects_the_default_buffer(
+        s in  ".*",
+    ) {
+        let mut state: State = d!();
+    
+        let name = d!();
 
+        update_and_render(&mut state, Input::AddOrSelectBuffer(name, s.clone()));
+    
+        assert_eq!(
+            usize::from(state.buffers.len()),
+            1
+        );
+        assert_eq!(
+            String::from(state.buffers.get_current_buffer()),
+            s
+        );
+    }
+}
 
 /// This test predicate simulates what we expected clients to do if they want to keep track 
 /// of which buffers are currently different from what is on disk. This is a little 

@@ -153,6 +153,13 @@ impl EditorBuffers {
     pub fn add_or_select_buffer(&mut self, name: BufferName, str: String) {
         if let Some(index) = self.index_with_name(&name) {
             self.set_current_index(index);
+
+            if name == d!() && usize::from(self.buffers.len()) <= 1 {
+                let buffer = &mut self.get_current_buffer_mut().text_buffer;
+                if buffer.has_no_edits() {
+                    *buffer = str.into();
+                }
+            }
         } else {
             self.buffers.push_and_select_new(EditorBuffer::new(name, str));
         };

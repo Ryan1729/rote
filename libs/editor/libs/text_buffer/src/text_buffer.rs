@@ -746,6 +746,10 @@ impl TextBuffer {
             self.history_index = new_index;
         })
     }
+
+    pub fn has_no_edits(&self) -> bool {
+        self.history.len() == 0
+    }
 }
 
 //

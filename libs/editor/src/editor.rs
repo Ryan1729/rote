@@ -180,12 +180,6 @@ impl State {
         self.buffers.set_current_index(id.index);
     }
 
-    fn add_or_select_buffer(&mut self, name: BufferName, str: String) {
-        self.buffers.add_or_select_buffer(name, str);
-
-        self.current_buffer_kind = BufferIdKind::Text;
-    }
-
     fn next_scratch_buffer_number(&self) -> u32 {
         let mut output = 0;
         for b in self.buffers.iter() {
@@ -577,7 +571,9 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             mark_edited_transition!(current, ToEdited);
         }
         AddOrSelectBuffer(name, str) => {
-            state.add_or_select_buffer(name, str);
+            state.buffers.add_or_select_buffer(name, str);
+            state.current_buffer_kind = BufferIdKind::Text;
+
             buffer_view_sync!();
             mark_edited_transition!(current, ToEdited);
         }

@@ -182,6 +182,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
     // out of the edited files thread
     let (edited_files_out_sink, edited_files_out_source) = channel();
 
+    #[derive(Debug)]
     enum EditedFilesThread {
         Quit,
         Buffers(g_i::State, Vec<edited_storage::BufferInfo>),
