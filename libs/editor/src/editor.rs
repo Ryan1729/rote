@@ -1,5 +1,5 @@
 use editor_types::{Cursor};
-use macros::{d, u, SaturatingSub};
+use macros::{d, dbg, u, SaturatingSub};
 use platform_types::{screen_positioning::*, *};
 use parsers::{Parsers};
 
@@ -337,8 +337,13 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
     macro_rules! buffer_view_sync {
         () => {
             match state.menu_mode {
-                MenuMode::Hidden | MenuMode::FindReplace(_) => {
-                    state.buffers.get_current_buffer_mut().update_search_results(
+                MenuMode::Hidden => {
+                    state.buffers.get_current_buffer_mut().refresh_search_results(
+                        (&state.find).into(),
+                    );
+                }
+                MenuMode::FindReplace(_) => {
+                    state.buffers.get_current_buffer_mut().advance_or_refresh_search_results(
                         (&state.find).into(),
                     );
                 }
@@ -639,8 +644,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                     (s, _) => {s}
                 };
 
-                
-                text_buffer_call!(sync b{
+                text_buffer_call!(b{
                     if let Some(selection) = selection {
                         // For the small menu buffers I'd rather keep all the history
                         // even if the history order is confusing, since the text 
@@ -674,7 +678,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                     debug_assert!(false, "state.find_replace_mode() returned None");
                 }
                 Some(FindReplaceMode::CurrentFile) => {
-                    state.buffers.get_current_buffer_mut().update_search_results(
+                    state.buffers.get_current_buffer_mut().advance_or_refresh_search_results(
                         (&state.find).into(),
                     );
                     try_to_show_cursors!(BufferIdKind::Text);

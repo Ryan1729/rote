@@ -162,7 +162,7 @@ pub fn render(
                     &file_switcher,
                     FILE_SEARCH_SELECTION_LINES_ESTIMATE,
                 ),
-                results: dbg!(file_switcher_results.clone()),
+                results: file_switcher_results.clone(),
             })
         },
         MenuMode::GoToPosition => {
@@ -175,9 +175,6 @@ pub fn render(
             })
         },
     };
-
-    dbg!(buffers.len());
-    dbg!(view.buffers.len());
 
     view.current_buffer_kind = state.get_id().kind;
 }

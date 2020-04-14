@@ -58,6 +58,9 @@ path = "../pub_arb/platform_types"
 [dev-dependencies.pub_arb_text_buffer]
 path = "../pub_arb/text_buffer"
 
+[dev-dependencies.pub_arb_std]
+path = "../pub_arb/std"
+
 [features]
 default = []
 invariant-checking = ["check_or_no_panic/invariant-checking"]

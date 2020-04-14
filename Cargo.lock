@@ -583,6 +583,7 @@ dependencies = [
  "platform_types 0.1.0",
  "proptest 0.9.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "pub_arb_platform_types 0.1.0",
+ "pub_arb_std 0.1.0",
  "pub_arb_text_buffer 0.1.0",
  "search 0.1.0",
  "text_buffer 0.1.0",
@@ -1999,7 +2000,7 @@ dependencies = [
 
 [[package]]
 name = "rote"
-version = "0.2.93"
+version = "0.2.94"
 dependencies = [
  "check_or_no_panic 0.1.0",
  "editor 0.1.0",
@@ -2320,6 +2321,7 @@ dependencies = [
  "platform_types 0.1.0",
  "pretty_assertions 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "proptest 0.9.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pub_arb_std 0.1.0",
  "regex 1.1.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "rope_pos 0.1.0",
  "search 0.1.0",

@@ -249,10 +249,6 @@ impl TextBuffer {
         &self.cursors
     }
 
-    pub fn borrow_cursors_vec(&self) -> &Vec1<Cursor> {
-        &self.cursors.cursors
-    }
-
     pub fn borrow_cursors_vec1(&self) -> &Vec1<Cursor> {
         &self.cursors.cursors
     }

@@ -25,6 +25,31 @@ impl SearchResults {
             current_range: 0,
         }
     }
+
+    pub fn refresh(&mut self, needle: RopeSlice, haystack: &Rope) {
+        let mut new = Self::new(needle, haystack);
+
+        let old_range = self.ranges.get(self.current_range);
+        let overlapping_range = old_range.map(|(old_start, old_end)| {
+            let mut overlapping_range = None;
+            for (new_start, new_end) in new.ranges.iter() {
+                if (old_start <= new_start && new_start <= old_end)
+                || (old_start <= new_end && new_end <= old_end) {
+                    overlapping_range = Some((new_start, new_end));
+                    break;
+                }
+            }
+
+            overlapping_range
+        });
+
+        // We want to keep the current place whenever it would still be accurate.
+        if overlapping_range.is_some() {
+            new.current_range = self.current_range
+        }
+
+        *self = new
+    }
 }
 
 /// A `haystack_range` of `None` means use the whole haystack. AKA no limit.

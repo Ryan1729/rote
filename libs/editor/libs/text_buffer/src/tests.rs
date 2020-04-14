@@ -10,6 +10,8 @@ use proptest::prelude::*;
 use proptest::{collection, option, prop_compose, proptest};
 use std::fmt::Debug;
 
+use pub_arb_std::non_line_break_char;
+
 /// This is expected to be used where the amount does not really matter, except that it must be
 /// enough that the behaviour we want to test has enough space.
 /// Ciode that assumes this is > 1 is known to exist as of this writing.
@@ -780,6 +782,50 @@ fn copy_selections_works_in_this_case_generated_elsewhere() {
     assert_eq!(buffer.copy_selections(), vec!["!"]);
     TestEdit::apply(&mut buffer, TabIn);
     assert_eq!(buffer.copy_selections(), vec!["!"]);
+}
+
+fn single_cursor(buffer: &TextBuffer) -> Cursor {
+    let cursors = buffer.borrow_cursors_vec1();
+    assert_eq!(cursors.len(), 1);
+
+    cursors.first().clone()
+}
+
+/// This test demonstrated that a bug was not (soley) in the text_buffer crate.
+proptest!{
+    #[test]
+    fn inserting_after_a_find_between_two_other_chars_places_the_cursor_correctly(
+        ch1 in non_line_break_char(),
+        ch2 in non_line_break_char(),
+        ch3 in non_line_break_char(),
+        ch4 in non_line_break_char(),
+    ) {
+        // Arrange
+        let mut buffer = t_b!("");
+    
+        buffer.insert(ch1);
+        buffer.insert(ch2);
+        buffer.insert(ch3);
+    
+        buffer.move_all_cursors(Move::Left);
+        buffer.extend_selection_for_all_cursors(Move::Left);
+
+        let cursor = single_cursor(&buffer);
+        assert_eq!(cursor, cur!{l 0 o 1 h l 0 o 2});
+
+        buffer.move_all_cursors(Move::Right);
+        buffer.move_all_cursors(Move::Right);
+
+        let cursor = single_cursor(&buffer);
+        assert_eq!(cursor, cur!{l 0 o 3});
+    
+        // Act
+        buffer.insert(ch4);
+    
+        // Assert
+        let cursor = single_cursor(&buffer);
+        assert_eq!(cursor, cur!{l 0 o 4});
+    }
 }
 
 pub mod arb;

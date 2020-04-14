@@ -3,10 +3,12 @@ use super::*;
 use platform_types::pos;
 
 use editor_types::{cur};
-use macros::{u};
+use macros::{u, dbg};
 use proptest::prelude::{proptest};
 
 use std::collections::HashMap;
+
+use pub_arb_std::non_line_break_char;
 
 mod arb {
     use super::*;
@@ -90,7 +92,7 @@ fn update_and_render_shows_the_cursor_when_pressing_home_on(text: &str, buffer_x
     {
         let buffer = get_text_buffer_mut!(state, BufferIdKind::Text).unwrap();
         assert_eq!(
-            buffer.borrow_cursors_vec()[0], cur!{pos!{l 0, o text.len()}},
+            buffer.borrow_cursors_vec1()[0], cur!{pos!{l 0, o text.len()}},
             "*** Cursor Precondition failure! ***"
         );
         assert_ne!(buffer.scroll.x, 0.0, "*** Scroll X Precondition failure! ***");
@@ -142,7 +144,7 @@ fn update_and_render_shows_the_cursor_when_searching_in_this_case() {
     {
         let buffer = get_text_buffer_mut!(state, BufferIdKind::Text).unwrap();
         assert_eq!(
-            buffer.borrow_cursors_vec()[0], cur!{pos!{l 0 o 0}},
+            buffer.borrow_cursors_vec1()[0], cur!{pos!{l 0 o 0}},
             "*** Cursor Precondition failure! ***"
         );
         assert_eq!(buffer.scroll.y, 0.0, "*** Scroll Y Precondition failure! ***");
@@ -191,7 +193,7 @@ fn passes_preconditions(text: &str, buffer_xywh: TextBoxXYWH, char_dim: CharDim)
 
     let buffer = get_text_buffer_mut!(state).unwrap();
 
-    buffer.borrow_cursors_vec()[0] == cur!{pos!{l 0, o text.len()}}
+    buffer.borrow_cursors_vec1()[0] == cur!{pos!{l 0, o text.len()}}
     && buffer.scroll.x != 0.0
 }
 
@@ -340,7 +342,7 @@ fn update_and_render_resets_the_cursor_states_in_this_case() {
 
     {
         let buffer = get_text_buffer_mut!(state, BufferIdKind::FileSwitcher).unwrap();
-        for c in buffer.borrow_cursors_vec() {
+        for c in buffer.borrow_cursors_vec1() {
             assert_eq!(
                 c.state,
                 CursorState::PressedAgainstWall(Move::Down),
@@ -360,12 +362,76 @@ fn update_and_render_resets_the_cursor_states_in_this_case() {
 
     // Assert
     let buffer = get_text_buffer_mut!(state, BufferIdKind::FileSwitcher).unwrap();
-    for c in buffer.borrow_cursors_vec() {
+    for c in buffer.borrow_cursors_vec1() {
         assert_eq!(
             c.state,
             d!(),
         );
     }
+}
+
+fn single_cursor_view(view: &View) -> CursorView {
+    assert_eq!(usize::from(view.buffers.len()), 1);
+
+    let cursors = &view.buffers
+        .get_current_element()
+        .data
+        .cursors;
+    assert_eq!(usize::from(cursors.len()), 1);
+
+    cursors.first().unwrap().clone()
+}
+
+proptest!{
+    #[test]
+    fn update_and_render_places_the_cursor_correctly_after_inserting_after_a_find_between_two_other_chars(
+        ch1 in non_line_break_char(),
+        ch2 in non_line_break_char(),
+        ch3 in non_line_break_char(),
+        ch4 in non_line_break_char(),
+    ) {
+        u!{Input};
+        u!{MenuMode};
+        u!{FindReplaceMode};
+    
+        // Arrange
+        let mut state: State = String::new().into();
+    
+        update_and_render(&mut state, Insert(ch1));
+        update_and_render(&mut state, Insert(ch2));
+        update_and_render(&mut state, Insert(ch3));
+    
+        update_and_render(&mut state, MoveAllCursors(Move::Left));
+        let (view, _) = update_and_render(&mut state, ExtendSelectionForAllCursors(Move::Left));
+        let cursor = single_cursor_view(&view);
+        assert_eq!(cursor.position, pos!{l 0 o 1});
+    
+        update_and_render(&mut state, SetMenuMode(FindReplace(CurrentFile)));
+        update_and_render(&mut state, SubmitForm);
+        update_and_render(&mut state, CloseMenuIfAny);
+
+        assert_eq!(state.menu_mode, MenuMode::Hidden);
+    
+        update_and_render(&mut state, MoveAllCursors(Move::Right));
+        let (view, _) = update_and_render(&mut state, MoveAllCursors(Move::Right));
+        let cursor = single_cursor_view(&view);
+        assert_eq!(cursor.position, pos!{l 0 o 3});
+    
+        // Act
+        let (view, _) = update_and_render(&mut state, Insert(ch4));
+    
+        // Assert
+        let cursor = single_cursor_view(&view);
+        assert_eq!(cursor.position, pos!{l 0 o 4});
+    }
+}
+
+#[allow(dead_code)]
+fn single_cursor(buffer: &TextBuffer) -> Cursor {
+    let cursors = buffer.borrow_cursors_vec1();
+    assert_eq!(cursors.len(), 1);
+
+    cursors.first().clone()
 }
 
 proptest!{

@@ -433,21 +433,21 @@ impl TestEdit {
         match edit {
             Insert(c) => {
                 decrement_strings(counts, &buffer.copy_selections());
-                for _ in 0..buffer.borrow_cursors_vec().len() {
+                for _ in 0..buffer.borrow_cursors_vec1().len() {
                     increment_char(counts, *c);
                 }
             },
             InsertString(s) => {
                 decrement_strings(counts, &buffer.copy_selections());
-                for _ in 0..buffer.borrow_cursors_vec().len() {
+                for _ in 0..buffer.borrow_cursors_vec1().len() {
                     increment_string(counts, s);
                 }
             },
             Delete => {
-                apply_delete_edit(counts, buffer, buffer.borrow_cursors_vec().clone());
+                apply_delete_edit(counts, buffer, buffer.borrow_cursors_vec1().clone());
             },
             DeleteLines => {
-                let mut cursor_vec = buffer.borrow_cursors_vec().clone();
+                let mut cursor_vec = buffer.borrow_cursors_vec1().clone();
                 for c in cursor_vec.iter_mut() {
                     edit::extend_cursor_to_cover_line(c, &buffer.rope);
                 }
@@ -461,12 +461,12 @@ impl TestEdit {
             | SelectCharTypeGrouping(_, _) | SelectAll => {},
             InsertNumbersAtCursors => {
                 decrement_strings(counts, &buffer.copy_selections());
-                for i in 0..buffer.borrow_cursors_vec().len() {
+                for i in 0..buffer.borrow_cursors_vec1().len() {
                     increment_string(counts, &i.to_string());
                 }
             },
             TabIn => {
-                let selections: Vec<_> = buffer.borrow_cursors_vec()
+                let selections: Vec<_> = buffer.borrow_cursors_vec1()
                     .iter()
                     .map(|cur| 
                         match offset_pair(&buffer.rope, &cur) {

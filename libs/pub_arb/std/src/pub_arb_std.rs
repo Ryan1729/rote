@@ -9,3 +9,11 @@ prop_compose!{
         std::path::PathBuf::from(s)
     }
 }
+
+prop_compose!{
+    pub fn non_line_break_char()(
+        s in "\\PC" 
+    ) -> char {
+        s.chars().next().unwrap()
+    }
+}

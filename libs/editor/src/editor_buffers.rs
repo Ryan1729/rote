@@ -60,7 +60,7 @@ impl EditorBuffer {
         );
     }
 
-    pub fn update_search_results(&mut self, needle: RopeSlice) {
+    pub fn advance_or_refresh_search_results(&mut self, needle: RopeSlice) {
         if needle == self.search_results.needle {
             // advance to next search result
             if needle.len_bytes() > 0 {
@@ -82,11 +82,15 @@ impl EditorBuffer {
                 }
             }
         } else {
-            self.search_results = SearchResults::new(
-                needle,
-                self.text_buffer.borrow_rope()
-            );
+            self.refresh_search_results(needle);
         }
+    }
+
+    pub fn refresh_search_results(&mut self, needle: RopeSlice) {        
+        self.search_results.refresh(
+            needle,
+            self.text_buffer.borrow_rope()
+        );
     }
 }
 

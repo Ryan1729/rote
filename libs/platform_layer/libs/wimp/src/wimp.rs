@@ -10,7 +10,7 @@ use std::time::Duration;
 use wimp_render::{get_find_replace_info, FindReplaceInfo, get_go_to_position_info, GoToPositionInfo, ViewOutput, ViewAction};
 use wimp_types::{ui, ui::{PhysicalButtonState, Navigation}, transform_status, BufferStatus, BufferStatusMap, BufferStatusTransition, CustomEvent, get_clipboard, ClipboardProvider, Dimensions, LabelledCommand, RunConsts, RunState, MenuMode};
 use file_chooser;
-use macros::d;
+use macros::{d, dbg};
 use platform_types::{screen_positioning::screen_to_text_box, *};
 use shared::{Res};
 
@@ -159,8 +159,6 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
             hidpi_factor_override.unwrap_or(current_hidpi_factor)
         }
     }
-
-    dbg!(glutin_context.get_pixel_format());
 
     let (mut gl_state, char_dims) = gl_layer::init(
         get_hidpi_factor!() as f32,
@@ -377,7 +375,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
             };
             ($ui: expr, $editor_in_sink: expr, $input: expr) => {{
                 $ui.note_interaction();
-                let _hope_it_gets_there = $editor_in_sink.send(dbg!($input));
+                let _hope_it_gets_there = $editor_in_sink.send($input);
             }};
         }
 
