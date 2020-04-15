@@ -14,13 +14,18 @@ out vec4 out_color;
 
 void main() {
     vec4 c = f_color.rgba;
-    // TODO: test if this branchless method is actually faster than an if
-    // which avoids the texture lookup.
-    float alpha = max(f_override_alpha, texture(font_tex, f_tex_pos).r);
 
-    if (alpha <= 0.0) {
-        discard;
+    if (f_override_alpha == 0.0) {
+        float alpha = texture(font_tex, f_tex_pos).r;
+    
+        if (alpha <= 0.0) {
+            discard;
+        }
+    
+        c.a *= alpha;
+    } else {
+        c.a = f_override_alpha;
     }
-    c.a *= alpha;
+
     out_color = c;
 }

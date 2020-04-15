@@ -26,7 +26,10 @@ impl SearchResults {
         }
     }
 
+
     pub fn refresh(&mut self, needle: RopeSlice, haystack: &Rope) {
+        perf_viz::record_guard!("SearchResults::refresh");
+        
         let mut new = Self::new(needle, haystack);
 
         let old_range = self.ranges.get(self.current_range);
@@ -61,9 +64,18 @@ pub fn get_ranges(
     max_needed: Option<std::num::NonZeroUsize>,
 ) -> Vec<(Position, Position)> {
     perf_viz::record_guard!("get_ranges");
+
+    // This turns out to be a rather large optimization on large haystacks.
+    // TODO Understand why.
+    if needle.len_bytes() == 0 {
+        return d!();
+    }
+
     let (min, slice) = haystack_range
         .and_then(|r| haystack.slice(r.range()).map(|s| (r.min().0, s)))
         .unwrap_or_else(|| (0, haystack.full_slice()));
+
+    
 
     let offsets = get_ranges_impl(needle, slice, max_needed);
 

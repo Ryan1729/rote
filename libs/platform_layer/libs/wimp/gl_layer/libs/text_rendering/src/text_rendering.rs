@@ -2,7 +2,7 @@ use platform_types::{
     screen_positioning::{CharDim, ScreenSpaceRect},
     ssr,
 };
-use gl_layer_types::{Vertex, extract_tex_coords, TexCoords, set_full_alpha, TextOrRect, Res};
+use gl_layer_types::{Vertex, VertexStruct, TexCoords, set_alpha, TextOrRect, Res};
 
 use macros::{d};
 
@@ -275,19 +275,8 @@ mod text_layouts {
             recalculate_glyphs_body!(self, previous, change, fonts, geometry, sections)
         }
     }
-
-    pub fn tex_coords_to_rect(coords: TexCoords) -> Rect<f32> {
-        let mut r = Rect::default();
-                        
-        r.min.x = coords.min.x;
-        r.min.y = coords.min.y;
-        r.max.x = coords.max.x;
-        r.max.y = coords.max.y;
-
-        r
-    }
 }
-use text_layouts::{Unbounded, Wrap, WrapInRect, tex_coords_to_rect};
+use text_layouts::{Unbounded, Wrap, WrapInRect};
 
 pub type TextureRect = glyph_brush::rusttype::Rect<u32>;
 
@@ -448,10 +437,7 @@ impl <'font> State<'font> {
                 update_texture,
                 to_vertex,
                 Some(AdditionalRects {
-                    set_full_alpha,
-                    extract_tex_coords: |v| {
-                        tex_coords_to_rect(extract_tex_coords(v))
-                    },
+                    set_alpha,
                     highlight_ranges: highlight_ranges.clone(), // clone needed since we loop sometimes.
                 }),
             );
@@ -582,22 +568,21 @@ fn to_vertex(
         tex_coords.min.y = tex_coords.max.y - tex_coords.height() * gl_rect.height() / old_height;
     }
 
-    [
-        gl_rect.min.x,
-        gl_rect.max.y,
-        z,
-        gl_rect.max.x,
-        gl_rect.min.y,
+    VertexStruct {
+        left_top_x: gl_rect.min.x,
+        left_top_y: gl_rect.max.y,
+        left_top_z: z,
+        override_alpha: 0.0,
+        right_bottom_x: gl_rect.max.x,
+        right_bottom_y: gl_rect.min.y,
         // this isn't `mix.x, min.y, max.x, max.y` in order to flip the y axis
-        tex_coords.min.x,
-        tex_coords.max.y,
-        tex_coords.max.x,
-        tex_coords.min.y,
-        //
-        color[0],
-        color[1],
-        color[2],
-        color[3],
-        0.0,
-    ]
+        tex_left_top_x: tex_coords.min.x,
+        tex_left_top_y: tex_coords.max.y,
+        tex_right_bottom_x: tex_coords.max.x,
+        tex_right_bottom_y: tex_coords.min.y,
+        color_r: color[0],
+        color_g: color[1],
+        color_b: color[2],
+        color_a: color[3],
+    }.into_vertex()
 }

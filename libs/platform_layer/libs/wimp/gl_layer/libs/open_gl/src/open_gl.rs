@@ -2,7 +2,7 @@ use std::{ffi::CString, mem, ptr, str};
 // This file was split off of a file that was part of https://github.com/alexheretic/glyph-brush
 use gl::types::*;
 
-use gl_layer_types::{DEPTH_MIN, DEPTH_MAX, Vertex, Res};
+use gl_layer_types::{DEPTH_MIN, DEPTH_MAX, Vertex, VERTEX_SPEC, Res};
 
 use macros::{invariants_checked};
 
@@ -92,14 +92,7 @@ impl State {
     
             // Specify the layout of the vertex data
             let mut offset = 0;
-            for (v_field, float_count) in &[
-                ("left_top", 3),
-                ("right_bottom", 2),
-                ("tex_left_top", 2),
-                ("tex_right_bottom", 2),
-                ("color", 4),
-                ("override_alpha", 1),
-            ] {
+            for (v_field, float_count) in &VERTEX_SPEC {
                 let attr = gl::GetAttribLocation(program, CString::new(*v_field)?.as_ptr());
                 if attr < 0 {
                     return Err(format!("{} GetAttribLocation -> {}", v_field, attr).into());

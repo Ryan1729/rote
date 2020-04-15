@@ -116,8 +116,7 @@ pub struct HighlightRange {
 }
 
 pub struct AdditionalRects<V: Clone + 'static> {
-    pub set_full_alpha: fn(&mut V),
-    pub extract_tex_coords: fn(&V) -> TexCoords,
+    pub set_alpha: fn(&mut V, alpha: f32),
     pub highlight_ranges: Vec<HighlightRange>,
 }
 
@@ -305,6 +304,8 @@ impl<'font, V: Clone + 'static, H: BuildHasher> GlyphBrush<'font, V, H> {
             s.finish()
         };
 
+        dbg!(current_text_state);
+
         let result = if !self.cache_glyph_drawing
             || self.last_draw.text_state != current_text_state
             || self.last_pre_positioned != self.pre_positioned
@@ -313,45 +314,6 @@ impl<'font, V: Clone + 'static, H: BuildHasher> GlyphBrush<'font, V, H> {
             // Everything in the section_buffer should also be here. The extras should also
             // be retained in the texture cache avoiding cache thrashing if they are rendered
             // in a 2-draw per frame style.
-
-            // This additional rects stuff was hacked in here to fix a perf issue arising from
-            // the previous method that used multiple instances of the character
-            let rect_hash = additional_rects.map(
-                |AdditionalRects {
-                     set_full_alpha,
-                     extract_tex_coords,
-                     highlight_ranges,
-                 }| {
-                    let section = Section {
-                        // This is here so that the rectangle always stays in the cache.
-                        // It should not acually show up visually
-                        text: "█",
-                        // if this is too low, the rect's are inappropriately transparent.
-                        // If it's too high then the cache gets filled up.
-                        // TODO FIXME?
-                        scale: Scale::uniform(8.0),
-                        screen_position: (0.0, 0.0),
-                        bounds: (std::f32::INFINITY, std::f32::INFINITY),
-                        color: d!(),
-                        layout: Layout::default_single_line(),
-                        z: std::f32::INFINITY,
-                        ..Section::default()
-                    }
-                    .into();
-
-                    let section_hash = self.cache_glyphs(&section, &section.layout);
-                    self.section_buffer.push(section_hash);
-                    self.keep_in_cache.insert(section_hash);
-
-                    (
-                        set_full_alpha,
-                        extract_tex_coords,
-                        section_hash,
-                        highlight_ranges,
-                    )
-                },
-            );
-
             perf_viz::start_record!("keep_in_cache");
             for section_hash in &self.keep_in_cache {
                 for &(ref glyph, _, font_id) in self
@@ -427,53 +389,33 @@ impl<'font, V: Clone + 'static, H: BuildHasher> GlyphBrush<'font, V, H> {
                     perf_viz::end_record!("BrushAction::Draw pre_positioned");
                 }
 
-                // This status line stuff was hacked in here to fix a perf issue arising from
-                // the previous method that used multiple instances of the character
-                if let Some((set_full_alpha, extract_tex_coords, rect_hash, highlight_ranges)) =
-                    rect_hash
+                // This stuff was hacked in here to fix a perf issue arising from
+                // the previous method of drawing rects through glyph_brush's API
+                // that used multiple instances of "█"
+                if let Some(AdditionalRects {
+                     set_alpha,
+                     highlight_ranges,
+                 }) = additional_rects
                 {
-                    let glyphed = self.calculate_glyph_cache.get_mut(&rect_hash).unwrap();
-                    glyphed.ensure_vertices(&self.texture_cache, screen_dims, to_vertex);
-                    if let Some(mut vertex) = glyphed.vertices.pop() {
-                        let tex_coords = {
-                            let mut tex_coords = extract_tex_coords(&vertex);
-
-                            // Hacky way to prevent sampling outside of the texture.
-                            let x_apron = (tex_coords.max.x - tex_coords.min.x) * 0.25;
-                            let y_apron = (tex_coords.max.y - tex_coords.min.y) * 0.25;
-                            tex_coords.min.x += x_apron;
-                            tex_coords.min.y += y_apron;
-                            tex_coords.max.x -= x_apron;
-                            tex_coords.max.y -= y_apron;
-
-                            tex_coords
-                        };
-
-                        set_full_alpha(&mut vertex);
-
-                        verts.push(vertex);
-
-                        let highlight_base = GlyphVertex {
-                            tex_coords,
+                    for range in highlight_ranges {
+                        let HighlightRange {
+                            pixel_coords,
+                            bounds,
+                            color,
+                            z,
+                        } = range;
+                        let mut v = to_vertex(GlyphVertex {
+                            pixel_coords,
+                            bounds,
+                            color,
+                            z,
                             screen_dimensions: screen_dims,
                             ..d!()
-                        };
-                        for range in highlight_ranges {
-                            let HighlightRange {
-                                pixel_coords,
-                                bounds,
-                                color,
-                                z,
-                            } = range;
-                            verts.push(to_vertex(GlyphVertex {
-                                tex_coords,
-                                pixel_coords,
-                                bounds,
-                                color,
-                                z,
-                                ..highlight_base
-                            }));
-                        }
+                        });
+
+                        set_alpha(&mut v, color[3]);
+
+                        verts.push(v);
                     }
                 }
 

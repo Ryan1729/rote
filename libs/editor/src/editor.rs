@@ -335,7 +335,8 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
     }
 
     macro_rules! buffer_view_sync {
-        () => {
+        () => {{
+            perf_viz::record_guard!("buffer_view_sync");
             match state.menu_mode {
                 MenuMode::Hidden => {
                     state.buffers.get_current_buffer_mut().refresh_search_results(
@@ -357,13 +358,14 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                 MenuMode::GoToPosition => {}
             }
             try_to_show_cursors!();
-        };
+        }};
     }
 
     macro_rules! post_edit_sync {
-        () => {
+        () => {{
+            perf_viz::record_guard!("post_edit_sync");
             buffer_view_sync!();
-        };
+        }};
     }
 
     macro_rules! editor_buffer_call {
@@ -576,6 +578,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             mark_edited_transition!(current, ToEdited);
         }
         AddOrSelectBuffer(name, str) => {
+            perf_viz::record_guard!("AddOrSelectBuffer");
             state.buffers.add_or_select_buffer(name, str);
             state.current_buffer_kind = BufferIdKind::Text;
 

@@ -3,22 +3,6 @@ use macros::{d};
 
 pub type Res<T> = Result<T, Box<dyn std::error::Error>>;
 
-/// ```text
-/// [
-///     left_top * 3,
-///     right_bottom * 2,
-///     tex_left_top * 2,
-///     tex_right_bottom * 2,
-///     color * 4,
-///     override_alpha
-/// ]
-/// ```
-pub type Vertex = [f32; 14];
-
-pub fn set_full_alpha(vertex: &mut Vertex) {
-    vertex[13] = 1.0;
-}
-
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Point {
     pub x: f32,
@@ -31,14 +15,77 @@ pub struct TexCoords {
     pub max: Point,    
 }
 
+/// ```text
+/// [
+///     left_top * 3,
+///     override_alpha,
+///     right_bottom * 2,
+///     tex_left_top * 2,
+///     tex_right_bottom * 2,
+///     color * 4, 
+/// ]
+/// ```
+pub const VERTEX_SPEC: [(&'static str, i32); 6] = [
+    ("left_top", 3),
+    ("override_alpha", 1),
+    ("right_bottom", 2),
+    ("tex_left_top", 2),
+    ("tex_right_bottom", 2),
+    ("color", 4),
+];
+
+pub type Vertex = [f32; 14];
+
 pub fn extract_tex_coords(vertex: &Vertex) -> TexCoords {
     let mut output: TexCoords = d!();
     // To compensate for y flipping in to_vertex
-    output.min.x = vertex[5];
-    output.max.y = vertex[6];
-    output.max.x = vertex[7];
-    output.min.y = vertex[8];
+    output.min.x = vertex[6];
+    output.max.y = vertex[7];
+    output.max.x = vertex[8];
+    output.min.y = vertex[9];
     output
+}
+
+pub fn set_alpha(vertex: &mut Vertex, alpha: f32) {
+    vertex[3] = alpha;
+}
+
+pub struct VertexStruct {
+    pub left_top_x: f32,
+    pub left_top_y: f32,
+    pub left_top_z: f32,
+    pub override_alpha: f32,
+    pub right_bottom_x: f32,
+    pub right_bottom_y: f32,
+    pub tex_left_top_x: f32,
+    pub tex_left_top_y: f32,
+    pub tex_right_bottom_x: f32,
+    pub tex_right_bottom_y: f32,
+    pub color_r: f32,
+    pub color_g: f32,
+    pub color_b: f32,
+    pub color_a: f32,
+}
+
+impl VertexStruct {
+    pub fn into_vertex(self) -> Vertex {
+        [
+            self.left_top_x,
+            self.left_top_y,
+            self.left_top_z,
+            self.override_alpha,
+            self.right_bottom_x,
+            self.right_bottom_y,
+            self.tex_left_top_x,
+            self.tex_left_top_y,
+            self.tex_right_bottom_x,
+            self.tex_right_bottom_y,
+            self.color_r,
+            self.color_g,
+            self.color_b,
+            self.color_a,
+        ]
+    }
 }
 
 /// We use thses values so that the default 24 bit depth buffer contains at least 2^16
