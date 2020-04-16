@@ -8,8 +8,8 @@ use std::iter::{FusedIterator, Iterator, Peekable};
 
 /// A line of `Word`s limited to a max width bound.
 pub struct Line<'font> {
-    pub(crate) glyphs: Vec<(RelativePositionedGlyph<'font>, Color, FontId)>,
-    pub(crate) max_v_metrics: VMetrics,
+    pub glyphs: Vec<(RelativePositionedGlyph<'font>, Color, FontId)>,
+    pub max_v_metrics: VMetrics,
 }
 
 impl<'font> Line<'font> {
@@ -102,9 +102,14 @@ impl<'font, L: LineBreaker, F: FontMap<'font>> Iterator for Lines<'_, '_, 'font,
         let mut progressed = false;
 
         while let Some(word) = self.words.peek() {
-            let word_max_x = word.bounds.map(|b| b.max.x).unwrap_or(word.layout_width);
+            let word_in_bounds = {
+                let word_x = caret.x + word.layout_width_no_trail;
+                // Reduce float errors by using relative "<= width bound" check
+                word_x < self.width_bound || approx::relative_eq!(word_x, self.width_bound)
+            };
+
             // only if `progressed` means the first word is allowed to overlap the bounds
-            if progressed && (caret.x + word_max_x).ceil() > self.width_bound {
+            if !word_in_bounds && progressed {
                 break;
             }
 
@@ -123,13 +128,11 @@ impl<'font, L: LineBreaker, F: FontMap<'font>> Iterator for Lines<'_, '_, 'font,
                 line.max_v_metrics = word.max_v_metrics;
             }
 
-            if word.bounds.is_some() {
-                line.glyphs
-                    .extend(word.glyphs.into_iter().map(|(mut g, color, font_id)| {
-                        g.relative = g.relative + caret;
-                        (g, color, font_id)
-                    }));
-            }
+            line.glyphs
+                .extend(word.glyphs.into_iter().map(|(mut g, color, font_id)| {
+                    g.relative = g.relative + caret;
+                    (g, color, font_id)
+                }));
 
             caret.x += word.layout_width;
 

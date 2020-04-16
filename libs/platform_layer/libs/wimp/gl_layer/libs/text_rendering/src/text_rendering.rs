@@ -9,7 +9,7 @@ use macros::{d};
 use glyph_brush::*;
 use glyph_brush::{
     rusttype::{Font, Scale},
-    Bounds, GlyphBrush, GlyphBrushBuilder, HighlightRange, Layout, PixelCoords, Section,
+    Bounds, GlyphBrush, GlyphBrushBuilder, RectSpec, Layout, PixelCoords, Section,
 };
 
 mod text_layouts {
@@ -314,7 +314,7 @@ impl <'font> State<'font> {
     {
         use TextOrRect::*;
 
-        let mut highlight_ranges = Vec::new();
+        let mut rect_specs = Vec::new();
 
         /// As of this writing, casting f32 to i32 is undefined behaviour if the value does not fit!
         /// https://github.com/rust-lang/rust/issues/10184
@@ -346,8 +346,9 @@ impl <'font> State<'font> {
                     pixel_coords.max.y = f32_to_i32_or_max(max_y);
     
                     let mut bounds: Bounds = d!();
-                    bounds.max = (max_x, max_y).into();
-                    highlight_ranges.push(HighlightRange {
+                    bounds.max.x = max_x;
+                    bounds.max.y = max_y;
+                    rect_specs.push(RectSpec {
                         pixel_coords,
                         bounds,
                         color,
@@ -433,12 +434,11 @@ impl <'font> State<'font> {
 
         loop {
             let brush_action = self.glyph_brush.process_queued(
-                dimensions,
                 update_texture,
-                to_vertex,
+                to_vertex_maker((dimensions.0 as f32, dimensions.1 as f32)),
                 Some(AdditionalRects {
                     set_alpha,
-                    highlight_ranges: highlight_ranges.clone(), // clone needed since we loop sometimes.
+                    rect_specs: rect_specs.clone(), // clone needed since we loop sometimes.
                 }),
             );
     
@@ -510,79 +510,80 @@ fn get_scale(size: f32, hidpi_factor: f32) -> Scale {
     Scale::uniform((size * hidpi_factor).round())
 }
 
+
+
 #[inline]
 #[perf_viz::record]
-fn to_vertex(
-    glyph_brush::GlyphVertex {
+fn to_vertex_maker((screen_w, screen_h): (f32, f32)) -> impl Fn(glyph_brush::GlyphVertex) -> Vertex + Copy {
+    move |glyph_brush::GlyphVertex {
         mut tex_coords,
         pixel_coords,
         bounds,
-        screen_dimensions: (screen_w, screen_h),
         color,
         z,
-    }: glyph_brush::GlyphVertex,
-) -> Vertex {
-    let gl_bounds = rusttype::Rect {
-        min: rusttype::point(
-            2.0 * (bounds.min.x / screen_w - 0.5),
-            2.0 * (0.5 - bounds.min.y / screen_h),
-        ),
-        max: rusttype::point(
-            2.0 * (bounds.max.x / screen_w - 0.5),
-            2.0 * (0.5 - bounds.max.y / screen_h),
-        ),
-    };
-
-    let mut gl_rect = rusttype::Rect {
-        min: rusttype::point(
-            2.0 * (pixel_coords.min.x as f32 / screen_w - 0.5),
-            2.0 * (0.5 - pixel_coords.min.y as f32 / screen_h),
-        ),
-        max: rusttype::point(
-            2.0 * (pixel_coords.max.x as f32 / screen_w - 0.5),
-            2.0 * (0.5 - pixel_coords.max.y as f32 / screen_h),
-        ),
-    };
-
-    // handle overlapping bounds, modify uv_rect to preserve texture aspect
-    if gl_rect.max.x > gl_bounds.max.x {
-        let old_width = gl_rect.width();
-        gl_rect.max.x = gl_bounds.max.x;
-        tex_coords.max.x = tex_coords.min.x + tex_coords.width() * gl_rect.width() / old_width;
+    }: glyph_brush::GlyphVertex| {
+        let gl_bounds = rusttype::Rect {
+            min: rusttype::point(
+                2.0 * (bounds.min.x / screen_w - 0.5),
+                2.0 * (0.5 - bounds.min.y / screen_h),
+            ),
+            max: rusttype::point(
+                2.0 * (bounds.max.x / screen_w - 0.5),
+                2.0 * (0.5 - bounds.max.y / screen_h),
+            ),
+        };
+    
+        let mut gl_rect = rusttype::Rect {
+            min: rusttype::point(
+                2.0 * (pixel_coords.min.x as f32 / screen_w - 0.5),
+                2.0 * (0.5 - pixel_coords.min.y as f32 / screen_h),
+            ),
+            max: rusttype::point(
+                2.0 * (pixel_coords.max.x as f32 / screen_w - 0.5),
+                2.0 * (0.5 - pixel_coords.max.y as f32 / screen_h),
+            ),
+        };
+    
+        // handle overlapping bounds, modify uv_rect to preserve texture aspect
+        if gl_rect.max.x > gl_bounds.max.x {
+            let old_width = gl_rect.width();
+            gl_rect.max.x = gl_bounds.max.x;
+            tex_coords.max.x = tex_coords.min.x + tex_coords.width() * gl_rect.width() / old_width;
+        }
+        if gl_rect.min.x < gl_bounds.min.x {
+            let old_width = gl_rect.width();
+            gl_rect.min.x = gl_bounds.min.x;
+            tex_coords.min.x = tex_coords.max.x - tex_coords.width() * gl_rect.width() / old_width;
+        }
+        // note: y access is flipped gl compared with screen,
+        // texture is not flipped (ie is a headache)
+        if gl_rect.max.y < gl_bounds.max.y {
+            let old_height = gl_rect.height();
+            gl_rect.max.y = gl_bounds.max.y;
+            tex_coords.max.y = tex_coords.min.y + tex_coords.height() * gl_rect.height() / old_height;
+        }
+        if gl_rect.min.y > gl_bounds.min.y {
+            let old_height = gl_rect.height();
+            gl_rect.min.y = gl_bounds.min.y;
+            tex_coords.min.y = tex_coords.max.y - tex_coords.height() * gl_rect.height() / old_height;
+        }
+    
+        VertexStruct {
+            left_top_x: gl_rect.min.x,
+            left_top_y: gl_rect.max.y,
+            left_top_z: z,
+            override_alpha: 0.0,
+            right_bottom_x: gl_rect.max.x,
+            right_bottom_y: gl_rect.min.y,
+            // this isn't `mix.x, min.y, max.x, max.y` in order to flip the y axis
+            tex_left_top_x: tex_coords.min.x,
+            tex_left_top_y: tex_coords.max.y,
+            tex_right_bottom_x: tex_coords.max.x,
+            tex_right_bottom_y: tex_coords.min.y,
+            color_r: color[0],
+            color_g: color[1],
+            color_b: color[2],
+            color_a: color[3],
+        }.into_vertex()
     }
-    if gl_rect.min.x < gl_bounds.min.x {
-        let old_width = gl_rect.width();
-        gl_rect.min.x = gl_bounds.min.x;
-        tex_coords.min.x = tex_coords.max.x - tex_coords.width() * gl_rect.width() / old_width;
-    }
-    // note: y access is flipped gl compared with screen,
-    // texture is not flipped (ie is a headache)
-    if gl_rect.max.y < gl_bounds.max.y {
-        let old_height = gl_rect.height();
-        gl_rect.max.y = gl_bounds.max.y;
-        tex_coords.max.y = tex_coords.min.y + tex_coords.height() * gl_rect.height() / old_height;
-    }
-    if gl_rect.min.y > gl_bounds.min.y {
-        let old_height = gl_rect.height();
-        gl_rect.min.y = gl_bounds.min.y;
-        tex_coords.min.y = tex_coords.max.y - tex_coords.height() * gl_rect.height() / old_height;
-    }
-
-    VertexStruct {
-        left_top_x: gl_rect.min.x,
-        left_top_y: gl_rect.max.y,
-        left_top_z: z,
-        override_alpha: 0.0,
-        right_bottom_x: gl_rect.max.x,
-        right_bottom_y: gl_rect.min.y,
-        // this isn't `mix.x, min.y, max.x, max.y` in order to flip the y axis
-        tex_left_top_x: tex_coords.min.x,
-        tex_left_top_y: tex_coords.max.y,
-        tex_right_bottom_x: tex_coords.max.x,
-        tex_right_bottom_y: tex_coords.min.y,
-        color_r: color[0],
-        color_g: color[1],
-        color_b: color[2],
-        color_a: color[3],
-    }.into_vertex()
 }

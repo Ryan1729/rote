@@ -1,6 +1,6 @@
 [package]
 name = "glyph_brush_layout"
-version = "0.1.5"
+version = "0.1.9"
 authors = ["Alex Butler <alexheretic@gmail.com>"]
 edition = "2018"
 description = "Text layout for rusttype"
@@ -10,10 +10,10 @@ license = "Apache-2.0"
 readme="README.md"
 
 [dependencies]
-full_rusttype = { features = ["gpu_cache"], package = "rusttype", path = "../rusttype" }
-xi-unicode = "0.1"
+full_rusttype = { version = "0.8.3", package = "rusttype" }
+xi-unicode = "0.2"
+approx = "0.3.2"
 
 [dev-dependencies]
-approx = "0.3.1"
-lazy_static = "1"
+once_cell = "1"
 ordered-float = "1"
