@@ -299,6 +299,7 @@ where
     /// # Ok(())
     /// # }
     /// ```
+    #[perf_viz::record]
     pub fn process_queued<F1, F2>(
         &mut self,
         update_texture: F1,
@@ -311,41 +312,22 @@ where
     {
         let draw_info = LastDrawInfo {
             text_state: {
+                perf_viz::record_guard!("text_state");
                 let mut s = self.section_hasher.build_hasher();
                 let s_ref = &mut s;
                 self.section_buffer.hash(s_ref);
-
-                if let Some(AdditionalRects {
-                    rect_specs, ..
-                }) = additional_rects.as_ref()
-                {
-                    for RectSpec {
-                        pixel_coords,
-                        bounds,
-                        color,
-                        z,
-                    } in rect_specs.iter()
-                    {
-                        pixel_coords.hash(s_ref);
-                        bounds.min.x.to_bits().hash(s_ref);
-                        bounds.min.y.to_bits().hash(s_ref);
-                        bounds.max.x.to_bits().hash(s_ref);
-                        bounds.max.y.to_bits().hash(s_ref);
-                        for n in color {
-                            n.to_bits().hash(s_ref);
-                        }
-                        z.to_bits().hash(s_ref);
-                    }
-                }
 
                 s.finish()
             },
         };
 
+        if_changed::dbg!(draw_info.text_state);
+
         let result = if !self.cache_glyph_drawing
             || self.last_draw != draw_info
             || self.last_pre_positioned != self.pre_positioned
         {
+            perf_viz::record_guard!("prepare BrushAction::Draw");
             let mut some_text = false;
             // Everything in the section_buffer should also be here. The extras should also
             // be retained in the texture cache avoiding cache thrashing if they are rendered
@@ -391,19 +373,26 @@ where
             self.last_draw = draw_info;
 
             BrushAction::Draw({
+                perf_viz::record_guard!("verts BrushAction::Draw");
                 let mut verts = Vec::new();
 
                 for hash in &self.section_buffer {
+                    perf_viz::start_record!("hash in &self.section_buffer");
                     let glyphed = self.calculate_glyph_cache.get_mut(hash).unwrap();
+                    perf_viz::start_record!("section_buffer ensure_vertices");
                     glyphed.ensure_vertices(&self.texture_cache, to_vertex);
+                    perf_viz::end_record!("section_buffer ensure_vertices");
                     verts.extend(glyphed.vertices.iter().cloned());
+                    perf_viz::end_record!("hash in &self.section_buffer");
                 }
 
                 for glyphed in &mut self.pre_positioned {
+                    perf_viz::start_record!("glyphed in &mut self.pre_positioned");
                     // pre-positioned glyph vertices can't be cached so
                     // generate & move straight into draw vec
                     glyphed.ensure_vertices(&self.texture_cache, to_vertex);
                     verts.append(&mut glyphed.vertices);
+                    perf_viz::end_record!("glyphed in &mut self.pre_positioned");
                 }
 
                 // This stuff was hacked in here to fix a perf issue arising from
@@ -414,6 +403,7 @@ where
                      rect_specs,
                  }) = additional_rects
                 {
+                    perf_viz::record_guard!("rect_specs loop");
                     for range in rect_specs {
                         let RectSpec {
                             pixel_coords,
@@ -442,6 +432,7 @@ where
             BrushAction::ReDraw
         };
 
+        perf_viz::record_guard!("cleanup_frame");
         self.cleanup_frame();
         Ok(result)
     }
@@ -752,23 +743,35 @@ impl<'font, V> Glyphed<'font, V> {
         } = self.positioned;
 
         self.vertices.reserve(glyphs.len());
+        perf_viz::record_guard!("ensure_vertices extend");
         self.vertices
             .extend(glyphs.iter().filter_map(|(glyph, color, font_id)| {
+                perf_viz::record_guard!("ensure_vertices filter_map");
                 match texture_cache.rect_for(font_id.0, glyph) {
                     Err(err) => {
+                        perf_viz::record_guard!("ensure_vertices Err(err)");
                         error!("Cache miss?: {:?}, {:?}: {}", font_id, glyph, err);
                         None
                     }
-                    Ok(None) => None,
+                    Ok(None) => {
+                        perf_viz::record_guard!("ensure_vertices Ok(None)");
+                        None
+                    },
                     Ok(Some((tex_coords, pixel_coords))) => {
-                        if pixel_coords.min.x as f32 > bounds.max.x
+                        perf_viz::record_guard!("ensure_vertices Ok(Some((tex_coords, pixel_coords)))");
+                        perf_viz::start_record!("is_outside");
+                        let is_outside = pixel_coords.min.x as f32 > bounds.max.x
                             || pixel_coords.min.y as f32 > bounds.max.y
                             || bounds.min.x > pixel_coords.max.x as f32
-                            || bounds.min.y > pixel_coords.max.y as f32
+                            || bounds.min.y > pixel_coords.max.y as f32;
+                        perf_viz::end_record!("is_outside");
+                        if is_outside
                         {
+                            perf_viz::record_guard!("ensure_vertices glyph is totally outside the bounds");
                             // glyph is totally outside the bounds
                             None
                         } else {
+                            perf_viz::record_guard!("ensure_vertices glyph is inside the bounds");
                             Some(to_vertex(GlyphVertex {
                                 tex_coords,
                                 pixel_coords,

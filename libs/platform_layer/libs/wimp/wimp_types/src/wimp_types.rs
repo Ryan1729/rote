@@ -533,6 +533,7 @@ pub mod ui {
         pub window_is_focused: bool,
     }
     
+    #[cfg(not(feature = "disable-fade-alpha"))]
     impl State {
         pub fn note_interaction(&mut self) {
             self.fade_solid_override_accumulator = 1.5;
@@ -561,6 +562,18 @@ pub mod ui {
             } else {
                 self.fade_alpha_accumulator
             }
+        }
+    }
+
+    #[cfg(feature = "disable-fade-alpha")]
+    impl State {
+        pub fn note_interaction(&mut self) {
+            
+        }
+        pub fn add_dt(&mut self, dt: std::time::Duration) {
+        }
+        pub fn get_fade_alpha(&self) -> f32 {
+            1.0
         }
     }
     

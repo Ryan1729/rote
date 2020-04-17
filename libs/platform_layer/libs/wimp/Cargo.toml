@@ -30,6 +30,7 @@ directories = "2.0"
 
 [features]
 default = []
+disable-fade-alpha = ["wimp_types/disable-fade-alpha"]
 invariant-checking = ["wimp_render/invariant-checking"]
 time-render = ["gl_layer/time-render"]
 extra-prints = ["shared/extra-prints"]

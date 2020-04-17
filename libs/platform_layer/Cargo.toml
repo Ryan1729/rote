@@ -13,6 +13,7 @@ macros = { path = "../macros" }
 
 [features]
 default = []
+disable-fade-alpha = ["wimp/disable-fade-alpha"]
 invariant-checking = ["wimp/invariant-checking"]
 time-render = ["wimp/time-render"]
 extra-prints = ["wimp/extra-prints"]

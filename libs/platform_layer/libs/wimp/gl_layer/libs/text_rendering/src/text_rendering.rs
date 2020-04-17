@@ -19,6 +19,20 @@ mod text_layouts {
         rusttype::{point, vector, Point, PositionedGlyph, Rect},
     };
     use std::borrow::Cow;
+
+    use std::f32::INFINITY;
+    //const INFINITY: f32 = 65536.0; // 64k pixels ought to be enough for anybody!
+    const INFINITY_RECT: Rect<f32> = Rect {
+        min: Point {
+            x: -INFINITY,
+            y: -INFINITY,
+        },
+        max: Point {
+            x: INFINITY,
+            y: INFINITY,
+        },
+    };
+
     #[derive(Hash)]
     pub struct Wrap {}
 
@@ -140,7 +154,7 @@ mod text_layouts {
 
             let (x_min, x_max) = HorizontalAlign::Left.x_bounds(screen_x, bound_w);
             let (y_min, _) = VerticalAlign::Top.y_bounds(screen_y, bound_h);
-            let y_max = std::f32::INFINITY; // never cut off the bottom of the text.
+            let y_max = INFINITY; // never cut off the bottom of the text.
 
             Rect {
                 min: point(x_min, y_min),
@@ -234,18 +248,6 @@ mod text_layouts {
     #[derive(Hash)]
     pub struct Unbounded {}
 
-    use std::f32::INFINITY;
-    const INFINITY_RECT: Rect<f32> = Rect {
-        min: Point {
-            x: -INFINITY,
-            y: -INFINITY,
-        },
-        max: Point {
-            x: INFINITY,
-            y: INFINITY,
-        },
-    };
-
     impl GlyphPositioner for Unbounded {
         fn calculate_glyphs<'font, F>(
             &self,
@@ -301,6 +303,8 @@ impl <'font> State<'font> {
     pub fn resize_texture(&mut self, new_width: u32, new_height: u32) {
         self.glyph_brush.resize_texture(new_width, new_height);
     }
+
+    #[perf_viz::record]
     pub fn render_vertices<Update, Resize>(
         &mut self,
         text_or_rects: Vec<TextOrRect>,
@@ -446,6 +450,7 @@ impl <'font> State<'font> {
                 Ok(BrushAction::Draw(verticies)) => return Some(verticies),
                 Ok(BrushAction::ReDraw) => return None,
                 Err(BrushError::TextureTooSmall { suggested: (new_width, new_height), .. }) => {
+                    perf_viz::record_guard!("TextureTooSmall");
                     resize_texture(new_width, new_height);
                     self.resize_texture(new_width, new_height);
                 },
@@ -522,6 +527,7 @@ fn to_vertex_maker((screen_w, screen_h): (f32, f32)) -> impl Fn(glyph_brush::Gly
         color,
         z,
     }: glyph_brush::GlyphVertex| {
+        perf_viz::record_guard!("to_vertex");
         let gl_bounds = rusttype::Rect {
             min: rusttype::point(
                 2.0 * (bounds.min.x / screen_w - 0.5),
