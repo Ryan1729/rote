@@ -570,7 +570,7 @@ pub mod ui {
         pub fn note_interaction(&mut self) {
             
         }
-        pub fn add_dt(&mut self, dt: std::time::Duration) {
+        pub fn add_dt(&mut self, _: std::time::Duration) {
         }
         pub fn get_fade_alpha(&self) -> f32 {
             1.0

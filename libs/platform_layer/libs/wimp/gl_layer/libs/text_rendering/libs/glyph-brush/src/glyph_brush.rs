@@ -321,8 +321,6 @@ where
             },
         };
 
-        if_changed::dbg!(draw_info.text_state);
-
         let result = if !self.cache_glyph_drawing
             || self.last_draw != draw_info
             || self.last_pre_positioned != self.pre_positioned

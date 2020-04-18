@@ -2,7 +2,7 @@
 use gl_layer::{ColouredText, MulticolourTextSpec, TextLayout, TextOrRect, TextSpec, VisualSpec};
 use wimp_types::{CommandsMap, LocalMenuView, View, WimpMenuMode, MenuMode, MenuView, WimpMenuView, FindReplaceMode, ui_id, ui, ui::{ButtonState}, BufferStatus, CommandKey, Dimensions, RunConsts, RunState, command_keys};
 use macros::{c, d, invariant_assert, u};
-use platform_types::{g_i, BufferView, GoToPositionView, FindReplaceView, FileSwitcherView, BufferViewData, BufferIdKind, BufferId, b_id, CursorState, Highlight, HighlightKind, tbxy, tbxywh, Input, sswh, ssr, screen_positioning::*, SpanView};
+use platform_types::{g_i, BufferView, GoToPositionView, FindReplaceView, FileSwitcherView, BufferViewData, BufferIdKind, BufferId, b_id, CursorState, Highlight, HighlightKind, tbxy, tbxywh, tsxywh, Input, sswh, ssr, screen_positioning::*, SpanView};
 use std::cmp::max;
 
 type Colour = [f32; 4];
@@ -1019,10 +1019,11 @@ fn text_box_view<'view>(
     text_or_rects.push(TextOrRect::Rect(VisualSpec {
         rect: outer_rect,
         color: background_color,
-        z: z.saturating_sub(1),
+        z: z.saturating_sub(2),
     }));
 
     let scroll = *scroll;
+    
     let text_box_pos = TextBoxXY {
         x: outer_rect.min.0,
         y: outer_rect.min.1,
@@ -1031,15 +1032,42 @@ fn text_box_view<'view>(
         text_to_text_box(TextSpaceXY::default(), scroll),
         text_box_pos,
     );
-    let offset_text_rect = shrink_by(ssr!(scroll_offset.into(), outer_rect.max), padding);
     
+    let offset_text_rect = shrink_by(ssr!(scroll_offset.into(), outer_rect.max), padding);
+
+    let editor_layout = if cfg!(feature = "clip_debugging") {
+        let clip_rect = ssr!(
+            text_box_pos.x + scroll_offset.x,
+            text_box_pos.y + scroll_offset.y,
+            outer_rect.max.0 + scroll_offset.x,
+            outer_rect.max.1 + scroll_offset.y
+        );
+    
+        text_or_rects.push(TextOrRect::Rect(VisualSpec {
+            rect: clip_rect,
+            color: palette![green],
+            z: z.saturating_sub(1),
+        }));    
+
+        TextLayout::UnboundedLayoutClipped(
+            if_changed::dbg!(tsxywh!(
+                clip_rect.min.0,
+                clip_rect.min.1,
+                clip_rect.max.0 - clip_rect.min.0,
+                clip_rect.max.1 - clip_rect.min.1
+            ))
+        )
+    } else {
+        TextLayout::Unbounded
+    };
+
     text_or_rects.push(TextOrRect::MulticolourText(MulticolourTextSpec {
         text: match text_color {
             TextBoxColour::FromSpans => colourize(&chars, spans),
             TextBoxColour::Single(color) => vec![ColouredText{ color, text: &chars }],
         },
         size,
-        layout: TextLayout::Unbounded, //WrapInRect(outer_rect),
+        layout: editor_layout,
         rect: offset_text_rect,
         z,
     }));

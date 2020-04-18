@@ -20,5 +20,6 @@ macros = { path = "../../../../macros" }
 proptest = "0.9.3"
 
 [features]
+clip-debugging = []
 default = []
 invariant-checking = ["macros/invariant-checking"]

@@ -1,4 +1,4 @@
-use platform_types::ScreenSpaceRect;
+use platform_types::{ScreenSpaceRect, ssr, TextSpaceXYWH, tsxywh};
 use macros::{d};
 
 pub type Res<T> = Result<T, Box<dyn std::error::Error>>;
@@ -12,7 +12,7 @@ pub struct Point {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct TexCoords {
     pub min: Point,
-    pub max: Point,    
+    pub max: Point,
 }
 
 /// ```text
@@ -153,6 +153,7 @@ pub enum TextLayout {
     //TODO get wrapping working properly with cursors etc. or get rid of the unused variants here.
     WrapInRect(ScreenSpaceRect),
     Unbounded,
+    UnboundedLayoutClipped(TextSpaceXYWH)
 }
 
 #[derive(Clone, Debug)]

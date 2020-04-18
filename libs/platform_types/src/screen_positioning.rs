@@ -19,6 +19,12 @@ macro_rules! ssxy {
     ($x: ident, $y: ident) => {
         ScreenSpaceXY { x: $x, y: $y }
     };
+    (_, $y: ident) => {
+        ScreenSpaceXY { x: _, y: $y }
+    };
+    ($x: ident, _) => {
+        ScreenSpaceXY { x: $x, y: _ }
+    };
     //
     // Initialization
     //
@@ -82,28 +88,34 @@ macro_rules! sswh {
     // Pattern matching
     //
     (_, $h: ident) => {
-        ScreenSpaceWH { w: _, h: $h }
+        $crate::ScreenSpaceWH { w: _, h: $h }
     };
     ($w: ident, _) => {
-        ScreenSpaceWH { w: $w, h: _ }
+        $crate::ScreenSpaceWH { w: $w, h: _ }
     };
     ($w: ident, $h: ident) => {
-        ScreenSpaceWH { w: $w, h: $h }
+        $crate::ScreenSpaceWH { w: $w, h: $h }
     };
     //
     // Initialization
     //
     ($w: expr, $h: expr) => {
-        ScreenSpaceWH { w: $w, h: $h }
+        $crate::ScreenSpaceWH { w: $w, h: $h }
     };
     () => {
-        ScreenSpaceWH::default()
+        $crate::ScreenSpaceWH::default()
     };
 }
 
 impl From<ScreenSpaceWH> for (f32, f32) {
-    fn from(ScreenSpaceWH { w, h }: ScreenSpaceWH) -> Self {
+    fn from(sswh!(w, h): ScreenSpaceWH) -> Self {
         (w, h)
+    }
+}
+
+impl From<ScreenSpaceRect> for ScreenSpaceWH {
+    fn from(ssr!(_, _, w, h): ScreenSpaceRect) -> Self {
+        sswh!(w, h)
     }
 }
 
@@ -267,6 +279,25 @@ pub struct TextSpaceXY {
 
 fmt_display!(for TextSpaceXY: TextSpaceXY {x, y} in "{:?}", (x, y));
 
+#[macro_export]
+macro_rules! tsxy {
+    //
+    // Pattern matching
+    //
+    ($x: ident, $y: ident) => {
+        $crate::TextSpaceXY { x: $x, y: $y }
+    };
+    //
+    // Initialization
+    //
+    ($x: expr, $y: expr) => {
+        $crate::TextSpaceXY { x: $x, y: $y }
+    };
+    () => {
+        $crate::TextSpaceXY::default()
+    };
+}
+
 impl From<TextSpaceXY> for (f32, f32) {
     fn from(TextSpaceXY { x, y }: TextSpaceXY) -> Self {
         (x, y)
@@ -285,7 +316,44 @@ impl std::ops::Add for TextSpaceXY {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
-/// The top left corner of the text is `(0.0, 0.0)1, top right corner is `(width, 0.0)`,
+pub struct TextSpaceXYWH {
+    pub xy: TextSpaceXY,
+    pub wh: ScreenSpaceWH,
+}
+
+#[macro_export]
+macro_rules! tsxywh {
+    //
+    // Pattern matching
+    //
+    ($x: ident, $y: ident, $w: ident, $h: ident) => {
+        $crate::TextSpaceXYWH { 
+            xy: $crate::tsxy!($x, $y),
+            wh: $crate::sswh!($w, $h),
+        }
+    };
+    //
+    // Initialization
+    //
+    ($x: expr, $y: expr, $w: expr, $h: expr) => {
+        $crate::TextSpaceXYWH { 
+            xy: $crate::tsxy!($x, $y),
+            wh: $crate::sswh!($w, $h),
+        }
+    };
+    ($xy: expr, $wh: expr) => {
+        $crate::TextSpaceXYWH { 
+            xy: $xy,
+            wh: $wh,
+        }
+    };
+    () => {
+        $crate::TextSpaceXYWH::default()
+    };
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+/// The top left corner of the text is `(0.0, 0.0)`, top right corner is `(width, 0.0)`,
 /// the bottom left corner is `(0.0, height)`. In other words, the x-axis point right, the y-axis
 /// points down.
 pub struct ScrollXY {
@@ -578,6 +646,30 @@ macro_rules! ssr {
             max: ($max_x, $max_y),
         }
     };
+    ($min_x: ident, _, $max_x: ident, _) => {
+        ScreenSpaceRect {
+            min: ($min_x, _),
+            max: ($max_x, _),
+        }
+    };
+    (_, $min_y: ident, _, $max_y: ident) => {
+        ScreenSpaceRect {
+            min: (_, $min_y),
+            max: (_, $max_y),
+        }
+    };
+    ($min_x: ident, $min_y: ident, _, _) => {
+        ScreenSpaceRect {
+            min: ($min_x, $min_y),
+            max: (_, _),
+        }
+    };
+    (_, _, $max_x: ident, $max_y: ident) => {
+        ScreenSpaceRect {
+            min: (_, _),
+            max: ($max_x, $max_y),
+        }
+    };
     ($min: ident, $max: ident) => {
         ScreenSpaceRect {
             min: $min,
@@ -700,6 +792,7 @@ impl From<(ScreenSpaceXY, ScreenSpaceWH)> for ScreenSpaceRect {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Default)]
+/// A rectangle in screen space which represents the the space taken up by a text box.
 pub struct TextBoxXYWH {
     pub xy: TextBoxXY,
     pub wh: ScreenSpaceWH,

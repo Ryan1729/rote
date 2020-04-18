@@ -53,7 +53,7 @@ pub fn render(
         open_gl::State::resize_texture(new_width, new_height);
     };
 
-    let replacement_verticies = state.text_rendering.render_vertices(
+    let replacement_vertices = state.text_rendering.render_vertices(
         text_or_rects,
         (width, height),
         |rect: text_rendering::TextureRect, tex_data: &_| {
@@ -69,7 +69,7 @@ pub fn render(
         resize_texture,
     );
     
-    match replacement_verticies {
+    match replacement_vertices {
         Some(vertices) => {
             perf_viz::record_guard!("open_gl.draw_vertices");
             state.open_gl.draw_vertices(vertices);

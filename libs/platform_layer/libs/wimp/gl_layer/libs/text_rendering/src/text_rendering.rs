@@ -1,6 +1,6 @@
 use platform_types::{
-    screen_positioning::{CharDim, ScreenSpaceRect},
-    ssr,
+    screen_positioning::{CharDim, ScreenSpaceRect, TextSpaceXYWH},
+    tsxywh, ssr,
 };
 use gl_layer_types::{Vertex, VertexStruct, TexCoords, set_alpha, TextOrRect, Res};
 
@@ -8,7 +8,7 @@ use macros::{d};
 
 use glyph_brush::*;
 use glyph_brush::{
-    rusttype::{Font, Scale},
+    rusttype::{Font, Scale, Rect},
     Bounds, GlyphBrush, GlyphBrushBuilder, RectSpec, Layout, PixelCoords, Section,
 };
 
@@ -277,14 +277,99 @@ mod text_layouts {
             recalculate_glyphs_body!(self, previous, change, fonts, geometry, sections)
         }
     }
+
+    #[derive(Hash)]
+    pub struct UnboundedLayoutClipped {
+        clip: Rect<i32>,
+    }
+
+    impl UnboundedLayoutClipped {
+        pub fn from_tsxywh(tsxywh: TextSpaceXYWH) -> Self {
+            Self { clip: tsxywh_to_rusttype_i32(tsxywh) }
+        }
+    }
+
+    impl GlyphPositioner for UnboundedLayoutClipped {
+        fn calculate_glyphs<'font, F>(
+            &self,
+            fonts: &F,
+            geometry: &SectionGeometry,
+            sections: &[SectionText],
+        ) -> Vec<(PositionedGlyph<'font>, [f32; 4], FontId)>
+        where
+            F: FontMap<'font>,
+        {
+            perf_viz::record_guard!("UnboundedLayoutClipped::calculate_glyphs");
+            // TODO reduce duplication with calculate_glyphs fn
+            let mut caret = geometry.screen_position;
+            let mut out = vec![];
+
+            let lines = get_lines_iter(fonts, sections, INFINITY);
+        
+            let clip = self.clip;
+
+            let mut line_number = 0;
+            for line in lines {
+                let line_height = line.line_height();
+                out.extend(
+                    line.aligned_on_screen(caret, HorizontalAlign::Left, VerticalAlign::Top)
+                        .into_iter()
+                        .filter(|(glyph, _, _)| {
+                           // dbg!(glyph, caret.1, line_number);
+                            // TODO when is this None?
+                            glyph.pixel_bounding_box()
+                                .map(move |pixel_coords| {
+                                    // true if pixel_coords intersects clip
+                                    !(pixel_coords.min.x > clip.max.x
+                                    || pixel_coords.min.y > clip.max.y
+                                    || clip.min.x > pixel_coords.max.x
+                                    || clip.min.y > pixel_coords.max.y)
+                                })
+                                .unwrap_or(true)
+                        })
+                );
+                caret.1 += line_height;
+                line_number += 1;
+            }
+        
+            out
+        }
+        fn bounds_rect(&self, _: &SectionGeometry) -> Rect<f32> {
+            INFINITY_RECT
+        }
+        fn recalculate_glyphs<'font, F>(
+            &self,
+            previous: Cow<Vec<(PositionedGlyph<'font>, [f32; 4], FontId)>>,
+            change: GlyphChange,
+            fonts: &F,
+            geometry: &SectionGeometry,
+            sections: &[SectionText],
+        ) -> Vec<(PositionedGlyph<'font>, [f32; 4], FontId)>
+        where
+            F: FontMap<'font>,
+        {
+            recalculate_glyphs_body!(self, previous, change, fonts, geometry, sections)
+        }
+    }
 }
-use text_layouts::{Unbounded, Wrap, WrapInRect};
+use text_layouts::{Unbounded, UnboundedLayoutClipped, Wrap, WrapInRect};
 
 pub type TextureRect = glyph_brush::rusttype::Rect<u32>;
 
 pub struct State<'font> {
     pub glyph_brush: GlyphBrush<'font, Vertex>,
     pub hidpi_factor: f32,
+}
+
+/// As of this writing, casting f32 to i32 is undefined behaviour if the value does not fit!
+/// https://github.com/rust-lang/rust/issues/10184
+fn f32_to_i32_or_max(f: f32) -> i32 {
+    if f >= i32::min_value() as f32 && f <= i32::max_value() as f32 {
+        f as i32
+    } else {
+        // make this the default so NaN etc. end up here
+        i32::max_value()
+    }
 }
 
 impl <'font> State<'font> {
@@ -320,35 +405,40 @@ impl <'font> State<'font> {
 
         let mut rect_specs = Vec::new();
 
-        /// As of this writing, casting f32 to i32 is undefined behaviour if the value does not fit!
-        /// https://github.com/rust-lang/rust/issues/10184
-        fn f32_to_i32_or_max(f: f32) -> i32 {
-            if f >= i32::min_value() as f32 && f <= i32::max_value() as f32 {
-                f as i32
-            } else {
-                // make this the default so NaN etc. end up here
-                i32::max_value()
-            }
-        }
-
         perf_viz::start_record!("for &text_or_rects");
         for t_or_r in text_or_rects {
             use gl_layer_types::*;
 
             let glyph_brush = &mut self.glyph_brush;
 
+            macro_rules! queue{
+                ($layout: ident, $section: ident) => {
+                    match $layout {
+                        TextLayout::SingleLine => glyph_brush.queue($section),
+                        TextLayout::Wrap => glyph_brush.queue_custom_layout($section, &Wrap {}),
+                        TextLayout::WrapInRect(rect) => {
+                            glyph_brush.queue_custom_layout($section, &WrapInRect { rect })
+                        }
+                        TextLayout::Unbounded => {
+                            glyph_brush.queue_custom_layout($section, &Unbounded {})
+                        }
+                        TextLayout::UnboundedLayoutClipped(tsxywh) => {
+                            glyph_brush.queue_custom_layout($section, &UnboundedLayoutClipped::from_tsxywh(tsxywh))
+                        }
+                    };
+                }
+            }
+
             match t_or_r {
                 Rect(VisualSpec {
-                    rect: ssr!(min_x, min_y, max_x, max_y),
+                    rect,
                     color,
                     z,
                 }) => {
-                    let mut pixel_coords: PixelCoords = d!();
-                    pixel_coords.min.x = f32_to_i32_or_max(min_x);
-                    pixel_coords.min.y = f32_to_i32_or_max(min_y);
-                    pixel_coords.max.x = f32_to_i32_or_max(max_x);
-                    pixel_coords.max.y = f32_to_i32_or_max(max_y);
-    
+                    let pixel_coords: PixelCoords = ssr_to_rusttype_i32(rect);
+
+                    let ssr!(_, _, max_x, max_y) = rect;    
+
                     let mut bounds: Bounds = d!();
                     bounds.max.x = max_x;
                     bounds.max.y = max_y;
@@ -373,7 +463,10 @@ impl <'font> State<'font> {
                         color,
                         layout: match layout {
                             TextLayout::SingleLine => Layout::default_single_line(),
-                            TextLayout::Wrap | TextLayout::WrapInRect(_) | TextLayout::Unbounded => {
+                            TextLayout::Wrap 
+                            | TextLayout::WrapInRect(_) 
+                            | TextLayout::Unbounded 
+                            | TextLayout::UnboundedLayoutClipped(_) => {
                                 Layout::default_wrap()
                             }
                         },
@@ -381,16 +474,7 @@ impl <'font> State<'font> {
                         ..d!()
                     };
     
-                    match layout {
-                        TextLayout::SingleLine => glyph_brush.queue(section),
-                        TextLayout::Wrap => glyph_brush.queue_custom_layout(section, &Wrap {}),
-                        TextLayout::WrapInRect(rect) => {
-                            glyph_brush.queue_custom_layout(section, &WrapInRect { rect })
-                        }
-                        TextLayout::Unbounded => {
-                            glyph_brush.queue_custom_layout(section, &Unbounded {})
-                        }
-                    };
+                    queue!(layout, section);
                 }
                 MulticolourText(MulticolourTextSpec{
                     size,
@@ -405,7 +489,10 @@ impl <'font> State<'font> {
                         bounds: rect.max,
                         layout: match layout {
                             TextLayout::SingleLine => Layout::default_single_line(),
-                            TextLayout::Wrap | TextLayout::WrapInRect(_) | TextLayout::Unbounded => {
+                            TextLayout::Wrap 
+                            | TextLayout::WrapInRect(_) 
+                            | TextLayout::Unbounded 
+                            | TextLayout::UnboundedLayoutClipped(_) => {
                                 Layout::default_wrap().line_breaker(glyph_brush::BuiltInLineBreaker::AnyCharLineBreaker)
                             }
                         },
@@ -421,16 +508,7 @@ impl <'font> State<'font> {
                         ..d!()
                     };
     
-                    match layout {
-                        TextLayout::SingleLine => glyph_brush.queue(section),
-                        TextLayout::Wrap => glyph_brush.queue_custom_layout(section, &Wrap {}),
-                        TextLayout::WrapInRect(rect) => {
-                            glyph_brush.queue_custom_layout(section, &WrapInRect { rect })
-                        }
-                        TextLayout::Unbounded => {
-                            glyph_brush.queue_custom_layout(section, &Unbounded {})
-                        }
-                    };
+                    queue!(layout, section);
                 }
             }
         }
@@ -592,4 +670,22 @@ fn to_vertex_maker((screen_w, screen_h): (f32, f32)) -> impl Fn(glyph_brush::Gly
             color_a: color[3],
         }.into_vertex()
     }
+}
+
+fn ssr_to_rusttype_i32(ssr!(min_x, min_y, max_x, max_y): ScreenSpaceRect) -> Rect<i32> {
+    let mut rect: Rect<i32> = d!();
+    rect.min.x = f32_to_i32_or_max(min_x);
+    rect.min.y = f32_to_i32_or_max(min_y);
+    rect.max.x = f32_to_i32_or_max(max_x);
+    rect.max.y = f32_to_i32_or_max(max_y);
+    rect
+}
+
+fn tsxywh_to_rusttype_i32(tsxywh!(x, y, w, h): TextSpaceXYWH) -> Rect<i32> {
+    let mut rect: Rect<i32> = d!();
+    rect.min.x = f32_to_i32_or_max(x);
+    rect.min.y = f32_to_i32_or_max(y);
+    rect.max.x = f32_to_i32_or_max(x + w);
+    rect.max.y = f32_to_i32_or_max(y + h);
+    rect
 }
