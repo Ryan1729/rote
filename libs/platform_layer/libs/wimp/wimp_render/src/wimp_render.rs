@@ -1035,39 +1035,21 @@ fn text_box_view<'view>(
     
     let offset_text_rect = shrink_by(ssr!(scroll_offset.into(), outer_rect.max), padding);
 
-    let editor_layout = if cfg!(feature = "clip_debugging") {
-        let clip_rect = ssr!(
-            text_box_pos.x + scroll_offset.x,
-            text_box_pos.y + scroll_offset.y,
-            outer_rect.max.0 + scroll_offset.x,
-            outer_rect.max.1 + scroll_offset.y
-        );
-    
-        text_or_rects.push(TextOrRect::Rect(VisualSpec {
-            rect: clip_rect,
-            color: palette![green],
-            z: z.saturating_sub(1),
-        }));    
-
-        TextLayout::UnboundedLayoutClipped(
-            if_changed::dbg!(tsxywh!(
-                clip_rect.min.0,
-                clip_rect.min.1,
-                clip_rect.max.0 - clip_rect.min.0,
-                clip_rect.max.1 - clip_rect.min.1
-            ))
-        )
-    } else {
-        TextLayout::Unbounded
-    };
-
     text_or_rects.push(TextOrRect::MulticolourText(MulticolourTextSpec {
         text: match text_color {
             TextBoxColour::FromSpans => colourize(&chars, spans),
             TextBoxColour::Single(color) => vec![ColouredText{ color, text: &chars }],
         },
         size,
-        layout: editor_layout,
+        layout: TextLayout::UnboundedLayoutClipped(
+            ssr!(
+                text_box_pos.x,
+                text_box_pos.y,
+                outer_rect.max.0,
+                outer_rect.max.1
+            ),
+            scroll
+        ),
         rect: offset_text_rect,
         z,
     }));

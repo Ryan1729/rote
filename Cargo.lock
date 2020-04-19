@@ -1019,6 +1019,7 @@ dependencies = [
  "approx",
  "once_cell",
  "ordered-float",
+ "perf_viz",
  "rusttype 0.8.3",
  "xi-unicode",
 ]

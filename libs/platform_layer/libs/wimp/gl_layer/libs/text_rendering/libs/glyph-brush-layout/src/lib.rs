@@ -73,6 +73,7 @@ pub mod rusttype {
 // Hacked in by Ryan1729 for use in the rote project
 //
 pub use crate::lines::Lines;
+#[perf_viz::record]
 pub fn get_lines_iter<'a, 'b, 'font, F>(
     font_map: &'b F,
     sections: &'a [SectionText<'a>],

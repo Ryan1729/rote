@@ -1,5 +1,5 @@
 use platform_types::{
-    screen_positioning::{CharDim, ScreenSpaceRect, TextSpaceXYWH},
+    screen_positioning::{CharDim, ScreenSpaceRect, ScrollXY, TextSpaceXYWH},
     tsxywh, ssr,
 };
 use gl_layer_types::{Vertex, VertexStruct, TexCoords, set_alpha, TextOrRect, Res};
@@ -281,11 +281,17 @@ mod text_layouts {
     #[derive(Hash)]
     pub struct UnboundedLayoutClipped {
         clip: Rect<i32>,
+        // only needed for the hash, so that the glyph_brush caching
+        // works properly.
+        scroll: ScrollXY
     }
 
     impl UnboundedLayoutClipped {
-        pub fn from_tsxywh(tsxywh: TextSpaceXYWH) -> Self {
-            Self { clip: tsxywh_to_rusttype_i32(tsxywh) }
+        pub fn new(clip_ssr: ScreenSpaceRect, scroll: ScrollXY) -> Self {
+            Self { 
+                clip: ssr_to_rusttype_i32(clip_ssr),
+                scroll,
+            }
         }
     }
 
@@ -308,29 +314,36 @@ mod text_layouts {
         
             let clip = self.clip;
 
-            let mut line_number = 0;
+            perf_viz::start_record!("UnboundedLayoutClipped loop");
             for line in lines {
                 let line_height = line.line_height();
+
+                perf_viz::start_record!("line.aligned_on_screen");
+                let tuples = line.aligned_on_screen(caret, HorizontalAlign::Left, VerticalAlign::Top);
+                perf_viz::end_record!("line.aligned_on_screen");
+
+                perf_viz::start_record!("out.extend");
                 out.extend(
-                    line.aligned_on_screen(caret, HorizontalAlign::Left, VerticalAlign::Top)
+                    tuples
                         .into_iter()
                         .filter(|(glyph, _, _)| {
-                           // dbg!(glyph, caret.1, line_number);
                             // TODO when is this None?
                             glyph.pixel_bounding_box()
                                 .map(move |pixel_coords| {
                                     // true if pixel_coords intersects clip
-                                    !(pixel_coords.min.x > clip.max.x
-                                    || pixel_coords.min.y > clip.max.y
-                                    || clip.min.x > pixel_coords.max.x
-                                    || clip.min.y > pixel_coords.max.y)
+                                    pixel_coords.min.x <= clip.max.x
+                                    && pixel_coords.min.y <= clip.max.y
+                                    && clip.min.x <= pixel_coords.max.x
+                                    && clip.min.y <= pixel_coords.max.y
                                 })
                                 .unwrap_or(true)
                         })
                 );
+                perf_viz::end_record!("out.extend");
+
                 caret.1 += line_height;
-                line_number += 1;
             }
+            perf_viz::end_record!("UnboundedLayoutClipped loop");
         
             out
         }
@@ -422,8 +435,8 @@ impl <'font> State<'font> {
                         TextLayout::Unbounded => {
                             glyph_brush.queue_custom_layout($section, &Unbounded {})
                         }
-                        TextLayout::UnboundedLayoutClipped(tsxywh) => {
-                            glyph_brush.queue_custom_layout($section, &UnboundedLayoutClipped::from_tsxywh(tsxywh))
+                        TextLayout::UnboundedLayoutClipped(ssr, scroll) => {
+                            glyph_brush.queue_custom_layout($section, &UnboundedLayoutClipped::new(ssr, scroll))
                         }
                     };
                 }
@@ -466,7 +479,7 @@ impl <'font> State<'font> {
                             TextLayout::Wrap 
                             | TextLayout::WrapInRect(_) 
                             | TextLayout::Unbounded 
-                            | TextLayout::UnboundedLayoutClipped(_) => {
+                            | TextLayout::UnboundedLayoutClipped(_, _) => {
                                 Layout::default_wrap()
                             }
                         },
@@ -492,7 +505,7 @@ impl <'font> State<'font> {
                             TextLayout::Wrap 
                             | TextLayout::WrapInRect(_) 
                             | TextLayout::Unbounded 
-                            | TextLayout::UnboundedLayoutClipped(_) => {
+                            | TextLayout::UnboundedLayoutClipped(_, _) => {
                                 Layout::default_wrap().line_breaker(glyph_brush::BuiltInLineBreaker::AnyCharLineBreaker)
                             }
                         },

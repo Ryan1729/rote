@@ -744,32 +744,24 @@ impl<'font, V> Glyphed<'font, V> {
         perf_viz::record_guard!("ensure_vertices extend");
         self.vertices
             .extend(glyphs.iter().filter_map(|(glyph, color, font_id)| {
-                perf_viz::record_guard!("ensure_vertices filter_map");
                 match texture_cache.rect_for(font_id.0, glyph) {
                     Err(err) => {
-                        perf_viz::record_guard!("ensure_vertices Err(err)");
                         error!("Cache miss?: {:?}, {:?}: {}", font_id, glyph, err);
                         None
                     }
                     Ok(None) => {
-                        perf_viz::record_guard!("ensure_vertices Ok(None)");
                         None
                     },
                     Ok(Some((tex_coords, pixel_coords))) => {
-                        perf_viz::record_guard!("ensure_vertices Ok(Some((tex_coords, pixel_coords)))");
-                        perf_viz::start_record!("is_outside");
                         let is_outside = pixel_coords.min.x as f32 > bounds.max.x
                             || pixel_coords.min.y as f32 > bounds.max.y
                             || bounds.min.x > pixel_coords.max.x as f32
                             || bounds.min.y > pixel_coords.max.y as f32;
-                        perf_viz::end_record!("is_outside");
                         if is_outside
                         {
-                            perf_viz::record_guard!("ensure_vertices glyph is totally outside the bounds");
                             // glyph is totally outside the bounds
                             None
                         } else {
-                            perf_viz::record_guard!("ensure_vertices glyph is inside the bounds");
                             Some(to_vertex(GlyphVertex {
                                 tex_coords,
                                 pixel_coords,

@@ -231,6 +231,7 @@ impl State {
         }
     }
 
+    #[perf_viz::record]
     pub fn begin_frame(&mut self) {
         if cfg!(feature = "time-render") {
             // Adding and then retreving this query for how long the gl rendering took,
@@ -243,7 +244,7 @@ impl State {
             // at least on my current machine + driver setup. Here's a question abotut this:
             // https://gamedev.stackexchange.com/q/172737
             // For the time being, I'm making this feature enabled by default since it is
-            // currently faster, but thi may well not be true any more on a future machine/driver
+            // currently faster, but this may well not be true any more on a future machine/driver
             // so it seems worth it to keep it a feature.
             unsafe {
                 gl::GenQueries(1, self.query_ids.as_ptr() as _);
@@ -252,14 +253,18 @@ impl State {
         }
     }
 
+    #[perf_viz::record]
     pub fn end_frame(&mut self) {
+        perf_viz::start_record!("gl::Clear & gl::DrawArraysInstanced");
         unsafe {
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
             gl::DrawArraysInstanced(gl::TRIANGLE_STRIP, 0, 4, self.vertex_count as _);
         }
+        perf_viz::end_record!("gl::Clear & gl::DrawArraysInstanced");
     
         //See comment in above "time-render" check.
         if cfg!(feature = "time-render") {
+            perf_viz::record_guard!("query Finish");
             let query_ids = &mut self.query_ids;
             let mut time_elapsed = 0;
             unsafe {
@@ -268,6 +273,7 @@ impl State {
                 gl::DeleteQueries(1, query_ids.as_ptr() as _);
             }
         } else {
+            perf_viz::record_guard!("gl::Finish");
             unsafe {
                 gl::Finish();
             }

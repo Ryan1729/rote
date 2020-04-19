@@ -1,4 +1,4 @@
-use platform_types::{ScreenSpaceRect, ssr, TextSpaceXYWH, tsxywh};
+use platform_types::{ScreenSpaceRect, ssr, ScrollXY, TextSpaceXYWH, tsxywh};
 use macros::{d};
 
 pub type Res<T> = Result<T, Box<dyn std::error::Error>>;
@@ -153,7 +153,7 @@ pub enum TextLayout {
     //TODO get wrapping working properly with cursors etc. or get rid of the unused variants here.
     WrapInRect(ScreenSpaceRect),
     Unbounded,
-    UnboundedLayoutClipped(TextSpaceXYWH)
+    UnboundedLayoutClipped(ScreenSpaceRect, ScrollXY)
 }
 
 #[derive(Clone, Debug)]

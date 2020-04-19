@@ -363,6 +363,13 @@ pub struct ScrollXY {
 
 fmt_display!(for ScrollXY: ScrollXY {x, y} in "{:?}", (x, y));
 
+impl std::hash::Hash for ScrollXY {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.x.to_bits().hash(state);
+        self.y.to_bits().hash(state);
+    }}
+
+
 impl From<ScrollXY> for (f32, f32) {
     fn from(ScrollXY { x, y }: ScrollXY) -> Self {
         (x, y)

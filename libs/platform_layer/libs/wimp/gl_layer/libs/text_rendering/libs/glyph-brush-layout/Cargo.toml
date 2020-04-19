@@ -13,6 +13,7 @@ readme="README.md"
 full_rusttype = { version = "0.8.3", package = "rusttype" }
 xi-unicode = "0.2"
 approx = "0.3.2"
+perf_viz = { path = "../../../../../../../../perf_viz" }
 
 [dev-dependencies]
 once_cell = "1"
