@@ -171,15 +171,6 @@ where
     ///
     /// Benefits from caching, see [caching behaviour](#caching-behaviour).
     ///
-    /// ```no_run
-    /// # use glyph_brush::*;
-    /// # let dejavu: &[u8] = include_bytes!("../../fonts/DejaVuSans.ttf");
-    /// # let mut glyph_brush: GlyphBrush<'_, ()> = GlyphBrushBuilder::using_font_bytes(dejavu).build();
-    /// glyph_brush.queue(Section {
-    ///     text: "Hello glyph_brush",
-    ///     ..Section::default()
-    /// });
-    /// ```
     pub fn queue<'a, S>(&mut self, section: S)
     where
         S: Into<Cow<'a, VariedSection<'a>>>,
@@ -284,21 +275,6 @@ where
     ///
     /// Trims the cache, see [caching behaviour](#caching-behaviour).
     ///
-    /// ```no_run
-    /// # use glyph_brush::*;
-    /// # fn main() -> Result<(), BrushError> {
-    /// # let dejavu: &[u8] = include_bytes!("../../fonts/DejaVuSans.ttf");
-    /// # let mut glyph_brush = GlyphBrushBuilder::using_font_bytes(dejavu).build();
-    /// # fn update_texture(_: glyph_brush::rusttype::Rect<u32>, _: &[u8]) {}
-    /// # let into_vertex = |_| ();
-    /// glyph_brush.process_queued(
-    ///     |rect, tex_data| update_texture(rect, tex_data),
-    ///     |vertex_data| into_vertex(vertex_data),
-    /// )?
-    /// # ;
-    /// # Ok(())
-    /// # }
-    /// ```
     #[perf_viz::record]
     pub fn process_queued<F1, F2>(
         &mut self,
@@ -439,12 +415,6 @@ where
     ///
     /// # Example
     ///
-    /// ```no_run
-    /// # use glyph_brush::*;
-    /// # let dejavu: &[u8] = include_bytes!("../../fonts/DejaVuSans.ttf");
-    /// # let mut glyph_brush: GlyphBrush<'_, ()> = GlyphBrushBuilder::using_font_bytes(dejavu).build();
-    /// glyph_brush.resize_texture(512, 512);
-    /// ```
     pub fn resize_texture(&mut self, new_width: u32, new_height: u32) {
         self.texture_cache
             .to_builder()
@@ -494,22 +464,6 @@ where
     /// Adds an additional font to the one(s) initially added on build.
     ///
     /// Returns a new [`FontId`](struct.FontId.html) to reference this font.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use glyph_brush::{GlyphBrush, GlyphBrushBuilder, Section};
-    /// # type Vertex = ();
-    ///
-    /// // dejavu is built as default `FontId(0)`
-    /// let dejavu: &[u8] = include_bytes!("../../fonts/DejaVuSans.ttf");
-    /// let mut glyph_brush: GlyphBrush<'_, Vertex> =
-    ///     GlyphBrushBuilder::using_font_bytes(dejavu).build();
-    ///
-    /// // some time later, add another font referenced by a new `FontId`
-    /// let open_sans_italic: &[u8] = include_bytes!("../../fonts/OpenSans-Italic.ttf");
-    /// let open_sans_italic_id = glyph_brush.add_font_bytes(open_sans_italic);
-    /// ```
     pub fn add_font_bytes<'a: 'font, B: Into<SharedBytes<'a>>>(&mut self, font_data: B) -> FontId {
         self.add_font(Font::from_bytes(font_data.into()).unwrap())
     }
@@ -560,20 +514,6 @@ where
 impl<'font, V, H: BuildHasher + Clone> GlyphBrush<'font, V, H> {
     /// Return a [`GlyphBrushBuilder`](struct.GlyphBrushBuilder.html) prefilled with the
     /// properties of this `GlyphBrush`.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use glyph_brush::{*, rusttype::*};
-    /// # type Vertex = ();
-    /// # let sans = Font::from_bytes(&include_bytes!("../../fonts/DejaVuSans.ttf")[..]).unwrap();
-    /// let glyph_brush: GlyphBrush<'_, Vertex> = GlyphBrushBuilder::using_font(sans)
-    ///     .initial_cache_size((128, 128))
-    ///     .build();
-    ///
-    /// let new_brush: GlyphBrush<'_, Vertex> = glyph_brush.to_builder().build();
-    /// assert_eq!(new_brush.texture_dimensions(), (128, 128));
-    /// ```
     pub fn to_builder(&self) -> GlyphBrushBuilder<'font, H> {
         let mut builder = GlyphBrushBuilder::using_fonts(self.fonts.clone())
             .cache_glyph_positioning(self.cache_glyph_positioning)
@@ -773,124 +713,5 @@ impl<'font, V> Glyphed<'font, V> {
                     }
                 }
             }));
-    }
-}
-
-#[cfg(test)]
-mod hash_diff_test {
-    use super::*;
-    use matches::assert_matches;
-
-    fn section() -> VariedSection<'static> {
-        VariedSection {
-            text: vec![
-                SectionText {
-                    text: "Hello, ",
-                    scale: Scale::uniform(20.0),
-                    color: [1.0, 0.9, 0.8, 0.7],
-                    font_id: FontId(0),
-                },
-                SectionText {
-                    text: "World",
-                    scale: Scale::uniform(22.0),
-                    color: [0.6, 0.5, 0.4, 0.3],
-                    font_id: FontId(1),
-                },
-            ],
-            bounds: (55.5, 66.6),
-            z: 0.444,
-            layout: Layout::default(),
-            screen_position: (999.99, 888.88),
-        }
-    }
-
-    #[test]
-    fn change_screen_position() {
-        let build_hasher = DefaultSectionHasher::default();
-        let mut section = section();
-        let hash_deets = SectionHashDetail::new(&build_hasher, &section, &section.layout);
-
-        section.screen_position.1 += 0.1;
-
-        let diff = hash_deets.diff(SectionHashDetail::new(
-            &build_hasher,
-            &section,
-            &section.layout,
-        ));
-
-        match diff {
-            GlyphChange::Geometry(geo) => assert_eq!(geo, hash_deets.geometry),
-            _ => assert_matches!(diff, GlyphChange::Geometry(..)),
-        }
-    }
-
-    #[test]
-    fn change_color() {
-        let build_hasher = DefaultSectionHasher::default();
-        let mut section = section();
-        let hash_deets = SectionHashDetail::new(&build_hasher, &section, &section.layout);
-
-        section.text[1].color[2] -= 0.1;
-
-        let diff = hash_deets.diff(SectionHashDetail::new(
-            &build_hasher,
-            &section,
-            &section.layout,
-        ));
-
-        assert_matches!(diff, GlyphChange::Color);
-    }
-
-    #[test]
-    fn change_color_alpha() {
-        let build_hasher = DefaultSectionHasher::default();
-        let mut section = section();
-        let hash_deets = SectionHashDetail::new(&build_hasher, &section, &section.layout);
-
-        section.text[1].color[2] -= 0.1;
-        section.text[0].color[0] -= 0.1;
-        section.text[0].color[3] += 0.1; // alpha change too
-
-        let diff = hash_deets.diff(SectionHashDetail::new(
-            &build_hasher,
-            &section,
-            &section.layout,
-        ));
-
-        assert_matches!(diff, GlyphChange::Color);
-    }
-
-    #[test]
-    fn change_alpha() {
-        let build_hasher = DefaultSectionHasher::default();
-        let mut section = section();
-        let hash_deets = SectionHashDetail::new(&build_hasher, &section, &section.layout);
-
-        section.text[1].color[3] -= 0.1;
-
-        let diff = hash_deets.diff(SectionHashDetail::new(
-            &build_hasher,
-            &section,
-            &section.layout,
-        ));
-
-        assert_matches!(diff, GlyphChange::Alpha);
-    }
-
-    #[test]
-    fn change_text() {
-        let build_hasher = DefaultSectionHasher::default();
-        let mut section = section();
-        let hash_deets = SectionHashDetail::new(&build_hasher, &section, &section.layout);
-
-        section.text[1].text = "something else";
-
-        let diff = hash_deets.diff(SectionHashDetail::new(
-            &build_hasher,
-            &section,
-            &section.layout,
-        ));
-
-        assert_matches!(diff, GlyphChange::Unknown);
     }
 }

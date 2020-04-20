@@ -1,0 +1,9 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 301c9e0b5003e56e44b24e4df456a98066b96b4fef8928c208dd24781c6c7e07 # shrinks to clip = Rect { min: Point { x: 0, y: 0 }, max: Point { x: 0, y: 0 } }, geometry = SectionGeometry { screen_position: (0.0, 0.0), bounds: (0.0, 0.0) }, mut owned_sections = [OwnedSectionText { text: "a¡", scale: Scale { x: 474688160000.0, y: 0.000000000000000000053282655 }, color: [0.0, 0.0, 0.0, 0.0], font_id: FontId(0) }]
+cc 9b2af0268c4edff6755985ea0abafd683259d9e2ec39c285a30a7a54fd66306f # shrinks to clip = Rect { min: Point { x: 2, y: 1 }, max: Point { x: 296918660, y: 3 } }, owned_sections = [OwnedSectionText { text: "\u{e004}", scale: Scale { x: 3.0, y: 1.0 }, color: [0.0, 0.0, 0.0, 0.0], font_id: FontId(0) }]
+cc 9a5a01ee4f0e63b28e60e45b112cf0d5035ea7592e59efd5907d4c847bf2a2e0 # shrinks to clip = Rect { min: Point { x: 11897398, y: 2 }, max: Point { x: 11897399, y: 25882408 } }, owned_sections = [OwnedSectionText { text: "¡¡A", scale: Scale { x: 5075140.0, y: 1.0 }, color: [0.0, 0.0, 0.0, 0.0], font_id: FontId(0) }, OwnedSectionText { text: "A ¡4\u{b}!", scale: Scale { x: 2204342.0, y: 2.0 }, color: [0.0, 0.0, 0.0, 0.0], font_id: FontId(0) }, OwnedSectionText { text: "\u{b}¡0", scale: Scale { x: 12639997.0, y: 128678.0 }, color: [0.0, 0.0, 0.0, 0.0], font_id: FontId(0) }]

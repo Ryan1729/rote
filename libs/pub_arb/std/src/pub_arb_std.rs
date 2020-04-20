@@ -17,3 +17,32 @@ prop_compose!{
         s.chars().next().unwrap()
     }
 }
+
+pub mod f32 {
+    use proptest::num;
+    use proptest::prelude::prop_compose;
+
+    pub fn usual() -> num::f32::Any {
+        num::f32::POSITIVE | num::f32::NEGATIVE | num::f32::NORMAL | num::f32::ZERO
+    }
+
+    prop_compose!{
+        pub fn within_0_to_1()(f in num::f32::POSITIVE | num::f32::ZERO) -> f32 {
+            if f > 1.0 {
+               f / std::f32::MAX 
+            } else {
+                f
+            }
+        }
+    }
+
+    prop_compose!{
+        pub fn rounded_non_negative()(n in 0..(1 << 24)) -> f32 {
+            n as f32
+        }
+    }
+
+
+    
+}
+pub use crate::f32::*;

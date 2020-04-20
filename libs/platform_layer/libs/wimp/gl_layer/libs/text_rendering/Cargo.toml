@@ -17,3 +17,7 @@ rusttype = "0.8"
 macros = { path = "../../../../../../macros" }
 perf_viz = { path = "../../../../../../perf_viz" }
 platform_types = { path = "../../../../../../platform_types" }
+
+[dev-dependencies]
+proptest = "0.9"
+pub_arb_std = { path = "../../../../../../pub_arb/std"}

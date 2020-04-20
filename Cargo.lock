@@ -2361,6 +2361,8 @@ dependencies = [
  "macros",
  "perf_viz",
  "platform_types",
+ "proptest",
+ "pub_arb_std",
  "rusttype 0.8.3",
 ]
 

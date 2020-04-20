@@ -1,6 +1,8 @@
 use super::*;
 use proptest::{prop_compose, proptest, num::f32};
 
+use pub_arb_std::usual;
+
 prop_compose! {
     fn arb_pos(max_line: usize, max_offset: usize)
     (line in 0..=max_line, offset in 0..=max_offset) -> Position {
@@ -255,7 +257,7 @@ proptest! {
 proptest! {
     #[test]
     fn attempt_to_make_xy_visible_works_with_more_realistic_values(
-        mut screen in arb::scrollable_screen(arb::usual()),
+        mut screen in arb::scrollable_screen(usual()),
         xy in arb::text_xy(f32::POSITIVE | f32::ZERO),
     ) {
         let char_dim = CharDim {
@@ -646,7 +648,7 @@ fn screen_space_to_position_then_position_to_screen_space_is_identity_after_one_
 proptest! {
     #[test]
     fn screen_space_to_position_then_position_to_screen_space_is_identity_after_one_conversion(
-        screen in arb::scrollable_screen(arb::usual()),
+        screen in arb::scrollable_screen(usual()),
         xy in arb::rounded_non_negative_screen_xy(),
         ScreenSpaceXY{x, y} in arb::rounded_non_negative_screen_xy(),
     ) {
@@ -724,7 +726,7 @@ fn screen_to_text_box_then_text_box_to_screen_is_identity_after_one_conversion_f
 proptest! {
     #[test]
     fn screen_to_text_box_then_text_box_to_screen_is_identity_after_one_conversion(
-        text_box_xy in arb::text_box_xy(arb::usual()),
+        text_box_xy in arb::text_box_xy(usual()),
         xy in arb::rounded_non_negative_screen_xy(),
     ) {
         screen_to_text_box_then_text_box_to_screen_is_identity_after_one_conversion_for_these(

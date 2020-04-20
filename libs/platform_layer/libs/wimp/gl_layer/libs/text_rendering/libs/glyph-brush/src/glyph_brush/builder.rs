@@ -3,17 +3,6 @@ use full_rusttype::gpu_cache::{Cache, CacheBuilder};
 use std::hash::BuildHasher;
 
 /// Builder for a [`GlyphBrush`](struct.GlyphBrush.html).
-///
-/// # Example
-///
-/// ```
-/// use glyph_brush::{GlyphBrush, GlyphBrushBuilder};
-/// # type Vertex = ();
-///
-/// let dejavu: &[u8] = include_bytes!("../../../fonts/DejaVuSans.ttf");
-/// let mut glyph_brush: GlyphBrush<'_, Vertex> =
-///     GlyphBrushBuilder::using_font_bytes(dejavu).build();
-/// ```
 pub struct GlyphBrushBuilder<'a, H = DefaultSectionHasher> {
     pub font_data: Vec<Font<'a>>,
     pub cache_glyph_positioning: bool,
@@ -103,28 +92,6 @@ impl<'a, H: BuildHasher> GlyphBrushBuilder<'a, H> {
     ///
     /// Generally only makes sense when wanting to change fonts after calling
     /// [`GlyphBrush::to_builder`](struct.GlyphBrush.html#method.to_builder).
-    ///
-    /// # Example
-    /// ```
-    /// # use glyph_brush::{*, rusttype::*};
-    /// # type Vertex = ();
-    /// # let open_sans = Font::from_bytes(&include_bytes!("../../../fonts/DejaVuSans.ttf")[..]).unwrap();
-    /// # let deja_vu_sans = open_sans.clone();
-    /// let two_font_brush: GlyphBrush<'_, Vertex>
-    ///     = GlyphBrushBuilder::using_fonts(vec![open_sans, deja_vu_sans]).build();
-    ///
-    /// let one_font_brush: GlyphBrush<'_, Vertex> = two_font_brush
-    ///     .to_builder()
-    ///     .replace_fonts(|mut fonts| {
-    ///         // remove open_sans, leaving just deja_vu as FontId(0)
-    ///         fonts.remove(0);
-    ///         fonts
-    ///     })
-    ///     .build();
-    ///
-    /// assert_eq!(one_font_brush.fonts().len(), 1);
-    /// assert_eq!(two_font_brush.fonts().len(), 2);
-    /// ```
     pub fn replace_fonts<V, F>(mut self, font_fn: F) -> Self
     where
         V: Into<Vec<Font<'a>>>,
@@ -212,16 +179,6 @@ impl<'a, H: BuildHasher> GlyphBrushBuilder<'a, H> {
     ///
     /// Defaults to [xxHash](https://docs.rs/twox-hash).
     ///
-    /// # Example
-    /// ```
-    /// # use glyph_brush::GlyphBrushBuilder;
-    /// # let some_font: &[u8] = include_bytes!("../../../fonts/DejaVuSans.ttf");
-    /// # type SomeOtherBuildHasher = glyph_brush::DefaultSectionHasher;
-    /// GlyphBrushBuilder::using_font_bytes(some_font)
-    ///     .section_hasher(SomeOtherBuildHasher::default())
-    ///     // ...
-    /// # ;
-    /// ```
     pub fn section_hasher<T: BuildHasher>(self, section_hasher: T) -> GlyphBrushBuilder<'a, T> {
         GlyphBrushBuilder {
             section_hasher,
@@ -260,19 +217,6 @@ impl<'a, H: BuildHasher> GlyphBrushBuilder<'a, H> {
 
     /// Rebuilds an existing `GlyphBrush` with this builder's properties. This will clear all
     /// caches and queues.
-    ///
-    /// # Example
-    /// ```
-    /// # use glyph_brush::{*, rusttype::*};
-    /// # let sans = Font::from_bytes(&include_bytes!("../../../fonts/DejaVuSans.ttf")[..]).unwrap();
-    /// # type Vertex = ();
-    /// let mut glyph_brush: GlyphBrush<'_, Vertex> = GlyphBrushBuilder::using_font(sans).build();
-    /// assert_eq!(glyph_brush.texture_dimensions(), (256, 256));
-    ///
-    /// // Use a new builder to rebuild the brush with a smaller initial cache size
-    /// glyph_brush.to_builder().initial_cache_size((64, 64)).rebuild(&mut glyph_brush);
-    /// assert_eq!(glyph_brush.texture_dimensions(), (64, 64));
-    /// ```
     pub fn rebuild<V>(self, brush: &mut GlyphBrush<'a, V, H>) {
         std::mem::replace(brush, self.build());
     }

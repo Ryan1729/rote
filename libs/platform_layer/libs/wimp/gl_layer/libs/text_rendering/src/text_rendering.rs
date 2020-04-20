@@ -295,6 +295,73 @@ mod text_layouts {
         }
     }
 
+    // This is a separate function to aid in testing
+    pub fn calculate_glyphs_unbounded_layout_clipped<'font, F>(
+        clip: Rect<i32>,
+        fonts: &F,
+        geometry: &SectionGeometry,
+        sections: &[SectionText],
+    ) -> Vec<(PositionedGlyph<'font>, [f32; 4], FontId)>
+    where
+        F: FontMap<'font>, {
+        perf_viz::record_guard!("UnboundedLayoutClipped::calculate_glyphs");
+        // TODO reduce duplication with calculate_glyphs fn
+        let mut caret = geometry.screen_position;
+        let mut out = vec![];
+
+        let lines = get_lines_iter(fonts, sections, INFINITY);            
+
+        perf_viz::start_record!("UnboundedLayoutClipped loop");
+
+        let mut ever_seen_non_clipped = false;
+        for line in lines {
+            let line_height = line.line_height();
+
+            perf_viz::start_record!("line.aligned_on_screen");
+            let tuples = line.aligned_on_screen(caret, HorizontalAlign::Left, VerticalAlign::Top);
+            perf_viz::end_record!("line.aligned_on_screen");
+
+            perf_viz::start_record!("out.extend");
+            let mut seen_non_clipped = false;
+            let mut seen_any = false;
+            out.extend(
+                tuples
+                    .into_iter()
+                    .filter(|(glyph, _, _)| {
+                        seen_any = true;
+                        // TODO when is this None?
+                        let should_keep = glyph.pixel_bounding_box()
+                            .map(move |pixel_coords| {
+                                // true if pixel_coords intersects clip
+                                pixel_coords.min.x <= clip.max.x
+                                && pixel_coords.min.y <= clip.max.y
+                                && clip.min.x <= pixel_coords.max.x
+                                && clip.min.y <= pixel_coords.max.y
+                            })
+                            .unwrap_or(true);
+
+                        if should_keep {
+                            ever_seen_non_clipped = true;
+                            seen_non_clipped = true;
+                        }
+                        should_keep
+                    })
+            );
+            perf_viz::end_record!("out.extend");
+
+            // if we're on a non-empty line and we've gone past the 
+            // non-clipped section of the text.
+            if seen_any && ever_seen_non_clipped && !seen_non_clipped {
+                break;
+            }
+
+            caret.1 += line_height;
+        }
+        perf_viz::end_record!("UnboundedLayoutClipped loop");
+    
+        out
+    }
+
     impl GlyphPositioner for UnboundedLayoutClipped {
         fn calculate_glyphs<'font, F>(
             &self,
@@ -305,47 +372,12 @@ mod text_layouts {
         where
             F: FontMap<'font>,
         {
-            perf_viz::record_guard!("UnboundedLayoutClipped::calculate_glyphs");
-            // TODO reduce duplication with calculate_glyphs fn
-            let mut caret = geometry.screen_position;
-            let mut out = vec![];
-
-            let lines = get_lines_iter(fonts, sections, INFINITY);
-        
-            let clip = self.clip;
-
-            perf_viz::start_record!("UnboundedLayoutClipped loop");
-            for line in lines {
-                let line_height = line.line_height();
-
-                perf_viz::start_record!("line.aligned_on_screen");
-                let tuples = line.aligned_on_screen(caret, HorizontalAlign::Left, VerticalAlign::Top);
-                perf_viz::end_record!("line.aligned_on_screen");
-
-                perf_viz::start_record!("out.extend");
-                out.extend(
-                    tuples
-                        .into_iter()
-                        .filter(|(glyph, _, _)| {
-                            // TODO when is this None?
-                            glyph.pixel_bounding_box()
-                                .map(move |pixel_coords| {
-                                    // true if pixel_coords intersects clip
-                                    pixel_coords.min.x <= clip.max.x
-                                    && pixel_coords.min.y <= clip.max.y
-                                    && clip.min.x <= pixel_coords.max.x
-                                    && clip.min.y <= pixel_coords.max.y
-                                })
-                                .unwrap_or(true)
-                        })
-                );
-                perf_viz::end_record!("out.extend");
-
-                caret.1 += line_height;
-            }
-            perf_viz::end_record!("UnboundedLayoutClipped loop");
-        
-            out
+            calculate_glyphs_unbounded_layout_clipped(
+                self.clip,
+                fonts,
+                geometry,
+                sections,
+            )
         }
         fn bounds_rect(&self, _: &SectionGeometry) -> Rect<f32> {
             INFINITY_RECT
@@ -367,13 +399,6 @@ mod text_layouts {
 }
 use text_layouts::{Unbounded, UnboundedLayoutClipped, Wrap, WrapInRect};
 
-pub type TextureRect = glyph_brush::rusttype::Rect<u32>;
-
-pub struct State<'font> {
-    pub glyph_brush: GlyphBrush<'font, Vertex>,
-    pub hidpi_factor: f32,
-}
-
 /// As of this writing, casting f32 to i32 is undefined behaviour if the value does not fit!
 /// https://github.com/rust-lang/rust/issues/10184
 fn f32_to_i32_or_max(f: f32) -> i32 {
@@ -383,6 +408,13 @@ fn f32_to_i32_or_max(f: f32) -> i32 {
         // make this the default so NaN etc. end up here
         i32::max_value()
     }
+}
+
+pub type TextureRect = glyph_brush::rusttype::Rect<u32>;
+
+pub struct State<'font> {
+    pub glyph_brush: GlyphBrush<'font, Vertex>,
+    pub hidpi_factor: f32,
 }
 
 impl <'font> State<'font> {
@@ -552,10 +584,11 @@ impl <'font> State<'font> {
 
 pub type CharDims = Vec<CharDim>;
 
-pub fn new(hidpi_factor: f32, text_sizes: &[f32]) -> Res<(State, CharDims)> {
-    const FONT_BYTES: &[u8] = include_bytes!("./fonts/FiraCode-Retina.ttf");
-    let font: Font<'static> = Font::from_bytes(FONT_BYTES)?;
+const FONT_BYTES: &[u8] = include_bytes!("./fonts/FiraCode-Retina.ttf");
 
+pub fn new(hidpi_factor: f32, text_sizes: &[f32]) -> Res<(State, CharDims)> {
+
+    let font = Font::from_bytes(FONT_BYTES)?;
     macro_rules! get_char_dim {
         ($scale:expr) => {{
             let scale = $scale;
@@ -694,11 +727,5 @@ fn ssr_to_rusttype_i32(ssr!(min_x, min_y, max_x, max_y): ScreenSpaceRect) -> Rec
     rect
 }
 
-fn tsxywh_to_rusttype_i32(tsxywh!(x, y, w, h): TextSpaceXYWH) -> Rect<i32> {
-    let mut rect: Rect<i32> = d!();
-    rect.min.x = f32_to_i32_or_max(x);
-    rect.min.y = f32_to_i32_or_max(y);
-    rect.max.x = f32_to_i32_or_max(x + w);
-    rect.max.y = f32_to_i32_or_max(y + h);
-    rect
-}
+#[cfg(any(test, feature = "pub_arb"))]
+mod tests;

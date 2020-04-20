@@ -67,6 +67,7 @@ mod floating_point_tests {
     use proptest::proptest;
     use std::f32::{MAX, MIN, MIN_POSITIVE};
     use std::num::FpCategory::{Infinite, Normal, Zero};
+    use pub_arb_std::usual;
     
 
     // note, the following tests demostates that prop testing is not the same thing as testing every
@@ -74,7 +75,7 @@ mod floating_point_tests {
     proptest! {
         #[test]
         fn usual_f32_minimal_increase_outputs_usual_f32s(
-            x in arb::usual(),
+            x in usual(),
         ) {
             let category = usual_f32_minimal_increase(x).classify();
             assert!(
@@ -87,7 +88,7 @@ mod floating_point_tests {
     proptest! {
         #[test]
         fn usual_f32_minimal_decrease_outputs_usual_f32s(
-            x in arb::usual(),
+            x in usual(),
         ) {
             let category = usual_f32_minimal_decrease(x).classify();
             assert!(
@@ -100,7 +101,7 @@ mod floating_point_tests {
     proptest! {
         #[test]
         fn usual_f32_minimal_increase_increases(
-            old in arb::usual(),
+            old in usual(),
         ) {
             let new = usual_f32_minimal_increase(old);
             assert!(
@@ -116,7 +117,7 @@ mod floating_point_tests {
     proptest! {
         #[test]
         fn usual_f32_minimal_decrease_decreases(
-            old in arb::usual(),
+            old in usual(),
         ) {
             let new = usual_f32_minimal_decrease(old);
             assert!(

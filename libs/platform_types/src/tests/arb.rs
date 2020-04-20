@@ -4,11 +4,7 @@ use arb_macros::{arb_enum};
 use proptest::collection::vec;
 use proptest::num::f32;
 use proptest::prelude::{prop_compose, any, Strategy};
-use pub_arb_std::path_buf;
-
-pub fn usual() -> f32::Any {
-    f32::POSITIVE | f32::NEGATIVE | f32::NORMAL | f32::ZERO
-}
+use pub_arb_std::{path_buf, f32::usual};
 
 pub fn char_dim(spec: f32::Any) -> impl Strategy<Value = CharDim> {
     (spec, spec).prop_map(|(w, h)| CharDim { w, h })
