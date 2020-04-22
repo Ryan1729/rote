@@ -13,7 +13,7 @@ use pub_arb_std::{f32::{usual, within_0_to_1, rounded_non_negative}};
 mod arb {
     use super::*;
     use proptest::collection::vec;
-    use proptest::prelude::{any, prop_compose};
+    use proptest::prelude::{any, prop_compose, Just};
 
     prop_compose!{
         pub fn positive_rect_i32()
@@ -91,8 +91,83 @@ mod arb {
     }
 
     prop_compose!{
+        pub fn string_with_many_newlines()
+        (text in ".+")
+        (indexes in vec(0..text.len(), (text.len() / 2)..text.len()), mut text in Just(text))
+        -> String {
+            for mut i in indexes {
+                // 0 is always a char boundary
+                loop {
+                    if text.is_char_boundary(i) {
+                        text.insert(i, '\n');
+                        break;
+                    }
+                    i -= 1;
+                }
+            }
+
+            if !text.contains('\n') {
+                for mut i in 0..text.len() {
+                    // 0 is always a char boundary
+                    loop {
+                        if text.is_char_boundary(i) {
+                            text.insert(i, '\n');
+                            break;
+                        }
+                        i -= 1;
+                    }
+                }
+            }
+
+            text
+        }
+    }
+
+    proptest!{
+        #[test]
+        fn string_with_many_newlines_has_at_least_one_newline(
+            s in string_with_many_newlines()
+        ) {
+            assert!(s.contains('\n'));
+        }
+    }
+    
+
+    prop_compose!{
+        pub fn section_text_with_many_newlines_and_scale(scale: Scale)
+        (mut text in string_with_many_newlines(), color in color())
+        -> OwnedSectionText {
+            OwnedSectionText {
+                text,
+                scale,
+                color,
+                font_id: SINGLE_FONT_ID,
+            }
+        }
+    }
+
+    prop_compose!{
+        pub fn section_text_with_only_periods_and_newlines_and_scale(scale: Scale)
+        (text in "[\\.\\n]+", color in color())
+        -> OwnedSectionText {
+            OwnedSectionText {
+                text,
+                scale,
+                color,
+                font_id: SINGLE_FONT_ID,
+            }
+        }
+    }
+
+    prop_compose!{
         pub fn scale()(x in rounded_non_negative(), y in rounded_non_negative()) -> Scale {
             Scale { x, y }
+        }
+    }
+
+    prop_compose!{
+        pub fn color()(c in proptest::array::uniform4(within_0_to_1())) -> [f32; 4] {
+            c
         }
     }
 }
@@ -124,6 +199,7 @@ where
                     // TODO when is this None?
                     glyph.pixel_bounding_box()
                         .map(move |pixel_coords| {
+                            dbg!(pixel_coords, clip);
                             // true if pixel_coords intersects clip
                             pixel_coords.min.x <= clip.max.x
                             && pixel_coords.min.y <= clip.max.y
@@ -179,11 +255,17 @@ fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
     assert_eq!(format!("{:?}", actual), format!("{:?}", expected));
 }
 
+macro_rules! scale {
+    ($scale_x: expr, $scale_y: expr) => {
+        Scale { x: $scale_x, y: $scale_y }
+    }
+}
+
 macro_rules! ost {
     ($text: literal sx $scale_x: literal sy $scale_y: literal) => {
         OwnedSectionText { 
             text: $text.to_string(),
-            scale: Scale { x: $scale_x, y: $scale_y },
+            scale: scale!($scale_x, $scale_y),
             color: [0.0, 0.0, 0.0, 1.0],
             font_id: SINGLE_FONT_ID
         }
@@ -231,13 +313,55 @@ fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_in_this_ge
     let clip = Rect { min: Point { x: 2, y: 2 }, max: Point { x: 3, y: 4 } };
     let owned_sections = vec![
         ost!("  .\n." sx 1.0 sy 2.0),
-        ost!("\n.." sx 2.0 sy 1.0),
+        ost!("\n ." sx 2.0 sy 1.0),
     ]; 
 
     calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
         clip,
         owned_sections
     )
+}
+
+proptest!{
+    #[test]
+    fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_when_the_scales_match_the_above(
+        clip in arb::positive_rect_i32(),
+        s1 in arb::section_text_with_scale(scale!(1.0, 2.0)),
+        s2 in arb::section_text_with_scale(scale!(2.0, 1.0)),
+    ) {
+        calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
+            clip,
+            vec![s1, s2]
+        )
+    }
+}
+
+proptest!{
+    #[test]
+    fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_with_many_newlines_when_the_scales_match_the_above(
+        clip in arb::positive_rect_i32(),
+        s1 in arb::section_text_with_many_newlines_and_scale(scale!(1.0, 2.0)),
+        s2 in arb::section_text_with_many_newlines_and_scale(scale!(2.0, 1.0)),
+    ) {
+        calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
+            clip,
+            vec![s1, s2]
+        )
+    }
+}
+
+proptest!{
+    #[test]
+    fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_with_only_periods_and_newlines_when_the_scales_match_the_above(
+        clip in arb::positive_rect_i32(),
+        s1 in arb::section_text_with_only_periods_and_newlines_and_scale(scale!(1.0, 2.0)),
+        s2 in arb::section_text_with_only_periods_and_newlines_and_scale(scale!(2.0, 1.0)),
+    ) {
+        calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
+            clip,
+            vec![s1, s2]
+        )
+    }
 }
 
 proptest!{
@@ -295,4 +419,48 @@ proptest!{
             vec![section_text]
         )
     }
+}
+
+proptest!{
+    #[test]
+    fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_if_there_is_exactly_two_sections(
+        clip in arb::positive_rect_i32(),
+        s1 in arb::section_text(),
+        s2 in arb::section_text(),
+    ) {
+        calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
+            clip,
+            vec![s1, s2]
+        )
+    }
+}
+
+#[test]
+fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_in_this_instructive_case() {
+    let clip = Rect {
+        min: Point {
+            x: 2,
+            y: 0,
+        },
+        max: Point {
+            x: i32::max_value(),
+            y: i32::max_value(),
+        },
+    };
+
+    let section_text = ost!(
+    // the "*" are within the clip rect, and the "." is not.
+    // This breaks the current (as of this writing) implementation.
+r"
+  *
+.
+  *
+"
+        s scale!(1.0, 1.0)
+    );
+
+    calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
+        clip,
+        vec![section_text]
+    )
 }

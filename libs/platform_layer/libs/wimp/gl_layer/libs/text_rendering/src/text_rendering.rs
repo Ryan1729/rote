@@ -332,6 +332,7 @@ mod text_layouts {
                         // TODO when is this None?
                         let should_keep = glyph.pixel_bounding_box()
                             .map(move |pixel_coords| {
+                                dbg!(pixel_coords);
                                 // true if pixel_coords intersects clip
                                 pixel_coords.min.x <= clip.max.x
                                 && pixel_coords.min.y <= clip.max.y
@@ -344,6 +345,7 @@ mod text_layouts {
                             ever_seen_non_clipped = true;
                             seen_non_clipped = true;
                         }
+                        dbg!(&glyph, should_keep, ever_seen_non_clipped, seen_non_clipped, seen_any);
                         should_keep
                     })
             );
@@ -352,6 +354,7 @@ mod text_layouts {
             // if we're on a non-empty line and we've gone past the 
             // non-clipped section of the text.
             if seen_any && ever_seen_non_clipped && !seen_non_clipped {
+                dbg!("break");
                 break;
             }
 
