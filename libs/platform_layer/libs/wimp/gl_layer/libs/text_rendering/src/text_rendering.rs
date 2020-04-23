@@ -294,6 +294,49 @@ mod text_layouts {
             }
         }
     }
+    
+    fn calculate_glyphs_unbounded_layout_clipped_slow<'font, F>(
+        clip: Rect<i32>,
+        fonts: &F,
+        geometry: &SectionGeometry,
+        sections: &[SectionText],
+    ) -> Vec<(PositionedGlyph<'font>, [f32; 4], FontId)>
+    where
+        F: FontMap<'font>,
+    {
+        // TODO reduce duplication with calculate_glyphs fn
+        let mut caret = geometry.screen_position;
+        let mut out = vec![];
+    
+        let lines = get_lines_iter(fonts, sections, std::f32::INFINITY);
+    
+        for line in lines {
+            let line_height = line.line_height();
+    
+            let tuples = line.aligned_on_screen(caret, HorizontalAlign::Left, VerticalAlign::Top);
+    
+            out.extend(
+                tuples
+                    .into_iter()
+                    .filter(|(glyph, _, _)| {
+                        // TODO when is this None?
+                        glyph.pixel_bounding_box()
+                            .map(move |pixel_coords| {
+                                // true if pixel_coords intersects clip
+                                pixel_coords.min.x <= clip.max.x
+                                && pixel_coords.min.y <= clip.max.y
+                                && clip.min.x <= pixel_coords.max.x
+                                && clip.min.y <= pixel_coords.max.y
+                            })
+                            .unwrap_or(true)
+                    })
+            );
+    
+            caret.1 += line_height;
+        }
+    
+        out
+    }
 
     // This is a separate function to aid in testing
     pub fn calculate_glyphs_unbounded_layout_clipped<'font, F>(
@@ -305,60 +348,79 @@ mod text_layouts {
     where
         F: FontMap<'font>, {
         perf_viz::record_guard!("UnboundedLayoutClipped::calculate_glyphs");
+        
+        if !sections.windows(2).all(|w| w[0].scale == w[1].scale) {
+            return calculate_glyphs_unbounded_layout_clipped_slow(
+                clip,
+                fonts,
+                geometry,
+                sections,
+            );
+        }
+
         // TODO reduce duplication with calculate_glyphs fn
         let mut caret = geometry.screen_position;
         let mut out = vec![];
 
-        let lines = get_lines_iter(fonts, sections, INFINITY);            
+        let mut lines = get_lines_iter(fonts, sections, INFINITY);
 
         perf_viz::start_record!("UnboundedLayoutClipped loop");
 
-        let mut ever_seen_non_clipped = false;
-        for line in lines {
+        if let Some(mut line) = lines.next() {
+            // we assume the font is monospaced.
             let line_height = line.line_height();
 
-            perf_viz::start_record!("line.aligned_on_screen");
-            let tuples = line.aligned_on_screen(caret, HorizontalAlign::Left, VerticalAlign::Top);
-            perf_viz::end_record!("line.aligned_on_screen");
+            let min_y = clip.min.y as f32 - line_height - line_height;
+            let max_y = clip.max.y as f32 + line_height + line_height;
 
-            perf_viz::start_record!("out.extend");
-            let mut seen_non_clipped = false;
-            let mut seen_any = false;
-            out.extend(
-                tuples
-                    .into_iter()
-                    .filter(|(glyph, _, _)| {
-                        seen_any = true;
-                        // TODO when is this None?
-                        let should_keep = glyph.pixel_bounding_box()
-                            .map(move |pixel_coords| {
-                                dbg!(pixel_coords);
-                                // true if pixel_coords intersects clip
-                                pixel_coords.min.x <= clip.max.x
-                                && pixel_coords.min.y <= clip.max.y
-                                && clip.min.x <= pixel_coords.max.x
-                                && clip.min.y <= pixel_coords.max.y
-                            })
-                            .unwrap_or(true);
-
-                        if should_keep {
-                            ever_seen_non_clipped = true;
-                            seen_non_clipped = true;
-                        }
-                        dbg!(&glyph, should_keep, ever_seen_non_clipped, seen_non_clipped, seen_any);
-                        should_keep
-                    })
-            );
-            perf_viz::end_record!("out.extend");
-
-            // if we're on a non-empty line and we've gone past the 
-            // non-clipped section of the text.
-            if seen_any && ever_seen_non_clipped && !seen_non_clipped {
-                dbg!("break");
-                break;
+            if line_height <= 0.0 || !(min_y <= max_y) {
+                return out;
             }
+            
+            loop {
+                let new_caret_height = caret.1 + line_height;
+                
+                // we assume that the lines are sorted from top to bottom
+                // TODO simplify additions/subtractions
+                if caret.1 < min_y {
+                    // just run the part after the if elses.
+                } else if new_caret_height >= max_y {
+                    break
+                } else {
+                    perf_viz::start_record!("line.aligned_on_screen");
+                    let tuples = line.aligned_on_screen(caret, HorizontalAlign::Left, VerticalAlign::Top);
+                    perf_viz::end_record!("line.aligned_on_screen");
+        
+                    perf_viz::start_record!("out.extend");
+                    out.extend(
+                        tuples
+                            .into_iter()
+                            .filter(|(glyph, _, _)| {
+                                // TODO when is this None?
+                                let should_keep = glyph.pixel_bounding_box()
+                                    .map(move |pixel_coords| {
+                                        // true if pixel_coords intersects clip
+                                        pixel_coords.min.x <= clip.max.x
+                                        && pixel_coords.min.y <= clip.max.y
+                                        && clip.min.x <= pixel_coords.max.x
+                                        && clip.min.y <= pixel_coords.max.y
+                                    })
+                                    .unwrap_or(true);
+        
+                                should_keep
+                            })
+                    );
+                    perf_viz::end_record!("out.extend");
+                }
 
-            caret.1 += line_height;
+                caret.1 = new_caret_height;
+                
+                if let Some(l) = lines.next() {
+                    line = l;
+                } else {
+                    break
+                }
+            }
         }
         perf_viz::end_record!("UnboundedLayoutClipped loop");
     

@@ -382,6 +382,47 @@ fn single_cursor_view(view: &View) -> CursorView {
     cursors.first().unwrap().clone()
 }
 
+fn update_and_render_places_the_cursor_correctly_after_inserting_after_a_find_between_two_other_chars_on(
+    ch1: char,
+    ch2: char,
+    ch3: char,
+    ch4: char,
+) {
+    u!{Input};
+    u!{MenuMode};
+    u!{FindReplaceMode};
+
+    // Arrange
+    let mut state: State = String::new().into();
+
+    update_and_render(&mut state, Insert(ch1));
+    update_and_render(&mut state, Insert(ch2));
+    update_and_render(&mut state, Insert(ch3));
+
+    update_and_render(&mut state, MoveAllCursors(Move::Left));
+    let (view, _) = update_and_render(&mut state, ExtendSelectionForAllCursors(Move::Left));
+    let cursor = single_cursor_view(&view);
+    assert_eq!(cursor.position, pos!{l 0 o 1});
+
+    update_and_render(&mut state, SetMenuMode(FindReplace(CurrentFile)));
+    update_and_render(&mut state, SubmitForm);
+    update_and_render(&mut state, CloseMenuIfAny);
+
+    assert_eq!(state.menu_mode, MenuMode::Hidden);
+
+    update_and_render(&mut state, MoveAllCursors(Move::Right));
+    let (view, _) = update_and_render(&mut state, MoveAllCursors(Move::Right));
+    let cursor = single_cursor_view(&view);
+    assert_eq!(cursor.position, pos!{l 0 o 3});
+
+    // Act
+    let (view, _) = update_and_render(&mut state, Insert(ch4));
+
+    // Assert
+    let cursor = single_cursor_view(&view);
+    assert_eq!(cursor.position, pos!{l 0 o 4});
+}
+
 proptest!{
     #[test]
     fn update_and_render_places_the_cursor_correctly_after_inserting_after_a_find_between_two_other_chars(
@@ -390,39 +431,12 @@ proptest!{
         ch3 in non_line_break_char(),
         ch4 in non_line_break_char(),
     ) {
-        u!{Input};
-        u!{MenuMode};
-        u!{FindReplaceMode};
-    
-        // Arrange
-        let mut state: State = String::new().into();
-    
-        update_and_render(&mut state, Insert(ch1));
-        update_and_render(&mut state, Insert(ch2));
-        update_and_render(&mut state, Insert(ch3));
-    
-        update_and_render(&mut state, MoveAllCursors(Move::Left));
-        let (view, _) = update_and_render(&mut state, ExtendSelectionForAllCursors(Move::Left));
-        let cursor = single_cursor_view(&view);
-        assert_eq!(cursor.position, pos!{l 0 o 1});
-    
-        update_and_render(&mut state, SetMenuMode(FindReplace(CurrentFile)));
-        update_and_render(&mut state, SubmitForm);
-        update_and_render(&mut state, CloseMenuIfAny);
-
-        assert_eq!(state.menu_mode, MenuMode::Hidden);
-    
-        update_and_render(&mut state, MoveAllCursors(Move::Right));
-        let (view, _) = update_and_render(&mut state, MoveAllCursors(Move::Right));
-        let cursor = single_cursor_view(&view);
-        assert_eq!(cursor.position, pos!{l 0 o 3});
-    
-        // Act
-        let (view, _) = update_and_render(&mut state, Insert(ch4));
-    
-        // Assert
-        let cursor = single_cursor_view(&view);
-        assert_eq!(cursor.position, pos!{l 0 o 4});
+        update_and_render_places_the_cursor_correctly_after_inserting_after_a_find_between_two_other_chars_on(
+            ch1,
+            ch2,
+            ch3,
+            ch4,
+        )
     }
 }
 

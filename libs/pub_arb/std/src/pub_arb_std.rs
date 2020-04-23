@@ -10,9 +10,11 @@ prop_compose!{
     }
 }
 
+// The rope library we are using treats the excluded chars as line breaks, so we do too.
+// See also https://www.unicode.org/reports/tr14/tr14-32.html
 prop_compose!{
     pub fn non_line_break_char()(
-        s in "\\PC" 
+        s in "[^\u{a}-\r\u{0085}\u{2028}\u{2029}]"
     ) -> char {
         s.chars().next().unwrap()
     }
