@@ -575,7 +575,7 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
 }
 
 /// `range_edits` and the two `Vec1`s in `cursors` must all be the same length.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Edit {
     range_edits: Vec1<RangeEdits>,
     cursors: Change<Cursors>,
@@ -623,7 +623,7 @@ impl std::ops::Not for Edit {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 struct RangeEdit {
     chars: String,
     range: AbsoluteCharOffsetRange,
@@ -632,7 +632,7 @@ struct RangeEdit {
 /// Some seemingly redundant information is stored here, for example the insert's range's maximum
 /// is never read. But that information is needed if the edits are ever negated, which swaps the
 /// insert and delete ranges.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, Hash, PartialEq, Eq)]
 struct RangeEdits {
     /// The characters to insert and a range that only the minimum of which is used as the
     /// insertion point. Applied second.
@@ -667,7 +667,7 @@ impl std::ops::Not for RangeEdits {
     }
 }
 
-#[derive(Clone, Default, Debug, PartialEq, Eq)]
+#[derive(Clone, Default, Debug, Hash, PartialEq, Eq)]
 pub struct Change<T> {
     pub old: T,
     pub new: T,

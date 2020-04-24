@@ -3,7 +3,7 @@ use panic_safe_rope::{Rope, RopeSlice, RopeSliceTrait};
 use editor_types::{Position, CharOffset, AbsoluteCharOffset};
 use rope_pos::{char_offset_to_pos, AbsoluteCharOffsetRange};
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Hash)]
 pub struct SearchResults {
     pub needle: String,
     pub ranges: Vec<(Position, Position)>,

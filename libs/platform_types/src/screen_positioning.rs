@@ -1,13 +1,27 @@
 use super::*;
 
+// TODO make a derive macro that hashes all the fields, but checks if fields are f32/f64 and
+// calls `to_bits` if they are.
+macro_rules! hash_to_bits {
+    (for $name: ty : $self: ident, $state: ident in $($field: ident),* ) => {
+        macros::hash!(for $name: $self, $state in {
+            $(
+                $self.$field.to_bits().hash($state);
+            )*
+        });
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
-/// The top left corner of the screen is `(0.0, 0.0)1, top right corner is `(width, 0.0)`,
+/// The top left corner of the screen is `(0.0, 0.0)`, top right corner is `(width, 0.0)`,
 /// the bottom left corner is `(0.0, height)`. In other words, the x-axis point right, the y-axis
 /// points down.
 pub struct ScreenSpaceXY {
     pub x: f32,
     pub y: f32,
 }
+
+hash_to_bits!(for ScreenSpaceXY: s, state in x, y);
 
 fmt_display!(for ScreenSpaceXY: ScreenSpaceXY {x, y} in "{:?}", (x, y));
 
@@ -81,6 +95,8 @@ pub struct ScreenSpaceWH {
 }
 
 fmt_display!(for ScreenSpaceWH: ScreenSpaceWH {w, h} in "{:?}", (w, h));
+
+hash_to_bits!(for ScreenSpaceWH: s, state in w, h);
 
 #[macro_export]
 macro_rules! sswh {
@@ -159,6 +175,8 @@ pub struct CharDim {
     pub h: f32,
 }
 
+hash_to_bits!(for CharDim: s, state in w, h);
+
 fmt_display!(for CharDim: CharDim {w, h} in "{:?}", (w, h));
 
 impl From<CharDim> for (f32, f32) {
@@ -176,6 +194,8 @@ pub struct TextBoxXY {
 }
 
 fmt_display!(for TextBoxXY: TextBoxXY {x, y} in "{:?}", (x, y));
+
+hash_to_bits!(for TextBoxXY: s, state in x, y);
 
 #[macro_export]
 macro_rules! tbxy {
@@ -220,6 +240,8 @@ pub struct TextBoxSpaceXY {
 }
 
 fmt_display!(for TextBoxSpaceXY: TextBoxSpaceXY {x, y} in "{:?}", (x, y));
+
+hash_to_bits!(for TextBoxSpaceXY: s, state in x, y);
 
 impl From<TextBoxSpaceXY> for (f32, f32) {
     fn from(TextBoxSpaceXY { x, y }: TextBoxSpaceXY) -> Self {
@@ -279,6 +301,8 @@ pub struct TextSpaceXY {
 
 fmt_display!(for TextSpaceXY: TextSpaceXY {x, y} in "{:?}", (x, y));
 
+hash_to_bits!(for TextSpaceXY: s, state in x, y);
+
 #[macro_export]
 macro_rules! tsxy {
     //
@@ -315,7 +339,7 @@ impl std::ops::Add for TextSpaceXY {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Hash, PartialEq)]
 pub struct TextSpaceXYWH {
     pub xy: TextSpaceXY,
     pub wh: ScreenSpaceWH,
@@ -363,12 +387,7 @@ pub struct ScrollXY {
 
 fmt_display!(for ScrollXY: ScrollXY {x, y} in "{:?}", (x, y));
 
-impl std::hash::Hash for ScrollXY {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.x.to_bits().hash(state);
-        self.y.to_bits().hash(state);
-    }}
-
+hash_to_bits!(for ScrollXY: s, state in x, y);
 
 impl From<ScrollXY> for (f32, f32) {
     fn from(ScrollXY { x, y }: ScrollXY) -> Self {
@@ -509,7 +528,7 @@ pub fn position_to_text_space(
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
 pub enum VisibilityAttemptResult {
     Succeeded,
     ScreenTooSmall,
@@ -527,6 +546,8 @@ pub struct Apron {
     pub top_h: f32,
     pub bottom_h: f32,
 }
+
+hash_to_bits!(for Apron : s, state in bottom_h, top_h, right_w, left_w);
 
 impl From<CharDim> for Apron {
     fn from(CharDim { w, h }: CharDim) -> Self {
@@ -641,6 +662,14 @@ r.min.0.to_bits().cmp(&other.min.0.to_bits())
     .then_with(|| r.max.0.to_bits().cmp(&other.max.0.to_bits()))
     .then_with(|| r.max.1.to_bits().cmp(&other.max.1.to_bits()))
 });
+
+impl std::hash::Hash for ScreenSpaceRect {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.min.0.to_bits().hash(state);
+        self.min.1.to_bits().hash(state);
+        self.max.0.to_bits().hash(state);
+        self.max.1.to_bits().hash(state);
+    }}
 
 #[macro_export]
 macro_rules! ssr {
@@ -773,7 +802,7 @@ impl ScreenSpaceRect {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Hash)]
 pub struct ScreenSpaceXYWH {
     pub xy: ScreenSpaceXY,
     pub wh: ScreenSpaceWH,
@@ -798,7 +827,7 @@ impl From<(ScreenSpaceXY, ScreenSpaceWH)> for ScreenSpaceRect {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Default)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Default)]
 /// A rectangle in screen space which represents the the space taken up by a text box.
 pub struct TextBoxXYWH {
     pub xy: TextBoxXY,
@@ -867,7 +896,7 @@ macro_rules! tbxywh {
     };
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Hash, PartialEq)]
 pub struct FontInfo {
     pub text_char_dim: CharDim,
     pub status_char_dim: CharDim,
@@ -875,7 +904,7 @@ pub struct FontInfo {
     pub find_replace_char_dim: CharDim,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Default)]
+#[derive(Clone, Copy, Debug, Default, Hash, PartialEq)]
 /// Things that the editor needs to know which (may) depend on the size of the screen.
 /// In a given `SetSizeDependents` call any of these are optional, but they should all be set
 /// initially. Otherwise the defaults will be used.

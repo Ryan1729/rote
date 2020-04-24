@@ -1,6 +1,6 @@
 use macros::{fmt_display, ord};
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Hash)]
 pub enum Move {
     Up,
     Down,

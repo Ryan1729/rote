@@ -15,7 +15,7 @@ use edit::{Edit};
 mod move_cursor;
 use rope_pos::{char_offset_to_pos, pos_to_char_offset};
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, Hash, PartialEq, Eq)]
 pub struct Cursors {
     // Should be sorted in reverse order (positions later in a test file will have lower indexes)
     // and no two cursors should be overlapping or have overlapping highlight regions. The order
@@ -234,6 +234,27 @@ pub struct TextBuffer {
     history: VecDeque<Edit>,
     history_index: usize,
     pub scroll: ScrollXY,
+}
+
+impl TextBuffer {
+    #[perf_viz::record]
+    pub fn non_rope_hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        use std::hash::Hash;
+        self.cursors.hash(state);
+        perf_viz::start_record!("history hash");
+        self.history.hash(state);
+        perf_viz::end_record!("history hash");
+        self.history_index.hash(state);
+        self.scroll.hash(state);
+    }
+
+    #[perf_viz::record]
+    pub fn rope_hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        use std::hash::Hash;
+        for c in self.rope.chunks() {
+            c.hash(state);    
+        }
+    }
 }
 
 impl TextBuffer {

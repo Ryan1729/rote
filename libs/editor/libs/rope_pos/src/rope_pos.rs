@@ -7,7 +7,7 @@ use std::borrow::Borrow;
 mod absolute_char_offset_range {
     use super::*;
 
-    #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+    #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
     pub struct AbsoluteCharOffsetRange {
         min: AbsoluteCharOffset,
         max: AbsoluteCharOffset,

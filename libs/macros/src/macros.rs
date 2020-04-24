@@ -41,6 +41,17 @@ macro_rules! sub_assign {
 }
 
 #[macro_export]
+macro_rules! hash {
+    (for $name: ty: $self: ident, $state: ident in $code: expr) => {
+        impl std::hash::Hash for $name {
+            fn hash<H: std::hash::Hasher>(&self, $state: &mut H) {
+                let $self = self;
+                $code
+            }        }
+    }
+}
+
+#[macro_export]
 macro_rules! ord {
     (and friends for $name:ty : ($instance:ident) $code:block) => {
         $crate::ord!(and friends for $name : ordable1, ordable2 in {

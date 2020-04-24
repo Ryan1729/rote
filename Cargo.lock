@@ -619,6 +619,7 @@ dependencies = [
  "pub_arb_platform_types",
  "pub_arb_std",
  "pub_arb_text_buffer",
+ "rustc-hash",
  "search",
  "text_buffer",
 ]
@@ -789,6 +790,7 @@ dependencies = [
  "macros",
  "move_mod",
  "mut_methods",
+ "perf_viz",
  "proptest",
  "vec1",
 ]
@@ -2021,7 +2023,7 @@ dependencies = [
 
 [[package]]
 name = "rote"
-version = "0.2.95"
+version = "0.2.96"
 dependencies = [
  "check_or_no_panic",
  "editor",

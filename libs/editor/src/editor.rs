@@ -1,4 +1,4 @@
-use editor_types::{Cursor};
+
 use macros::{d, dbg, u, SaturatingSub};
 use platform_types::{screen_positioning::*, *};
 use parsers::{Parsers};
@@ -91,6 +91,7 @@ pub struct State {    buffers: EditorBuffers,
     font_info: FontInfo,
     clipboard_history: ClipboardHistory,
     parsers: parsers::Parsers,
+    view: View,
 }
 
 // this macro helps the borrow checker figure out that borrows are valid.
@@ -410,7 +411,6 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
         if_changed::dbg!(&input);
     }
 
-    let mut view: View = d!();
     let mut cmd = Cmd::NoCmd;
     
     macro_rules! close_menu_if_any {
@@ -423,13 +423,13 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
 
     macro_rules! mark_edited_transition {
         (current, $transition: expr) => {
-            view.edited_transitions.push((
+            state.view.edited_transitions.push((
                 state.buffers.current_index(),
                 $transition,
             ));
         };
         (append, $transition: expr) => {
-            view.edited_transitions.push((
+            state.view.edited_transitions.push((
                 state.buffers.append_index(),
                 $transition,
             ));
@@ -710,8 +710,9 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
         },
     }
 
-    editor_view::render(state, &mut view);
-    (view, cmd)
+    // updates the view
+    editor_view::render(state);
+    (state.view.clone(), cmd)
 }
 
 #[cfg(test)]

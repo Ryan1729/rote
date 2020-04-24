@@ -4,7 +4,7 @@ use platform_types::{SpanView, SpanKind, sk};
 
 use tree_sitter::{Parser, Language, LanguageError, Node, Query, QueryCapture, QueryCursor, QueryError, Tree, TreeCursor};
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq)]
 pub enum Style {
     Extra,
     Basic,
@@ -34,7 +34,7 @@ impl Iterator for Style {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq)]
 pub enum ParserKind {
     Plaintext,
     Rust(Style)

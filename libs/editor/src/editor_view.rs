@@ -4,6 +4,7 @@ const AVERAGE_SELECTION_LINES_ESTIMATE: usize = 4;
 use macros::{SaturatingAdd};
 use search::SearchResults;
 
+#[perf_viz::record]
 fn scrollable_to_buffer_view_data(
     buffer: &TextBuffer,
     selection_lines_estimate: usize,
@@ -24,7 +25,9 @@ fn scrollable_to_buffer_view_data(
         push_highlights(&mut highlights, position, c.get_highlight_position(), d!());
     }
 
+    perf_viz::start_record!("buffer.chars().collect");
     let chars = buffer.chars().collect::<String>();
+    perf_viz::end_record!("buffer.chars().collect");
 
     BufferViewData {
         scroll: buffer.scroll,
@@ -35,6 +38,7 @@ fn scrollable_to_buffer_view_data(
     }
 }
 
+#[perf_viz::record]
 fn editor_to_buffer_view_data(
     parsers: &mut Parsers,
     editor_buffer: &EditorBuffer,
@@ -66,13 +70,13 @@ fn editor_to_buffer_view_data(
     buffer_view_data
 }
 
+// Mainly mutates `state.view`
 #[perf_viz::record]
 pub fn render(
     state: &mut State,
-    view: &mut View,
 ) {
     let  &mut State {
-        ref buffers,
+        ref mut buffers,
         font_info: FontInfo { text_char_dim, .. },
         menu_mode,
         ref file_switcher_results,
@@ -84,17 +88,26 @@ pub fn render(
             xy: text_box_pos, ..
         },
         ref mut parsers,
+        ref mut view,
         ..
     } = state;
     
-    view.buffers.replace_with_mapped(buffers.buffers(), |editor_buffer| {
-        let name = &editor_buffer.name;
-        BufferView {
-            name: name.clone(),
-            name_string: name.to_string(),
-            data: editor_to_buffer_view_data(parsers, &editor_buffer, AVERAGE_SELECTION_LINES_ESTIMATE),
-        }
-    });
+    if buffers.should_render_buffer_views() {
+        view.buffers.replace_with_mapped(
+            buffers.buffers(),
+            |editor_buffer| {
+                perf_viz::record_guard!("render BufferView");
+                let name = &editor_buffer.name;
+                BufferView {
+                    name: name.clone(),
+                    name_string: name.to_string(),
+                    data: editor_to_buffer_view_data(parsers, &editor_buffer, AVERAGE_SELECTION_LINES_ESTIMATE),
+                }
+            }
+        );
+    }
+
+    perf_viz::start_record!("write view.status_line");
 
     view.status_line.chars.clear();
 
@@ -140,8 +153,12 @@ pub fn render(
         );
     }
 
-    const FIND_REPLACE_AVERAGE_SELECTION_LINES_ESTIMATE: usize = 1;
+    perf_viz::end_record!("write view.status_line");
 
+    perf_viz::start_record!("set view.menu");
+
+    const FIND_REPLACE_AVERAGE_SELECTION_LINES_ESTIMATE: usize = 1;
+    
     view.menu = match menu_mode {
         MenuMode::Hidden => MenuView::None,
         MenuMode::FindReplace(mode) => MenuView::FindReplace(FindReplaceView {
@@ -175,6 +192,7 @@ pub fn render(
             })
         },
     };
+    perf_viz::end_record!("set view.menu");
 
-    view.current_buffer_kind = state.get_id().kind;
+    view.current_buffer_kind = state.current_buffer_kind;
 }

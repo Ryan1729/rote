@@ -24,6 +24,16 @@ pub struct EditorBuffer {
     parser_kind: Option<ParserKind>,
 }
 
+impl EditorBuffer {
+    fn rope_hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.text_buffer.rope_hash(state);
+    }
+
+    fn non_rope_hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.text_buffer.non_rope_hash(state);
+    }
+}
+
 impl From<&EditorBuffer> for String {
     fn from(e_b: &EditorBuffer) -> Self {
         (&e_b.text_buffer).into()
@@ -99,6 +109,46 @@ impl EditorBuffer {
 #[derive(Clone, Debug, Default)]
 pub struct EditorBuffers {
     buffers: SelectableVec1<EditorBuffer>,
+    last_non_rope_hash: u64,
+    last_full_hash: Option<u64>,
+}
+
+impl EditorBuffers {
+    #[perf_viz::record]
+    pub fn should_render_buffer_views(&mut self) -> bool {
+        use std::hash::{Hash, Hasher};
+        let mut hasher: rustc_hash::FxHasher = d!();
+        self.non_rope_hash(&mut hasher);
+        let new_non_rope_hash = hasher.finish();
+
+        if new_non_rope_hash == self.last_non_rope_hash {
+            self.rope_hash(&mut hasher);
+            let new_full_hash = Some(hasher.finish());
+            let output = new_full_hash != self.last_full_hash;
+
+            self.last_full_hash = new_full_hash;
+            
+            output
+        } else {
+            self.last_non_rope_hash = new_non_rope_hash;
+            self.last_full_hash = None;
+            true
+        }
+    }
+
+    #[perf_viz::record]
+    fn rope_hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        for b in self.buffers.iter() {
+            b.rope_hash(state);
+        }
+    }
+
+    #[perf_viz::record]
+    fn non_rope_hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        for b in self.buffers.iter() {
+            b.non_rope_hash(state);
+        }
+    }
 }
 
 impl EditorBuffers {

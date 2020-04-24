@@ -537,7 +537,7 @@ impl BufferName {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Hash)]
 pub enum CursorState {
     None,
     PressedAgainstWall(Move),
@@ -567,7 +567,7 @@ pub struct CursorView {
     pub state: CursorState,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct StatusLineView {
     pub chars: String,
 }
@@ -656,7 +656,7 @@ impl IntoIterator for EditedTransitions {
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct View {    pub buffers: SelectableVec1<BufferView>,
     pub menu: MenuView,
     pub status_line: StatusLineView,

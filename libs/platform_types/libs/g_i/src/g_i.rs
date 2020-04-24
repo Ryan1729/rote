@@ -142,7 +142,7 @@ impl std::cmp::PartialEq<Length> for IndexPart {
 /// of this so that we can auto-fix the indexes from one generation ago, when possible.
 /// `RemovedAt(d!())` is a reasonable default because it results is a fixup of no change at all
 /// which is correct for the first instance.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Hash)]
 enum Invalidation {
     RemovedAt(IndexPart),
     SwappedAt(IndexPart, IndexPart),
@@ -151,7 +151,7 @@ enum Invalidation {
 
 d!(for Invalidation: Invalidation::RemovedAt(d!()));
 
-#[derive(Clone, Copy, Default, Debug, PartialEq)]
+#[derive(Clone, Copy, Default, Debug, Hash, PartialEq)]
 pub struct State {
     current: Generation,
     invalidation: Invalidation,
@@ -404,7 +404,7 @@ mod selectable_vec1 {
     /// "selected" or is "the current element". This "selected" element can be borrowed
     /// and the operations that change the currently selected index and/or move the selected
     /// element around are also made more convenient.
-    #[derive(Debug)]
+    #[derive(Debug, Hash)]
     pub struct SelectableVec1<A> {
         elements: Vec1<A>,
         index_state: State,
@@ -695,6 +695,7 @@ mod selectable_vec1 {
         // This implies that indexes saved from interactions with `other` should
         // work with `self` afterwards, but ones previously obtained from 
         // interactions with `self` are not guarenteed to.
+        #[perf_viz::record]
         pub fn replace_with_mapped<B, F>(&mut self, other: &SelectableVec1<B>, mut mapper: F)
         where
             F: FnMut(&B) -> A {
