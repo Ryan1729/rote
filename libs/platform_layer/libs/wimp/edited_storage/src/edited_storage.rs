@@ -64,7 +64,8 @@ pub fn store_buffers(
                 };
             }
             _ => {
-                write(path, buffer.data.chars)?;
+                let chars: String = buffer.data.chars.into();
+                write(path, chars)?;
             }
         }
 

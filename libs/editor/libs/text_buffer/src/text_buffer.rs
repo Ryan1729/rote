@@ -2,7 +2,7 @@ use crate::move_cursor::{forward, get_next_selection_point, get_previous_selecti
 use editor_types::{Cursor, SetPositionAction};
 use macros::{d, some_or};
 use panic_safe_rope::{ByteIndex, LineIndex, Rope, RopeSlice, RopeSliceTrait};
-use platform_types::*;
+use platform_types::{*, screen_positioning::*};
 use rope_pos::{AbsoluteCharOffsetRange, clamp_position, in_cursor_bounds, nearest_valid_position_on_same_line};
 
 use std::borrow::Borrow;
@@ -264,6 +264,10 @@ impl TextBuffer {
 
     pub fn borrow_rope(&self) -> &Rope {
         &self.rope
+    }
+
+    pub fn clone_rope(&self) -> Rope {
+        self.rope.clone()
     }
 
     pub fn borrow_cursors(&self) -> &Cursors {

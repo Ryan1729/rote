@@ -607,11 +607,11 @@ impl <'font> State<'font> {
                             }
                         },
                         z: z_to_f32(z),
-                        text: text.into_iter().map(|ColouredText { text, color }| {
+                        text: text.iter().map(|ColouredText { text, colour }| {
                             SectionText {
-                                text,
+                                text: &text,
                                 scale,
-                                color,
+                                color: *colour,
                                 ..d!()
                             }
                         }).collect(),

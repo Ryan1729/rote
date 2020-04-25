@@ -1447,10 +1447,10 @@ name = "panic_safe_rope"
 version = "0.1.0"
 dependencies = [
  "check_or_no_panic",
- "editor_types",
  "macros",
  "proptest",
  "ropey",
+ "text_pos",
 ]
 
 [[package]]
@@ -1564,9 +1564,11 @@ dependencies = [
  "g_i",
  "macros",
  "move_mod",
+ "panic_safe_rope",
  "proptest",
  "pub_arb_g_i",
  "pub_arb_std",
+ "text_pos",
  "vec1",
 ]
 
@@ -2351,6 +2353,13 @@ dependencies = [
  "regex 1.3.6",
  "rope_pos",
  "search",
+]
+
+[[package]]
+name = "text_pos"
+version = "0.1.0"
+dependencies = [
+ "macros",
 ]
 
 [[package]]

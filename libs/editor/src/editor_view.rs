@@ -5,7 +5,7 @@ use macros::{SaturatingAdd};
 use search::SearchResults;
 
 #[perf_viz::record]
-fn scrollable_to_buffer_view_data(
+fn text_buffer_to_buffer_view_data(
     buffer: &TextBuffer,
     selection_lines_estimate: usize,
 ) -> BufferViewData {
@@ -25,13 +25,9 @@ fn scrollable_to_buffer_view_data(
         push_highlights(&mut highlights, position, c.get_highlight_position(), d!());
     }
 
-    perf_viz::start_record!("buffer.chars().collect");
-    let chars = buffer.chars().collect::<String>();
-    perf_viz::end_record!("buffer.chars().collect");
-
     BufferViewData {
         scroll: buffer.scroll,
-        chars,
+        chars: buffer.clone_rope(),
         cursors,
         highlights,
         ..d!()
@@ -45,10 +41,10 @@ fn editor_to_buffer_view_data(
     selection_lines_estimate: usize,
 ) -> BufferViewData {
     let mut buffer_view_data =
-        scrollable_to_buffer_view_data(&editor_buffer.text_buffer, selection_lines_estimate);
+        text_buffer_to_buffer_view_data(&editor_buffer.text_buffer, selection_lines_estimate);
 
     buffer_view_data.spans = parsers.get_spans(
-        &buffer_view_data.chars,
+        buffer_view_data.chars.clone().into(),
         editor_buffer.get_parser_kind()
     );
 
@@ -163,11 +159,11 @@ pub fn render(
         MenuMode::Hidden => MenuView::None,
         MenuMode::FindReplace(mode) => MenuView::FindReplace(FindReplaceView {
             mode,
-            find: scrollable_to_buffer_view_data(
+            find: text_buffer_to_buffer_view_data(
                 &find,
                 FIND_REPLACE_AVERAGE_SELECTION_LINES_ESTIMATE,
             ),
-            replace: scrollable_to_buffer_view_data(
+            replace: text_buffer_to_buffer_view_data(
                 &replace,
                 FIND_REPLACE_AVERAGE_SELECTION_LINES_ESTIMATE,
             ),
@@ -175,7 +171,7 @@ pub fn render(
         MenuMode::FileSwitcher => {
             const FILE_SEARCH_SELECTION_LINES_ESTIMATE: usize = 1;
             MenuView::FileSwitcher(FileSwitcherView {
-                search: scrollable_to_buffer_view_data(
+                search: text_buffer_to_buffer_view_data(
                     &file_switcher,
                     FILE_SEARCH_SELECTION_LINES_ESTIMATE,
                 ),
@@ -185,7 +181,7 @@ pub fn render(
         MenuMode::GoToPosition => {
             const GO_TO_POSITION_SELECTION_LINES_ESTIMATE: usize = 1;
             MenuView::GoToPosition(GoToPositionView {
-                go_to_position: scrollable_to_buffer_view_data(
+                go_to_position: text_buffer_to_buffer_view_data(
                     &go_to_position,
                     GO_TO_POSITION_SELECTION_LINES_ESTIMATE,
                 ),

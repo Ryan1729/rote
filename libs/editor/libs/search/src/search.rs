@@ -70,6 +70,7 @@ pub fn get_ranges(
     if needle.len_bytes() == 0 {
         return d!();
     }
+    dbg!(needle, haystack.len_bytes());
 
     let (min, slice) = haystack_range
         .and_then(|r| haystack.slice(r.range()).map(|s| (r.min().0, s)))

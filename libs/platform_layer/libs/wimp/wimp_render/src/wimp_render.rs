@@ -3,7 +3,11 @@ use gl_layer::{ColouredText, MulticolourTextSpec, TextLayout, TextOrRect, TextSp
 use wimp_types::{CommandsMap, LocalMenuView, View, WimpMenuMode, MenuMode, MenuView, WimpMenuView, FindReplaceMode, ui_id, ui, ui::{ButtonState}, BufferStatus, CommandKey, Dimensions, RunConsts, RunState, command_keys};
 use macros::{c, d, invariant_assert, u};
 use platform_types::{g_i, BufferView, GoToPositionView, FindReplaceView, FileSwitcherView, BufferViewData, BufferIdKind, BufferId, b_id, CursorState, Highlight, HighlightKind, tbxy, tbxywh, Input, sswh, ssr, screen_positioning::*, SpanView};
-use std::cmp::max;
+use std::{
+    borrow::Cow,
+    cmp::max,
+};
+
 
 type Colour = [f32; 4];
 
@@ -661,8 +665,8 @@ pub fn view<'view>(
                     spec.spec.color = grey_scale_bright!(spec.spec.color);
                 },
                 MulticolourText(ref mut spec) => {
-                    for ColouredText { ref mut color, .. } in spec.text.iter_mut() {
-                        *color = grey_scale_bright!(*color)
+                    for ColouredText { ref mut colour, .. } in spec.text.iter_mut() {
+                        *colour = grey_scale_bright!(*colour)
                     }
                 }
             }
@@ -755,7 +759,7 @@ fn render_file_switcher_menu<'view>(
     }));
 
     text_or_rects.push(TextOrRect::Text(TextSpec {
-        text: if search.chars.len() == 0 {
+        text: if search.chars.len_bytes() == 0 {
             "Find File"
         } else {
             // cheap hack to avoid lifetime issues
@@ -928,14 +932,23 @@ enum TextBoxColour {
 }
 d!(for TextBoxColour: TextBoxColour::FromSpans);
 
-fn colourize<'text>(text: &'text str, spans: &[SpanView]) -> Vec<ColouredText<'text>> {
+#[perf_viz::record]
+fn colourize<'text>(text: Cow<'text, str>, spans: &[SpanView]) -> Vec<ColouredText<'text>> {
     let mut prev_byte_index = 0;
-    spans.iter().map(|s| {
+    spans.iter().map(move |s| {
+        
         let text = &text[prev_byte_index..s.end_byte_index];
         let text = text.trim_end();
         let output = ColouredText {
-            text,
-            color: match s.kind.get_byte() & 0b111 {
+            text: {
+                // PERF we used to borrow this here but then we tried moving the
+                // conversion from a rope off the editor thread. This means many
+                // more heap allocations. Can we do something about this to 
+                // switch it back to one big allocation?
+                perf_viz::record_guard!("tiny span allocations");
+                Cow::Owned(text.to_owned())
+            },
+            colour: match s.kind.get_byte() & 0b111 {
                 1 => palette![cyan],
                 2 => palette![green],
                 3 => palette![yellow],
@@ -1036,9 +1049,21 @@ fn text_box_view<'view>(
     let offset_text_rect = shrink_by(ssr!(scroll_offset.into(), outer_rect.max), padding);
 
     text_or_rects.push(TextOrRect::MulticolourText(MulticolourTextSpec {
-        text: match text_color {
-            TextBoxColour::FromSpans => colourize(&chars, spans),
-            TextBoxColour::Single(color) => vec![ColouredText{ color, text: &chars }],
+        text: {
+            perf_viz::record_guard!("de-roping for colourization");
+            match text_color {
+                TextBoxColour::FromSpans => colourize(
+                    {
+                        perf_viz::record_guard!("FromSpans chars.into()");
+                        chars.into()
+                    }, 
+                    spans
+                ),
+                TextBoxColour::Single(colour) => {
+                    perf_viz::record_guard!("Single colour chars.into()");
+                    vec![ColouredText{ colour, text: chars.into() }]
+                },
+            }
         },
         size,
         layout: TextLayout::UnboundedLayoutClipped(

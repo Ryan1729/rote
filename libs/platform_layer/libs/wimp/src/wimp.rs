@@ -642,7 +642,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         );
                     }
                     BufferName::Path(ref p) => {
-                        save_to_disk!(r_s, p, &buffer.data.chars, i);
+                        save_to_disk!(r_s, p, std::borrow::Cow::from(buffer.data.chars.clone()).as_ref(), i);
                     }
                 }
             }]
@@ -1155,7 +1155,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         // generational indices.
                         if let Some(b) = r_s.view.get_buffer(index)
                         {
-                            save_to_disk!(r_s, p, &b.data.chars, index);
+                            save_to_disk!(r_s, p, std::borrow::Cow::from(b.data.chars.clone()).as_ref(), index);
                         }
                     }
                     CustomEvent::SendBuffersToBeSaved => {

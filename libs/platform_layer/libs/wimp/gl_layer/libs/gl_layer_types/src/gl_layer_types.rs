@@ -1,6 +1,8 @@
 use platform_types::{ScreenSpaceRect, ssr, ScrollXY, TextSpaceXYWH, tsxywh};
 use macros::{d};
 
+use std::borrow::Cow;
+
 pub type Res<T> = Result<T, Box<dyn std::error::Error>>;
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -167,8 +169,8 @@ pub struct TextSpec<'text> {
 
 #[derive(Clone, Debug)]
 pub struct ColouredText<'text> {
-    pub text: &'text str,
-    pub color: [f32; 4]
+    pub text: Cow<'text, str>,
+    pub colour: [f32; 4]
 }
 
 #[derive(Clone, Debug)]

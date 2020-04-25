@@ -21,7 +21,7 @@ path = "libs/editor_types"
 path = "../if_changed"
 
 [dependencies.panic_safe_rope]
-path = "libs/panic_safe_rope"
+path = "../panic_safe_rope"
 
 [dependencies.perf_viz]
 path = "../perf_viz"

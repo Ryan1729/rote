@@ -4,6 +4,8 @@ use platform_types::{SpanView, SpanKind, sk};
 
 use tree_sitter::{Parser, Language, LanguageError, Node, Query, QueryCapture, QueryCursor, QueryError, Tree, TreeCursor};
 
+use std::borrow::Cow;
+
 #[derive(Clone, Copy, Debug, Hash, PartialEq)]
 pub enum Style {
     Extra,
@@ -103,13 +105,15 @@ impl std::fmt::Debug for InitializedParsers {
 
 type Spans = Vec<SpanView>;
 
+type ToParse<'a> = Cow<'a, str>;
+
 impl Parsers {
-    pub fn get_spans(&mut self, to_parse: &str, kind: ParserKind) -> Spans {
+    pub fn get_spans(&mut self, to_parse: ToParse<'_>, kind: ParserKind) -> Spans {
         // TODO edit the tree properly as we go, and pass it down so we get faster parses
         self.get_spans_with_previous(to_parse, kind, None)
     }
 
-    pub fn get_spans_with_previous(&mut self, to_parse: &str, kind: ParserKind, previous: Option<&Tree>) -> Spans {
+    pub fn get_spans_with_previous(&mut self, to_parse: ToParse<'_>, kind: ParserKind, previous: Option<&Tree>) -> Spans {
         use Parsers::*;
         self.attempt_init();
 
@@ -126,7 +130,7 @@ impl Parsers {
 impl InitializedParsers {
     fn get_spans_with_previous(
         &mut self,
-        to_parse: &str,
+        to_parse: ToParse<'_>,
         kind: ParserKind,
         previous: Option<&Tree>
     ) -> Spans {
@@ -137,28 +141,28 @@ impl InitializedParsers {
                 plaintext_spans_for(to_parse)
             }
             Rust(style) => {
-                self.rust_tree = self.rust.parse(to_parse, previous);
+                self.rust_tree = self.rust.parse(to_parse.as_ref(), previous);
 
                 match style {
                     Basic => {
                         query_spans_for(
                             self.rust_tree.as_ref(),
                             &self.rust_basic_query,
-                            to_parse,
+                            &to_parse,
                             rust_basic_span_kind_from_match
                         )
                     },
                     Extra => {
                         totally_classified_spans_for(
                             self.rust_tree.as_ref(),
-                            to_parse,
+                            &to_parse,
                             rust_extra_span_kind_from_node
                         )
                     },
                     TreeDepth => {
                         tree_depth_spans_for(
                             self.rust_tree.as_ref(),
-                            to_parse
+                            &to_parse
                         )
                     }
                 }
@@ -490,11 +494,11 @@ fn dedup_by_end_byte_keeping_last(spans: &mut Spans) {
     spans.truncate(write + 1);
 }
 
-fn plaintext_spans_for(s: &str) -> Spans {
+fn plaintext_spans_for(s: ToParse<'_>) -> Spans {
     vec![plaintext_end_span_for(s)]
 }
 
-fn plaintext_end_span_for(s: &str) -> SpanView {
+fn plaintext_end_span_for(s: ToParse<'_>) -> SpanView {
     SpanView { kind: SpanKind::PLAIN, end_byte_index: s.len()}
 }
 

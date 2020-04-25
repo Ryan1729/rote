@@ -17,7 +17,7 @@ path = "../../../if_changed"
 path = "../../../macros"
 
 [dependencies.panic_safe_rope]
-path = "../panic_safe_rope"
+path = "../../../panic_safe_rope"
 
 [dependencies.perf_viz]
 path = "../../../perf_viz"
