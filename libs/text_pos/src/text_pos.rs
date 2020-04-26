@@ -49,12 +49,16 @@ impl macros::CheckedAdd for AbsoluteCharOffset {
     }
 }
 
-impl AbsoluteCharOffset {
-    pub fn saturating_add(self, other: CharOffset) -> Self {
+impl macros::SaturatingAdd<CharOffset> for AbsoluteCharOffset {
+    type Output = AbsoluteCharOffset;
+    
+    #[must_use]
+    fn saturating_add(self, other: CharOffset) -> AbsoluteCharOffset {
         AbsoluteCharOffset(self.0.saturating_add(other.0))
     }
+}
 
-    /// Seems like 99% of the time we want to do a `checked_add` it's with one
+impl AbsoluteCharOffset {    /// Seems like 99% of the time we want to do a `checked_add` it's with one
     pub fn checked_add_one(self) -> Option<Self> {
         self.0.checked_add(1).map(AbsoluteCharOffset)
     }
@@ -96,11 +100,16 @@ impl macros::CheckedSub<CharOffset> for AbsoluteCharOffset {
     }
 }
 
-impl AbsoluteCharOffset {
-    pub fn saturating_sub(self, other: CharOffset) -> Self {
+impl macros::SaturatingSub<CharOffset> for AbsoluteCharOffset {
+    type Output = AbsoluteCharOffset;
+
+    #[must_use]
+    fn saturating_sub(self, other: CharOffset) -> AbsoluteCharOffset {
         AbsoluteCharOffset(self.0.saturating_sub(other.0))
     }
+}
 
+impl AbsoluteCharOffset {
     /// Seems like 99% of the time we want to do a `checked_sub` it's with one
     pub fn checked_sub_one(self) -> Option<Self> {
         self.0.checked_sub(1).map(AbsoluteCharOffset)

@@ -171,25 +171,29 @@ pub mod traits {
 
     pub trait CheckedAdd<Rhs = Self> {
         type Output;
-    
+
+        #[must_use]
         fn checked_add(self, rhs: Rhs) -> Option<Self::Output>;
     }
     
     pub trait CheckedSub<Rhs = Self> {
         type Output;
     
+        #[must_use]
         fn checked_sub(self, rhs: Rhs) -> Option<Self::Output>;
     }
     
     pub trait SaturatingAdd<Rhs = Self> {
         type Output;
     
+        #[must_use]
         fn saturating_add(self, rhs: Rhs) -> Self::Output;
     }
     
     pub trait SaturatingSub<Rhs = Self> {
         type Output;
     
+        #[must_use]
         fn saturating_sub(self, rhs: Rhs) -> Self::Output;
     }
 }

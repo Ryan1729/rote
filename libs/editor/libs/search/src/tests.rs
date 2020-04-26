@@ -1,7 +1,6 @@
 use super::*;
 
 use proptest::proptest;
-use rope_pos::{pos_to_char_offset};
 
 mod arb {
     use super::*;
@@ -38,43 +37,105 @@ mod arb {
     }
 }
 
-fn get_ranges_works_on(needle: &str, haystack: &str) {
+type GetRangesImpl = fn(RopeSlice, RopeSlice, Option<std::num::NonZeroUsize>) -> Vec<(CharOffset, CharOffset)>;
+
+fn given_get_ranges_returns_only_locations_that_match_the_needle_on(
+    selected_impl: GetRangesImpl,
+    needle: &str,
+    haystack: &str
+) {
     // precondition
     assert!(needle.len() > 0);
 
     let needle: Rope = needle.into();
     let haystack: Rope = haystack.into();
 
-    let ranges = get_ranges(needle.full_slice(), &haystack, None, None);
+    let ranges = selected_impl(needle.full_slice(), haystack.full_slice(), None);
 
     assert!(ranges.len() > 0);
 
     let mut chars = haystack.chars();
-    let mut previously_used = AbsoluteCharOffset(0);
+    let mut previously_used = CharOffset(0);
     for (start, end) in ranges {
-        let start_offset = pos_to_char_offset(&haystack, &start).unwrap();
-        let end_offset = pos_to_char_offset(&haystack, &end).unwrap();
-
-        for _ in previously_used.0..start_offset.0 {
+        for _ in previously_used.0..start.0 {
             chars.next().unwrap();
         }
 
         let mut n_chars = needle.chars();
-        for _ in start_offset.0..end_offset.0 {
+        for _ in start.0..end.0 {
             assert_eq!(chars.next(), n_chars.next());
         }
 
-        previously_used = end_offset;
+        previously_used = end;
     }
+}
+
+fn get_ranges_returns_only_locations_that_match_the_needle_on(needle: &str, haystack: &str) {
+    given_get_ranges_returns_only_locations_that_match_the_needle_on(get_ranges_impl, needle, haystack);
 }
 
 proptest! {
     #[test]
-    fn get_ranges_works(
+    fn get_ranges_returns_only_locations_that_match_the_needle(
         (needle, haystack) in arb::needle_and_haystack()
     ) {
-        get_ranges_works_on(&needle, &haystack);
+        get_ranges_returns_only_locations_that_match_the_needle_on(&needle, &haystack);
     }
+}
+
+#[test]
+fn get_ranges_returns_only_locations_that_match_the_needle_on_this_identical_needle_and_haystack() {
+    get_ranges_returns_only_locations_that_match_the_needle_on("0 ", "0 ");
+}
+
+#[test]
+fn get_ranges_returns_only_locations_that_match_the_needle_on_this_generated_example() {
+    get_ranges_returns_only_locations_that_match_the_needle_on("0 ", "0 A");
+}
+
+#[test]
+fn get_ranges_returns_only_locations_that_match_the_needle_on_this_second_generated_example() {
+    get_ranges_returns_only_locations_that_match_the_needle_on("0 ", "A0 ");
+}
+
+#[test]
+fn get_ranges_returns_only_locations_that_match_the_needle_on_this_late_found_generated_example() {
+    get_ranges_returns_only_locations_that_match_the_needle_on("0¡", "::0¡");
+}
+
+#[test]
+fn get_ranges_returns_only_locations_that_match_the_needle_on_this_reduction_of_the_late_found_generated_example() {
+    get_ranges_returns_only_locations_that_match_the_needle_on("0A", "::0A");
+}
+
+#[test]
+fn get_ranges_returns_only_locations_that_match_the_needle_on_this_second_identical_needle_and_haystack() {
+    get_ranges_returns_only_locations_that_match_the_needle_on("\"#\"", "\"#\"");
+}
+
+#[test]
+fn get_ranges_returns_only_locations_that_match_the_needle_on_this_reduction_of_the_second_identical_needle_and_haystack() {
+    get_ranges_returns_only_locations_that_match_the_needle_on("123", "123");
+}
+
+#[test]
+fn get_ranges_returns_only_locations_that_match_the_needle_on_this_fffd_generated_example() {
+    get_ranges_returns_only_locations_that_match_the_needle_on("\"#\"", "�\"#\"");
+}
+
+#[test]
+fn get_ranges_returns_only_locations_that_match_the_needle_on_this_reduction_of_the_fffd_generated_example() {
+    get_ranges_returns_only_locations_that_match_the_needle_on("121", "A121");
+}
+
+#[test]
+fn get_ranges_returns_only_locations_that_match_the_needle_on_this_registered_trademark_generated_example() {
+    get_ranges_returns_only_locations_that_match_the_needle_on("\"#\"", "®�\"#\"");
+}
+
+#[test]
+fn get_ranges_returns_only_locations_that_match_the_needle_on_this_reduction_of_the_registered_trademark_generated_example() {
+    get_ranges_returns_only_locations_that_match_the_needle_on("121", "34121");
 }
 
 proptest! {
@@ -94,77 +155,22 @@ proptest! {
     }
 }
 
-#[test]
-fn get_ranges_works_on_this_identical_needle_and_haystack() {
-    get_ranges_works_on("0 ", "0 ");
-}
-
-#[test]
-fn get_ranges_works_on_this_generated_example() {
-    get_ranges_works_on("0 ", "0 A");
-}
-
-#[test]
-fn get_ranges_works_on_this_second_generated_example() {
-    get_ranges_works_on("0 ", "A0 ");
-}
-
-#[test]
-fn get_ranges_works_on_this_late_found_generated_example() {
-    get_ranges_works_on("0¡", "::0¡");
-}
-
-#[test]
-fn get_ranges_works_on_this_reduction_of_the_late_found_generated_example() {
-    get_ranges_works_on("0A", "::0A");
-}
-
-#[test]
-fn get_ranges_works_on_this_second_identical_needle_and_haystack() {
-    get_ranges_works_on("\"#\"", "\"#\"");
-}
-
-#[test]
-fn get_ranges_works_on_this_reduction_of_the_second_identical_needle_and_haystack() {
-    get_ranges_works_on("123", "123");
-}
-
-#[test]
-fn get_ranges_works_on_this_fffd_generated_example() {
-    get_ranges_works_on("\"#\"", "�\"#\"");
-}
-
-#[test]
-fn get_ranges_works_on_this_reduction_of_the_fffd_generated_example() {
-    get_ranges_works_on("121", "A121");
-}
-
-#[test]
-fn get_ranges_works_on_this_registered_trademark_generated_example() {
-    get_ranges_works_on("\"#\"", "®�\"#\"");
-}
-
-#[test]
-fn get_ranges_works_on_this_reduction_of_the_registered_trademark_generated_example() {
-    get_ranges_works_on("121", "34121");
-}
-
 proptest! {
     #[test]
-    fn get_ranges_impl_matches_refernce_impl(
+    fn get_ranges_impl_matches_previous_impl(
         (needle, haystack) in arb::needle_and_haystack()
     ) {
         let needle: Rope = needle.into();
         let haystack: Rope = haystack.into();
         assert_eq!(
             get_ranges_impl(needle.full_slice(), haystack.full_slice(), None),
-            get_ranges_reference_impl(needle.full_slice(), haystack.full_slice(), None)
+            get_ranges_previous_impl(needle.full_slice(), haystack.full_slice(), None)
         );
     }
 }
 
-/// This version is slow (`skip_manually` in particular) but has previously passed the `get_ranges_works` test.
-fn get_ranges_reference_impl(
+/// This version is slow but has previously passed the `get_ranges_returns_only_locations_that_match_the_needle` test.
+fn get_ranges_previous_impl(
     needle: RopeSlice,
     haystack: RopeSlice,
     max_needed: Option<std::num::NonZeroUsize>,
@@ -180,6 +186,7 @@ fn get_ranges_reference_impl(
         };
         ($name: ident, $a: ident, $b: ident, $test: expr) => {
             fn $name(rope: &RopeSlice) -> Option<(isize, isize)> {
+                perf_viz::record_guard!(stringify!($name));
                 let len = rope.len_chars().0 as isize;
                 let mut ms: isize = -1;
                 let mut j: isize = 0;
@@ -264,7 +271,8 @@ fn get_ranges_reference_impl(
     }
 
     macro_rules! opt_iters_match_once {
-        ($method: ident : $op_iter1: expr, $op_iter2: expr) => {
+        ($method: ident : $op_iter1: expr, $op_iter2: expr) => {{
+            perf_viz::record_guard!("opt_iters_match_once");
             match (&mut $op_iter1, &mut $op_iter2) {
                 (Some(ref mut i1), Some(ref mut i2)) => match (i1.$method(), i2.$method()) {
                     (Some(e1), Some(e2)) if e1 == e2 => true,
@@ -274,7 +282,7 @@ fn get_ranges_reference_impl(
                 (None, None) => true,
                 _ => false,
             }
-        };
+        }};
     }
 
     /* Searching */
@@ -340,6 +348,7 @@ fn get_ranges_reference_impl(
             }
         }
     } else {
+        perf_viz::record_guard!("!period_matches");
         period = std::cmp::max(ell + 1, needle_len - ell - 1) + 1;
         while j <= haystack_len - needle_len {
             i = ell + 1;
@@ -371,4 +380,76 @@ fn get_ranges_reference_impl(
     }
 
     output
+}
+
+fn get_ranges_impl_matches_the_slow_impl_on(
+    needle: &str,
+    haystack: &str
+) {
+    let needle: Rope = needle.into();
+    let haystack: Rope = haystack.into();
+    assert_eq!(
+        get_ranges_impl(needle.full_slice(), haystack.full_slice(), None),
+        get_ranges_slow_impl(needle.full_slice(), haystack.full_slice(), None)
+    );
+}
+
+proptest! {
+    #[test]
+    fn get_ranges_impl_matches_the_slow_impl(
+        (needle, haystack) in arb::needle_and_haystack()
+    ) {
+        get_ranges_impl_matches_the_slow_impl_on(&needle, &haystack);
+    }
+}
+
+#[test]
+fn get_ranges_impl_matches_the_slow_impl_in_this_generated_case() {
+    get_ranges_impl_matches_the_slow_impl_on("a", "ab");
+}
+
+/// This version is meant to be obviously correct, but willing to be slow to maintain that property.
+fn get_ranges_slow_impl(
+    needle: RopeSlice,
+    haystack: RopeSlice,
+    max_needed: Option<std::num::NonZeroUsize>,
+) -> Vec<(CharOffset, CharOffset)> {
+    let mut output = Vec::with_capacity(16);
+
+    for i in 0..haystack.len_chars().0 {
+        let mut needle_chars = needle.chars();
+        let mut haystack_chars = haystack.chars_at(CharOffset(i)).unwrap();
+
+        // zip would end early and we don't want that.
+        loop { 
+            match dbg!(needle_chars.next(), haystack_chars.next()) {
+                (None, _) => { 
+                    output.push((CharOffset(i), CharOffset(i + needle.len_chars().0)));
+                    break;
+                }
+                (first, second) => if first != second {
+                    break;
+                }
+            }
+        }
+    }
+
+    if let Some(max_needed) = max_needed {
+        output.truncate(max_needed.get());
+    }
+
+    output
+}
+
+fn get_ranges_slow_returns_only_locations_that_match_the_needle_on(needle: &str, haystack: &str) {
+    given_get_ranges_returns_only_locations_that_match_the_needle_on(get_ranges_slow_impl, needle, haystack);
+}
+
+proptest! {
+    #[test]
+    fn get_ranges_slow_returns_only_locations_that_match_the_needle(
+        (needle, haystack) in arb::needle_and_haystack()
+    ) {
+        get_ranges_slow_returns_only_locations_that_match_the_needle_on(&needle, &haystack);
+    }
 }

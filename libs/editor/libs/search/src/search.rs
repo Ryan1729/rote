@@ -1,4 +1,5 @@
-use macros::{d};
+#![deny(unused_must_use)]
+use macros::{d, SaturatingAdd, SaturatingSub};
 use panic_safe_rope::{Rope, RopeSlice, RopeSliceTrait};
 use editor_types::{Position, CharOffset, AbsoluteCharOffset};
 use rope_pos::{char_offset_to_pos, AbsoluteCharOffsetRange};
@@ -11,6 +12,7 @@ pub struct SearchResults {
 }
 
 impl SearchResults {
+    #[perf_viz::record]
     pub fn new(needle: RopeSlice, haystack: &Rope) -> SearchResults {
         let ranges = get_ranges(
             needle,
@@ -20,16 +22,18 @@ impl SearchResults {
         );
 
         SearchResults {
-            needle: needle.into(),
+            needle: {
+                perf_viz::record_guard!("SearchResults needle.into()");
+                needle.into()
+            },
             ranges,
             current_range: 0,
         }
     }
 
-
+    #[perf_viz::record]
     pub fn refresh(&mut self, needle: RopeSlice, haystack: &Rope) {
-        perf_viz::record_guard!("SearchResults::refresh");
-        
+        dbg!("refresh");
         let mut new = Self::new(needle, haystack);
 
         let old_range = self.ranges.get(self.current_range);
@@ -70,13 +74,10 @@ pub fn get_ranges(
     if needle.len_bytes() == 0 {
         return d!();
     }
-    dbg!(needle, haystack.len_bytes());
 
     let (min, slice) = haystack_range
         .and_then(|r| haystack.slice(r.range()).map(|s| (r.min().0, s)))
         .unwrap_or_else(|| (0, haystack.full_slice()));
-
-    
 
     let offsets = get_ranges_impl(needle, slice, max_needed);
 
@@ -95,6 +96,7 @@ pub fn get_ranges(
     output
 }
 
+// TODO benchmark with previous version used in tests
 fn get_ranges_impl(
     needle: RopeSlice,
     haystack: RopeSlice,
@@ -197,7 +199,8 @@ fn get_ranges_impl(
     }
 
     macro_rules! opt_iters_match_once {
-        ($method: ident : $op_iter1: expr, $op_iter2: expr) => {
+        ($method: ident : $op_iter1: expr, $op_iter2: expr) => {{
+            perf_viz::record_guard!("opt_iters_match_once");
             match (&mut $op_iter1, &mut $op_iter2) {
                 (Some(ref mut i1), Some(ref mut i2)) => match (i1.$method(), i2.$method()) {
                     (Some(e1), Some(e2)) if e1 == e2 => true,
@@ -207,7 +210,7 @@ fn get_ranges_impl(
                 (None, None) => true,
                 _ => false,
             }
-        };
+        }};
     }
 
     /* Searching */
@@ -228,15 +231,31 @@ fn get_ranges_impl(
         matches
     };
 
-    // this avoids trapping the ropey `Chars` in a `Skip` struct, so we can still call `prev`.
+    use std::convert::TryInto;
     macro_rules! get_chars_at {
         ($rope: expr, $n: expr) => {{
             perf_viz::record_guard!("get_chars_at");
-            use std::convert::TryInto;
+            
             $n.try_into()
                 .ok()
-                .map(CharOffset)
-                .and_then(|offset| $rope.chars_at(offset))
+                .map(AbsoluteCharOffset)
+                .and_then(|offset| CharsAt::new_at(&$rope, offset))
+            
+        }};
+    }
+
+    macro_rules! set_chars_at_to {
+        ($chars_at: expr, $n: expr) => {{
+            perf_viz::record_guard!("set_chars_at_to");
+            match (
+                $n.try_into().map(AbsoluteCharOffset),
+                $chars_at.as_mut()
+            ) {
+                (Ok(offset), Some(chars_at)) => {
+                    chars_at.set_to(offset);
+                },
+                _ => {}
+            }
         }};
     }
 
@@ -244,11 +263,15 @@ fn get_ranges_impl(
     let mut j: isize = 0;
     if period_matches {
         let mut memory: isize = -1;
+        i = std::cmp::max(ell, memory) + 1;
+        let mut n_chars = get_chars_at!(needle, i);
+        let mut h_chars = get_chars_at!(haystack, i + j);
+
         while j <= haystack_len - needle_len {
             i = std::cmp::max(ell, memory) + 1;
             {
-                let mut n_chars = get_chars_at!(needle, i);
-                let mut h_chars = get_chars_at!(haystack, i + j);
+                set_chars_at_to!(n_chars, i);
+                set_chars_at_to!(h_chars, i + j);
                 while i < needle_len && opt_iters_match_once!(next: n_chars, h_chars) {
                     i += 1;
                 }
@@ -256,8 +279,8 @@ fn get_ranges_impl(
             if i >= needle_len {
                 i = ell;
                 {
-                    let mut n_chars = get_chars_at!(needle, i + 1);
-                    let mut h_chars = get_chars_at!(haystack, i + j + 1);
+                    set_chars_at_to!(n_chars, i + 1);
+                    set_chars_at_to!(h_chars, i + j + 1);
                     while i > memory && opt_iters_match_once!(prev: n_chars, h_chars) {
                         i -= 1;
                     }
@@ -274,12 +297,15 @@ fn get_ranges_impl(
         }
     } else {
         perf_viz::record_guard!("!period_matches");
+        i = ell + 1;
+        let mut n_chars = get_chars_at!(needle, i);
+        let mut h_chars = get_chars_at!(haystack, i + j);
         period = std::cmp::max(ell + 1, needle_len - ell - 1) + 1;
         while j <= haystack_len - needle_len {
             i = ell + 1;
             {
-                let mut n_chars = get_chars_at!(needle, i);
-                let mut h_chars = get_chars_at!(haystack, i + j);
+                set_chars_at_to!(n_chars, i);
+                set_chars_at_to!(h_chars, i + j);
                 while i < needle_len && opt_iters_match_once!(next: n_chars, h_chars) {
                     i += 1;
                 }
@@ -287,9 +313,8 @@ fn get_ranges_impl(
             if i >= needle_len {
                 i = ell;
                 {
-                    let mut n_chars = get_chars_at!(needle, i + 1);
-                    let mut h_chars = get_chars_at!(haystack, i + j + 1);
-
+                    set_chars_at_to!(n_chars, i + 1);
+                    set_chars_at_to!(h_chars, i + j + 1);
                     while i >= 0 && opt_iters_match_once!(prev: n_chars, h_chars) {
                         i -= 1;
                     }
@@ -306,6 +331,76 @@ fn get_ranges_impl(
 
     output
 }
+
+mod chars_at {
+    use super::*;
+    // A wrapper around a `panic_safe_rope::Chars` that suppports setting the iterator to a given char offset.
+    pub struct CharsAt<'rope> {
+        iter: panic_safe_rope::Chars<'rope>,
+        offset: AbsoluteCharOffset,
+    }
+
+    impl <'rope> CharsAt<'rope> {
+        #[perf_viz::record]
+        pub fn new_at(rope: &'rope RopeSlice<'rope>, offset: AbsoluteCharOffset) -> Option<Self> {
+            rope.chars_at(offset.into()).map(|iter| {
+                CharsAt {
+                    iter,
+                    offset,
+                }
+            })
+            
+        }
+
+        #[perf_viz::record]
+        pub fn set_to(&mut self, offset: AbsoluteCharOffset) {
+            if self.offset > offset {
+                let o: AbsoluteCharOffset = self.offset.saturating_sub(offset.0);
+                for _ in 0..o.0 {
+                    self.prev();
+                }
+            } else {
+                let o: AbsoluteCharOffset = offset.saturating_sub(self.offset.0);
+                for _ in 0..o.0 {
+                    self.next();
+                }
+            }
+
+            self.offset = offset;
+        }
+
+        #[perf_viz::record]
+        pub fn prev(&mut self) -> Option<char> {
+            let output = self.iter.prev();
+
+            if output.is_some() {
+                self.offset = self.offset.saturating_sub(CharOffset(1));
+            }
+
+            output
+        }
+    }
+
+    impl<'a> Iterator for CharsAt<'a> {
+        type Item = char;
+    
+        #[perf_viz::record]
+        fn next(&mut self) -> Option<char> {
+            let output = self.iter.next();
+
+            if output.is_some() {
+                self.offset = self.offset.saturating_add(CharOffset(1));
+            }
+
+            output
+        }
+    
+        fn size_hint(&self) -> (usize, Option<usize>) {
+            self.iter.size_hint()
+        }
+    }
+}
+use chars_at::CharsAt;
 
 #[cfg(test)]
 mod tests;

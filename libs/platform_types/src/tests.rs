@@ -1,4 +1,18 @@
 use super::*;
+use screen_positioning::{
+    attempt_to_make_xy_visible,
+    position_to_text_space,
+    screen_to_text_box,
+    text_to_text_box,
+    text_box_to_screen,
+    text_box_to_text,
+    text_space_to_position,
+    PositionRound,
+    TextBoxXY,
+    TextBoxXYWH,
+    TextSpaceXY,
+    VisibilityAttemptResult,
+};
 use proptest::{prop_compose, proptest, num::f32};
 
 use pub_arb_std::usual;

@@ -256,7 +256,7 @@ pub mod tests {
         use proptest::collection::vec;
         use pub_arb_text_buffer::{text_buffer_with_valid_cursors};
         use pub_arb_platform_types::{buffer_name, position, selectable_vec1};
-        use proptest::prelude::{prop_compose, Just};
+        use proptest::prelude::{prop_compose, Just, any};
 
         prop_compose!{
             pub fn search_results(max_len: usize)(
@@ -278,9 +278,13 @@ pub mod tests {
         prop_compose!{
             pub fn editor_buffers()(
                 buffers in selectable_vec1(editor_buffer(), 16),
+                last_non_rope_hash in any::<u64>(),
+                last_full_hash in proptest::option::of(any::<u64>()),
             ) -> EditorBuffers {
                 EditorBuffers {
-                    buffers
+                    buffers,
+                    last_full_hash,
+                    last_non_rope_hash,
                 }
             }
         }

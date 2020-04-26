@@ -2,7 +2,7 @@ mod conversion;
 mod slice;
 
 use conversion::{to_chunk, to_rope_line, to_slice_range};
-pub use slice::{RopeLine, RopeSlice, RopeSliceTrait};
+pub use slice::{RopeLine, RopeSlice, RopeSliceTrait, Bytes, Chars, Chunks};
 
 use macros::{fmt_debug, fmt_display, integer_newtype, some_if, usize_newtype};
 pub use text_pos::{AbsoluteCharOffset, CharOffset};

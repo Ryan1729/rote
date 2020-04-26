@@ -2,7 +2,7 @@ use crate::{
     conversion::{to_chunk, to_rope_line, to_slice_range},
     ByteIndex, ByteLength, CharOffset, Chunk, LineIndex, LineLength, Lines,
 };
-use ropey::iter::{Bytes, Chars, Chunks};
+pub use ropey::iter::{Bytes, Chars, Chunks};
 use std::ops::RangeBounds;
 
 /// A wrapper around `ropey::RopeSlice` that checks the panic conditions at runtime and

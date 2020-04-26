@@ -505,7 +505,7 @@ fn rust_extra_spans_should_not_give_paired_tokens_different_kinds_on(
         return
     }
 
-    let spans = Parsers::default().get_spans_with_previous(&code, ParserKind::Rust(Style::Extra), None);
+    let spans = Parsers::default().get_spans_with_previous(code.into(), ParserKind::Rust(Style::Extra), None);
     
     spans_assert!(&spans);
 
@@ -593,7 +593,7 @@ fn rust_extra_spans_should_not_give_paired_tokens_different_kinds_on_this_reduce
 }
 
 fn rust_extra_spans_produces_valid_spans_on(code: &str) {
-    let spans = Parsers::default().get_spans_with_previous(code, ParserKind::Rust(Style::Extra), None);
+    let spans = Parsers::default().get_spans_with_previous(code.into(), ParserKind::Rust(Style::Extra), None);
 
     spans_assert!(spans);
 }

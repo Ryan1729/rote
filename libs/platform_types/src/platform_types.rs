@@ -612,7 +612,7 @@ pub struct BufferViewData {
 macro_rules! bvd {
     ($chars: expr) => {{
         let mut data: BufferViewData = d!();
-        data.chars = $chars.to_owned();
+        data.chars = $chars.into();
         data
     }}
 }

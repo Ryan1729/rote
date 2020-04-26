@@ -2,7 +2,7 @@ use super::*;
 
 use platform_types::pos;
 
-use editor_types::{cur};
+use editor_types::{cur, Cursor};
 use macros::{u, dbg};
 use proptest::prelude::{proptest};
 
@@ -452,15 +452,14 @@ proptest!{
     #[test]
     fn render_updates_the_amount_of_buffers(
         mut state in arb::state(),
-        mut view in arb::view(),
     ) {
         // they can be different or the same here
-        editor_view::render(&mut state, &mut view);
+        editor_view::render(&mut state);
 
         // but they must be the same here
         assert_eq!(
             state.buffers.len(),
-            view.buffers.len(),
+            state.view.buffers.len(),
         )
     }
 }

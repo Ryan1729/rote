@@ -1,4 +1,5 @@
 use super::*;
+use screen_positioning::{FontInfo, TextBoxXY, TextBoxXYWH, TextSpaceXY};
 pub use pub_arb_g_i::{selection_adjustment, selectable_vec1};
 use arb_macros::{arb_enum};
 use proptest::collection::vec;
@@ -191,7 +192,7 @@ prop_compose!{
         spans in vec(span_view(), 0..=16),
     ) -> BufferViewData {
         BufferViewData {
-            chars,
+            chars: Rope::from(chars),
             scroll,
             cursors,
             highlights,

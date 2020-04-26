@@ -275,8 +275,8 @@ fn main() -> Res<()> {
                                     spec.spec.color = grey_scale_bright!(spec.spec.color);
                                 },
                                 MulticolourText(ref mut spec) => {
-                                    for ColouredText { ref mut color, .. } in spec.text.iter_mut() {
-                                        *color = grey_scale_bright!(*color)
+                                    for ColouredText { ref mut colour, .. } in spec.text.iter_mut() {
+                                        *colour = grey_scale_bright!(*colour)
                                     }
                                 }
                             }
