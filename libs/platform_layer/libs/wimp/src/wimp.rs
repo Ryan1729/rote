@@ -10,7 +10,7 @@ use std::time::Duration;
 use wimp_render::{get_find_replace_info, FindReplaceInfo, get_go_to_position_info, GoToPositionInfo, ViewOutput, ViewAction};
 use wimp_types::{ui, ui::{PhysicalButtonState, Navigation}, transform_status, BufferStatus, BufferStatusMap, BufferStatusTransition, CustomEvent, get_clipboard, ClipboardProvider, Dimensions, LabelledCommand, RunConsts, RunState, MenuMode};
 use file_chooser;
-use macros::{d, dbg};
+use macros::{d, dbg, extra_prints};
 use platform_types::{screen_positioning::screen_to_text_box, *};
 use shared::{Res};
 
@@ -1037,13 +1037,16 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                     }
                 }
                 Event::MainEventsCleared if running => {
+                    let index_state = r_s.view.index_state();
+                    let buffer_status_map = &mut r_s.buffer_status_map;
+
                     for _ in 0..EVENTS_PER_FRAME {
                         match editor_out_source.try_recv() {
                             Ok((v, c)) => {
                                 r_s.view.update(v);
                                 for (i, e_t) in r_s.view.edited_transitions() {
-                                    r_s.buffer_status_map.transform_at(
-                                        r_s.view.index_state(),
+                                    buffer_status_map.transform_at(
+                                        index_state,
                                         i,
                                         BufferStatusTransition::from(e_t)
                                     );
@@ -1056,11 +1059,9 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         };
                     }
 
-                    let index_state = r_s.view.index_state();
                     for _ in 0..EVENTS_PER_FRAME {
                         match edited_files_out_source.try_recv() {
                             Ok((index, transition)) => {
-                                let buffer_status_map = &mut r_s.buffer_status_map;
                                 buffer_status_map.transform_at(
                                     index_state,
                                     index,
@@ -1070,6 +1071,8 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                             _ => break,
                         };
                     }
+
+                    buffer_status_map.migrate_all(index_state);
 
                     // Queue a RedrawRequested event so we draw the updated view quickly.
                     glutin_context.window().request_redraw();

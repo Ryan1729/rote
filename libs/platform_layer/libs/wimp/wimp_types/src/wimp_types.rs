@@ -851,27 +851,7 @@ impl BufferStatusMap {
 
     pub fn insert(&mut self, state: g_i::State, current_index: g_i::Index, status: BufferStatus) {
         if let Some(current_index) = current_index.get(state) {
-            let last_state = self.last_state;
-            if Some(state) != last_state {
-                let mut keys: Vec<_> = self.map.keys().cloned().collect();
-                //currently all the state fixups work if we use this reverse order.
-                keys.sort();
-                keys.reverse();
-                for key in keys {
-                    if let Some(i) = last_state.and_then(|s| {
-                        state
-                            .migrate(s.new_index(g_i::IndexPart::or_max(key)))
-                            .and_then(|i| i.get(state))
-                    }) {
-                        let status = self.map.remove(&i).unwrap_or_default();
-                        self.map.insert(i, status);
-                    } else {
-                        self.map.remove(&key);
-                    }
-                }
-
-                self.last_state = Some(state);
-            }
+            self.migrate_all(state);
 
             self.map.insert(current_index, status);
         }
@@ -893,6 +873,30 @@ impl BufferStatusMap {
                 transition
             )
         );
+    }
+
+    pub fn migrate_all(&mut self, state: g_i::State) {
+        let last_state = self.last_state;
+        if Some(state) != last_state {
+            let mut keys: Vec<_> = self.map.keys().cloned().collect();
+            //currently all the state fixups work if we use this reverse order.
+            keys.sort();
+            keys.reverse();
+            for key in keys {
+                if let Some(i) = last_state.and_then(|s| {
+                    state
+                        .migrate(s.new_index(g_i::IndexPart::or_max(key)))
+                        .and_then(|i| i.get(state))
+                }) {
+                    let status = self.map.remove(&i).unwrap_or_default();
+                    self.map.insert(i, status);
+                } else {
+                    self.map.remove(&key);
+                }
+            }
+
+            self.last_state = Some(state);
+        }
     }
 }
 

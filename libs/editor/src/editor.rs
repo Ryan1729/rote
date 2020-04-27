@@ -14,66 +14,76 @@ use editor_buffers::{
     EditorBuffer
 };
 
-#[derive(Debug, Default)]
-struct ClipboardHistory {
-    entries: VecDeque<String>,
-    index: usize,
+mod clipboard_history {
+    #[derive(Debug, Default)]
+    struct ClipboardHistory {
+        entries: VecDeque<String>,
+        index: usize,
+    }
+    
+    const AVERAGE_SELECTION_SIZE_ESTIMATE: usize = 32;
+    
+    impl ClipboardHistory {
+        pub fn cut(&mut self, buffer: &mut TextBuffer) -> (Option<String>, Option<EditTransition>) {
+            // There probably is fewer than all 4 possibilities
+            let (selections, transition) = buffer.cut_selections();
+            let joined_selections = self.push_and_join_into_option(selections);
+
+            (joined_selections, transition)
+        }
+        pub fn copy(&mut self, buffer: &TextBuffer) -> Option<String> {
+            self.push_and_join_into_option(buffer.copy_selections())
+        }
+        pub fn paste(&mut self, buffer: &mut TextBuffer, possible_string: Option<String>) -> Option<EditTransition> {
+            let mut output = None;
+    
+            if let Some(s) = possible_string {
+                self.push_if_does_not_match_top(s)
+            }
+    
+            if let Some(s) = self.entries.get(self.index) {
+                output = buffer.insert_string(s.to_owned());
+            }
+    
+            output
+        }
+    
+        fn push_and_join_into_option(&mut self, strings: Vec<String>) -> Option<String> {
+            if strings.is_empty() {
+                None
+            } else {
+                let mut output = String::with_capacity(strings.len() * AVERAGE_SELECTION_SIZE_ESTIMATE);
+    
+                let mut sep = "";
+                for s in strings {
+                    output.push_str(sep);
+    
+                    output.push_str(&s);
+    
+                    self.push_if_does_not_match_top(s);
+    
+                    sep = "\n";
+                }
+    
+                Some(output)
+            }
+        }
+    
+        fn push_if_does_not_match_top(&mut self, to_push: String) {
+            match self.entries.get(self.index).map(|s| s != &to_push) {
+                None => {
+                    self.entries.push_back(to_push);
+                }
+                Some(true) => {
+                    self.entries.push_back(to_push);
+                    self.index += 1;
+                }
+                Some(false) => {}
+            }
+        }
+    }
 }
-
-const AVERAGE_SELECTION_SIZE_ESTIMATE: usize = 32;
-
-impl ClipboardHistory {
-    fn cut(&mut self, buffer: &mut TextBuffer) -> Option<String> {
-        self.push_and_join_into_option(buffer.cut_selections())
-    }
-    fn copy(&mut self, buffer: &TextBuffer) -> Option<String> {
-        self.push_and_join_into_option(buffer.copy_selections())
-    }
-
-    fn push_and_join_into_option(&mut self, strings: Vec<String>) -> Option<String> {
-        if strings.is_empty() {
-            None
-        } else {
-            let mut output = String::with_capacity(strings.len() * AVERAGE_SELECTION_SIZE_ESTIMATE);
-
-            let mut sep = "";
-            for s in strings {
-                output.push_str(sep);
-
-                output.push_str(&s);
-
-                self.push_if_does_not_match_top(s);
-
-                sep = "\n";
-            }
-
-            Some(output)
-        }
-    }
-
-    fn push_if_does_not_match_top(&mut self, to_push: String) {
-        match self.entries.get(self.index).map(|s| s != &to_push) {
-            None => {
-                self.entries.push_back(to_push);
-            }
-            Some(true) => {
-                self.entries.push_back(to_push);
-                self.index += 1;
-            }
-            Some(false) => {}
-        }
-    }
-
-    fn paste(&mut self, buffer: &mut TextBuffer, possible_string: Option<String>) {
-        if let Some(s) = possible_string {
-            self.push_if_does_not_match_top(s)
-        }
-
-        if let Some(s) = self.entries.get(self.index) {
-            buffer.insert_string(s.to_owned());
-        }
-    }
-}
+use clipboard_history::ClipboardHistory;
 
 #[derive(Debug, Default)]
 pub struct State {    buffers: EditorBuffers,
@@ -423,17 +433,27 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
 
     macro_rules! mark_edited_transition {
         (current, $transition: expr) => {
-            state.view.edited_transitions.push((
+            mark_edited_transition!(
                 state.buffers.current_index(),
-                $transition,
-            ));
+                $transition
+            )
         };
         (append, $transition: expr) => {
-            state.view.edited_transitions.push((
+            mark_edited_transition!(
                 state.buffers.append_index(),
-                $transition,
-            ));
+                $transition
+            )
         };
+        ($index: expr, $transition: expr) => {{
+            let transition: Option<EditedTransition> = $transition.into();
+
+            if let Some(transition) = transition {
+                state.view.edited_transitions.push((
+                    $index,
+                    transition,
+                ));
+            }
+        }};
     }
 
     u!{Input}
@@ -444,24 +464,19 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             close_menu_if_any!();
         }
         Insert(c) => text_buffer_call!(sync b{
-            b.insert(c);
-            mark_edited_transition!(current, ToEdited);
+            mark_edited_transition!(current, b.insert(c));
         }),
         Delete => text_buffer_call!(sync b {
-            b.delete();
-            mark_edited_transition!(current, ToEdited);
+            mark_edited_transition!(current, b.delete());
         }),
         DeleteLines => text_buffer_call!(sync b {
-            b.delete_lines();
-            mark_edited_transition!(current, ToEdited);
+            mark_edited_transition!(current, b.delete_lines());
         }),
         Redo => text_buffer_call!(sync b {
-            b.redo();
-            mark_edited_transition!(current, ToEdited);
+            mark_edited_transition!(current, b.redo());
         }),
         Undo => text_buffer_call!(sync b {
-            b.undo();
-            mark_edited_transition!(current, ToEdited);
+            mark_edited_transition!(current, b.undo());
         }),
         MoveAllCursors(r#move) => {
             text_buffer_call!(b{
@@ -542,10 +557,10 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             mark_edited_transition!(current, ToUnedited);
         }
         Cut => text_buffer_call!(sync b {
-            if let Some(s) = state.clipboard_history.cut(b) {
+            if let Some((s, transition)) = state.clipboard_history.cut(b) {
                 cmd = Cmd::SetClipboard(s);
+                mark_edited_transition!(current, transition);
             }
-            mark_edited_transition!(current, ToEdited);
         }),
         Copy => text_buffer_call!(b {
             if let Some(s) = state.clipboard_history.copy(b) {
@@ -554,12 +569,16 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             try_to_show_cursors!();
         }),
         Paste(op_s) => text_buffer_call!(sync b {
-            state.clipboard_history.paste(b, op_s);
-            mark_edited_transition!(current, ToEdited);
+            mark_edited_transition!(
+                current,
+                state.clipboard_history.paste(b, op_s)
+            );
         }),
         InsertNumbersAtCursors => text_buffer_call!(sync b {
-            b.insert_at_each_cursor(|i| i.to_string());
-            mark_edited_transition!(current, ToEdited);
+            mark_edited_transition!(
+                current,
+                b.insert_at_each_cursor(|i| i.to_string())
+            );
         }),
         NewScratchBuffer(data_op) => {
             state.buffers.push_and_select_new(EditorBuffer::new(
@@ -570,12 +589,14 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             mark_edited_transition!(current, ToEdited);
         }
         TabIn => {
-            text_buffer_call!(sync b.tab_in());
-            mark_edited_transition!(current, ToEdited);
+            text_buffer_call!(sync b { 
+                mark_edited_transition!(current, b.tab_in());
+            });
         }
         TabOut => {
-            text_buffer_call!(sync b.tab_out());
-            mark_edited_transition!(current, ToEdited);
+            text_buffer_call!(sync b { 
+                mark_edited_transition!(current, b.tab_out());
+            });
         }
         AddOrSelectBuffer(name, str) => {
             perf_viz::record_guard!("AddOrSelectBuffer");
@@ -647,6 +668,8 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                     (s, _) => {s}
                 };
 
+                // We know that this is a non-editor buffer, so we don't need to care about
+                // edited transitions at the current time.
                 text_buffer_call!(b{
                     if let Some(selection) = selection {
                         // For the small menu buffers I'd rather keep all the history
@@ -656,7 +679,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                         // Use a bound like this just in case, since we do actually 
                         // proiritize a sufficently quick response over a perfect history
                         for _ in 0..UPPER_LOOP_BOUND {
-                            if b.redo().is_none() {
+                            if b.redo().ran_out_of_history() {
                                 break;
                             }
                         }

@@ -446,6 +446,10 @@ impl EditedTransitions {
     pub fn push(&mut self, iet: IndexedEditedTransition) {
         self.0.push(iet);
     }
+
+    pub fn clear(&mut self) {
+        self.0.clear();
+    }
 }
 
 impl IntoIterator for EditedTransitions {

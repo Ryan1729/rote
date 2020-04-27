@@ -89,8 +89,10 @@ pub fn render(
     } = state;
     
     if buffers.should_render_buffer_views() {
+        let bufs = buffers.buffers();
+
         view.buffers.replace_with_mapped(
-            buffers.buffers(),
+            bufs,
             |editor_buffer| {
                 perf_viz::record_guard!("render BufferView");
                 let name = &editor_buffer.name;
@@ -101,6 +103,12 @@ pub fn render(
                 }
             }
         );
+
+        view.edited_transitions.clear()
+
+        for b in bufs.iter() {
+            b
+        }
     }
 
     perf_viz::start_record!("write view.status_line");

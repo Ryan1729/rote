@@ -33,7 +33,6 @@ impl SearchResults {
 
     #[perf_viz::record]
     pub fn refresh(&mut self, needle: RopeSlice, haystack: &Rope) {
-        dbg!("refresh");
         let mut new = Self::new(needle, haystack);
 
         let old_range = self.ranges.get(self.current_range);

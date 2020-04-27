@@ -185,7 +185,7 @@ impl State {
         self.advance(Invalidation::MovedTo(source, target));
     }
 
-    /// Attempt to convert an index from a given gerneation to the current generation.
+    /// Attempt to convert an index from a given generation to the current generation.
     pub fn migrate(self, index: Index) -> Option<Index> {
         index.get_index_part(self).map(|i| self.new_index(i))
     }
