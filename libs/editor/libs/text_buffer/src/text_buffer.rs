@@ -230,40 +230,42 @@ fn char_to_string(c: char) -> String {
     c.encode_utf8(&mut buf).to_owned()
 }
 
+pub type PossibleEditedTransition = Option<EditedTransition>;
+
 impl TextBuffer {
     #[perf_viz::record]
-    pub fn insert(&mut self, c: char) {
-        self.insert_string(char_to_string(c));
+    pub fn insert(&mut self, c: char) -> PossibleEditedTransition {
+        self.insert_string(char_to_string(c))
     }
 
     #[perf_viz::record]
-    pub fn insert_string(&mut self, s: String) {
+    pub fn insert_string(&mut self, s: String) -> PossibleEditedTransition {
         self.record_edit(
             edit::get_insert_edit(&self.rope, &self.cursors, |_| s.clone())
-        );
+        )
     }
 
-    pub fn insert_at_each_cursor<F>(&mut self, func: F)
+    pub fn insert_at_each_cursor<F>(&mut self, func: F) -> PossibleEditedTransition
     where
         F: Fn(usize) -> String,
     {
         self.record_edit(
             edit::get_insert_edit(&self.rope, &self.cursors, func)
-        );
+        )
     }
 
     #[perf_viz::record]
-    pub fn delete(&mut self) {
+    pub fn delete(&mut self) -> PossibleEditedTransition {
         self.record_edit(
             edit::get_delete_edit(&self.rope, &self.cursors)
-        );
+        )
     }
 
     #[perf_viz::record]
-    pub fn delete_lines(&mut self) {
+    pub fn delete_lines(&mut self) -> PossibleEditedTransition {
         self.record_edit(
             edit::get_delete_lines_edit(&self.rope, &self.cursors)
-        );
+        )
     }
 
     pub fn move_all_cursors(&mut self, r#move: Move) {
@@ -290,12 +292,10 @@ impl TextBuffer {
         self.get_selections_and_cut_edit().0
     }
 
-    pub fn cut_selections(&mut self) -> Vec<String> {
-        let (output, edit) = self.get_selections_and_cut_edit();
+    pub fn cut_selections(&mut self) -> (Vec<String>, PossibleEditedTransition) {
+        let (strings, edit) = self.get_selections_and_cut_edit();
 
-        self.record_edit(edit);
-
-        output
+        (strings, self.record_edit(edit))
     }
 
     fn get_selections_and_cut_edit(&self) -> (Vec<String>, Edit) {
@@ -490,21 +490,25 @@ impl TextBuffer {
         );
     }
 
-    pub fn tab_in(&mut self) {
+    pub fn tab_in(&mut self) -> PossibleEditedTransition {
         self.record_edit(
             edit::get_tab_in_edit(&self.rope, &self.cursors),
-        );
+        )
     }
 
-    pub fn tab_out(&mut self) {
+    pub fn tab_out(&mut self) -> PossibleEditedTransition {
         self.record_edit(
             edit::get_tab_out_edit(&self.rope, &self.cursors),
-        );
+        )
     }
 
     #[perf_viz::record]
-    fn record_edit(&mut self, edit: Edit) {
-        self.apply_edit(edit, ApplyKind::Record)
+    fn record_edit(&mut self, edit: Edit) -> PossibleEditedTransition {
+        let old_editedness = self.editedness();
+
+        self.apply_edit(edit, ApplyKind::Record);
+
+        change!(old_editedness, self.editedness()).into()
     }
 
     #[perf_viz::record]

@@ -1,18 +1,30 @@
 use super::*;
-use crate::move_cursor::last_position;
-use crate::tests::{
-    arb::{TestEdit, TestEditSpec, *},
-    deep_clone, SOME_AMOUNT, *,
+use crate::{
+    assert_text_buffer_eq_ignoring_history,
+    curs,
+    edit,
+    move_cursor::last_position,
+    r, 
+    t_b,
+    tests::{
+        arb::{TestEdit, TestEditSpec, *},
+        deep_clone, SOME_AMOUNT, *,
+    },
+    ApplyKind,
+    TextBuffer,
 };
 use editor_types::{cur, Cursor};
 use platform_types::{CursorState, vec1};
-
 use arb::get_counts;
 
-use std::collections::HashSet;
 use pretty_assertions::assert_eq;
 use proptest::prelude::*;
 use proptest::{option, prop_compose, proptest};
+
+use std::{
+    collections::HashSet,
+    borrow::Borrow,
+};
 
 #[test]
 fn line_indicies_touched_by_counts_the_line_ahead_if_the_newline_is_included() {
@@ -589,6 +601,8 @@ fn tab_out_acts_as_expected_on_this_further_simplified_example_based_on_the_abov
 }
 
 fn get_expected_tab_out_edit() -> Edit {
+    let large_rope = get_large_rope();
+
     Edit {
         range_edits: vec1![
             RangeEdits {
@@ -607,15 +621,13 @@ fn get_expected_tab_out_edit() -> Edit {
             },
         ],
         cursors: Change {
-            old: Cursors {
-                cursors: vec1![
-                    cur!{l 1 o 4 h l 0 o 0}
-                ],
+            old: curs!{
+                large_rope,
+                cur!{l 1 o 4 h l 0 o 0},
             },
-            new: Cursors {
-                cursors: vec1![
-                    cur!{l 1 o 0 h l 0 o 0},
-                ],
+            new: curs!{
+                large_rope,
+                cur!{l 1 o 0 h l 0 o 0},
             },
         },
     }
@@ -1502,7 +1514,19 @@ fn tab_in_does_what_is_expected_with_this_selection() {
     assert_text_buffer_eq_ignoring_history!(buffer, expected_buffer);
 }
 
+// Large enough that the cursors don't get clamped.
+fn get_large_rope() -> Rope {
+    r!(
+    r"1234567890abcdef
+1234567890abcdef
+1234567890abcdef
+1234567890abcdef"
+    )
+}
+
 fn get_expected_tab_in_edit() -> Edit {
+    let large_rope = get_large_rope();
+
     Edit {
         range_edits: 
             vec1![
@@ -1522,17 +1546,13 @@ fn get_expected_tab_in_edit() -> Edit {
                 },
             ],
         cursors: Change {
-            old: Cursors {
-                cursors: 
-                    vec1![
-                        cur!{l 0 o 1 h l 0 o 0},
-                    ],
+            old: curs!{
+                large_rope,
+                cur!{l 0 o 1 h l 0 o 0},
             },
-            new: Cursors {
-                cursors: 
-                    vec1![
-                        cur!{l 0 o 5 h l 0 o 4},
-                    ],
+            new: curs!{
+                large_rope,
+                cur!{l 0 o 5 h l 0 o 4},
             },
         },
     }
@@ -1843,7 +1863,7 @@ fn delete_lines_deletes_the_expected_amount_of_lines_on(mut buffer: TextBuffer) 
 
     let mut line_indicies = HashSet::with_capacity(buffer.rope.len_lines().0);
 
-    for c in buffer.borrow_cursors_vec1().iter() {
+    for c in buffer.borrow_cursors().iter() {
         let offsets = offset_pair(&buffer.rope, c);
         match offsets {
             (Some(o1), offset2) => {

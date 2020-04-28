@@ -328,7 +328,7 @@ pub type Counts = HashMap<char, CountNumber>;
 pub fn get_counts(buffer: &TextBuffer) -> Counts {
     let mut output = HashMap::with_capacity(buffer.len());
 
-    for c in buffer.chars() {
+    for c in buffer.borrow_rope().chars() {
         let count = output.entry(c).or_insert(0);
         *count += 1;
     }
@@ -385,10 +385,10 @@ impl TestEdit {
     pub fn apply_ref(buffer: &mut TextBuffer, edit: &TestEdit) {
         use TestEdit::*;
         match edit {
-            Insert(c) => buffer.insert(*c),
-            InsertString(s) => buffer.insert_string(s.to_owned()),
-            Delete => buffer.delete(),
-            DeleteLines => buffer.delete_lines(),
+            Insert(c) => { buffer.insert(*c); },
+            InsertString(s) => { buffer.insert_string(s.to_owned()); },
+            Delete => { buffer.delete(); },
+            DeleteLines => { buffer.delete_lines(); },
             MoveAllCursors(r#move) => buffer.move_all_cursors(*r#move),
             ExtendSelectionForAllCursors(r#move) => buffer.extend_selection_for_all_cursors(*r#move),
             MoveCursors(index, r#move) => buffer.move_cursor(*index, *r#move),
@@ -402,10 +402,10 @@ impl TestEdit {
             Cut => {
                 buffer.cut_selections();
             }
-            InsertNumbersAtCursors => buffer.insert_at_each_cursor(|i| i.to_string()),
-            TabIn => buffer.tab_in(),
-            TabOut => buffer.tab_out(),
-        }
+            InsertNumbersAtCursors => { buffer.insert_at_each_cursor(|i| i.to_string()); },
+            TabIn => { buffer.tab_in(); },
+            TabOut => { buffer.tab_out(); },
+        };
     }
 
     pub fn apply_with_counts(buffer: &mut TextBuffer, counts: &mut Counts, edit: &TestEdit) {
@@ -433,21 +433,21 @@ impl TestEdit {
         match edit {
             Insert(c) => {
                 decrement_strings(counts, &buffer.copy_selections());
-                for _ in 0..buffer.borrow_cursors_vec1().len() {
+                for _ in 0..buffer.borrow_cursors().len() {
                     increment_char(counts, *c);
                 }
             },
             InsertString(s) => {
                 decrement_strings(counts, &buffer.copy_selections());
-                for _ in 0..buffer.borrow_cursors_vec1().len() {
+                for _ in 0..buffer.borrow_cursors().len() {
                     increment_string(counts, s);
                 }
             },
             Delete => {
-                apply_delete_edit(counts, buffer, buffer.borrow_cursors_vec1().clone());
+                apply_delete_edit(counts, buffer, buffer.borrow_cursors().get_cloned_cursors());
             },
             DeleteLines => {
-                let mut cursor_vec = buffer.borrow_cursors_vec1().clone();
+                let mut cursor_vec = buffer.borrow_cursors().get_cloned_cursors();
                 for c in cursor_vec.iter_mut() {
                     edit::extend_cursor_to_cover_line(c, &buffer.rope);
                 }
@@ -461,12 +461,12 @@ impl TestEdit {
             | SelectCharTypeGrouping(_, _) | SelectAll => {},
             InsertNumbersAtCursors => {
                 decrement_strings(counts, &buffer.copy_selections());
-                for i in 0..buffer.borrow_cursors_vec1().len() {
+                for i in 0..buffer.borrow_cursors().len() {
                     increment_string(counts, &i.to_string());
                 }
             },
             TabIn => {
-                let selections: Vec<_> = buffer.borrow_cursors_vec1()
+                let selections: Vec<_> = buffer.borrow_cursors()
                     .iter()
                     .map(|cur| 
                         match offset_pair(&buffer.rope, &cur) {

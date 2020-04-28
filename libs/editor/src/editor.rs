@@ -4,8 +4,7 @@ use platform_types::{screen_positioning::*, *};
 use parsers::{Parsers};
 
 use std::path::PathBuf;
-use std::collections::VecDeque;
-use text_buffer::{TextBuffer};
+use text_buffer::{TextBuffer, PossibleEditedTransition};
 
 mod editor_view;
 mod editor_buffers;
@@ -15,8 +14,11 @@ use editor_buffers::{
 };
 
 mod clipboard_history {
+    use super::*;
+    use std::collections::VecDeque;
+
     #[derive(Debug, Default)]
-    struct ClipboardHistory {
+    pub struct ClipboardHistory {
         entries: VecDeque<String>,
         index: usize,
     }
@@ -24,8 +26,7 @@ mod clipboard_history {
     const AVERAGE_SELECTION_SIZE_ESTIMATE: usize = 32;
     
     impl ClipboardHistory {
-        pub fn cut(&mut self, buffer: &mut TextBuffer) -> (Option<String>, Option<EditTransition>) {
-            // There probably is fewer than all 4 possibilities
+        pub fn cut(&mut self, buffer: &mut TextBuffer) -> (Option<String>, PossibleEditedTransition) {
             let (selections, transition) = buffer.cut_selections();
             let joined_selections = self.push_and_join_into_option(selections);
 
@@ -34,7 +35,7 @@ mod clipboard_history {
         pub fn copy(&mut self, buffer: &TextBuffer) -> Option<String> {
             self.push_and_join_into_option(buffer.copy_selections())
         }
-        pub fn paste(&mut self, buffer: &mut TextBuffer, possible_string: Option<String>) -> Option<EditTransition> {
+        pub fn paste(&mut self, buffer: &mut TextBuffer, possible_string: Option<String>) -> Option<EditedTransition> {
             let mut output = None;
     
             if let Some(s) = possible_string {
@@ -557,8 +558,12 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             mark_edited_transition!(current, ToUnedited);
         }
         Cut => text_buffer_call!(sync b {
-            if let Some((s, transition)) = state.clipboard_history.cut(b) {
+            let (s, transition) = state.clipboard_history.cut(b);
+            if let Some(s) = s {
                 cmd = Cmd::SetClipboard(s);
+            }
+
+            if let Some(transition) = transition {
                 mark_edited_transition!(current, transition);
             }
         }),

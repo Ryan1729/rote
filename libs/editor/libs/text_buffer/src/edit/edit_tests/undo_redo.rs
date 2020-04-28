@@ -1,6 +1,9 @@
 use super::*;
 
+use crate::{assert_text_buffer_rope_eq, assert_text_buffer_eq_ignoring_history, char_to_string, t_b, InsertString, TextBuffer};
 use pretty_assertions::assert_eq;
+
+use std::borrow::Borrow;
 
 #[allow(dead_code)]
 fn arb_edit_from_buffer(text_buffer: TextBuffer) -> impl Strategy<Value = Edit> {

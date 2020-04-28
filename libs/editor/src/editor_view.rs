@@ -103,12 +103,6 @@ pub fn render(
                 }
             }
         );
-
-        view.edited_transitions.clear()
-
-        for b in bufs.iter() {
-            b
-        }
     }
 
     perf_viz::start_record!("write view.status_line");

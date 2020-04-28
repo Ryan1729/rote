@@ -92,7 +92,7 @@ fn update_and_render_shows_the_cursor_when_pressing_home_on(text: &str, buffer_x
     {
         let buffer = get_text_buffer_mut!(state, BufferIdKind::Text).unwrap();
         assert_eq!(
-            buffer.borrow_cursors_vec1()[0], cur!{pos!{l 0, o text.len()}},
+            *buffer.borrow_cursors().first(), cur!{pos!{l 0, o text.len()}},
             "*** Cursor Precondition failure! ***"
         );
         assert_ne!(buffer.scroll.x, 0.0, "*** Scroll X Precondition failure! ***");
@@ -144,7 +144,7 @@ fn update_and_render_shows_the_cursor_when_searching_in_this_case() {
     {
         let buffer = get_text_buffer_mut!(state, BufferIdKind::Text).unwrap();
         assert_eq!(
-            buffer.borrow_cursors_vec1()[0], cur!{pos!{l 0 o 0}},
+            *buffer.borrow_cursors().first(), cur!{pos!{l 0 o 0}},
             "*** Cursor Precondition failure! ***"
         );
         assert_eq!(buffer.scroll.y, 0.0, "*** Scroll Y Precondition failure! ***");
@@ -193,7 +193,7 @@ fn passes_preconditions(text: &str, buffer_xywh: TextBoxXYWH, char_dim: CharDim)
 
     let buffer = get_text_buffer_mut!(state).unwrap();
 
-    buffer.borrow_cursors_vec1()[0] == cur!{pos!{l 0, o text.len()}}
+    *buffer.borrow_cursors().first() == cur!{pos!{l 0, o text.len()}}
     && buffer.scroll.x != 0.0
 }
 
@@ -342,7 +342,7 @@ fn update_and_render_resets_the_cursor_states_in_this_case() {
 
     {
         let buffer = get_text_buffer_mut!(state, BufferIdKind::FileSwitcher).unwrap();
-        for c in buffer.borrow_cursors_vec1() {
+        for c in buffer.borrow_cursors().iter() {
             assert_eq!(
                 c.state,
                 CursorState::PressedAgainstWall(Move::Down),
@@ -362,7 +362,7 @@ fn update_and_render_resets_the_cursor_states_in_this_case() {
 
     // Assert
     let buffer = get_text_buffer_mut!(state, BufferIdKind::FileSwitcher).unwrap();
-    for c in buffer.borrow_cursors_vec1() {
+    for c in buffer.borrow_cursors().iter() {
         assert_eq!(
             c.state,
             d!(),
@@ -442,7 +442,7 @@ proptest!{
 
 #[allow(dead_code)]
 fn single_cursor(buffer: &TextBuffer) -> Cursor {
-    let cursors = buffer.borrow_cursors_vec1();
+    let cursors = buffer.borrow_cursors();
     assert_eq!(cursors.len(), 1);
 
     cursors.first().clone()

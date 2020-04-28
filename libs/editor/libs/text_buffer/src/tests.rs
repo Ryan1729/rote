@@ -4,6 +4,7 @@ use super::{cursor_assert, r, t_b, *};
 
 use arb::TestEdit;
 use editor_types::{cur};
+use rope_pos::{OffsetPair};
 use platform_types::{pos, CursorState, vec1};
 use pretty_assertions::assert_eq;
 use proptest::prelude::*;
@@ -529,7 +530,7 @@ fn cursor_vec1_maintains_invariants_detects_invariant_violations() {
 }
 
 fn cursors_maintains_invariants(rope: &Rope, cursors: &Cursors) -> u8 {
-    cursor_vec1_maintains_invariants(rope, &cursors.cursors)
+    cursor_vec1_maintains_invariants(rope, cursors.borrow_cursors())
 }
 
 macro_rules! assert_cursor_invarints_maintained {
@@ -687,7 +688,7 @@ fn cursors_new_merges_these_identical_cursors_correctly() {
         ],
     );
 
-    assert_eq!(cursors.cursors, vec1![Cursor::new(pos! {l 1 o 2}), d!()]);
+    assert_eq!(cursors.borrow_cursors(), &vec1![Cursor::new(pos! {l 1 o 2}), d!()]);
 }
 
 #[test]
@@ -785,7 +786,7 @@ fn copy_selections_works_in_this_case_generated_elsewhere() {
 }
 
 fn single_cursor(buffer: &TextBuffer) -> Cursor {
-    let cursors = buffer.borrow_cursors_vec1();
+    let cursors = buffer.borrow_cursors();
     assert_eq!(cursors.len(), 1);
 
     cursors.first().clone()
