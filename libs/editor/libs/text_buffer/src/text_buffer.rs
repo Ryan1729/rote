@@ -1,6 +1,6 @@
 use crate::move_cursor::{forward, get_next_selection_point, get_previous_selection_point};
 use editor_types::{Cursor, SetPositionAction};
-use macros::{d, some_or};
+use macros::{d, some_or, u};
 use panic_safe_rope::{ByteIndex, LineIndex, Rope, RopeSlice, RopeSliceTrait};
 use platform_types::{*, screen_positioning::*};
 use rope_pos::{AbsoluteCharOffsetRange, clamp_position, in_cursor_bounds, nearest_valid_position_on_same_line};
@@ -10,219 +10,13 @@ use std::cmp::{max, min};
 use std::collections::VecDeque;
 
 mod edit;
-use edit::{Edit};
+use edit::{Applier, Change, Edit};
 
 mod move_cursor;
-use rope_pos::{char_offset_to_pos, pos_to_char_offset};
+use rope_pos::{char_offset_to_pos, pos_to_char_offset, offset_pair, strict_offset_pair};
 
-#[derive(Clone, Debug, Default, Hash, PartialEq, Eq)]
-pub struct Cursors {
-    // Should be sorted in reverse order (positions later in a test file will have lower indexes)
-    // and no two cursors should be overlapping or have overlapping highlight regions. The order
-    // ensures that the edit don't screw the indexes up, and the lack of overlaps ensures that
-    // edits don't overwrite each other in a single action.
-    cursors: Vec1<Cursor>,
-}
-
-#[macro_export]
-macro_rules! curs {
-    ($rope: expr, $($cursor_elements: expr),+ $(,)?) => (
-        Cursors::new(&$rope, vec1![$($cursor_elements)+])
-    );
-}
-
-impl Cursors {
-    /// We require a rope parameter only so we can make sure the cursors are within the given
-    /// rope's bounds.
-    pub fn new(rope: &Rope, mut cursors: Vec1<Cursor>) -> Self {
-        cursors.sort();
-        cursors.reverse();
-
-        Self::clamp_vec_to_rope(&mut cursors, rope);
-
-        Self { cursors }
-    }
-
-    pub fn mapped_ref<F, Out>(&self, mapper: F) -> Vec1<Out>
-    where
-        F: FnMut(&Cursor) -> Out,
-    {
-        self.cursors.mapped_ref(mapper)
-    }
-
-    #[perf_viz::record]
-    pub fn get_cloned_cursors(&self) -> Vec1<Cursor> {
-        self.cursors.clone()
-    }
-
-    pub fn len(&self) -> usize {
-        self.cursors.len()
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = &Cursor> {
-        self.cursors.iter()
-    }
-
-    pub fn first(&self) -> &Cursor {
-        self.cursors.first()
-    }
-
-    pub fn last(&self) -> &Cursor {
-        self.cursors.last()
-    }
-
-    pub fn clamp_to_rope(&mut self, rope: &Rope) {
-        Self::clamp_vec_to_rope(&mut self.cursors, rope)
-    }
-
-    fn clamp_vec_to_rope(cursors: &mut Vec1<Cursor>, rope: &Rope) {
-        for cursor in cursors.iter_mut() {
-            let (p_op, h_op) = strict_offset_pair(rope, cursor);
-
-            if h_op.is_none() {
-                if let Some(h) = cursor.get_highlight_position() {
-                    cursor.set_highlight_position(clamp_position(rope, h));
-                }
-            }
-
-            if p_op.is_none() {
-                let clamped = clamp_position(rope, cursor.get_position());
-                cursor.set_position_custom(
-                    clamped,
-                    SetPositionAction::ClearHighlightOnlyIfItMatchesNewPosition,
-                );
-
-                if h_op.is_none() {
-                    cursor.set_highlight_position(clamped);
-                }
-            }
-        }
-
-        Self::merge_overlaps(cursors);
-    }
-
-    /// Assumes that the cursors are sorted
-    fn merge_overlaps(cursors: &mut Vec1<Cursor>) {
-        let mut len;
-
-        while {
-            len = cursors.len();
-            Self::merge_overlaps_once(cursors);
-
-            len > cursors.len()
-        } {}
-    }
-
-    fn merge_overlaps_once(cursors: &mut Vec1<Cursor>) {
-        let mut keepers: Vec<Cursor> = Vec::with_capacity(cursors.len());
-        for cursor in cursors.iter() {
-            if let Some(last) = keepers.last_mut() {
-                use std::cmp::Ordering::*;
-
-                #[derive(Copy, Clone, Debug)]
-                enum MaxWas {
-                    P,
-                    H,
-                }
-
-                macro_rules! get_tuple {
-                    ($cursor: ident) => {{
-                        let p = $cursor.get_position();
-                        let h = $cursor.get_highlight_position().unwrap_or(p.clone());
-                        match p.cmp(&h) {
-                            o @ Less | o @ Equal => (p, h, o),
-                            Greater => (h, p, Greater),
-                        }
-                    }};
-                }
-
-                // We intuitively expect something called `c1` to be <= `c2`. Or at least the
-                // opposite is counter-intuitive. Because the Vec1 should be in reverse order,
-                // we swap the order here.
-                let c1: Cursor = cursor.clone();
-                let c2: Cursor = (*last).clone();
-
-                match (get_tuple!(c1), get_tuple!(c2)) {
-                    ((c1_min, c1_max, c1_ordering), (c2_min, c2_max, c2_ordering))
-                        // if they overlap
-                        if (c1_min <= c2_min && c1_max >= c2_min)
-                        || (c1_min <= c2_max && c1_max >= c2_max) =>
-                    {
-                        // The merged cursor should highlight the union of the areas highlighed by
-                        // the two cursors.
-
-                        let max_was = match (c1_max.cmp(&c2_max), c1_ordering, c2_ordering) {
-                            (Greater, Greater, _) => MaxWas::P,
-                            (Greater, Less, _)|(Greater, Equal, _) => MaxWas::H,
-                            (Less, _, Greater) => MaxWas::P,
-                            (Less, _, Less)|(Less, _, Equal) => MaxWas::H,
-                            (Equal, Greater, _) => MaxWas::P,
-                            // If the two cursors are the same it doesn't matter which one we keep.
-                            (Equal, _, _) => MaxWas::H
-                        };
-
-                        match max_was {
-                            MaxWas::P => {
-                                let mut merged = Cursor::new(max(c1_max, c2_max));
-                                merged.set_highlight_position(min(c1_min, c2_min));
-                                *last = merged;
-                            }
-                            MaxWas::H => {
-                                let mut merged = Cursor::new(min(c1_min, c2_min));
-                                merged.set_highlight_position(max(c1_max, c2_max));
-                                *last = merged;
-                            }
-                        }
-                    }
-                    _ => keepers.push(cursor.clone()),
-                }
-            } else {
-                keepers.push(cursor.clone());
-            }
-        }
-
-        // It's probably possible to write an in-place version of this function, or at least to
-        // reuse the memory allocation but currently that seems like premature optimization.
-        if let Ok(cs) = Vec1::try_from_vec(keepers) {
-            *cursors = cs;
-        }
-    }
-
-    fn reset_states(&mut self) {
-        for c in self.cursors.iter_mut() {
-            c.state = d!();
-        }
-    }
-}
-
-type OffsetPair = (Option<AbsoluteCharOffset>, Option<AbsoluteCharOffset>);
-
-/// This will return `Some` if the offset is one-past the last index.
-// TODO do we actually need both of these? Specifically, will `strict_offset_pair` work everywhere?
-fn offset_pair(rope: &Rope, cursor: &Cursor) -> OffsetPair {
-    (
-        pos_to_char_offset(rope, &cursor.get_position()),
-        cursor
-            .get_highlight_position()
-            .and_then(|p| pos_to_char_offset(rope, &p)),
-    )
-}
-
-/// This will return `None` if the offset is one-past the last index.
-fn strict_offset_pair(rope: &Rope, cursor: &Cursor) -> OffsetPair {
-    let filter_out_of_bounds =
-        |position: Position| macros::some_if!(in_cursor_bounds(rope, position) => position);
-
-    (
-        Some(cursor.get_position())
-            .and_then(filter_out_of_bounds)
-            .and_then(|p| pos_to_char_offset(rope, &p)),
-        cursor
-            .get_highlight_position()
-            .and_then(filter_out_of_bounds)
-            .and_then(|p| pos_to_char_offset(rope, &p)),
-    )
-}
+mod cursors;
+use cursors::Cursors;
 
 #[derive(Clone, Debug, Default)]
 pub struct TextBuffer {
@@ -257,6 +51,29 @@ impl TextBuffer {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+enum Editedness {
+    Edited,
+    Unedited
+}
+
+impl From<Change<Editedness>> for Option<EditedTransition> {
+    fn from(c: Change<Editedness>) -> Self {
+        u!{Editedness, EditedTransition}
+        match c {
+            change!(Edited, Edited) | change!(Unedited, Unedited) => None,
+            change!(Edited, Unedited) => Some(ToUnedited),
+            change!(Unedited, Edited) => Some(ToEdited),
+        }
+    }
+}
+
+impl TextBuffer {
+    fn editedness(&self) -> Editedness {
+        Editedness::Edited
+    }
+}
+
 impl TextBuffer {
     pub fn len(&self) -> usize {
         self.borrow_rope().chars().count()
@@ -272,10 +89,6 @@ impl TextBuffer {
 
     pub fn borrow_cursors(&self) -> &Cursors {
         &self.cursors
-    }
-
-    pub fn borrow_cursors_vec1(&self) -> &Vec1<Cursor> {
-        &self.cursors.cursors
     }
 
     pub fn reset_cursor_states(&mut self) {
@@ -696,10 +509,10 @@ impl TextBuffer {
 
     #[perf_viz::record]
     fn apply_edit(&mut self, edit: Edit, kind: ApplyKind) {
-        let applier = EditApplier {
-            rope: &mut self.rope,
-            cursors: &mut self.cursors,
-        };
+        let applier = Applier::new(
+            &mut self.rope,
+            &mut self.cursors
+        );
         edit::apply(applier, &edit);
 
         match kind {
@@ -715,7 +528,7 @@ impl TextBuffer {
     // some of these are convenience methods for tests
     #[allow(dead_code)]
     fn set_cursors(&mut self, new: Cursors) {
-        set_cursors(&self.rope, &mut self.cursors, new);
+        cursors::set_cursors(&self.rope, &mut self.cursors, new);
     }
 
     #[allow(dead_code)]
@@ -724,48 +537,76 @@ impl TextBuffer {
     }
 }
 
-fn set_cursors(rope: &Rope, pointer: &mut Cursors, mut new: Cursors) {
-    new.clamp_to_rope(rope);
-    *pointer = new;
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum HistoryNavOutcome {
+    NoTransition,
+    Transition(EditedTransition),
+    RanOutOfHistory,
 }
 
-/// We want to ensure that the cursors are always kept within bounds, meaning the whenever they
-/// are changed they need to be clamped to the range of the rope. But we want to have a different
-/// module handle the actual changes. So we give the `edit` module an instance of this struct
-/// which allows editing the rope and cursors in a controlled fashion.
-pub struct EditApplier<'rope, 'cursors> {
-    pub rope: &'rope mut Rope,
-    cursors: &'cursors mut Cursors,
-}
-
-impl<'rope, 'cursors> EditApplier<'rope, 'cursors> {
-    fn set_cursors(&mut self, new: Cursors) {
-        set_cursors(self.rope, self.cursors, new);
+impl From<Change<Editedness>> for HistoryNavOutcome {
+    fn from(c: Change<Editedness>) -> Self {
+        u!{HistoryNavOutcome, Editedness, EditedTransition}
+        match c {
+            change!(Edited, Edited) | change!(Unedited, Unedited) => NoTransition,
+            change!(Edited, Unedited) => Transition(ToUnedited),
+            change!(Unedited, Edited) => Transition(ToEdited),
+        }
     }
 }
 
-impl<'rope> TextBuffer {
-    pub fn chars(&'rope self) -> impl Iterator<Item = char> + 'rope {
-        self.rope.chars()
+impl From<HistoryNavOutcome> for Option<EditedTransition> {
+    fn from(hno: HistoryNavOutcome) -> Self {
+        u!{HistoryNavOutcome}
+        match hno {
+            RanOutOfHistory | NoTransition => None,
+            Transition(t) => Some(t)
+        }
+    }
+}
+
+impl HistoryNavOutcome {
+    pub fn ran_out_of_history(&self) -> bool {
+        u!{HistoryNavOutcome}
+        match self {
+            RanOutOfHistory => true,
+            _ => false
+        }
     }
 }
 
 impl TextBuffer {
-    /// returns a `Some` if there was history to redo.
-    pub fn redo(&mut self) -> Option<()> {
-        self.history.get(self.history_index).cloned().map(|edit| {
+    pub fn redo(&mut self) -> HistoryNavOutcome {
+        u!{HistoryNavOutcome}
+        let old_editedness = self.editedness();
+
+        if let Some(edit) = self.history.get(self.history_index).cloned() {
             self.apply_edit(edit, ApplyKind::Playback);
             self.history_index += 1;
-        })
+
+            change!(old_editedness, self.editedness()).into()
+        } else {
+            RanOutOfHistory
+        }
     }
 
-    /// returns a `Some` if there was history to undo.
-    pub fn undo(&mut self) -> Option<()> {
-        let new_index = self.history_index.checked_sub(1)?;
-        self.history.get(new_index).cloned().map(|edit| {
+    pub fn undo(&mut self) -> HistoryNavOutcome {
+        u!{HistoryNavOutcome}
+        let old_editedness = self.editedness();
+
+        let opt = self.history_index.checked_sub(1)
+            .and_then(|new_index|
+                self.history.get(new_index).cloned().map(|e| (new_index, e))
+            );
+
+        if let Some((new_index, edit)) = opt {
             self.apply_edit(!edit, ApplyKind::Playback);
             self.history_index = new_index;
-        })
+
+            change!(old_editedness, self.editedness()).into()
+        } else {
+            RanOutOfHistory
+        } 
     }
 
     pub fn has_no_edits(&self) -> bool {

@@ -1,4 +1,4 @@
-use editor_types::{Position};
+use editor_types::{Position, Cursor};
 use macros::CheckedSub;
 use panic_safe_rope::*;
 
@@ -284,6 +284,38 @@ pub fn get_first_non_white_space_offset_in_range<R: std::ops::RangeBounds<CharOf
     }
 
     None
+}
+
+pub type OffsetPair = (Option<AbsoluteCharOffset>, Option<AbsoluteCharOffset>);
+
+/*
+/// This will return `Some` if the offset is one-past the last index.
+// TODO do we actually need both of these? Specifically, will `strict_offset_pair` work everywhere?
+fn offset_pair(rope: &Rope, cursor: &Cursor) -> OffsetPair {
+    (
+        pos_to_char_offset(rope, &cursor.get_position()),
+        cursor
+            .get_highlight_position()
+            .and_then(|p| pos_to_char_offset(rope, &p)),
+    )
+}
+*/
+pub use strict_offset_pair as offset_pair;
+
+/// This will return `None` if the offset is one-past the last index.
+pub fn strict_offset_pair(rope: &Rope, cursor: &Cursor) -> OffsetPair {
+    let filter_out_of_bounds =
+        |position: Position| macros::some_if!(in_cursor_bounds(rope, position) => position);
+
+    (
+        Some(cursor.get_position())
+            .and_then(filter_out_of_bounds)
+            .and_then(|p| pos_to_char_offset(rope, &p)),
+        cursor
+            .get_highlight_position()
+            .and_then(filter_out_of_bounds)
+            .and_then(|p| pos_to_char_offset(rope, &p)),
+    )
 }
 
 #[cfg(test)]

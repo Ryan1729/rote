@@ -431,7 +431,7 @@ pub struct GoToPositionView {
     pub go_to_position: BufferViewData,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum EditedTransition {
     ToEdited,
     ToUnedited,

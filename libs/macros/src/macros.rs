@@ -416,11 +416,15 @@ macro_rules! d {
 /// in cases where it is used in more than `"macros::{u};".len()/4 == 3` usages.
 #[macro_export]
 macro_rules! u {
-    ($vis: vis $path: path) => {
-        $vis use $path::*;
+    ($vis: vis $($path: path),+) => {
+        $(
+            $vis use $path::*;
+        )+
     };
-    ($path: path) => {
-        use $path::*;
+    ($($path: path),+) => {
+        $(
+            use $path::*;
+        )+
     };
     () => {
         /// This seems like the most common use case that that is not specific to a particular file.

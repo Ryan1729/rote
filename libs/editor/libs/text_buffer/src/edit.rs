@@ -1,9 +1,17 @@
-use super::*;
-use macros::CheckedSub;
-use editor_types::cur;
-use rope_pos::{final_non_newline_offset_for_rope_line, get_first_non_white_space_offset_in_range};
+#![deny(unused_imports)]
+use crate::{
+    cursors::{Cursors, set_cursors},
+    move_cursor,
+};
+use editor_types::{Cursor, SetPositionAction, cur};
+use macros::{CheckedSub, d, some_or};
+use panic_safe_rope::{LineIndex, Rope, RopeSliceTrait};
+use platform_types::{*};
+use rope_pos::{AbsoluteCharOffsetRange, char_offset_to_pos, final_non_newline_offset_for_rope_line, get_first_non_white_space_offset_in_range, offset_pair, pos_to_char_offset};
 
-pub fn apply<'rope, 'cursors>(mut applier: EditApplier, edit: &Edit) {
+use std::cmp::{min, max};
+
+pub fn apply<'rope, 'cursors>(mut applier: Applier, edit: &Edit) {
     // we assume that the edits are in the proper order so we won't mess up our indexes with our
     // own inserts and removals. I'm not positive that there being a single order that works
     // is possible for all possible edits, but in practice I think the edits we will actually
@@ -683,6 +691,28 @@ impl<T> std::ops::Not for Change<T> {
     }
 }
 
+#[macro_export]
+macro_rules! change {
+    //
+    // Pattern matching
+    //
+    ($old: ident, $new: ident) => {
+        Change { old: $old, new: $new }
+    };
+    (_, $new: ident) => {
+        Change { old: _, new: $new }
+    };
+    ($old: ident, _) => {
+        Change { old: $old, new: _ }
+    };
+    //
+    // Initialization
+    //
+    ($old: expr, $new: expr) => {
+        Change { old: $old, new: $new }
+    };
+}
+
 #[perf_viz::record]
 fn sort_cursors(cursors: Vec1<Cursor>) -> Vec1<Cursor> {
     let mut cursors = cursors.to_vec();
@@ -747,6 +777,29 @@ pub fn copy_string(rope: &Rope, range: AbsoluteCharOffsetRange) -> String {
             s
         })
         .unwrap_or_default()
+}
+
+/// We want to ensure that the cursors are always kept within bounds, meaning the whenever they
+/// are changed they need to be clamped to the range of the rope. But we want to have a different
+/// module handle the actual changes. So we give the pass an instance of this struct which allows
+/// editing the rope and cursors in a controlled fashion.
+// TODO given we've moved this into the `edit` module, does this still make sense?
+pub struct Applier<'rope, 'cursors> {
+    pub rope: &'rope mut Rope,
+    cursors: &'cursors mut Cursors,
+}
+
+impl<'rope, 'cursors> Applier<'rope, 'cursors> {
+    pub fn new(rope: &'rope mut Rope, cursors: &'cursors mut Cursors) -> Self {
+        Applier {
+            rope,
+            cursors,
+        }
+    }
+
+    fn set_cursors(&mut self, new: Cursors) {
+        set_cursors(self.rope, self.cursors, new);
+    }
 }
 
 #[cfg(test)]
