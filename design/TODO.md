@@ -1,8 +1,15 @@
 ## TODO
 
+* report the time the editor thread took to render the previous view. Maybe a rolling average too?
+    * how do linux load averages work? Would something like that make sense here?
+    * What about a tiny line chart?
+        * that doesn't fit into our current text and rectangles setup. 
+            * What about a histogram? 
+            * Or maybe just draw tall thin rects
+
 * fix tab order changing bugs
     * after changing the order of the tabs the selection indicator no longer seems to work, and generally
-        it just seems like to indexing is incorrect
+        it just seems like the indexing is incorrect
 
 * get both command menu and file switcher menus scrolling
 

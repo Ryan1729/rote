@@ -51,29 +51,6 @@ impl TextBuffer {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
-enum Editedness {
-    Edited,
-    Unedited
-}
-
-impl From<Change<Editedness>> for Option<EditedTransition> {
-    fn from(c: Change<Editedness>) -> Self {
-        u!{Editedness, EditedTransition}
-        match c {
-            change!(Edited, Edited) | change!(Unedited, Unedited) => None,
-            change!(Edited, Unedited) => Some(ToUnedited),
-            change!(Unedited, Edited) => Some(ToEdited),
-        }
-    }
-}
-
-impl TextBuffer {
-    fn editedness(&self) -> Editedness {
-        Editedness::Edited
-    }
-}
-
 impl TextBuffer {
     pub fn len(&self) -> usize {
         self.borrow_rope().chars().count()
@@ -538,6 +515,56 @@ impl TextBuffer {
     #[allow(dead_code)]
     fn set_cursors_from_vec1(&mut self, cursors: Vec1<Cursor>) {
         self.cursors = Cursors::new(&self.rope, cursors);
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+enum Editedness {
+    Edited,
+    Unedited
+}
+
+impl From<Change<Editedness>> for Option<EditedTransition> {
+    fn from(c: Change<Editedness>) -> Self {
+        u!{Editedness, EditedTransition}
+        match c {
+            change!(Edited, Edited) | change!(Unedited, Unedited) => None,
+            change!(Edited, Unedited) => Some(ToUnedited),
+            change!(Unedited, Edited) => Some(ToEdited),
+        }
+    }
+}
+
+impl TextBuffer {
+    fn editedness(&self) -> Editedness {
+        u!{Editedness}
+        // TODO can we make this faster by like, defining an algebra for edits or something,
+        // that allows us to compose edits together, and then check if we go the zero/identity
+        // edit when we combine all of the ones from the current index to the edited index?
+        
+        let mut rope_copy = self.rope.clone();
+        let mut cursors_copy = self.cursors.clone();
+
+        let mut history_index = self.history_index;
+
+        while let Some((i, edit)) = history_index.checked_sub(1)
+            .and_then(|new_index|
+                self.history.get(new_index).cloned().map(|e| (new_index, e))
+            ) {
+            let applier = Applier::new(
+                &mut rope_copy,
+                &mut cursors_copy
+            );
+            edit::apply(applier, &edit);
+
+            history_index = i;
+        }
+
+        if rope_copy == self.rope {
+            Unedited
+        } else { 
+            Edited
+        }
     }
 }
 

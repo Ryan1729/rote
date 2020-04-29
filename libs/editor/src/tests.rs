@@ -575,6 +575,7 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
     let original_buffer_states = state.buffers.buffers().clone();
 
     let buffer_count = usize::from(state.buffers.len());
+    dbg!(buffer_count);
     let mut expected_edited_states: HashMap<g_i::Index, bool> = HashMap::with_capacity(buffer_count);
 
     for (i, _) in state.buffers.buffers().iter_with_indexes() {
@@ -605,16 +606,16 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
 
     for (i, is_edited) in expected_edited_states {
         let actual_data: String = state.buffers.buffers().get(i).expect("actual_data was None").into();
-        let original_data: String = original_buffer_states.get(i).expect("original_data was None").into();
+        let original_data: Option<String> = original_buffer_states.get(i).map(|s| s.into());
         if is_edited {
             assert_ne!(
-                actual_data,
+                Some(actual_data),
                 original_data,
             );
         } else {
             assert_eq!(
                 actual_data,
-                original_data,
+                original_data.expect("actual_data was None"),
             );
         }
     }
@@ -638,5 +639,26 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
     tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
         d!(),
         d!()
+    )
+}
+
+#[test]
+fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_a_file_is_added_to_a_blank_state() {
+    u!{BufferName, Input}
+    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+        d!(),
+        vec![AddOrSelectBuffer(Path(".fakefile".into()), "".to_owned())]
+    )
+}
+
+#[test]
+fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_we_select_then_tab_in() {
+    u!{BufferIdKind, BufferName, Input}
+    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+        d!(),
+        vec![
+            SelectBuffer(BufferId { kind: Find, index: d!() }),
+            TabIn
+        ]
     )
 }
