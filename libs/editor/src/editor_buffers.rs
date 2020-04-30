@@ -72,27 +72,33 @@ impl EditorBuffer {
 
     pub fn advance_or_refresh_search_results(&mut self, needle: RopeSlice) {
         if needle == self.search_results.needle {
-            // advance to next search result
-            if needle.len_bytes() > 0 {
-                let search_results = &mut self.search_results;
-                let len = search_results.ranges.len();
-                search_results.current_range += 1;
-                if search_results.current_range >= len {
-                    search_results.current_range = 0;
-                }
-
-                if let Some(pair) = self
-                    .search_results
-                    .ranges
-                    .get(self.search_results.current_range)
-                {
-                    let c: Cursor = pair.into();
-                    self                        .text_buffer
-                        .set_cursor(c, ReplaceOrAdd::Replace);            
-                }
-            }
+            self.advance_to_next_search_result(needle);
         } else {
+            dbg!("advance_or_refresh_search_results");
             self.refresh_search_results(needle);
+            self.advance_to_next_search_result(needle);
+        }
+    }
+
+    fn advance_to_next_search_result(&mut self, needle: RopeSlice) {
+        dbg!(needle.len_bytes());
+        if needle.len_bytes() > 0 {
+            let search_results = &mut self.search_results;
+            let len = search_results.ranges.len();
+            search_results.current_range += 1;
+            if search_results.current_range >= len {
+                search_results.current_range = 0;
+            }
+
+            if let Some(pair) = self
+                .search_results
+                .ranges
+                .get(self.search_results.current_range)
+            {
+                let c: Cursor = pair.into();
+                self                    .text_buffer
+                    .set_cursor(c, ReplaceOrAdd::Replace);            
+            }
         }
     }
 

@@ -102,8 +102,8 @@ fn update_and_render_shows_the_cursor_when_pressing_home_on(text: &str, buffer_x
     update_and_render(&mut state, Input::MoveAllCursors(Move::ToBufferStart));
 
     let buffer = get_text_buffer_mut!(state, BufferIdKind::Text).unwrap();
-    assert_eq!(buffer.scroll.x, 0.0);
-    assert_eq!(buffer.scroll.y, 0.0);
+    assert_eq!(buffer.scroll.x, 0.0, "buffer.scroll.x");
+    assert_eq!(buffer.scroll.y, 0.0, "buffer.scroll.y");
 }
 
 #[test]
@@ -153,8 +153,14 @@ fn update_and_render_shows_the_cursor_when_searching_in_this_case() {
 
     update_and_render(&mut state, Input::SetMenuMode(MenuMode::FindReplace(d!())));
 
+    let first_needle_char = NEEDLE.chars().next().unwrap();
+    update_and_render(&mut state, Input::Insert(first_needle_char));
+    assert_eq!(
+        state.find.borrow_rope().chars().next().expect("*** find was empty! Precondition failure! ***"),
+        first_needle_char
+    );
+
     // Act
-    update_and_render(&mut state, Input::Insert(NEEDLE.chars().next().unwrap()));
     update_and_render(&mut state, Input::SubmitForm);
 
     // Assert
@@ -464,6 +470,80 @@ proptest!{
     }
 }
 
+/* I think tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers supercedes this
+fn update_and_render_reports_a_change_at_the_correct_edited_index_on(
+    state: State,
+    input: Input,
+) {
+    u!{Input}
+    let expected = match input {
+        None |
+        Quit |
+        CloseMenuIfAny | 
+        ResetScroll |
+        ScrollVertically(_) |
+        ScrollHorizontally(_) |
+        SetSizeDependents(_) |
+        MoveAllCursors(_) |
+        ExtendSelectionForAllCursors(_) |
+        SelectAll |
+        SetCursor(_, _) |
+        DragCursors(_) |
+        SelectCharTypeGrouping(_, _) |
+        ExtendSelectionWithSearch |
+        Copy | 
+        AdjustBufferSelection(_) |
+        CloseBuffer(_) |
+        NextLanguage |
+        SelectBuffer(_) |
+        SetMenuMode(_) |
+        SubmitForm => {
+            vec![]
+        },
+        Insert(_) |
+        Delete |
+        DeleteLines |
+        SavedAs(_, _) |
+        Undo |
+        Redo |
+        Cut |
+        Paste(_) |
+        InsertNumbersAtCursors |
+        TabIn |
+        TabOut
+        => {
+            vec![state.buffers.current_index()]
+        },        AddOrSelectBuffer(ref name, _) => {
+            if state.buffers.index_with_name(name).is_some() {
+                vec![]
+            } else {
+                vec![state.buffers.append_index()]
+            }
+        },
+        NewScratchBuffer(_) => {
+            vec![state.buffers.append_index()]
+        },
+        OpenOrSelectBuffer(ref path) => {
+            if state.buffers.index_with_name(&BufferName::Path(path.clone())).is_some() {
+                vec![]
+            } else {
+                vec![state.buffers.append_index()]
+            }
+        },
+    };
+    
+    let (view, _) = update_and_render(&mut state, input);
+
+    assert_eq!(
+        view.edited_transitions
+            .into_iter()
+            .map(|(i, _)| {
+                i
+            }).collect::<Vec<_>>(),
+        expected,
+    )
+}
+
 /// This is important since clients want to be able to report this information
 /// (or information derived from it) to the user.
 proptest!{
@@ -472,76 +552,21 @@ proptest!{
         mut state in arb::state(),
         input in arb::input(),
     ) {
-        u!{Input}
-        let expected = match input {
-            None |
-            Quit |
-            CloseMenuIfAny | 
-            ResetScroll |
-            ScrollVertically(_) |
-            ScrollHorizontally(_) |
-            SetSizeDependents(_) |
-            MoveAllCursors(_) |
-            ExtendSelectionForAllCursors(_) |
-            SelectAll |
-            SetCursor(_, _) |
-            DragCursors(_) |
-            SelectCharTypeGrouping(_, _) |
-            ExtendSelectionWithSearch |
-            Copy | 
-            AdjustBufferSelection(_) |
-            CloseBuffer(_) |
-            NextLanguage |
-            SelectBuffer(_) |
-            SetMenuMode(_) |
-            SubmitForm => {
-                vec![]
-            },
-            Insert(_) |
-            Delete |
-            DeleteLines |
-            SavedAs(_, _) |
-            Undo |
-            Redo |
-            Cut |
-            Paste(_) |
-            InsertNumbersAtCursors |
-            TabIn |
-            TabOut
-            => {
-                vec![state.buffers.current_index()]
-            },            AddOrSelectBuffer(ref name, _) => {
-                if state.buffers.index_with_name(name).is_some() {
-                    vec![]
-                } else {
-                    vec![state.buffers.append_index()]
-                }
-            },
-            NewScratchBuffer(_) => {
-                vec![state.buffers.append_index()]
-            },
-            OpenOrSelectBuffer(ref path) => {
-                if state.buffers.index_with_name(&BufferName::Path(path.clone())).is_some() {
-                    vec![]
-                } else {
-                    vec![state.buffers.append_index()]
-                }
-            },
-        };
-        
-        let (view, _) = update_and_render(&mut state, input);
-
-        assert_eq!(
-            view.edited_transitions
-                .into_iter()
-                .map(|(i, _)| {
-                    i
-                }).collect::<Vec<_>>(),
-            expected,
+        update_and_render_reports_a_change_at_the_correct_edited_index_on(
+            state,
+            input
         )
     }
 }
 
+#[test]
+fn update_and_render_reports_a_change_at_the_correct_edited_index() {
+    update_and_render_reports_a_change_at_the_correct_edited_index_on(
+        state,
+        Input::Undo
+    )
+}
+*/
 proptest!{
     #[test]
     fn passing_add_or_select_buffer_to_update_and_render_updates_and_selects_the_default_buffer(
@@ -584,11 +609,14 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
 
     for input in inputs {
         if let Input::SavedAs(index, _) = input {
-            expected_edited_states.insert(index, false);
+            if expected_edited_states.contains_key(&index) {
+                dbg!("SavedAs()", index);
+                expected_edited_states.insert(index, false);
+            }
         }
 
         let (view, _) = update_and_render(&mut state, input);
-        
+        dbg!(&view.edited_transitions);
         for (i, transition) in view.edited_transitions {
             u!{EditedTransition}
             match transition {
@@ -602,6 +630,7 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
         }
     }
 
+    dbg!(&state.buffers);
     assert_eq!(expected_edited_states.len(), usize::from(state.buffers.len()));
 
     for (i, is_edited) in expected_edited_states {
@@ -662,3 +691,26 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
         ]
     )
 }
+
+#[test]
+fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_we_save_a_new_file() {
+    u!{BufferIdKind, BufferName, Input}
+    let state: g_i::State = d!();
+    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+        d!(),
+        vec![
+            SavedAs(state.new_index(g_i::IndexPart::or_max(1)), ".fakefile".into()),
+        ]
+    )
+}
+
+#[test]
+fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_we_insert_numbers_delete_then_redo() {
+    u!{BufferIdKind, BufferName, Input}
+    let state: g_i::State = d!();
+    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+        d!(),
+        vec![InsertNumbersAtCursors, Delete, Redo]
+    )
+}
+

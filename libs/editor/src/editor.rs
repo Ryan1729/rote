@@ -173,10 +173,6 @@ impl State {
         self.buffers.close_buffer(index);
     }
 
-    fn get_id(&self) -> BufferId {
-        b_id!(self.current_buffer_kind, self.buffers.current_index())
-    }
-
     fn set_id(&mut self, id: BufferId) {
         self.current_buffer_kind = id.kind;
 
@@ -221,7 +217,7 @@ impl State {
 
     fn try_to_show_cursors_on(&mut self, kind: BufferIdKind) -> Option<()> {
         u!{BufferIdKind}
-
+        dbg!(kind);
         let buffer = get_text_buffer_mut!(self, kind)?;
         let xywh = match kind {
             None => return Option::None,
@@ -234,8 +230,9 @@ impl State {
 
         let char_dim = Self::char_dim_for_buffer_kind(&self.font_info, kind);
 
+        dbg!(xywh, char_dim);
         let attempt_result = buffer.try_to_show_cursors_on(xywh, char_dim);
-
+        dbg!(attempt_result);
         match attempt_result {
             VisibilityAttemptResult::Succeeded => Some(()),
             _ => Option::None,
@@ -446,13 +443,15 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             )
         };
         ($index: expr, $transition: expr) => {{
-            let transition: Option<EditedTransition> = $transition.into();
-
-            if let Some(transition) = transition {
-                state.view.edited_transitions.push((
-                    $index,
-                    transition,
-                ));
+            if state.current_buffer_kind == BufferIdKind::Text {
+                let transition: Option<EditedTransition> = $transition.into();
+    
+                if let Some(transition) = transition {
+                    state.view.edited_transitions.push((
+                        $index,
+                        transition,
+                    ));
+                }
             }
         }};
     }
@@ -712,9 +711,11 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                     state.buffers.get_current_buffer_mut().advance_or_refresh_search_results(
                         (&state.find).into(),
                     );
+                    dbg!("try_to_show_cursors");
+                    dbg!(get_text_buffer_mut!(state, BufferIdKind::Text).unwrap().scroll);
+                    
                     try_to_show_cursors!(BufferIdKind::Text);
                     try_to_show_cursors!();
-                    
                 }
             },
             BufferIdKind::Replace => {

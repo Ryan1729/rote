@@ -769,8 +769,8 @@ fn adding_a_cursor_inside_a_highlight_does_not_change_the_selection() {
 
 #[test]
 fn copy_selections_works_in_this_case_generated_elsewhere() {
-    use TestEdit::*;
-    use ReplaceOrAdd::*;
+    u!{ReplaceOrAdd, TestEdit}
+
     let mut buffer = t_b!("!\u{2000}");
 
     let mut cursor = cur!{l 0 o 1 h l 0 o 0};
@@ -827,6 +827,46 @@ proptest!{
         let cursor = single_cursor(&buffer);
         assert_eq!(cursor, cur!{l 0 o 4});
     }
+}
+
+fn inserting_then_deleting_preserves_editedness_on(
+    mut buffer: TextBuffer,
+    ch: char,
+) {
+    u!{TestEdit}
+    let old_editedness = buffer.editedness();
+
+    TestEdit::apply(&mut buffer, Insert(ch));
+
+    TestEdit::apply(&mut buffer, Delete);
+
+    let new_editedness = buffer.editedness();
+
+    assert_eq!(
+        old_editedness,
+        new_editedness
+    );
+}
+
+proptest!{
+    #[test]
+    fn inserting_then_deleting_preserves_editedness(
+        buffer in arb::text_buffer_with_many_cursors(),
+        ch in any::<char>(),
+    ) {
+        inserting_then_deleting_preserves_editedness_on(
+            buffer,
+            ch
+        );
+    }
+}
+
+#[test]
+fn inserting_then_deleting_preserves_editedness_in_this_minimal_example() {
+    inserting_then_deleting_preserves_editedness_on(
+        d!(),
+        'a'
+    );
 }
 
 pub mod arb;

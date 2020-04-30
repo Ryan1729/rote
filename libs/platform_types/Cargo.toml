@@ -11,6 +11,7 @@ path = "./src/platform_types.rs"
 vec1 = "1.4"
 g_i = { path = "./libs/g_i" }
 panic_safe_rope = { path = "../panic_safe_rope" }
+perf_viz = { path = "../perf_viz" }
 macros = { path = "../macros" }
 move_mod = { path = "./libs/move_mod" }
 text_pos = { path = "../text_pos" }

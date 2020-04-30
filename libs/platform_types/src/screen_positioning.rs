@@ -1,4 +1,5 @@
 use super::*;
+use macros::{u};
 
 // TODO make a derive macro that hashes all the fields, but checks if fields are f32/f64 and
 // calls `to_bits` if they are.
@@ -377,6 +378,7 @@ macro_rules! tsxywh {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
+/// An offset in TextBoxSpace.
 /// The top left corner of the text is `(0.0, 0.0)`, top right corner is `(width, 0.0)`,
 /// the bottom left corner is `(0.0, height)`. In other words, the x-axis point right, the y-axis
 /// points down.
@@ -569,22 +571,53 @@ impl From<CharDim> for Apron {
 /// | +---------------+ |
 /// +-------------------+
 ///
-/// The outer box is what we call the "apron".
+/// The space taken up by the outer box is what we call the "apron".
+#[perf_viz::record]
 pub fn attempt_to_make_xy_visible(
     scroll: &mut ScrollXY,
-    TextBoxXYWH {
-        wh: ScreenSpaceWH { w, h },
-        ..
-    }: TextBoxXYWH,
+    outer_rect: TextBoxXYWH,
     apron: Apron,
-    text: TextSpaceXY,
+    to_make_visible: TextSpaceXY,
 ) -> VisibilityAttemptResult {
-    use std::num::FpCategory::*;
-    use VisibilityAttemptResult::*;
+    u!{std::num::FpCategory, VisibilityAttemptResult}
 
-    let TextSpaceXY { x, y } = text;
+    let ScreenSpaceWH { w, h } = outer_rect.wh;
 
-    // If these checks ever actually become a bottleneck ,then the easy solution is to just make
+    // We don't ever want to automatically show space that text can never be inside.
+    macro_rules! stay_positive {
+        ($n: expr) => {{
+            let n = $n;
+            if n > 0.0 {
+                n
+            } else {
+                0.0
+            }
+        }};
+    }
+
+    let TextSpaceXY { x, y } = to_make_visible;
+    // In text space
+    let min_x = apron.left_w;
+    let max_x = stay_positive!(w - apron.right_w);
+    let min_y = apron.top_h;
+    let max_y = stay_positive!(h - apron.bottom_h);
+
+    dbg!(    
+        &scroll,
+        &outer_rect,
+        x,
+        y,
+        w,
+        h,
+        &apron,
+        to_make_visible,
+        min_x,
+        max_x,
+        min_x,
+        max_y
+    );
+
+    // If these checks ever actually become a bottleneck, then the easy solution is to just make
     // types that can't represent these cases and enforce them at startup!
     match (w.classify(), h.classify()) {
         (Nan, _) | (_, Nan) => return ScreenTooWeird,
@@ -614,33 +647,23 @@ pub fn attempt_to_make_xy_visible(
         (Normal, Normal) => {}
     }
 
-    // We don't ever want to automatically show space that text can never be inside.
-    macro_rules! stay_positive {
-        ($n: expr) => {{
-            let n = $n;
-            if n > 0.0 {
-                n
-            } else {
-                0.0
-            }
-        }};
-    }
-
-    if x < apron.left_w {
-        scroll.x = stay_positive!(text.x - apron.left_w);
-    } else if x >= w - apron.right_w {
-        scroll.x = stay_positive!(text.x - w + apron.right_w);
+    if x < min_x {
+        scroll.x = stay_positive!(0.0);
+    } else if x >= max_x {
+        scroll.x = stay_positive!(w);
     } else {
         // leave it alone
     }
 
-    if y < apron.top_h {
-        scroll.y = stay_positive!(text.y - apron.top_h);
-    } else if y >= h - apron.bottom_h {
-        scroll.y = stay_positive!(text.y - (h - apron.bottom_h));
+    if y < min_y {
+        scroll.y = stay_positive!(0.0);
+    } else if y >= max_y {
+        scroll.y = stay_positive!(h);
     } else {
         // leave it alone
     }
+
+    dbg!(scroll);
 
     Succeeded
 }

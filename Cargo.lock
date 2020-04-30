@@ -1565,6 +1565,7 @@ dependencies = [
  "macros",
  "move_mod",
  "panic_safe_rope",
+ "perf_viz",
  "proptest",
  "pub_arb_g_i",
  "pub_arb_std",

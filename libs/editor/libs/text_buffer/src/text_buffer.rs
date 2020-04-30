@@ -1,6 +1,6 @@
 use crate::move_cursor::{forward, get_next_selection_point, get_previous_selection_point};
 use editor_types::{Cursor, SetPositionAction};
-use macros::{d, some_or, u};
+use macros::{d, u};
 use panic_safe_rope::{ByteIndex, LineIndex, Rope, RopeSlice, RopeSliceTrait};
 use platform_types::{*, screen_positioning::*};
 use rope_pos::{AbsoluteCharOffsetRange, clamp_position, in_cursor_bounds, nearest_valid_position_on_same_line};
@@ -27,6 +27,7 @@ pub struct TextBuffer {
     cursors: Cursors,
     history: VecDeque<Edit>,
     history_index: usize,
+    unedited_index: usize,
     pub scroll: ScrollXY,
 }
 
@@ -39,6 +40,7 @@ impl TextBuffer {
         self.history.hash(state);
         perf_viz::end_record!("history hash");
         self.history_index.hash(state);
+        self.unedited_index.hash(state);
         self.scroll.hash(state);
     }
 
@@ -89,7 +91,8 @@ impl TextBuffer {
     
         let apron: Apron = char_dim.into();
     
-        let text_space = position_to_text_space(self.cursors.last().get_position(), char_dim);
+        let text_space = position_to_text_space(dbg!(self.cursors.last().get_position()), char_dim);
+        dbg!(text_space);
     
         let mut attempt_result;
         attempt_result = attempt_to_make_xy_visible(
@@ -107,7 +110,7 @@ impl TextBuffer {
                 text_space,
             );
         }
-    
+        dbg!(attempt_result);
         attempt_result
     }
 }
@@ -482,8 +485,11 @@ impl TextBuffer {
     #[perf_viz::record]
     fn record_edit(&mut self, edit: Edit) -> PossibleEditedTransition {
         let old_editedness = self.editedness();
+        dbg!(old_editedness);
 
         self.apply_edit(edit, ApplyKind::Record);
+
+        dbg!(self.editedness());
 
         change!(old_editedness, self.editedness()).into()
     }
@@ -518,7 +524,7 @@ impl TextBuffer {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Editedness {
     Edited,
     Unedited
@@ -536,7 +542,7 @@ impl From<Change<Editedness>> for Option<EditedTransition> {
 }
 
 impl TextBuffer {
-    fn editedness(&self) -> Editedness {
+    fn editedness(&mut self) -> Editedness {
         u!{Editedness}
         // TODO can we make this faster by like, defining an algebra for edits or something,
         // that allows us to compose edits together, and then check if we go the zero/identity
@@ -551,16 +557,19 @@ impl TextBuffer {
             .and_then(|new_index|
                 self.history.get(new_index).cloned().map(|e| (new_index, e))
             ) {
+            dbg!(i, &edit);
+
             let applier = Applier::new(
                 &mut rope_copy,
                 &mut cursors_copy
             );
-            edit::apply(applier, &edit);
+            edit::apply(applier, &(!edit));
 
             history_index = i;
         }
 
         if rope_copy == self.rope {
+            self.unedited_index = self.history_index;
             Unedited
         } else { 
             Edited
