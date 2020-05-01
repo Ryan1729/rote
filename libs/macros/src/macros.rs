@@ -545,6 +545,22 @@ macro_rules! extra_prints {
 
 #[macro_export]
 macro_rules! dbg {
+    () => {
+        if $crate::extra_prints!() {
+            std::dbg!()
+        } else {
+
+        }
+    };
+    ($val:expr) => {
+        if $crate::extra_prints!() {
+            std::dbg!(
+                $val
+            )
+        } else {
+            $val
+        }
+    };
     // Trailing comma with single argument is ignored
     ($val:expr,) => { dbg!($val) };
     ($($val:expr),+ $(,)?) => {
@@ -555,13 +571,7 @@ macro_rules! dbg {
         }
     };
     ($($args: tt)*) => {
-        if $crate::extra_prints!() {
-            std::dbg!(
-                $($args)*
-            )
-        } else {
-            $($args)*
-        }
+        
     };
 }
 

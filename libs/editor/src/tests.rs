@@ -446,6 +446,57 @@ proptest!{
     }
 }
 
+fn len_chars(editor_buffer: &EditorBuffer) -> usize {
+    editor_buffer.text_buffer.borrow_rope().len_chars().0
+}
+
+fn first_char(editor_buffer: &EditorBuffer) -> char {
+    editor_buffer.text_buffer.borrow_rope().chars().next().unwrap()
+}
+
+/// We don't want data to be ovewritten if the platform layer is buggy. 
+/// Maybe the physical disk is on its last legs or something, and stuff 
+/// is coing back way later or something? But even in that case, I think
+/// it makes sense to not delete what could be important data from memory.
+#[test]
+fn update_and_render_retains_the_scratch_buffer_if_the_name_does_not_match_after_an_insert_then_a_saved_as_with_the_same_index() {
+    u!{Input}
+    let mut state: State = d!();
+    let inputs = vec![Insert('a'), SavedAs(d!(), ".fakefile".into())];
+
+    for input in inputs {
+        let _ = update_and_render(&mut state, input);
+    }
+
+    assert_eq!(usize::from(state.buffers.len()), 2usize);
+
+    assert_eq!(first_char(state.buffers.buffers().iter().next().unwrap()), 'a');
+}
+
+#[test]
+fn update_and_render_retains_the_named_buffer_if_the_name_does_not_match_after_an_insert_then_a_saved_as_with_the_same_index() {
+    u!{Input}
+    let mut state: State = d!();
+    let inputs = vec![SavedAs(d!(), "a.fakefile".into()), Insert('a'), SavedAs(d!(), ".fakefile".into())];
+
+    for input in inputs {
+        let _ = update_and_render(&mut state, input);
+    }
+
+    assert_eq!(usize::from(state.buffers.len()), 3usize);
+
+    for (i, buffer) in state.buffers.iter().enumerate() {
+        if i == 1 {
+            assert_eq!(len_chars(buffer), 1usize);
+            assert_eq!(first_char(buffer), 'a');
+        } else {
+            assert_eq!(len_chars(buffer), 0usize);
+        }
+    }
+    
+}
+
+
 #[allow(dead_code)]
 fn single_cursor(buffer: &TextBuffer) -> Cursor {
     let cursors = buffer.borrow_cursors();
@@ -600,7 +651,7 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
     let original_buffer_states = state.buffers.buffers().clone();
 
     let buffer_count = usize::from(state.buffers.len());
-    dbg!(buffer_count);
+    dbg!(&original_buffer_states, buffer_count);
     let mut expected_edited_states: HashMap<g_i::Index, bool> = HashMap::with_capacity(buffer_count);
 
     for (i, _) in state.buffers.buffers().iter_with_indexes() {
@@ -608,12 +659,30 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
     }
 
     for input in inputs {
-        if let Input::SavedAs(index, _) = input {
-            if expected_edited_states.contains_key(&index) {
-                dbg!("SavedAs()", index);
-                expected_edited_states.insert(index, false);
+        /*
+        u!{Input}
+        match input {
+            AddOrSelectBuffer(ref name, _) => {
+                if !state.buffers.index_with_name(name).is_some() {
+                    expected_edited_states.insert(state.buffers.append_index(), true);
+                }
+            },
+            NewScratchBuffer(_) => {
+                expected_edited_states.insert(state.buffers.append_index(), true);
+            },
+            OpenOrSelectBuffer(ref path) => {
+                if !state.buffers.index_with_name(&BufferName::Path(path.clone())).is_some() {
+                    expected_edited_states.insert(state.buffers.append_index(), true);
+                }
+            },
+            SavedAs(index, _) => {
+                if expected_edited_states.contains_key(&index) {
+                    dbg!("SavedAs()", index);
+                    expected_edited_states.insert(index, false);
+                }
             }
-        }
+            _ => {}
+        }*/
 
         let (view, _) = update_and_render(&mut state, input);
         dbg!(&view.edited_transitions);
@@ -706,11 +775,28 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
 
 #[test]
 fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_we_insert_numbers_delete_then_redo() {
-    u!{BufferIdKind, BufferName, Input}
-    let state: g_i::State = d!();
+    u!{Input}
     tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
         d!(),
         vec![InsertNumbersAtCursors, Delete, Redo]
+    )
+}
+
+#[test]
+fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_we_open_or_select_a_buffer() {
+    u!{Input}
+    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+        d!(),
+        vec![OpenOrSelectBuffer(".fakefile".into())]
+    )
+}
+
+#[test]
+fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_we_insert_then_report_a_file_was_saved() {
+    u!{Input}
+    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+        d!(),
+        vec![InsertNumbersAtCursors, SavedAs(d!(), ".fakefile".into())]
     )
 }
 

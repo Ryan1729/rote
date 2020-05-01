@@ -443,8 +443,12 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             )
         };
         ($index: expr, $transition: expr) => {{
+            // Since this may be an expression with sidee effects, 
+            // we want this to be evaluated whether or not we want
+            // to record the transition.
+            let transition = $transition;
             if state.current_buffer_kind == BufferIdKind::Text {
-                let transition: Option<EditedTransition> = $transition.into();
+                let transition: Option<EditedTransition> = transition.into();
     
                 if let Some(transition) = transition {
                     state.view.edited_transitions.push((
@@ -635,8 +639,9 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                 state.set_id(id);
                 close_menu_if_any!();
             } else {
-                cmd = Cmd::LoadFile(path);
-                mark_edited_transition!(append, ToEdited);
+                cmd = Cmd::LoadFile(path);            
+                // No need to mark the edited transition here since we will do
+                // that in the `AddOrSelectBuffer` case when the file actualy arrives.
             }
         }
         CloseBuffer(index) => {

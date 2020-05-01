@@ -1,6 +1,6 @@
 use crate::move_cursor::{forward, get_next_selection_point, get_previous_selection_point};
 use editor_types::{Cursor, SetPositionAction};
-use macros::{d, u};
+use macros::{d, dbg, u};
 use panic_safe_rope::{ByteIndex, LineIndex, Rope, RopeSlice, RopeSliceTrait};
 use platform_types::{*, screen_positioning::*};
 use rope_pos::{AbsoluteCharOffsetRange, clamp_position, in_cursor_bounds, nearest_valid_position_on_same_line};
@@ -215,14 +215,17 @@ pub type PossibleEditedTransition = Option<EditedTransition>;
 impl TextBuffer {
     #[perf_viz::record]
     pub fn insert(&mut self, c: char) -> PossibleEditedTransition {
+        dbg!("\n\n\ninsert\n\n\n");
         self.insert_string(char_to_string(c))
     }
 
     #[perf_viz::record]
     pub fn insert_string(&mut self, s: String) -> PossibleEditedTransition {
-        self.record_edit(
+        let o = self.record_edit(
             edit::get_insert_edit(&self.rope, &self.cursors, |_| s.clone())
-        )
+        );
+        dbg!(&self);
+        o
     }
 
     pub fn insert_at_each_cursor<F>(&mut self, func: F) -> PossibleEditedTransition
