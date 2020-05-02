@@ -557,8 +557,9 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             text_buffer_call!(b.extend_selection_with_search());
         }
         SavedAs(buffer_index, path) => {
-            state.buffers.set_path(buffer_index, path);
-            mark_edited_transition!(current, ToUnedited);
+            if let Some(()) = state.buffers.set_path(buffer_index, path) {
+                mark_edited_transition!(buffer_index, ToUnedited);
+            }
         }
         Cut => text_buffer_call!(sync b {
             let (s, transition) = state.clipboard_history.cut(b);

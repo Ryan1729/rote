@@ -454,12 +454,8 @@ fn first_char(editor_buffer: &EditorBuffer) -> char {
     editor_buffer.text_buffer.borrow_rope().chars().next().unwrap()
 }
 
-/// We don't want data to be ovewritten if the platform layer is buggy. 
-/// Maybe the physical disk is on its last legs or something, and stuff 
-/// is coing back way later or something? But even in that case, I think
-/// it makes sense to not delete what could be important data from memory.
 #[test]
-fn update_and_render_retains_the_scratch_buffer_if_the_name_does_not_match_after_an_insert_then_a_saved_as_with_the_same_index() {
+fn update_and_render_retains_the_scratch_buffer_data_if_the_name_does_not_match_after_an_insert_then_a_saved_as_with_the_same_index() {
     u!{Input}
     let mut state: State = d!();
     let inputs = vec![Insert('a'), SavedAs(d!(), ".fakefile".into())];
@@ -468,13 +464,13 @@ fn update_and_render_retains_the_scratch_buffer_if_the_name_does_not_match_after
         let _ = update_and_render(&mut state, input);
     }
 
-    assert_eq!(usize::from(state.buffers.len()), 2usize);
+    assert_eq!(usize::from(state.buffers.len()), 1usize);
 
     assert_eq!(first_char(state.buffers.buffers().iter().next().unwrap()), 'a');
 }
 
 #[test]
-fn update_and_render_retains_the_named_buffer_if_the_name_does_not_match_after_an_insert_then_a_saved_as_with_the_same_index() {
+fn update_and_render_retains_the_path_buffer_data_if_the_name_does_not_match_after_an_insert_then_a_saved_as_with_the_same_index() {
     u!{Input}
     let mut state: State = d!();
     let inputs = vec![SavedAs(d!(), "a.fakefile".into()), Insert('a'), SavedAs(d!(), ".fakefile".into())];
@@ -483,19 +479,11 @@ fn update_and_render_retains_the_named_buffer_if_the_name_does_not_match_after_a
         let _ = update_and_render(&mut state, input);
     }
 
-    assert_eq!(usize::from(state.buffers.len()), 3usize);
+    assert_eq!(usize::from(state.buffers.len()), 1usize);
 
-    for (i, buffer) in state.buffers.iter().enumerate() {
-        if i == 1 {
-            assert_eq!(len_chars(buffer), 1usize);
-            assert_eq!(first_char(buffer), 'a');
-        } else {
-            assert_eq!(len_chars(buffer), 0usize);
-        }
-    }
-    
+    let buffer = state.buffers.buffers().iter().next().unwrap();
+    assert_eq!(first_char(buffer), 'a');
 }
-
 
 #[allow(dead_code)]
 fn single_cursor(buffer: &TextBuffer) -> Cursor {
@@ -648,10 +636,10 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
     mut state: State,
     inputs: Vec<Input>,
 ) {
-    let original_buffer_states = state.buffers.buffers().clone();
+    let mut unedited_buffer_states = state.buffers.buffers().clone();
 
     let buffer_count = usize::from(state.buffers.len());
-    dbg!(&original_buffer_states, buffer_count);
+    dbg!(&unedited_buffer_states, buffer_count);
     let mut expected_edited_states: HashMap<g_i::Index, bool> = HashMap::with_capacity(buffer_count);
 
     for (i, _) in state.buffers.buffers().iter_with_indexes() {
@@ -659,9 +647,10 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
     }
 
     for input in inputs {
-        /*
+
         u!{Input}
         match input {
+        /*
             AddOrSelectBuffer(ref name, _) => {
                 if !state.buffers.index_with_name(name).is_some() {
                     expected_edited_states.insert(state.buffers.append_index(), true);
@@ -675,14 +664,27 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
                     expected_edited_states.insert(state.buffers.append_index(), true);
                 }
             },
+*/        
             SavedAs(index, _) => {
+                dbg!("SavedAs()", index, expected_edited_states.contains_key(&index));
+                // We need to trust the platform layer to only call
+                // this when the file is saved under the given path.
                 if expected_edited_states.contains_key(&index) {
-                    dbg!("SavedAs()", index);
+                    
+                    let buffer = unedited_buffer_states
+                        .get_mut(index)
+                        .expect("SavedAs invalid unedited_buffer_states index");
+                    *buffer = state.buffers.buffers()
+                        .get(index)
+                        .expect("SavedAs invalid state.buffers.buffers index")
+                        .clone();
+
                     expected_edited_states.insert(index, false);
                 }
             }
+
             _ => {}
-        }*/
+        }
 
         let (view, _) = update_and_render(&mut state, input);
         dbg!(&view.edited_transitions);
@@ -700,20 +702,26 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
     }
 
     dbg!(&state.buffers);
-    assert_eq!(expected_edited_states.len(), usize::from(state.buffers.len()));
+    assert_eq!(expected_edited_states.len(), usize::from(state.buffers.len()), "expected_edited_states len does not match state.buffers");
 
     for (i, is_edited) in expected_edited_states {
         let actual_data: String = state.buffers.buffers().get(i).expect("actual_data was None").into();
-        let original_data: Option<String> = original_buffer_states.get(i).map(|s| s.into());
+        let original_data: Option<String> = unedited_buffer_states.get(i).map(|s| s.into());
         if is_edited {
             assert_ne!(
                 Some(actual_data),
                 original_data,
+                "({:?}, {:?})",
+                i,
+                is_edited
             );
         } else {
             assert_eq!(
                 actual_data,
-                original_data.expect("actual_data was None"),
+                original_data.expect("original_data was None"),
+                "({:?}, {:?})",
+                i,
+                is_edited                
             );
         }
     }
@@ -792,11 +800,40 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
 }
 
 #[test]
-fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_we_insert_then_report_a_file_was_saved() {
+fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_we_insert_then_report_a_file_was_saved_at_the_first_index() {
     u!{Input}
     tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
         d!(),
-        vec![InsertNumbersAtCursors, SavedAs(d!(), ".fakefile".into())]
+        vec![
+            InsertNumbersAtCursors,
+            SavedAs(d!(), ".fakefile".into())
+        ]
+    )
+}
+
+#[test]
+fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_we_insert_then_report_a_file_was_saved_at_index_1() {
+    u!{Input}
+    let state: g_i::State = d!();
+    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+        d!(),
+        vec![
+            InsertNumbersAtCursors,
+            SavedAs(state.new_index(g_i::IndexPart::or_max(1)), ".fakefile".into())
+        ]
+    )
+}
+
+#[test]
+fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_we_search_for_the_empty_string() {
+    u!{BufferIdKind, BufferName, Input}
+    let state: g_i::State = d!();
+    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+        d!(),
+        vec![
+            SelectBuffer(BufferId { kind: Find, index: d!() }),
+            SubmitForm
+        ]
     )
 }
 

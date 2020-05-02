@@ -225,9 +225,13 @@ impl EditorBuffers {
         };
     }
 
-    pub fn set_path(&mut self, index: g_i::Index, path: PathBuf) {
+    /// Returns `Some` iff a path was actually set.
+    pub fn set_path(&mut self, index: g_i::Index, path: PathBuf) -> Option<()> {
         if let Some(b) = self.buffers.get_mut(index) {
             (*b).name = BufferName::Path(path);
+            Some(())
+        } else {
+            None
         }
     }
 
