@@ -10,7 +10,7 @@ use std::time::Duration;
 use wimp_render::{get_find_replace_info, FindReplaceInfo, get_go_to_position_info, GoToPositionInfo, ViewOutput, ViewAction};
 use wimp_types::{ui, ui::{PhysicalButtonState, Navigation}, transform_status, BufferStatus, BufferStatusMap, BufferStatusTransition, CustomEvent, get_clipboard, ClipboardProvider, Dimensions, LabelledCommand, RunConsts, RunState, MenuMode};
 use file_chooser;
-use macros::{d, dbg, extra_prints};
+use macros::{d, dbg};
 use platform_types::{screen_positioning::screen_to_text_box, *};
 use shared::{Res};
 

@@ -1,5 +1,5 @@
 use macros::{
-    add_assign, d, fmt_debug, fmt_display, integer_newtype, ord, sub_assign, usize_newtype,
+    add_assign, d, fmt_debug, fmt_display, integer_newtype, ord, sub_assign, u, usize_newtype,
 };
 use std::path::PathBuf;
 
@@ -402,6 +402,31 @@ impl MenuView {
             Self::FindReplace(v) => MenuMode::FindReplace(v.mode),
             Self::GoToPosition(_) => MenuMode::GoToPosition,
         }
+    }
+}
+
+pub fn kind_editable_during_mode(kind: BufferIdKind, menu_mode: MenuMode) -> bool {
+    u!{MenuMode}
+    match (kind, menu_mode) {
+        (BufferIdKind::None, _) => false,
+        // We want this to be true always since it would be completely reasonable 
+        // behaviour for a different client to always show the text buffers.
+        (BufferIdKind::Text, _) => true, 
+        (BufferIdKind::Find, FindReplace(_)) => {
+            true
+        },
+        (BufferIdKind::Replace, FindReplace(_)) => {
+            true
+        },
+        (BufferIdKind::FileSwitcher, MenuMode::FileSwitcher) => {
+            true
+        },
+        (BufferIdKind::GoToPosition, MenuMode::GoToPosition) => {
+            true
+        },
+        _ => {
+            false
+        },
     }
 }
 

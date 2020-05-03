@@ -450,8 +450,16 @@ fn len_chars(editor_buffer: &EditorBuffer) -> usize {
     editor_buffer.text_buffer.borrow_rope().len_chars().0
 }
 
-fn first_char(editor_buffer: &EditorBuffer) -> char {
-    editor_buffer.text_buffer.borrow_rope().chars().next().unwrap()
+fn first_char(buffer: &TextBuffer) -> Option<char> {
+    buffer.borrow_rope().chars().next()
+}
+
+fn first_editor_buffer(state: &State) -> &EditorBuffer {
+    state.buffers.buffers().iter().next().unwrap()
+}
+
+fn first_editor_buffer_char(state: &State) -> Option<char> {
+    first_char(&first_editor_buffer(&state).text_buffer)
 }
 
 #[test]
@@ -466,7 +474,7 @@ fn update_and_render_retains_the_scratch_buffer_data_if_the_name_does_not_match_
 
     assert_eq!(usize::from(state.buffers.len()), 1usize);
 
-    assert_eq!(first_char(state.buffers.buffers().iter().next().unwrap()), 'a');
+    assert_eq!(first_editor_buffer_char(&state).unwrap(), 'a');
 }
 
 #[test]
@@ -481,8 +489,7 @@ fn update_and_render_retains_the_path_buffer_data_if_the_name_does_not_match_aft
 
     assert_eq!(usize::from(state.buffers.len()), 1usize);
 
-    let buffer = state.buffers.buffers().iter().next().unwrap();
-    assert_eq!(first_char(buffer), 'a');
+    assert_eq!(first_editor_buffer_char(&state).unwrap(), 'a');
 }
 
 #[allow(dead_code)]
@@ -628,6 +635,29 @@ proptest!{
     }
 }
 
+#[test]
+fn update_and_render_does_not_allow_clients_to_enter_text_into_the_find_field_outside_of_find_mode() {
+    u!{BufferIdKind, Input}
+    let mut state: State = d!();
+
+    assert_eq!(state.menu_mode, MenuMode::Hidden, "Precondition failure.");
+    assert_eq!(state.current_buffer_kind, Text, "Precondition failure.");
+    assert_eq!(first_char(&state.find), Option::None, "Precondition failure.");
+    assert_eq!(first_editor_buffer_char(&state), Option::None, "Precondition failure.");
+
+    let inputs = vec![SelectBuffer(BufferId { kind: Find, index: d!() }), Insert('a')];
+
+    for input in inputs {
+        let _ = update_and_render(&mut state, input);
+        assert_eq!(state.menu_mode, MenuMode::Hidden);
+        assert_eq!(state.current_buffer_kind, Text);
+    }
+
+    assert_eq!(usize::from(state.buffers.len()), 1usize);
+
+    assert_eq!(first_char(&state.find), Option::None);
+}
+
 /// This test predicate simulates what we expected clients to do if they want to keep track 
 /// of which buffers are currently different from what is on disk. This is a little 
 /// complicated because the editor is the one who knows about the undo history, and the 
@@ -650,16 +680,19 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
 
         u!{Input}
         match input {
-        /*
-            AddOrSelectBuffer(ref name, _) => {
-                if !state.buffers.index_with_name(name).is_some() {
-                    expected_edited_states.insert(state.buffers.append_index(), true);
+            AddOrSelectBuffer(ref name, ref data) => {
+                if state.buffers.index_with_name(name).is_none() {
+                    unedited_buffer_states.push_and_select_new(EditorBuffer::new(name.clone(), data.clone()));
+                    dbg!(&unedited_buffer_states);
                 }
             },
-            NewScratchBuffer(_) => {
-                expected_edited_states.insert(state.buffers.append_index(), true);
+            NewScratchBuffer(ref data) => {
+                unedited_buffer_states.push_and_select_new(EditorBuffer::new(
+                    BufferName::Scratch(state.next_scratch_buffer_number()),
+                    data.clone().unwrap_or_default()
+                ))
             },
-            OpenOrSelectBuffer(ref path) => {
+            /*OpenOrSelectBuffer(ref path) => {
                 if !state.buffers.index_with_name(&BufferName::Path(path.clone())).is_some() {
                     expected_edited_states.insert(state.buffers.append_index(), true);
                 }
@@ -678,8 +711,6 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
                         .get(index)
                         .expect("SavedAs invalid state.buffers.buffers index")
                         .clone();
-
-                    expected_edited_states.insert(index, false);
                 }
             }
 
@@ -718,10 +749,11 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
         } else {
             assert_eq!(
                 actual_data,
-                original_data.expect("original_data was None"),
+                original_data
+                    .expect(&format!("original_data was None ({:?}, {:?})", i, is_edited)),
                 "({:?}, {:?})",
                 i,
-                is_edited                
+                is_edited
             );
         }
     }
@@ -745,15 +777,6 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
     tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
         d!(),
         d!()
-    )
-}
-
-#[test]
-fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_a_file_is_added_to_a_blank_state() {
-    u!{BufferName, Input}
-    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
-        d!(),
-        vec![AddOrSelectBuffer(Path(".fakefile".into()), "".to_owned())]
     )
 }
 
@@ -826,7 +849,7 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
 
 #[test]
 fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_we_search_for_the_empty_string() {
-    u!{BufferIdKind, BufferName, Input}
+    u!{BufferIdKind, Input}
     let state: g_i::State = d!();
     tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
         d!(),
@@ -837,3 +860,38 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
     )
 }
 
+#[test]
+fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_a_file_is_added_to_a_blank_state() {
+    u!{BufferName, Input}
+    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+        d!(),
+        vec![AddOrSelectBuffer(Path(".fakefile".into()), "".to_owned())]
+    )
+}
+
+#[test]
+fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_a_file_is_added_to_a_blank_state_then_becomes_unedited_later() {
+    u!{BufferName, Input}
+    let state: g_i::State = d!();
+    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+        d!(),
+        vec![
+            AddOrSelectBuffer(Path(".fakefile".into()), "".to_owned()),
+            Insert('A'),
+            Delete
+        ]
+    )
+}
+
+#[test]
+fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_a_scratch_file_is_added_then_a_path_file_is_added() {
+    u!{BufferName, Input}
+    let state: g_i::State = d!();
+    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+        d!(),
+        vec![
+            NewScratchBuffer(Option::None),
+            AddOrSelectBuffer(Path(".fakefile".into()), "".to_owned())
+        ]
+    )
+}

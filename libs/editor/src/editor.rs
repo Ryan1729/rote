@@ -174,18 +174,20 @@ impl State {
     }
 
     fn set_id(&mut self, id: BufferId) {
-        self.current_buffer_kind = id.kind;
-
-        if let Some(buffer) = get_text_buffer_mut!(self) {
-            // These need to be cleared so that the `platform_types::View` that is passed down
-            // can be examined to detemine if the user wants to navigate away from the given
-            // buffer. We do this with each buffer, even though a client might only care about
-            // buffers of a given menu kind, since a different client might care about different
-            // ones, including plain `Text` buffers.
-            buffer.reset_cursor_states();
+        if kind_editable_during_mode(id.kind, self.menu_mode) {
+            self.current_buffer_kind = id.kind;
+    
+            if let Some(buffer) = get_text_buffer_mut!(self) {
+                // These need to be cleared so that the `platform_types::View` that is passed down
+                // can be examined to detemine if the user wants to navigate away from the given
+                // buffer. We do this with each buffer, even though a client might only care about
+                // buffers of a given menu kind, since a different client might care about different
+                // ones, including plain `Text` buffers.
+                buffer.reset_cursor_states();
+            }
+    
+            self.buffers.set_current_index(id.index);
         }
-
-        self.buffers.set_current_index(id.index);
     }
 
     fn next_scratch_buffer_number(&self) -> u32 {
@@ -595,7 +597,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                 data_op.unwrap_or_default(),
             ));
             state.current_buffer_kind = BufferIdKind::Text;
-            mark_edited_transition!(current, ToEdited);
+            mark_edited_transition!(current, ToUnedited);
         }
         TabIn => {
             text_buffer_call!(sync b { 
@@ -613,7 +615,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             state.current_buffer_kind = BufferIdKind::Text;
 
             buffer_view_sync!();
-            mark_edited_transition!(current, ToEdited);
+            mark_edited_transition!(current, ToUnedited);
         }
         AdjustBufferSelection(adjustment) => {
             state.adjust_buffer_selection(adjustment);
