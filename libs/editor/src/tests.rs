@@ -666,31 +666,50 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
     mut state: State,
     inputs: Vec<Input>,
 ) {
-    let mut unedited_buffer_states = state.buffers.buffers().clone();
+    let original_buffers = state.buffers.buffers();
+    let mut unedited_buffer_states: g_i::Map<EditorBuffer> = g_i::Map::with_capacity(original_buffers.len());
+    {
+        let state = original_buffers.index_state();
+        for (i, buffer) in original_buffers.iter_with_indexes() {
+            unedited_buffer_states.insert(state, i, buffer.clone());
+        }
+    }
 
-    let buffer_count = usize::from(state.buffers.len());
+    let buffer_count = state.buffers.len();
     dbg!(&unedited_buffer_states, buffer_count);
-    let mut expected_edited_states: HashMap<g_i::Index, bool> = HashMap::with_capacity(buffer_count);
+    let mut expected_edited_states: g_i::Map<bool> = g_i::Map::with_capacity(buffer_count);
 
-    for (i, _) in state.buffers.buffers().iter_with_indexes() {
-        expected_edited_states.insert(i, false);
+    {
+        let buffers = state.buffers.buffers();
+        let index_state= buffers.index_state();
+        for (i, _) in buffers.iter_with_indexes() {
+            expected_edited_states.insert(index_state, i, false);
+        }
     }
 
     for input in inputs {
-
+        let index_state = state.buffers.buffers().index_state();
         u!{Input}
         match input {
             AddOrSelectBuffer(ref name, ref data) => {
                 if state.buffers.index_with_name(name).is_none() {
-                    unedited_buffer_states.push_and_select_new(EditorBuffer::new(name.clone(), data.clone()));
+                    unedited_buffer_states.insert(
+                        index_state,
+                        state.buffers.append_index(),
+                        EditorBuffer::new(name.clone(), data.clone()),
+                    );
                     dbg!(&unedited_buffer_states);
                 }
             },
             NewScratchBuffer(ref data) => {
-                unedited_buffer_states.push_and_select_new(EditorBuffer::new(
-                    BufferName::Scratch(state.next_scratch_buffer_number()),
-                    data.clone().unwrap_or_default()
-                ))
+                unedited_buffer_states.insert(
+                    index_state,
+                    state.buffers.append_index(),
+                    EditorBuffer::new(
+                        BufferName::Scratch(state.next_scratch_buffer_number()),
+                        data.clone().unwrap_or_default()
+                    )
+                )
             },
             /*OpenOrSelectBuffer(ref path) => {
                 if !state.buffers.index_with_name(&BufferName::Path(path.clone())).is_some() {
@@ -699,13 +718,13 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
             },
 */        
             SavedAs(index, _) => {
-                dbg!("SavedAs()", index, expected_edited_states.contains_key(&index));
+                dbg!("SavedAs()", index, expected_edited_states.get(index_state, index).is_some());
                 // We need to trust the platform layer to only call
                 // this when the file is saved under the given path.
-                if expected_edited_states.contains_key(&index) {
+                if expected_edited_states.get(index_state, index).is_some() {
                     
                     let buffer = unedited_buffer_states
-                        .get_mut(index)
+                        .get_mut(index_state, index)
                         .expect("SavedAs invalid unedited_buffer_states index");
                     *buffer = state.buffers.buffers()
                         .get(index)
@@ -719,25 +738,34 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
 
         let (view, _) = update_and_render(&mut state, input);
         dbg!(&view.edited_transitions);
+        let index_state = state.buffers.buffers().index_state();
         for (i, transition) in view.edited_transitions {
             u!{EditedTransition}
             match transition {
                 ToEdited => {
-                    expected_edited_states.insert(i, true);
+                    expected_edited_states.insert(index_state, i, true);
                 }
                 ToUnedited => {
-                    expected_edited_states.insert(i, false);
+                    expected_edited_states.insert(index_state, i, false);
                 }
             }
         }
     }
 
     dbg!(&state.buffers);
-    assert_eq!(expected_edited_states.len(), usize::from(state.buffers.len()), "expected_edited_states len does not match state.buffers");
+    assert_eq!(
+        expected_edited_states.len(),
+        state.buffers.len(), 
+        "expected_edited_states len does not match state.buffers. expected_edited_states: {:#?}",
+        expected_edited_states
+    );
 
     for (i, is_edited) in expected_edited_states {
-        let actual_data: String = state.buffers.buffers().get(i).expect("actual_data was None").into();
-        let original_data: Option<String> = unedited_buffer_states.get(i).map(|s| s.into());
+        let buffers = state.buffers.buffers();
+        let actual_data: String = buffers.get(i).expect("actual_data was None").into();
+        let original_data: Option<String> = unedited_buffer_states
+            .get(buffers.index_state(), i)
+            .map(|s| s.into());
         if is_edited {
             assert_ne!(
                 Some(actual_data),
@@ -892,6 +920,20 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
         vec![
             NewScratchBuffer(Option::None),
             AddOrSelectBuffer(Path(".fakefile".into()), "".to_owned())
+        ]
+    )
+}
+
+#[test]
+fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_a_path_file_is_added_then_the_selection_is_changed() {
+    u!{BufferName, Input, SelectionAdjustment, SelectionMove}
+    let state: g_i::State = d!();
+    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+        d!(),
+        vec![
+            AddOrSelectBuffer(Path(".fakefile".into()), "¡".to_owned()),
+            AdjustBufferSelection(Move(Left)),
+            DeleteLines,
         ]
     )
 }

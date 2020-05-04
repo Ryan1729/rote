@@ -329,7 +329,7 @@ pub struct RunState {
     pub view: View,
     pub cmds: VecDeque<Cmd>,
     pub ui: ui::State,
-    pub buffer_status_map: BufferStatusMap,
+    pub buffer_status_map: g_i::Map<BufferStatus>,
     pub editor_in_sink: std::sync::mpsc::Sender<Input>,
     pub dimensions: Dimensions,
     pub event_proxy: EventLoopProxy<CustomEvent>, 
@@ -831,73 +831,23 @@ pub fn transform_status(status: BufferStatus, transition: BufferStatusTransition
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct BufferStatusMap {
-    map: HashMap<usize, BufferStatus>,
-    last_state: Option<g_i::State>,
-}
-
-impl BufferStatusMap {
-    pub fn with_capacity(capacity: usize) -> Self {
-        BufferStatusMap {
-            map: HashMap::with_capacity(capacity),
-            last_state: d!(),
-        }
-    }
-
-    pub fn get(&self, state: g_i::State, index: g_i::Index) -> Option<BufferStatus> {
-        index.get(state).and_then(|i| self.map.get(&i).cloned())
-    }
-
-    pub fn insert(&mut self, state: g_i::State, current_index: g_i::Index, status: BufferStatus) {
-        if let Some(current_index) = current_index.get(state) {
-            self.migrate_all(state);
-
-            self.map.insert(current_index, status);
-        }
-    }
-
-    pub fn transform_at(
-        &mut self,
-        index_state: g_i::State,
-        index: g_i::Index,
-        transition: BufferStatusTransition
-    ) {
-        self.insert(
-            index_state,
-            index,
-            transform_status(
-                self
-                    .get(index_state, index)
-                    .unwrap_or_default(),
-                transition
-            )
-        );
-    }
-
-    pub fn migrate_all(&mut self, state: g_i::State) {
-        let last_state = self.last_state;
-        if Some(state) != last_state {
-            let mut keys: Vec<_> = self.map.keys().cloned().collect();
-            //currently all the state fixups work if we use this reverse order.
-            keys.sort();
-            keys.reverse();
-            for key in keys {
-                if let Some(i) = last_state.and_then(|s| {
-                    state
-                        .migrate(s.new_index(g_i::IndexPart::or_max(key)))
-                        .and_then(|i| i.get(state))
-                }) {
-                    let status = self.map.remove(&i).unwrap_or_default();
-                    self.map.insert(i, status);
-                } else {
-                    self.map.remove(&key);
-                }
-            }
-
-            self.last_state = Some(state);
-        }
-    }
+pub fn transform_at(
+    map: &mut g_i::Map<BufferStatus>,
+    index_state: g_i::State,
+    index: g_i::Index,
+    transition: BufferStatusTransition
+) {
+    map.insert(
+        index_state,
+        index,
+        transform_status(
+            map
+                .get(index_state, index)
+                .cloned()
+                .unwrap_or_default(),
+            transition
+        )
+    );
 }
 
 #[cfg(test)]
@@ -925,7 +875,7 @@ mod tests {
             s.removed_at_index_part(g_i::IndexPart::or_max(usize::max_value()));
             s
         };
-        let len = 5;
+        let len = g_i::Length::or_max(5);
         // In the map below, we simulate a map that was like this at generation 0:
         // [status_pre_2, status_pre_2, status_at_2, status_at_2, status_post_2, status_post_2]
         // and in generation 1 it became this:
@@ -934,7 +884,7 @@ mod tests {
         let status_at_2 = BufferStatus::EditedAndSaved;
         let status_post_2 = BufferStatus::EditedAndUnSaved;
 
-        let mut map = BufferStatusMap::with_capacity(len);
+        let mut map = g_i::Map::with_capacity(len);
         // this test assumes that the state passed "matches" the maps state, so in this case,
         // always `state_1`. Note the index state is varied. We use state_1 so we can check what
         // happens above, at, and after the current state. Similarly we care about index 2 so we
@@ -974,27 +924,27 @@ mod tests {
                 $ex4: expr,
              ) => {
                 assert_eq!(
-                    map.get(state_1, $index_state.new_index(g_i::IndexPart::or_max(0))),
+                    map.get(state_1, $index_state.new_index(g_i::IndexPart::or_max(0))).cloned(),
                     $ex0,
                     "$ex0"
                 );
                 assert_eq!(
-                    map.get(state_1, $index_state.new_index(g_i::IndexPart::or_max(1))),
+                    map.get(state_1, $index_state.new_index(g_i::IndexPart::or_max(1))).cloned(),
                     $ex1,
                     "$ex1"
                 );
                 assert_eq!(
-                    map.get(state_1, $index_state.new_index(g_i::IndexPart::or_max(2))),
+                    map.get(state_1, $index_state.new_index(g_i::IndexPart::or_max(2))).cloned(),
                     $ex2,
                     "$ex2"
                 );
                 assert_eq!(
-                    map.get(state_1, $index_state.new_index(g_i::IndexPart::or_max(3))),
+                    map.get(state_1, $index_state.new_index(g_i::IndexPart::or_max(3))).cloned(),
                     $ex3,
                     "$ex3"
                 );
                 assert_eq!(
-                    map.get(state_1, $index_state.new_index(g_i::IndexPart::or_max(4))),
+                    map.get(state_1, $index_state.new_index(g_i::IndexPart::or_max(4))).cloned(),
                     $ex4,
                     "$ex4"
                 );
@@ -1037,11 +987,11 @@ mod tests {
         let old_state = d!();
         let new_state = state_at_generation(3);
         let status = BufferStatus::EditedAndUnSaved;
-        let len = 16;
+        let len = g_i::Length::or_max(16);
 
-        let mut map = BufferStatusMap::with_capacity(len);
+        let mut map = g_i::Map::with_capacity(len);
 
-        for i in 0..len {
+        for i in 0usize..len.into() {
             map.insert(
                 old_state,
                 old_state.new_index(g_i::IndexPart::or_max(i)),
@@ -1050,7 +1000,7 @@ mod tests {
         }
 
         // precondition
-        assert_eq!(map.map.len(), len);
+        assert_eq!(map.len(), len);
 
         map.insert(
             new_state,
@@ -1058,7 +1008,7 @@ mod tests {
             status,
         );
 
-        assert_eq!(map.map.len(), 1);
+        assert_eq!(map.len(), g_i::Length::or_max(1));
     }
 }
 

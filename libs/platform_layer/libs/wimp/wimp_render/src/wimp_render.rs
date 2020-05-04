@@ -262,6 +262,7 @@ pub fn view<'view>(
                         view.index_state(),
                         index,
                     )
+                    .cloned()
                     .unwrap_or_default()
                 {
                     BufferStatus::Unedited => None,

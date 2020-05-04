@@ -93,6 +93,7 @@ macro_rules! ord {
     (for $name:ty : $self:ident, $other:ident in $code:expr) => {
         impl std::cmp::Ord for $name {
             fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+                #[allow(unused_imports)]
                 use std::cmp::Ord;
                 let $self = self;
                 let $other = other;

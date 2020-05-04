@@ -8,7 +8,7 @@ use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::time::Duration;
 use wimp_render::{get_find_replace_info, FindReplaceInfo, get_go_to_position_info, GoToPositionInfo, ViewOutput, ViewAction};
-use wimp_types::{ui, ui::{PhysicalButtonState, Navigation}, transform_status, BufferStatus, BufferStatusMap, BufferStatusTransition, CustomEvent, get_clipboard, ClipboardProvider, Dimensions, LabelledCommand, RunConsts, RunState, MenuMode};
+use wimp_types::{ui, ui::{PhysicalButtonState, Navigation}, transform_at, BufferStatus, BufferStatusTransition, CustomEvent, get_clipboard, ClipboardProvider, Dimensions, LabelledCommand, RunConsts, RunState, MenuMode};
 use file_chooser;
 use macros::{d, dbg};
 use platform_types::{screen_positioning::screen_to_text_box, *};
@@ -325,7 +325,8 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
         let mut ui: ui::State = d!();
         ui.window_is_focused = true;
 
-        let buffer_status_map = BufferStatusMap::with_capacity((previous_tabs.len() + 1) * 2);
+        let expected_capacity_needed = (previous_tabs.len() + 1) * 2;
+        let buffer_status_map = g_i::Map::with_capacity(g_i::Length::or_max(expected_capacity_needed));
 
         let clipboard = get_clipboard();
 
@@ -454,18 +455,11 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                 let index = $buffer_index;
                 match std::fs::write($path, $str) {
                     Ok(_) => {
-                        let view = $view;
-                        let index_state = view.index_state();
-                        let buffer_status_map = $buffer_status_map;
-                        buffer_status_map.insert(
-                            index_state,
+                        transform_at(
+                            $buffer_status_map,
+                            $view.index_state(), 
                             index,
-                            transform_status(
-                                buffer_status_map
-                                    .get(index_state, index)
-                                    .unwrap_or_default(),
-                                BufferStatusTransition::Save
-                            )
+                            BufferStatusTransition::Save
                         );
                         call_u_and_r!($ui, $editor_in_sink, Input::SavedAs(index, $path.to_path_buf()));
                     }
@@ -1045,7 +1039,8 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                             Ok((v, c)) => {
                                 r_s.view.update(v);
                                 for (i, e_t) in r_s.view.edited_transitions() {
-                                    buffer_status_map.transform_at(
+                                    transform_at(
+                                        buffer_status_map,
                                         index_state,
                                         i,
                                         BufferStatusTransition::from(e_t)
@@ -1062,7 +1057,8 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                     for _ in 0..EVENTS_PER_FRAME {
                         match edited_files_out_source.try_recv() {
                             Ok((index, transition)) => {
-                                buffer_status_map.transform_at(
+                                transform_at(
+                                    buffer_status_map,
                                     index_state,
                                     index,
                                     transition
@@ -1170,7 +1166,10 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                                 view.buffer_iter().map(|(i, b)|
                                     (
                                         b.to_owned(), 
-                                        r_s.buffer_status_map.get(index_state, i).unwrap_or_default()
+                                        r_s.buffer_status_map
+                                            .get(index_state, i)
+                                            .cloned()
+                                            .unwrap_or_default()
                                     )
                                 ).collect()
                             )

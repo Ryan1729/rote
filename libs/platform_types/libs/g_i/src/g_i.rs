@@ -748,6 +748,25 @@ mod selectable_vec1 {
         }
     }
 
+    impl <A> IntoIterator for SelectableVec1<A> {
+        type Item = (Index, A);
+        type IntoIter = std::vec::IntoIter<Self::Item>;
+    
+        fn into_iter(self) -> Self::IntoIter {
+            let mut index = self.index_state.new_index(d!());
+
+            let v: Vec<_> = self.elements.into_iter().map(|a| {
+                let i = index.clone();
+
+                index = index.saturating_add(1);
+
+                (i, a)
+            }).collect();
+    
+            v.into_iter()
+        }
+    }
+
     #[cfg(any(test, feature = "pub_arb"))]
     impl<A> SelectableVec1<A> {
         pub fn from_parts(
@@ -764,6 +783,91 @@ mod selectable_vec1 {
     }
 } 
 pub use selectable_vec1::{SelectableVec1, IterWithIndexes};
+
+use std::collections::HashMap;
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Map<A> {
+    map: HashMap<IndexPart, A>,
+    last_state: Option<State>,
+}
+
+impl <A> Map<A> {
+    pub fn with_capacity(capacity: Length) -> Self {
+        Map {
+            map: HashMap::with_capacity(capacity.into()),
+            last_state: d!(),
+        }
+    }
+
+    pub fn len(&self) -> Length {
+        debug_assert!(self.map.len() <= Length::max_value());
+        Length::or_max(self.map.len())
+    }
+
+    pub fn get(&self, state: State, index: Index) -> Option<&A> {
+        index.get_index_part(state).and_then(|i| self.map.get(&i))
+    }
+
+    pub fn get_mut(&mut self, state: State, index: Index) -> Option<&mut A> {
+        if let Some(i) = index.get_index_part(state) {
+            self.map.get_mut(&i)
+        } else {
+            None
+        }
+    }
+
+    pub fn insert(&mut self, state: State, current_index: Index, value: A) {
+        if let Some(current_index) = current_index.get_index_part(state) {
+            self.migrate_all(state);
+
+            self.map.insert(current_index, value);
+        }
+    }
+
+    pub fn migrate_all(&mut self, state: State) {
+        let last_state = self.last_state;
+        if Some(state) != last_state {
+            let mut keys: Vec<_> = self.map.keys().cloned().collect();
+            //currently all the state fixups work if we use this reverse order.
+            keys.sort();
+            keys.reverse();
+            for key in keys {
+                if let Some(i) = last_state.and_then(|s| {
+                    state
+                        .migrate(s.new_index(key))
+                        .and_then(|i| i.get_index_part(state))
+                }) {
+                    if let Some(value) = self.map.remove(&i) {
+                        self.map.insert(i, value);
+                    }
+                } else {
+                    self.map.remove(&key);
+                }
+            }
+
+            self.last_state = Some(state);
+        }
+    }
+}
+
+impl <A> IntoIterator for Map<A> {
+    type Item = (Index, A);
+    type IntoIter = std::collections::hash_map::IntoIter<Index, A>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        let map = if let Some(state) = self.last_state {
+            self.map.into_iter().map(|(part, a)| {
+                (state.new_index(part), a)
+            }).collect()
+        } else {
+            // if the last_state is none, that implies that no inserts were done.
+            HashMap::with_capacity(0)
+        };
+
+        map.into_iter()
+    }
+}
 
 #[cfg(any(test, feature = "pub_arb"))]
 pub mod tests {
