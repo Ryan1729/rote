@@ -658,6 +658,62 @@ fn update_and_render_does_not_allow_clients_to_enter_text_into_the_find_field_ou
     assert_eq!(first_char(&state.find), Option::None);
 }
 
+/// We want this to be true because we hope it will make bugs where the same index is sent down
+/// twice harder to write. If nothing else, bugs like that will be easier to notice in the debug
+/// printouts. Also, if thread channel memory usage ever becomes an issue, if this property holds,
+/// we only have to send down the generation once.
+// TODO assert all edited_transitions refer to different elements
+fn the_edited_transitions_sent_down_with_the_view_all_use_the_same_generation_as_the_buffers_on(
+    mut state: State,
+    inputs: Vec<Input>,
+) {
+    for input in inputs {
+        let (view, _) = update_and_render(&mut state, input.clone());
+        dbg!(&view.edited_transitions);
+        
+        let index_state = state.buffers.buffers().index_state();
+
+        let expected_generation = index_state.get_generation();
+        
+        for (i, _) in view.edited_transitions.clone() {
+            let generation = i.get_generation();
+            assert_eq!(
+                generation,
+                expected_generation,
+                "expected all to use {:?}. edited_transitions: {:#?}, input: {:#?}",
+                expected_generation,
+                &view.edited_transitions,
+                input
+            );
+        }
+    }
+}
+
+proptest!{
+    #[test]
+    fn the_edited_transitions_sent_down_with_the_view_all_use_the_same_generation_as_the_buffers(
+        state in arb::state(),
+        inputs in proptest::collection::vec(arb::input(), 0..=16),
+    ) {
+        the_edited_transitions_sent_down_with_the_view_all_use_the_same_generation_as_the_buffers_on(
+            state,
+            inputs
+        )
+    }
+}
+
+#[test]
+fn the_edited_transitions_sent_down_with_the_view_all_use_the_same_generation_as_the_buffers_if_we_add_a_buffer_then_shift_it_left() {
+    u!{BufferName, Input, SelectionAdjustment, SelectionMove}
+    the_edited_transitions_sent_down_with_the_view_all_use_the_same_generation_as_the_buffers_on(
+        d!(),
+        vec![
+            AddOrSelectBuffer(Path(".fakefile".into()), "".to_owned()),
+            AdjustBufferSelection(Move(Left)),
+        ]
+    )
+}
+
 /// This test predicate simulates what we expected clients to do if they want to keep track 
 /// of which buffers are currently different from what is on disk. This is a little 
 /// complicated because the editor is the one who knows about the undo history, and the 
@@ -739,6 +795,7 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
         let (view, _) = update_and_render(&mut state, input);
         dbg!(&view.edited_transitions);
         let index_state = state.buffers.buffers().index_state();
+        
         for (i, transition) in view.edited_transitions {
             u!{EditedTransition}
             match transition {

@@ -45,4 +45,5 @@ pub_arb_std = { path = "../../../pub_arb/std" }
 
 [features]
 default = []
+extra-prints = []
 pub_arb = ["proptest", "pretty_assertions", "pub_arb_std"]

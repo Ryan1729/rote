@@ -493,7 +493,6 @@ impl TextBuffer {
         self.apply_edit(edit, ApplyKind::Record);
 
         dbg!(self.editedness());
-
         change!(old_editedness, self.editedness()).into()
     }
 

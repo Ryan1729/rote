@@ -121,9 +121,9 @@ impl std::ops::RemAssign<Length> for IndexPart {
     }
 }
 
-// It could be argued that this should do generation checking, but it could also be agued that
+// It could be argued that this should do generation checking, but it could also be argued that
 // you should be allowed to compare to old lengths assuming you know what yoa are doing. We'll
-// see if it ecomes an issue I guess.
+// see if it becomes an issue I guess.
 impl std::cmp::PartialOrd<Length> for IndexPart {
     fn partial_cmp(&self, other: &Length) -> Option<std::cmp::Ordering> {
         Some(self.0.cmp(&other.0))
@@ -240,7 +240,8 @@ impl Index {
     pub fn get(self, state: State) -> Option<usize> {
         self.get_index_part(state).map(|IndexPart(i)| i as usize)
     }
-    fn get_index_part(self, state: State) -> Option<IndexPart> {
+
+    pub fn get_index_part(self, state: State) -> Option<IndexPart> {
         if self.generation == state.current {
             Some(self.index)
         } else if self.generation == state.current.wrapping_sub(1) {
@@ -898,6 +899,10 @@ pub mod tests {
                 invalidation: Invalidation::RemovedAt(index_part),
             }
         }
+
+        pub fn get_generation(&self) -> Generation {
+            self.current
+        }
     }
 
     macro_rules! g_i_i {
@@ -912,6 +917,10 @@ pub mod tests {
     impl Index {
         pub fn new_from_parts(generation: Generation, index: IndexPart) -> Self {
             Index { generation, index }
+        }
+
+        pub fn get_generation(&self) -> Generation {
+            self.generation
         }
     }
 

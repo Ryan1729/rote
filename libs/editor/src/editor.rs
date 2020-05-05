@@ -219,7 +219,6 @@ impl State {
 
     fn try_to_show_cursors_on(&mut self, kind: BufferIdKind) -> Option<()> {
         u!{BufferIdKind}
-        dbg!(kind);
         let buffer = get_text_buffer_mut!(self, kind)?;
         let xywh = match kind {
             None => return Option::None,
@@ -232,9 +231,7 @@ impl State {
 
         let char_dim = Self::char_dim_for_buffer_kind(&self.font_info, kind);
 
-        dbg!(xywh, char_dim);
         let attempt_result = buffer.try_to_show_cursors_on(xywh, char_dim);
-        dbg!(attempt_result);
         match attempt_result {
             VisibilityAttemptResult::Succeeded => Some(()),
             _ => Option::None,
@@ -428,6 +425,8 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             state.set_menu_mode(MenuMode::Hidden);
         };
     }
+
+    state.view.edited_transitions.clear();
 
     u!{EditedTransition};
 
