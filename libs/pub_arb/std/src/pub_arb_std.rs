@@ -20,6 +20,15 @@ prop_compose!{
     }
 }
 
+prop_compose!{
+    pub fn distinct_strings()(s1 in ".*", mut s2 in ".*") -> (String, String) {
+        if s1 == s2 {
+            s2.push('.');
+        }
+        (s1, s2)
+    }
+}
+
 pub mod f32 {
     use proptest::num;
     use proptest::prelude::prop_compose;

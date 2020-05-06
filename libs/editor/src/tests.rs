@@ -658,6 +658,65 @@ fn update_and_render_does_not_allow_clients_to_enter_text_into_the_find_field_ou
     assert_eq!(first_char(&state.find), Option::None);
 }
 
+fn update_and_render_returns_edited_if_a_file_is_loaded_then_changed_to_a_different_string_on(
+    s1: String, s2: String
+) {
+    assert_ne!(s1, s2, "precondition failure");
+
+    u!{BufferIdKind, BufferName, EditedTransition, Input}
+    let mut state: State = d!();
+
+    let _ = update_and_render(&mut state, AddOrSelectBuffer(Path(".fakefile".into()), s1));
+
+    let _ = update_and_render(&mut state, SelectAll);
+
+    let mut last_transition: Option<EditedTransition> = Option::None;
+
+    if s2.len() == 0 { // we know s1 must not be empty.
+        let (view, _) = update_and_render(&mut state, Delete);
+        for (_, t) in view.edited_transitions.clone() {
+            last_transition = Some(t);
+        }
+    } else {
+        for c in s2.chars() {
+            let (view, _) = update_and_render(&mut state, Insert(c));
+            for (_, t) in view.edited_transitions.clone() {
+                last_transition = Some(t);
+            }
+        }
+    }
+
+    assert_eq!(last_transition, Some(ToEdited));
+}
+
+/* this is rather slow
+proptest!{
+    #[test]
+    fn update_and_render_returns_edited_if_a_file_is_loaded_then_changed_to_a_different_string(
+        (s1, s2) in pub_arb_std::distinct_strings()
+    ) {
+        update_and_render_returns_edited_if_a_file_is_loaded_then_changed_to_a_different_string_on(
+            s1, s2
+        );
+    }
+}
+*/
+
+#[test]
+fn update_and_render_returns_edited_if_a_file_is_loaded_then_changed_to_a_different_string_in_this_empty_to_non_empty_example() {
+    update_and_render_returns_edited_if_a_file_is_loaded_then_changed_to_a_different_string_on(
+        "".to_owned(), "123".to_owned()
+    );
+}
+
+#[test]
+fn update_and_render_returns_edited_if_a_file_is_loaded_then_changed_to_a_different_string_in_this_non_empty_to_empty_example() {
+    update_and_render_returns_edited_if_a_file_is_loaded_then_changed_to_a_different_string_on(
+        "123".to_owned(), "".to_owned()
+    );
+}
+
+
 /// We want this to be true because we hope it will make bugs where the same index is sent down
 /// twice harder to write. If nothing else, bugs like that will be easier to notice in the debug
 /// printouts. Also, if thread channel memory usage ever becomes an issue, if this property holds,
@@ -983,6 +1042,20 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
 
 #[test]
 fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_a_path_file_is_added_then_the_selection_is_changed() {
+    u!{BufferName, Input, SelectionAdjustment, SelectionMove}
+    let state: g_i::State = d!();
+    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+        d!(),
+        vec![
+            AddOrSelectBuffer(Path(".fakefile".into()), "¡".to_owned()),
+            AdjustBufferSelection(Move(Left)),
+            DeleteLines,
+        ]
+    )
+}
+
+#[test]
+fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_a_path_file_is_added_then_the_selection_is_changed_reduction() {
     u!{BufferName, Input, SelectionAdjustment, SelectionMove}
     let state: g_i::State = d!();
     tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
