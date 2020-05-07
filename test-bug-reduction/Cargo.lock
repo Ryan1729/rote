@@ -2,20 +2,11 @@
 # It is not intended for manual editing.
 [[package]]
 name = "aho-corasick"
-version = "0.5.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ca972c2ea5f742bfce5687b9aef75506a764f61d37f8f649047846a9686ddb66"
-dependencies = [
- "memchr 0.1.11",
-]
-
-[[package]]
-name = "aho-corasick"
 version = "0.7.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8716408b8bc624ed7f65d223ddb9ac2d044c0547b6fa4b0d554f3a9540496ada"
 dependencies = [
- "memchr 2.3.3",
+ "memchr",
 ]
 
 [[package]]
@@ -24,7 +15,7 @@ version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "48fb30d9ad567e58e97dfeedcb54c66a6fbdeae3fc869075f5c0a2739dc2d849"
 dependencies = [
- "bitflags 1.0.4",
+ "bitflags",
  "line_drawing",
  "rusttype 0.7.5",
  "walkdir",
@@ -155,12 +146,6 @@ checksum = "f59bbe95d4e52a6398ec21238d31577f2b28a9d86807f06ca59d191d8440d0bb"
 
 [[package]]
 name = "bitflags"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aad18937a628ec6abcd26d1489012cc0e18c21798210f491af69ded9b881106d"
-
-[[package]]
-name = "bitflags"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "228047a76f468627ca71776ecdebd732a3423081fcf5125585bcd7c49886ce12"
@@ -189,7 +174,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2889e6d50f394968c8bf4240dc3f2a7eb4680844d27308f798229ac9d4725f41"
 dependencies = [
  "lazy_static 1.4.0",
- "memchr 2.3.3",
+ "memchr",
  "regex-automata",
  "serde",
 ]
@@ -274,7 +259,7 @@ version = "2.33.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5067f5bb2d80ef5d68b4c87db81601f0b75bca627bc2ef76b141d7b846a3c6d9"
 dependencies = [
- "bitflags 1.0.4",
+ "bitflags",
  "textwrap",
  "unicode-width",
 ]
@@ -307,7 +292,7 @@ version = "0.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ddfc5b9aa5d4507acaf872de71051dfd0e309860e88966e1051e462a077aac4f"
 dependencies = [
- "bitflags 1.0.4",
+ "bitflags",
 ]
 
 [[package]]
@@ -316,7 +301,7 @@ version = "0.19.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f29f7768b2d1be17b96158e3285951d366b40211320fb30826a76cb7a0da6400"
 dependencies = [
- "bitflags 1.0.4",
+ "bitflags",
  "block",
  "core-foundation",
  "core-graphics",
@@ -353,7 +338,7 @@ version = "0.17.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "56790968ab1c8a1202a102e6de05fc6e1ec87da99e4e93e9a7d13efbfc1e95a9"
 dependencies = [
- "bitflags 1.0.4",
+ "bitflags",
  "core-foundation",
  "foreign-types",
  "libc",
@@ -416,7 +401,7 @@ dependencies = [
  "oorandom",
  "plotters",
  "rayon",
- "regex 1.3.6",
+ "regex",
  "serde",
  "serde_derive",
  "serde_json",
@@ -521,7 +506,7 @@ version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b2466559f260f48ad25fe6317b3c8dac77b5bdb5763ac7d9d6103530663bc90"
 dependencies = [
- "memchr 2.3.3",
+ "memchr",
 ]
 
 [[package]]
@@ -641,21 +626,11 @@ checksum = "5527cfe0d098f36e3f8839852688e63c8fff1c90b2b405aef730615f9a7bcf7b"
 
 [[package]]
 name = "env_logger"
-version = "0.3.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15abd780e45b3ea4f76b4e9a26ff4843258dd8a3eed2775a0e7368c2e7936c2f"
-dependencies = [
- "log 0.3.8",
- "regex 0.1.80",
-]
-
-[[package]]
-name = "env_logger"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "44533bbbb3bb3c1fa17d9f2e4e38bbbaf8396ba82193c4cb1b6445d711445d36"
 dependencies = [
- "log 0.4.8",
+ "log",
 ]
 
 [[package]]
@@ -696,7 +671,7 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
- "thread-id 3.3.0",
+ "thread-id",
 ]
 
 [[package]]
@@ -709,7 +684,7 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
- "thread-id 3.3.0",
+ "thread-id",
 ]
 
 [[package]]
@@ -750,30 +725,12 @@ checksum = "a06f77d526c1a601b7c4cdd98f54b5eaabffc14d5f2f0296febdc7f357c6d3ba"
 
 [[package]]
 name = "fuchsia-zircon"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f6c0581a4e363262e52b87f59ee2afe3415361c6ec35e665924eb08afe8ff159"
-dependencies = [
- "fuchsia-zircon-sys 0.2.0",
-]
-
-[[package]]
-name = "fuchsia-zircon"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2e9763c69ebaae630ba35f74888db465e49e259ba1bc0eda7d06f4a067615d82"
 dependencies = [
- "bitflags 1.0.4",
- "fuchsia-zircon-sys 0.3.3",
-]
-
-[[package]]
-name = "fuchsia-zircon-sys"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43f3795b4bae048dc6123a6b972cadde2e676f9ded08aef6bb77f5f157684a82"
-dependencies = [
- "bitflags 0.7.0",
+ "bitflags",
+ "fuchsia-zircon-sys",
 ]
 
 [[package]]
@@ -828,7 +785,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ca98bbde17256e02d17336a6bdb5a50f7d0ccacee502e191d3e3d0ec2f96f84a"
 dependencies = [
  "khronos_api",
- "log 0.4.8",
+ "log",
  "xml-rs",
 ]
 
@@ -839,7 +796,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1a95dfc23a2b4a9a2f5ab41d194f8bfda3cabec42af4e39f08c339eb2a0c124d"
 dependencies = [
  "khronos_api",
- "log 0.4.8",
+ "log",
  "xml-rs",
 ]
 
@@ -884,7 +841,7 @@ dependencies = [
  "glutin_wgl_sys",
  "lazy_static 1.4.0",
  "libloading",
- "log 0.4.8",
+ "log",
  "objc",
  "osmesa-sys",
  "parking_lot 0.9.0",
@@ -911,7 +868,7 @@ dependencies = [
  "glutin_wgl_sys",
  "lazy_static 1.4.0",
  "libloading",
- "log 0.4.8",
+ "log",
  "objc",
  "osmesa-sys",
  "parking_lot 0.10.0",
@@ -938,7 +895,7 @@ dependencies = [
  "glutin_wgl_sys",
  "lazy_static 1.4.0",
  "libloading",
- "log 0.4.8",
+ "log",
  "objc",
  "osmesa-sys",
  "parking_lot 0.10.0",
@@ -998,12 +955,12 @@ version = "0.6.3"
 dependencies = [
  "approx",
  "criterion 0.3.1",
- "env_logger 0.7.1",
+ "env_logger",
  "gl",
  "glutin 0.24.0",
  "glyph_brush_layout 0.1.9",
  "if_changed",
- "log 0.4.8",
+ "log",
  "matches",
  "once_cell",
  "ordered-float",
@@ -1160,12 +1117,6 @@ dependencies = [
 
 [[package]]
 name = "log"
-version = "0.3.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "880f77541efa6e5cc74e76910c9884d9859683118839d6a1dc3b11e63512565b"
-
-[[package]]
-name = "log"
 version = "0.4.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "14b6052be84e6b71ab17edffc2eeabf5c2c3ae1fdb464aae35ac50c67a44e1f7"
@@ -1200,15 +1151,6 @@ checksum = "60302e4db3a61da70c0cb7991976248362f30319e88850c487b9b95bbf059e00"
 
 [[package]]
 name = "memchr"
-version = "0.1.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d8b629fb514376c675b98c1421e80b151d3817ac42d7c667717d282761418d20"
-dependencies = [
- "libc",
-]
-
-[[package]]
-name = "memchr"
 version = "2.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3728d817d99e5ac407411fa471ff9800a778d88a24685968b36824eaf4bee400"
@@ -1238,12 +1180,12 @@ version = "0.6.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "83f51996a3ed004ef184e16818edc51fadffe8e7ca68be67f9dee67d84d0ff23"
 dependencies = [
- "fuchsia-zircon 0.3.3",
- "fuchsia-zircon-sys 0.3.3",
+ "fuchsia-zircon",
+ "fuchsia-zircon-sys",
  "iovec",
  "kernel32-sys",
  "libc",
- "log 0.4.8",
+ "log",
  "miow",
  "net2",
  "slab",
@@ -1257,7 +1199,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "46e73a04c2fa6250b8d802134d56d554a9ec2922bf977777c805ea5def61ce40"
 dependencies = [
  "lazycell",
- "log 0.4.8",
+ "log",
  "mio",
  "slab",
 ]
@@ -1315,7 +1257,7 @@ version = "0.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c722bee1037d430d0f8e687bbdbf222f27cc6e4e68d5caf630857bb2b6dbdce"
 dependencies = [
- "bitflags 1.0.4",
+ "bitflags",
  "cc",
  "cfg-if",
  "libc",
@@ -1628,7 +1570,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bf6147d103a7c9d7598f4105cf049b15c99e2ecd93179bf024f0fd349be5ada4"
 dependencies = [
  "bit-set",
- "bitflags 1.0.4",
+ "bitflags",
  "byteorder",
  "lazy_static 1.4.0",
  "num-traits",
@@ -1636,7 +1578,7 @@ dependencies = [
  "rand 0.6.5",
  "rand_chacha 0.1.1",
  "rand_xorshift",
- "regex-syntax 0.6.17",
+ "regex-syntax",
  "rusty-fork",
  "tempfile",
 ]
@@ -1685,17 +1627,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9274b940887ce9addde99c4eee6b5c44cc494b182b97e73dc8ffdcb3397fd3f0"
 
 [[package]]
-name = "quickcheck"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "02c2411d418cea2364325b18a205664f9ef8252e06b2e911db97c0b0d98b1406"
-dependencies = [
- "env_logger 0.3.5",
- "log 0.3.8",
- "rand 0.3.18",
-]
-
-[[package]]
 name = "quote"
 version = "0.6.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1711,16 +1642,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "053a8c8bcc71fcce321828dc897a98ab9760bef03a4fc36693c231e5b3216cfe"
 dependencies = [
  "proc-macro2 1.0.9",
-]
-
-[[package]]
-name = "rand"
-version = "0.3.18"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6475140dfd8655aeb72e1fd4b7a1cc1c202be65d71669476e392fe62532b9edd"
-dependencies = [
- "fuchsia-zircon 0.2.1",
- "libc",
 ]
 
 [[package]]
@@ -1951,27 +1872,14 @@ dependencies = [
 
 [[package]]
 name = "regex"
-version = "0.1.80"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4fd4ace6a8cf7860714a2c2280d6c1f7e6a413486c13298bbc86fd3da019402f"
-dependencies = [
- "aho-corasick 0.5.3",
- "memchr 0.1.11",
- "regex-syntax 0.3.9",
- "thread_local 0.2.7",
- "utf8-ranges",
-]
-
-[[package]]
-name = "regex"
 version = "1.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f6946991529684867e47d86474e3a6d0c0ab9b82d5821e314b1ede31fa3a4b3"
 dependencies = [
- "aho-corasick 0.7.10",
- "memchr 2.3.3",
- "regex-syntax 0.6.17",
- "thread_local 1.0.1",
+ "aho-corasick",
+ "memchr",
+ "regex-syntax",
+ "thread_local",
 ]
 
 [[package]]
@@ -1982,12 +1890,6 @@ checksum = "ae1ded71d66a4a97f5e961fd0cb25a5f366a42a41570d16a763a69c092c26ae4"
 dependencies = [
  "byteorder",
 ]
-
-[[package]]
-name = "regex-syntax"
-version = "0.3.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f9ec002c35e86791825ed294b50008eea9ddfc8def4420124fbc6b08db834957"
 
 [[package]]
 name = "regex-syntax"
@@ -2027,17 +1929,6 @@ dependencies = [
 [[package]]
 name = "rote"
 version = "0.2.96"
-dependencies = [
- "check_or_no_panic",
- "editor",
- "lazy_static 1.4.0",
- "macros",
- "perf_viz",
- "platform_layer",
- "platform_types",
- "quickcheck",
- "rand 0.3.18",
-]
 
 [[package]]
 name = "rust-argon2"
@@ -2240,7 +2131,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "421c8dc7acf5cb205b88160f8b4cc2c5cfabe210e43b2f80f009f4c1ef910f1d"
 dependencies = [
  "andrew",
- "bitflags 1.0.4",
+ "bitflags",
  "dlib",
  "lazy_static 1.4.0",
  "memmap",
@@ -2351,7 +2242,7 @@ dependencies = [
  "pretty_assertions",
  "proptest",
  "pub_arb_std",
- "regex 1.3.6",
+ "regex",
  "rope_pos",
  "search",
 ]
@@ -2389,16 +2280,6 @@ dependencies = [
 
 [[package]]
 name = "thread-id"
-version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a9539db560102d1cef46b8b78ce737ff0bb64e7e18d35b2a5688f7d097d0ff03"
-dependencies = [
- "kernel32-sys",
- "libc",
-]
-
-[[package]]
-name = "thread-id"
 version = "3.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c7fbf4c9d56b320106cd64fd024dadfa0be7cb4706725fc44a7d7ce952d820c1"
@@ -2406,15 +2287,6 @@ dependencies = [
  "libc",
  "redox_syscall",
  "winapi 0.3.6",
-]
-
-[[package]]
-name = "thread_local"
-version = "0.2.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8576dbbfcaef9641452d5cf0df9b0e7eeab7694956dd33bb61515fb8f18cfdd5"
-dependencies = [
- "thread-id 2.0.0",
 ]
 
 [[package]]
@@ -2443,7 +2315,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4cffb80c2f741652e0c679d0fc687172d23310b275d5410ad6ba730c13166de9"
 dependencies = [
  "cc",
- "regex 1.3.6",
+ "regex",
  "serde",
  "serde_derive",
  "serde_json",
@@ -2475,12 +2347,6 @@ name = "unicode-xid"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "826e7639553986605ec5979c7dd957c7895e93eabed50ab2ffa7f6128a75097c"
-
-[[package]]
-name = "utf8-ranges"
-version = "0.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a1ca13c08c41c9c3e04224ed9ff80461d97e121589ff27c753a16cb10830ae0f"
 
 [[package]]
 name = "vec1"
@@ -2538,7 +2404,7 @@ checksum = "d967d37bf6c16cca2973ca3af071d0a2523392e4a594548155d89a678f4237cd"
 dependencies = [
  "bumpalo",
  "lazy_static 1.4.0",
- "log 0.4.8",
+ "log",
  "proc-macro2 1.0.9",
  "quote 1.0.2",
  "syn 1.0.16",
@@ -2580,7 +2446,7 @@ version = "0.23.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "80d909ba6616dd772686f421e111f039402a13acecf395bcb4fc665277a504e0"
 dependencies = [
- "bitflags 1.0.4",
+ "bitflags",
  "calloop",
  "downcast-rs",
  "libc",
@@ -2607,7 +2473,7 @@ version = "0.23.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cca5f12d466bb6d060673d9d3f94c4ec72161b44d8123f1ef9d11d1054afd6e7"
 dependencies = [
- "bitflags 1.0.4",
+ "bitflags",
  "wayland-client",
  "wayland-commons",
  "wayland-scanner",
@@ -2744,7 +2610,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3ba128780050481f453bec2a115b916dbc6ae79c303dee9bad8b9080bdccd4f5"
 dependencies = [
  "android_glue",
- "bitflags 1.0.4",
+ "bitflags",
  "cocoa",
  "core-foundation",
  "core-graphics",
@@ -2753,7 +2619,7 @@ dependencies = [
  "instant",
  "lazy_static 1.4.0",
  "libc",
- "log 0.4.8",
+ "log",
  "mio",
  "mio-extras",
  "objc",
@@ -2773,7 +2639,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "65a5c1a5ef76ac31cc97ad29489acdbed2178f3fc12ca00ee6cb11d60adb5a3a"
 dependencies = [
  "android_glue",
- "bitflags 1.0.4",
+ "bitflags",
  "cocoa",
  "core-foundation",
  "core-graphics",
@@ -2782,7 +2648,7 @@ dependencies = [
  "instant",
  "lazy_static 1.4.0",
  "libc",
- "log 0.4.8",
+ "log",
  "mio",
  "mio-extras",
  "objc",
@@ -2802,7 +2668,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "02e9092b71b48ad6a0d98835a786308d10760cc09369d02e4a166608327f1f26"
 dependencies = [
  "android_glue",
- "bitflags 1.0.4",
+ "bitflags",
  "cocoa",
  "core-foundation",
  "core-graphics",
@@ -2811,7 +2677,7 @@ dependencies = [
  "instant",
  "lazy_static 1.4.0",
  "libc",
- "log 0.4.8",
+ "log",
  "mio",
  "mio-extras",
  "objc",
@@ -2861,7 +2727,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5e917a3f24142e9ff8be2414e36c649d47d6cc2ba81f16201cdef96e533e02de"
 dependencies = [
  "libc",
- "log 0.4.8",
+ "log",
 ]
 
 [[package]]
