@@ -122,24 +122,7 @@ pub struct EditorBuffers {
 impl EditorBuffers {
     #[perf_viz::record]
     pub fn should_render_buffer_views(&mut self) -> bool {
-        use std::hash::{Hash, Hasher};
-        let mut hasher: rustc_hash::FxHasher = d!();
-        self.non_rope_hash(&mut hasher);
-        let new_non_rope_hash = hasher.finish();
-
-        if new_non_rope_hash == self.last_non_rope_hash {
-            self.rope_hash(&mut hasher);
-            let new_full_hash = Some(hasher.finish());
-            let output = new_full_hash != self.last_full_hash;
-
-            self.last_full_hash = new_full_hash;
-            
-            output
-        } else {
-            self.last_non_rope_hash = new_non_rope_hash;
-            self.last_full_hash = None;
-            true
-        }
+        true
     }
 
     #[perf_viz::record]
@@ -255,63 +238,5 @@ impl EditorBuffers {
 
     pub fn iter_with_indexes(&self) -> g_i::IterWithIndexes<EditorBuffer> {
         self.buffers.iter_with_indexes()
-    }
-}
-
-#[cfg(any(test, feature = "pub_arb"))]
-pub mod tests {
-    use super::*;
-    pub mod arb {
-        use super::*;
-        use proptest::collection::vec;
-        use pub_arb_text_buffer::{text_buffer_with_valid_cursors};
-        use pub_arb_platform_types::{buffer_name, position, selectable_vec1};
-        use proptest::prelude::{prop_compose, Just, any};
-
-        prop_compose!{
-            pub fn search_results(max_len: usize)(
-                needle in ".*",
-                ranges_vec in vec((position(), position()), 1..max_len),
-            )(
-                needle in Just(needle), 
-                current_range in 0..=(ranges_vec.len() - 1), 
-                ranges in Just(ranges_vec)
-            ) -> SearchResults {
-                SearchResults {
-                    needle,
-                    ranges,
-                    current_range,
-                }
-            }
-        }
-
-        prop_compose!{
-            pub fn editor_buffers()(
-                buffers in selectable_vec1(editor_buffer(), 16),
-                last_non_rope_hash in any::<u64>(),
-                last_full_hash in proptest::option::of(any::<u64>()),
-            ) -> EditorBuffers {
-                EditorBuffers {
-                    buffers,
-                    last_full_hash,
-                    last_non_rope_hash,
-                }
-            }
-        }
-
-        prop_compose!{
-            pub fn editor_buffer()(
-                text_buffer in text_buffer_with_valid_cursors(),
-                name in buffer_name(),
-                s_r in search_results(16),
-            ) -> EditorBuffer {
-                EditorBuffer {
-                    text_buffer,
-                    name,
-                    search_results: s_r,
-                    parser_kind: None, // TODO if it ever matters
-                }
-            }
-        }
     }
 }

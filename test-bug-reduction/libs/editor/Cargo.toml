@@ -8,8 +8,6 @@ edition = "2018"
 path = "./src/editor.rs"
 
 [dependencies]
-# we want a fast hash, and the first platform layer used this already so, sure why not.
-rustc-hash = "1"
 
 [dependencies.check_or_no_panic]
 path = "../check_or_no_panic"
@@ -47,27 +45,7 @@ path = "libs/search"
 [dependencies.text_buffer]
 path = "libs/text_buffer"
 
-[dev-dependencies]
-criterion = "0.2"
-proptest = "0.9"
-
-[dev-dependencies.arb_macros]
-path = "../arb_macros"
-
-[dev-dependencies.pub_arb_platform_types]
-path = "../pub_arb/platform_types"
-
-[dev-dependencies.pub_arb_text_buffer]
-path = "../pub_arb/text_buffer"
-
-[dev-dependencies.pub_arb_std]
-path = "../pub_arb/std"
-
 [features]
 default = []
 invariant-checking = ["check_or_no_panic/invariant-checking"]
 extra-prints = ["text_buffer/extra-prints"]
-
-[[bench]]
-name = "user_input"
-harness = false

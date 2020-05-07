@@ -1043,7 +1043,6 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
 #[test]
 fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_a_path_file_is_added_then_the_selection_is_changed() {
     u!{BufferName, Input, SelectionAdjustment, SelectionMove}
-    let state: g_i::State = d!();
     tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
         d!(),
         vec![
@@ -1057,7 +1056,6 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
 #[test]
 fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_a_path_file_is_added_then_the_selection_is_changed_reduction() {
     u!{BufferName, Input, SelectionAdjustment, SelectionMove}
-    let state: g_i::State = d!();
     tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
         d!(),
         vec![

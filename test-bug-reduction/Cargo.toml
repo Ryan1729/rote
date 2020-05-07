@@ -12,5 +12,4 @@ members = [
     "libs/macros",
     "libs/perf_viz",
     "libs/platform_types",
-    "libs/platform_layer",
 ]
