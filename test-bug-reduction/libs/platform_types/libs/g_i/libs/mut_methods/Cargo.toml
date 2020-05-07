@@ -1,0 +1,13 @@
+[package]
+name = "mut_methods"
+version = "0.1.0"
+authors = ["Ryan1729 <ryan1729@gmail.com>"]
+edition = "2018"
+
+[lib]
+path = "./src/mut_methods.rs"
+proc-macro = true
+
+[dependencies]
+syn = { version = "1.0.16", features = ["full", "visit-mut"]}
+quote = "1.0"

@@ -1,0 +1,14 @@
+[package]
+name = "pub_arb_rust_code"
+version = "0.1.0"
+authors = ["Ryan1729 <ryan1729@gmail.com>"]
+edition = "2018"
+
+[lib]
+path = "./src/pub_arb_rust_code.rs"
+
+[dependencies]
+proptest = "0.9.5"
+
+[dependencies.macros]
+path = "../../macros"

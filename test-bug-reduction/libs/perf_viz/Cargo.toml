@@ -1,0 +1,20 @@
+[package]
+name = "perf_viz"
+version = "0.1.0"
+authors = ["Ryan1729 <Ryan1729@gmail.com>"]
+edition = "2018"
+
+[lib]
+path = "./src/perf_viz.rs"
+
+[dependencies]
+# This version (the latest released as of this writing) doesn't expose
+# `dump_html_custom`, a function we need for flame graphs.
+#flame = { version = "0.2.2", optional = true }
+flame = { git = "https://github.com/TyOverby/flame.git", branch = "master", optional = true }
+perf_viz_proc_macro = { path = "libs/perf_viz_proc_macro" }
+
+[features]
+default = []
+flame-chart = ["flame", "perf_viz_proc_macro/flame-chart"]
+flame-graph = ["flame", "perf_viz_proc_macro/flame-graph"]

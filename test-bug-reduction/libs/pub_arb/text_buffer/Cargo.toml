@@ -1,0 +1,11 @@
+[package]
+name = "pub_arb_text_buffer"
+version = "0.1.0"
+authors = ["Ryan1729 <ryan1729@gmail.com>"]
+edition = "2018"
+
+[lib]
+path = "./src/pub_arb_text_buffer.rs"
+
+[dependencies]
+text_buffer = { path = "../../editor/libs/text_buffer", features = ["pub_arb"] }

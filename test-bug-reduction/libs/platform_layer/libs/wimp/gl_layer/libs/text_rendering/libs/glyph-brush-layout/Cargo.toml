@@ -1,0 +1,20 @@
+[package]
+name = "glyph_brush_layout"
+version = "0.1.9"
+authors = ["Alex Butler <alexheretic@gmail.com>"]
+edition = "2018"
+description = "Text layout for rusttype"
+repository = "https://github.com/alexheretic/gfx-glyph"
+keywords = ["layout", "text"]
+license = "Apache-2.0"
+readme="README.md"
+
+[dependencies]
+full_rusttype = { version = "0.8.3", package = "rusttype" }
+xi-unicode = "0.2"
+approx = "0.3.2"
+perf_viz = { path = "../../../../../../../../perf_viz" }
+
+[dev-dependencies]
+once_cell = "1"
+ordered-float = "1"

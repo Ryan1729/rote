@@ -1,0 +1,21 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 3320980613ca51ab0fcdeed1d9de41ea9618de648b5fc6b4c50dbb8d82e9ffab # shrinks to edits = []
+cc 105a3760895bb8ba27e5b5a63121e74037c0dce1eec21ef1d76ee0ad5eb0ce48 # shrinks to (edits, index) = ([InsertString("\u{b}"), Cut, DragCursors(pos!{l 1 o 0})], 0)
+cc 49756a9b2bc642559e8be1a2dcd66831edd676d4b10806f0961d7b14691991ad # shrinks to (edits, index) = ([MoveAllCursors(Up), InsertNumbersAtCursors], 0)
+cc dd7df1675f72d92ab1a4fae8da22f9490207b73b32daca878bb46494e775dff8 # shrinks to (edits, index) = ([InsertNumbersAtCursors, MoveAllCursors(ToPreviousLikelyEditLocation)], 0)
+cc e1be2b6c946b4d2f3411fc66b300bcaba0ef76c5293fe1912578f21b2661d199 # shrinks to (buffer, edits) = (TextBuffer { rope: [], cursors: Cursors { cursors: Vec1([cur!{l 0 o 0}]) }, history: [], history_index: 0 }, [InsertNumbersAtCursors, ExtendSelectionForAllCursors(ToBufferStart), InsertNumbersAtCursors])
+cc 859e1577f734c59e235e322f99990a9155fc576ac651aa9f0558b0ecb2f99b85 # shrinks to (buffer, edits) = (TextBuffer { rope: [], cursors: Cursors { cursors: Vec1([cur!{l 0 o 0}]) }, history: [], history_index: 0 }, [InsertString("\u{b}"), DragCursors(pos!{l 0 o 0}), TabIn])
+cc f6593e337973dcec80d52f433a83933917b82df9e3930b127de7b0f392ce8cf9 # shrinks to (edits, index) = ([TabIn, ExtendSelectionForAllCursors(ToPreviousLikelyEditLocation)], 0)
+cc 8183826a35f90dc75b251841abdfb2775fc8e0bc27bd82360db9c8c046770bd4 # shrinks to (edits, index) = ([TabIn, ExtendSelectionForAllCursors(ToBufferStart), TabIn], 0)
+cc cb9e27a79441a9961170db170647891178a749f5253efe5ed523d4980ebfe306 # shrinks to (edits, index) = ([Insert('\u{0}'), MoveAllCursors(Left)], 0)
+cc 9addccd39605c108f7022db78c9ab2e5e7628f04779b2ce3723a95a811112a3c # shrinks to (edits, index) = ([TabIn, TabOut], 0)
+cc 5110b371cdaf7c11ede2e325e9e71cc375bf9d1cbc80a4bb1e61ff7470bdb96c # shrinks to (edits, index) = ([TabIn, Delete, TabOut], 0)
+cc 9f8b5201dcbeb9277a42b7e6443324f5c732b2b43ac1ce3599fc3669689337bd # shrinks to (edits, index) = ([TabIn, MoveAllCursors(ToBufferStart), TabIn, TabOut], 0)
+cc d5a5ff3c79e58fab18047fd13a23faedd3d962a75b2fd0b3cc3950d3a1736512 # shrinks to (edits, index) = ([Insert('A'), Cut, Insert('¡'), TabOut], 0)
+cc 209364cf501f1a3f3c441ab7db84a64787a7c6d68537bb2bf10435037b765dd7 # shrinks to (edits, index) = ([TabIn, TabIn, ExtendSelectionForAllCursors(Left), TabIn], 0)
+cc 3babe59a9b4a8e93c573f0adaee4de120c706f5bf3affd1947556415d19655f8 # shrinks to (edits, index) = ([TabIn, TabIn, TabIn, ExtendSelectionForAllCursors(ToPreviousLikelyEditLocation), TabIn], 0)

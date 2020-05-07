@@ -1,0 +1,19 @@
+[package]
+name = "editor_types"
+version = "0.1.0"
+authors = ["Ryan1729 <Ryan1729@gmail.com>"]
+edition = "2018"
+
+[lib]
+path = "./src/editor_types.rs"
+
+[dependencies]
+
+[dependencies.macros]
+path = "../../../macros"
+
+[dependencies.perf_viz]
+path = "../../../perf_viz"
+
+[dependencies.platform_types]
+path = "../../../platform_types"

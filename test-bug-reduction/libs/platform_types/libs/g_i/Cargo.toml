@@ -1,0 +1,24 @@
+[package]
+name = "g_i"
+version = "0.1.0"
+authors = ["Ryan1729 <ryan1729@gmail.com>"]
+edition = "2018"
+
+[lib]
+path = "./src/g_i.rs"
+
+[dependencies]
+vec1 = "1.4"
+perf_viz = { path = "../../../perf_viz" }
+macros = { path = "../../../macros" }
+move_mod = { path = "../move_mod" }
+mut_methods = { path = "./libs/mut_methods" }
+proptest = { version = "0.9.5", optional = true }
+arb_macros = { path = "../../../arb_macros", optional = true }
+
+[dev-dependencies]
+
+
+[features]
+default = []
+pub_arb = ["proptest", "arb_macros"]

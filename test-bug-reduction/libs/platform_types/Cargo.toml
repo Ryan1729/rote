@@ -1,0 +1,31 @@
+[package]
+name = "platform_types"
+version = "0.1.0"
+authors = ["Ryan1729 <Ryan1729@gmail.com>"]
+edition = "2018"
+
+[lib]
+path = "./src/platform_types.rs"
+
+[dependencies]
+vec1 = "1.4"
+g_i = { path = "./libs/g_i" }
+panic_safe_rope = { path = "../panic_safe_rope" }
+perf_viz = { path = "../perf_viz" }
+macros = { path = "../macros" }
+move_mod = { path = "./libs/move_mod" }
+text_pos = { path = "../text_pos" }
+proptest = { version = "0.9.5", optional = true }
+arb_macros = { path = "../arb_macros", optional = true }
+pub_arb_g_i = { path = "../pub_arb/g_i", optional = true }
+pub_arb_std = { path = "../pub_arb/std", optional = true }
+
+[dev-dependencies]
+proptest = { version = "0.9.5"}
+arb_macros = { path = "../arb_macros"}
+pub_arb_g_i = { path = "../pub_arb/g_i"}
+pub_arb_std = { path = "../pub_arb/std"}
+
+[features]
+default = []
+pub_arb = ["pub_arb_g_i", "pub_arb_std", "arb_macros", "proptest"]
