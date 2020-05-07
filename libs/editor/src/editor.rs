@@ -165,10 +165,6 @@ impl State {
         d!()
     }
 
-    fn adjust_buffer_selection(&mut self, adjustment: SelectionAdjustment) {
-        self.buffers.adjust_selection(adjustment);
-    }
-
     fn close_buffer(&mut self, index: g_i::Index) {
         self.buffers.close_buffer(index);
     }
@@ -617,7 +613,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             mark_edited_transition!(current, ToUnedited);
         }
         AdjustBufferSelection(adjustment) => {
-            state.adjust_buffer_selection(adjustment);
+            state.buffers.adjust_selection(adjustment);
         }
         SelectBuffer(id) => {
             state.set_id(id);

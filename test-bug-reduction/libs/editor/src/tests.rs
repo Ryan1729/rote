@@ -1,11 +1,12 @@
-use super::*;
-
-use platform_types::pos;
-
-use editor_types::{cur, Cursor};
-use macros::{u, dbg};
-
-use std::collections::HashMap;
+//use super::*;
+use super::{update_and_render, g_i};
+use crate::{
+    State,
+    EditorBuffer,
+    EditedTransition,
+};
+use platform_types::{Input, SelectionAdjustment, SelectionMove, BufferName};
+use macros::{d, u, dbg};
 
 /// This test predicate simulates what we expected clients to do if they want to keep track 
 /// of which buffers are currently different from what is on disk. This is a little 
@@ -50,37 +51,6 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
                     dbg!(&unedited_buffer_states);
                 }
             },
-            NewScratchBuffer(ref data) => {
-                unedited_buffer_states.insert(
-                    index_state,
-                    state.buffers.append_index(),
-                    EditorBuffer::new(
-                        BufferName::Scratch(state.next_scratch_buffer_number()),
-                        data.clone().unwrap_or_default()
-                    )
-                )
-            },
-            /*OpenOrSelectBuffer(ref path) => {
-                if !state.buffers.index_with_name(&BufferName::Path(path.clone())).is_some() {
-                    expected_edited_states.insert(state.buffers.append_index(), true);
-                }
-            },
-*/        
-            SavedAs(index, _) => {
-                dbg!("SavedAs()", index, expected_edited_states.get(index_state, index).is_some());
-                // We need to trust the platform layer to only call
-                // this when the file is saved under the given path.
-                if expected_edited_states.get(index_state, index).is_some() {
-                    
-                    let buffer = unedited_buffer_states
-                        .get_mut(index_state, index)
-                        .expect("SavedAs invalid unedited_buffer_states index");
-                    *buffer = state.buffers.buffers()
-                        .get(index)
-                        .expect("SavedAs invalid state.buffers.buffers index")
-                        .clone();
-                }
-            }
 
             _ => {}
         }

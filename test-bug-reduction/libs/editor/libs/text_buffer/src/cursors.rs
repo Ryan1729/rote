@@ -35,29 +35,9 @@ impl Cursors {
         self.cursors.mapped_ref(mapper)
     }
 
-    pub fn borrow_cursors(&self) -> &Vec1<Cursor> {
-        &self.cursors
-    }
-
     #[perf_viz::record]
     pub fn get_cloned_cursors(&self) -> Vec1<Cursor> {
         self.cursors.clone()
-    }
-
-    pub fn len(&self) -> usize {
-        self.cursors.len()
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = &Cursor> {
-        self.cursors.iter()
-    }
-
-    pub fn first(&self) -> &Cursor {
-        self.cursors.first()
-    }
-
-    pub fn last(&self) -> &Cursor {
-        self.cursors.last()
     }
 
     pub fn clamp_to_rope(&mut self, rope: &Rope) {
@@ -174,12 +154,6 @@ impl Cursors {
         // reuse the memory allocation but currently that seems like premature optimization.
         if let Ok(cs) = Vec1::try_from_vec(keepers) {
             *cursors = cs;
-        }
-    }
-
-    pub fn reset_states(&mut self) {
-        for c in self.cursors.iter_mut() {
-            c.state = d!();
         }
     }
 }
