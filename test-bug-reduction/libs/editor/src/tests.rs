@@ -37,7 +37,8 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
         }
     }
 
-    for input in inputs {
+    for (i, input) in inputs.into_iter().enumerate() {
+        dbg!(i, &input);
         let index_state = state.buffers.buffers().index_state();
         u!{Input}
         match input {
@@ -131,4 +132,13 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
             DeleteLines,
         ]
     )
+}
+
+#[test]
+fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_a_path_file_is_added_then_the_selection_is_changed_sanity_check() {
+    u!{BufferName, Input, SelectionAdjustment, SelectionMove}
+    assert_eq!(
+        format!("{:?}", AddOrSelectBuffer(Path(".fakefile".into()), "¡".to_owned())),
+        "AddOrSelectBuffer(Path(\".fakefile\"), \"¡\")".to_owned()
+    );
 }

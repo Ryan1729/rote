@@ -124,6 +124,7 @@ dependencies = [
  "perf_viz",
  "perf_viz_proc_macro",
  "platform_types",
+ "rope_pos",
  "search",
  "text_buffer",
 ]

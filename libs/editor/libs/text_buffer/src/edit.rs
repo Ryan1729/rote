@@ -218,7 +218,10 @@ where
             (Some(o1), Some(o2)) => {
                 let s = get_string(index);
 
-                let (range_edit, delete_offset, delete_delta) = delete_highlighted(rope, o1, o2);
+                let (range_edit, delete_offset, delete_delta) = delete_within_range(
+                    rope,
+                    AbsoluteCharOffset::new(o1, o2)
+                );
 
                 let min = range_edit.range.min();
                 let char_count = s.chars().count();
@@ -265,7 +268,11 @@ pub fn get_delete_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit
                 )
             }
             (Some(o1), Some(o2)) if o1 > 0 || o2 > 0 => {
-                let (range_edit, delete_offset, delete_delta) = delete_highlighted(rope, o1, o2);
+                let (range_edit, delete_offset, delete_delta) = delete_within_range(
+                    rope,
+                    AbsoluteCharOffset::new(o1, o2)
+                );
+
                 (
                     RangeEdits {
                         delete_range: Some(range_edit),
@@ -330,7 +337,11 @@ pub fn get_cut_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
 
         match offsets {
             (Some(o1), Some(o2)) if o1 > 0 || o2 > 0 => {
-                let (range_edit, delete_offset, delete_delta) = delete_highlighted(rope, o1, o2);
+                let (range_edit, delete_offset, delete_delta) = delete_within_range(
+                    rope,
+                    AbsoluteCharOffset::new(o1, o2)
+                );
+
                 (
                     RangeEdits {
                         delete_range: Some(range_edit),
@@ -725,17 +736,6 @@ fn sort_cursors(cursors: Vec1<Cursor>) -> Vec1<Cursor> {
 }
 
 /// returns a `RangeEdit` representing the deletion. and the relevant cursor positioning info
-fn delete_highlighted(
-    rope: &mut Rope,
-    o1: AbsoluteCharOffset,
-    o2: AbsoluteCharOffset,
-) -> (RangeEdit, AbsoluteCharOffset, isize) {
-    let range = AbsoluteCharOffsetRange::new(o1, o2);
-
-    delete_within_range(rope, range)
-}
-
-/// returns the same thing as `delete_highlighted`
 fn delete_within_range(
     rope: &mut Rope,
     range: AbsoluteCharOffsetRange,

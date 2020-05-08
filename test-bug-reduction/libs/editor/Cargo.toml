@@ -18,6 +18,9 @@ path = "libs/editor_types"
 [dependencies.if_changed]
 path = "../if_changed"
 
+[dependencies.rope_pos]
+path = "libs/rope_pos"
+
 [dependencies.panic_safe_rope]
 path = "../panic_safe_rope"
 
