@@ -859,16 +859,18 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
             u!{EditedTransition}
             match transition {
                 ToEdited => {
+                    dbg!("expected_edited_states.insert", index_state, i, true);
                     expected_edited_states.insert(index_state, i, true);
                 }
                 ToUnedited => {
+                    dbg!("expected_edited_states.insert", index_state, i, false);
                     expected_edited_states.insert(index_state, i, false);
                 }
             }
         }
     }
 
-    dbg!(&state.buffers);
+    dbg!(&state.buffers, &expected_edited_states);
     assert_eq!(
         expected_edited_states.len(),
         state.buffers.len(), 

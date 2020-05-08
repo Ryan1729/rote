@@ -1617,5 +1617,22 @@ pub mod tests {
             }
         }
     }
+
+    #[test]
+    fn map_get_returns_the_expected_values_in_this_found_case() {
+        let mut index_state = d!();
+        let mut map = Map::with_capacity(Length::or_max(2));
+        map.insert(index_state, index_state.new_index_or_max(1), false);
+
+        index_state.moved_to_or_ignore_index_part(
+            IndexPart::or_max(1),
+            IndexPart::or_max(0)
+        );
+
+        map.insert(index_state, index_state.new_index_or_max(0), true);
+
+        assert_eq!(map.get(index_state, index_state.new_index_or_max(0)), Some(&true));
+        assert_eq!(map.get(index_state, index_state.new_index_or_max(1)), None);
+    }
 }
 
