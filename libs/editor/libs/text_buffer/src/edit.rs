@@ -220,7 +220,7 @@ where
 
                 let (range_edit, delete_offset, delete_delta) = delete_within_range(
                     rope,
-                    AbsoluteCharOffset::new(o1, o2)
+                    AbsoluteCharOffsetRange::new(o1, o2)
                 );
 
                 let min = range_edit.range.min();
@@ -270,7 +270,7 @@ pub fn get_delete_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit
             (Some(o1), Some(o2)) if o1 > 0 || o2 > 0 => {
                 let (range_edit, delete_offset, delete_delta) = delete_within_range(
                     rope,
-                    AbsoluteCharOffset::new(o1, o2)
+                    AbsoluteCharOffsetRange::new(o1, o2)
                 );
 
                 (
@@ -339,7 +339,7 @@ pub fn get_cut_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
             (Some(o1), Some(o2)) if o1 > 0 || o2 > 0 => {
                 let (range_edit, delete_offset, delete_delta) = delete_within_range(
                     rope,
-                    AbsoluteCharOffset::new(o1, o2)
+                    AbsoluteCharOffsetRange::new(o1, o2)
                 );
 
                 (

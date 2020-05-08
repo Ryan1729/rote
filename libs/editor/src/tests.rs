@@ -876,6 +876,10 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
         expected_edited_states
     );
 
+    let mut expected_edited_states: Vec<_> = expected_edited_states.into_iter().collect();
+
+    expected_edited_states.sort_by_key(|p| p.0);
+
     for (i, is_edited) in expected_edited_states {
         let buffers = state.buffers.buffers();
         let actual_data: String = buffers.get(i).expect("actual_data was None").into();

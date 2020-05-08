@@ -1,11 +1,11 @@
-/*#![deny(dead_code)]
+#![deny(dead_code)]
 #![deny(unused_imports)]
-#![deny(unused_macros)]*/
+#![deny(unused_macros)]
 //#![deny(unused_variables)]
 
-use rope_pos::{clamp_position, AbsoluteCharOffsetRange};
+use rope_pos::{AbsoluteCharOffsetRange};
 
-use editor_types::{Cursor, cur};
+use editor_types::{Cursor};
 use macros::{d, dbg, u};
 use panic_safe_rope::{Rope, RopeSlice};
 use platform_types::{*};
@@ -182,28 +182,6 @@ macro_rules! curs {
     );
 }
 
-impl Cursors {
-    /// We require a rope parameter only so we can make sure the cursors are within the given
-    /// rope's bounds.
-    fn new(rope: &Rope, mut cursors: Vec1<Cursor>) -> Self {
-        cursors.sort();
-        cursors.reverse();
-
-        Self::clamp_vec_to_rope(&mut cursors, rope);
-
-        Self { cursors }
-    }
-
-
-    fn clamp_vec_to_rope(cursors: &mut Vec1<Cursor>, rope: &Rope) {
-        for cursor in cursors.iter_mut() {
-            if let Some(h) = cursor.get_highlight_position() {
-                cursor.set_highlight_position(clamp_position(rope, h));
-            }
-        }
-    }
-}
-
 #[derive(Clone, Debug, Default)]
 struct TextBuffer {
     /// We keep the rope private, and only allow non-mut borrows
@@ -211,7 +189,7 @@ struct TextBuffer {
     /// to the rope.
     rope: Rope,
     cursors: Cursors,
-    history: VecDeque<Edit>,
+    history: VecDeque<RangeEdits>,
     history_index: usize,
     unedited_index: usize,
 }
@@ -265,40 +243,30 @@ type PossibleEditedTransition = Option<EditedTransition>;
 impl TextBuffer {
     #[perf_viz::record]
     fn delete_lines(&mut self) -> PossibleEditedTransition {
-        let edit = {
-            let range_edits = Vec1::new({
-                let range = AbsoluteCharOffsetRange::new(AbsoluteCharOffset(0), AbsoluteCharOffset(1));
-                let chars = "anything non-empty".to_owned();
-
-                let range_edit = RangeEdit { chars, range };
-                
-                RangeEdits {
-                    delete_range: Some(range_edit),
-                   ..d!()
-                }
-            });
-
-
-            Edit {
-                range_edits,
-                cursors: Change {
-                    new: self.cursors.clone(),
-                    old: self.cursors.clone(),
-                },
-            }
-        };
-        
         let old_editedness = self.editedness();
         dbg!(old_editedness);
 
-        apply(&mut self.rope, &edit);
+        let range = AbsoluteCharOffsetRange::new(AbsoluteCharOffset(0), AbsoluteCharOffset(1));
+        let chars = "anything non-empty".to_owned();
+
+        let range_edit = RangeEdit { chars, range };
+
+        let range_edits = RangeEdits {
+            delete_range: Some(range_edit),
+           ..d!()
+        };
+
+        apply(
+            &mut self.rope,
+            &range_edits
+        );
 
         self.history.truncate(self.history_index);
-        self.history.push_back(edit);
+        self.history.push_back(range_edits);
         self.history_index += 1;
 
         dbg!(self.editedness());
-        change!(old_editedness, self.editedness()).into()
+        dbg!(change!(old_editedness, self.editedness()).into())
     }}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -349,13 +317,16 @@ impl TextBuffer {
     }
 }
 
-fn apply<'rope, 'cursors>(rope: &mut Rope, edit: &Edit) {
-    // we assume that the edits are in the proper order so we won't mess up our indexes with our
-    // own inserts and removals. I'm not positive that there being a single order that works
-    // is possible for all possible edits, but in practice I think the edits we will actually
-    // produce will work out. The tests should tell us if we're wrong!
-    for range_edit in edit.range_edits.iter() {
-        range_edit.apply(rope);
+fn apply<'rope, 'cursors>(rope: &mut Rope, range_edit: &RangeEdits) {
+    if let Some(RangeEdit { range, .. }) = range_edit.delete_range {
+        rope.remove(range.range());
+    }
+
+    if let Some(RangeEdit {
+        ref chars, range, ..
+    }) = range_edit.insert_range
+    {
+        rope.insert(range.min(), chars);
     }
 }
 
@@ -423,21 +394,6 @@ struct RangeEdits {
     delete_range: Option<RangeEdit>,
 }
 
-impl RangeEdits {
-    fn apply(&self, rope: &mut Rope) {
-        if let Some(RangeEdit { range, .. }) = self.delete_range {
-            rope.remove(range.range());
-        }
-
-        if let Some(RangeEdit {
-            ref chars, range, ..
-        }) = self.insert_range
-        {
-            rope.insert(range.min(), chars);
-        }
-    }
-}
-
 impl std::ops::Not for RangeEdits {
     type Output = RangeEdits;
 
@@ -485,14 +441,6 @@ macro_rules! change {
     ($old: expr, $new: expr) => {
         Change { old: $old, new: $new }
     };
-}
-fn copy_string(rope: &Rope, range: AbsoluteCharOffsetRange) -> String {
-    rope.slice(range.range())
-        .map(|slice| {
-            let s: String = slice.into();
-            s
-        })
-        .unwrap_or_default()
 }
 
 #[cfg(test)]

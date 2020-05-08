@@ -73,13 +73,17 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
         }
     }
 
-    dbg!(&state.buffers);
+    dbg!(&state.buffers, &expected_edited_states);
     assert_eq!(
         expected_edited_states.len(),
         state.buffers.len(), 
         "expected_edited_states len does not match state.buffers. expected_edited_states: {:#?}",
         expected_edited_states
     );
+
+    let mut expected_edited_states: Vec<_> = expected_edited_states.into_iter().collect();
+
+    expected_edited_states.sort_by_key(|p| p.0);
 
     for (i, is_edited) in expected_edited_states {
         let buffers = state.buffers.buffers();
