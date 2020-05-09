@@ -1,6 +1,6 @@
 /// A module containg a Generational Index implementation
 use macros::{d, u, fmt_debug, fmt_display, ord, some_or, SaturatingAdd, SaturatingSub};
-pub use vec1::{vec1, Vec1};
+pub use vec1::{Vec1};
 pub use move_mod::Move;
 
 pub type Generation = u32;
@@ -806,12 +806,20 @@ impl <A> Map<A> {
         Length::or_max(self.map.len())
     }
 
-    pub fn get(&self, state: State, index: Index) -> Option<&A> {
-        index.get_index_part(state).and_then(|i| self.map.get(&i))
+    pub fn get(&mut self, state: State, index: Index) -> Option<&A> {
+        if let Some(i) = index.get_index_part(state) {
+            // This is why we need a &mut self, and this is needed
+            // to make at least one test pass.
+            self.migrate_all(state); 
+            self.map.get(&i)
+        } else {
+            None
+        }
     }
 
     pub fn get_mut(&mut self, state: State, index: Index) -> Option<&mut A> {
         if let Some(i) = index.get_index_part(state) {
+            self.migrate_all(state);
             self.map.get_mut(&i)
         } else {
             None
@@ -833,17 +841,17 @@ impl <A> Map<A> {
             //currently all the state fixups work if we use this reverse order.
             keys.sort();
             keys.reverse();
-            for key in keys {
-                if let Some(i) = last_state.and_then(|s| {
+            for old_key in keys {
+                if let Some(new_key) = last_state.and_then(|s| {
                     state
-                        .migrate(s.new_index(key))
+                        .migrate(s.new_index(old_key))
                         .and_then(|i| i.get_index_part(state))
                 }) {
-                    if let Some(value) = self.map.remove(&i) {
-                        self.map.insert(i, value);
+                    if let Some(value) = self.map.remove(&old_key) {
+                        self.map.insert(new_key, value);
                     }
                 } else {
-                    self.map.remove(&key);
+                    self.map.remove(&old_key);
                 }
             }
 
@@ -872,6 +880,9 @@ impl <A> IntoIterator for Map<A> {
 
 #[cfg(any(test, feature = "pub_arb"))]
 pub mod tests {
+    // We seem to be getting false positives here.
+    #![allow(unused_imports)]
+    #![allow(unused_macros)]
     use super::*;
     use proptest::prelude::{proptest, Just};
     use arb_macros::{arb_enum};
@@ -1633,6 +1644,20 @@ pub mod tests {
 
         assert_eq!(map.get(index_state, index_state.new_index_or_max(0)), Some(&true));
         assert_eq!(map.get(index_state, index_state.new_index_or_max(1)), None);
+    }
+
+    #[test]
+    fn map_get_returns_the_expected_values_in_this_found_case_reduction() {
+        let mut index_state = d!();
+        let mut map = Map::with_capacity(Length::or_max(2));
+        map.insert(index_state, index_state.new_index_or_max(1), false);
+
+        index_state.moved_to_or_ignore_index_part(
+            IndexPart::or_max(1),
+            IndexPart::or_max(0)
+        );
+
+        assert_eq!(map.get(index_state, index_state.new_index_or_max(0)), Some(&false));
     }
 }
 

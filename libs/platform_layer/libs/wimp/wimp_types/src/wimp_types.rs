@@ -837,14 +837,16 @@ pub fn transform_at(
     index: g_i::Index,
     transition: BufferStatusTransition
 ) {
+    let previous = map
+        .get(index_state, index)
+        .cloned()
+        .unwrap_or_default();
+
     map.insert(
         index_state,
         index,
         transform_status(
-            map
-                .get(index_state, index)
-                .cloned()
-                .unwrap_or_default(),
+            previous,
             transition
         )
     );

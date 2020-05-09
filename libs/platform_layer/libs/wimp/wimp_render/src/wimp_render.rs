@@ -177,7 +177,7 @@ pub fn view<'view>(
     RunState {
         ref mut ui,
         ref mut view,
-        ref buffer_status_map,
+        ref mut buffer_status_map,
         dimensions,
         ..
     }: &'view mut RunState,

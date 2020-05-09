@@ -1160,13 +1160,14 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                     CustomEvent::SendBuffersToBeSaved => {
                         let view = &r_s.view;
                         let index_state = view.index_state();
+                        let buffer_status_map = &mut r_s.buffer_status_map;
                         let _hope_it_gets_there = edited_files_in_sink.send(
                             EditedFilesThread::Buffers(
                                 index_state,
                                 view.buffer_iter().map(|(i, b)|
                                     (
                                         b.to_owned(), 
-                                        r_s.buffer_status_map
+                                        buffer_status_map
                                             .get(index_state, i)
                                             .cloned()
                                             .unwrap_or_default()
