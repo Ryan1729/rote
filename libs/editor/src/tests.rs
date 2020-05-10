@@ -1061,13 +1061,172 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
 
 #[test]
 fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_a_path_file_is_added_then_the_selection_is_changed_reduction() {
-    u!{BufferName, Input, SelectionAdjustment, SelectionMove}
-    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
-        d!(),
-        vec![
-            AddOrSelectBuffer(Path(".fakefile".into()), "¡".to_owned()),
-            AdjustBufferSelection(Move(Left)),
-            DeleteLines,
-        ]
-    )
+    u!{BufferName, EditedTransition, Input, SelectionAdjustment, SelectionMove}
+    let mut state: State = d!();
+    
+    let original_buffers = state.buffers.buffers();
+    let mut unedited_buffer_states: g_i::Map<EditorBuffer> = g_i::Map::with_capacity(original_buffers.len());
+    {
+        let state = original_buffers.index_state();
+        for (i, buffer) in original_buffers.iter_with_indexes() {
+            unedited_buffer_states.insert(state, i, buffer.clone());
+        }
+    }
+
+    let buffer_count = state.buffers.len();
+    dbg!(&unedited_buffer_states, buffer_count);
+    let mut expected_edited_states: g_i::Map<bool> = g_i::Map::with_capacity(buffer_count);
+
+    {
+        let buffers = state.buffers.buffers();
+        let index_state= buffers.index_state();
+        for (i, _) in buffers.iter_with_indexes() {
+            expected_edited_states.insert(index_state, i, false);
+        }
+    }
+
+    let name = Path(".fakefile".into());
+    let data = "¡".to_owned();
+
+    unedited_buffer_states.insert(
+        state.buffers.buffers().index_state(),
+        state.buffers.append_index(),
+        EditorBuffer::new(name.clone(), data.clone()),
+    );
+    dbg!(&unedited_buffer_states);
+
+    let (view, _) = update_and_render(&mut state, AddOrSelectBuffer(name.clone(), data.clone()));
+
+    let index_state = state.buffers.buffers().index_state();
+    
+    for (i, transition) in view.edited_transitions {
+        match transition {
+            ToEdited => {
+                dbg!("expected_edited_states.insert", index_state, i, true);
+                expected_edited_states.insert(index_state, i, true);
+            }
+            ToUnedited => {
+                dbg!("expected_edited_states.insert", index_state, i, false);
+                expected_edited_states.insert(index_state, i, false);
+            }
+        }
+    }
+
+    let (view, _) = update_and_render(&mut state, AdjustBufferSelection(Move(Left)));
+    
+    assert_eq!(
+        view.edited_transitions.len(),
+        0,
+        "after AdjustBufferSelection got {:?}",
+        &view.edited_transitions
+    );
+
+    let index_state = state.buffers.buffers().index_state();
+    
+    for (i, transition) in view.edited_transitions {
+        match transition {
+            ToEdited => {
+                dbg!("expected_edited_states.insert", index_state, i, true);
+                expected_edited_states.insert(index_state, i, true);
+            }
+            ToUnedited => {
+                dbg!("expected_edited_states.insert", index_state, i, false);
+                expected_edited_states.insert(index_state, i, false);
+            }
+        }
+    }
+
+    let (view, _) = update_and_render(&mut state, DeleteLines);
+
+    {
+        let added_buffer_index = state.buffers.index_with_name(&name).expect("added_buffer_index was None");
+        
+        let added_buffer_transition = view.edited_transitions
+            .iter()
+            .find_map(|&(i, t)| {
+                if added_buffer_index == i {
+                    Some(t)
+                } else {
+                    Option::None
+                }
+            });
+    
+        assert_eq!(added_buffer_transition, Some(ToEdited));
+    }
+    
+    let index_state = state.buffers.buffers().index_state();
+    
+    for (i, transition) in view.edited_transitions {
+        match transition {
+            ToEdited => {
+                dbg!("expected_edited_states.insert", index_state, i, true);
+                expected_edited_states.insert(index_state, i, true);
+            }
+            ToUnedited => {
+                dbg!("expected_edited_states.insert", index_state, i, false);
+                expected_edited_states.insert(index_state, i, false);
+            }
+        }
+    }
+
+    dbg!(&state.buffers, &expected_edited_states);
+    assert_eq!(
+        expected_edited_states.len(),
+        state.buffers.len(), 
+        "expected_edited_states len does not match state.buffers. expected_edited_states: {:#?}",
+        expected_edited_states
+    );
+
+    dbg!(&unedited_buffer_states);
+    unedited_buffer_states.migrate_all(index_state);
+    dbg!(&unedited_buffer_states);
+
+    let mut expected_edited_states: Vec<_> = expected_edited_states.into_iter().collect();
+
+    expected_edited_states.sort_by_key(|p| p.0);
+
+    let added_buffer_index = state.buffers.index_with_name(&name).expect("added_buffer_index was None");
+    
+    let mut saw_added_buffer_index = false;
+
+    for (i, is_edited) in expected_edited_states {
+        let buffers = state.buffers.buffers();
+        let actual_buffer = buffers.get(i).expect("actual_data was None");
+        let actual_data: String = actual_buffer.into();
+        let original_data: Option<String> = unedited_buffer_states
+            .get(buffers.index_state(), i)
+            .map(|s| s.into());
+        
+        if i == added_buffer_index {
+            saw_added_buffer_index = true;
+
+            assert!(is_edited);
+
+            assert_eq!(original_data, Some(data.clone()));
+        } else {
+            assert_eq!(original_data, Some(String::new()));
+        }
+        assert_eq!(actual_data, String::new());
+        
+        if is_edited {
+            assert_ne!(
+                Some(actual_data),
+                original_data,
+                "({:?}, {:?})",
+                i,
+                is_edited
+            );
+        } else {
+            assert_eq!(
+                actual_data,
+                original_data
+                    .expect(&format!("original_data was None ({:?}, {:?})", i, is_edited)),
+                "({:?}, {:?})",
+                i,
+                is_edited
+            );
+        }
+    }
+
+    assert!(saw_added_buffer_index);
 }

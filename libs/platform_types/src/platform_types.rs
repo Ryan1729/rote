@@ -475,6 +475,14 @@ impl EditedTransitions {
     pub fn clear(&mut self) {
         self.0.clear();
     }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &IndexedEditedTransition> {
+        self.0.iter()
+    }
 }
 
 impl IntoIterator for EditedTransitions {

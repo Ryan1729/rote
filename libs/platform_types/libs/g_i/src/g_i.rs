@@ -884,7 +884,10 @@ pub mod tests {
     #![allow(unused_imports)]
     #![allow(unused_macros)]
     use super::*;
-    use proptest::prelude::{proptest, Just};
+    use proptest::{
+        collection::vec,
+        prelude::{any, proptest, Just}
+    };
     use arb_macros::{arb_enum};
     use vec1::{vec1};
 
@@ -953,6 +956,18 @@ pub mod tests {
                 (g_i_i!(g $generation i $i1), g_i_i!(g $generation i $i2))
             )
         }
+    }
+
+    macro_rules! g_i_map {
+        ($($index_part: literal : $element: expr),*) => {{
+            let mut map = Map::with_capacity(Length::or_max(16));
+            let state: State = d!();
+            $(
+                map.insert(state, state.new_index_or_max($index_part), $element);
+            )*
+
+            map
+        }}
     }
 
     #[derive(Clone, Debug)]
@@ -1211,6 +1226,24 @@ pub mod tests {
              -> Vec<MutMethodSpec<i32>> {
                 vector
             }
+        }
+
+        pub fn map_of<S: Strategy>(strat: S, max_len: LengthSize)
+         -> impl Strategy<Value = Map<S::Value>> {
+            proptest::collection::vec(strat, 0usize..(max_len as _))
+                .prop_map(|v| {
+                    let mut map = Map::with_capacity(Length::or_max(v.len()));
+                    
+                    let state: State = d!();
+                    let mut i = 0;
+                    // TODO generate non-contigious maps sometimes?
+                    for e in v {
+                        map.insert(state, state.new_index_or_max(i), e);
+                        i += 1;
+                    }
+                    
+                    map
+                })
         }
     }
 
@@ -1658,6 +1691,53 @@ pub mod tests {
         );
 
         assert_eq!(map.get(index_state, index_state.new_index_or_max(0)), Some(&false));
+    }
+
+    fn moving_indexes_never_causes_a_map_to_lose_elements_on(
+        mut map: Map<u8>,
+        index_pairs: Vec<(Index, Index)>,
+    ) {
+        let mut state: State = d!();
+        let initial_count = map.len();
+
+        for (from, to) in index_pairs {
+            state.moved_to_or_ignore(from, to);
+            map.migrate_all(state);
+
+            assert_eq!(
+                map.len(),
+                initial_count,
+                "
+                ({:?}, {:?})
+                state: {:?},
+                map: {:?}",
+                from,
+                to,
+                state,
+                map
+            );
+        }
+    }
+
+    proptest!{
+        #[test]
+        fn moving_indexes_never_causes_a_map_to_lose_elements(
+            map in arb::map_of(any::<u8>(), 16),
+            index_pairs in vec((arb::index(16), arb::index(16)), 0..16),
+        ) {
+            moving_indexes_never_causes_a_map_to_lose_elements_on(
+                map,
+                index_pairs
+            )
+        }
+    }
+
+    #[test]
+    fn moving_indexes_never_causes_a_map_to_lose_elements_in_this_generated_three_element_case() {
+        moving_indexes_never_causes_a_map_to_lose_elements_on(
+            g_i_map!{ 0: 10, 1: 11, 2: 12 },
+            vec![(g_i_i!(g 0 i 0), g_i_i!(g 0 i 1))]
+        )
     }
 }
 
