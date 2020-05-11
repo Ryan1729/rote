@@ -1,6 +1,6 @@
 /// A module containg a Generational Index implementation
 use macros::{d, u, fmt_debug, fmt_display, ord, some_or, SaturatingAdd, SaturatingSub};
-pub use vec1::{Vec1};
+pub use vec1::{Vec1, vec1};
 pub use move_mod::Move;
 
 pub type Generation = u32;
@@ -142,7 +142,7 @@ impl std::cmp::PartialEq<Length> for IndexPart {
 /// of this so that we can auto-fix the indexes from one generation ago, when possible.
 /// `RemovedAt(d!())` is a reasonable default because it results is a fixup of no change at all
 /// which is correct for the first instance.
-#[derive(Clone, Copy, Debug, PartialEq, Hash)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 enum Invalidation {
     RemovedAt(IndexPart),
     SwappedAt(IndexPart, IndexPart),
@@ -151,7 +151,7 @@ enum Invalidation {
 
 d!(for Invalidation: Invalidation::RemovedAt(d!()));
 
-#[derive(Clone, Copy, Default, Debug, Hash, PartialEq)]
+#[derive(Clone, Copy, Default, Debug, Hash, Eq, PartialEq)]
 pub struct State {
     current: Generation,
     invalidation: Invalidation,
@@ -395,6 +395,15 @@ ord!(and friends for SelectionAdjustment: (adjustment){
         }
 });
 
+#[macro_export]
+macro_rules! svec1 {
+    ($($element: expr),+) => {
+        $crate::SelectableVec1::new_from_vec1(
+            $crate::vec1![$($element),+]
+        )
+    }
+}
+
 /// This module exists so we can be sure that only the methods that mutate
 /// SelectableVec1 can change its fields.
 #[mut_methods::mut_methods]
@@ -405,7 +414,7 @@ mod selectable_vec1 {
     /// "selected" or is "the current element". This "selected" element can be borrowed
     /// and the operations that change the currently selected index and/or move the selected
     /// element around are also made more convenient.
-    #[derive(Debug, Hash)]
+    #[derive(Debug, Hash, Eq, PartialEq)]
     pub struct SelectableVec1<A> {
         elements: Vec1<A>,
         index_state: State,
@@ -610,6 +619,16 @@ mod selectable_vec1 {
             }
         }
     
+        /// ```
+        /// # #[macro_use] extern crate g_i; fn main() {
+        /// let mut v = svec1![0, 1, 2];
+        /// let index_state = v.index_state();
+        /// let i0 = index_state.new_index_or_max(0);
+        /// let i2 = index_state.new_index_or_max(2);
+        /// v.swap_or_ignore(i0, i2);
+        /// assert_eq!(v.elements(), svec1![2, 1, 0].elements());
+        /// # }
+        /// ```
         pub fn swap_or_ignore(&mut self, index1: Index, index2: Index) {
             if index1 < self.len() && index2 < self.len() {
                 if let Some((i1, i2)) = index1.get(self.index_state)
@@ -631,6 +650,16 @@ mod selectable_vec1 {
             }
         }
     
+        /// ```
+        /// # #[macro_use] extern crate g_i; fn main() {
+        /// let mut v = svec1![0, 1, 2];
+        /// let index_state = v.index_state();
+        /// let i0 = index_state.new_index_or_max(0);
+        /// let i2 = index_state.new_index_or_max(2);
+        /// v.move_or_ignore(i0, i2);
+        /// assert_eq!(v.elements(), svec1![1, 2, 0].elements());
+        /// # }
+        /// ```
         pub fn move_or_ignore(&mut self, index1: Index, index2: Index) {
             if index1 < self.len() && index2 < self.len() {
                 if let Some((i1, i2)) = index1.get(self.index_state)
@@ -654,6 +683,15 @@ mod selectable_vec1 {
             }
         }
     
+        /// ```
+        /// # #[macro_use] extern crate g_i; fn main() {
+        /// let mut v = svec1![0, 1, 2];
+        /// let index_state = v.index_state();
+        /// let i0 = index_state.new_index_or_max(0);
+        /// assert_eq!(v.remove_if_present(i0), Some(0));
+        /// assert_eq!(v.elements(), svec1![1, 2].elements());
+        /// # }
+        /// ```
         pub fn remove_if_present(&mut self, index: Index) -> Option<A> {
             let output = if index < self.len() {
                 index.get(self.index_state).and_then(|i| {
@@ -714,6 +752,10 @@ mod selectable_vec1 {
 
             self.index_state = other.index_state;
             self.current_index = other.current_index;
+        }
+
+        pub fn elements(&self) -> &Vec1<A> {
+            &self.elements
         }
     }
     
@@ -837,10 +879,10 @@ impl <A> Map<A> {
     pub fn migrate_all(&mut self, state: State) {
         let last_state = self.last_state;
         if Some(state) != last_state {
-            let mut keys: Vec<_> = self.map.keys().cloned().collect();
-            //currently all the state fixups work if we use this reverse order.
-            keys.sort();
-            keys.reverse();
+            // This intermediary `Vec` prevents keys being overwritten 
+            // nd the values therefore lost.
+            let mut entries: Vec<_> = Vec::with_capacity(self.map.len());
+            let keys: Vec<_> = self.map.keys().cloned().collect();
             for old_key in keys {
                 if let Some(new_key) = last_state.and_then(|s| {
                     state
@@ -848,11 +890,15 @@ impl <A> Map<A> {
                         .and_then(|i| i.get_index_part(state))
                 }) {
                     if let Some(value) = self.map.remove(&old_key) {
-                        self.map.insert(new_key, value);
+                        entries.push((new_key, value));
                     }
                 } else {
                     self.map.remove(&old_key);
                 }
+            }
+
+            for (k, v) in entries {
+                self.map.insert(k, v);
             }
 
             self.last_state = Some(state);
