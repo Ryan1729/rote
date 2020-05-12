@@ -462,10 +462,18 @@ pub fn screen_space_to_position(
     round: PositionRound,
 ) -> Position {
     text_space_to_position(
-        text_box_to_text(screen_to_text_box(xy, text_box_pos), scroll),
+        screen_space_to_text_space(xy, text_box_pos, scroll),
         char_dim,
         round,
     )
+}
+
+pub fn screen_space_to_text_space(
+    xy: ScreenSpaceXY,
+    text_box_pos: TextBoxXY,
+    scroll: ScrollXY
+) -> TextSpaceXY {
+    text_box_to_text(screen_to_text_box(xy, text_box_pos), scroll)
 }
 
 fn normal_or_zero(x: f32) -> f32 {
@@ -503,15 +511,27 @@ pub fn text_space_to_position(
     }
 }
 
+pub fn text_space_to_screen_space(
+    scroll: ScrollXY,
+    text_box_pos: TextBoxXY,
+    text_space_xy: TextSpaceXY
+) -> ScreenSpaceXY {
+    text_box_to_screen(
+        text_to_text_box(text_space_xy, scroll),
+        text_box_pos,
+    )
+}
+
 pub fn position_to_screen_space(
     pos: Position,
     char_dim: CharDim,
     scroll: ScrollXY,
     text_box_pos: TextBoxXY,
 ) -> ScreenSpaceXY {
-    text_box_to_screen(
-        text_to_text_box(position_to_text_space(pos, char_dim), scroll),
+    text_space_to_screen_space(
+        scroll,
         text_box_pos,
+        position_to_text_space(pos, char_dim)
     )
 }
 
@@ -848,6 +868,55 @@ impl From<(ScreenSpaceXY, ScreenSpaceWH)> for ScreenSpaceRect {
     ) -> Self {
         ssr!(x, y, x + w, y + h)
     }
+}
+
+#[macro_export]
+macro_rules! ssxywh {
+    //
+    // Pattern matching
+    //
+    ($x: ident, $y: ident, $w: ident, $h: ident) => {
+        ScreenSpaceXYWH {
+            xy: ssxy!($x, $y),
+            wh: sswh!($w, $h),
+        }
+    };
+    ($xy: ident, $wh: ident) => {
+        ScreenSpaceXYWH {
+            xy: $xy,
+            wh: $wh,
+        }
+    };
+    ($xy: ident) => {
+        ScreenSpaceXYWH {
+            xy: $xy,
+            wh: _
+        }
+    };
+    //
+    // Initialization
+    //
+    ($x: expr, $y: expr, $w: expr, $h: expr) => {
+        ScreenSpaceXYWH {
+            xy: ssxy!($x, $y),
+            wh: sswh!($w, $h),
+        }
+    };
+    ($xy: expr, $wh: expr) => {
+        ScreenSpaceXYWH {
+            xy: $xy,
+            wh: $wh,
+        }
+    };
+    ($xy: expr) => {
+        ScreenSpaceXYWH {
+            xy: $xy,
+            ..ScreenSpaceXYWH::default()
+        }
+    };
+    () => {
+        ScreenSpaceXYWH::default()
+    };
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Default)]

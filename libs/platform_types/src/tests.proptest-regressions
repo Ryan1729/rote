@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 317bfadf37edf83b842ab5318c174c6abd164feac7e7d49f2aa5d094d99cc6df # shrinks to screen = ScrollableScreen { scroll: ScrollXY { x: 20.498291, y: 0.0 }, wh: ScreenSpaceWH { w: 0.0, h: 0.0 } }, xy = ScreenSpaceXY { x: 12391443.0, y: 0.0 }, ScreenSpaceXY { x, y } = ScreenSpaceXY { x: 4650059.0, y: 0.0 }

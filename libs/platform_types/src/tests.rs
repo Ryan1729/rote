@@ -1,5 +1,8 @@
 use super::*;
 use screen_positioning::{
+    screen_space_to_position,
+    screen_space_to_text_space,
+    position_to_screen_space,
     attempt_to_make_xy_visible,
     position_to_text_space,
     screen_to_text_box,
@@ -12,6 +15,10 @@ use screen_positioning::{
     TextBoxXYWH,
     TextSpaceXY,
     VisibilityAttemptResult,
+};
+use floating_point::{
+    usual_f32_minimal_decrease,
+    usual_f32_minimal_increase
 };
 use proptest::{prop_compose, proptest, num::f32};
 
@@ -379,11 +386,7 @@ fn attempt_to_make_xy_visible_works_on_this_2020_01_realistically_sized_example(
     assert_eq!(attempt_result, VisibilityAttemptResult::Succeeded);
 }
 
-/* We can revive these tests if the tested functions need to change further
-fn xy_is_visible_works_on_this_passed_in_screen(screen: &ScrollableScreen) {
-    // TODO rewrite this with the correct meaning of `scroll` in mind.
-
-    // negated so `NaN` would end up here
+fn xy_is_visible_works_on_this_passed_in_screen(screen: &ScrollableScreen) {    // negated so `NaN` would end up here
     if !dbg!(screen.wh.w > 0.0 && screen.wh.h > 0.0) {
         // If we got here the no point should be considered visible!
         xy_is_visible_assert!(not & screen, TextSpaceXY { x: 0.0, y: 0.0 });
@@ -439,70 +442,80 @@ fn xy_is_visible_works_on_this_passed_in_screen(screen: &ScrollableScreen) {
 
     xy_is_visible_assert!(
         &screen,
-        screen_to_text_box(
+        screen_space_to_text_space(
             ScreenSpaceXY {
                 x: screen.wh.w / 2.0,
                 y: screen.wh.h / 2.0
             },
+            d!(),
             screen.scroll
         )
     );
     xy_is_visible_assert!(
         not & screen,
-        screen_to_text_box(
+        screen_space_to_text_space(
             ScreenSpaceXY {
                 x: -screen.wh.w / 2.0,
                 y: -screen.wh.h / 2.0
             },
+            d!(),
             screen.scroll
         )
     );
 
     xy_is_visible_assert!(
         &screen,
-        screen_to_text_box(
+        screen_space_to_text_space(
             ScreenSpaceXY {
                 x: usual_f32_minimal_decrease(screen.wh.w),
                 y: usual_f32_minimal_decrease(screen.wh.h)
             },
+            d!(),
             screen.scroll
         )
     );
     xy_is_visible_assert!(
         not & screen,
-        screen_to_text_box(
+        screen_space_to_text_space(
             ScreenSpaceXY {
                 x: screen.wh.w,
                 y: screen.wh.h
             },
+            d!(),
             screen.scroll
         )
     );
 
     xy_is_visible_assert!(
         not & screen,
-        screen_to_text_box(
+        screen_space_to_text_space(
             ScreenSpaceXY {
                 x: screen.wh.w * 3.0 / 2.0,
                 y: screen.wh.h * 3.0 / 2.0
             },
+            d!(),
             screen.scroll
         )
     );
     xy_is_visible_assert!(
         not & screen,
-        screen_to_text_box(
+        screen_space_to_text_space(
             ScreenSpaceXY {
                 x: -screen.wh.w * 3.0 / 2.0,
                 y: -screen.wh.h * 3.0 / 2.0
             },
+            d!(),
             screen.scroll
         )
     );
 
     xy_is_visible_assert!(
         &screen,
-        screen_to_text_box(ScreenSpaceXY { x: 0.0, y: 0.0 }, screen.scroll)
+        screen_space_to_text_space(
+            ScreenSpaceXY { x: 0.0, y: 0.0 },
+            d!(),
+            screen.scroll
+        )
     );
     xy_is_visible_assert!(
         not & screen,
@@ -528,42 +541,46 @@ fn xy_is_visible_works_on_this_passed_in_screen(screen: &ScrollableScreen) {
 
     xy_is_visible_assert!(
         &screen,
-        screen_to_text_box(
+        screen_space_to_text_space(
             ScreenSpaceXY {
                 x: usual_f32_minimal_decrease(screen.wh.w),
                 y: 0.0
             },
+            d!(),
             screen.scroll
         )
     );
     xy_is_visible_assert!(
         not & screen,
-        screen_to_text_box(
+        screen_space_to_text_space(
             ScreenSpaceXY {
                 x: screen.wh.w,
                 y: 0.0
             },
+            d!(),
             screen.scroll
         )
     );
 
     xy_is_visible_assert!(
         &screen,
-        screen_to_text_box(
+        screen_space_to_text_space(
             ScreenSpaceXY {
                 x: 0.0,
                 y: usual_f32_minimal_decrease(screen.wh.h)
             },
+            d!(),
             screen.scroll
         )
     );
     xy_is_visible_assert!(
         not & screen,
-        screen_to_text_box(
+        screen_space_to_text_space(
             ScreenSpaceXY {
                 x: 0.0,
                 y: screen.wh.h
             },
+            d!(),
             screen.scroll
         )
     );
@@ -681,7 +698,17 @@ fn screen_space_to_position_then_position_to_screen_space_is_identity_after_one_
         TextBoxXY { x: 0.0, y: 0.0 }
     )
 }
-*/
+
+#[test]
+fn screen_space_to_position_then_position_to_screen_space_is_identity_after_one_conversion_for_this_all_positive_generated_example(
+) {
+    screen_space_to_position_then_position_to_screen_space_is_identity_after_one_conversion_for_these(
+        ScrollableScreen { scroll: ScrollXY { x: 20.498291, y: 0.0 }, wh: ScreenSpaceWH { w: 0.0, h: 0.0 } },
+        ScreenSpaceXY { x: 12391443.0, y: 0.0 },
+        TextBoxXY { x: 4650059.0, y: 0.0 }
+    )
+}
+
 fn text_space_to_position_then_position_to_text_space_is_identity_after_one_conversion_for_these(
     xy: TextSpaceXY,
 ) {

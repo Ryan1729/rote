@@ -2026,7 +2026,7 @@ dependencies = [
 
 [[package]]
 name = "rote"
-version = "0.2.96"
+version = "0.2.97"
 dependencies = [
  "check_or_no_panic",
  "editor",
