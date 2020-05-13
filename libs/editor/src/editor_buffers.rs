@@ -122,7 +122,7 @@ pub struct EditorBuffers {
 impl EditorBuffers {
     #[perf_viz::record]
     pub fn should_render_buffer_views(&mut self) -> bool {
-        use std::hash::{Hash, Hasher};
+        use std::hash::{Hasher};
         let mut hasher: rustc_hash::FxHasher = d!();
         self.non_rope_hash(&mut hasher);
         let new_non_rope_hash = hasher.finish();

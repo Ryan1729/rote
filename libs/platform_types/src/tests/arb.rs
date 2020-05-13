@@ -7,6 +7,15 @@ use proptest::num::f32;
 use proptest::prelude::{prop_compose, any, Strategy};
 use pub_arb_std::{path_buf, f32::usual};
 
+pub fn apron(spec: f32::Any) -> impl Strategy<Value = Apron> {
+    (spec, spec, spec, spec).prop_map(|(left_w, right_w, top_h, bottom_h)| Apron {
+        left_w,
+        right_w,
+        top_h,
+        bottom_h,
+    })
+}
+
 pub fn char_dim(spec: f32::Any) -> impl Strategy<Value = CharDim> {
     (spec, spec).prop_map(|(w, h)| CharDim { w, h })
 }
@@ -394,12 +403,12 @@ arb_enum!{
         None => Just(None),
         Quit => Just(Quit),
         CloseMenuIfAny => Just(CloseMenuIfAny),
-        Insert(char) => any::<char>().prop_map(Insert),
+        Insert(_) => any::<char>().prop_map(Insert),
         Delete => Just(Delete),
         DeleteLines => Just(DeleteLines),
         ResetScroll => Just(ResetScroll),
         ScrollVertically(_) => usual().prop_map(ScrollVertically),
-        ScrollHorizontally(f32) => usual().prop_map(ScrollHorizontally),
+        ScrollHorizontally(_) => usual().prop_map(ScrollHorizontally),
         SetSizeDependents(_) => size_dependents().prop_map(SetSizeDependents),
         MoveAllCursors(_) => r#move().prop_map(MoveAllCursors),
         ExtendSelectionForAllCursors(_) => r#move().prop_map(ExtendSelectionForAllCursors),

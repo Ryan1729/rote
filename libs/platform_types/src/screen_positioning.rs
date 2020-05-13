@@ -26,6 +26,15 @@ hash_to_bits!(for ScreenSpaceXY: s, state in x, y);
 
 fmt_display!(for ScreenSpaceXY: ScreenSpaceXY {x, y} in "{:?}", (x, y));
 
+impl MapElements<f32> for ScreenSpaceXY {
+    fn map_elements(&self, mapper: &impl Fn(f32) -> f32) -> Self {
+        Self { 
+            x: mapper(self.x),
+            y: mapper(self.y),
+        }
+    }
+}
+
 #[macro_export]
 macro_rules! ssxy {
     //
@@ -99,6 +108,15 @@ fmt_display!(for ScreenSpaceWH: ScreenSpaceWH {w, h} in "{:?}", (w, h));
 
 hash_to_bits!(for ScreenSpaceWH: s, state in w, h);
 
+impl MapElements< f32> for ScreenSpaceWH {
+    fn map_elements(&self, mapper: &impl Fn(f32) -> f32) -> Self {
+        Self { 
+            w: mapper(self.w),
+            h: mapper(self.h),
+        }
+    }
+}
+
 #[macro_export]
 macro_rules! sswh {
     //
@@ -140,7 +158,7 @@ pub fn inside_rect(
     ScreenSpaceXY { x, y }: ScreenSpaceXY,
     ScreenSpaceRect { min, max }: ScreenSpaceRect,
 ) -> bool {
-    x > min.0 && x <= max.0 && y > min.1 && y <= max.1
+    x >= min.0 && x <= max.0 && y >= min.1 && y <= max.1
 }
 
 pub fn clamp_within(rect: &mut ScreenSpaceRect, ScreenSpaceRect { min, max }: ScreenSpaceRect) {
@@ -390,6 +408,15 @@ pub struct ScrollXY {
 fmt_display!(for ScrollXY: ScrollXY {x, y} in "{:?}", (x, y));
 
 hash_to_bits!(for ScrollXY: s, state in x, y);
+
+impl MapElements< f32> for ScrollXY {
+    fn map_elements(&self, mapper: &impl Fn(f32) -> f32) -> Self {
+        Self { 
+            x: mapper(self.x),
+            y: mapper(self.y),
+        }
+    }
+}
 
 impl From<ScrollXY> for (f32, f32) {
     fn from(ScrollXY { x, y }: ScrollXY) -> Self {
@@ -1006,4 +1033,8 @@ pub struct SizeDependents {
     pub find_xywh: Option<TextBoxXYWH>,
     pub replace_xywh: Option<TextBoxXYWH>,
     pub go_to_position_xywh: Option<TextBoxXYWH>,
+}
+
+pub trait MapElements<T> {
+    fn map_elements(&self, mapper: &impl Fn(T) -> T) -> Self;
 }
