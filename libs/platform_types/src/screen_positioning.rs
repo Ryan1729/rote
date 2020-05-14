@@ -643,11 +643,18 @@ pub fn attempt_to_make_xy_visible(
     }
 
     let TextSpaceXY { x, y } = to_make_visible;
-    // In text space
-    let min_x = apron.left_w;
-    let max_x = stay_positive!(w - apron.right_w);
-    let min_y = apron.top_h;
-    let max_y = stay_positive!(h - apron.bottom_h);
+
+    let to_make_visible_ss = text_space_to_screen_space(
+        *scroll,
+        outer_rect.xy,
+        to_make_visible,
+    );
+
+    // In screen space
+    let min_x = apron.left_w + outer_rect.xy.x;
+    let max_x = stay_positive!(w - apron.right_w) + outer_rect.xy.x;
+    let min_y = apron.top_h + outer_rect.xy.y;
+    let max_y = stay_positive!(h - apron.bottom_h) + outer_rect.xy.y;
 
     dbg!(    
         &scroll,
@@ -694,18 +701,30 @@ pub fn attempt_to_make_xy_visible(
         (Normal, Normal) => {}
     }
 
-    if x < min_x {
-        scroll.x = stay_positive!(0.0);
-    } else if x >= max_x {
-        scroll.x = stay_positive!(w);
+    // let to_make_visible = tmv
+    // (here = is the algebra =)
+    // tmv_screen = (tmv_text - scroll_xy) + outer_rect.xy
+    // so if we want tmv_screen = outer_rect.xy
+    // tmv_screen = (tmv_text - scroll_xy) + tmv_screen
+    // 0 = (tmv_text - scroll_xy)
+    // scroll_xy = tmv_text
+    // therefore setting scroll_xy to the value of tmv_text places the point
+    // at the top left corner of the text box. We make further adjustments as needed.
+
+    dbg!(x, to_make_visible_ss.x, min_x);
+    if to_make_visible_ss.x < min_x {
+        scroll.x = x - apron.left_w;
+    } else if to_make_visible_ss.x >= max_x {
+        scroll.x = x - (w - apron.right_w);
     } else {
         // leave it alone
     }
 
-    if y < min_y {
-        scroll.y = stay_positive!(0.0);
-    } else if y >= max_y {
-        scroll.y = stay_positive!(h);
+    dbg!(y, to_make_visible_ss.y, min_y);
+    if to_make_visible_ss.y < min_y {
+        scroll.y = y - apron.top_h;
+    } else if to_make_visible_ss.y >= max_y {
+        scroll.y = y - (h - apron.bottom_h);
     } else {
         // leave it alone
     }

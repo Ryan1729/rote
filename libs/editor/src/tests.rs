@@ -77,7 +77,7 @@ const EXAMPLE_TBXYWH: TextBoxXYWH = tbxywh!(0.0, 0.0, 256.0, 192.0);
 
 const EXAMPLE_CHAR_DIM: CharDim = CharDim { w: 4.0, h: 8.0 };
 
-fn update_and_render_shows_the_cursor_when_pressing_home_on(text: &str, buffer_xywh: TextBoxXYWH, char_dim: CharDim) {
+fn update_and_render_shows_the_cursor_when_pressing_ctrl_home_on(text: &str, buffer_xywh: TextBoxXYWH, char_dim: CharDim) {
     let mut state: State = text.into();
     state.buffer_xywh = buffer_xywh;
     state.font_info = FontInfo {
@@ -107,8 +107,8 @@ fn update_and_render_shows_the_cursor_when_pressing_home_on(text: &str, buffer_x
 }
 
 #[test]
-fn update_and_render_shows_the_cursor_when_pressing_home_in_this_case() {
-    update_and_render_shows_the_cursor_when_pressing_home_on(
+fn update_and_render_shows_the_cursor_when_pressing_ctrl_home_in_this_case() {
+    update_and_render_shows_the_cursor_when_pressing_ctrl_home_on(
         CURSOR_SHOW_TEXT,
         EXAMPLE_TBXYWH,
         EXAMPLE_CHAR_DIM
@@ -204,7 +204,7 @@ fn passes_preconditions(text: &str, buffer_xywh: TextBoxXYWH, char_dim: CharDim)
 }
 
 #[test]
-fn update_and_render_shows_the_cursor_when_pressing_home() {
+fn update_and_render_shows_the_cursor_when_pressing_ctrl_home() {
     use proptest::test_runner::{TestRunner, TestCaseError};
     let mut runner = TestRunner::default();
 
@@ -236,7 +236,7 @@ fn update_and_render_shows_the_cursor_when_pressing_home() {
             tbxywh!(0.0, 0.0, box_w, box_h),
             CharDim { w, h }
         ) {
-            update_and_render_shows_the_cursor_when_pressing_home_on(
+            update_and_render_shows_the_cursor_when_pressing_ctrl_home_on(
                 CURSOR_SHOW_TEXT,
                 tbxywh!(0.0, 0.0, box_w, box_h),
                 CharDim { w, h },

@@ -884,6 +884,23 @@ fn text_box_to_screen_works_on_this_realistic_example() {
     );
 }
 
+macro_rules! assert_inside_rect {
+    ($xy: expr, $rect: expr) => {
+        let xy: ScreenSpaceXY = $xy;
+        let rect: ScreenSpaceRect = $rect;
+
+        assert!(
+            inside_rect(
+                xy,
+                rect
+            ),
+            "{:?} is not inside {:?}",
+            xy,
+            rect,
+        );
+    }
+}
+
 fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_on(
     mut scroll: ScrollXY,
     text_box_xywh: TextBoxXYWH,
@@ -899,21 +916,17 @@ fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_on(
 
     // TODO would making this a discarded result help the input generation enough that it's worth doing?
     if attempt_result == VisibilityAttemptResult::Succeeded {
-        assert!(inside_rect(
+        assert_inside_rect!(
             text_space_to_screen_space(
                 scroll,
                 text_box_xywh.xy,
                 cursor_xy,
             ),
             ssxywh!(
-                text_space_to_screen_space(
-                    scroll,
-                    text_box_xywh.xy,
-                    d!()
-                ),
+                text_box_xywh.xy.into(),
                 text_box_xywh.wh
             ).into()
-        ));
+        );
     }
 }
 
@@ -935,7 +948,7 @@ proptest! {
 }
 
 #[test]
-fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_on_this_visualization_found_example() {
+fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_on_this_incorrect_visualization_found_example() {
     if_attempt_to_make_visible_succeeds_the_cursor_is_visible_on(
         ScrollXY{ x: 0.0, y: 52.5 },
         tbxywh!(170.75, 98.25, 69.5, 68.5),
@@ -947,6 +960,92 @@ fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_on_this_visualizati
         },
         TextSpaceXY { x: 0.0, y: 96.0 },
     )
+}
+
+#[test]
+fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_on_this_visualization_found_example() {
+    if_attempt_to_make_visible_succeeds_the_cursor_is_visible_on(
+        ScrollXY{ x: 0.0, y: 196.5 },
+        tbxywh!(170.75, 98.25, 341.5, 196.5),
+        Apron {
+            left_w: 1.0,
+            right_w: 1.0,
+            top_h: 1.0,
+            bottom_h: 1.0,
+        },
+        TextSpaceXY { x: 0.0, y: 160.0 },
+    )
+}
+
+#[test]
+#[ignore]
+fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_on_this_visualization_found_example_reduction() {
+    let mut scroll = ScrollXY{ x: 0.0, y: 196.5 };
+    let text_box_xywh = tbxywh!(170.75, 98.25, 341.5, 196.5);
+    let apron = Apron {
+        left_w: 1.0,
+        right_w: 1.0,
+        top_h: 1.0,
+        bottom_h: 1.0,
+    };
+    let cursor_xy = TextSpaceXY { x: 0.0, y: 160.0 };
+
+    let attempt_result = {
+        u!{std::num::FpCategory, VisibilityAttemptResult}
+    
+        let ScreenSpaceWH { w, h } = text_box_xywh.wh;
+    
+        // We don't ever want to automatically show space that text can never be inside.
+        macro_rules! stay_positive {
+            ($n: expr) => {{
+                let n = $n;
+                if n > 0.0 {
+                    n
+                } else {
+                    0.0
+                }
+            }};
+        }
+    
+        let TextSpaceXY { x, y } = cursor_xy;
+        // In text space
+        let min_x = apron.left_w;
+        let max_x = stay_positive!(w - apron.right_w);
+        let min_y = apron.top_h;
+        let max_y = stay_positive!(h - apron.bottom_h);
+    
+        if x < min_x {
+            scroll.x = stay_positive!(0.0);
+        } else if x >= max_x {
+            scroll.x = stay_positive!(w);
+        } else {
+            // leave it alone
+        }
+    
+        if y < min_y {
+            scroll.y = stay_positive!(0.0);
+        } else if y >= max_y {
+            scroll.y = stay_positive!(h);
+        } else {
+            // leave it alone
+        }
+    
+        Succeeded
+    };
+
+    if attempt_result == VisibilityAttemptResult::Succeeded {
+        assert_inside_rect!(
+            text_space_to_screen_space(
+                scroll,
+                text_box_xywh.xy,
+                cursor_xy,
+            ),
+            ssxywh!(
+                text_box_xywh.xy.into(),
+                text_box_xywh.wh
+            ).into()
+        );
+    }
 }
 
 pub mod arb;

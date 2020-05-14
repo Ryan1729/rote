@@ -37,7 +37,7 @@ invariant-checking = ["platform_layer/invariant-checking", "editor/invariant-che
 time-render = ["platform_layer/time-render"]
 flame-chart = ["perf_viz/flame-chart"]
 flame-graph = ["perf_viz/flame-graph"]
-extra-prints = ["platform_layer/extra-prints", "editor/extra-prints"]
+extra-prints = ["platform_types/extra-prints", "platform_layer/extra-prints", "editor/extra-prints"]
 print-raw-input = ["platform_layer/print-raw-input"]
 
 [workspace]

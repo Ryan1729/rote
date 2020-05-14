@@ -128,7 +128,7 @@ fn main() -> Res<()> {
                         layout: TextLayout::Wrap,
                     }));*/
 
-                    let text_box_ssr = ssxywh!(
+                    let text_space_ssr = ssxywh!(
                         text_space_to_screen_space(
                             scroll_xy,
                             text_box_xywh.xy,
@@ -138,7 +138,7 @@ fn main() -> Res<()> {
                     ).into();
 
                     text_and_rects.push(TextOrRect::Rect(VisualSpec {
-                        rect: text_box_ssr,
+                        rect: text_space_ssr,
                         color: second_colour,
                         z: second_z,
                     }));
@@ -148,6 +148,11 @@ fn main() -> Res<()> {
                         text_box_xywh.xy,
                         cursor_xy
                     );
+
+                    let text_box_ssr = ssxywh!(
+                        text_box_xywh.xy.into(),
+                        text_box_xywh.wh
+                    ).into();
 
                     text_and_rects.push(TextOrRect::Text(TextSpec {
                         text: "▏",

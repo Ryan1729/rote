@@ -566,7 +566,7 @@ macro_rules! dbg {
     ($val:expr,) => { dbg!($val) };
     ($($val:expr),+ $(,)?) => {
         if $crate::extra_prints!() {
-            ($(std::dbg!($val)),+,)
+            std::dbg!($($val),+,)
         } else {
             ($($val),+,)
         }
