@@ -53,6 +53,22 @@ impl TextBuffer {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub enum ApronSpec {
+    CharDim(CharDim),
+    Custom(Apron)
+}
+
+impl From<ApronSpec> for Apron {
+    fn from(spec: ApronSpec) -> Self {
+        u!{ApronSpec}
+        match spec {
+            CharDim(char_dim) => char_dim.into(),
+            Custom(apron) => apron,
+        }
+    }
+}
+
 impl TextBuffer {
     pub fn len(&self) -> usize {
         self.borrow_rope().chars().count()
@@ -77,6 +93,7 @@ impl TextBuffer {
     pub fn try_to_show_cursors_on(
         &mut self,
         xywh: TextBoxXYWH,
+        spec: ApronSpec,
         char_dim: CharDim,
     ) -> VisibilityAttemptResult {
         let scroll = &mut self.scroll;
@@ -89,8 +106,8 @@ impl TextBuffer {
         small_xywh.xy.y += small_xywh.wh.h / 4.0;
         small_xywh.wh.h /= 2.0;
     
-        let apron: Apron = char_dim.into();
-    
+        let apron: Apron = spec.into();
+        dbg!(apron);
         let text_space = position_to_text_space(dbg!(self.cursors.last().get_position()), char_dim);
         dbg!(text_space);
     

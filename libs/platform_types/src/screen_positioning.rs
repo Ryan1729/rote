@@ -684,21 +684,17 @@ pub fn attempt_to_make_xy_visible(
     match (apron.left_w.classify(), apron.top_h.classify()) {
         (Nan, _) | (_, Nan) => return ApronEdgeTooWeird,
         (Infinite, _) | (_, Infinite) => return ApronEdgeTooLarge,
-        (Zero, _) | (_, Zero) | (Subnormal, _) | (_, Subnormal) => return ApronEdgeTooSmall,
-        (Normal, Normal) if apron.left_w < 1.0 || apron.top_h < 1.0 => return ApronEdgeTooSmall,
+        (Subnormal, _) | (_, Subnormal) => return ApronEdgeTooSmall,
         (Normal, Normal) if apron.left_w > w || apron.top_h > h => return ApronEdgeTooLarge,
-        (Normal, Normal) => {}
+        (Zero, _) | (_, Zero) | (Normal, Normal) => {}
     }
 
     match (apron.right_w.classify(), apron.bottom_h.classify()) {
         (Nan, _) | (_, Nan) => return ApronEdgeTooWeird,
         (Infinite, _) | (_, Infinite) => return ApronEdgeTooLarge,
-        (Zero, _) | (_, Zero) | (Subnormal, _) | (_, Subnormal) => return ApronEdgeTooSmall,
-        (Normal, Normal) if apron.right_w < 1.0 || apron.bottom_h < 1.0 => {
-            return ApronEdgeTooSmall
-        }
+         | (Subnormal, _) | (_, Subnormal) => return ApronEdgeTooSmall,
         (Normal, Normal) if apron.right_w > w || apron.bottom_h > h => return ApronEdgeTooLarge,
-        (Normal, Normal) => {}
+        (Zero, _) | (_, Zero) | (Normal, Normal) => {}
     }
 
     // let to_make_visible = tmv

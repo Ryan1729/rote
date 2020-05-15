@@ -80,6 +80,7 @@ const EXAMPLE_CHAR_DIM: CharDim = CharDim { w: 4.0, h: 8.0 };
 fn update_and_render_shows_the_cursor_when_pressing_ctrl_home_on(text: &str, buffer_xywh: TextBoxXYWH, char_dim: CharDim) {
     let mut state: State = text.into();
     state.buffer_xywh = buffer_xywh;
+    dbg!(state.buffer_xywh);
     state.font_info = FontInfo {
         text_char_dim: char_dim,
         status_char_dim: char_dim,
@@ -88,7 +89,7 @@ fn update_and_render_shows_the_cursor_when_pressing_ctrl_home_on(text: &str, buf
     };
 
     update_and_render(&mut state, Input::MoveAllCursors(Move::ToBufferEnd));
-
+    dbg!(state.buffer_xywh);
     {
         let buffer = get_text_buffer_mut!(state, BufferIdKind::Text).unwrap();
         assert_eq!(
@@ -100,7 +101,7 @@ fn update_and_render_shows_the_cursor_when_pressing_ctrl_home_on(text: &str, buf
     
 
     update_and_render(&mut state, Input::MoveAllCursors(Move::ToBufferStart));
-
+    dbg!(state.buffer_xywh);
     let buffer = get_text_buffer_mut!(state, BufferIdKind::Text).unwrap();
     assert_eq!(buffer.scroll.x, 0.0, "buffer.scroll.x");
     assert_eq!(buffer.scroll.y, 0.0, "buffer.scroll.y");
