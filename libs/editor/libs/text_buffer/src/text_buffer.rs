@@ -54,19 +54,9 @@ impl TextBuffer {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub enum ApronSpec {
-    CharDim(CharDim),
-    Custom(Apron)
-}
-
-impl From<ApronSpec> for Apron {
-    fn from(spec: ApronSpec) -> Self {
-        u!{ApronSpec}
-        match spec {
-            CharDim(char_dim) => char_dim.into(),
-            Custom(apron) => apron,
-        }
-    }
+pub enum ScrollAdjustSpec {
+    Calculate(CharDim, TextBoxXYWH),
+    Direct(ScrollXY)
 }
 
 impl TextBuffer {
@@ -92,43 +82,51 @@ impl TextBuffer {
 
     pub fn try_to_show_cursors_on(
         &mut self,
-        xywh: TextBoxXYWH,
-        spec: ApronSpec,
-        char_dim: CharDim,
+        spec: ScrollAdjustSpec,
     ) -> VisibilityAttemptResult {
+        u!{ScrollAdjustSpec, VisibilityAttemptResult};
+
         let scroll = &mut self.scroll;
-    
-        // We try first with this smaller xywh to make the cursor appear
-        // in the center more often.
-        let mut small_xywh = xywh.clone();
-        //small_xywh.xy.x += small_xywh.wh.w / 4.0;
-        //small_xywh.wh.w /= 2.0;
-        small_xywh.xy.y += small_xywh.wh.h / 4.0;
-        small_xywh.wh.h /= 2.0;
-    
-        let apron: Apron = spec.into();
-        dbg!(apron);
-        let text_space = position_to_text_space(dbg!(self.cursors.last().get_position()), char_dim);
-        dbg!(text_space);
-    
-        let mut attempt_result;
-        attempt_result = attempt_to_make_xy_visible(
-            scroll,
-            small_xywh,
-            apron.clone(),
-            text_space,
-        );
-    
-        if attempt_result != VisibilityAttemptResult::Succeeded {
-            attempt_result = attempt_to_make_xy_visible(
-                scroll,
-                xywh,
-                apron,
-                text_space,
-            );
+        
+        match spec {
+            Direct(s) => {
+                *scroll = s;
+                Succeeded
+            }
+            Calculate(char_dim, xywh) => {
+                // We try first with this smaller xywh to make the cursor appear
+                // in the center more often.
+                let mut small_xywh = xywh.clone();
+                //small_xywh.xy.x += small_xywh.wh.w / 4.0;
+                //small_xywh.wh.w /= 2.0;
+                //small_xywh.xy.y += small_xywh.wh.h / 4.0;
+                //small_xywh.wh.h /= 2.0;
+            
+                let apron: Apron = char_dim.into();
+                dbg!(apron);
+                let text_space = position_to_text_space(dbg!(self.cursors.last().get_position()), char_dim);
+                dbg!(text_space);
+            
+                let mut attempt_result;
+                attempt_result = attempt_to_make_xy_visible(
+                    scroll,
+                    small_xywh,
+                    apron.clone(),
+                    text_space,
+                );
+            
+                if attempt_result != Succeeded {
+                    attempt_result = attempt_to_make_xy_visible(
+                        scroll,
+                        xywh,
+                        apron,
+                        text_space,
+                    );
+                }
+                dbg!(attempt_result);
+                attempt_result
+            }
         }
-        dbg!(attempt_result);
-        attempt_result
     }
 }
 

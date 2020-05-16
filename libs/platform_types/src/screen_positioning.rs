@@ -667,7 +667,7 @@ pub fn attempt_to_make_xy_visible(
         to_make_visible,
         min_x,
         max_x,
-        min_x,
+        min_y,
         max_y
     );
 
@@ -716,7 +716,7 @@ pub fn attempt_to_make_xy_visible(
         // leave it alone
     }
 
-    dbg!(y, to_make_visible_ss.y, min_y);
+    dbg!(y, to_make_visible_ss.y, min_y, max_y);
     if to_make_visible_ss.y < min_y {
         scroll.y = y - apron.top_h;
     } else if to_make_visible_ss.y >= max_y {

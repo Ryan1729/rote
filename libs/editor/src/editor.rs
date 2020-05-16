@@ -4,7 +4,7 @@ use platform_types::{screen_positioning::*, *};
 use parsers::{Parsers};
 
 use std::path::PathBuf;
-use text_buffer::{ApronSpec, TextBuffer, PossibleEditedTransition};
+use text_buffer::{ScrollAdjustSpec, TextBuffer, PossibleEditedTransition};
 
 mod editor_view;
 mod editor_buffers;
@@ -160,31 +160,21 @@ set_indexed_id! {
     GoToPosition
 }
 
-fn apron_spec_from(r#move: Move, char_dim: CharDim) -> ApronSpec {
-    u!{ApronSpec, Move}
+fn direct_scroll_from(r#move: Move) -> Option<ScrollXY> {
+    u!{Move}
     match r#move {
         Up |
         Down |
         Right |
         ToLineEnd |
         ToBufferEnd |
-        ToNextLikelyEditLocation => CharDim(char_dim),
+        ToNextLikelyEditLocation |
         Left |
-        ToLineStart |
-        ToPreviousLikelyEditLocation => {
-            let mut apron: Apron = char_dim.into();
-
-            apron.left_w = 0.0;
-
-            Custom(apron)
-        },
+        ToPreviousLikelyEditLocation => None,
+        // TODO ensure this move always results in the scroll y being 0.
+        ToLineStart => None,
         ToBufferStart => {
-            let mut apron: Apron = char_dim.into();
-
-            apron.left_w = 0.0;
-            apron.top_h = 0.0;
-
-            Custom(apron)
+            Some(d!())
         }
     }
 }
@@ -242,7 +232,7 @@ impl State {
         }
     }
 
-    fn try_to_show_cursors_on(&mut self, kind: BufferIdKind, spec: ApronSpec) -> Option<()> {
+    fn try_to_show_cursors_on(&mut self, kind: BufferIdKind) -> Option<()> {
         u!{BufferIdKind}
         let buffer = get_text_buffer_mut!(self, kind)?;
         let xywh = match kind {
@@ -256,7 +246,7 @@ impl State {
 
         let char_dim = State::char_dim_for_buffer_kind(&self.font_info, kind);
 
-        let attempt_result = buffer.try_to_show_cursors_on(xywh, spec, char_dim);
+        let attempt_result = buffer.try_to_show_cursors_on(ScrollAdjustSpec::Calculate(char_dim, xywh));
         match attempt_result {
             VisibilityAttemptResult::Succeeded => Some(()),
             _ => Option::None,
@@ -362,13 +352,17 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             try_to_show_cursors!(state.current_buffer_kind);
         };
         ($kind: expr) => {
-            let kind = $kind;
-            let char_dim = State::char_dim_for_buffer_kind(&state.font_info, kind);
-            try_to_show_cursors!(kind, ApronSpec::CharDim(char_dim))
-        };
-        ($kind: expr, $spec: expr) => {
-            state.try_to_show_cursors_on($kind, $spec);
+            state.try_to_show_cursors_on($kind);
             // TODO trigger error popup based on result?
+        };
+        ($kind: expr, $scroll_op: expr) => {
+            if let Some(scroll) = $scroll_op {
+                if let Some(buffer) = get_text_buffer_mut!(state, $kind) {
+                    buffer.try_to_show_cursors_on(ScrollAdjustSpec::Direct(scroll));
+                }
+            } else {
+                try_to_show_cursors!($kind);
+            }
         };
     }
 
@@ -518,10 +512,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                 b.move_all_cursors(r#move);
                 try_to_show_cursors!(
                     state.current_buffer_kind,
-                    apron_spec_from(
-                        r#move,
-                        State::char_dim_for_buffer_kind(&state.font_info, state.current_buffer_kind)
-                    )
+                    direct_scroll_from(r#move)
                 );
             });
         }
@@ -530,10 +521,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                 b.extend_selection_for_all_cursors(r#move);
                 try_to_show_cursors!(
                     state.current_buffer_kind,
-                    apron_spec_from(
-                        r#move,
-                        State::char_dim_for_buffer_kind(&state.font_info, state.current_buffer_kind)
-                    )
+                    direct_scroll_from(r#move)
                 );
             });
         }
