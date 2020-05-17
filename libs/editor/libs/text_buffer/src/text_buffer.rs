@@ -86,7 +86,7 @@ impl TextBuffer {
     ) -> VisibilityAttemptResult {
         u!{ScrollAdjustSpec, VisibilityAttemptResult};
 
-        let scroll = &mut self.scroll;
+        let scroll = &mut self.scroll; 
         
         match spec {
             Direct(s) => {

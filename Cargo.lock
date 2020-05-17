@@ -1340,6 +1340,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2f9667ddcc6cc8a43afc9b7917599d7216aa09c463919ea32c59ed6cac8bc945"
 
 [[package]]
+name = "non_neg_f32"
+version = "0.1.0"
+
+[[package]]
 name = "num-traits"
 version = "0.2.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1564,6 +1568,7 @@ dependencies = [
  "g_i",
  "macros",
  "move_mod",
+ "non_neg_f32",
  "panic_safe_rope",
  "perf_viz",
  "proptest",

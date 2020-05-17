@@ -14,6 +14,7 @@ panic_safe_rope = { path = "../panic_safe_rope" }
 perf_viz = { path = "../perf_viz" }
 macros = { path = "../macros" }
 move_mod = { path = "./libs/move_mod" }
+non_neg_f32 = { path = "./libs/non_neg_f32" }
 text_pos = { path = "../text_pos" }
 proptest = { version = "0.9.5", optional = true }
 arb_macros = { path = "../arb_macros", optional = true }

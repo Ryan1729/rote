@@ -1,5 +1,6 @@
 use super::*;
 use macros::{dbg, u};
+pub use non_neg_f32::{NonNegF32};
 
 // TODO make a derive macro that hashes all the fields, but checks if fields are f32/f64 and
 // calls `to_bits` if they are.
@@ -13,7 +14,7 @@ macro_rules! hash_to_bits {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Default, PartialEq)]
 /// The top left corner of the screen is `(0.0, 0.0)`, top right corner is `(width, 0.0)`,
 /// the bottom left corner is `(0.0, height)`. In other words, the x-axis point right, the y-axis
 /// points down.
@@ -23,6 +24,8 @@ pub struct ScreenSpaceXY {
 }
 
 hash_to_bits!(for ScreenSpaceXY: s, state in x, y);
+
+fmt_debug!(for ScreenSpaceXY: ScreenSpaceXY {x, y} in "ssxy!{:?}", (x, y));
 
 fmt_display!(for ScreenSpaceXY: ScreenSpaceXY {x, y} in "{:?}", (x, y));
 
@@ -40,19 +43,22 @@ macro_rules! ssxy {
     //
     // Pattern matching
     //
-    ($x: ident, $y: ident) => {
+    ($x: ident $(,)? $y: ident $(,)?) => {
         ScreenSpaceXY { x: $x, y: $y }
     };
-    (_, $y: ident) => {
+    (_ $(,)? $y: ident $(,)?) => {
         ScreenSpaceXY { x: _, y: $y }
     };
-    ($x: ident, _) => {
+    ($x: ident $(,)? _ $(,)?) => {
         ScreenSpaceXY { x: $x, y: _ }
     };
     //
     // Initialization
     //
-    ($x: expr, $y: expr) => {
+    ($x: literal $(,)? $y: literal $(,)?) => {
+        ScreenSpaceXY { x: $x, y: $y }
+    };
+    ($x: expr, $y: expr $(,)?) => {
         ScreenSpaceXY { x: $x, y: $y }
     };
     () => {
@@ -98,19 +104,21 @@ impl std::ops::Add<ScreenSpaceXY> for (f32, f32) {
 }
 add_assign!(<ScreenSpaceXY> for (f32, f32));
 
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Default, PartialEq)]
 pub struct ScreenSpaceWH {
-    pub w: f32,
-    pub h: f32,
+    pub w: NonNegF32,
+    pub h: NonNegF32,
 }
 
-fmt_display!(for ScreenSpaceWH: ScreenSpaceWH {w, h} in "{:?}", (w, h));
+fmt_debug!(for ScreenSpaceWH: ScreenSpaceWH {w, h} in "sswh!{:?}", (w.get(), h.get()));
+
+fmt_display!(for ScreenSpaceWH: ScreenSpaceWH {w, h} in "{:?}", (w.get(), h.get()));
 
 hash_to_bits!(for ScreenSpaceWH: s, state in w, h);
 
-impl MapElements< f32> for ScreenSpaceWH {
-    fn map_elements(&self, mapper: &impl Fn(f32) -> f32) -> Self {
-        Self { 
+impl MapElements<NonNegF32> for ScreenSpaceWH {
+    fn map_elements(&self, mapper: &impl Fn(NonNegF32) -> NonNegF32) -> Self {
+        Self {
             w: mapper(self.w),
             h: mapper(self.h),
         }
@@ -122,19 +130,28 @@ macro_rules! sswh {
     //
     // Pattern matching
     //
-    (_, $h: ident) => {
+    (_ $(,)? $h: ident $(,)?) => {
         $crate::ScreenSpaceWH { w: _, h: $h }
     };
-    ($w: ident, _) => {
+    ($w: ident $(,)? _ $(,)?) => {
         $crate::ScreenSpaceWH { w: $w, h: _ }
     };
-    ($w: ident, $h: ident) => {
+    ($w: ident $(,)? $h: ident $(,)?) => {
         $crate::ScreenSpaceWH { w: $w, h: $h }
     };
     //
     // Initialization
     //
-    ($w: expr, $h: expr) => {
+    ($w: literal $(,)? $h: literal $(,)?) => {
+        $crate::ScreenSpaceWH { w: non_neg_f32!($w), h: non_neg_f32!($h) }
+    };
+    (raw $w: literal $(,)? $h: literal $(,)?) => {
+        $crate::ScreenSpaceWH { w: $w, h: $h }
+    };
+    ($w: expr, $h: expr $(,)?) => {
+        $crate::ScreenSpaceWH { w: non_neg_f32!($w), h: non_neg_f32!($h) }
+    };
+    (raw $w: expr, $h: expr $(,)?) => {
         $crate::ScreenSpaceWH { w: $w, h: $h }
     };
     () => {
@@ -190,8 +207,8 @@ pub fn clamp_within(rect: &mut ScreenSpaceRect, ScreenSpaceRect { min, max }: Sc
 // Plus since `CharDim` came before `ScreenSpaceWH` less code has to change if we keep `CharDim`
 /// We are currently assuming the font is monospace!
 pub struct CharDim {
-    pub w: f32,
-    pub h: f32,
+    pub w: NonNegF32,
+    pub h: NonNegF32,
 }
 
 hash_to_bits!(for CharDim: s, state in w, h);
@@ -200,7 +217,22 @@ fmt_display!(for CharDim: CharDim {w, h} in "{:?}", (w, h));
 
 impl From<CharDim> for (f32, f32) {
     fn from(CharDim { w, h }: CharDim) -> Self {
-        (w, h)
+        (w.get(), h.get())
+    }
+}
+
+macro_rules! char_dim {
+    ($w: expr, $h: expr) => {
+        CharDim {
+            w: $crate::non_neg_f32!($w),
+            h: $crate::non_neg_f32!($h),
+        }
+    };
+    (raw $w: expr, $h: expr) => {
+        CharDim {
+            w: $w,
+            h: $h,
+        }
     }
 }
 
@@ -409,6 +441,36 @@ fmt_display!(for ScrollXY: ScrollXY {x, y} in "{:?}", (x, y));
 
 hash_to_bits!(for ScrollXY: s, state in x, y);
 
+/// This uses `slxy` becasue `scxy`, or `srxy` seem confusable with being for ScreenSpaceXY.
+/// `soxy` seems less evocative of scrolling than `slxy`.
+#[macro_export]
+macro_rules! slxy {
+    //
+    // Pattern matching
+    //
+    ($x: ident $(,)? $y: ident $(,)?) => {
+        ScrollXY { x: $x, y: $y }
+    };
+    (_ $(,)? $y: ident $(,)?) => {
+        ScrollXY { x: _, y: $y }
+    };
+    ($x: ident $(,)? _ $(,)?) => {
+        ScrollXY { x: $x, y: _ }
+    };
+    //
+    // Initialization
+    //
+    ($x: literal $(,)? $y: literal $(,)?) => {
+        ScrollXY { x: $x, y: $y }
+    };
+    ($x: expr, $y: expr $(,)?) => {
+        ScrollXY { x: $x, y: $y }
+    };
+    () => {
+        ScrollXY::default()
+    };
+}
+
 impl MapElements< f32> for ScrollXY {
     fn map_elements(&self, mapper: &impl Fn(f32) -> f32) -> Self {
         Self { 
@@ -590,10 +652,10 @@ pub enum VisibilityAttemptResult {
 
 #[derive(Clone, Copy, Debug)]
 pub struct Apron {
-    pub left_w: f32,
-    pub right_w: f32,
-    pub top_h: f32,
-    pub bottom_h: f32,
+    pub left_w: NonNegF32,
+    pub right_w: NonNegF32,
+    pub top_h: NonNegF32,
+    pub bottom_h: NonNegF32,
 }
 
 hash_to_bits!(for Apron : s, state in bottom_h, top_h, right_w, left_w);
@@ -607,6 +669,25 @@ impl From<CharDim> for Apron {
             bottom_h: h,
         }
     }
+}
+
+macro_rules! apron {
+    ($size: literal) => {
+        Apron {
+            left_w: non_neg_f32!($size),
+            right_w: non_neg_f32!($size),
+            top_h: non_neg_f32!($size),
+            bottom_h: non_neg_f32!($size),
+        }
+    };
+    (raw $size: expr) => {
+        Apron {
+            left_w: $size,
+            right_w: $size,
+            top_h: $size,
+            bottom_h: $size,
+        }
+    };
 }
 
 /// if it is off the screen, scroll so it is inside an at least `char_dim` sized apron inside
@@ -631,6 +712,7 @@ pub fn attempt_to_make_xy_visible(
     let ScreenSpaceWH { w, h } = outer_rect.wh;
 
     // We don't ever want to automatically show space that text can never be inside.
+    // TODO is this still needed?
     macro_rules! stay_positive {
         ($n: expr) => {{
             let n = $n;
@@ -652,9 +734,9 @@ pub fn attempt_to_make_xy_visible(
 
     // In screen space
     let min_x = apron.left_w + outer_rect.xy.x;
-    let max_x = stay_positive!(w - apron.right_w) + outer_rect.xy.x;
+    let max_x = w - apron.right_w + outer_rect.xy.x;
     let min_y = apron.top_h + outer_rect.xy.y;
-    let max_y = stay_positive!(h - apron.bottom_h) + outer_rect.xy.y;
+    let max_y = h - apron.bottom_h + outer_rect.xy.y;
 
     dbg!(    
         &scroll,
@@ -670,32 +752,6 @@ pub fn attempt_to_make_xy_visible(
         min_y,
         max_y
     );
-
-    // If these checks ever actually become a bottleneck, then the easy solution is to just make
-    // types that can't represent these cases and enforce them at startup!
-    match (w.classify(), h.classify()) {
-        (Nan, _) | (_, Nan) => return ScreenTooWeird,
-        (Infinite, _) | (_, Infinite) => return ScreenTooLarge,
-        (Zero, _) | (_, Zero) | (Subnormal, _) | (_, Subnormal) => return ScreenTooSmall,
-        (Normal, Normal) if w < 1.0 || h < 1.0 => return ScreenTooSmall,
-        (Normal, Normal) => {}
-    }
-
-    match (apron.left_w.classify(), apron.top_h.classify()) {
-        (Nan, _) | (_, Nan) => return ApronEdgeTooWeird,
-        (Infinite, _) | (_, Infinite) => return ApronEdgeTooLarge,
-        (Subnormal, _) | (_, Subnormal) => return ApronEdgeTooSmall,
-        (Normal, Normal) if apron.left_w > w || apron.top_h > h => return ApronEdgeTooLarge,
-        (Zero, _) | (_, Zero) | (Normal, Normal) => {}
-    }
-
-    match (apron.right_w.classify(), apron.bottom_h.classify()) {
-        (Nan, _) | (_, Nan) => return ApronEdgeTooWeird,
-        (Infinite, _) | (_, Infinite) => return ApronEdgeTooLarge,
-         | (Subnormal, _) | (_, Subnormal) => return ApronEdgeTooSmall,
-        (Normal, Normal) if apron.right_w > w || apron.bottom_h > h => return ApronEdgeTooLarge,
-        (Zero, _) | (_, Zero) | (Normal, Normal) => {}
-    }
 
     // let to_make_visible = tmv
     // (here = is the algebra =)
@@ -1007,6 +1063,12 @@ macro_rules! tbxywh {
     //
     // Initialization
     //
+    ($x: expr, $y: expr, $w: literal, $h: literal) => {
+        TextBoxXYWH {
+            xy: tbxy!($x, $y),
+            wh: sswh!($w, $h),
+        }
+    };
     ($x: expr, $y: expr, $w: expr, $h: expr) => {
         TextBoxXYWH {
             xy: tbxy!($x, $y),
