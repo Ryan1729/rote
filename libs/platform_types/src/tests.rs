@@ -1,3 +1,7 @@
+#![cfg_attr(feature = "pub_arb", allow(dead_code))]
+#![cfg_attr(feature = "pub_arb", allow(unused_macros))]
+#![cfg_attr(feature = "pub_arb", allow(unused_imports))]
+
 use super::*;
 use screen_positioning::{
     screen_space_to_position,
@@ -24,8 +28,7 @@ use screen_positioning::{
     VisibilityAttemptResult,
 };
 use floating_point::{
-    usual_f32_minimal_decrease,
-    usual_f32_minimal_increase
+    usual_f32_minimal_decrease
 };
 use proptest::{prop_compose, proptest, num::f32};
 
@@ -219,7 +222,9 @@ impl MapElements<f32> for ScrollableScreen {
     fn map_elements(&self, mapper: &impl Fn(f32) -> f32) -> Self {
         Self { 
             scroll: self.scroll.map_elements(mapper),
-            wh: self.wh.map_elements(|nnf32| { non_neg_f32!(mapper(nnf32.get())) }),
+            wh: self.wh.map_elements(
+                &|nnf32: NonNegF32| { non_neg_f32!(mapper(nnf32.get())) }
+            ),
         }
     }
 }
@@ -269,7 +274,7 @@ fn attempt_to_make_xy_visible_works_in_this_scenario(
 ) -> VisibilityAttemptResult {
     let wh = screen.wh;
     // Assume the text box fills the screen
-    let text_box = tbxywh!(0.0, 0.0, wh.w, wh.h);
+    let text_box = tbxywh!(d!(), wh);
     let attempt = attempt_to_make_xy_visible(&mut screen.scroll, text_box, char_dim.into(), xy);
 
     if dbg!(attempt) == VisibilityAttemptResult::Succeeded {
@@ -284,7 +289,7 @@ proptest! {
     #[test]
     fn attempt_to_make_xy_visible_works(
         mut screen in arb::scrollable_screen(f32::ANY),
-        char_dim in arb::char_dim(f32::ANY),
+        char_dim in arb::char_dim(),
         xy in arb::text_xy(f32::POSITIVE | f32::ZERO),
     ) {
         attempt_to_make_xy_visible_works_in_this_scenario(&mut screen, char_dim, xy);
@@ -696,7 +701,7 @@ fn clamp_to_65536_and_trunc_to_16ths(x: f32) -> f32 {
     ((clamp_to_65536(x) * 16.0).trunc()) / 16.0
 }
 
-/// This test captures all the scenarios we (currently) expect to actually see.
+// This test captures all the scenarios we (currently) expect to actually see.
 // TODO formalize this with types?
 proptest! {
     #[test]
@@ -926,7 +931,7 @@ proptest! {
     fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible(
         scroll in arb::scroll_xy(usual()),
         text_box_xywh in arb::text_box_xywh(usual()),
-        apron in arb::apron(usual()),
+        apron in arb::apron(),
         cursor_xy in arb::rounded_non_negative_text_xy()
     ) {
         if_attempt_to_make_visible_succeeds_the_cursor_is_visible_on(

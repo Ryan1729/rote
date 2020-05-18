@@ -2,7 +2,7 @@
 use gl_layer::{ColouredText, MulticolourTextSpec, TextLayout, TextOrRect, TextSpec, VisualSpec};
 use wimp_types::{CommandsMap, LocalMenuView, View, WimpMenuMode, MenuMode, MenuView, WimpMenuView, FindReplaceMode, ui_id, ui, ui::{ButtonState}, BufferStatus, CommandKey, Dimensions, RunConsts, RunState, command_keys};
 use macros::{c, d, invariant_assert, u};
-use platform_types::{g_i, BufferView, GoToPositionView, FindReplaceView, FileSwitcherView, BufferViewData, BufferIdKind, BufferId, b_id, CursorState, Highlight, HighlightKind, tbxy, tbxywh, Input, sswh, ssr, screen_positioning::*, SpanView};
+use platform_types::{*, g_i, BufferView, GoToPositionView, FindReplaceView, FileSwitcherView, BufferViewData, BufferIdKind, BufferId, b_id, CursorState, Highlight, HighlightKind, tbxy, tbxywh, Input, sswh, ssr, screen_positioning::*, SpanView};
 use std::{
     borrow::Cow,
     cmp::max,
@@ -214,7 +214,7 @@ pub fn view<'view>(
     } = upper_position_info(&tab_char_dim);
 
     text_or_rects.push(TextOrRect::Rect(VisualSpec {
-        rect: ssr!(0.0, 0.0, width, edit_y),
+        rect: ssr!(0.0, 0.0, width.get(), edit_y),
         color: TAB_BAR_BACKGROUND_COLOUR,
         z: TAB_BACKGROUND_Z,
     }));
@@ -348,10 +348,7 @@ pub fn view<'view>(
                     } = get_find_replace_info(dimensions);
                     match mode.into() {
                         FindReplaceMode::CurrentFile => {
-                            let outer_rect = ScreenSpaceRect {
-                                min: (0.0, top_y),
-                                max: (width, bottom_y),
-                            };
+                            let outer_rect = get_full_width_ssr(top_y, width, bottom_y);
                             text_or_rects.push(TextOrRect::Rect(VisualSpec {
                                 rect: outer_rect,
                                 color: CHROME_BACKGROUND_COLOUR,
@@ -423,10 +420,7 @@ pub fn view<'view>(
                         input_outer_rect,
                         ..
                     } = get_go_to_position_info(dimensions);
-                    let outer_rect = ScreenSpaceRect {
-                        min: (0.0, top_y),
-                        max: (width, bottom_y),
-                    };
+                    let outer_rect = get_full_width_ssr(top_y, width, bottom_y);
                     text_or_rects.push(TextOrRect::Rect(VisualSpec {
                         rect: outer_rect,
                         color: CHROME_BACKGROUND_COLOUR,
@@ -568,18 +562,20 @@ pub fn view<'view>(
     let status_line_y = get_status_line_y(*status_char_dim, height);
 
     text_or_rects.push(TextOrRect::Rect(VisualSpec {
-        rect: ScreenSpaceRect {
-            min: (0.0, status_line_y),
-            max: (width, status_line_y + SEPARATOR_LINE_THICKNESS),
-        },
+        rect: get_full_width_ssr(
+            status_line_y, 
+            width,
+            status_line_y + SEPARATOR_LINE_THICKNESS
+        ),
         color: TAB_BAR_BACKGROUND_COLOUR,
         z: STATUS_BACKGROUND_Z,
     }));
 
-    let rect = ScreenSpaceRect {
-        min: (0.0, status_line_y + SEPARATOR_LINE_THICKNESS),
-        max: (width, height),
-    };
+    let rect = get_full_width_ssr(
+        status_line_y + SEPARATOR_LINE_THICKNESS, 
+        width,
+        height
+    );
 
     text_or_rects.push(TextOrRect::Rect(VisualSpec {
         rect,
@@ -749,10 +745,7 @@ fn render_file_switcher_menu<'view>(
         search_text_xywh,
         ..
     } = get_file_switcher_info(dimensions);
-    let outer_rect = ScreenSpaceRect {
-        min: (0.0, top_y),
-        max: (dimensions.window.w, bottom_y),
-    };
+    let outer_rect = get_full_width_ssr(top_y, dimensions.window.w, bottom_y);
     text_or_rects.push(TextOrRect::Rect(VisualSpec {
         rect: outer_rect,
         color: CHROME_BACKGROUND_COLOUR,
@@ -1173,7 +1166,7 @@ struct OutlineButtonSpec<'text> {
 d!(for OutlineButtonSpec<'static>: OutlineButtonSpec {
     text: "OutlineButtonSpec default",
     size: 16.0,
-    char_dim: CharDim { w: 16.0, h: 16.0 },
+    char_dim: char_dim!(16.0 16.0),
     layout: TextLayout::SingleLine,
     margin: d!(),
     rect: d!(),
@@ -1339,11 +1332,11 @@ pub const STATUS_Z: u16 = z_from_base(128);
 pub const TAB_Z: u16 = STATUS_Z;
 
 /// Ratios to tab width
-const TAB_MARGIN_RATIO: f32 = 1.0 / 32.0;
-const TAB_PADDING_RATIO: f32 = 1.0 / 64.0;
-const TAB_MIN_W: f32 = 128.0;
-const TAB_MIN_PADDING: f32 = TAB_MIN_W * TAB_PADDING_RATIO;
-const TAB_MIN_MARGIN: f32 = TAB_MIN_W * TAB_MARGIN_RATIO;
+const TAB_MARGIN_RATIO: NonNegF32 = NonNegF32::ONE_THIRTY_SECONDTH;
+const TAB_PADDING_RATIO: NonNegF32 = NonNegF32::ONE_SIXTY_FOURTH;
+const TAB_MIN_W: NonNegF32 = NonNegF32::ONE_HUNDRED_TWENTY_EIGHT;
+const TAB_MIN_PADDING: NonNegF32 = NonNegF32::TWO; //TAB_MIN_W * TAB_PADDING_RATIO;
+const TAB_MIN_MARGIN: NonNegF32 = NonNegF32::FOUR; //TAB_MIN_W * TAB_MARGIN_RATIO;
 
 #[derive(Clone, Copy)]
 pub enum Spacing {
@@ -1395,7 +1388,7 @@ fn get_tab_spaced_rect(
     tab_char_dim: CharDim,
     tab_index: usize,
     tab_count: usize,
-    width: f32,
+    width: NonNegF32,
 ) -> SpacedRect {
     let UpperPositionInfo {
         tab_v_padding,
@@ -1403,7 +1396,7 @@ fn get_tab_spaced_rect(
         tab_y,
         edit_y
     } = upper_position_info(&tab_char_dim);
-    let tab_count: f32 = usize_to_f32_or_65536(max(tab_count, 1));
+    let tab_count: NonNegF32 = usize_to_f32_or_65536(max(tab_count, 1));
     let tab_w = width / tab_count;
     let tab_w = if tab_w > TAB_MIN_W {
         tab_w
@@ -1418,8 +1411,8 @@ fn get_tab_spaced_rect(
     let max_x = usize_to_f32_or_65536(tab_index + 1) * tab_w - tab_padding + ui.tab_scroll;
 
     SpacedRect {
-        padding: Spacing::Axis(tab_padding, tab_v_padding),
-        margin: Spacing::Axis(tab_margin, tab_v_margin),
+        padding: Spacing::Axis(tab_padding.get(), tab_v_padding),
+        margin: Spacing::Axis(tab_margin.get(), tab_v_margin),
         rect: ssr!((min_x, tab_y), (max_x, edit_y - tab_y)),
     }
 }
@@ -1467,15 +1460,22 @@ pub fn get_inner_text_rect(text: &str, char_dim: CharDim, rect: ScreenSpaceRect)
 }
 
 /// returns a rectangle with the passed width and height centered inside the passed rectangle.
-fn center_within((w, h): (f32, f32), rect: ScreenSpaceRect) -> ScreenSpaceRect {
+fn center_within(
+    (w, h): (NonNegF32, NonNegF32),
+    rect: ScreenSpaceRect
+) -> ScreenSpaceRect {
     let (middle_x, middle_y) = rect.middle();
     let min = (middle_x - (w / 2.0), middle_y - (h / 2.0));
     ssr!(min, (min.0 + w, min.1 + h))
 }
 
-fn usize_to_f32_or_65536(n: usize) -> f32 {
+// TODO Consider whether this size restriction is the right one and enforce 
+// the correct restriction with a type.
+fn usize_to_f32_or_65536(n: usize) -> NonNegF32 {
     use std::convert::TryFrom;
-    u16::try_from(n).unwrap_or(u16::max_value()).into()
+    non_neg_f32!(
+        u16::try_from(n).unwrap_or(u16::max_value()).into()
+    )
 }
 
 struct UpperPositionInfo {
@@ -1492,20 +1492,20 @@ fn upper_position_info(tab_char_dim: &CharDim) -> UpperPositionInfo {
     let edit_y = tab_y + tab_v_padding + tab_char_dim.h + tab_v_padding + tab_y;
 
     UpperPositionInfo {
-        tab_v_padding,
-        tab_v_margin,
-        tab_y,
-        edit_y,
+        tab_v_padding: tab_v_padding.get(),
+        tab_v_margin: tab_v_margin.get(),
+        tab_y: tab_y.get(),
+        edit_y: edit_y.get(),
     }
 }
 
-/// A specification for spacing aorund something, contiaing values suitable for passing to `Spacing::All`.
+/// A specification for spacing around something, containing values suitable for passing to `Spacing::All`.
 struct SpacingAllSpec {
     margin: f32,
     padding: f32,
 }
 
-fn get_menu_spacing(height: f32) -> SpacingAllSpec {
+fn get_menu_spacing(height: NonNegF32) -> SpacingAllSpec {
     /// Ratios to screen height
     const MARGIN_RATIO: f32 = 1.0 / 16.0;
     const PADDING_RATIO: f32 = 1.0 / 32.0;
@@ -1775,7 +1775,7 @@ pub fn get_command_menu_info(
     let list_padding = margin * (1.0 - LIST_MARGIN_TO_PADDING_RATIO);
 
     let first_button_rect = shrink_by(
-        ssr!(0.0, 0.0, width, top_y + 2.0 * padding + tab_char_dim.h),
+        get_full_width_ssr(0.0, width.get(), top_y + 2.0 * padding + tab_char_dim.h),
         Spacing::Horizontal(margin)
     ).with_min_y(top_y + list_margin);
     CommandMenuInfo {
@@ -1825,7 +1825,7 @@ pub fn get_debug_menu_info(
     let list_padding = margin * (1.0 - LIST_MARGIN_TO_PADDING_RATIO);
 
     let first_button_rect = shrink_by(
-        ssr!(0.0, 0.0, width, top_y + 2.0 * padding + tab_char_dim.h),
+        get_full_width_ssr(0.0, width, top_y + 2.0 * padding + tab_char_dim.h),
         Spacing::Horizontal(margin)
     ).with_min_y(top_y + list_margin);
     DebugMenuInfo {
@@ -1864,10 +1864,7 @@ pub fn cover_text_area_info(
     let top_y = upper_position_info(&tab_char_dim).edit_y;
     let bottom_y = get_status_line_y(status_char_dim, height);
 
-    let outer_rect = ScreenSpaceRect {
-        min: (0.0, top_y),
-        max: (width, bottom_y),
-    };
+    let outer_rect = get_full_width_ssr(top_y, width, bottom_y);
 
     CoverTextAreaInfo {
         margin,
@@ -1878,8 +1875,20 @@ pub fn cover_text_area_info(
     }
 }
 
-fn get_status_line_y(status_char_dim: CharDim, height: f32) -> f32 {
-    height - (status_char_dim.h + 2.0 * SEPARATOR_LINE_THICKNESS)
+fn get_status_line_y(status_char_dim: CharDim, height: NonNegF32) -> f32 {
+    height.get() - (status_char_dim.h + 2.0 * SEPARATOR_LINE_THICKNESS)
+}
+
+fn get_full_width_ssr<
+    F32_0: Into<f32>,
+    F32_1: Into<f32>,
+    F32_2: Into<f32>,
+>(
+    top_y: F32_0,
+    width: F32_1,
+    bottom_y: F32_2
+) -> ScreenSpaceRect {
+    ssr!(0.0, top_y.into(), width.into(), bottom_y.into())
 }
 
 pub fn get_edit_buffer_xywh(
@@ -1898,14 +1907,15 @@ pub fn get_edit_buffer_xywh(
     let max_y = match mode {
         Hidden | GoToPosition => get_status_line_y(status_char_dim, height),
         FindReplace(_) => get_find_replace_info(dimensions).top_y,
-        FileSwitcher | Command | Debug => height,
+        // TODO Should all of the arms of this match return `NonNegF32`s?
+        FileSwitcher | Command | Debug => height.get(),
     };
     let y = upper_position_info(tab_char_dim).edit_y;
     TextBoxXYWH {
         xy: TextBoxXY { x: 0.0, y },
         wh: ScreenSpaceWH {
             w: width,
-            h: max_y - y,
+            h: non_neg_f32!(max_y - y),
         },
     }
 }

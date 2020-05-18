@@ -4,14 +4,9 @@ use gl_layer::{TextLayout, TextOrRect, TextSpec, VisualSpec};
 use glutin::{Api, GlProfile, GlRequest};
 use platform_types::{screen_positioning::*, *};
 use shared::Res;
+use macros::{d, SaturatingSub};
 
 use core::f32::{INFINITY};
-
-macro_rules! d {
-    () => {
-        Default::default()
-    };
-}
 
 fn main() -> Res<()> {
     let events = glutin::event_loop::EventLoop::new();
@@ -61,13 +56,8 @@ fn main() -> Res<()> {
     let first_z: u16 = 1 << 15;
     let second_z: u16 = 1 << 14;
 
-    let apron = Apron {
-        left_w: 1.0,
-        right_w: 1.0,
-        top_h: 1.0,
-        bottom_h: 1.0,
-    };
-    let move_amount = 16.0;
+    let apron = apron!(1.0);
+    let move_amount = non_neg_f32!(16.0);
 
     // User manipulatable state
     let mut scroll_xy: ScrollXY = d!();
@@ -286,12 +276,12 @@ fn main() -> Res<()> {
                                     quit!();
                                 }
                                 VirtualKeyCode::Up => {
-                                    text_box_xywh.wh.h -= move_amount;
+                                    text_box_xywh.wh.h = text_box_xywh.wh.h.saturating_sub(move_amount);
                                 }
                                 VirtualKeyCode::Down => {
-                                    text_box_xywh.wh.h += move_amount;                                }
+                                    text_box_xywh.wh.h = text_box_xywh.wh.h + move_amount;                                }
                                 VirtualKeyCode::Left => {
-                                    text_box_xywh.wh.w -= move_amount;
+                                    text_box_xywh.wh.w = text_box_xywh.wh.w.saturating_sub(move_amount);
                                 }
                                 VirtualKeyCode::Right => {
                                     text_box_xywh.wh.w += move_amount;

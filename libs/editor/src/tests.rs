@@ -57,25 +57,26 @@ mod arb {
         }
     }
 
-    pub fn at_least_one() -> impl Strategy<Value = f32> {
-        proptest::num::f32::POSITIVE.prop_map(|n| 
-            if n >= 1.0 {
-               n 
-            } else {
-                // NaN ends up here
-                1.0
-            }
-        )
-    }
-
+    pub use pub_arb_non_neg_f32::{non_neg_f32};
     pub use pub_arb_platform_types::{menu_mode, view, input};
 }
 
 const CURSOR_SHOW_TEXT: &'static str = "            abcdefghijklmnopqrstuvwxyz::abcdefghijk::abcdefghijklmnopqrstuvwxyz";
 
-const EXAMPLE_TBXYWH: TextBoxXYWH = tbxywh!(0.0, 0.0, 256.0, 192.0);
+fn example_tbxywh() -> TextBoxXYWH { tbxywh!(0.0, 0.0, 256.0, 192.0) }
 
-const EXAMPLE_CHAR_DIM: CharDim = CharDim { w: 4.0, h: 8.0 };
+fn example_char_dim() -> CharDim { char_dim!(4.0 8.0) }
+
+fn example_font_info() -> FontInfo {
+    let example_char_dim = example_char_dim();
+
+    FontInfo {
+        text_char_dim: example_char_dim,
+        status_char_dim: example_char_dim,
+        tab_char_dim: example_char_dim,
+        find_replace_char_dim: example_char_dim,
+    }
+}
 
 fn update_and_render_shows_the_cursor_when_pressing_ctrl_home_on(text: &str, buffer_xywh: TextBoxXYWH, char_dim: CharDim) {
     let mut state: State = text.into();
@@ -111,18 +112,20 @@ fn update_and_render_shows_the_cursor_when_pressing_ctrl_home_on(text: &str, buf
 fn update_and_render_shows_the_cursor_when_pressing_ctrl_home_in_this_case() {
     update_and_render_shows_the_cursor_when_pressing_ctrl_home_on(
         CURSOR_SHOW_TEXT,
-        EXAMPLE_TBXYWH,
-        EXAMPLE_CHAR_DIM
+        example_tbxywh(),
+        example_char_dim()
     );
 }
 
 #[test]
 fn update_and_render_shows_the_cursor_when_searching_in_this_case() {
+    let example_char_dim = example_char_dim();
+    let example_tbxywh = example_tbxywh();
     // Arrange
     let mut text = String::new();
     
     // The goal is enough text that it is definitely offscreen
-    for i in 0..(EXAMPLE_TBXYWH.wh.h / EXAMPLE_CHAR_DIM.h) as u128 * 8 {
+    for i in 0..(example_tbxywh.wh.h / example_char_dim.h).get() as u128 * 8 {
         for _ in 0..i {
             text.push('.');
         }
@@ -134,13 +137,8 @@ fn update_and_render_shows_the_cursor_when_searching_in_this_case() {
     text.push_str(NEEDLE);
 
     let mut state: State = text.into();
-    state.buffer_xywh = EXAMPLE_TBXYWH;
-    state.font_info = FontInfo {
-        text_char_dim: EXAMPLE_CHAR_DIM,
-        status_char_dim: EXAMPLE_CHAR_DIM,
-        tab_char_dim: EXAMPLE_CHAR_DIM,
-        find_replace_char_dim: EXAMPLE_CHAR_DIM,
-    };
+    state.buffer_xywh = example_tbxywh;
+    state.font_info = example_font_info();
 
     {
         let buffer = get_text_buffer_mut!(state, BufferIdKind::Text).unwrap();
@@ -173,10 +171,10 @@ macro_rules! max_one {
     ($n: expr) => {{
         let n = $n;
         if n >= 1.0 {
-            n
+            non_neg_f32!(n)
         } else {
             // NaN ends up here
-            1.0
+            NonNegF32::ONE
         }
     }}
 }
@@ -210,10 +208,10 @@ fn update_and_render_shows_the_cursor_when_pressing_ctrl_home() {
     let mut runner = TestRunner::default();
 
     runner.run(&(
-        arb::at_least_one(),
-        arb::at_least_one(),
-        arb::at_least_one(),
-        arb::at_least_one(),
+        arb::non_neg_f32(),
+        arb::non_neg_f32(),
+        arb::non_neg_f32(),
+        arb::non_neg_f32(),
     ), |(box_w, box_h, w, h)| {
 
         let w_max = max_one!(box_w / 2.0);
@@ -234,12 +232,12 @@ fn update_and_render_shows_the_cursor_when_pressing_ctrl_home() {
 
         if passes_preconditions(
             CURSOR_SHOW_TEXT,
-            tbxywh!(0.0, 0.0, box_w, box_h),
+            tbxywh!(raw 0.0, 0.0, box_w, box_h),
             CharDim { w, h }
         ) {
             update_and_render_shows_the_cursor_when_pressing_ctrl_home_on(
                 CURSOR_SHOW_TEXT,
-                tbxywh!(0.0, 0.0, box_w, box_h),
+                tbxywh!(raw 0.0, 0.0, box_w, box_h),
                 CharDim { w, h },
             );
             Ok(())
@@ -258,7 +256,7 @@ fn attempt_to_make_sure_at_least_one_cursor_is_visible_reports_correctly_in_this
 
     let xywh = tbxywh!(480.0, 270.0, 960.0, 540.0);
 
-    let text_char_dim = CharDim { w: 16.0, h: 32.0 };
+    let text_char_dim = char_dim!(16.0 32.0);
 
     let apron: Apron = text_char_dim.into();
     
@@ -290,7 +288,7 @@ fn attempt_to_make_xy_visible_reports_correctly_in_this_case() {
     let attempt_result = attempt_to_make_xy_visible(
         &mut scroll,
         xywh,
-        CharDim { w: 16.0, h: 32.0 }.into(),
+        char_dim!(16.0 32.0).into(),
         TextSpaceXY {
             x: 0.0,
             y: 0.0,
@@ -336,13 +334,8 @@ proptest!{
 fn update_and_render_resets_the_cursor_states_in_this_case() {
     // Arrange
     let mut state: State = String::new().into();
-    state.buffer_xywh = EXAMPLE_TBXYWH;
-    state.font_info = FontInfo {
-        text_char_dim: EXAMPLE_CHAR_DIM,
-        status_char_dim: EXAMPLE_CHAR_DIM,
-        tab_char_dim: EXAMPLE_CHAR_DIM,
-        find_replace_char_dim: EXAMPLE_CHAR_DIM,
-    };
+    state.buffer_xywh = example_tbxywh();
+    state.font_info = example_font_info();
 
     update_and_render(&mut state, Input::SetMenuMode(MenuMode::FileSwitcher));
     update_and_render(&mut state, Input::MoveAllCursors(Move::Down));

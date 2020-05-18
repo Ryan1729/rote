@@ -6,9 +6,11 @@ use proptest::collection::vec;
 use proptest::num::f32;
 use proptest::prelude::{prop_compose, any, Strategy};
 use pub_arb_std::{path_buf, f32::usual};
+use pub_arb_non_neg_f32::{non_neg_f32};
 
-pub fn apron(spec: f32::Any) -> impl Strategy<Value = Apron> {
-    (spec, spec, spec, spec).prop_map(|(left_w, right_w, top_h, bottom_h)| Apron {
+pub fn apron() -> impl Strategy<Value = Apron> {
+    let strat = non_neg_f32();
+    (strat, strat, strat, strat).prop_map(|(left_w, right_w, top_h, bottom_h)| Apron {
         left_w,
         right_w,
         top_h,
@@ -16,8 +18,9 @@ pub fn apron(spec: f32::Any) -> impl Strategy<Value = Apron> {
     })
 }
 
-pub fn char_dim(spec: f32::Any) -> impl Strategy<Value = CharDim> {
-    (spec, spec).prop_map(|(w, h)| CharDim { w, h })
+pub fn char_dim() -> impl Strategy<Value = CharDim> {
+    let strat = non_neg_f32();
+    (strat, strat).prop_map(|(w, h)| CharDim { w, h })
 }
 
 pub fn scroll_xy(spec: f32::Any) -> impl Strategy<Value = ScrollXY> {
@@ -37,7 +40,7 @@ pub fn text_box_space_xy(spec: f32::Any) -> impl Strategy<Value = TextBoxSpaceXY
 }
 
 pub fn text_box_xywh(spec: f32::Any) -> impl Strategy<Value = TextBoxXYWH> {
-    (text_box_xy(spec), wh(spec)).prop_map(|(xy, wh)| TextBoxXYWH { xy, wh })
+    (text_box_xy(spec), wh()).prop_map(|(xy, wh)| TextBoxXYWH { xy, wh })
 }
 
 pub fn rounded_non_negative_text_xy() -> impl Strategy<Value = TextSpaceXY> {
@@ -92,9 +95,9 @@ prop_compose!{
     }
 }
 
-#[allow(dead_code)]
-pub fn wh(spec: f32::Any) -> impl Strategy<Value = ScreenSpaceWH> {
-    (spec, spec).prop_map(|(w, h)| ScreenSpaceWH { w, h })
+pub fn wh() -> impl Strategy<Value = ScreenSpaceWH> {
+    let strat = non_neg_f32();
+    (strat, strat).prop_map(|(w, h)| ScreenSpaceWH { w, h })
 }
 
 arb_enum!{
@@ -277,10 +280,10 @@ arb_enum!{
 
 prop_compose!{
     pub fn font_info()(
-        text_char_dim in char_dim(usual()),
-        status_char_dim in char_dim(usual()),
-        tab_char_dim in char_dim(usual()),
-        find_replace_char_dim in char_dim(usual()),
+        text_char_dim in char_dim(),
+        status_char_dim in char_dim(),
+        tab_char_dim in char_dim(),
+        find_replace_char_dim in char_dim(),
     ) -> FontInfo {
         FontInfo {
             text_char_dim,
@@ -376,7 +379,8 @@ prop_compose!{
 }
 
 pub fn scrollable_screen(spec: f32::Any) -> impl Strategy<Value = ScrollableScreen> {
-    (scroll_xy(spec), spec, spec).prop_map(|(scroll, w, h)| ScrollableScreen {
+    let strat = non_neg_f32();
+    (scroll_xy(spec), strat, strat).prop_map(|(scroll, w, h)| ScrollableScreen {
         scroll,
         wh: ScreenSpaceWH { w, h },
     })
@@ -384,8 +388,8 @@ pub fn scrollable_screen(spec: f32::Any) -> impl Strategy<Value = ScrollableScre
 
 pub fn plausible_scrollable_screen() -> impl Strategy<Value = ScrollableScreen> {
     let u = usual();
-    let len = f32::POSITIVE | f32::NORMAL | f32::ZERO;
-    (u, u, len, len).prop_map(|(x, y, w, h)| ScrollableScreen {
+    let strat = non_neg_f32();
+    (u, u, strat, strat).prop_map(|(x, y, w, h)| ScrollableScreen {
         scroll: ScrollXY { x, y },
         wh: ScreenSpaceWH { w, h },
     })

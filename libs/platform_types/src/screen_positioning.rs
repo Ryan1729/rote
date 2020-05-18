@@ -1,6 +1,6 @@
 use super::*;
 use macros::{dbg, u};
-pub use non_neg_f32::{NonNegF32};
+pub use non_neg_f32::{NonNegF32, non_neg_f32};
 
 // TODO make a derive macro that hashes all the fields, but checks if fields are f32/f64 and
 // calls `to_bits` if they are.
@@ -143,13 +143,13 @@ macro_rules! sswh {
     // Initialization
     //
     ($w: literal $(,)? $h: literal $(,)?) => {
-        $crate::ScreenSpaceWH { w: non_neg_f32!($w), h: non_neg_f32!($h) }
+        $crate::ScreenSpaceWH { w: $crate::non_neg_f32!($w), h: $crate::non_neg_f32!($h) }
     };
     (raw $w: literal $(,)? $h: literal $(,)?) => {
         $crate::ScreenSpaceWH { w: $w, h: $h }
     };
     ($w: expr, $h: expr $(,)?) => {
-        $crate::ScreenSpaceWH { w: non_neg_f32!($w), h: non_neg_f32!($h) }
+        $crate::ScreenSpaceWH { w: $crate::non_neg_f32!($w), h: $crate::non_neg_f32!($h) }
     };
     (raw $w: expr, $h: expr $(,)?) => {
         $crate::ScreenSpaceWH { w: $w, h: $h }
@@ -161,13 +161,13 @@ macro_rules! sswh {
 
 impl From<ScreenSpaceWH> for (f32, f32) {
     fn from(sswh!(w, h): ScreenSpaceWH) -> Self {
-        (w, h)
+        (w.get(), h.get())
     }
 }
 
 impl From<ScreenSpaceRect> for ScreenSpaceWH {
-    fn from(ssr!(_, _, w, h): ScreenSpaceRect) -> Self {
-        sswh!(w, h)
+    fn from(ssr!(min_x, min_y, max_x, max_y): ScreenSpaceRect) -> Self {
+        sswh!(max_x - min_x, max_y - min_y)
     }
 }
 
@@ -221,14 +221,21 @@ impl From<CharDim> for (f32, f32) {
     }
 }
 
+#[macro_export]
 macro_rules! char_dim {
-    ($w: expr, $h: expr) => {
+    ($w: literal $(,)? $h: literal $(,)?) => {
         CharDim {
             w: $crate::non_neg_f32!($w),
             h: $crate::non_neg_f32!($h),
         }
     };
-    (raw $w: expr, $h: expr) => {
+    ($w: expr, $h: expr $(,)?) => {
+        CharDim {
+            w: $crate::non_neg_f32!($w),
+            h: $crate::non_neg_f32!($h),
+        }
+    };
+    (raw $w: expr, $h: expr $(,)?) => {
         CharDim {
             w: $w,
             h: $h,
@@ -671,13 +678,14 @@ impl From<CharDim> for Apron {
     }
 }
 
+#[macro_export]
 macro_rules! apron {
     ($size: literal) => {
         Apron {
-            left_w: non_neg_f32!($size),
-            right_w: non_neg_f32!($size),
-            top_h: non_neg_f32!($size),
-            bottom_h: non_neg_f32!($size),
+            left_w: $crate::non_neg_f32!($size),
+            right_w: $crate::non_neg_f32!($size),
+            top_h: $crate::non_neg_f32!($size),
+            bottom_h: $crate::non_neg_f32!($size),
         }
     };
     (raw $size: expr) => {
@@ -710,19 +718,6 @@ pub fn attempt_to_make_xy_visible(
     u!{std::num::FpCategory, VisibilityAttemptResult}
 
     let ScreenSpaceWH { w, h } = outer_rect.wh;
-
-    // We don't ever want to automatically show space that text can never be inside.
-    // TODO is this still needed?
-    macro_rules! stay_positive {
-        ($n: expr) => {{
-            let n = $n;
-            if n > 0.0 {
-                n
-            } else {
-                0.0
-            }
-        }};
-    }
 
     let TextSpaceXY { x, y } = to_make_visible;
 
@@ -1067,6 +1062,12 @@ macro_rules! tbxywh {
         TextBoxXYWH {
             xy: tbxy!($x, $y),
             wh: sswh!($w, $h),
+        }
+    };
+    (raw $x: expr, $y: expr, $w: expr, $h: expr) => {
+        TextBoxXYWH {
+            xy: tbxy!($x, $y),
+            wh: sswh!(raw $w, $h),
         }
     };
     ($x: expr, $y: expr, $w: expr, $h: expr) => {

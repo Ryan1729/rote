@@ -199,16 +199,6 @@ impl State {
     pub fn new_index_or_max(&self, i: usize) -> Index {
         self.new_index(IndexPart::or_max(i))
     }
-
-    /// Returns true if both indexes are valid and they match
-    /// after being converted to usizes
-    fn indexes_point_to_same_element(&self, index1: Index, index2: Index) -> bool {
-        match (index1.get(*self), index2.get(*self)) {
-            (Some(i1), Some(i2)) => { i1 == i2 }
-            _ => { false }
-        }
-        
-    }
 }
 
 #[derive(Clone, Copy, Default, Debug, Hash)]
@@ -927,8 +917,9 @@ impl <A> IntoIterator for Map<A> {
 #[cfg(any(test, feature = "pub_arb"))]
 pub mod tests {
     // We seem to be getting false positives here.
-    #![allow(unused_imports)]
-    #![allow(unused_macros)]
+    #![cfg_attr(feature = "pub_arb", allow(dead_code))]
+    #![cfg_attr(feature = "pub_arb", allow(unused_imports))]
+    #![cfg_attr(feature = "pub_arb", allow(unused_macros))]
     use super::*;
     use proptest::{
         collection::vec,
@@ -1097,9 +1088,26 @@ pub mod tests {
     pub mod arb {
         use super::{*};
         use proptest::prelude::{any, Strategy, prop_compose};
-
+        use proptest::collection::vec;
         use std::convert::TryInto;
-    
+
+        pub fn selectable_vec1<'strat, A: std::fmt::Debug + Clone, S: Strategy<Value = A>>(
+            strat: S, max_len: LengthSize,
+        ) -> impl Strategy<Value = SelectableVec1<A>> {
+            (
+                vec(strat, 1..(max_len as usize)),
+                state_with_index(max_len)
+            )
+            .prop_map(|(v, (current_index, i_s))| {
+                let elements = Vec1::try_from_vec(v).unwrap();
+                SelectableVec1::from_parts(
+                    elements,
+                    i_s,
+                    current_index,
+                )
+            })
+        }
+
         pub fn index_part(max_len: LengthSize) -> impl Strategy<Value = IndexPart> {
             (0..=max_len).prop_map(|i| IndexPart::or_max(i as _))
         }
@@ -1457,7 +1465,7 @@ pub mod tests {
         // precondition: this doesn't panic
         s_vec1.get_current_element_mut();
     
-        for (i, adjustment) in adjustments.into_iter().enumerate() {
+        for adjustment in adjustments {
             s_vec1.adjust_selection(adjustment);
 
             // if this doesn't panic, the test passes

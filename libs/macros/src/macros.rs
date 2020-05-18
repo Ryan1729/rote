@@ -40,6 +40,48 @@ macro_rules! sub_assign {
     };
 }
 
+/// Assumes `Mul` is already impl'd
+#[macro_export]
+macro_rules! mul_assign {
+    (for $name: ty) => {
+        impl std::ops::MulAssign for $name {
+            fn mul_assign(&mut self, other: $name) {
+                use std::ops::Mul;
+                *self = self.mul(other);
+            }
+        }
+    };
+    (<$rhs:ty> for $name: ty) => {
+        impl std::ops::MulAssign<$rhs> for $name {
+            fn mul_assign(&mut self, other: $rhs) {
+                use std::ops::Mul;
+                *self = self.mul(other);
+            }
+        }
+    };
+}
+
+/// Assumes `Div` is already impl'd
+#[macro_export]
+macro_rules! div_assign {
+    (for $name: ty) => {
+        impl std::ops::DivAssign for $name {
+            fn div_assign(&mut self, other: $name) {
+                use std::ops::Div;
+                *self = self.div(other);
+            }
+        }
+    };
+    (<$rhs:ty> for $name: ty) => {
+        impl std::ops::DivAssign<$rhs> for $name {
+            fn div_assign(&mut self, other: $rhs) {
+                use std::ops::Div;
+                *self = self.div(other);
+            }
+        }
+    };
+}
+
 #[macro_export]
 macro_rules! hash {
     (for $name: ty: $self: ident, $state: ident in $code: expr) => {
@@ -126,6 +168,7 @@ fn ord_works_in_this_key_function_case_example() {
 
 #[test]
 fn ord_works_in_this_nested_key_function_case_example() {
+    #[allow(dead_code)]
     enum OrdBool {
         False,
         True

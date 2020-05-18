@@ -272,9 +272,9 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
     macro_rules! wh_from_size {
         ($size: expr) => {{
             let dimensions = $size;
-            ScreenSpaceWH {
-                w: dimensions.width as f32,
-                h: dimensions.height as f32,
+            sswh!{
+                dimensions.width as f32,
+                dimensions.height as f32,
             }
         }}
     }
@@ -874,7 +874,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                             gl_layer::set_dimensions(
                                 &mut gl_state,
                                 hidpi_factor as _,
-                                (w as _, h as _),
+                                (w.get() as _, h.get() as _),
                             );
                         }
                         WindowEvent::Focused(is_focused) => {
@@ -1086,7 +1086,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                             dt,
                         );
 
-                    gl_layer::render(&mut gl_state, text_or_rects, width as _, height as _)
+                    gl_layer::render(&mut gl_state, text_or_rects, width.get() as _, height.get() as _)
                         .expect("gl_layer::render didn't work");
 
                     glutin_context

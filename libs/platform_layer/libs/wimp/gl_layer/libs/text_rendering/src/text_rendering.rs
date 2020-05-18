@@ -1,6 +1,7 @@
 use platform_types::{
     screen_positioning::{CharDim, ScreenSpaceRect, ScrollXY, TextSpaceXYWH},
-    tsxywh, ssr,
+    NonNegF32, 
+    char_dim, non_neg_f32, tsxywh, ssr,
 };
 use gl_layer_types::{Vertex, VertexStruct, TexCoords, set_alpha, TextOrRect, Res};
 
@@ -657,20 +658,19 @@ pub fn new(hidpi_factor: f32, text_sizes: &[f32]) -> Res<(State, CharDims)> {
     macro_rules! get_char_dim {
         ($scale:expr) => {{
             let scale = $scale;
-            CharDim {
-                w: {
+            char_dim!({
                     // We currently assume the font is monospaced.
                     let em_space_char = '\u{2003}';
                     let h_metrics = font.glyph(em_space_char).scaled(scale).h_metrics();
 
                     h_metrics.advance_width
                 },
-                h: {
+                {
                     let v_metrics = font.v_metrics(scale);
 
                     v_metrics.ascent + -v_metrics.descent + v_metrics.line_gap
                 },
-            }
+            )
         }};
     }
 

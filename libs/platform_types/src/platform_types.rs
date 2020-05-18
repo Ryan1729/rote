@@ -1,5 +1,5 @@
 use macros::{
-    add_assign, d, fmt_debug, fmt_display, integer_newtype, ord, sub_assign, u, usize_newtype,
+    add_assign, d, fmt_debug, fmt_display, ord, u,
 };
 use std::path::PathBuf;
 
@@ -11,6 +11,8 @@ pub mod floating_point;
 
 pub mod screen_positioning;
 pub use screen_positioning::{CharDim, ScreenSpaceRect, ScreenSpaceWH, ScreenSpaceXY, ScrollXY, SizeDependents, TextBoxSpaceXY, TextSpaceXYWH};
+
+pub use non_neg_f32::{NonNegF32, non_neg_f32};
 
 pub use move_mod::Move;
 

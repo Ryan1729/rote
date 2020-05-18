@@ -8,3 +8,12 @@ edition = "2018"
 path = "./src/non_neg_f32.rs"
 
 [dependencies]
+macros = { path = "../../../macros" }
+proptest = { version = "0.9", optional = true }
+
+[dev-dependencies]
+proptest = "0.9"
+
+[features]
+default = []
+pub_arb = ["proptest"]

@@ -19,15 +19,17 @@ text_pos = { path = "../text_pos" }
 proptest = { version = "0.9.5", optional = true }
 arb_macros = { path = "../arb_macros", optional = true }
 pub_arb_g_i = { path = "../pub_arb/g_i", optional = true }
+pub_arb_non_neg_f32 = { path = "../pub_arb/non_neg_f32", optional = true}
 pub_arb_std = { path = "../pub_arb/std", optional = true }
 
 [dev-dependencies]
 proptest = { version = "0.9.5"}
 arb_macros = { path = "../arb_macros"}
 pub_arb_g_i = { path = "../pub_arb/g_i"}
+pub_arb_non_neg_f32 = { path = "../pub_arb/non_neg_f32"}
 pub_arb_std = { path = "../pub_arb/std"}
 
 [features]
 default = []
 extra-prints = []
-pub_arb = ["pub_arb_g_i", "pub_arb_std", "arb_macros", "proptest"]
+pub_arb = ["pub_arb_g_i", "pub_arb_non_neg_f32", "pub_arb_std", "arb_macros", "proptest"]

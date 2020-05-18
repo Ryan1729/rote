@@ -73,7 +73,7 @@ fn render_outline_button_centers_this_example_properly() {
         max: (128.0, 17.0),
     };
 
-    let char_dim = CharDim { w: 4.0, h: 8.0 };
+    let char_dim = char_dim!(4.0 8.0);
 
     let text = "test";
 
@@ -132,7 +132,7 @@ fn render_outline_button_centers_this_example_properly() {
 #[test]
 fn center_within_centers_this_no_edge_cases_example_properly() {
     let rect = center_within(
-        (13.0, 17.0),
+        (non_neg_f32!(13.0), non_neg_f32!(17.0)),
         ScreenSpaceRect {
             min: (10.0, 20.0),
             max: (25.0, 40.0),

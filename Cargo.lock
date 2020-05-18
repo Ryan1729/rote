@@ -616,6 +616,7 @@ dependencies = [
  "perf_viz_proc_macro",
  "platform_types",
  "proptest",
+ "pub_arb_non_neg_f32",
  "pub_arb_platform_types",
  "pub_arb_std",
  "pub_arb_text_buffer",
@@ -1342,6 +1343,10 @@ checksum = "2f9667ddcc6cc8a43afc9b7917599d7216aa09c463919ea32c59ed6cac8bc945"
 [[package]]
 name = "non_neg_f32"
 version = "0.1.0"
+dependencies = [
+ "macros",
+ "proptest",
+]
 
 [[package]]
 name = "num-traits"
@@ -1573,6 +1578,7 @@ dependencies = [
  "perf_viz",
  "proptest",
  "pub_arb_g_i",
+ "pub_arb_non_neg_f32",
  "pub_arb_std",
  "text_pos",
  "vec1",
@@ -1652,6 +1658,13 @@ version = "0.1.0"
 dependencies = [
  "g_i",
  "proptest",
+]
+
+[[package]]
+name = "pub_arb_non_neg_f32"
+version = "0.1.0"
+dependencies = [
+ "non_neg_f32",
 ]
 
 [[package]]
