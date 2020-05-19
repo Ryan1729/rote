@@ -1,4 +1,9 @@
+//! This module is called `non_neg_f32` and the main type is called `NonNegF32` 
+//! but we actually restrict the values of `PosF32` to be positive, normal (that is 
+//! non-sub-normal), values. The smallest non-zero value allowed is 
+//! `f32::MIN_POSITIVE`.
 use macros::{add_assign, sub_assign, mul_assign, div_assign, SaturatingSub};
+pub use pos_f32::{is_pos, pos_f32, PosF32};
 use std::ops::{Add, Sub, Mul, Div};
 
 #[derive(Copy, Clone, Debug, Default, PartialEq, PartialOrd)]
@@ -22,9 +27,10 @@ impl NonNegF32 {
 macro_rules! is_non_neg {
     ($float: expr) => {{
         let f: f32 = $float;
-        // `>= 0.0` is needed to eliminate positive NaNs
-        // and `is_sign_positive` is needed to eliminate -0.0
-        f >= 0.0 && f.is_sign_positive()
+        // `>= f32::MIN_POSITIVE` is needed to eliminate positive 
+        // NaNs and subnormals and `is_sign_positive` is needed 
+        // to eliminate -0.0
+        (f == 0.0 && f.is_sign_positive()) || $crate::is_pos!(f)
     }};
 }
 
@@ -70,6 +76,12 @@ impl From<NonNegF32> for f32 {
     }
 }
 
+impl From<PosF32> for NonNegF32 {
+    fn from(p: PosF32) -> Self {
+        NonNegF32(p.get())
+    }
+}
+
 impl PartialEq<f32> for NonNegF32 {
     fn eq(&self, other: &f32) -> bool {
         self.0 == *other
@@ -82,6 +94,18 @@ impl PartialEq<NonNegF32> for f32 {
     }
 }
 
+impl PartialEq<PosF32> for NonNegF32 {
+    fn eq(&self, other: &PosF32) -> bool {
+        self.0 == other.get()
+    }
+}
+
+impl PartialEq<NonNegF32> for PosF32 {
+    fn eq(&self, other: &NonNegF32) -> bool {
+        self.get() == other.0
+    }
+}
+
 impl PartialOrd<f32> for NonNegF32 {
     fn partial_cmp(&self, other: &f32) -> Option<std::cmp::Ordering> {
         self.0.partial_cmp(other)
@@ -91,6 +115,18 @@ impl PartialOrd<f32> for NonNegF32 {
 impl PartialOrd<NonNegF32> for f32 {
     fn partial_cmp(&self, other: &NonNegF32) -> Option<std::cmp::Ordering> {
         self.partial_cmp(&other.0)
+    }
+}
+
+impl PartialOrd<PosF32> for NonNegF32 {
+    fn partial_cmp(&self, other: &PosF32) -> Option<std::cmp::Ordering> {
+        self.0.partial_cmp(&other.get())
+    }
+}
+
+impl PartialOrd<NonNegF32> for PosF32 {
+    fn partial_cmp(&self, other: &NonNegF32) -> Option<std::cmp::Ordering> {
+        self.get().partial_cmp(&other.0)
     }
 }
 
@@ -123,6 +159,24 @@ impl Add<NonNegF32> for f32 {
 
 add_assign!(<NonNegF32> for f32);
 
+impl Add<PosF32> for NonNegF32 {
+    type Output = PosF32;
+
+    fn add(self, other: PosF32) -> Self::Output {
+        pos_f32!(self.0 + other.get())
+    }
+}
+
+impl Add<NonNegF32> for PosF32 {
+    type Output = PosF32;
+
+    fn add(self, other: NonNegF32) -> Self::Output {
+        pos_f32!(self.get() + other.0)
+    }
+}
+
+add_assign!(<NonNegF32> for PosF32);
+
 impl Sub for NonNegF32 {
     type Output = f32;
 
@@ -150,12 +204,29 @@ impl Sub<NonNegF32> for f32 {
 
 sub_assign!(<NonNegF32> for f32);
 
+impl Sub<PosF32> for NonNegF32 {
+    type Output = f32;
+
+    fn sub(self, other: PosF32) -> Self::Output {
+        self.0 - other.get()
+    }
+}
+
+impl Sub<NonNegF32> for PosF32 {
+    type Output = f32;
+
+    fn sub(self, other: NonNegF32) -> Self::Output {
+        self.get() - other.0
+    }
+}
+
 impl Mul for NonNegF32 {
     type Output = Self;
 
     fn mul(self, other: Self) -> Self {
         // Since we know both are non-negative, we know the product is as well.
-        NonNegF32(self.0 * other.0)
+        // Note we need to deal with sub-normals
+        non_neg_f32!(self.0 * other.0)
     }
 }
 
@@ -178,6 +249,26 @@ impl Mul<NonNegF32> for f32 {
 }
 
 mul_assign!(<NonNegF32> for f32);
+
+impl Mul<PosF32> for NonNegF32 {
+    type Output = NonNegF32;
+
+    fn mul(self, other: PosF32) -> Self::Output {
+        // Note we need to deal with sub-normals
+        non_neg_f32!(self.0 * other)
+    }
+}
+
+mul_assign!(<PosF32> for NonNegF32);
+
+impl Mul<NonNegF32> for PosF32 {
+    type Output = NonNegF32;
+
+    fn mul(self, other: NonNegF32) -> Self::Output {
+        // Note we need to deal with sub-normals
+        non_neg_f32!(self * other.0)
+    }
+}
 
 impl Div for NonNegF32 {
     type Output = Self;
@@ -203,7 +294,8 @@ impl Div for NonNegF32 {
         if other.0.to_bits() == 0 {
             NonNegF32::INFINITY
         } else {
-            NonNegF32(self.0 / other.0)
+            // Note we need to deal with sub-normals
+            non_neg_f32!(self.0 / other.0)
         }
     }
 }
@@ -226,11 +318,54 @@ impl Div<NonNegF32> for f32 {
 
 div_assign!(<NonNegF32> for f32);
 
+impl Div<PosF32> for NonNegF32 {
+    type Output = NonNegF32;
+
+    fn div(self, other: PosF32) -> Self::Output {
+        // 0.0 / PosF32::MIN == 0.0
+        // Note we need to deal with sub-normals
+        non_neg_f32!(self.0 / other.get())
+    }
+}
+
+div_assign!(<PosF32> for NonNegF32);
+
+impl Div<NonNegF32> for PosF32 {
+    type Output = PosF32;
+
+    fn div(self, other: NonNegF32) -> Self::Output {
+        // PosF32::MIN / 0.0 == PosF32::INFINITY
+        // Note we need to deal with sub-normals
+        pos_f32!(self.get() / other.0)
+    }
+}
+
+div_assign!(<NonNegF32> for PosF32);
+
 impl SaturatingSub for NonNegF32 {
     type Output = NonNegF32;
 
     fn saturating_sub(self, rhs: NonNegF32) -> Self::Output {
         non_neg_f32!(self.0 - rhs.0)
+    }
+}
+
+impl SaturatingSub<PosF32> for NonNegF32 {
+    type Output = NonNegF32;
+
+    fn saturating_sub(self, rhs: PosF32) -> Self::Output {
+        non_neg_f32!(self.0 - rhs.get())
+    }
+}
+
+impl SaturatingSub<NonNegF32> for PosF32 {
+    // It seems like it makes more sense to have 
+    // `pos_f32!(1.0).saturating_sub(non_neg_f32!(1.0))`
+    // be NonNegF32::ZERO instead of PosF32::MIN.
+    type Output = NonNegF32; 
+
+    fn saturating_sub(self, rhs: NonNegF32) -> Self::Output {
+        non_neg_f32!(self.get() - rhs.0)
     }
 }
 

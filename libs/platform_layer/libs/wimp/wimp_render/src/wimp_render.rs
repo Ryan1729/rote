@@ -1456,7 +1456,7 @@ fn shrink_by(
 pub fn get_inner_text_rect(text: &str, char_dim: CharDim, rect: ScreenSpaceRect) -> ScreenSpaceRect {
     let text_w = usize_to_f32_or_65536(text.chars().count()) * char_dim.w;
     
-    center_within((text_w, char_dim.h), rect)
+    center_within((text_w, char_dim.h.into()), rect)
 }
 
 /// returns a rectangle with the passed width and height centered inside the passed rectangle.

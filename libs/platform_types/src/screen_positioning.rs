@@ -1,6 +1,7 @@
 use super::*;
 use macros::{dbg, u};
 pub use non_neg_f32::{NonNegF32, non_neg_f32};
+pub use pos_f32::{PosF32, pos_f32};
 
 // TODO make a derive macro that hashes all the fields, but checks if fields are f32/f64 and
 // calls `to_bits` if they are.
@@ -207,8 +208,8 @@ pub fn clamp_within(rect: &mut ScreenSpaceRect, ScreenSpaceRect { min, max }: Sc
 // Plus since `CharDim` came before `ScreenSpaceWH` less code has to change if we keep `CharDim`
 /// We are currently assuming the font is monospace!
 pub struct CharDim {
-    pub w: NonNegF32,
-    pub h: NonNegF32,
+    pub w: PosF32,
+    pub h: PosF32,
 }
 
 hash_to_bits!(for CharDim: s, state in w, h);
@@ -225,14 +226,14 @@ impl From<CharDim> for (f32, f32) {
 macro_rules! char_dim {
     ($w: literal $(,)? $h: literal $(,)?) => {
         CharDim {
-            w: $crate::non_neg_f32!($w),
-            h: $crate::non_neg_f32!($h),
+            w: $crate::pos_f32!($w),
+            h: $crate::pos_f32!($h),
         }
     };
     ($w: expr, $h: expr $(,)?) => {
         CharDim {
-            w: $crate::non_neg_f32!($w),
-            h: $crate::non_neg_f32!($h),
+            w: $crate::pos_f32!($w),
+            h: $crate::pos_f32!($h),
         }
     };
     (raw $w: expr, $h: expr $(,)?) => {
@@ -669,6 +670,8 @@ hash_to_bits!(for Apron : s, state in bottom_h, top_h, right_w, left_w);
 
 impl From<CharDim> for Apron {
     fn from(CharDim { w, h }: CharDim) -> Self {
+        let w: NonNegF32 = w.into();
+        let h: NonNegF32 = h.into();
         Apron {
             left_w: w,
             right_w: w,

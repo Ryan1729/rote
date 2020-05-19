@@ -618,6 +618,7 @@ dependencies = [
  "proptest",
  "pub_arb_non_neg_f32",
  "pub_arb_platform_types",
+ "pub_arb_pos_f32",
  "pub_arb_std",
  "pub_arb_text_buffer",
  "rustc-hash",
@@ -1345,6 +1346,7 @@ name = "non_neg_f32"
 version = "0.1.0"
 dependencies = [
  "macros",
+ "pos_f32",
  "proptest",
 ]
 
@@ -1576,9 +1578,11 @@ dependencies = [
  "non_neg_f32",
  "panic_safe_rope",
  "perf_viz",
+ "pos_f32",
  "proptest",
  "pub_arb_g_i",
  "pub_arb_non_neg_f32",
+ "pub_arb_pos_f32",
  "pub_arb_std",
  "text_pos",
  "vec1",
@@ -1594,6 +1598,14 @@ dependencies = [
  "num-traits",
  "wasm-bindgen",
  "web-sys",
+]
+
+[[package]]
+name = "pos_f32"
+version = "0.1.0"
+dependencies = [
+ "macros",
+ "proptest",
 ]
 
 [[package]]
@@ -1672,6 +1684,13 @@ name = "pub_arb_platform_types"
 version = "0.1.0"
 dependencies = [
  "platform_types",
+]
+
+[[package]]
+name = "pub_arb_pos_f32"
+version = "0.1.0"
+dependencies = [
+ "pos_f32",
 ]
 
 [[package]]

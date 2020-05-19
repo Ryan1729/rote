@@ -57,6 +57,7 @@ mod arb {
         }
     }
 
+    pub use pub_arb_pos_f32::{pos_f32};
     pub use pub_arb_non_neg_f32::{non_neg_f32};
     pub use pub_arb_platform_types::{menu_mode, view, input};
 }
@@ -170,12 +171,12 @@ fn update_and_render_shows_the_cursor_when_searching_in_this_case() {
 macro_rules! max_one {
     ($n: expr) => {{
         let n = $n;
-        if n >= 1.0 {
-            non_neg_f32!(n)
+        non_neg_f32!(if n >= 1.0 {
+            n
         } else {
             // NaN ends up here
-            NonNegF32::ONE
-        }
+            1.0
+        })
     }}
 }
 
@@ -198,8 +199,21 @@ fn passes_preconditions(text: &str, buffer_xywh: TextBoxXYWH, char_dim: CharDim)
 
     let buffer = get_text_buffer_mut!(state).unwrap();
 
-    *buffer.borrow_cursors().first() == cur!{pos!{l 0, o text.len()}}
-    && buffer.scroll.x != 0.0
+    let passed = *buffer.borrow_cursors().first() == cur!{pos!{l 0, o text.len()}}
+    && buffer.scroll.x != 0.0;
+
+    if !passed {
+        panic!(
+            "{} && {}\n\nbuffer: {:?}\n\nbuffer_xywh: {:?}\n\nchar_dim: {:?}\n\n", 
+            *buffer.borrow_cursors().first() == cur!{pos!{l 0, o text.len()}},
+            buffer.scroll.x != 0.0,
+            buffer,
+            buffer_xywh,
+            char_dim,
+        );
+    }
+
+    passed
 }
 
 #[test]
@@ -210,11 +224,11 @@ fn update_and_render_shows_the_cursor_when_pressing_ctrl_home() {
     runner.run(&(
         arb::non_neg_f32(),
         arb::non_neg_f32(),
-        arb::non_neg_f32(),
-        arb::non_neg_f32(),
+        arb::pos_f32(),
+        arb::pos_f32(),
     ), |(box_w, box_h, w, h)| {
 
-        let w_max = max_one!(box_w / 2.0);
+        let w_max = pos_f32!(box_w / 2.0);
         let w = if w > w_max {
             w_max
         } else {
@@ -222,7 +236,7 @@ fn update_and_render_shows_the_cursor_when_pressing_ctrl_home() {
             w
         };
 
-        let h_max = max_one!(box_h / 2.0);
+        let h_max = pos_f32!(box_h / 2.0);
         let h = if h > h_max {
             h_max
         } else {

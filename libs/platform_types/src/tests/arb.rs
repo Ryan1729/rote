@@ -7,6 +7,7 @@ use proptest::num::f32;
 use proptest::prelude::{prop_compose, any, Strategy};
 use pub_arb_std::{path_buf, f32::usual};
 use pub_arb_non_neg_f32::{non_neg_f32};
+use pub_arb_pos_f32::{pos_f32};
 
 pub fn apron() -> impl Strategy<Value = Apron> {
     let strat = non_neg_f32();
@@ -19,7 +20,7 @@ pub fn apron() -> impl Strategy<Value = Apron> {
 }
 
 pub fn char_dim() -> impl Strategy<Value = CharDim> {
-    let strat = non_neg_f32();
+    let strat = pos_f32();
     (strat, strat).prop_map(|(w, h)| CharDim { w, h })
 }
 
