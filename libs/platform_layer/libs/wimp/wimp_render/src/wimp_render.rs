@@ -618,7 +618,7 @@ pub fn view<'view>(
             size: STATUS_SIZE,
             char_dim: *status_char_dim,
             layout: TextLayout::SingleLine,
-            margin: Spacing::All(SEPARATOR_LINE_THICKNESS),
+            margin: Spacing::All(SEPARATOR_LINE_THICKNESS.get()),
             rect: second_button_rect,
             z: STATUS_Z,
             ..d!()
@@ -637,7 +637,7 @@ pub fn view<'view>(
             size: STATUS_SIZE,
             char_dim: *status_char_dim,
             layout: TextLayout::SingleLine,
-            margin: Spacing::All(SEPARATOR_LINE_THICKNESS),
+            margin: Spacing::All(SEPARATOR_LINE_THICKNESS.get()),
             rect: far_right_button_rect,
             z: STATUS_Z,
             ..d!()
@@ -1297,7 +1297,7 @@ pub const FIND_REPLACE_SIZE: f32 = 26.0;
 pub const STATUS_SIZE: f32 = 22.0;
 pub const TAB_SIZE: f32 = 16.0;
 
-pub const SEPARATOR_LINE_THICKNESS: f32 = 2.0;
+pub const SEPARATOR_LINE_THICKNESS: PosF32 = PosF32::TWO;
 
 pub const TEXT_SIZES: [f32; 4] = [TEXT_SIZE, STATUS_SIZE, TAB_SIZE, FIND_REPLACE_SIZE];
 pub const SCROLL_MULTIPLIER: f32 = TEXT_SIZE * 3.0;
@@ -1332,11 +1332,11 @@ pub const STATUS_Z: u16 = z_from_base(128);
 pub const TAB_Z: u16 = STATUS_Z;
 
 /// Ratios to tab width
-const TAB_MARGIN_RATIO: NonNegF32 = NonNegF32::ONE_THIRTY_SECONDTH;
-const TAB_PADDING_RATIO: NonNegF32 = NonNegF32::ONE_SIXTY_FOURTH;
-const TAB_MIN_W: NonNegF32 = NonNegF32::ONE_HUNDRED_TWENTY_EIGHT;
-const TAB_MIN_PADDING: NonNegF32 = NonNegF32::TWO; //TAB_MIN_W * TAB_PADDING_RATIO;
-const TAB_MIN_MARGIN: NonNegF32 = NonNegF32::FOUR; //TAB_MIN_W * TAB_MARGIN_RATIO;
+const TAB_MARGIN_RATIO: PosF32 = PosF32::ONE_THIRTY_SECONDTH;
+const TAB_PADDING_RATIO: PosF32 = PosF32::ONE_SIXTY_FOURTH;
+const TAB_MIN_W: PosF32 = PosF32::ONE_HUNDRED_TWENTY_EIGHT;
+const TAB_MIN_PADDING: PosF32 = PosF32::TWO;//TAB_MIN_W * TAB_PADDING_RATIO;
+const TAB_MIN_MARGIN: PosF32 = PosF32::FOUR;//TAB_MIN_W * TAB_MARGIN_RATIO;
 
 #[derive(Clone, Copy)]
 pub enum Spacing {
@@ -1388,7 +1388,7 @@ fn get_tab_spaced_rect(
     tab_char_dim: CharDim,
     tab_index: usize,
     tab_count: usize,
-    width: NonNegF32,
+    width: PosF32,
 ) -> SpacedRect {
     let UpperPositionInfo {
         tab_v_padding,
@@ -1396,7 +1396,9 @@ fn get_tab_spaced_rect(
         tab_y,
         edit_y
     } = upper_position_info(&tab_char_dim);
-    let tab_count: NonNegF32 = usize_to_f32_or_65536(max(tab_count, 1));
+    let tab_count: PosF32 = pos_f32!(
+        usize_to_f32_or_65536(max(tab_count, 1)).get()
+    );
     let tab_w = width / tab_count;
     let tab_w = if tab_w > TAB_MIN_W {
         tab_w
@@ -1505,7 +1507,7 @@ struct SpacingAllSpec {
     padding: f32,
 }
 
-fn get_menu_spacing(height: NonNegF32) -> SpacingAllSpec {
+fn get_menu_spacing(height: PosF32) -> SpacingAllSpec {
     /// Ratios to screen height
     const MARGIN_RATIO: f32 = 1.0 / 16.0;
     const PADDING_RATIO: f32 = 1.0 / 32.0;
@@ -1875,7 +1877,7 @@ pub fn cover_text_area_info(
     }
 }
 
-fn get_status_line_y(status_char_dim: CharDim, height: NonNegF32) -> f32 {
+fn get_status_line_y(status_char_dim: CharDim, height: PosF32) -> f32 {
     height.get() - (status_char_dim.h + 2.0 * SEPARATOR_LINE_THICKNESS)
 }
 
@@ -1915,7 +1917,7 @@ pub fn get_edit_buffer_xywh(
         xy: TextBoxXY { x: 0.0, y },
         wh: ScreenSpaceWH {
             w: width,
-            h: non_neg_f32!(max_y - y),
+            h: pos_f32!(max_y - y),
         },
     }
 }

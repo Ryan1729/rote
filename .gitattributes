@@ -1,0 +1,3 @@
+# leave the line endings alone!
+/text/*.txt -text
+/libs/panic_safe_rope/src/tests/*.txt -text

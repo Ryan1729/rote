@@ -30,7 +30,7 @@ use screen_positioning::{
 use floating_point::{
     usual_f32_minimal_decrease
 };
-use proptest::{prop_compose, proptest, num::f32};
+use proptest::{prop_compose, proptest, num::f32, strategy::Strategy};
 
 use pub_arb_std::usual;
 
@@ -223,7 +223,7 @@ impl MapElements<f32> for ScrollableScreen {
         Self { 
             scroll: self.scroll.map_elements(mapper),
             wh: self.wh.map_elements(
-                &|nnf32: NonNegF32| { non_neg_f32!(mapper(nnf32.get())) }
+                &|pf32: PosF32| { pos_f32!(mapper(pf32.get())) }
             ),
         }
     }
@@ -275,7 +275,12 @@ fn attempt_to_make_xy_visible_works_in_this_scenario(
     let wh = screen.wh;
     // Assume the text box fills the screen
     let text_box = tbxywh!(d!(), wh);
-    let attempt = attempt_to_make_xy_visible(&mut screen.scroll, text_box, char_dim.into(), xy);
+    let attempt = attempt_to_make_xy_visible(
+        &mut screen.scroll,
+        text_box,
+        char_dim.into(),
+        xy
+    );
 
     if dbg!(attempt) == VisibilityAttemptResult::Succeeded {
         dbg!(&screen);
@@ -933,6 +938,42 @@ proptest! {
         text_box_xywh in arb::text_box_xywh(usual()),
         apron in arb::apron(),
         cursor_xy in arb::rounded_non_negative_text_xy()
+    ) {
+        if_attempt_to_make_visible_succeeds_the_cursor_is_visible_on(
+            scroll,
+            text_box_xywh,
+            apron,
+            cursor_xy,
+        )
+    }
+}
+
+fn clamp_exponent_to_24(f: f32) -> f32 {
+    if f > 2.0f32.powi(24) {
+        2.0f32.powi(24)
+    } else if f > 2.0f32.powi(-24) {
+        f
+    } else {
+        // NaN goes here
+        2.0f32.powi(-24)
+    }
+}
+
+proptest! {
+    #[test]
+    fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_given_we_clamp_the_exponents_to_24(
+        scroll in arb::scroll_xy(usual())
+            .prop_map(|s| s.map_elements(&clamp_exponent_to_24)),
+        text_box_xywh in arb::text_box_xywh(usual())
+            .prop_map(|t| t.map_elements(
+                &|pf32| pos_f32!(clamp_exponent_to_24(pf32.get()))
+            )),
+        apron in arb::apron()
+            .prop_map(|a| a.map_elements(
+                &|nnf32| non_neg_f32!(clamp_exponent_to_24(nnf32.get()))
+            )),
+        cursor_xy in arb::rounded_non_negative_text_xy()
+            .prop_map(|c| c.map_elements(&clamp_exponent_to_24))
     ) {
         if_attempt_to_make_visible_succeeds_the_cursor_is_visible_on(
             scroll,

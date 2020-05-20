@@ -2,16 +2,26 @@
 //! actually restrict the values of `PosF32` to be positive, normal (that is 
 //! non-sub-normal), values. The smallest value allowed is `f32::MIN_POSITIVE`.
 
-use macros::{add_assign, sub_assign, mul_assign, div_assign, SaturatingSub};
+use macros::{d, add_assign, sub_assign, mul_assign, div_assign, SaturatingSub};
 use std::ops::{Add, Sub, Mul, Div};
 
-#[derive(Copy, Clone, Debug, Default, PartialEq, PartialOrd)]
+#[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
 pub struct PosF32(f32);
+
+d!(for PosF32: PosF32::MIN);
 
 impl PosF32 {
     pub const MIN: PosF32 = PosF32(f32::MIN_POSITIVE);
     pub const ONE: PosF32 = PosF32(1.0);
     pub const INFINITY: PosF32 = PosF32(f32::INFINITY);
+
+    /// These were added on an as-needed basis, and arguably are only need to
+    /// be here because as of this writing `is_non_neg` cannot be const-eval'd
+    pub const ONE_SIXTY_FOURTH: PosF32 = PosF32(1.0 / 64.0);
+    pub const ONE_THIRTY_SECONDTH: PosF32 = PosF32(1.0 / 32.0);
+    pub const TWO: PosF32 = PosF32(2.0);
+    pub const FOUR: PosF32 = PosF32(4.0);
+    pub const ONE_HUNDRED_TWENTY_EIGHT: PosF32 = PosF32(128.0);
 }
 
 #[macro_export]

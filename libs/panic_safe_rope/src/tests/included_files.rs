@@ -1,7 +1,17 @@
 use super::*;
 
+macro_rules! assert_matches_pre_deleted {
+    ($rope: expr) => {
+        assert_eq!(
+            &String::from(&*$rope),
+            include_str!("./pre-deleted.txt"),
+            "rope does not match pre-deleted.txt!"
+        )
+    }
+}
+
 fn this_panic_safe_rope_slices_properly_on_line_14(rope: &mut Rope) {
-    assert_eq!(&String::from(&*rope), include_str!("./pre-deleted.txt"));
+    assert_matches_pre_deleted!(rope);
 
     let line = dbg!(rope.line(LineIndex(14)).unwrap());
 
@@ -31,7 +41,7 @@ fn panic_safe_rope_slices_properly_in_buggy_txt() {
 }
 
 fn this_ropey_rope_slices_properly_on_line_14(rope: &mut ropey::Rope) {
-    assert_eq!(&String::from(&*rope), include_str!("./pre-deleted.txt"));
+    assert_matches_pre_deleted!(rope);
 
     let line = rope.line(14);
 
@@ -141,7 +151,7 @@ fn panic_safe_rope_slices_properly_in_buggy_txt_all_in_one_test() {
 
     rope.remove(AbsoluteCharOffset(971)..AbsoluteCharOffset(973));
 
-    assert_eq!(&String::from(&rope), include_str!("./pre-deleted.txt"));
+    assert_matches_pre_deleted!(&rope);
 
     let line = dbg!(rope.line(LineIndex(14)).unwrap());
 
@@ -160,7 +170,7 @@ fn reduced_panic_safe_rope_slices_properly_in_buggy_txt_all_in_one_test() {
 
     rope.remove(AbsoluteCharOffset(971)..AbsoluteCharOffset(973));
 
-    assert_eq!(&String::from(&rope), include_str!("./pre-deleted.txt"));
+    assert_matches_pre_deleted!(&rope);
 
     let line = dbg!(RopeSlice{ rope_slice: rope.rope.line(14) });
 

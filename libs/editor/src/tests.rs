@@ -204,7 +204,7 @@ fn passes_preconditions(text: &str, buffer_xywh: TextBoxXYWH, char_dim: CharDim)
 
     if !passed {
         panic!(
-            "{} && {}\n\nbuffer: {:?}\n\nbuffer_xywh: {:?}\n\nchar_dim: {:?}\n\n", 
+            "fails preconditions:\n{} && {}\n\nbuffer: {:?}\n\nbuffer_xywh: {:?}\n\nchar_dim: {:?}\n\n", 
             *buffer.borrow_cursors().first() == cur!{pos!{l 0, o text.len()}},
             buffer.scroll.x != 0.0,
             buffer,
@@ -222,22 +222,26 @@ fn update_and_render_shows_the_cursor_when_pressing_ctrl_home() {
     let mut runner = TestRunner::default();
 
     runner.run(&(
-        arb::non_neg_f32(),
-        arb::non_neg_f32(),
+        arb::pos_f32(),
+        arb::pos_f32(),
         arb::pos_f32(),
         arb::pos_f32(),
     ), |(box_w, box_h, w, h)| {
 
         let w_max = pos_f32!(box_w / 2.0);
-        let w = if w > w_max {
+        let w_min = pos_f32!(box_w / (CURSOR_SHOW_TEXT.len() as f32 / 2.0));
+
+        let w: PosF32 = if w > w_max {
             w_max
+        } else if w >= w_min {
+            w
         } else {
             // NaN ends up here
-            w
+            w_min
         };
 
         let h_max = pos_f32!(box_h / 2.0);
-        let h = if h > h_max {
+        let h: PosF32 = if h > h_max {
             h_max
         } else {
             // NaN ends up here

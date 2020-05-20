@@ -57,7 +57,7 @@ fn main() -> Res<()> {
     let second_z: u16 = 1 << 14;
 
     let apron = apron!(1.0);
-    let move_amount = non_neg_f32!(16.0);
+    let move_amount = pos_f32!(16.0);
 
     // User manipulatable state
     let mut scroll_xy: ScrollXY = d!();
@@ -276,12 +276,16 @@ fn main() -> Res<()> {
                                     quit!();
                                 }
                                 VirtualKeyCode::Up => {
-                                    text_box_xywh.wh.h = text_box_xywh.wh.h.saturating_sub(move_amount);
+                                    text_box_xywh.wh.h = pos_f32!(
+                                        text_box_xywh.wh.h.saturating_sub(move_amount.into()).get()
+                                    );
                                 }
                                 VirtualKeyCode::Down => {
                                     text_box_xywh.wh.h = text_box_xywh.wh.h + move_amount;                                }
                                 VirtualKeyCode::Left => {
-                                    text_box_xywh.wh.w = text_box_xywh.wh.w.saturating_sub(move_amount);
+                                    text_box_xywh.wh.w = pos_f32!(
+                                        text_box_xywh.wh.w.saturating_sub(move_amount.into()).get()
+                                    );
                                 }
                                 VirtualKeyCode::Right => {
                                     text_box_xywh.wh.w += move_amount;

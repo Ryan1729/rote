@@ -97,7 +97,7 @@ prop_compose!{
 }
 
 pub fn wh() -> impl Strategy<Value = ScreenSpaceWH> {
-    let strat = non_neg_f32();
+    let strat = pos_f32();
     (strat, strat).prop_map(|(w, h)| ScreenSpaceWH { w, h })
 }
 
@@ -380,7 +380,7 @@ prop_compose!{
 }
 
 pub fn scrollable_screen(spec: f32::Any) -> impl Strategy<Value = ScrollableScreen> {
-    let strat = non_neg_f32();
+    let strat = pos_f32();
     (scroll_xy(spec), strat, strat).prop_map(|(scroll, w, h)| ScrollableScreen {
         scroll,
         wh: ScreenSpaceWH { w, h },
@@ -389,7 +389,7 @@ pub fn scrollable_screen(spec: f32::Any) -> impl Strategy<Value = ScrollableScre
 
 pub fn plausible_scrollable_screen() -> impl Strategy<Value = ScrollableScreen> {
     let u = usual();
-    let strat = non_neg_f32();
+    let strat = pos_f32();
     (u, u, strat, strat).prop_map(|(x, y, w, h)| ScrollableScreen {
         scroll: ScrollXY { x, y },
         wh: ScreenSpaceWH { w, h },

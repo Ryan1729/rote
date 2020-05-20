@@ -13,14 +13,6 @@ impl NonNegF32 {
     pub const ZERO: NonNegF32 = NonNegF32(0.0);
     pub const ONE: NonNegF32 = NonNegF32(1.0);
     pub const INFINITY: NonNegF32 = NonNegF32(f32::INFINITY);
-
-    /// These were added on an as-needed basis, and arguably are only need to
-    /// be here because as of this writing `is_non_neg` cannot be const-eval'd
-    pub const ONE_SIXTY_FOURTH: NonNegF32 = NonNegF32(1.0 / 64.0);
-    pub const ONE_THIRTY_SECONDTH: NonNegF32 = NonNegF32(1.0 / 32.0);
-    pub const TWO: NonNegF32 = NonNegF32(2.0);
-    pub const FOUR: NonNegF32 = NonNegF32(4.0);
-    pub const ONE_HUNDRED_TWENTY_EIGHT: NonNegF32 = NonNegF32(128.0);
 }
 
 #[macro_export]

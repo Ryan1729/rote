@@ -107,8 +107,8 @@ add_assign!(<ScreenSpaceXY> for (f32, f32));
 
 #[derive(Clone, Copy, Default, PartialEq)]
 pub struct ScreenSpaceWH {
-    pub w: NonNegF32,
-    pub h: NonNegF32,
+    pub w: PosF32,
+    pub h: PosF32,
 }
 
 fmt_debug!(for ScreenSpaceWH: ScreenSpaceWH {w, h} in "sswh!{:?}", (w.get(), h.get()));
@@ -117,8 +117,8 @@ fmt_display!(for ScreenSpaceWH: ScreenSpaceWH {w, h} in "{:?}", (w.get(), h.get(
 
 hash_to_bits!(for ScreenSpaceWH: s, state in w, h);
 
-impl MapElements<NonNegF32> for ScreenSpaceWH {
-    fn map_elements(&self, mapper: &impl Fn(NonNegF32) -> NonNegF32) -> Self {
+impl MapElements<PosF32> for ScreenSpaceWH {
+    fn map_elements(&self, mapper: &impl Fn(PosF32) -> PosF32) -> Self {
         Self {
             w: mapper(self.w),
             h: mapper(self.h),
@@ -144,13 +144,13 @@ macro_rules! sswh {
     // Initialization
     //
     ($w: literal $(,)? $h: literal $(,)?) => {
-        $crate::ScreenSpaceWH { w: $crate::non_neg_f32!($w), h: $crate::non_neg_f32!($h) }
+        $crate::ScreenSpaceWH { w: $crate::pos_f32!($w), h: $crate::pos_f32!($h) }
     };
     (raw $w: literal $(,)? $h: literal $(,)?) => {
         $crate::ScreenSpaceWH { w: $w, h: $h }
     };
     ($w: expr, $h: expr $(,)?) => {
-        $crate::ScreenSpaceWH { w: $crate::non_neg_f32!($w), h: $crate::non_neg_f32!($h) }
+        $crate::ScreenSpaceWH { w: $crate::pos_f32!($w), h: $crate::pos_f32!($h) }
     };
     (raw $w: expr, $h: expr $(,)?) => {
         $crate::ScreenSpaceWH { w: $w, h: $h }
@@ -288,6 +288,15 @@ impl From<TextBoxXY> for ScreenSpaceXY {
     }
 }
 
+impl MapElements<f32> for TextBoxXY {
+    fn map_elements(&self, mapper: &impl Fn(f32) -> f32) -> Self {
+        Self { 
+            x: mapper(self.x),
+            y: mapper(self.y),
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 /// A vector in the space with the origin at the top left corner of a given text box.
 /// The top left corner of the text box is `(0.0, 0.0), top right corner is `(width, 0.0)`,
@@ -387,6 +396,15 @@ impl From<TextSpaceXY> for (f32, f32) {
     }
 }
 
+impl MapElements<f32> for TextSpaceXY {
+    fn map_elements(&self, mapper: &impl Fn(f32) -> f32) -> Self {
+        Self {
+            x: mapper(self.x),
+            y: mapper(self.y),
+        }
+    }
+}
+
 impl std::ops::Add for TextSpaceXY {
     type Output = TextSpaceXY;
 
@@ -435,6 +453,15 @@ macro_rules! tsxywh {
     };
 }
 
+impl MapElements<PosF32> for TextSpaceXYWH {
+    fn map_elements(&self, mapper: &impl Fn(PosF32) -> PosF32) -> Self {
+        TextSpaceXYWH {
+            xy: self.xy.map_elements(&|f| mapper(pos_f32!(f)).get()),
+            wh: self.wh.map_elements(mapper),
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 /// An offset in TextBoxSpace.
 /// The top left corner of the text is `(0.0, 0.0)`, top right corner is `(width, 0.0)`,
@@ -479,7 +506,7 @@ macro_rules! slxy {
     };
 }
 
-impl MapElements< f32> for ScrollXY {
+impl MapElements<f32> for ScrollXY {
     fn map_elements(&self, mapper: &impl Fn(f32) -> f32) -> Self {
         Self { 
             x: mapper(self.x),
@@ -699,6 +726,17 @@ macro_rules! apron {
             bottom_h: $size,
         }
     };
+}
+
+impl MapElements<NonNegF32> for Apron {
+    fn map_elements(&self, mapper: &impl Fn(NonNegF32) -> NonNegF32) -> Self {
+        Self {
+            left_w: mapper(self.left_w),
+            right_w: mapper(self.right_w),
+            top_h: mapper(self.top_h),
+            bottom_h: mapper(self.bottom_h),
+        }
+    }
 }
 
 /// if it is off the screen, scroll so it is inside an at least `char_dim` sized apron inside
@@ -1094,6 +1132,15 @@ macro_rules! tbxywh {
     () => {
         TextBoxXYWH::default()
     };
+}
+
+impl MapElements<PosF32> for TextBoxXYWH {
+    fn map_elements(&self, mapper: &impl Fn(PosF32) -> PosF32) -> Self {
+        Self {
+            xy: self.xy.map_elements(&|f| mapper(pos_f32!(f)).get()),
+            wh: self.wh.map_elements(mapper),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, Hash, PartialEq)]
