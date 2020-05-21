@@ -2,6 +2,7 @@ use super::*;
 use macros::{dbg, u};
 pub use non_neg_f32::{NonNegF32, non_neg_f32};
 pub use pos_f32::{PosF32, pos_f32};
+pub use f32_0_1::{F32_0_1, f32_0_1};
 
 // TODO make a derive macro that hashes all the fields, but checks if fields are f32/f64 and
 // calls `to_bits` if they are.
@@ -677,33 +678,30 @@ pub fn position_to_text_space(
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
 pub enum VisibilityAttemptResult {
     Succeeded,
-    ScreenTooSmall,
-    ScreenTooLarge,
-    ScreenTooWeird,
-    ApronEdgeTooSmall,
-    ApronEdgeTooLarge,
-    ApronEdgeTooWeird,
+//    ScreenTooSmall,
+//    ScreenTooLarge,
+//    ScreenTooWeird,
 }
 
 #[derive(Clone, Copy, Debug)]
 pub struct Apron {
-    pub left_w: NonNegF32,
-    pub right_w: NonNegF32,
-    pub top_h: NonNegF32,
-    pub bottom_h: NonNegF32,
+    pub left_w_ratio: F32_0_1,
+    pub right_w_ratio: F32_0_1,
+    pub top_h_ratio: F32_0_1,
+    pub bottom_h_ratio: F32_0_1,
 }
 
-hash_to_bits!(for Apron : s, state in bottom_h, top_h, right_w, left_w);
+hash_to_bits!(for Apron : s, state in bottom_h_ratio, top_h_ratio, right_w_ratio, left_w_ratio);
 
 impl From<CharDim> for Apron {
     fn from(CharDim { w, h }: CharDim) -> Self {
         let w: NonNegF32 = w.into();
         let h: NonNegF32 = h.into();
         Apron {
-            left_w: w,
-            right_w: w,
-            top_h: h,
-            bottom_h: h,
+            left_w_ratio: w,
+            right_w_ratio: w,
+            top_h_ratio: h,
+            bottom_h_ratio: h,
         }
     }
 }
@@ -712,18 +710,18 @@ impl From<CharDim> for Apron {
 macro_rules! apron {
     ($size: literal) => {
         Apron {
-            left_w: $crate::non_neg_f32!($size),
-            right_w: $crate::non_neg_f32!($size),
-            top_h: $crate::non_neg_f32!($size),
-            bottom_h: $crate::non_neg_f32!($size),
+            left_w_ratio: $crate::f32_0_1!($size),
+            right_w_ratio: $crate::f32_0_1!($size),
+            top_h_ratio: $crate::f32_0_1!($size),
+            bottom_h_ratio: $crate::f32_0_1!($size),
         }
     };
     (raw $size: expr) => {
         Apron {
-            left_w: $size,
-            right_w: $size,
-            top_h: $size,
-            bottom_h: $size,
+            left_w_ratio: $size,
+            right_w_ratio: $size,
+            top_h_ratio: $size,
+            bottom_h_ratio: $size,
         }
     };
 }
@@ -731,10 +729,10 @@ macro_rules! apron {
 impl MapElements<NonNegF32> for Apron {
     fn map_elements(&self, mapper: &impl Fn(NonNegF32) -> NonNegF32) -> Self {
         Self {
-            left_w: mapper(self.left_w),
-            right_w: mapper(self.right_w),
-            top_h: mapper(self.top_h),
-            bottom_h: mapper(self.bottom_h),
+            left_w_ratio: mapper(self.left_w),
+            right_w_ratio: mapper(self.right_w),
+            top_h_ratio: mapper(self.top_h),
+            bottom_h_ratio: mapper(self.bottom_h),
         }
     }
 }
@@ -801,18 +799,18 @@ pub fn attempt_to_make_xy_visible(
 
     dbg!(x, to_make_visible_ss.x, min_x);
     if to_make_visible_ss.x < min_x {
-        scroll.x = x - apron.left_w;
+        scroll.x = x - (w * apron.left_w_ratio);
     } else if to_make_visible_ss.x >= max_x {
-        scroll.x = x - (w - apron.right_w);
+        scroll.x = x - (w * apron.right_w_ratio);
     } else {
         // leave it alone
     }
 
     dbg!(y, to_make_visible_ss.y, min_y, max_y);
     if to_make_visible_ss.y < min_y {
-        scroll.y = y - apron.top_h;
+        scroll.y = y - (h * apron.top_h_ratio);
     } else if to_make_visible_ss.y >= max_y {
-        scroll.y = y - (h - apron.bottom_h);
+        scroll.y = y - (h * apron.bottom_h_ratio);
     } else {
         // leave it alone
     }
