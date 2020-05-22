@@ -661,6 +661,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "f32_0_1"
+version = "0.1.0"
+dependencies = [
+ "macros",
+ "non_neg_f32",
+ "pos_f32",
+ "proptest",
+]
+
+[[package]]
 name = "failure"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1572,6 +1582,7 @@ name = "platform_types"
 version = "0.1.0"
 dependencies = [
  "arb_macros",
+ "f32_0_1",
  "g_i",
  "macros",
  "move_mod",
@@ -1580,6 +1591,7 @@ dependencies = [
  "perf_viz",
  "pos_f32",
  "proptest",
+ "pub_arb_f32_0_1",
  "pub_arb_g_i",
  "pub_arb_non_neg_f32",
  "pub_arb_pos_f32",
@@ -1662,6 +1674,13 @@ dependencies = [
  "regex-syntax 0.6.17",
  "rusty-fork",
  "tempfile",
+]
+
+[[package]]
+name = "pub_arb_f32_0_1"
+version = "0.1.0"
+dependencies = [
+ "f32_0_1",
 ]
 
 [[package]]

@@ -276,8 +276,13 @@ fn attempt_to_make_sure_at_least_one_cursor_is_visible_reports_correctly_in_this
 
     let text_char_dim = char_dim!(16.0 32.0);
 
-    let apron: Apron = text_char_dim.into();
-    
+    let apron = apron!(
+        (text_char_dim.w / xywh.wh.w).get(),
+        (text_char_dim.w / xywh.wh.w).get(),
+        (text_char_dim.h / xywh.wh.h).get(),
+        (text_char_dim.h / xywh.wh.h).get(),
+    );
+
     let text_space = position_to_text_space(pos!{}, text_char_dim);
 
     let attempt_result = attempt_to_make_xy_visible(
@@ -303,10 +308,19 @@ fn attempt_to_make_xy_visible_reports_correctly_in_this_case() {
 
     let xywh = tbxywh!(480.0, 270.0, 960.0, 540.0);
 
+    let text_char_dim = char_dim!(16.0 32.0);
+
+    let apron = apron!(
+        (text_char_dim.w / xywh.wh.w).get(),
+        (text_char_dim.w / xywh.wh.w).get(),
+        (text_char_dim.h / xywh.wh.h).get(),
+        (text_char_dim.h / xywh.wh.h).get(),
+    );
+
     let attempt_result = attempt_to_make_xy_visible(
         &mut scroll,
         xywh,
-        char_dim!(16.0 32.0).into(),
+        apron,
         TextSpaceXY {
             x: 0.0,
             y: 0.0,

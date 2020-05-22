@@ -102,7 +102,14 @@ impl TextBuffer {
                 //small_xywh.xy.y += small_xywh.wh.h / 4.0;
                 //small_xywh.wh.h /= 2.0;
             
-                let apron: Apron = char_dim.into();
+                let x_ratio = (char_dim.w / small_xywh.wh.w).get();
+                let y_ratio = (char_dim.h / small_xywh.wh.h).get();
+                let apron = apron!(
+                    x_ratio,
+                    x_ratio,
+                    y_ratio,
+                    y_ratio,
+                );
                 dbg!(apron);
                 let text_space = position_to_text_space(dbg!(self.cursors.last().get_position()), char_dim);
                 dbg!(text_space);

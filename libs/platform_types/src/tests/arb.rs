@@ -7,15 +7,16 @@ use proptest::num::f32;
 use proptest::prelude::{prop_compose, any, Strategy};
 use pub_arb_std::{path_buf, f32::usual};
 use pub_arb_non_neg_f32::{non_neg_f32};
+use pub_arb_f32_0_1::{f32_0_1};
 use pub_arb_pos_f32::{pos_f32};
 
 pub fn apron() -> impl Strategy<Value = Apron> {
-    let strat = non_neg_f32();
-    (strat, strat, strat, strat).prop_map(|(left_w, right_w, top_h, bottom_h)| Apron {
-        left_w,
-        right_w,
-        top_h,
-        bottom_h,
+    let strat = f32_0_1();
+    (strat, strat, strat, strat).prop_map(|(left_w_ratio, right_w_ratio, top_h_ratio, bottom_h_ratio)| Apron {
+        left_w_ratio,
+        right_w_ratio,
+        top_h_ratio,
+        bottom_h_ratio,
     })
 }
 

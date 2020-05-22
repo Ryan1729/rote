@@ -28,7 +28,7 @@ macro_rules! is_0_or_above {
 #[macro_export]
 macro_rules! is_1_or_below {
     ($float: expr) => {{
-        f <= 1.0
+        $float <= 1.0
     }};
 }
 
@@ -260,7 +260,7 @@ impl Mul<F32_0_1> for f32 {
 mul_assign!(<F32_0_1> for f32);
 
 impl Mul<PosF32> for F32_0_1 {
-    type Output = NonNegf32;
+    type Output = NonNegF32;
 
     fn mul(self, other: PosF32) -> Self::Output {
         // Note we need to deal with sub-normals
@@ -280,7 +280,7 @@ impl Mul<F32_0_1> for PosF32 {
 impl Div for F32_0_1 {
     type Output = NonNegF32;
 
-    fn div(self, other: Self) -> Self {
+    fn div(self, other: Self) -> Self::Output {
         // IEEE-754 specifies that a positive number divided by a positive zero
         // is positive infinity, so since we know both are non-negative, we know
         // the quotient is as well. At least with the exception of `0.0 / 0.0`.
@@ -299,7 +299,7 @@ impl Div for F32_0_1 {
         // hardware to check for `0.0`, since we know the bit representation for 
         // `0.0` is the same as `0u32`.
         if other.0.to_bits() == 0 {
-            F32_0_1::INFINITY
+            NonNegF32::INFINITY
         } else {
             // Note we need to deal with sub-normals
             non_neg_f32!(self.0 / other.0)

@@ -693,21 +693,61 @@ pub struct Apron {
 
 hash_to_bits!(for Apron : s, state in bottom_h_ratio, top_h_ratio, right_w_ratio, left_w_ratio);
 
-impl From<CharDim> for Apron {
-    fn from(CharDim { w, h }: CharDim) -> Self {
-        let w: NonNegF32 = w.into();
-        let h: NonNegF32 = h.into();
-        Apron {
-            left_w_ratio: w,
-            right_w_ratio: w,
-            top_h_ratio: h,
-            bottom_h_ratio: h,
-        }
-    }
-}
-
 #[macro_export]
 macro_rules! apron {
+    (
+        $left_w_ratio: literal $(,)?
+        $right_w_ratio: literal $(,)?
+        $top_h_ratio: literal $(,)?
+        $bottom_h_ratio: literal $(,)?
+    ) => {
+        Apron {
+            left_w_ratio: $crate::f32_0_1!($left_w_ratio),
+            right_w_ratio: $crate::f32_0_1!($right_w_ratio),
+            top_h_ratio: $crate::f32_0_1!($top_h_ratio),
+            bottom_h_ratio: $crate::f32_0_1!($bottom_h_ratio),
+        }
+    };
+    (raw
+        $left_w_ratio: literal $(,)?
+        $right_w_ratio: literal $(,)?
+        $top_h_ratio: literal $(,)?
+        $bottom_h_ratio: literal $(,)?
+    ) => {
+        Apron {
+            left_w_ratio: $left_w_ratio,
+            right_w_ratio: $right_w_ratio,
+            top_h_ratio: $top_h_ratio,
+            bottom_h_ratio: $bottom_h_ratio,
+        }
+    };
+    (
+        $left_w_ratio: expr,
+        $right_w_ratio: expr,
+        $top_h_ratio: expr,
+        $bottom_h_ratio: expr $(,)?
+    ) => {
+        Apron {
+            left_w_ratio: $crate::f32_0_1!($left_w_ratio),
+            right_w_ratio: $crate::f32_0_1!($right_w_ratio),
+            top_h_ratio: $crate::f32_0_1!($top_h_ratio),
+            bottom_h_ratio: $crate::f32_0_1!($bottom_h_ratio),
+        }
+    };
+
+    (raw
+        $left_w_ratio: expr,
+        $right_w_ratio: expr,
+        $top_h_ratio: expr,
+        $bottom_h_ratio: expr $(,)?
+    ) => {
+        Apron {
+            left_w_ratio: $left_w_ratio,
+            right_w_ratio: $right_w_ratio,
+            top_h_ratio: $top_h_ratio,
+            bottom_h_ratio: $bottom_h_ratio,
+        }
+    };
     ($size: literal) => {
         Apron {
             left_w_ratio: $crate::f32_0_1!($size),
@@ -726,13 +766,13 @@ macro_rules! apron {
     };
 }
 
-impl MapElements<NonNegF32> for Apron {
-    fn map_elements(&self, mapper: &impl Fn(NonNegF32) -> NonNegF32) -> Self {
+impl MapElements<F32_0_1> for Apron {
+    fn map_elements(&self, mapper: &impl Fn(F32_0_1) -> F32_0_1) -> Self {
         Self {
-            left_w_ratio: mapper(self.left_w),
-            right_w_ratio: mapper(self.right_w),
-            top_h_ratio: mapper(self.top_h),
-            bottom_h_ratio: mapper(self.bottom_h),
+            left_w_ratio: mapper(self.left_w_ratio),
+            right_w_ratio: mapper(self.right_w_ratio),
+            top_h_ratio: mapper(self.top_h_ratio),
+            bottom_h_ratio: mapper(self.bottom_h_ratio),
         }
     }
 }
@@ -766,11 +806,16 @@ pub fn attempt_to_make_xy_visible(
         to_make_visible,
     );
 
+    let left_w = w * apron.left_w_ratio;
+    let right_w = w * apron.right_w_ratio;
+    let top_h = h * apron.top_h_ratio;
+    let bottom_h = h * apron.bottom_h_ratio;
+
     // In screen space
-    let min_x = apron.left_w + outer_rect.xy.x;
-    let max_x = w - apron.right_w + outer_rect.xy.x;
-    let min_y = apron.top_h + outer_rect.xy.y;
-    let max_y = h - apron.bottom_h + outer_rect.xy.y;
+    let min_x = left_w + outer_rect.xy.x;
+    let max_x = (w - right_w) + outer_rect.xy.x;
+    let min_y = top_h + outer_rect.xy.y;
+    let max_y = (h - bottom_h) + outer_rect.xy.y;
 
     dbg!(    
         &scroll,
@@ -799,18 +844,18 @@ pub fn attempt_to_make_xy_visible(
 
     dbg!(x, to_make_visible_ss.x, min_x);
     if to_make_visible_ss.x < min_x {
-        scroll.x = x - (w * apron.left_w_ratio);
+        scroll.x = x - left_w;
     } else if to_make_visible_ss.x >= max_x {
-        scroll.x = x - (w * apron.right_w_ratio);
+        scroll.x = x - right_w;
     } else {
         // leave it alone
     }
 
     dbg!(y, to_make_visible_ss.y, min_y, max_y);
     if to_make_visible_ss.y < min_y {
-        scroll.y = y - (h * apron.top_h_ratio);
+        scroll.y = y - top_h;
     } else if to_make_visible_ss.y >= max_y {
-        scroll.y = y - (h * apron.bottom_h_ratio);
+        scroll.y = y - bottom_h;
     } else {
         // leave it alone
     }

@@ -5,6 +5,17 @@ authors = ["Ryan1729 <Ryan1729@gmail.com>"]
 edition = "2018"
 
 [lib]
-path = "./src/f32_0_1"
+path = "./src/f32_0_1.rs"
 
 [dependencies]
+macros = { path = "../../../macros" }
+non_neg_f32 = { path = "../non_neg_f32" }
+pos_f32 = { path = "../pos_f32" }
+proptest = { version = "0.9", optional = true }
+
+[dev-dependencies]
+proptest = "0.9"
+
+[features]
+default = []
+pub_arb = ["proptest"]

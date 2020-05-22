@@ -12,6 +12,7 @@ pub mod floating_point;
 pub mod screen_positioning;
 pub use screen_positioning::{CharDim, ScreenSpaceRect, ScreenSpaceWH, ScreenSpaceXY, ScrollXY, SizeDependents, TextBoxSpaceXY, TextSpaceXYWH};
 
+pub use f32_0_1::{F32_0_1, f32_0_1};
 pub use pos_f32::{PosF32, pos_f32};
 pub use non_neg_f32::{NonNegF32, non_neg_f32};
 

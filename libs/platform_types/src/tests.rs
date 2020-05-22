@@ -275,10 +275,18 @@ fn attempt_to_make_xy_visible_works_in_this_scenario(
     let wh = screen.wh;
     // Assume the text box fills the screen
     let text_box = tbxywh!(d!(), wh);
+
+    let apron = apron!(
+        (char_dim.w / wh.w).get(),
+        (char_dim.w / wh.w).get(),
+        (char_dim.h / wh.h).get(),
+        (char_dim.h / wh.h).get(),
+    );
+
     let attempt = attempt_to_make_xy_visible(
         &mut screen.scroll,
         text_box,
-        char_dim.into(),
+        apron,
         xy
     );
 
@@ -970,7 +978,7 @@ proptest! {
             )),
         apron in arb::apron()
             .prop_map(|a| a.map_elements(
-                &|nnf32| non_neg_f32!(clamp_exponent_to_24(nnf32.get()))
+                &|f0_1| f32_0_1!(clamp_exponent_to_24(f0_1.get()))
             )),
         cursor_xy in arb::rounded_non_negative_text_xy()
             .prop_map(|c| c.map_elements(&clamp_exponent_to_24))
