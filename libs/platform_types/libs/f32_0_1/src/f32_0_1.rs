@@ -12,8 +12,8 @@ pub struct F32_0_1(f32);
 
 impl F32_0_1 {
     pub const ZERO: F32_0_1 = F32_0_1(0.0);
+    pub const ONE_HALF: F32_0_1 = F32_0_1(0.5);
     pub const ONE: F32_0_1 = F32_0_1(1.0);
-    pub const INFINITY: F32_0_1 = F32_0_1(f32::INFINITY);
 }
 
 #[macro_export]
@@ -276,6 +276,26 @@ impl Mul<F32_0_1> for PosF32 {
         non_neg_f32!(self * other.0)
     }
 }
+
+impl Mul<NonNegF32> for F32_0_1 {
+    type Output = NonNegF32;
+
+    fn mul(self, other: NonNegF32) -> Self::Output {
+        // Note we need to deal with sub-normals
+        non_neg_f32!(self.0 * other)
+    }
+}
+
+impl Mul<F32_0_1> for NonNegF32 {
+    type Output = NonNegF32;
+
+    fn mul(self, other: F32_0_1) -> Self::Output {
+        // Note we need to deal with sub-normals
+        non_neg_f32!(self * other.0)
+    }
+}
+
+mul_assign!(<F32_0_1> for NonNegF32);
 
 impl Div for F32_0_1 {
     type Output = NonNegF32;

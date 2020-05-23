@@ -683,6 +683,10 @@ pub enum VisibilityAttemptResult {
 //    ScreenTooWeird,
 }
 
+/// Each of these ratios represent the amount of the specifed *half*
+/// of the given dimension will be part of the apron. So apron!(0.5)
+/// means that a rectangular ring with thickness equal to 25% of the
+/// width and height of the full rectangle.
 #[derive(Clone, Copy, Debug)]
 pub struct Apron {
     pub left_w_ratio: F32_0_1,
@@ -734,7 +738,6 @@ macro_rules! apron {
             bottom_h_ratio: $crate::f32_0_1!($bottom_h_ratio),
         }
     };
-
     (raw
         $left_w_ratio: expr,
         $right_w_ratio: expr,
@@ -806,10 +809,10 @@ pub fn attempt_to_make_xy_visible(
         to_make_visible,
     );
 
-    let left_w = w * apron.left_w_ratio;
-    let right_w = w * apron.right_w_ratio;
-    let top_h = h * apron.top_h_ratio;
-    let bottom_h = h * apron.bottom_h_ratio;
+    let left_w = w * F32_0_1::ONE_HALF * apron.left_w_ratio;
+    let right_w = w * F32_0_1::ONE_HALF *  apron.right_w_ratio;
+    let top_h = h * F32_0_1::ONE_HALF * apron.top_h_ratio;
+    let bottom_h = h * F32_0_1::ONE_HALF * apron.bottom_h_ratio;
 
     // In screen space
     let min_x = left_w + outer_rect.xy.x;

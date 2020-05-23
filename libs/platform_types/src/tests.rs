@@ -301,7 +301,7 @@ fn attempt_to_make_xy_visible_works_in_this_scenario(
 proptest! {
     #[test]
     fn attempt_to_make_xy_visible_works(
-        mut screen in arb::scrollable_screen(f32::ANY),
+        mut screen in arb::scrollable_screen(usual()),
         char_dim in arb::char_dim(),
         xy in arb::text_xy(f32::POSITIVE | f32::ZERO),
     ) {
