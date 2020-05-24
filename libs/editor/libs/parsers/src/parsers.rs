@@ -6,7 +6,7 @@ use tree_sitter::{Parser, Language, LanguageError, Node, Query, QueryCapture, Qu
 
 use std::borrow::Cow;
 
-#[derive(Clone, Copy, Debug, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub enum Style {
     Extra,
     Basic,
@@ -36,7 +36,7 @@ impl Iterator for Style {
     }
 }
 
-#[derive(Clone, Copy, Debug, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub enum ParserKind {
     Plaintext,
     Rust(Style)

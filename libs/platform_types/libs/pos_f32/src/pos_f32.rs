@@ -2,7 +2,7 @@
 //! actually restrict the values of `PosF32` to be positive, normal (that is 
 //! non-sub-normal), values. The smallest value allowed is `f32::MIN_POSITIVE`.
 
-use macros::{d, add_assign, sub_assign, mul_assign, div_assign, SaturatingSub};
+use macros::{d, add_assign, sub_assign, mul_assign, div_assign};
 use std::ops::{Add, Sub, Mul, Div};
 
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]

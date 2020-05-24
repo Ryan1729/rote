@@ -67,8 +67,6 @@ pub fn next_smallest_f32_if_normal_or_0<F32: Into<f32>>(x: F32) -> f32 {
 #[cfg(test)]
 mod floating_point_tests {
     use super::*;
-    use crate::tests::arb;
-    use proptest::num::f32;
     use proptest::proptest;
     use std::f32::{MAX, MIN, MIN_POSITIVE};
     use std::num::FpCategory::{Infinite, Normal, Zero};

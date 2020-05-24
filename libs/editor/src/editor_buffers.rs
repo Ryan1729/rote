@@ -3,7 +3,7 @@
 /// improperly set.
 use editor_types::{Cursor};
 use g_i::SelectableVec1;
-use macros::{d, u};
+use macros::{d, fmt_debug, u};
 use platform_types::*;
 use parsers::{ParserKind};
 use text_buffer::{TextBuffer};
@@ -12,7 +12,7 @@ use panic_safe_rope::{RopeSlice, RopeSliceTrait};
 
 use std::path::PathBuf;
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Default, PartialEq)]
 pub struct EditorBuffer {
     pub text_buffer: TextBuffer,
     pub name: BufferName,
@@ -23,6 +23,13 @@ pub struct EditorBuffer {
     // we will use the default.
     parser_kind: Option<ParserKind>,
 }
+
+fmt_debug!(collapse default for EditorBuffer: me {
+    blank_if_default!(text_buffer);
+    blank_if_default!(name);
+    blank_if_default!(search_results);
+    blank_if_default!(parser_kind);
+});
 
 impl EditorBuffer {
     fn rope_hash<H: std::hash::Hasher>(&self, state: &mut H) {
@@ -112,12 +119,18 @@ impl EditorBuffer {
 
 /// The collection of files opened for editing, and/or in-memory scratch buffers.
 /// Guaranteed to have at least one buffer in it at all times.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Default, PartialEq)]
 pub struct EditorBuffers {
     buffers: SelectableVec1<EditorBuffer>,
     last_non_rope_hash: u64,
     last_full_hash: Option<u64>,
 }
+
+fmt_debug!(collapse default for EditorBuffers: me {
+    blank_if_default!(buffers);
+    blank_if_default!(last_non_rope_hash, me.last_non_rope_hash == 0);
+    blank_if_default!(last_full_hash);
+});
 
 impl EditorBuffers {
     #[perf_viz::record]

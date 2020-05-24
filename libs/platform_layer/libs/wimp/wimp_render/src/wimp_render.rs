@@ -186,6 +186,8 @@ pub fn view<'view>(
     }: &RunConsts,
     dt: std::time::Duration,
 ) -> ViewOutput<'view> {
+    if_changed::dbg!(&view);
+
     ui::begin_view(ui, view);
 
     let dimensions = *dimensions;

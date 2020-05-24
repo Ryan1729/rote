@@ -18,7 +18,7 @@ mod move_cursor;
 mod cursors;
 use cursors::Cursors;
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct TextBuffer {
     /// We keep the rope private, and only allow non-mut borrows
     /// so we know that the history contains all the changes made

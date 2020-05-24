@@ -490,6 +490,20 @@ macro_rules! fmt_display {
     );
 }
 
+/// collapse default mode Example: 
+/// ```
+/// # #[macro_use] extern crate macros; fn main() {
+/// struct Ex {
+///     blank_me: String,
+///     show_me: String,
+/// }
+/// 
+/// fmt_debug!(collapse default for Ex : me {
+///     blank_if_default!(blank_me);
+///     field!(show_me);
+/// });
+/// # }
+/// ```
 #[macro_export]
 macro_rules! fmt_debug {
     ($(<$generics:tt>)? for $name:ty : $pattern:pat in $($args:tt)+) => (
@@ -500,6 +514,43 @@ macro_rules! fmt_debug {
             }
         }
     );
+    (collapse default for $name: ident $(:)? $self: ident $code: block) => {
+        impl std::fmt::Debug for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                let mut s = f.debug_struct(stringify!($name));
+        
+                let $self = self;
+
+                macro_rules! field { 
+                    ($field: ident) => {
+                        s.field(stringify!($field), &$self.$field);
+                    }
+                }
+        
+                let mut any_defaulted = false;
+                macro_rules! blank_if_default {
+                    ($field: ident) => {
+                        blank_if_default!($field, $self.$field == d!())
+                    };
+                    ($field: ident, $is_default: expr) => {
+                        if $is_default {
+                            any_defaulted = true;
+                        } else {
+                            field!($field);
+                        }
+                    }
+                }
+        
+                $code;
+        
+                if any_defaulted {
+                    s.field(".. d!", &());
+                }
+        
+                s.finish()
+            }
+        }
+    };
 }
 
 #[macro_export]

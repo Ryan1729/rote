@@ -3,7 +3,7 @@ use super::*;
 use platform_types::pos;
 
 use editor_types::{cur, Cursor};
-use macros::{u, dbg};
+use macros::{u, dbg, SaturatingAdd};
 use proptest::prelude::{proptest};
 
 use std::collections::HashMap;
@@ -35,7 +35,7 @@ mod arb {
             */
         ) -> State {
             State {
-                //buffers,
+                buffers,
                 ..d!()
                 /*
                 buffer_xywh,
@@ -166,18 +166,6 @@ fn update_and_render_shows_the_cursor_when_searching_in_this_case() {
     // Assert
     let buffer = get_text_buffer_mut!(state, BufferIdKind::Text).unwrap();
     assert_ne!(buffer.scroll.y, 0.0);
-}
-
-macro_rules! max_one {
-    ($n: expr) => {{
-        let n = $n;
-        non_neg_f32!(if n >= 1.0 {
-            n
-        } else {
-            // NaN ends up here
-            1.0
-        })
-    }}
 }
 
 fn passes_preconditions(text: &str, buffer_xywh: TextBoxXYWH, char_dim: CharDim) -> bool {
@@ -1271,5 +1259,40 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
                 is_edited
             );
         }
+    }
+}
+
+fn update_and_render_sets_the_views_buffer_selected_index_correctly_after_moving_selection_right_on(
+    mut state: State,
+) {
+    u!{Input};
+
+    // Arrange
+    let buffers = &state.view.buffers;
+    let expected_index = buffers.current_index().saturating_add(1) % buffers.len();
+
+    // Act
+    let (view, _) = update_and_render(
+        &mut state, 
+        AdjustBufferSelection(
+            SelectionAdjustment::Move(SelectionMove::Right)
+        )
+    );
+
+    // Assert
+    assert_eq!(
+        state.view.buffers.current_index(), 
+        expected_index
+    );
+}
+
+proptest!{
+    #[test]
+    fn update_and_render_sets_the_views_buffer_selected_index_correctly_after_moving_selection_right(
+        state in arb::state(),
+    ) {
+        update_and_render_sets_the_views_buffer_selected_index_correctly_after_moving_selection_right_on(
+            state
+        )
     }
 }

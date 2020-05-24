@@ -131,7 +131,7 @@ ord!(and friends for BufferIdKind: kind, other in {
 });
 
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum HighlightKind {
     User,
     Result,
@@ -139,7 +139,7 @@ pub enum HighlightKind {
 }
 d!(for HighlightKind: HighlightKind::User);
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Highlight {
     pub min: Position,
     pub max: Position,
@@ -366,13 +366,13 @@ ord!(and friends for CursorState: state, other in {
     }
 });
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CursorView {
     pub position: Position,
     pub state: CursorState,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StatusLineView {
     pub chars: String,
 }
@@ -380,7 +380,7 @@ pub struct StatusLineView {
 pub const DEFAULT_STATUS_LINE_CHARS: &'static str = "No buffer selected.";
 d!(for StatusLineView: StatusLineView {chars: DEFAULT_STATUS_LINE_CHARS.to_owned()});
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MenuMode {
     Hidden,
     FileSwitcher,
@@ -389,7 +389,7 @@ pub enum MenuMode {
 }
 d!(for MenuMode: MenuMode::Hidden);
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum MenuView {
     None,
     FileSwitcher(FileSwitcherView),
@@ -436,26 +436,26 @@ pub fn kind_editable_during_mode(kind: BufferIdKind, menu_mode: MenuMode) -> boo
 
 pub type FileSwitcherResults = Vec<PathBuf>;
 
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Default, Debug, PartialEq)]
 pub struct FileSwitcherView {
     pub search: BufferViewData,
     pub results: FileSwitcherResults,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FindReplaceMode {
     CurrentFile,
 }
 d!(for FindReplaceMode: FindReplaceMode::CurrentFile);
 
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Default, Debug, PartialEq)]
 pub struct FindReplaceView {
     pub mode: FindReplaceMode,
     pub find: BufferViewData,
     pub replace: BufferViewData,
 }
 
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Default, Debug, PartialEq)]
 pub struct GoToPositionView {
     pub go_to_position: BufferViewData,
 }
@@ -468,7 +468,7 @@ pub enum EditedTransition {
 
 pub type IndexedEditedTransition = (g_i::Index, EditedTransition);
 
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Default, Debug, PartialEq, Eq)]
 pub struct EditedTransitions(Vec<IndexedEditedTransition>);
 
 impl EditedTransitions {
@@ -498,7 +498,7 @@ impl IntoIterator for EditedTransitions {
     }
 }
 
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Default, Debug, PartialEq)]
 pub struct View {    pub buffers: SelectableVec1<BufferView>,
     pub menu: MenuView,
     pub status_line: StatusLineView,
@@ -559,7 +559,7 @@ impl View {
     }
 }
 
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Default, Debug, PartialEq)]
 pub struct BufferView {
     pub name: BufferName,
     // TODO this could be truncated to a fixed length/on the stack
@@ -640,7 +640,7 @@ pub struct SpanView {
     pub kind: SpanKind,
 }
 
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Default, Debug, PartialEq)]
 pub struct BufferViewData {
     pub chars: Rope,
     pub scroll: ScrollXY,

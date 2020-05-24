@@ -2,7 +2,7 @@ use glutin::event::{ModifiersState, VirtualKeyCode};
 use macros::{d, ord, u};
 use platform_types::{screen_positioning::*, g_i, Input, Cmd, EditedTransition};
 
-use std::collections::{VecDeque, HashMap, BTreeMap};
+use std::collections::{VecDeque, BTreeMap};
 use std::path::PathBuf;
 
 pub use glutin::event_loop::EventLoopProxy;
@@ -101,11 +101,6 @@ mod view {
     use super::ui; // Your app's written in Electron? Shoulda used Super UI.
     use super::g_i;
     pub use platform_types::{CursorView, BufferName, BufferViewData, FileSwitcherView, FindReplaceView, GoToPositionView, MenuMode, MenuView, IndexedEditedTransition};
-
-    #[derive(Clone, Copy, Debug, PartialEq)]
-    enum LocalMenuMode {
-        Command
-    }
 
     #[derive(Clone, Copy, Debug, PartialEq)]
     pub enum FindReplaceMode {
@@ -340,10 +335,10 @@ pub type CommandKey = (ModifiersState, VirtualKeyCode);
 
 pub mod command_keys {
     use super::{CommandKey, ModifiersState, VirtualKeyCode};
-    const CTRL: ModifiersState = ModifiersState::CTRL;
-    const SHIFT: ModifiersState = ModifiersState::SHIFT;
-    const ALT: ModifiersState = ModifiersState::ALT;
-    const LOGO: ModifiersState = ModifiersState::LOGO;
+    pub const CTRL: ModifiersState = ModifiersState::CTRL;
+    pub const SHIFT: ModifiersState = ModifiersState::SHIFT;
+    pub const ALT: ModifiersState = ModifiersState::ALT;
+    pub const LOGO: ModifiersState = ModifiersState::LOGO;
 
     pub fn command_menu() -> CommandKey {
         (ModifiersState::empty(), VirtualKeyCode::Apps)

@@ -131,6 +131,21 @@ pub struct RectSpec {
     pub z: f32,
 }
 
+impl Hash for RectSpec {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.pixel_coords.hash(state);
+        self.bounds.min.x.to_bits().hash(state);
+        self.bounds.min.y.to_bits().hash(state);
+        self.bounds.max.x.to_bits().hash(state);
+        self.bounds.max.y.to_bits().hash(state);
+        self.color[0].to_bits().hash(state);
+        self.color[0].to_bits().hash(state);
+        self.color[1].to_bits().hash(state);
+        self.color[2].to_bits().hash(state);
+        self.z.to_bits().hash(state);
+    }
+}
+
 pub struct AdditionalRects<V: Clone + 'static> {
     pub set_alpha: fn(&mut V, alpha: f32),
     pub rect_specs: Vec<RectSpec>,
@@ -292,6 +307,9 @@ where
                 let mut s = self.section_hasher.build_hasher();
                 let s_ref = &mut s;
                 self.section_buffer.hash(s_ref);
+                if let Some(a_r) = additional_rects.as_ref() {
+                    a_r.rect_specs.hash(s_ref);
+                }
 
                 s.finish()
             },

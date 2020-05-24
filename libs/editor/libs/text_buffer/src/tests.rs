@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 #![deny(array_into_iter)]
-use super::{cursor_assert, r, t_b, *};
+use super::{cursor_assert, r, *};
 
 use arb::TestEdit;
 use editor_types::{cur};
@@ -792,7 +792,7 @@ fn single_cursor(buffer: &TextBuffer) -> Cursor {
     cursors.first().clone()
 }
 
-/// This test demonstrated that a bug was not (soley) in the text_buffer crate.
+// This test demonstrated that a bug was not (soley) in the text_buffer crate.
 proptest!{
     #[test]
     fn inserting_after_a_find_between_two_other_chars_places_the_cursor_correctly(

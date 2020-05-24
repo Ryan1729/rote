@@ -3,7 +3,6 @@ use super::*;
 use proptest::proptest;
 
 mod arb {
-    use super::*;
     use proptest::prelude::{Just, prop_compose};
 
     prop_compose! {

@@ -1,5 +1,5 @@
 
-use macros::{d, dbg, u, SaturatingSub};
+use macros::{d, dbg, fmt_debug, u, SaturatingSub};
 use platform_types::{screen_positioning::*, *};
 use parsers::{Parsers};
 
@@ -17,7 +17,7 @@ mod clipboard_history {
     use super::*;
     use std::collections::VecDeque;
 
-    #[derive(Debug, Default)]
+    #[derive(Debug, Default, PartialEq, Eq)]
     pub struct ClipboardHistory {
         entries: VecDeque<String>,
         index: usize,
@@ -86,7 +86,7 @@ mod clipboard_history {
 }
 use clipboard_history::ClipboardHistory;
 
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct State {    buffers: EditorBuffers,
     buffer_xywh: TextBoxXYWH,
     current_buffer_kind: BufferIdKind,
@@ -104,6 +104,34 @@ pub struct State {    buffers: EditorBuffers,
     parsers: parsers::Parsers,
     view: View,
 }
+
+fmt_debug!(
+    collapse default for State: me {
+        blank_if_default!(buffers);
+        blank_if_default!(buffer_xywh);
+        blank_if_default!(current_buffer_kind);
+        blank_if_default!(menu_mode);
+        blank_if_default!(file_switcher);
+        blank_if_default!(
+            file_switcher_results,
+            me.file_switcher_results == <Vec<PathBuf> as Default>::default()
+        );
+        blank_if_default!(find);
+        blank_if_default!(find_xywh);
+        blank_if_default!(replace);
+        blank_if_default!(replace_xywh);
+        blank_if_default!(go_to_position);
+        blank_if_default!(go_to_position_xywh);
+        blank_if_default!(font_info);
+        blank_if_default!(clipboard_history);
+        blank_if_default!(
+            parsers,
+            if let &Parsers::NotInitializedYet = &me.parsers { true } else { false }
+        );
+        blank_if_default!(view);
+    }
+);
+
 
 // this macro helps the borrow checker figure out that borrows are valid.
 macro_rules! get_text_buffer_mut {

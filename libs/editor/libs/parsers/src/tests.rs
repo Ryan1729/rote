@@ -364,6 +364,7 @@ fn totally_classified_spans_for_produces_valid_rust_spans_on_unit() {
     );
 }
 
+#[allow(dead_code)]
 fn preceding_backslash_count_is_even(s: &str, mut byte_index: usize) -> bool {
     let mut count = 0;
 
