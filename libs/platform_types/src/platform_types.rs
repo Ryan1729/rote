@@ -559,13 +559,19 @@ impl View {
     }
 }
 
-#[derive(Clone, Default, Debug, PartialEq)]
+#[derive(Clone, Default, PartialEq)]
 pub struct BufferView {
     pub name: BufferName,
     // TODO this could be truncated to a fixed length/on the stack
     pub name_string: String,
     pub data: BufferViewData,
 }
+
+fmt_debug!(collapse default for BufferView: me {
+    blank_if_default!(name);
+    blank_if_default!(name_string, me.name_string.len() == 0);
+    blank_if_default!(data);
+});
 
 /// We might change this later, but it will always be an integer of some sort.
 pub type SpanKindRaw = u8;
@@ -640,7 +646,7 @@ pub struct SpanView {
     pub kind: SpanKind,
 }
 
-#[derive(Clone, Default, Debug, PartialEq)]
+#[derive(Clone, Default, PartialEq)]
 pub struct BufferViewData {
     pub chars: Rope,
     pub scroll: ScrollXY,
@@ -648,6 +654,14 @@ pub struct BufferViewData {
     pub highlights: Vec<Highlight>,
     pub spans: Vec<SpanView>
 }
+
+fmt_debug!(collapse default for BufferViewData: me {
+    blank_if_default!(chars, me.chars == Rope::default());
+    blank_if_default!(scroll);
+    blank_if_default!(cursors, me.cursors.len() == 0);
+    blank_if_default!(highlights, me.highlights.len() == 0);
+    blank_if_default!(spans, me.spans.len() == 0);
+});
 
 #[macro_export]
 macro_rules! bvd {

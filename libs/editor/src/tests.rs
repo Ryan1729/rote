@@ -34,7 +34,7 @@ mod arb {
             p in parsers(),
             */
         ) -> State {
-            State {
+            let mut state = State {
                 buffers,
                 ..d!()
                 /*
@@ -53,7 +53,12 @@ mod arb {
                 clipboard_history: ch,
                 parsers: p,
                 */
-            }
+            };
+
+            // We do this so the view is always in sync.
+            editor_view::render(&mut state);
+
+            state
         }
     }
 
@@ -530,6 +535,83 @@ proptest!{
     }
 }
 
+fn update_and_render_keeps_the_state_buffers_index_state_the_same_as_the_view_buffers_index_state_on(
+    mut state: State,
+    inputs: Vec<Input>,
+) {
+    assert_eq!(
+        state.buffers.buffers().index_state(),
+        state.view.buffers.index_state(),
+        "Precondition failure!"
+    );
+
+    for input in inputs {
+        let _ = update_and_render(&mut state, input);
+
+        assert_eq!(
+            state.buffers.buffers().index_state(),
+            state.view.buffers.index_state()
+        );
+    }
+}
+
+proptest!{
+    #[test]
+    fn update_and_render_keeps_the_state_buffers_index_state_the_same_as_the_view_buffers_index_state(
+        state in arb::state(),
+        inputs in proptest::collection::vec(arb::input(), 0..=16),
+    ) {
+        update_and_render_keeps_the_state_buffers_index_state_the_same_as_the_view_buffers_index_state_on(
+            state,
+            inputs
+        )
+    }
+}
+
+proptest!{
+    #[test]
+    fn update_and_render_keeps_the_state_buffers_index_state_the_same_as_the_view_buffers_index_state_if_you_add_then_remove_a_buffer(
+        state in arb::state(),
+    ) {
+        u!{Input}
+        update_and_render_keeps_the_state_buffers_index_state_the_same_as_the_view_buffers_index_state_on(
+            state,
+            vec![NewScratchBuffer(Option::None), CloseBuffer(d!())]
+        );
+    }
+}
+
+#[test]
+fn update_and_render_keeps_the_state_buffers_index_state_the_same_as_the_view_buffers_index_state_if_you_add_then_remove_a_buffer_on_a_default_state() {
+    u!{Input}
+    update_and_render_keeps_the_state_buffers_index_state_the_same_as_the_view_buffers_index_state_on(
+        d!(),
+        vec![NewScratchBuffer(Option::None), CloseBuffer(d!())]
+    );
+}
+
+#[test]
+fn update_and_render_keeps_the_state_buffers_index_state_the_same_as_the_view_buffers_index_state_if_you_add_then_remove_a_buffer_on_this_state() {
+    u!{Input}
+    let inputs = vec![NewScratchBuffer(Option::None), CloseBuffer(d!())];
+
+    let mut state = d!();
+
+    update_and_render(
+        &mut state,
+        inputs[0].clone()
+    );
+    update_and_render(
+        &mut state,
+        inputs[1].clone()
+    );
+
+    update_and_render_keeps_the_state_buffers_index_state_the_same_as_the_view_buffers_index_state_on(
+        state,
+        inputs
+    );
+}
+
 /* I think tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers supercedes this
 fn update_and_render_reports_a_change_at_the_correct_edited_index_on(
     state: State,
@@ -878,7 +960,6 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
 #[test]
 fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_we_search_for_the_empty_string() {
     u!{BufferIdKind, Input}
-    let state: g_i::State = d!();
     tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
         d!(),
         vec![
@@ -900,7 +981,6 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
 #[test]
 fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_a_file_is_added_to_a_blank_state_then_becomes_unedited_later() {
     u!{BufferName, Input}
-    let state: g_i::State = d!();
     tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
         d!(),
         vec![
@@ -914,7 +994,6 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
 #[test]
 fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_a_scratch_file_is_added_then_a_path_file_is_added() {
     u!{BufferName, Input}
-    let state: g_i::State = d!();
     tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
         d!(),
         vec![
@@ -935,178 +1014,6 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
             DeleteLines,
         ]
     )
-}
-
-#[test]
-fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_a_path_file_is_added_then_the_selection_is_changed_reduction() {
-    u!{BufferName, EditedTransition, Input, SelectionAdjustment, SelectionMove}
-    let mut state: State = d!();
-    
-    let original_buffers = state.buffers.buffers();
-    let mut unedited_buffer_states: g_i::Map<EditorBuffer> = g_i::Map::with_capacity(original_buffers.len());
-    {
-        let state = original_buffers.index_state();
-        for (i, buffer) in original_buffers.iter_with_indexes() {
-            unedited_buffer_states.insert(state, i, buffer.clone());
-        }
-    }
-
-    let buffer_count = state.buffers.len();
-    dbg!(&unedited_buffer_states, buffer_count);
-    let mut expected_edited_states: g_i::Map<bool> = g_i::Map::with_capacity(buffer_count);
-
-    {
-        let buffers = state.buffers.buffers();
-        let index_state= buffers.index_state();
-        for (i, _) in buffers.iter_with_indexes() {
-            expected_edited_states.insert(index_state, i, false);
-        }
-    }
-
-    let name = Path(".fakefile".into());
-    let data = "¡".to_owned();
-
-    unedited_buffer_states.insert(
-        state.buffers.buffers().index_state(),
-        state.buffers.append_index(),
-        EditorBuffer::new(name.clone(), data.clone()),
-    );
-    dbg!(&unedited_buffer_states);
-
-    let (view, _) = update_and_render(&mut state, AddOrSelectBuffer(name.clone(), data.clone()));
-
-    let index_state = state.buffers.buffers().index_state();
-    
-    for (i, transition) in view.edited_transitions {
-        match transition {
-            ToEdited => {
-                dbg!("expected_edited_states.insert", index_state, i, true);
-                expected_edited_states.insert(index_state, i, true);
-            }
-            ToUnedited => {
-                dbg!("expected_edited_states.insert", index_state, i, false);
-                expected_edited_states.insert(index_state, i, false);
-            }
-        }
-    }
-
-    let (view, _) = update_and_render(&mut state, AdjustBufferSelection(Move(Left)));
-    
-    assert_eq!(
-        view.edited_transitions.len(),
-        0,
-        "after AdjustBufferSelection got {:?}",
-        &view.edited_transitions
-    );
-
-    let index_state = state.buffers.buffers().index_state();
-    
-    for (i, transition) in view.edited_transitions {
-        match transition {
-            ToEdited => {
-                dbg!("expected_edited_states.insert", index_state, i, true);
-                expected_edited_states.insert(index_state, i, true);
-            }
-            ToUnedited => {
-                dbg!("expected_edited_states.insert", index_state, i, false);
-                expected_edited_states.insert(index_state, i, false);
-            }
-        }
-    }
-
-    let (view, _) = update_and_render(&mut state, DeleteLines);
-
-    {
-        let added_buffer_index = state.buffers.index_with_name(&name).expect("added_buffer_index was None");
-        
-        let added_buffer_transition = view.edited_transitions
-            .iter()
-            .find_map(|&(i, t)| {
-                if added_buffer_index == i {
-                    Some(t)
-                } else {
-                    Option::None
-                }
-            });
-    
-        assert_eq!(added_buffer_transition, Some(ToEdited));
-    }
-    
-    let index_state = state.buffers.buffers().index_state();
-    
-    for (i, transition) in view.edited_transitions {
-        match transition {
-            ToEdited => {
-                dbg!("expected_edited_states.insert", index_state, i, true);
-                expected_edited_states.insert(index_state, i, true);
-            }
-            ToUnedited => {
-                dbg!("expected_edited_states.insert", index_state, i, false);
-                expected_edited_states.insert(index_state, i, false);
-            }
-        }
-    }
-
-    dbg!(&state.buffers, &expected_edited_states);
-    assert_eq!(
-        expected_edited_states.len(),
-        state.buffers.len(), 
-        "expected_edited_states len does not match state.buffers. expected_edited_states: {:#?}",
-        expected_edited_states
-    );
-
-    dbg!(&unedited_buffer_states);
-    unedited_buffer_states.migrate_all(index_state);
-    dbg!(&unedited_buffer_states);
-
-    let mut expected_edited_states: Vec<_> = expected_edited_states.into_iter().collect();
-
-    expected_edited_states.sort_by_key(|p| p.0);
-
-    let added_buffer_index = state.buffers.index_with_name(&name).expect("added_buffer_index was None");
-    
-    let mut saw_added_buffer_index = false;
-
-    for (i, is_edited) in expected_edited_states {
-        let buffers = state.buffers.buffers();
-        let actual_buffer = buffers.get(i).expect("actual_data was None");
-        let actual_data: String = actual_buffer.into();
-        let original_data: Option<String> = unedited_buffer_states
-            .get(buffers.index_state(), i)
-            .map(|s| s.into());
-        
-        if i == added_buffer_index {
-            saw_added_buffer_index = true;
-
-            assert!(is_edited);
-
-            assert_eq!(original_data, Some(data.clone()));
-        } else {
-            assert_eq!(original_data, Some(String::new()));
-        }
-        assert_eq!(actual_data, String::new());
-        
-        if is_edited {
-            assert_ne!(
-                Some(actual_data),
-                original_data,
-                "({:?}, {:?})",
-                i,
-                is_edited
-            );
-        } else {
-            assert_eq!(
-                actual_data,
-                original_data
-                    .expect(&format!("original_data was None ({:?}, {:?})", i, is_edited)),
-                "({:?}, {:?})",
-                i,
-                is_edited
-            );
-        }
-    }
-
-    assert!(saw_added_buffer_index);
 }
 
 #[test]
@@ -1263,21 +1170,27 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
 }
 
 fn update_and_render_sets_the_views_buffer_selected_index_correctly_after_moving_selection_right_on(
-    mut state: State,
+    state: &mut State,
 ) {
     u!{Input};
 
     // Arrange
-    let buffers = &state.view.buffers;
-    let expected_index = buffers.current_index().saturating_add(1) % buffers.len();
+    let buffers = dbg!(&state.view.buffers);
+    let previous_generation_expected_index = buffers.current_index();
 
     // Act
     let (view, _) = update_and_render(
-        &mut state, 
+        state, 
         AdjustBufferSelection(
             SelectionAdjustment::Move(SelectionMove::Right)
         )
     );
+
+    let expected_index = state.buffers
+        .buffers()
+        .index_state()
+        .migrate(previous_generation_expected_index)
+        .expect("previous_generation_expected_index was un-migratable");
 
     // Assert
     assert_eq!(
@@ -1289,10 +1202,128 @@ fn update_and_render_sets_the_views_buffer_selected_index_correctly_after_moving
 proptest!{
     #[test]
     fn update_and_render_sets_the_views_buffer_selected_index_correctly_after_moving_selection_right(
-        state in arb::state(),
+        mut state in arb::state(),
     ) {
         update_and_render_sets_the_views_buffer_selected_index_correctly_after_moving_selection_right_on(
-            state
+            &mut state
         )
+    }
+}
+
+#[test]
+fn update_and_render_sets_the_views_buffer_selected_index_correctly_after_moving_selection_right_on_two_scratch_buffers() {
+    u!{Input}
+    let mut state = d!();
+    
+    update_and_render(&mut state, NewScratchBuffer(Option::None));
+
+    // Do this twice to get both going from 1 to 0 and 0 to 1.
+    update_and_render_sets_the_views_buffer_selected_index_correctly_after_moving_selection_right_on(
+        &mut state
+    );
+
+    update_and_render_sets_the_views_buffer_selected_index_correctly_after_moving_selection_right_on(
+        &mut state
+    );
+}
+
+#[test]
+fn update_and_render_sets_the_views_buffer_selected_index_correctly_after_moving_selection_right_on_two_scratch_buffers_reduction() {
+    u!{Input}
+    let mut state = d!();
+    
+    update_and_render(&mut state, NewScratchBuffer(Option::None));
+
+
+    {
+    let buffers = dbg!(&state.view.buffers);
+    let previous_generation_expected_index = buffers.current_index();
+
+    state.buffers.adjust_selection(SelectionAdjustment::Move(SelectionMove::Right));
+
+    let &mut State {
+        ref mut buffers,
+        ref mut view,
+        ..
+    } = &mut state;
+
+    if dbg!(buffers.should_render_buffer_views())
+    {
+        let bufs = buffers.buffers();
+        dbg!(&bufs);
+
+        view.buffers.replace_with_mapped(
+            bufs,
+            |editor_buffer| {
+                perf_viz::record_guard!("render BufferView");
+                let name = &editor_buffer.name;
+                BufferView {
+                    name: name.clone(),
+                    name_string: name.to_string(),
+                    ..d!()
+                }
+            }
+        );
+
+        dbg!(&view.buffers);
+    }
+    //editor_view::render(&mut state);
+
+    let expected_index = state.buffers
+        .buffers()
+        .index_state()
+        .migrate(previous_generation_expected_index)
+        .expect("previous_generation_expected_index was un-migratable");
+
+    assert_eq!(
+        state.view.buffers.current_index(), 
+        expected_index
+    );
+    }
+
+    {
+    let buffers = dbg!(&state.view.buffers);
+    let previous_generation_expected_index = buffers.current_index();
+
+    state.buffers.adjust_selection(SelectionAdjustment::Move(SelectionMove::Right));
+
+    let &mut State {
+        ref mut buffers,
+        ref mut view,
+        ..
+    } = &mut state;
+
+    if dbg!(buffers.should_render_buffer_views())
+    {
+        let bufs = buffers.buffers();
+        dbg!(&bufs);
+
+        view.buffers.replace_with_mapped(
+            bufs,
+            |editor_buffer| {
+                perf_viz::record_guard!("render BufferView");
+                let name = &editor_buffer.name;
+                BufferView {
+                    name: name.clone(),
+                    name_string: name.to_string(),
+                    ..d!()
+                }
+            }
+        );
+
+        dbg!(&view.buffers);
+    }
+    //editor_view::render(&mut state);
+
+    let expected_index = state.buffers
+        .buffers()
+        .index_state()
+        .migrate(previous_generation_expected_index)
+        .expect("previous_generation_expected_index was un-migratable");
+
+    assert_eq!(
+        state.view.buffers.current_index(), 
+        expected_index
+    );
     }
 }

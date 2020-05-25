@@ -151,6 +151,7 @@ impl EditorBuffers {
         } else {
             self.last_non_rope_hash = new_non_rope_hash;
             self.last_full_hash = None;
+
             true
         }
     }
@@ -167,6 +168,9 @@ impl EditorBuffers {
         for b in self.buffers.iter() {
             b.non_rope_hash(state);
         }
+        // If this isn't here, then we get hash collision bugs when
+        // we try to switch tabs.
+        self.buffers.non_element_hash(state);
     }
 }
 

@@ -1,7 +1,7 @@
 use super::*;
 const AVERAGE_SELECTION_LINES_ESTIMATE: usize = 4;
 
-use macros::{SaturatingAdd};
+use macros::{dbg, SaturatingAdd};
 use search::SearchResults;
 
 #[perf_viz::record]
@@ -71,7 +71,7 @@ fn editor_to_buffer_view_data(
 pub fn render(
     state: &mut State,
 ) {
-    let  &mut State {
+    let &mut State {
         ref mut buffers,
         font_info: FontInfo { text_char_dim, .. },
         menu_mode,
@@ -88,8 +88,10 @@ pub fn render(
         ..
     } = state;
     
-    if buffers.should_render_buffer_views() {
+    if buffers.should_render_buffer_views()
+    {
         let bufs = buffers.buffers();
+        dbg!(&bufs);
 
         view.buffers.replace_with_mapped(
             bufs,
@@ -103,6 +105,8 @@ pub fn render(
                 }
             }
         );
+
+        dbg!(&view.buffers);
     }
 
     perf_viz::start_record!("write view.status_line");

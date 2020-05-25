@@ -675,6 +675,8 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             mark_edited_transition!(current, ToUnedited);
         }
         AdjustBufferSelection(adjustment) => {
+            dbg!(&state.buffers);
+            dbg!(&state.view.buffers);
             state.buffers.adjust_selection(adjustment);
         }
         SelectBuffer(id) => {

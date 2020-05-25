@@ -122,7 +122,7 @@ impl std::ops::RemAssign<Length> for IndexPart {
 }
 
 // It could be argued that this should do generation checking, but it could also be argued that
-// you should be allowed to compare to old lengths assuming you know what yoa are doing. We'll
+// you should be allowed to compare to old lengths assuming you know what you are doing. We'll
 // see if it becomes an issue I guess.
 impl std::cmp::PartialOrd<Length> for IndexPart {
     fn partial_cmp(&self, other: &Length) -> Option<std::cmp::Ordering> {
@@ -556,6 +556,7 @@ mod selectable_vec1 {
             match adjustment {
                 Next => { self.set_current_index(self.next_index()); },
                 Previous => { self.set_current_index(self.previous_index()); },
+                // move the selected element to the target location
                 Move(selection_move) => {
                     u!{SelectionMove}
                     let target_index = match selection_move {
@@ -564,11 +565,8 @@ mod selectable_vec1 {
                         ToStart => self.first_index(),
                         ToEnd => self.last_index(),
                     };
-            
-                    self.move_or_ignore(
-                        self.current_index,
-                        target_index,
-                    );
+
+                    self.move_or_ignore(self.current_index(), target_index);
                 },
             }
         }
@@ -805,8 +803,13 @@ mod selectable_vec1 {
         pub fn from_parts(
             elements: Vec1<A>,
             index_state: State,
-            current_index: Index,
+            mut current_index: Index,
         ) -> Self {
+            let len = Length::or_max(elements.len());
+            if current_index.index >= len {
+                current_index.index = IndexPart::or_max((len.0 - 1) as usize)
+            }
+
             Self {
                 elements,
                 index_state,
@@ -1135,10 +1138,15 @@ pub mod tests {
         }
     
         pub fn state(max_index: LengthSize) -> impl Strategy<Value = State> {
-            (any::<Generation>(), invalidation(max_index)).prop_map(|(current, invalidation)| State {
-                current,
-                invalidation,
-            })
+            (any::<Generation>(), invalidation(max_index))
+                .prop_map(|(current, invalidation)| State {
+                    current,
+                    // invalidations other than the default are impossible
+                    // for generation 0 with the current API. Having 
+                    // impossible states get generated makes reducing down
+                    // tests inconvenient.
+                    invalidation: if current == 0 { d!() } else { invalidation },
+                })
         }
 
         prop_compose!{
@@ -1252,26 +1260,30 @@ pub mod tests {
                 CloseElement(_) => index(max_index).prop_map(CloseElement),
                 AdjustSelection(_) => selection_adjustment().prop_map(AdjustSelection),
                 PushAndSelectNew(_) => any::<i32>().prop_map(PushAndSelectNew),
-                ReplaceWithMapped(_) => any::<bool>().prop_flat_map(move |is_full| {
-                    let m_i = max_index as usize;
-
-                    if is_full {
-                        proptest::collection::vec(
-                            any::<i32>(),
-                            m_i..=m_i,
-                        )
-                    } else {
-                        proptest::collection::vec(
-                            any::<i32>(),
-                            1..=m_i,
-                        )
-                    }
-                })
-                .prop_map(|v| {
-                    Vec1::try_from_vec(v).expect("should contain at least one element")
-                })
-                .prop_map(ReplaceWithMapped),
+                ReplaceWithMapped(_) => replace_with_mapped(max_index),
             }
+        }
+
+        pub fn replace_with_mapped(max_index: LengthSize) -> impl Strategy<Value = MutMethodSpec<i32>> {
+            any::<bool>().prop_flat_map(move |is_full| {
+                let m_i = max_index as usize;
+
+                if is_full {
+                    proptest::collection::vec(
+                        any::<i32>(),
+                        m_i..=m_i,
+                    )
+                } else {
+                    proptest::collection::vec(
+                        any::<i32>(),
+                        1..=m_i,
+                    )
+                }
+            })
+            .prop_map(|v| {
+                Vec1::try_from_vec(v).expect("should contain at least one element")
+            })
+            .prop_map(MutMethodSpec::ReplaceWithMapped)
         }
 
         prop_compose!{
@@ -1699,6 +1711,51 @@ pub mod tests {
                 index = source.next_index_from(index);
                 assert_eq!(target.get(index), source.get(index));
             }
+        }
+    }
+
+    fn no_mut_method_spec_causes_an_invalid_current_index_on<A: std::fmt::Debug + Clone>(
+        mut s_vec1: SelectableVec1<A>,
+        specs: Vec<MutMethodSpec<A>>,
+    ) {
+        assert!(
+            s_vec1.current_index() < s_vec1.len(),
+            "Precondition failure"
+        );
+    
+        for spec in specs.into_iter() {
+            spec.apply(&mut s_vec1);
+
+            assert!(
+                s_vec1.current_index() < s_vec1.len(),
+                "Precondition failure"
+            );
+        }
+    }
+    
+    proptest!{
+        #[test]
+        fn no_mut_method_spec_causes_an_invalid_current_index(
+            s_vec1 in arb::selectable_vec1_of_i32(16),
+            specs in arb::mut_method_specs(16),
+        ) {
+            no_mut_method_spec_causes_an_invalid_current_index_on(
+                s_vec1,
+                specs,
+            )
+        }
+    }
+
+    proptest!{
+        #[test]
+        fn no_replace_with_mapped_spec_causes_an_invalid_current_index(
+            s_vec1 in arb::selectable_vec1_of_i32(16),
+            specs in vec(arb::replace_with_mapped(32), 0..16),
+        ) {
+            no_mut_method_spec_causes_an_invalid_current_index_on(
+                s_vec1,
+                specs,
+            )
         }
     }
 
