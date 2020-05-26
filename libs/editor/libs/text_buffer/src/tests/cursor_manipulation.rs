@@ -1,3 +1,8 @@
+#![cfg_attr(feature = "pub_arb", allow(dead_code))]
+#![cfg_attr(feature = "pub_arb", allow(unused_imports))]
+#![cfg_attr(feature = "pub_arb", allow(unused_macros))]
+
+
 use super::*;
 
 use macros::dbg;

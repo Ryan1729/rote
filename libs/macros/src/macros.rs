@@ -494,7 +494,7 @@ macro_rules! fmt_display {
 /// ```
 /// # #[macro_use] extern crate macros; fn main() {
 /// struct Ex {
-///     blank_me: String,
+///     blank_me: i32,
 ///     show_me: String,
 /// }
 /// 

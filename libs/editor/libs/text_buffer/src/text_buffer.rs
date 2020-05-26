@@ -96,7 +96,8 @@ impl TextBuffer {
             Calculate(char_dim, xywh) => {
                 // We try first with this smaller xywh to make the cursor appear
                 // in the center more often.
-                let mut small_xywh = xywh.clone();
+                let small_xywh = xywh.clone();
+                //let mut small_xywh = xywh.clone();
                 //small_xywh.xy.x += small_xywh.wh.w / 4.0;
                 //small_xywh.wh.w /= 2.0;
                 //small_xywh.xy.y += small_xywh.wh.h / 4.0;

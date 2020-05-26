@@ -73,6 +73,7 @@ path = "../pub_arb/non_neg_f32"
 default = []
 invariant-checking = ["check_or_no_panic/invariant-checking"]
 extra-prints = ["text_buffer/extra-prints"]
+no-cache = []
 
 [[bench]]
 name = "user_input"

@@ -135,6 +135,9 @@ fmt_debug!(collapse default for EditorBuffers: me {
 impl EditorBuffers {
     #[perf_viz::record]
     pub fn should_render_buffer_views(&mut self) -> bool {
+        if cfg!(feature = "no-cache") {
+            return true;
+        }
         use std::hash::{Hasher};
         let mut hasher: rustc_hash::FxHasher = d!();
         self.non_rope_hash(&mut hasher);

@@ -3,6 +3,8 @@ use macros::{d, u, fmt_debug, fmt_display, ord, some_or, SaturatingAdd, Saturati
 pub use vec1::{Vec1, vec1};
 pub use move_mod::Move;
 
+use std::hash::{Hash, Hasher};
+
 pub type Generation = u32;
 pub type LengthSize = u32;
 
@@ -404,7 +406,7 @@ mod selectable_vec1 {
     /// "selected" or is "the current element". This "selected" element can be borrowed
     /// and the operations that change the currently selected index and/or move the selected
     /// element around are also made more convenient.
-    #[derive(Debug, Hash, Eq, PartialEq)]
+    #[derive(Debug, Eq, PartialEq)]
     pub struct SelectableVec1<A> {
         elements: Vec1<A>,
         index_state: State,
@@ -433,6 +435,22 @@ mod selectable_vec1 {
         }
     }
     
+    impl<A> SelectableVec1<A> {
+        /// This is useful to minimize the amount of element hashing needed
+        /// if elements happen to be expensive to hash.
+        pub fn non_element_hash<H: Hasher>(&self, state: &mut H) {
+            self.index_state.hash(state);
+            self.current_index.hash(state);
+        }
+    }
+
+    impl<A: Hash> Hash for SelectableVec1<A> {
+        fn hash<H: Hasher>(&self, state: &mut H) {
+            self.non_element_hash(state);
+            self.elements.hash(state);
+        }
+    }
+
     impl<A> SelectableVec1<A> {
         pub fn new(inital_element: A) -> Self {
             Self {
