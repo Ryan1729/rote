@@ -2745,6 +2745,7 @@ dependencies = [
  "clipboard",
  "glutin 0.23.0",
  "macros",
+ "perf_viz",
  "platform_types",
  "proptest",
  "shared",

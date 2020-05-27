@@ -9,6 +9,7 @@ path = "./src/wimp_types.rs"
 
 [dependencies]
 macros = { path = "../../../../macros" }
+perf_viz = { path = "../../../../perf_viz" }
 platform_types = { path = "../../../../platform_types" }
 shared = { path = "../shared" }
 clipboard = "0.5.0"

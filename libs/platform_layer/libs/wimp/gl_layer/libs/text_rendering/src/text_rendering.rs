@@ -7,6 +7,8 @@ use gl_layer_types::{Vertex, VertexStruct, TexCoords, set_alpha, TextOrRect, Res
 
 use macros::{d};
 
+use std::convert::TryFrom;
+
 use glyph_brush::*;
 use glyph_brush::{
     rusttype::{Font, Scale, Rect},
@@ -365,19 +367,48 @@ mod text_layouts {
 
         let mut lines = get_lines_iter(fonts, sections, INFINITY);
 
-        perf_viz::start_record!("UnboundedLayoutClipped loop");
+        perf_viz::record_guard!("UnboundedLayoutClipped loop");
 
         if let Some(mut line) = lines.next() {
+            perf_viz::start_record!("UnboundedLayoutClipped loop prep");
             // we assume the font is monospaced.
-            let line_height = line.line_height();
+            let line_height: f32 = line.line_height();
 
-            let min_y = clip.min.y as f32 - line_height - line_height;
-            let max_y = clip.max.y as f32 + line_height + line_height;
+            let mut min_y: f32 = clip.min.y as f32 - line_height - line_height;
+            let mut max_y: f32 = clip.max.y as f32 + line_height + line_height;
+
+            perf_viz::end_record!("UnboundedLayoutClipped loop prep");
 
             if line_height <= 0.0 || !(min_y <= max_y) {
                 return out;
             }
-            
+
+            /*
+            perf_viz::start_record!("lines.nth");
+            // This should only mean we get slower past 65536 lines,
+            // not that we don't display them.
+            // TODO test this.
+            let to_skip: u16 = 
+                // negative numbers get set to 0, and > 2^16 get set to 2^16
+                // which is fine for our purposes
+                //((min_y - (2.0 * line_height)) / line_height) as u16;
+                6;
+
+            if to_skip > 0 {
+                //caret.1 = caret.1 + f32::from(to_skip) * line_height;
+                min_y -= f32::from(to_skip) * line_height;
+                max_y -= f32::from(to_skip) * line_height;
+                if let Some(l) = lines.nth((to_skip - 1) as _) {
+                    line = l;
+                } else {
+                    perf_viz::end_record!("lines.nth");
+                    return out;
+                }
+            }
+
+            perf_viz::end_record!("lines.nth");
+            */
+
             loop {
                 let new_caret_height = caret.1 + line_height;
                 
@@ -389,14 +420,18 @@ mod text_layouts {
                     break
                 } else {
                     perf_viz::start_record!("line.aligned_on_screen");
-                    let tuples = line.aligned_on_screen(caret, HorizontalAlign::Left, VerticalAlign::Top);
+                    let tuples = line.aligned_on_screen(
+                        caret, 
+                        HorizontalAlign::Left, 
+                        VerticalAlign::Top
+                    );
                     perf_viz::end_record!("line.aligned_on_screen");
         
                     perf_viz::start_record!("out.extend");
                     out.extend(
                         tuples
                             .into_iter()
-                            .filter(|(glyph, _, _)| {
+                            .filter(|(glyph, _, _): &(PositionedGlyph<'_>, [f32; 4], FontId)| {
                                 // TODO when is this None?
                                 let should_keep = glyph.pixel_bounding_box()
                                     .map(move |pixel_coords| {
@@ -416,14 +451,17 @@ mod text_layouts {
 
                 caret.1 = new_caret_height;
                 
+                perf_viz::start_record!("lines.next()");
                 if let Some(l) = lines.next() {
                     line = l;
+                    perf_viz::end_record!("lines.next()");
                 } else {
+                    perf_viz::end_record!("lines.next()");
                     break
                 }
+                
             }
         }
-        perf_viz::end_record!("UnboundedLayoutClipped loop");
     
         out
     }
@@ -522,8 +560,9 @@ impl <'font> State<'font> {
 
             let glyph_brush = &mut self.glyph_brush;
 
-            macro_rules! queue{
+            macro_rules! queue {
                 ($layout: ident, $section: ident) => {
+                    perf_viz::start_record!("queue!");
                     match $layout {
                         TextLayout::SingleLine => glyph_brush.queue($section),
                         TextLayout::Wrap => glyph_brush.queue_custom_layout($section, &Wrap {}),
@@ -537,6 +576,7 @@ impl <'font> State<'font> {
                             glyph_brush.queue_custom_layout($section, &UnboundedLayoutClipped::new(ssr, scroll))
                         }
                     };
+                    perf_viz::end_record!("queue!");
                 }
             }
 
@@ -546,6 +586,7 @@ impl <'font> State<'font> {
                     color,
                     z,
                 }) => {
+                    perf_viz::start_record!("Rect");
                     let pixel_coords: PixelCoords = ssr_to_rusttype_i32(rect);
 
                     let ssr!(_, _, max_x, max_y) = rect;    
@@ -559,6 +600,7 @@ impl <'font> State<'font> {
                         color,
                         z: z_to_f32(z),
                     });
+                    perf_viz::end_record!("Rect");
                 }
                 Text(TextSpec {
                     text,
@@ -566,6 +608,7 @@ impl <'font> State<'font> {
                     layout,
                     spec: VisualSpec { rect, color, z },
                 }) => {
+                    perf_viz::start_record!("Text");
                     let section = Section {
                         text: &text,
                         scale: get_scale(size, self.hidpi_factor),
@@ -586,6 +629,7 @@ impl <'font> State<'font> {
                     };
     
                     queue!(layout, section);
+                    perf_viz::end_record!("Text");
                 }
                 MulticolourText(MulticolourTextSpec{
                     size,
@@ -594,6 +638,7 @@ impl <'font> State<'font> {
                     z,
                     text,
                 }) => {
+                    perf_viz::start_record!("MulticolourText");
                     let scale = get_scale(size, self.hidpi_factor);
                     let section = VariedSection {
                         screen_position: rect.min,
@@ -620,6 +665,7 @@ impl <'font> State<'font> {
                     };
     
                     queue!(layout, section);
+                    perf_viz::end_record!("MulticolourText");
                 }
             }
         }

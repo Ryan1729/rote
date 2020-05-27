@@ -230,6 +230,7 @@ mod view {
             self.platform_view.edited_transitions.clone().into_iter()
         }
 
+        #[perf_viz::record]
         pub fn buffers_count(&self) -> g_i::Length {
             self.platform_view.buffers.len()
         }
@@ -533,6 +534,7 @@ pub mod ui {
         pub fn note_interaction(&mut self) {
             self.fade_solid_override_accumulator = 1.5;
         }
+        #[perf_viz::record]
         pub fn add_dt(&mut self, dt: std::time::Duration) {
             let offset = ((dt.as_millis() as u64 as f32) / 1000.0) * 1.5;
     
@@ -565,6 +567,7 @@ pub mod ui {
         pub fn note_interaction(&mut self) {
             
         }
+        #[perf_viz::record]
         pub fn add_dt(&mut self, _: std::time::Duration) {
         }
         pub fn get_fade_alpha(&self) -> f32 {
@@ -660,6 +663,7 @@ pub mod ui {
     /// calling this once will swallow multiple clicks on the button. We could either
     /// pass in and return the number of clicks to fix that, or this could simply be
     /// called multiple times per frame (once for each click).
+    #[perf_viz::record]
     pub fn do_button_logic(ui: &mut ui::State, id: ui::Id, rect: ScreenSpaceRect) -> DoButtonResult {
         use ButtonState::*;
         let mut clicked = false;
@@ -726,6 +730,7 @@ pub mod ui {
     }
     d!(for Navigation: Navigation::None);
     
+    #[perf_viz::record]
     pub fn begin_view(ui: &mut State, view: &View) {
         if let Some(navigation) = view.get_fresh_navigation() {
             ui.navigation = navigation;
@@ -734,6 +739,7 @@ pub mod ui {
         }
     }
     
+    #[perf_viz::record]
     pub fn end_view(ui: &mut State) {
         ui.navigation = d!();
     }

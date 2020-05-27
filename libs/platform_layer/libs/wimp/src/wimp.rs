@@ -1031,6 +1031,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                     }
                 }
                 Event::MainEventsCleared if running => {
+                    perf_viz::start_record!("MainEventsCleared");
                     let index_state = r_s.view.index_state();
                     let buffer_status_map = &mut r_s.buffer_status_map;
 
@@ -1072,8 +1073,10 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
 
                     // Queue a RedrawRequested event so we draw the updated view quickly.
                     glutin_context.window().request_redraw();
+                    perf_viz::end_record!("MainEventsCleared");
                 }
                 Event::RedrawRequested(_) => {
+                    perf_viz::start_record!("frame");
                     r_s.ui.frame_init();
                     if_changed::dbg!(&r_s.ui.keyboard);
 
@@ -1089,10 +1092,13 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                     gl_layer::render(&mut gl_state, text_or_rects, width.get() as _, height.get() as _)
                         .expect("gl_layer::render didn't work");
 
+                    perf_viz::start_record!("swap_buffers");
                     glutin_context
                         .swap_buffers()
                         .expect("swap_buffers didn't work!");
+                    perf_viz::end_record!("swap_buffers");
 
+                    perf_viz::start_record!("r_s.cmds");
                     for _ in 0..EVENTS_PER_FRAME {
                         if let Some(cmd) = r_s.cmds.pop_front() {
                             match cmd {
@@ -1108,17 +1114,23 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                             break;
                         }
                     }
+                    perf_viz::end_record!("r_s.cmds");
 
                     match action {
                         ViewAction::Input(input) => {
+                            perf_viz::start_record!("ViewAction::Input");
                             call_u_and_r!(input);
+                            perf_viz::end_record!("ViewAction::Input");
                         }
                         ViewAction::Command(key) => {
+                            perf_viz::start_record!("ViewAction::Command");
                             perform_command!(&key);
+                            perf_viz::end_record!("ViewAction::Command");
                         }
                         ViewAction::None => {}
                     }
 
+                    perf_viz::start_record!("report_rate");
                     if let Some(rate) = loop_helper.report_rate() {
                         glutin_context.window().set_title(&format!(
                             "{}{} {:.0} FPS {:?} click {:?}",
@@ -1133,8 +1145,10 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                             (last_click_x, last_click_y),
                         ));
                     }
+                    perf_viz::end_record!("report_rate");
 
                     r_s.ui.frame_end();
+                    perf_viz::end_record!("frame");
                     perf_viz::start_record!("sleepin'");
                     loop_helper.loop_sleep();
                     perf_viz::end_record!("sleepin'");

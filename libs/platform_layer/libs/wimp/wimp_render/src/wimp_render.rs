@@ -1,7 +1,7 @@
 #![deny(bindings_with_variant_name, dead_code, unused_variables)]
 use gl_layer::{ColouredText, MulticolourTextSpec, TextLayout, TextOrRect, TextSpec, VisualSpec};
 use wimp_types::{CommandsMap, LocalMenuView, View, WimpMenuMode, MenuMode, MenuView, WimpMenuView, FindReplaceMode, ui_id, ui, ui::{ButtonState}, BufferStatus, CommandKey, Dimensions, RunConsts, RunState, command_keys};
-use macros::{c, d, invariant_assert, u};
+use macros::{c, d, dbg, invariant_assert, u};
 use platform_types::{*, g_i, BufferView, GoToPositionView, FindReplaceView, FileSwitcherView, BufferViewData, BufferIdKind, BufferId, b_id, CursorState, Highlight, HighlightKind, tbxy, tbxywh, Input, sswh, ssr, screen_positioning::*, SpanView};
 use std::{
     borrow::Cow,
@@ -173,6 +173,7 @@ pub struct ViewOutput<'view> {
     pub action: ViewAction,
 }
 
+#[perf_viz::record]
 pub fn view<'view>(
     RunState {
         ref mut ui,
@@ -186,8 +187,10 @@ pub fn view<'view>(
     }: &RunConsts,
     dt: std::time::Duration,
 ) -> ViewOutput<'view> {
-    if_changed::dbg!(&view);
-
+    if cfg!(feature = "extra-prints") {
+        if_changed::dbg!(&view);
+    }
+    
     ui::begin_view(ui, view);
 
     let dimensions = *dimensions;
@@ -208,12 +211,17 @@ pub fn view<'view>(
     let buffer_count: usize = view.buffers_count().into();
 
     let mut text_or_rects = Vec::with_capacity(buffer_count * PER_BUFFER_TEXT_OR_RECT_ESTIMATE);
+
+    
+
     let mut action = ViewAction::None;
 
     let UpperPositionInfo {
         edit_y,
         ..
     } = upper_position_info(&tab_char_dim);
+
+    perf_viz::start_record!("fill text_or_rects");
 
     text_or_rects.push(TextOrRect::Rect(VisualSpec {
         rect: ssr!(0.0, 0.0, width.get(), edit_y),
@@ -224,7 +232,7 @@ pub fn view<'view>(
     //
     // Tabs
     //
-
+    perf_viz::start_record!("render Tabs");
     let selected_index = view.current_text_index();
     if_changed::dbg!(selected_index);
 
@@ -288,7 +296,9 @@ pub fn view<'view>(
 
         i += 1;
     }
+    perf_viz::end_record!("render Tabs");
 
+    perf_viz::start_record!("render BufferIdKind::Text");
     let (index, BufferView { data, .. }) = view.current_text_index_and_buffer();
     // let text = {
     //     chars
@@ -311,6 +321,7 @@ pub fn view<'view>(
 
     let edit_buffer_text_rect: ScreenSpaceRect = edit_buffer_text_rect.into();
 
+    
     action = into_action(text_box(
         ui,
         &mut text_or_rects,
@@ -325,8 +336,9 @@ pub fn view<'view>(
         view.current_buffer_id(),
     ))
     .or(action);
+    perf_viz::end_record!("render BufferIdKind::Text");
 
-    
+    perf_viz::start_record!("render view.menu()");
     match view.menu() {
         WimpMenuView { local_menu: &None, platform_menu } => {
             match platform_menu {
@@ -556,11 +568,13 @@ pub fn view<'view>(
             }
         }
     }
+    perf_viz::end_record!("render view.menu()");
 
     //
     //    Status line
     //
 
+    perf_viz::start_record!("Status line");
     let status_line_y = get_status_line_y(*status_char_dim, height);
 
     text_or_rects.push(TextOrRect::Rect(VisualSpec {
@@ -647,12 +661,13 @@ pub fn view<'view>(
     ) {
         action = Some(command_keys::command_menu()).into()
     }
-      
+    perf_viz::end_record!("Status line");
 
     //
     //    Recolouring
     //    
 
+    perf_viz::start_record!("Recolouring");
     if !ui.window_is_focused {
         for t_or_r in text_or_rects.iter_mut() {
             u!{TextOrRect}
@@ -671,6 +686,8 @@ pub fn view<'view>(
             }
         }
     }
+    perf_viz::end_record!("Recolouring");
+    perf_viz::end_record!("fill text_or_rects");
 
     ui::end_view(ui);
 
@@ -1489,6 +1506,7 @@ struct UpperPositionInfo {
     edit_y: f32,
 }
 
+#[perf_viz::record]
 fn upper_position_info(tab_char_dim: &CharDim) -> UpperPositionInfo {
     let tab_v_padding = TAB_MIN_PADDING;
     let tab_v_margin = TAB_MIN_MARGIN;
