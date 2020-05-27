@@ -4,8 +4,8 @@ pub use non_neg_f32::{NonNegF32, non_neg_f32};
 pub use pos_f32::{PosF32, pos_f32};
 pub use f32_0_1::{F32_0_1, f32_0_1};
 
-// TODO make a derive macro that hashes all the fields, but checks if fields are f32/f64 and
-// calls `to_bits` if they are.
+// TODO make a derive macro that hashes all the fields, but checks if fields are 
+// f32/f64 and calls `to_bits` if they are.
 macro_rules! hash_to_bits {
     (for $name: ty : $self: ident, $state: ident in $($field: ident),* ) => {
         macros::hash!(for $name: $self, $state in {
@@ -849,7 +849,7 @@ pub fn attempt_to_make_xy_visible(
     if to_make_visible_ss.x < min_x {
         scroll.x = x - left_w;
     } else if to_make_visible_ss.x >= max_x {
-        scroll.x = x - right_w;
+        scroll.x = x - (w - right_w);
     } else {
         // leave it alone
     }
@@ -858,7 +858,7 @@ pub fn attempt_to_make_xy_visible(
     if to_make_visible_ss.y < min_y {
         scroll.y = y - top_h;
     } else if to_make_visible_ss.y >= max_y {
-        scroll.y = y - bottom_h;
+        scroll.y = y - (h - bottom_h);
     } else {
         // leave it alone
     }

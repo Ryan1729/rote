@@ -992,6 +992,63 @@ proptest! {
     }
 }
 
+fn clamp_to_at_least_one(f: f32) -> f32 {
+    if f >= 1.0 {
+        f
+    } else {
+        // NaN goes here
+        1.0
+    }
+}
+
+proptest! {
+    #[test]
+    fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_given_we_clamp_to_at_least_one(
+        scroll in arb::scroll_xy(usual())
+            .prop_map(|s| s.map_elements(&clamp_to_at_least_one)),
+        text_box_xywh in arb::text_box_xywh(usual())
+            .prop_map(|t| t.map_elements(
+                &|pf32| pos_f32!(clamp_to_at_least_one(pf32.get()))
+            )),
+        apron in arb::apron()
+            .prop_map(|a| a.map_elements(
+                &|f0_1| f32_0_1!(clamp_to_at_least_one(f0_1.get()))
+            )),
+        cursor_xy in arb::rounded_non_negative_text_xy()
+            .prop_map(|c| c.map_elements(&clamp_to_at_least_one))
+    ) {
+        if_attempt_to_make_visible_succeeds_the_cursor_is_visible_on(
+            scroll,
+            text_box_xywh,
+            apron,
+            cursor_xy,
+        )
+    }
+}
+
+proptest! {
+    #[test]
+    fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_given_we_clamp_the_widths_to_at_least_one(
+        scroll in arb::scroll_xy(usual()),
+        text_box_xywh in arb::text_box_xywh(usual())
+            .prop_map(|t| t.map_elements(
+                &|pf32| pos_f32!(clamp_to_at_least_one(pf32.get()))
+            )),
+        apron in arb::apron()
+            .prop_map(|a| a.map_elements(
+                &|f0_1| f32_0_1!(clamp_to_at_least_one(f0_1.get()))
+            )),
+        cursor_xy in arb::rounded_non_negative_text_xy(),
+    ) {
+        if_attempt_to_make_visible_succeeds_the_cursor_is_visible_on(
+            scroll,
+            text_box_xywh,
+            apron,
+            cursor_xy,
+        )
+    }
+}
+
 #[test]
 fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_on_this_incorrect_visualization_found_example() {
     if_attempt_to_make_visible_succeeds_the_cursor_is_visible_on(
