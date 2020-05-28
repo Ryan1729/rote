@@ -5,7 +5,7 @@ use platform_types::{
 };
 use gl_layer_types::{Vertex, VertexStruct, TexCoords, set_alpha, TextOrRect, Res};
 
-use macros::{d};
+use macros::{d, dbg};
 
 use std::convert::TryFrom;
 
@@ -17,6 +17,7 @@ use glyph_brush::{
 
 mod text_layouts {
     use super::*;
+    use macros::{dbg};
     use glyph_brush::{
         get_lines_iter,
         rusttype::{point, vector, Point, PositionedGlyph, Rect},
@@ -352,7 +353,13 @@ mod text_layouts {
         F: FontMap<'font>, {
         perf_viz::record_guard!("UnboundedLayoutClipped::calculate_glyphs");
         
-        if !sections.windows(2).all(|w| w[0].scale == w[1].scale) {
+        dbg!("UnboundedLayoutClipped::calculate_glyphs");
+        perf_viz::start_record!("has_multiple_scales");
+        let has_multiple_scales = !sections.windows(2).all(|w| w[0].scale == w[1].scale);
+        perf_viz::end_record!("has_multiple_scales");
+
+        if has_multiple_scales {
+            dbg!("has_multiple_scales");
             return calculate_glyphs_unbounded_layout_clipped_slow(
                 clip,
                 fonts,
@@ -370,34 +377,42 @@ mod text_layouts {
         perf_viz::record_guard!("UnboundedLayoutClipped loop");
 
         if let Some(mut line) = lines.next() {
+            
             perf_viz::start_record!("UnboundedLayoutClipped loop prep");
             // we assume the font is monospaced.
             let line_height: f32 = line.line_height();
+            dbg!(line_height);
 
             let mut min_y: f32 = clip.min.y as f32 - line_height - line_height;
             let mut max_y: f32 = clip.max.y as f32 + line_height + line_height;
-
+            dbg!(min_y, max_y);
             perf_viz::end_record!("UnboundedLayoutClipped loop prep");
 
             if line_height <= 0.0 || !(min_y <= max_y) {
+                dbg!(line_height <= 0.0 || !(min_y <= max_y));
                 return out;
             }
 
-            /*
+            
             perf_viz::start_record!("lines.nth");
             // This should only mean we get slower past 65536 lines,
             // not that we don't display them.
             // TODO test this.
-            let to_skip: u16 = 
-                // negative numbers get set to 0, and > 2^16 get set to 2^16
-                // which is fine for our purposes
-                //((min_y - (2.0 * line_height)) / line_height) as u16;
-                6;
+            std::dbg!(caret.1, min_y, line_height);
+            let to_skip = -(caret.1 + min_y) / line_height;
+            std::dbg!(to_skip);
+            let to_skip: u16 = if to_skip > 65535.0 {
+                65535.0
+            } else if to_skip >= 0.0 {
+                to_skip
+            } else {
+                // NaN ends up here
+                0.0
+            } as u16;
 
             if to_skip > 0 {
-                //caret.1 = caret.1 + f32::from(to_skip) * line_height;
-                min_y -= f32::from(to_skip) * line_height;
-                max_y -= f32::from(to_skip) * line_height;
+                caret.1 = caret.1 + f32::from(to_skip) * line_height;
+                std::dbg!(to_skip - 1);
                 if let Some(l) = lines.nth((to_skip - 1) as _) {
                     line = l;
                 } else {
@@ -407,7 +422,6 @@ mod text_layouts {
             }
 
             perf_viz::end_record!("lines.nth");
-            */
 
             loop {
                 let new_caret_height = caret.1 + line_height;
@@ -459,7 +473,6 @@ mod text_layouts {
                     perf_viz::end_record!("lines.next()");
                     break
                 }
-                
             }
         }
     
