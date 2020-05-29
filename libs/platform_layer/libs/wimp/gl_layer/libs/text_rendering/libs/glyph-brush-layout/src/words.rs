@@ -46,7 +46,7 @@ impl<'font> RelativePositionedGlyph<'font> {
     }
 
     #[inline]
-    pub(crate) fn screen_positioned(self, mut pos: Point<f32>) -> PositionedGlyph<'font> {
+    pub fn screen_positioned(self, mut pos: Point<f32>) -> PositionedGlyph<'font> {
         pos.x += self.relative.x;
         pos.y += self.relative.y;
         self.glyph.positioned(pos)

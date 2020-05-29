@@ -1098,7 +1098,7 @@ fn text_box_view<'view>(
         text_or_rects.push(TextOrRect::Text(TextSpec {
             text: "▏",
             size,
-            layout: TextLayout::WrapInRect(outer_rect),
+            layout: TextLayout::Unbounded{},
             spec: VisualSpec {
                 rect: cursor_rect,
                 color: match c.state {

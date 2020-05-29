@@ -6,12 +6,13 @@ use platform_types::{
 use gl_layer_types::{Vertex, VertexStruct, TexCoords, set_alpha, TextOrRect, Res};
 
 use macros::{d, dbg};
+use panic_safe_rope::is_linebreak_char;
 
 use std::convert::TryFrom;
 
 use glyph_brush::*;
 use glyph_brush::{
-    rusttype::{Font, Scale, Rect},
+    rusttype::{Font, Scale, Rect, VMetrics},
     Bounds, GlyphBrush, GlyphBrushBuilder, RectSpec, Layout, PixelCoords, Section,
 };
 
@@ -342,6 +343,96 @@ mod text_layouts {
         out
     }
 
+    type UnboundedLine<'font> = (
+        Vec<(RelativePositionedGlyph<'font>, [f32; 4], FontId)>,
+        VMetrics
+    );
+
+    const V_METRICS_ZERO: VMetrics = VMetrics {
+        ascent: 0.0,
+        descent: 0.0,
+        line_gap: 0.0,
+    };
+
+    fn get_unbounded_line_glyphs_iter<'a, 'b, 'font, F>(
+        fonts: &'b F,
+        sections: &'a [SectionText],
+    ) -> impl IntoIterator<
+        Item = UnboundedLine<'font>,
+        IntoIter = std::vec::IntoIter<UnboundedLine<'font>>
+    >
+    where
+        'font: 'a + 'b,
+        F: FontMap<'font>, {
+        let mut output = Vec::with_capacity(sections.len());
+
+        let mut current_line = Vec::with_capacity(16);
+        let mut current_x = 0.0;
+        let mut last_glyph_id = None;
+        let mut max_v_metrics = V_METRICS_ZERO;
+
+        macro_rules! push_line {
+            () => {
+                if current_line.len() > 0 {
+                    output.push((current_line, max_v_metrics));
+                }
+                current_line = Vec::with_capacity(16);
+                current_x = 0.0;
+                last_glyph_id = None;
+                max_v_metrics = V_METRICS_ZERO;
+            }
+        }
+
+        for section in sections.iter() {
+            let mut chars = section.text.chars().peekable();
+            while let Some(c) = chars.next() {
+                if c == '\r' && chars.peek() == Some(&'\n') {
+                    push_line!();
+                    chars.next();
+                } else if is_linebreak_char(c) {
+                    push_line!();
+                } else {
+                    let font = fonts
+                        .font(section.font_id);
+
+                    let v_metrics = font.v_metrics(section.scale);
+                    if max_v_metrics == V_METRICS_ZERO || v_metrics > max_v_metrics {
+                        max_v_metrics = v_metrics;
+                    }
+
+                    let glyph = font
+                        .glyph(c)
+                        .scaled(section.scale);
+
+                    if let Some(id) = last_glyph_id.take() {
+                        current_x += font.pair_kerning(section.scale, id, glyph.id());
+                    }
+                    last_glyph_id = Some(glyph.id());
+
+                    let advance_width = glyph.h_metrics().advance_width;
+
+                    if !c.is_whitespace() {
+                        let rel_glyph = RelativePositionedGlyph {
+                            relative: point(current_x, 0.0),
+                            glyph,
+                        };
+                    
+                        current_line.push(
+                            (rel_glyph, section.color, section.font_id),
+                        );
+                    }
+
+
+                    current_x += advance_width;
+                }
+            }     
+        }
+        
+        push_line!();
+
+        output
+    }
+
     // This is a separate function to aid in testing
     pub fn calculate_glyphs_unbounded_layout_clipped<'font, F>(
         clip: Rect<i32>,
@@ -353,13 +444,15 @@ mod text_layouts {
         F: FontMap<'font>, {
         perf_viz::record_guard!("UnboundedLayoutClipped::calculate_glyphs");
         
-        dbg!("UnboundedLayoutClipped::calculate_glyphs");
-        perf_viz::start_record!("has_multiple_scales");
-        let has_multiple_scales = !sections.windows(2).all(|w| w[0].scale == w[1].scale);
-        perf_viz::end_record!("has_multiple_scales");
+        perf_viz::start_record!("has_multiple_scales_or_fonts");
+        let has_multiple_scales_or_fonts = !sections.windows(2)
+            .all(|w| 
+                w[0].scale == w[1].scale
+                && w[0].font_id == w[1].font_id
+            );
+        perf_viz::end_record!("has_multiple_scales_or_fonts");
 
-        if has_multiple_scales {
-            dbg!("has_multiple_scales");
+        if has_multiple_scales_or_fonts {
             return calculate_glyphs_unbounded_layout_clipped_slow(
                 clip,
                 fonts,
@@ -368,24 +461,32 @@ mod text_layouts {
             );
         }
 
-        // TODO reduce duplication with calculate_glyphs fn
-        let mut caret = geometry.screen_position;
         let mut out = vec![];
 
-        let mut lines = get_lines_iter(fonts, sections, INFINITY);
+        if sections.len() == 0 {
+            return out;
+        }
+
+        let (font_id, scale) = (sections[0].font_id, sections[0].scale);
+
+        let font = fonts.font(font_id);
+
+        let v_metrics = font.v_metrics(scale);
+
+        let lines_vec = get_unbounded_line_glyphs_iter(fonts, sections);
+
+        let mut lines = lines_vec.into_iter();
 
         perf_viz::record_guard!("UnboundedLayoutClipped loop");
 
-        if let Some(mut line) = lines.next() {
+        if let Some((mut glyphs, mut max_v_metrics)) = lines.next() {
             
             perf_viz::start_record!("UnboundedLayoutClipped loop prep");
-            // we assume the font is monospaced.
-            let line_height: f32 = line.line_height();
-            dbg!(line_height);
-
+            let line_height: f32 = max_v_metrics.ascent - max_v_metrics.descent + max_v_metrics.line_gap;
+            
             let mut min_y: f32 = clip.min.y as f32 - line_height - line_height;
             let mut max_y: f32 = clip.max.y as f32 + line_height + line_height;
-            dbg!(min_y, max_y);
+
             perf_viz::end_record!("UnboundedLayoutClipped loop prep");
 
             if line_height <= 0.0 || !(min_y <= max_y) {
@@ -393,14 +494,13 @@ mod text_layouts {
                 return out;
             }
 
+            let mut caret = geometry.screen_position;
             
             perf_viz::start_record!("lines.nth");
             // This should only mean we get slower past 65536 lines,
             // not that we don't display them.
             // TODO test this.
-            std::dbg!(caret.1, min_y, line_height);
-            let to_skip = -(caret.1 + min_y) / line_height;
-            std::dbg!(to_skip);
+            let to_skip = -(caret.1 - min_y) / line_height;
             let to_skip: u16 = if to_skip > 65535.0 {
                 65535.0
             } else if to_skip >= 0.0 {
@@ -412,9 +512,9 @@ mod text_layouts {
 
             if to_skip > 0 {
                 caret.1 = caret.1 + f32::from(to_skip) * line_height;
-                std::dbg!(to_skip - 1);
-                if let Some(l) = lines.nth((to_skip - 1) as _) {
-                    line = l;
+                if let Some((g, mvm)) = lines.nth((to_skip - 1) as _) {
+                    glyphs = g;
+                    max_v_metrics = mvm;
                 } else {
                     perf_viz::end_record!("lines.nth");
                     return out;
@@ -423,7 +523,11 @@ mod text_layouts {
 
             perf_viz::end_record!("lines.nth");
 
+            
+
             loop {
+                let line_height: f32 = max_v_metrics.ascent - max_v_metrics.descent + max_v_metrics.line_gap;
+
                 let new_caret_height = caret.1 + line_height;
                 
                 // we assume that the lines are sorted from top to bottom
@@ -433,13 +537,15 @@ mod text_layouts {
                 } else if new_caret_height >= max_y {
                     break
                 } else {
-                    perf_viz::start_record!("line.aligned_on_screen");
-                    let tuples = line.aligned_on_screen(
-                        caret, 
-                        HorizontalAlign::Left, 
-                        VerticalAlign::Top
-                    );
-                    perf_viz::end_record!("line.aligned_on_screen");
+                    perf_viz::start_record!("glyph.screen_positioned");
+                    let screen_pos = point(caret.0, caret.1);
+
+                    let tuples = glyphs
+                        .into_iter()
+                        .map(|(glyph, color, font_id)| 
+                            (glyph.screen_positioned(screen_pos), color, font_id)
+                        );
+                    perf_viz::end_record!("glyph.screen_positioned");
         
                     perf_viz::start_record!("out.extend");
                     out.extend(
@@ -466,8 +572,9 @@ mod text_layouts {
                 caret.1 = new_caret_height;
                 
                 perf_viz::start_record!("lines.next()");
-                if let Some(l) = lines.next() {
-                    line = l;
+                if let Some((g, mvm)) = lines.next() {
+                    glyphs = g;
+                    max_v_metrics = mvm;
                     perf_viz::end_record!("lines.next()");
                 } else {
                     perf_viz::end_record!("lines.next()");

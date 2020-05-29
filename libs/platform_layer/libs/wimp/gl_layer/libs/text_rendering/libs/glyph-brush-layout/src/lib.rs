@@ -7,7 +7,7 @@ mod lines;
 mod section;
 mod words;
 
-pub use self::{builtin::*, font::*, linebreak::*, section::*};
+pub use self::{builtin::*, font::*, linebreak::*, section::*, words::{RelativePositionedGlyph}};
 use std::borrow::Cow;
 
 /// Re-exported rusttype types.

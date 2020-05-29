@@ -2427,6 +2427,7 @@ dependencies = [
  "glyph_brush",
  "glyph_brush_layout 0.1.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "macros",
+ "panic_safe_rope",
  "perf_viz",
  "platform_types",
  "proptest",

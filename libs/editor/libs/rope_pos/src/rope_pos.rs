@@ -2,6 +2,8 @@ use editor_types::{Position, Cursor};
 use macros::CheckedSub;
 use panic_safe_rope::*;
 
+pub use panic_safe_rope::is_linebreak_char;
+
 use std::borrow::Borrow;
 
 mod absolute_char_offset_range {
@@ -234,15 +236,6 @@ fn final_non_newline_offset_for_rope_line_(line: RopeLine) -> CharOffset {
     }
 
     len
-}
-
-pub fn is_linebreak_char(c: char) -> bool {
-    // The rope library we are using treats these as line breaks, so we do too.
-    // See also https://www.unicode.org/reports/tr14/tr14-32.html
-    (c >= '\u{a}' && c <= '\r')
-        || c == '\u{0085}'
-        || c == '\u{2028}'
-        || c == '\u{2029}'
 }
 
 fn get_line_char_iterator<'line, R: std::ops::RangeBounds<CharOffset>>(

@@ -15,6 +15,7 @@ glyph_brush = {path = "./libs/glyph-brush"}
 glyph_brush_layout = "0.1.9"
 rusttype = "0.8"
 macros = { path = "../../../../../../macros" }
+panic_safe_rope = { path = "../../../../../../panic_safe_rope" }
 perf_viz = { path = "../../../../../../perf_viz" }
 platform_types = { path = "../../../../../../platform_types" }
 
