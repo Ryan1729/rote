@@ -14,6 +14,7 @@ use glyph_brush::*;
 use glyph_brush::{
     rusttype::{Font, Scale, Rect, VMetrics},
     Bounds, GlyphBrush, GlyphBrushBuilder, RectSpec, Layout, PixelCoords, Section,
+    get_unbounded_line_glyphs_iter
 };
 
 mod text_layouts {
@@ -342,7 +343,7 @@ mod text_layouts {
     
         out
     }
-
+/*
     type UnboundedLine<'font> = (
         Vec<(RelativePositionedGlyph<'font>, [f32; 4], FontId)>,
         VMetrics
@@ -364,10 +365,11 @@ mod text_layouts {
     where
         'font: 'a + 'b,
         F: FontMap<'font>, {
-        let mut output = Vec::with_capacity(sections.len());
+        let mut output: Vec<UnboundedLine> = Vec::with_capacity(sections.len());
 
         let mut current_line = Vec::with_capacity(16);
         let mut current_x = 0.0;
+        let mut current_y = 0.0;
         let mut last_glyph_id = None;
         let mut max_v_metrics = V_METRICS_ZERO;
 
@@ -378,6 +380,7 @@ mod text_layouts {
                 }
                 current_line = Vec::with_capacity(16);
                 current_x = 0.0;
+                current_y = 0.0;
                 last_glyph_id = None;
                 max_v_metrics = V_METRICS_ZERO;
             }
@@ -395,14 +398,22 @@ mod text_layouts {
                     let font = fonts
                         .font(section.font_id);
 
-                    let v_metrics = font.v_metrics(section.scale);
-                    if max_v_metrics == V_METRICS_ZERO || v_metrics > max_v_metrics {
-                        max_v_metrics = v_metrics;
-                    }
-
                     let glyph = font
                         .glyph(c)
                         .scaled(section.scale);
+
+                    let v_metrics = font.v_metrics(glyph.scale());
+                    if v_metrics.ascent > max_v_metrics.ascent {
+                        let diff_y = v_metrics.ascent - current_y;
+                        current_y += diff_y;
+        
+                        // modify all smaller lined glyphs to occupy the new larger line
+                        for (glyph, ..) in &mut current_line {
+                            glyph.relative.y += diff_y;
+                        }
+        
+                        max_v_metrics = v_metrics;
+                    }
 
                     if let Some(id) = last_glyph_id.take() {
                         current_x += font.pair_kerning(section.scale, id, glyph.id());
@@ -413,7 +424,7 @@ mod text_layouts {
 
                     if !c.is_whitespace() {
                         let rel_glyph = RelativePositionedGlyph {
-                            relative: point(current_x, 0.0),
+                            relative: point(current_x, current_y),
                             glyph,
                         };
                     
@@ -432,7 +443,7 @@ mod text_layouts {
 
         output
     }
-
+*/
     // This is a separate function to aid in testing
     pub fn calculate_glyphs_unbounded_layout_clipped<'font, F>(
         clip: Rect<i32>,
@@ -471,18 +482,17 @@ mod text_layouts {
 
         let font = fonts.font(font_id);
 
-        let v_metrics = font.v_metrics(scale);
-
         let lines_vec = get_unbounded_line_glyphs_iter(fonts, sections);
 
         let mut lines = lines_vec.into_iter();
 
         perf_viz::record_guard!("UnboundedLayoutClipped loop");
 
-        if let Some((mut glyphs, mut max_v_metrics)) = lines.next() {
-            
+        if let Some(mut glyphs) = lines.next() {
             perf_viz::start_record!("UnboundedLayoutClipped loop prep");
-            let line_height: f32 = max_v_metrics.ascent - max_v_metrics.descent + max_v_metrics.line_gap;
+
+            let v_metrics = font.v_metrics(scale);
+            let line_height: f32 = v_metrics.ascent - v_metrics.descent + v_metrics.line_gap;
             
             let mut min_y: f32 = clip.min.y as f32 - line_height - line_height;
             let mut max_y: f32 = clip.max.y as f32 + line_height + line_height;
@@ -512,9 +522,8 @@ mod text_layouts {
 
             if to_skip > 0 {
                 caret.1 = caret.1 + f32::from(to_skip) * line_height;
-                if let Some((g, mvm)) = lines.nth((to_skip - 1) as _) {
+                if let Some(g) = lines.nth((to_skip - 1) as _) {
                     glyphs = g;
-                    max_v_metrics = mvm;
                 } else {
                     perf_viz::end_record!("lines.nth");
                     return out;
@@ -523,11 +532,7 @@ mod text_layouts {
 
             perf_viz::end_record!("lines.nth");
 
-            
-
             loop {
-                let line_height: f32 = max_v_metrics.ascent - max_v_metrics.descent + max_v_metrics.line_gap;
-
                 let new_caret_height = caret.1 + line_height;
                 
                 // we assume that the lines are sorted from top to bottom
@@ -572,9 +577,8 @@ mod text_layouts {
                 caret.1 = new_caret_height;
                 
                 perf_viz::start_record!("lines.next()");
-                if let Some((g, mvm)) = lines.next() {
+                if let Some(g) = lines.next() {
                     glyphs = g;
-                    max_v_metrics = mvm;
                     perf_viz::end_record!("lines.next()");
                 } else {
                     perf_viz::end_record!("lines.next()");
