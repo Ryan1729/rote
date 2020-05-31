@@ -828,10 +828,31 @@ pub fn attempt_to_make_xy_visible(
         to_make_visible,
     );
 
-    let left_w = non_neg_f32!(w.get() * F32_0_1::ONE_HALF * apron.left_w_ratio);
-    let right_w = non_neg_f32!(w.get() * F32_0_1::ONE_HALF *  apron.right_w_ratio);
-    let top_h = non_neg_f32!(h.get() * F32_0_1::ONE_HALF * apron.top_h_ratio);
-    let bottom_h = non_neg_f32!(h.get() * F32_0_1::ONE_HALF * apron.bottom_h_ratio);
+    // We clamp the aprons since we'd rather have the cursor end up closer to the 
+    // middle than not be visible at all. 8388608 = 2^23 makes some tests pass where
+    // 2^24 makes them fail.
+    const apron_minimum: f32 = 1.0 / 8388608.0;
+
+    macro_rules! apron_clamp {
+        ($ratio: expr) => {{
+            let raw = $ratio.get();
+            if raw != 0.0 && raw <= apron_minimum {
+                f32_0_1!(apron_minimum)
+            } else {
+                $ratio
+            }
+        }}
+    }
+
+    let left_w_ratio = apron_clamp!(apron.left_w_ratio);
+    let right_w_ratio = apron_clamp!(apron.right_w_ratio);
+    let top_h_ratio = apron_clamp!(apron.top_h_ratio);
+    let bottom_h_ratio = apron_clamp!(apron.bottom_h_ratio);
+
+    let left_w = non_neg_f32!(w.get() * F32_0_1::ONE_HALF * left_w_ratio);
+    let right_w = non_neg_f32!(w.get() * F32_0_1::ONE_HALF *  right_w_ratio);
+    let top_h = non_neg_f32!(h.get() * F32_0_1::ONE_HALF * top_h_ratio);
+    let bottom_h = non_neg_f32!(h.get() * F32_0_1::ONE_HALF * bottom_h_ratio);
 
     // In screen space
     let min_x = left_w + outer_rect.xy.x;
