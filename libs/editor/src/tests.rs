@@ -63,6 +63,7 @@ mod arb {
     }
 
     pub use pub_arb_pos_f32::{pos_f32};
+    pub use pub_arb_pos_f32_trunc::{pos_f32_trunc};
     pub use pub_arb_non_neg_f32::{non_neg_f32};
     pub use pub_arb_platform_types::{menu_mode, view, input};
 }
@@ -215,8 +216,8 @@ fn update_and_render_shows_the_cursor_when_pressing_ctrl_home() {
     let mut runner = TestRunner::default();
 
     runner.run(&(
-        arb::pos_f32(),
-        arb::pos_f32(),
+        arb::pos_f32_trunc(),
+        arb::pos_f32_trunc(),
         arb::pos_f32(),
         arb::pos_f32(),
     ), |(box_w, box_h, w, h)| {

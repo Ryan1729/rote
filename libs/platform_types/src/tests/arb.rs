@@ -9,6 +9,7 @@ use pub_arb_std::{path_buf, f32::usual};
 use pub_arb_non_neg_f32::{non_neg_f32};
 use pub_arb_f32_0_1::{f32_0_1};
 use pub_arb_pos_f32::{pos_f32};
+use pub_arb_pos_f32_trunc::{pos_f32_trunc};
 
 pub fn apron() -> impl Strategy<Value = Apron> {
     let strat = f32_0_1();
@@ -98,7 +99,7 @@ prop_compose!{
 }
 
 pub fn wh() -> impl Strategy<Value = ScreenSpaceWH> {
-    let strat = pos_f32();
+    let strat = pos_f32_trunc();
     (strat, strat).prop_map(|(w, h)| ScreenSpaceWH { w, h })
 }
 
@@ -381,7 +382,7 @@ prop_compose!{
 }
 
 pub fn scrollable_screen(spec: f32::Any) -> impl Strategy<Value = ScrollableScreen> {
-    let strat = pos_f32();
+    let strat = pos_f32_trunc();
     (scroll_xy(spec), strat, strat).prop_map(|(scroll, w, h)| ScrollableScreen {
         scroll,
         wh: ScreenSpaceWH { w, h },
@@ -390,7 +391,7 @@ pub fn scrollable_screen(spec: f32::Any) -> impl Strategy<Value = ScrollableScre
 
 pub fn plausible_scrollable_screen() -> impl Strategy<Value = ScrollableScreen> {
     let u = usual();
-    let strat = pos_f32();
+    let strat = pos_f32_trunc();
     (u, u, strat, strat).prop_map(|(x, y, w, h)| ScrollableScreen {
         scroll: ScrollXY { x, y },
         wh: ScreenSpaceWH { w, h },

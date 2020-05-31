@@ -629,7 +629,7 @@ fn xy_is_visible_works_on_this_very_short_and_wide_screen() {
         },
         wh: sswh!{
             511087840000000000000000000000000000.0,
-            0.00000006715828,
+            1.0,
         },
     };
 
@@ -1010,10 +1010,7 @@ proptest! {
             .prop_map(|t| t.map_elements(
                 &|pf32| pos_f32!(clamp_to_at_least_one(pf32.get()))
             )),
-        apron in arb::apron()
-            .prop_map(|a| a.map_elements(
-                &|f0_1| f32_0_1!(clamp_to_at_least_one(f0_1.get()))
-            )),
+        apron in arb::apron(),
         cursor_xy in arb::rounded_non_negative_text_xy()
             .prop_map(|c| c.map_elements(&clamp_to_at_least_one))
     ) {
@@ -1034,10 +1031,27 @@ proptest! {
             .prop_map(|t| t.map_elements(
                 &|pf32| pos_f32!(clamp_to_at_least_one(pf32.get()))
             )),
-        apron in arb::apron()
-            .prop_map(|a| a.map_elements(
-                &|f0_1| f32_0_1!(clamp_to_at_least_one(f0_1.get()))
+        apron in arb::apron(),
+        cursor_xy in arb::rounded_non_negative_text_xy(),
+    ) {
+        if_attempt_to_make_visible_succeeds_the_cursor_is_visible_on(
+            scroll,
+            text_box_xywh,
+            apron,
+            cursor_xy,
+        )
+    }
+}
+
+proptest! {
+    #[test]
+    fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_given_we_trunc_the_widths(
+        scroll in arb::scroll_xy(usual()),
+        text_box_xywh in arb::text_box_xywh(usual())
+            .prop_map(|t| t.map_elements(
+                &|pf32| pos_f32!(pf32.get().trunc())
             )),
+        apron in arb::apron(),
         cursor_xy in arb::rounded_non_negative_text_xy(),
     ) {
         if_attempt_to_make_visible_succeeds_the_cursor_is_visible_on(

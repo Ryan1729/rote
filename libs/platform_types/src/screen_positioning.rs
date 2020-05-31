@@ -2,6 +2,7 @@ use super::*;
 use macros::{dbg, u};
 pub use non_neg_f32::{NonNegF32, non_neg_f32};
 pub use pos_f32::{PosF32, pos_f32};
+pub use pos_f32_trunc::{PosF32Trunc, pos_f32_trunc};
 pub use f32_0_1::{F32_0_1, f32_0_1};
 
 // TODO make a derive macro that hashes all the fields, but checks if fields are 
@@ -106,10 +107,13 @@ impl std::ops::Add<ScreenSpaceXY> for (f32, f32) {
 }
 add_assign!(<ScreenSpaceXY> for (f32, f32));
 
+/// We truncate to pixels so that some tests pass.
+// TODO would it make sense for us to just move all this stuff over to integers or
+// maybe fixed point? Alternately, will we want to have non integer widths ever?
 #[derive(Clone, Copy, Default, PartialEq)]
 pub struct ScreenSpaceWH {
-    pub w: PosF32,
-    pub h: PosF32,
+    pub w: PosF32Trunc,
+    pub h: PosF32Trunc,
 }
 
 fmt_debug!(for ScreenSpaceWH: ScreenSpaceWH {w, h} in "sswh!{:?}", (w.get(), h.get()));
@@ -120,6 +124,15 @@ hash_to_bits!(for ScreenSpaceWH: s, state in w, h);
 
 impl MapElements<PosF32> for ScreenSpaceWH {
     fn map_elements(&self, mapper: &impl Fn(PosF32) -> PosF32) -> Self {
+        Self {
+            w: pos_f32_trunc!(mapper(self.w.into()).get()),
+            h: pos_f32_trunc!(mapper(self.h.into()).get()),
+        }
+    }
+}
+
+impl MapElements<PosF32Trunc> for ScreenSpaceWH {
+    fn map_elements(&self, mapper: &impl Fn(PosF32Trunc) -> PosF32Trunc) -> Self {
         Self {
             w: mapper(self.w),
             h: mapper(self.h),
@@ -145,13 +158,19 @@ macro_rules! sswh {
     // Initialization
     //
     ($w: literal $(,)? $h: literal $(,)?) => {
-        $crate::ScreenSpaceWH { w: $crate::pos_f32!($w), h: $crate::pos_f32!($h) }
+        $crate::ScreenSpaceWH { 
+            w: $crate::pos_f32_trunc!($w), 
+            h: $crate::pos_f32_trunc!($h)
+        }
     };
     (raw $w: literal $(,)? $h: literal $(,)?) => {
         $crate::ScreenSpaceWH { w: $w, h: $h }
     };
     ($w: expr, $h: expr $(,)?) => {
-        $crate::ScreenSpaceWH { w: $crate::pos_f32!($w), h: $crate::pos_f32!($h) }
+        $crate::ScreenSpaceWH { 
+            w: $crate::pos_f32_trunc!($w),
+            h: $crate::pos_f32_trunc!($h)
+        }
     };
     (raw $w: expr, $h: expr $(,)?) => {
         $crate::ScreenSpaceWH { w: $w, h: $h }
@@ -809,10 +828,10 @@ pub fn attempt_to_make_xy_visible(
         to_make_visible,
     );
 
-    let left_w = w * F32_0_1::ONE_HALF * apron.left_w_ratio;
-    let right_w = w * F32_0_1::ONE_HALF *  apron.right_w_ratio;
-    let top_h = h * F32_0_1::ONE_HALF * apron.top_h_ratio;
-    let bottom_h = h * F32_0_1::ONE_HALF * apron.bottom_h_ratio;
+    let left_w = non_neg_f32!(w.get() * F32_0_1::ONE_HALF * apron.left_w_ratio);
+    let right_w = non_neg_f32!(w.get() * F32_0_1::ONE_HALF *  apron.right_w_ratio);
+    let top_h = non_neg_f32!(h.get() * F32_0_1::ONE_HALF * apron.top_h_ratio);
+    let bottom_h = non_neg_f32!(h.get() * F32_0_1::ONE_HALF * apron.bottom_h_ratio);
 
     // In screen space
     let min_x = left_w + outer_rect.xy.x;

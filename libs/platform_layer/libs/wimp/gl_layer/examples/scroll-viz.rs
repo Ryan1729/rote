@@ -276,21 +276,23 @@ fn main() -> Res<()> {
                                     quit!();
                                 }
                                 VirtualKeyCode::Up => {
-                                    let nnf: NonNegF32 = text_box_xywh.wh.h.saturating_sub(move_amount);
-                                    text_box_xywh.wh.h = pos_f32!(
-                                        nnf.get()
+                                    text_box_xywh.wh.h = pos_f32_trunc!(
+                                        text_box_xywh.wh.h.get() - move_amount.get()
                                     );
                                 }
                                 VirtualKeyCode::Down => {
-                                    text_box_xywh.wh.h = text_box_xywh.wh.h + move_amount;                                }
+                                    text_box_xywh.wh.h = pos_f32_trunc!(
+                                        text_box_xywh.wh.h.get() + move_amount.get()
+                                    );                                }
                                 VirtualKeyCode::Left => {
-                                    let nnf: NonNegF32 = text_box_xywh.wh.w.saturating_sub(move_amount);
-                                    text_box_xywh.wh.w = pos_f32!(
-                                        nnf.get()
+                                    text_box_xywh.wh.w = pos_f32_trunc!(
+                                        text_box_xywh.wh.w.get() - move_amount.get()
                                     );
                                 }
                                 VirtualKeyCode::Right => {
-                                    text_box_xywh.wh.w += move_amount;
+                                    text_box_xywh.wh.w = pos_f32_trunc!(
+                                        text_box_xywh.wh.w.get() + move_amount.get()
+                                    );
                                 }
                                 _ => {}
                             }

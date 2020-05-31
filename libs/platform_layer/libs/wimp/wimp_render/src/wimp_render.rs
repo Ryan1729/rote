@@ -243,7 +243,7 @@ pub fn view<'view>(
             padding,
             margin,
             rect,
-        } = get_tab_spaced_rect(&ui, *tab_char_dim, i, tab_count, width);
+        } = get_tab_spaced_rect(&ui, *tab_char_dim, i, tab_count, width.into());
         if rect.min.0 > width {
             break;
         }
@@ -575,7 +575,7 @@ pub fn view<'view>(
     //
 
     perf_viz::start_record!("Status line");
-    let status_line_y = get_status_line_y(*status_char_dim, height);
+    let status_line_y = get_status_line_y(*status_char_dim, height.into());
 
     text_or_rects.push(TextOrRect::Rect(VisualSpec {
         rect: get_full_width_ssr(
@@ -1407,7 +1407,7 @@ fn get_tab_spaced_rect(
     tab_char_dim: CharDim,
     tab_index: usize,
     tab_count: usize,
-    width: PosF32,
+    width: PosF32Trunc,
 ) -> SpacedRect {
     let UpperPositionInfo {
         tab_v_padding,
@@ -1527,7 +1527,7 @@ struct SpacingAllSpec {
     padding: f32,
 }
 
-fn get_menu_spacing(height: PosF32) -> SpacingAllSpec {
+fn get_menu_spacing(height: PosF32Trunc) -> SpacingAllSpec {
     /// Ratios to screen height
     const MARGIN_RATIO: f32 = 1.0 / 16.0;
     const PADDING_RATIO: f32 = 1.0 / 32.0;
@@ -1897,7 +1897,7 @@ pub fn cover_text_area_info(
     }
 }
 
-fn get_status_line_y(status_char_dim: CharDim, height: PosF32) -> f32 {
+fn get_status_line_y(status_char_dim: CharDim, height: PosF32Trunc) -> f32 {
     height.get() - (status_char_dim.h + 2.0 * SEPARATOR_LINE_THICKNESS)
 }
 
@@ -1937,7 +1937,7 @@ pub fn get_edit_buffer_xywh(
         xy: TextBoxXY { x: 0.0, y },
         wh: ScreenSpaceWH {
             w: width,
-            h: pos_f32!(max_y - y),
+            h: pos_f32_trunc!(max_y - y),
         },
     }
 }

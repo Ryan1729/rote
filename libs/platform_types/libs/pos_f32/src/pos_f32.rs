@@ -16,7 +16,7 @@ impl PosF32 {
     pub const INFINITY: PosF32 = PosF32(f32::INFINITY);
 
     /// These were added on an as-needed basis, and arguably are only need to
-    /// be here because as of this writing `is_non_neg` cannot be const-eval'd
+    /// be here because as of this writing `new_saturating` cannot be const-eval'd
     pub const ONE_SIXTY_FOURTH: PosF32 = PosF32(1.0 / 64.0);
     pub const ONE_THIRTY_SECONDTH: PosF32 = PosF32(1.0 / 32.0);
     pub const TWO: PosF32 = PosF32(2.0);
