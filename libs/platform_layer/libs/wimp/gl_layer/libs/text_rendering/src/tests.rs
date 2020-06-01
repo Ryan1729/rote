@@ -411,13 +411,49 @@ fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_if_the_sca
     )
 }
 
-/// This one was reducerd after a change to the code made the above one start passing.
+/// This one was reduced after a change to the code made the above one start passing.
 #[test]
 fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_if_the_scales_match_in_this_generated_case_alternative_reduction() {
     let clip = Rect { min: Point { x: 1, y: 2 }, max: Point { x: 16281178, y: 44250000 } };
     let scale = Scale { x: 1.0, y: 15391300.0 };
     let owned_sections = vec![
         ost!("\n\n        aaaaaaaaaaaaaaa" s scale),
+    ];
+
+    calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
+        clip,
+        owned_sections
+    )
+}
+
+#[test]
+fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_if_the_scales_match_in_this_many_blank_lines_generated_case() {
+    let clip = Rect { min: Point { x: 2, y: 41960326 }, max: Point { x: 584956, y: 42351515 } };
+    let scale = Scale { x: 452285.0, y: 5245041.0 };
+    let owned_sections = vec![
+        ost!("\u{b}" s scale),
+        ost!("\u{b}" s scale),
+        ost!("\u{b}" s scale),
+        ost!("\u{b}" s scale),
+        ost!("\u{b}\u{b}\r/" s scale),
+        ost!("%𩏤Î3\u{7f}\u{78ae8}\\\u{2}&\u{0}?q7$S?~\u{1b}\u{6}=¥.*<{\u{3}v\u{b}\"s*" s scale),
+    ];
+
+    calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
+        clip,
+        owned_sections
+    )
+}
+
+#[test]
+fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_if_the_scales_match_in_this_many_blank_lines_generated_case_reduction() {
+    let clip = Rect {
+        min: Point { x: 2, y: 41960326 },
+        max: Point { x: 500000, y: 42351515 }
+    };
+    let scale = Scale { x: 400000.0, y: 5245041.0 };
+    let owned_sections = vec![
+        ost!("\n\n\n\n\n\n\n𩏤" s scale),
     ];
 
     calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
