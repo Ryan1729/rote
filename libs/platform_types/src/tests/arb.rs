@@ -54,7 +54,6 @@ pub fn rounded_non_negative_text_xy() -> impl Strategy<Value = TextSpaceXY> {
     })
 }
 
-#[allow(dead_code)]
 pub fn screen_xy(spec: f32::Any) -> impl Strategy<Value = ScreenSpaceXY> {
     (spec, spec).prop_map(|(x, y)| ScreenSpaceXY { x, y })
 }

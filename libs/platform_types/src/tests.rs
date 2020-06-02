@@ -974,7 +974,7 @@ proptest! {
             .prop_map(|s| s.map_elements(&clamp_exponent_to_24)),
         text_box_xywh in arb::text_box_xywh(usual())
             .prop_map(|t| t.map_elements(
-                &|pf32| pos_f32!(clamp_exponent_to_24(pf32.get()))
+                &|pf32| pos_f32_trunc!(clamp_exponent_to_24(pf32.get()))
             )),
         apron in arb::apron()
             .prop_map(|a| a.map_elements(
@@ -1008,7 +1008,7 @@ proptest! {
             .prop_map(|s| s.map_elements(&clamp_to_at_least_one)),
         text_box_xywh in arb::text_box_xywh(usual())
             .prop_map(|t| t.map_elements(
-                &|pf32| pos_f32!(clamp_to_at_least_one(pf32.get()))
+                &|pf32| pos_f32_trunc!(clamp_to_at_least_one(pf32.get()))
             )),
         apron in arb::apron(),
         cursor_xy in arb::rounded_non_negative_text_xy()
@@ -1029,7 +1029,7 @@ proptest! {
         scroll in arb::scroll_xy(usual()),
         text_box_xywh in arb::text_box_xywh(usual())
             .prop_map(|t| t.map_elements(
-                &|pf32| pos_f32!(clamp_to_at_least_one(pf32.get()))
+                &|pf32| pos_f32_trunc!(clamp_to_at_least_one(pf32.get()))
             )),
         apron in arb::apron(),
         cursor_xy in arb::rounded_non_negative_text_xy(),
@@ -1049,7 +1049,7 @@ proptest! {
         scroll in arb::scroll_xy(usual()),
         text_box_xywh in arb::text_box_xywh(usual())
             .prop_map(|t| t.map_elements(
-                &|pf32| pos_f32!(pf32.get().trunc())
+                &|pf32t| pos_f32_trunc!(pf32t.get().trunc())
             )),
         apron in arb::apron(),
         cursor_xy in arb::rounded_non_negative_text_xy(),
@@ -1060,6 +1060,74 @@ proptest! {
             apron,
             cursor_xy,
         )
+    }
+}
+
+#[test]
+fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_given_these_truncated_widths() {
+    let scroll = ScrollXY { x: -33590000.0, y: 0.0 };
+    let text_box_xywh = TextBoxXYWH { 
+        xy: TextBoxXY { x: 1.0, y: 1.0 },
+        wh: sswh!(33593811.0, 1.0)
+    };
+    let cursor_xy = TextSpaceXY { x: 13030.0, y: 0.0 };
+    if_attempt_to_make_visible_succeeds_the_cursor_is_visible_on(
+        scroll,
+        text_box_xywh,
+        d!(),
+        cursor_xy,
+    )
+}
+
+proptest! {
+    #[test]
+    fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_given_these_truncated_widths_automated_reduction(
+        cursor_x in 0i32..13030,
+        x in 0i32..33593811
+    ) {
+        let scroll = ScrollXY { x: (-x) as f32, y: 0.0 };
+        let text_box_xywh = TextBoxXYWH { 
+            xy: TextBoxXY { x: 1.0, y: 1.0 },
+            wh: sswh!(x as f32, 1.0)
+        };
+        let cursor_xy = TextSpaceXY { x: cursor_x as f32, y: 0.0 };
+        if_attempt_to_make_visible_succeeds_the_cursor_is_visible_on(
+            scroll,
+            text_box_xywh,
+            d!(),
+            cursor_xy,
+        )
+    }
+}
+
+#[test]
+fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_given_these_truncated_widths_reduction() {
+    let mut scroll = ScrollXY { x: -33590000.0, y: 0.0 };
+    let text_box_xywh = TextBoxXYWH { 
+        xy: TextBoxXY { x: 1.0, y: 1.0 },
+        wh: sswh!(33593811.0, 1.0)
+    };
+    let cursor_xy = TextSpaceXY { x: 13030.0, y: 0.0 };
+    let attempt_result = attempt_to_make_xy_visible(
+        &mut scroll,
+        text_box_xywh,
+        d!(),
+        cursor_xy,
+    );
+
+    // TODO would making this a discarded result help the input generation enough that it's worth doing?
+    if attempt_result == VisibilityAttemptResult::Succeeded {
+        assert_inside_rect!(
+            text_space_to_screen_space(
+                scroll,
+                text_box_xywh.xy,
+                cursor_xy,
+            ),
+            ssxywh!(
+                text_box_xywh.xy.into(),
+                text_box_xywh.wh
+            ).into()
+        );
     }
 }
 
@@ -1081,6 +1149,48 @@ fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_on_this_visualizati
         apron!(1.0),
         TextSpaceXY { x: 0.0, y: 160.0 },
     )
+}
+
+proptest!{
+    #[test]
+    fn text_space_to_screen_space_to_text_space_is_identity(
+        text_space in arb::text_xy(usual()),
+        text_box_pos in arb::text_box_xy(usual()),
+        scroll in arb::scroll_xy(usual()),
+    ) {
+        let converted = screen_space_to_text_space(
+            text_space_to_screen_space(
+                scroll,
+                text_box_pos,
+                text_space
+            ),
+            text_box_pos,
+            scroll
+        );
+
+        assert_eq!(converted, text_space);
+    }
+}
+
+proptest!{
+    #[test]
+    fn screen_space_to_text_space_to_screen_space_is_identity(
+        screen_space in arb::screen_xy(usual()),
+        text_box_pos in arb::text_box_xy(usual()),
+        scroll in arb::scroll_xy(usual()),
+    ) {
+        let converted = text_space_to_screen_space(
+            scroll,
+            text_box_pos,
+            screen_space_to_text_space(
+                screen_space,
+                text_box_pos,
+                scroll,
+            ),
+        );
+
+        assert_eq!(converted, screen_space);
+    }
 }
 
 pub mod arb;

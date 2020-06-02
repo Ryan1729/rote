@@ -473,10 +473,10 @@ macro_rules! tsxywh {
     };
 }
 
-impl MapElements<PosF32> for TextSpaceXYWH {
-    fn map_elements(&self, mapper: &impl Fn(PosF32) -> PosF32) -> Self {
+impl MapElements<PosF32Trunc> for TextSpaceXYWH {
+    fn map_elements(&self, mapper: &impl Fn(PosF32Trunc) -> PosF32Trunc) -> Self {
         TextSpaceXYWH {
-            xy: self.xy.map_elements(&|f| mapper(pos_f32!(f)).get()),
+            xy: self.xy.map_elements(&|f| mapper(pos_f32_trunc!(f)).get()),
             wh: self.wh.map_elements(mapper),
         }
     }
@@ -706,7 +706,7 @@ pub enum VisibilityAttemptResult {
 /// of the given dimension will be part of the apron. So apron!(0.5)
 /// means that a rectangular ring with thickness equal to 25% of the
 /// width and height of the full rectangle.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct Apron {
     pub left_w_ratio: F32_0_1,
     pub right_w_ratio: F32_0_1,
@@ -786,6 +786,7 @@ macro_rules! apron {
             bottom_h_ratio: $size,
         }
     };
+    () => { Apron::default() }
 }
 
 impl MapElements<F32_0_1> for Apron {
@@ -1220,10 +1221,10 @@ macro_rules! tbxywh {
     };
 }
 
-impl MapElements<PosF32> for TextBoxXYWH {
-    fn map_elements(&self, mapper: &impl Fn(PosF32) -> PosF32) -> Self {
+impl MapElements<PosF32Trunc> for TextBoxXYWH {
+    fn map_elements(&self, mapper: &impl Fn(PosF32Trunc) -> PosF32Trunc) -> Self {
         Self {
-            xy: self.xy.map_elements(&|f| mapper(pos_f32!(f)).get()),
+            xy: self.xy.map_elements(&|f| mapper(pos_f32_trunc!(f)).get()),
             wh: self.wh.map_elements(mapper),
         }
     }
