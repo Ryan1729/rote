@@ -4,6 +4,7 @@ pub use non_neg_f32::{NonNegF32, non_neg_f32};
 pub use pos_f32::{PosF32, pos_f32};
 pub use pos_f32_trunc::{PosF32Trunc, pos_f32_trunc};
 pub use f32_0_1::{F32_0_1, f32_0_1};
+pub use abs_pos::{AbsPos, abs_pos};
 
 // TODO make a derive macro that hashes all the fields, but checks if fields are 
 // f32/f64 and calls `to_bits` if they are.

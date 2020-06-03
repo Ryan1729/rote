@@ -1,0 +1,19 @@
+[package]
+name = "abs_pos"
+version = "0.1.0"
+authors = ["Ryan1729 <Ryan1729@gmail.com>"]
+edition = "2018"
+
+[lib]
+path = "./src/abs_pos.rs"
+
+[dependencies]
+macros = { path = "../../../macros" }
+proptest = { version = "0.9", optional = true }
+
+[dev-dependencies]
+proptest = "0.9"
+
+[features]
+default = []
+pub_arb = ["proptest"]
