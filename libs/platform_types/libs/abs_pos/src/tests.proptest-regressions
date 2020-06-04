@@ -1,0 +1,10 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc ec877cf50693ed8d757924e6be160d33bcb1e2cc1439af9d8efa790a7fe9ec77 # shrinks to delta = AbsPos { bits: 0 }, base = AbsPos { bits: 0 }, a_space_point = AbsPos { bits: -9223372036854775808 }
+cc 307d583d56611feac8adaa4c324031fa42afc07ceff5c0d23fd178d4fef06d55 # shrinks to delta = AbsPos { bits: 0 }, base = AbsPos { bits: 0 }, b_space_point = AbsPos { bits: 9223372036854775807 }
+cc 9de5306ac1b5a2d967a8f36baffc7e840728c8e63c1865f44e59bd0371ad6608 # shrinks to pos = AbsPos(-220687960972984320)
+cc 4fc09ff8d3237ceaaa4e77a130b1cb16772a30e59f8854e9edd2409ac45c8832 # shrinks to pos = AbsPos(9223372036854775807)

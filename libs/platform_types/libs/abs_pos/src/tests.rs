@@ -15,7 +15,7 @@ pub mod arb {
     impl ValueTree for AbsPosValueTree {
         type Value = AbsPos;
         fn current(&self) -> Self::Value {
-            todo!()
+            self.0.current().into()
         }
         fn simplify(&mut self) -> bool {
             self.0.simplify()
@@ -34,10 +34,9 @@ pub mod arb {
         type Value = AbsPos;
 
         fn new_tree(&self, runner: &mut TestRunner) -> NewTree<Self> {
-            todo!()
-            /*()
+            f32::ANY
                 .new_tree(runner)
-                .map(AbsPosValueTree)*/
+                .map(AbsPosValueTree)
         }
     }
 
@@ -81,8 +80,43 @@ proptest!{
             delta,
         );
 
-        assert_eq!(actual, a_space_point);
+        assert_eq!(
+            actual,
+            a_space_point,
+            "delta {:?}, base {:?}, a_space_point {:?}",
+            delta,       
+            base,
+            a_space_point,
+        );
     }
+}
+
+fn b_to_a_to_b_is_identity_on(
+    delta: AbsPos,
+    base: AbsPos,
+    b_space_point: AbsPos,
+) {
+    let intermediate = b_space_to_a(
+        b_space_point,
+        base,
+        delta,
+    );
+
+    let actual = a_space_to_b(
+        delta,
+        base,
+        intermediate
+    );
+
+    assert_eq!(
+        actual,
+        b_space_point,
+        "delta {:?}, base {:?}, b_space_point {:?}, intermediate {:?}",
+        delta,       
+        base,
+        b_space_point,
+        intermediate,
+    );
 }
 
 proptest!{
@@ -92,16 +126,98 @@ proptest!{
         base in arb::abs_pos(),
         b_space_point in arb::abs_pos(),
     ) {
-        let actual = a_space_to_b(
+        b_to_a_to_b_is_identity_on(
             delta,
             base,
-            b_space_to_a(
-                b_space_point,
-                base,
-                delta,
-            )
+            b_space_point,
         );
-
-        assert_eq!(actual, b_space_point);
     }
+}
+
+#[test]
+fn b_to_a_to_b_is_identity_in_this_maximum_point_case() {
+    b_to_a_to_b_is_identity_on(
+        d!(),
+        d!(),
+        AbsPos::from_f32(f32::INFINITY),
+    );
+}
+
+proptest!{
+    #[test]
+    fn adding_default_is_identity(
+        pos in arb::abs_pos(),
+    ) {
+        let actual = pos + AbsPos::default();
+        assert_eq!(actual, pos.into());
+
+        let actual = AbsPos::default() + pos;
+        assert_eq!(actual, pos.into());
+    }
+}
+
+proptest!{
+    #[test]
+    fn subtracting_default_is_identity(
+        pos in arb::abs_pos(),
+    ) {
+        let actual = pos - AbsPos::default();
+        assert_eq!(actual, pos.into());
+    }
+}
+
+proptest!{
+    #[test]
+    fn b_space_to_a_with_defaults_is_identity(
+        pos in arb::abs_pos(),
+    ) {
+        let actual = b_space_to_a(pos, d!(), d!());
+        assert_eq!(actual, pos.into());
+    }
+}
+
+proptest!{
+    #[test]
+    fn b_space_to_a_with_defaults_is_identity_gen_float(
+        pos in proptest::num::f32::ANY,
+    ) {
+        let actual = b_space_to_a(pos.into(), d!(), d!());
+        assert_eq!(actual, pos.into());
+    }
+}
+
+#[test]
+fn b_space_to_a_with_defaults_is_identity_generated_reduction() {
+    let pos = -51382920.0;
+    
+    let actual: AbsPos = AbsPos::default() + (AbsPos::from(pos) - AbsPos::default());
+    assert_eq!(actual, pos.into());
+}
+
+proptest!{
+    #[test]
+    fn abs_pos_into_f32_into_abs_pos_is_identity(
+        pos in arb::abs_pos(),
+    ) {
+        let actual = AbsPos::from(f32::from(pos));
+        assert_eq!(actual, pos);
+    }
+}
+
+
+#[test]
+fn abs_pos_into_f32_into_abs_pos_is_identity_in_this_generated_case() {
+    let pos = AbsPos(9223372036854775807);
+    let actual = AbsPos::from(f32::from(pos));
+    assert_eq!(actual, pos);
+}
+
+#[test]
+fn abs_pos_into_f32_into_abs_pos_is_identity_in_this_generated_case_reduction() {
+    const SCALE: f32 = (1u64 << 32) as f32;
+    dbg!(SCALE);
+
+    let pos = AbsPos(9223372036854775807);
+    let actual = AbsPos::from(dbg!(pos.0 as f64 / SCALE as f64) as f32);
+    assert_eq!(actual, pos);
 }
