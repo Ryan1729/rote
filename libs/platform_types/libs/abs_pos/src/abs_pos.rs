@@ -1,10 +1,12 @@
 //! This crate contains `AbsPos`, a type representing Absolute Position.
 #![deny(unconditional_recursion)]
-use macros::{add_assign, sub_assign, mul_assign, div_assign, d, u};
+use macros::{fmt_display, add_assign, sub_assign, mul_assign, div_assign, d, u};
 use std::ops::{Add, Sub, Mul, Div, Neg};
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct AbsPos(i64);
+
+fmt_display!(for AbsPos: AbsPos(bits) in "{}.{}", bits >> 32, bits & 0xFFFF_FFFF);
 
 impl AbsPos {
     const SCALE: f32 = (1u64 << 32) as f32;
@@ -13,7 +15,7 @@ impl AbsPos {
         u!{std::num::FpCategory}
         let scaled = f * Self::SCALE;
 
-        Self(
+        Self::from_bits(
             match scaled.classify() {
                 Normal => scaled as i64,
                 Infinite => if scaled == f32::INFINITY {
@@ -28,6 +30,15 @@ impl AbsPos {
 
     pub fn to_f32_lossy(&self) -> f32 {
         self.0 as f32 / Self::SCALE
+    }
+
+    fn from_bits(bits: i64) -> Self {
+        Self(
+            std::cmp::max(
+                bits,
+                i64::MIN + 1
+            )
+        )
     }
 }
 
@@ -57,9 +68,7 @@ impl Add<f32> for AbsPos {
     type Output = AbsPos;
 
     fn add(self, other: f32) -> AbsPos {
-        AbsPos(
-            self.0.saturating_add(AbsPos::from(other).0)
-        )
+        self + AbsPos::from(other)
     }
 }
 
@@ -67,9 +76,8 @@ impl Add<AbsPos> for f32 {
     type Output = AbsPos;
 
     fn add(self, other: AbsPos) -> AbsPos {
-        AbsPos(
-            AbsPos::from(self).0.saturating_add(other.0)
-        )
+        AbsPos::from(self) + other
+        
     }
 }
 
@@ -90,18 +98,18 @@ impl Sub<AbsPos> for f32 {
 }
 
 impl Add<AbsPos> for AbsPos {
-    type Output = f32;
+    type Output = AbsPos;
 
-    fn add(self, other: AbsPos) -> f32 {
-        self.0.saturating_add(other.0) as f32
+    fn add(self, other: AbsPos) -> Self::Output {
+        AbsPos::from_bits(self.0.saturating_add(other.0))
     }
 }
 
 impl Sub<AbsPos> for AbsPos {
-    type Output = f32;
+    type Output = AbsPos;
 
-    fn sub(self, other: AbsPos) -> f32 {
-        self.0.saturating_sub(other.0) as f32
+    fn sub(self, other: AbsPos) -> Self::Output {
+        AbsPos::from_bits(self.0.saturating_sub(other.0))
     }
 }
 
@@ -109,7 +117,7 @@ impl Neg for AbsPos {
     type Output = AbsPos;
 
     fn neg(self) -> Self::Output {
-        AbsPos(if self.0 == i64::MIN {
+        AbsPos::from_bits(if self.0 == i64::MIN {
             i64::MAX
         } else {
             -self.0
