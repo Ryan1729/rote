@@ -22,16 +22,15 @@ macro_rules! hash_to_bits {
 /// The top left corner of the screen is `(0.0, 0.0)`, top right corner is `(width, 0.0)`,
 /// the bottom left corner is `(0.0, height)`. In other words, the x-axis point right, the y-axis
 /// points down.
+#[derive(Hash)]
 pub struct ScreenSpaceXY {
-    pub x: f32,
-    pub y: f32,
+    pub x: AbsPos,
+    pub y: AbsPos,
 }
 
-hash_to_bits!(for ScreenSpaceXY: s, state in x, y);
+fmt_debug!(for ScreenSpaceXY: ScreenSpaceXY {x, y} in "ssxy!({},{})", x, y);
 
-fmt_debug!(for ScreenSpaceXY: ScreenSpaceXY {x, y} in "ssxy!{:?}", (x, y));
-
-fmt_display!(for ScreenSpaceXY: ScreenSpaceXY {x, y} in "{:?}", (x, y));
+fmt_display!(for ScreenSpaceXY: ScreenSpaceXY {x, y} in "({},{})", x, y);
 
 impl MapElements<f32> for ScreenSpaceXY {
     fn map_elements(&self, mapper: &impl Fn(f32) -> f32) -> Self {
@@ -60,10 +59,10 @@ macro_rules! ssxy {
     // Initialization
     //
     ($x: literal $(,)? $y: literal $(,)?) => {
-        ScreenSpaceXY { x: $x, y: $y }
+        ScreenSpaceXY { x: $x.into(), y: $y.into() }
     };
     ($x: expr, $y: expr $(,)?) => {
-        ScreenSpaceXY { x: $x, y: $y }
+        ScreenSpaceXY { x: $x.into(), y: $y.into() }
     };
     () => {
         ScreenSpaceXY::default()
@@ -265,17 +264,15 @@ macro_rules! char_dim {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Hash)]
 /// A postion in screen space which represents the top left corner of a text box
 /// Not to be confused with a `TextBoxSpaceXY`.
 pub struct TextBoxXY {
-    pub x: f32,
-    pub y: f32,
+    pub x: AbsPos,
+    pub y: AbsPos,
 }
 
-fmt_display!(for TextBoxXY: TextBoxXY {x, y} in "{:?}", (x, y));
-
-hash_to_bits!(for TextBoxXY: s, state in x, y);
+fmt_display!(for TextBoxXY: TextBoxXY {x, y} in "({},{})", x, y);
 
 #[macro_export]
 macro_rules! tbxy {
@@ -289,7 +286,7 @@ macro_rules! tbxy {
     // Initialization
     //
     ($x: expr, $y: expr) => {
-        TextBoxXY { x: $x, y: $y }
+        TextBoxXY { x: $x.into(), y: $y.into() }
     };
     () => {
         TextBoxXY::default()
@@ -851,16 +848,16 @@ pub fn attempt_to_make_xy_visible(
     let top_h_ratio = apron_clamp!(apron.top_h_ratio);
     let bottom_h_ratio = apron_clamp!(apron.bottom_h_ratio);
 
-    let left_w = non_neg_f32!(w.get() * F32_0_1::ONE_HALF * left_w_ratio);
-    let right_w = non_neg_f32!(w.get() * F32_0_1::ONE_HALF *  right_w_ratio);
-    let top_h = non_neg_f32!(h.get() * F32_0_1::ONE_HALF * top_h_ratio);
-    let bottom_h = non_neg_f32!(h.get() * F32_0_1::ONE_HALF * bottom_h_ratio);
+    let left_w = AbsPos::from(w.get() * F32_0_1::ONE_HALF * left_w_ratio);
+    let right_w = AbsPos::from(w.get() * F32_0_1::ONE_HALF *  right_w_ratio);
+    let top_h = AbsPos::from(h.get() * F32_0_1::ONE_HALF * top_h_ratio);
+    let bottom_h = AbsPos::from(h.get() * F32_0_1::ONE_HALF * bottom_h_ratio);
 
     // In screen space
-    let min_x = left_w + outer_rect.xy.x;
-    let max_x = (w - right_w) + outer_rect.xy.x;
-    let min_y = top_h + outer_rect.xy.y;
-    let max_y = (h - bottom_h) + outer_rect.xy.y;
+    let min_x: AbsPos = AbsPos::from(left_w) + outer_rect.xy.x;
+    let max_x: AbsPos = AbsPos::from(w - right_w) + outer_rect.xy.x;
+    let min_y: AbsPos = AbsPos::from(top_h) + outer_rect.xy.y;
+    let max_y: AbsPos = AbsPos::from(h - bottom_h) + outer_rect.xy.y;
 
     dbg!(    
         &scroll,
@@ -1076,11 +1073,15 @@ pub struct ScreenSpaceXYWH {
 impl From<ScreenSpaceXYWH> for ScreenSpaceRect {
     fn from(
         ScreenSpaceXYWH {
-            xy: ScreenSpaceXY { x, y },
+            xy,
             wh: ScreenSpaceWH { w, h },
         }: ScreenSpaceXYWH,
     ) -> Self {
-        ssr!(x, y, x + w, y + h)
+        ssr!(
+            x.into(),
+            y.into(),
+            (x + w.get()).into(),
+            (y + h.get()).into()
     }
 }
 
@@ -1088,7 +1089,7 @@ impl From<(ScreenSpaceXY, ScreenSpaceWH)> for ScreenSpaceRect {
     fn from(
         (ScreenSpaceXY { x, y }, ScreenSpaceWH { w, h }): (ScreenSpaceXY, ScreenSpaceWH),
     ) -> Self {
-        ssr!(x, y, x + w, y + h)
+        ssr!(x.into(), y,into(), (x + w.get()).into(), (y + h.get()).into())
     }
 }
 

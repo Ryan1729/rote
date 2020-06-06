@@ -64,6 +64,30 @@ impl From<AbsPos> for f32 {
     }
 }
 
+impl PartialEq<f32> for AbsPos {
+    fn eq(&self, other: &f32) -> bool {
+        *self == AbsPos::from(*other)
+    }
+}
+
+impl PartialEq<AbsPos> for f32 {
+    fn eq(&self, other: &AbsPos) -> bool {
+        AbsPos::from(*self) == *other
+    }
+}
+
+impl PartialOrd<f32> for AbsPos {
+    fn partial_cmp(&self, other: &f32) -> Option<std::cmp::Ordering> {
+        self.partial_cmp(&AbsPos::from(*other))
+    }
+}
+
+impl PartialOrd<AbsPos> for f32 {
+    fn partial_cmp(&self, other: &AbsPos) -> Option<std::cmp::Ordering> {
+        AbsPos::from(*self).partial_cmp(other)
+    }
+}
+
 impl Add<f32> for AbsPos {
     type Output = AbsPos;
 

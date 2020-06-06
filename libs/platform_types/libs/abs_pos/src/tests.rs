@@ -153,10 +153,10 @@ proptest!{
         pos in arb::abs_pos(),
     ) {
         let actual = pos + AbsPos::default();
-        assert_eq!(actual, pos.into());
+        assert_eq!(actual, pos);
 
         let actual = AbsPos::default() + pos;
-        assert_eq!(actual, pos.into());
+        assert_eq!(actual, pos);
     }
 }
 
@@ -166,7 +166,7 @@ proptest!{
         pos in arb::abs_pos(),
     ) {
         let actual = pos - AbsPos::default();
-        assert_eq!(actual, pos.into());
+        assert_eq!(actual, pos);
     }
 }
 
@@ -176,7 +176,7 @@ proptest!{
         pos in arb::abs_pos(),
     ) {
         let actual = b_space_to_a(pos, d!(), d!());
-        assert_eq!(actual, pos.into());
+        assert_eq!(actual, pos);
     }
 }
 
@@ -186,7 +186,7 @@ proptest!{
         pos in proptest::num::f32::ANY,
     ) {
         let actual = b_space_to_a(pos.into(), d!(), d!());
-        assert_eq!(actual, pos.into());
+        assert_eq!(actual, AbsPos::from(pos));
     }
 }
 
@@ -195,7 +195,7 @@ fn b_space_to_a_with_defaults_is_identity_generated_reduction() {
     let pos = -51382920.0;
     
     let actual: AbsPos = AbsPos::default() + (AbsPos::from(pos) - AbsPos::default());
-    assert_eq!(actual, pos.into());
+    assert_eq!(actual, pos);
 }
 
 #[test]
