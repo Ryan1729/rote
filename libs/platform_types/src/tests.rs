@@ -355,7 +355,9 @@ fn attempt_to_make_xy_visible_works_on_this_realistic_example() {
     };
     let char_dim = char_dim!{4.0 8.0};
 
-    xy_is_visible_assert!(not & screen, tsxy!());
+    let xy = TextSpaceXY::default();
+
+    xy_is_visible_assert!(not & screen, xy);
 
     attempt_to_make_xy_visible_works_in_this_scenario(&mut screen, char_dim, xy);
 }
@@ -367,7 +369,8 @@ fn attempt_to_make_xy_visible_works_on_this_realistically_sized_example() {
         wh: sswh!(1024.0 576.0),
     };
     let char_dim = char_dim!(30.0 60.0);
-    let xy = tsxy!(60.0, 600.0);
+
+    let xy = TextSpaceXY { x: 60.0, y: 600.0 };
 
     xy_is_visible_assert!(not & screen, xy);
 
@@ -1044,7 +1047,7 @@ proptest! {
     }
 }
 
-const tbxy_1_1: TextBoxXY = tbxy!((1.0).into(), (1.0).into());
+const tbxy_1_1: TextBoxXY = TextBoxXY{ x: AbsPos::ONE, y: AbsPos::ONE };
 
 #[test]
 fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_given_these_truncated_widths() {

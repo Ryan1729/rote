@@ -35,7 +35,7 @@ pub fn text_xy(spec: f32::Any) -> impl Strategy<Value = TextSpaceXY> {
 }
 
 pub fn text_box_xy(spec: f32::Any) -> impl Strategy<Value = TextBoxXY> {
-    (spec, spec).prop_map(|(x, y)| TextBoxXY { x, y })
+    (spec, spec).prop_map(|(x, y)| tbxy!{ x, y })
 }
 
 pub fn text_box_space_xy(spec: f32::Any) -> impl Strategy<Value = TextBoxSpaceXY> {
@@ -48,21 +48,21 @@ pub fn text_box_xywh(spec: f32::Any) -> impl Strategy<Value = TextBoxXYWH> {
 
 pub fn rounded_non_negative_text_xy() -> impl Strategy<Value = TextSpaceXY> {
     let spec = 0..(1 << 24);
-    (spec.clone(), spec).prop_map(|(x, y)| TextSpaceXY {
-        x: x as f32,
-        y: y as f32,
+    (spec.clone(), spec).prop_map(|(x, y)| tsxy! {
+        x as f32,
+        y as f32,
     })
 }
 
 pub fn screen_xy(spec: f32::Any) -> impl Strategy<Value = ScreenSpaceXY> {
-    (spec, spec).prop_map(|(x, y)| ScreenSpaceXY { x, y })
+    (spec, spec).prop_map(|(x, y)| ssxy!{ x, y })
 }
 
 pub fn rounded_non_negative_screen_xy() -> impl Strategy<Value = ScreenSpaceXY> {
     let spec = 0..(1 << 24);
-    (spec.clone(), spec).prop_map(|(x, y)| ScreenSpaceXY {
-        x: x as f32,
-        y: y as f32,
+    (spec.clone(), spec).prop_map(|(x, y)| ssxy!{
+        x as f32,
+        y as f32,
     })
 }
 

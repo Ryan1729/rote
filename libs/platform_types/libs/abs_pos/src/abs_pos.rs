@@ -11,6 +11,10 @@ fmt_display!(for AbsPos: AbsPos(bits) in "{}.{}", bits >> 32, bits & 0xFFFF_FFFF
 impl AbsPos {
     const SCALE: f32 = (1u64 << 32) as f32;
 
+    pub const ZERO: AbsPos = AbsPos(0);
+    pub const ONE: AbsPos = AbsPos(1i64 << 32);
+
+    #[must_use]
     pub fn from_f32(f: f32) -> Self {
         u!{std::num::FpCategory}
         let scaled = f * Self::SCALE;
@@ -28,10 +32,20 @@ impl AbsPos {
         )
     }
 
+    #[must_use]
     pub fn to_f32_lossy(&self) -> f32 {
         self.0 as f32 / Self::SCALE
     }
 
+    /// This method exists for ease of switching between this and f32 wrappers
+    /// like F32_0_1 that have a method with the same signature.
+    // TODO make this a trait? Why not just use `Into<f32>`?
+    #[must_use]
+    pub fn get(&self) -> f32 {
+        self.to_f32_lossy()
+    }
+
+    #[must_use]
     fn from_bits(bits: i64) -> Self {
         Self(
             std::cmp::max(

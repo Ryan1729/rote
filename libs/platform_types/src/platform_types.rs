@@ -10,8 +10,20 @@ pub use text_pos::*;
 pub mod floating_point;
 
 pub mod screen_positioning;
-pub use screen_positioning::{CharDim, ScreenSpaceRect, ScreenSpaceWH, ScreenSpaceXY, ScrollXY, SizeDependents, TextBoxSpaceXY, TextSpaceXYWH};
+pub use screen_positioning::{
+    CharDim,
+    ScreenSpaceRect,
+    ScreenSpaceWH,
+    ScreenSpaceXY,
+    ScrollXY,
+    SizeDependents,
+    TextBoxXY,
+    TextBoxSpaceXY,
+    TextSpaceXY,
+    TextSpaceXYWH
+};
 
+pub use abs_pos::{AbsPos};
 pub use f32_0_1::{F32_0_1, f32_0_1};
 pub use pos_f32::{PosF32, pos_f32};
 pub use pos_f32_trunc::{PosF32Trunc, pos_f32_trunc};

@@ -35,26 +35,14 @@ fmt_display!(for ScreenSpaceXY: ScreenSpaceXY {x, y} in "({},{})", x, y);
 impl MapElements<f32> for ScreenSpaceXY {
     fn map_elements(&self, mapper: &impl Fn(f32) -> f32) -> Self {
         Self { 
-            x: mapper(self.x),
-            y: mapper(self.y),
+            x: mapper(self.x.into()).into(),
+            y: mapper(self.y.into()).into(),
         }
     }
 }
 
 #[macro_export]
 macro_rules! ssxy {
-    //
-    // Pattern matching
-    //
-    ($x: ident $(,)? $y: ident $(,)?) => {
-        ScreenSpaceXY { x: $x, y: $y }
-    };
-    (_ $(,)? $y: ident $(,)?) => {
-        ScreenSpaceXY { x: _, y: $y }
-    };
-    ($x: ident $(,)? _ $(,)?) => {
-        ScreenSpaceXY { x: $x, y: _ }
-    };
     //
     // Initialization
     //
@@ -67,11 +55,23 @@ macro_rules! ssxy {
     () => {
         ScreenSpaceXY::default()
     };
+    //
+    // Pattern matching
+    //
+    ($x: ident $(,)? $y: ident $(,)?) => {
+        ScreenSpaceXY { x: $x, y: $y }
+    };
+    (_ $(,)? $y: ident $(,)?) => {
+        ScreenSpaceXY { x: _, y: $y }
+    };
+    ($x: ident $(,)? _ $(,)?) => {
+        ScreenSpaceXY { x: $x, y: _ }
+    };
 }
 
 impl From<ScreenSpaceXY> for (f32, f32) {
     fn from(ScreenSpaceXY { x, y }: ScreenSpaceXY) -> Self {
-        (x, y)
+        (f32::from(x), f32::from(y))
     }
 }
 
@@ -79,9 +79,9 @@ impl std::ops::Add for ScreenSpaceXY {
     type Output = ScreenSpaceXY;
 
     fn add(self, other: ScreenSpaceXY) -> ScreenSpaceXY {
-        ScreenSpaceXY {
-            x: self.x + other.x,
-            y: self.y + other.y,
+        ssxy!{
+            self.x + other.x,
+            self.y + other.y,
         }
     }
 }
@@ -90,9 +90,9 @@ impl std::ops::Add<(f32, f32)> for ScreenSpaceXY {
     type Output = ScreenSpaceXY;
 
     fn add(self, (x, y): (f32, f32)) -> ScreenSpaceXY {
-        ScreenSpaceXY {
-            x: self.x + x,
-            y: self.y + y,
+        ssxy!{
+            self.x + x,
+            self.y + y,
         }
     }
 }
@@ -102,7 +102,7 @@ impl std::ops::Add<ScreenSpaceXY> for (f32, f32) {
     type Output = (f32, f32);
 
     fn add(self, ScreenSpaceXY { x, y }: ScreenSpaceXY) -> (f32, f32) {
-        (self.0 + x, self.1 + y)
+        (f32::from(self.0 + x), f32::from(self.1 + y))
     }
 }
 add_assign!(<ScreenSpaceXY> for (f32, f32));
@@ -187,7 +187,7 @@ impl From<ScreenSpaceWH> for (f32, f32) {
 }
 
 impl From<ScreenSpaceRect> for ScreenSpaceWH {
-    fn from(ssr!(min_x, min_y, max_x, max_y): ScreenSpaceRect) -> Self {
+    fn from(ssr!(@pat min_x, min_y, max_x, max_y): ScreenSpaceRect) -> Self {
         sswh!(max_x - min_x, max_y - min_y)
     }
 }
@@ -277,25 +277,25 @@ fmt_display!(for TextBoxXY: TextBoxXY {x, y} in "({},{})", x, y);
 #[macro_export]
 macro_rules! tbxy {
     //
-    // Pattern matching
-    //
-    ($x: ident, $y: ident) => {
-        TextBoxXY { x: $x, y: $y }
-    };
-    //
     // Initialization
     //
-    ($x: expr, $y: expr) => {
+    ($x: expr, $y: expr $(,)?) => {
         TextBoxXY { x: $x.into(), y: $y.into() }
     };
     () => {
         TextBoxXY::default()
     };
+    //
+    // Pattern matching
+    //
+    ($x: ident $(,)? $y: ident $(,)?) => {
+        TextBoxXY { x: $x, y: $y }
+    };
 }
 
 impl From<TextBoxXY> for (f32, f32) {
     fn from(TextBoxXY { x, y }: TextBoxXY) -> Self {
-        (x, y)
+        (x.into(), y.into())
     }
 }
 
@@ -309,8 +309,8 @@ impl From<TextBoxXY> for ScreenSpaceXY {
 impl MapElements<f32> for TextBoxXY {
     fn map_elements(&self, mapper: &impl Fn(f32) -> f32) -> Self {
         Self { 
-            x: mapper(self.x),
-            y: mapper(self.y),
+            x: mapper(self.x.into()).into(),
+            y: mapper(self.y.into()).into(),
         }
     }
 }
@@ -329,6 +329,25 @@ fmt_display!(for TextBoxSpaceXY: TextBoxSpaceXY {x, y} in "{:?}", (x, y));
 
 hash_to_bits!(for TextBoxSpaceXY: s, state in x, y);
 
+#[macro_export]
+macro_rules! tbsxy {
+    //
+    // Pattern matching
+    //
+    ($x: ident, $y: ident) => {
+        $crate::TextBoxSpaceXY { x: $x, y: $y }
+    };
+    //
+    // Initialization
+    //
+    ($x: expr, $y: expr) => {
+        $crate::TextBoxSpaceXY { x: $x, y: $y }
+    };
+    () => {
+        $crate::TextBoxSpaceXY::default()
+    };
+}
+
 impl From<TextBoxSpaceXY> for (f32, f32) {
     fn from(TextBoxSpaceXY { x, y }: TextBoxSpaceXY) -> Self {
         (x, y)
@@ -339,9 +358,9 @@ impl std::ops::Add<TextBoxXY> for TextBoxSpaceXY {
     type Output = ScreenSpaceXY;
 
     fn add(self, other: TextBoxXY) -> ScreenSpaceXY {
-        ScreenSpaceXY {
-            x: self.x + other.x,
-            y: self.y + other.y,
+        ssxy!{
+            self.x + other.x,
+            self.y + other.y,
         }
     }
 }
@@ -350,9 +369,9 @@ impl std::ops::Add<TextBoxSpaceXY> for TextBoxXY {
     type Output = ScreenSpaceXY;
 
     fn add(self, other: TextBoxSpaceXY) -> ScreenSpaceXY {
-        ScreenSpaceXY {
-            x: self.x + other.x,
-            y: self.y + other.y,
+        ssxy!{
+            self.x + other.x,
+            self.y + other.y,
         }
     }
 }
@@ -365,10 +384,7 @@ impl std::ops::Sub<TextBoxXY> for ScreenSpaceXY {
     type Output = TextBoxSpaceXY;
 
     fn sub(self, other: TextBoxXY) -> TextBoxSpaceXY {
-        TextBoxSpaceXY {
-            x: self.x - other.x,
-            y: self.y - other.y,
-        }
+        tbsxy!((self.x - other.x).into(), (self.y - other.y).into())
     }
 }
 
@@ -394,13 +410,13 @@ macro_rules! tsxy {
     //
     // Pattern matching
     //
-    ($x: ident, $y: ident) => {
+    ($x: ident $(,)? $y: ident $(,)?) => {
         $crate::TextSpaceXY { x: $x, y: $y }
     };
     //
     // Initialization
     //
-    ($x: expr, $y: expr) => {
+    ($x: expr, $y: expr $(,)?) => {
         $crate::TextSpaceXY { x: $x, y: $y }
     };
     () => {
@@ -817,7 +833,8 @@ pub fn attempt_to_make_xy_visible(
 ) -> VisibilityAttemptResult {
     u!{std::num::FpCategory, VisibilityAttemptResult}
 
-    let ScreenSpaceWH { w, h } = outer_rect.wh;
+    let w: AbsPos = outer_rect.wh.w.get().into();
+    let h: AbsPos = outer_rect.wh.h.get().into();
 
     let TextSpaceXY { x, y } = to_make_visible;
 
@@ -854,10 +871,10 @@ pub fn attempt_to_make_xy_visible(
     let bottom_h = AbsPos::from(h.get() * F32_0_1::ONE_HALF * bottom_h_ratio);
 
     // In screen space
-    let min_x: AbsPos = AbsPos::from(left_w) + outer_rect.xy.x;
-    let max_x: AbsPos = AbsPos::from(w - right_w) + outer_rect.xy.x;
-    let min_y: AbsPos = AbsPos::from(top_h) + outer_rect.xy.y;
-    let max_y: AbsPos = AbsPos::from(h - bottom_h) + outer_rect.xy.y;
+    let min_x: AbsPos = left_w + outer_rect.xy.x;
+    let max_x: AbsPos = AbsPos::from(w) - right_w + outer_rect.xy.x;
+    let min_y: AbsPos = top_h + outer_rect.xy.y;
+    let max_y: AbsPos = AbsPos::from(h) - bottom_h + outer_rect.xy.y;
 
     dbg!(    
         &scroll,
@@ -874,6 +891,7 @@ pub fn attempt_to_make_xy_visible(
         max_y
     );
 
+    // "Why do we assign x to scroll.x?":
     // let to_make_visible = tmv
     // (here = is the algebra =)
     // tmv_screen = (tmv_text - scroll_xy) + outer_rect.xy
@@ -886,18 +904,18 @@ pub fn attempt_to_make_xy_visible(
 
     dbg!(x, to_make_visible_ss.x, min_x);
     if to_make_visible_ss.x < min_x {
-        scroll.x = x - left_w;
+        scroll.x = f32::from(x - left_w);
     } else if to_make_visible_ss.x >= max_x {
-        scroll.x = x - (w - right_w);
+        scroll.x = f32::from(x - (w - right_w));
     } else {
         // leave it alone
     }
 
     dbg!(y, to_make_visible_ss.y, min_y, max_y);
     if to_make_visible_ss.y < min_y {
-        scroll.y = y - top_h;
+        scroll.y = f32::from(y - top_h);
     } else if to_make_visible_ss.y >= max_y {
-        scroll.y = y - (h - bottom_h);
+        scroll.y = f32::from(y - (h - bottom_h));
     } else {
         // leave it alone
     }
@@ -938,43 +956,49 @@ macro_rules! ssr {
     //
     // Pattern matching
     //
-    ($min_x: ident, $min_y: ident, $max_x: ident, $max_y: ident) => {
+    (@pat $min_x: ident $(,)? $min_y: ident $(,)? $max_x: ident $(,)? $max_y: ident $(,)?) => {
         ScreenSpaceRect {
             min: ($min_x, $min_y),
             max: ($max_x, $max_y),
         }
     };
-    ($min_x: ident, _, $max_x: ident, _) => {
+    ($min_x: ident $(,)? _ $(,)? $max_x: ident $(,)? _ $(,)?) => {
         ScreenSpaceRect {
             min: ($min_x, _),
             max: ($max_x, _),
         }
     };
-    (_, $min_y: ident, _, $max_y: ident) => {
+    (_ $(,)? $min_y: ident $(,)? _ $(,)? $max_y: ident $(,)?) => {
         ScreenSpaceRect {
             min: (_, $min_y),
             max: (_, $max_y),
         }
     };
-    ($min_x: ident, $min_y: ident, _, _) => {
+    ($min_x: ident $(,)? $min_y: ident $(,)? _ $(,)? _ $(,)?) => {
         ScreenSpaceRect {
             min: ($min_x, $min_y),
             max: (_, _),
         }
     };
-    (_, _, $max_x: ident, $max_y: ident) => {
+    (_ $(,)? _ $(,)? $max_x: ident $(,)? $max_y: ident $(,)?) => {
         ScreenSpaceRect {
             min: (_, _),
             max: ($max_x, $max_y),
         }
     };
-    ($min: ident, $max: ident) => {
+    ($min: ident $(,)? $max: ident $(,)?) => {
         ScreenSpaceRect {
             min: $min,
             max: $max,
         }
     };
-    ($min: ident) => {
+    ($min: ident $(,)? $max: ident $(,)?) => {
+        ScreenSpaceRect {
+            min: $min,
+            max: $max,
+        }
+    };
+    ($min: ident $(,)?) => {
         ScreenSpaceRect {
             min: $min,
             max: _
@@ -983,19 +1007,19 @@ macro_rules! ssr {
     //
     // Initialization
     //
-    ($min_x: expr, $min_y: expr, $max_x: expr, $max_y: expr) => {
+    ($min_x: expr, $min_y: expr, $max_x: expr, $max_y: expr $(,)?) => {
         ScreenSpaceRect {
             min: ($min_x, $min_y),
             max: ($max_x, $max_y),
         }
     };
-    ($min: expr, $max: expr) => {
+    ($min: expr, $max: expr $(,)?) => {
         ScreenSpaceRect {
             min: $min,
             max: $max,
         }
     };
-    ($min: expr) => {
+    ($min: expr $(,)?) => {
         ScreenSpaceRect {
             min: $min,
             ..ScreenSpaceRect::default()
@@ -1073,8 +1097,8 @@ pub struct ScreenSpaceXYWH {
 impl From<ScreenSpaceXYWH> for ScreenSpaceRect {
     fn from(
         ScreenSpaceXYWH {
-            xy,
-            wh: ScreenSpaceWH { w, h },
+            xy: ScreenSpaceXY{x, y},
+            wh: ScreenSpaceWH{w, h},
         }: ScreenSpaceXYWH,
     ) -> Self {
         ssr!(
@@ -1082,6 +1106,7 @@ impl From<ScreenSpaceXYWH> for ScreenSpaceRect {
             y.into(),
             (x + w.get()).into(),
             (y + h.get()).into()
+        )
     }
 }
 
@@ -1089,7 +1114,7 @@ impl From<(ScreenSpaceXY, ScreenSpaceWH)> for ScreenSpaceRect {
     fn from(
         (ScreenSpaceXY { x, y }, ScreenSpaceWH { w, h }): (ScreenSpaceXY, ScreenSpaceWH),
     ) -> Self {
-        ssr!(x.into(), y,into(), (x + w.get()).into(), (y + h.get()).into())
+        ssr!(x.into(), y.into(), (x + w.get()).into(), (y + h.get()).into())
     }
 }
 
