@@ -187,7 +187,7 @@ impl From<ScreenSpaceWH> for (f32, f32) {
 }
 
 impl From<ScreenSpaceRect> for ScreenSpaceWH {
-    fn from(ssr!(@pat min_x, min_y, max_x, max_y): ScreenSpaceRect) -> Self {
+    fn from(ssr!(min_x, min_y, max_x, max_y): ScreenSpaceRect) -> Self {
         sswh!(max_x - min_x, max_y - min_y)
     }
 }
@@ -321,36 +321,34 @@ impl MapElements<f32> for TextBoxXY {
 /// the bottom left corner is `(0.0, height)`. In other words, the x-axis point right, the y-axis
 /// points down. Note that this is different than `TextSpaceXY` since the text can be scrolled.
 pub struct TextBoxSpaceXY {
-    pub x: f32,
-    pub y: f32,
+    pub x: AbsPos,
+    pub y: AbsPos,
 }
 
 fmt_display!(for TextBoxSpaceXY: TextBoxSpaceXY {x, y} in "{:?}", (x, y));
 
-hash_to_bits!(for TextBoxSpaceXY: s, state in x, y);
-
 #[macro_export]
 macro_rules! tbsxy {
+    //
+    // Initialization
+    //
+    ($x: expr, $y: expr) => {
+        $crate::TextBoxSpaceXY { x: $x.into(), y: $y.into() }
+    };
+    () => {
+        $crate::TextBoxSpaceXY::default()
+    };
     //
     // Pattern matching
     //
     ($x: ident, $y: ident) => {
         $crate::TextBoxSpaceXY { x: $x, y: $y }
     };
-    //
-    // Initialization
-    //
-    ($x: expr, $y: expr) => {
-        $crate::TextBoxSpaceXY { x: $x, y: $y }
-    };
-    () => {
-        $crate::TextBoxSpaceXY::default()
-    };
 }
 
 impl From<TextBoxSpaceXY> for (f32, f32) {
     fn from(TextBoxSpaceXY { x, y }: TextBoxSpaceXY) -> Self {
-        (x, y)
+        (x.into(), y.into())
     }
 }
 
@@ -384,7 +382,7 @@ impl std::ops::Sub<TextBoxXY> for ScreenSpaceXY {
     type Output = TextBoxSpaceXY;
 
     fn sub(self, other: TextBoxXY) -> TextBoxSpaceXY {
-        tbsxy!((self.x - other.x).into(), (self.y - other.y).into())
+        tbsxy!(self.x - other.x, self.y - other.y)
     }
 }
 
@@ -392,18 +390,16 @@ pub fn screen_to_text_box(xy: ScreenSpaceXY, pos: TextBoxXY) -> TextBoxSpaceXY {
     xy - pos
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Hash, PartialEq)]
 /// The top left corner of the text is `(0.0, 0.0), top right corner is `(width, 0.0)`,
 /// the bottom left corner is `(0.0, height)`. In other words, the x-axis point right, the y-axis
 /// points down. Note that this is different than `TextBoxSpaceXY` since the text can be scrolled.
 pub struct TextSpaceXY {
-    pub x: f32,
-    pub y: f32,
+    pub x: AbsPos,
+    pub y: AbsPos,
 }
 
 fmt_display!(for TextSpaceXY: TextSpaceXY {x, y} in "{:?}", (x, y));
-
-hash_to_bits!(for TextSpaceXY: s, state in x, y);
 
 #[macro_export]
 macro_rules! tsxy {
@@ -411,13 +407,13 @@ macro_rules! tsxy {
     // Pattern matching
     //
     ($x: ident $(,)? $y: ident $(,)?) => {
-        $crate::TextSpaceXY { x: $x, y: $y }
+        $crate::TextSpaceXY { x: $x.into(), y: $y.into() }
     };
     //
     // Initialization
     //
     ($x: expr, $y: expr $(,)?) => {
-        $crate::TextSpaceXY { x: $x, y: $y }
+        $crate::TextSpaceXY { x: $x.into(), y: $y.into() }
     };
     () => {
         $crate::TextSpaceXY::default()
@@ -426,15 +422,15 @@ macro_rules! tsxy {
 
 impl From<TextSpaceXY> for (f32, f32) {
     fn from(TextSpaceXY { x, y }: TextSpaceXY) -> Self {
-        (x, y)
+        (x.into(), y.into())
     }
 }
 
 impl MapElements<f32> for TextSpaceXY {
     fn map_elements(&self, mapper: &impl Fn(f32) -> f32) -> Self {
         Self {
-            x: mapper(self.x),
-            y: mapper(self.y),
+            x: mapper(self.x.into()).into(),
+            y: mapper(self.y.into()).into(),
         }
     }
 }
@@ -496,24 +492,34 @@ impl MapElements<PosF32Trunc> for TextSpaceXYWH {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Hash, PartialEq)]
 /// An offset in TextBoxSpace.
 /// The top left corner of the text is `(0.0, 0.0)`, top right corner is `(width, 0.0)`,
 /// the bottom left corner is `(0.0, height)`. In other words, the x-axis point right, the y-axis
 /// points down.
 pub struct ScrollXY {
-    pub x: f32,
-    pub y: f32,
+    pub x: AbsPos,
+    pub y: AbsPos,
 }
 
 fmt_display!(for ScrollXY: ScrollXY {x, y} in "{:?}", (x, y));
-
-hash_to_bits!(for ScrollXY: s, state in x, y);
 
 /// This uses `slxy` becasue `scxy`, or `srxy` seem confusable with being for ScreenSpaceXY.
 /// `soxy` seems less evocative of scrolling than `slxy`.
 #[macro_export]
 macro_rules! slxy {
+    //
+    // Initialization
+    //
+    ($x: literal $(,)? $y: literal $(,)?) => {
+        ScrollXY { x: $x.into(), y: $y.into() }
+    };
+    ($x: expr, $y: expr $(,)?) => {
+        ScrollXY { x: $x.into(), y: $y.into() }
+    };
+    () => {
+        ScrollXY::default()
+    };
     //
     // Pattern matching
     //
@@ -526,32 +532,20 @@ macro_rules! slxy {
     ($x: ident $(,)? _ $(,)?) => {
         ScrollXY { x: $x, y: _ }
     };
-    //
-    // Initialization
-    //
-    ($x: literal $(,)? $y: literal $(,)?) => {
-        ScrollXY { x: $x, y: $y }
-    };
-    ($x: expr, $y: expr $(,)?) => {
-        ScrollXY { x: $x, y: $y }
-    };
-    () => {
-        ScrollXY::default()
-    };
 }
 
 impl MapElements<f32> for ScrollXY {
     fn map_elements(&self, mapper: &impl Fn(f32) -> f32) -> Self {
         Self { 
-            x: mapper(self.x),
-            y: mapper(self.y),
+            x: mapper(self.x.into()).into(),
+            y: mapper(self.y.into()).into(),
         }
     }
 }
 
 impl From<ScrollXY> for (f32, f32) {
     fn from(ScrollXY { x, y }: ScrollXY) -> Self {
-        (x, y)
+        (x.into(), y.into())
     }
 }
 
@@ -648,7 +642,7 @@ pub fn text_space_to_position(
     round: PositionRound,
 ) -> Position {
     // This is made much more conveinient by the monospace assumption!
-    let pre_rounded = x / w;
+    let pre_rounded = x.get() / w.get();
 
     // if the value would not fit in a `usize` then the `as usize` is undefined behaviour.
     // https://github.com/rust-lang/rust/issues/10184
@@ -661,7 +655,7 @@ pub fn text_space_to_position(
             pre_rounded + 0.5
         }
     }) as usize;
-    let line = normal_or_zero(y / h) as usize;
+    let line = normal_or_zero(y.get() / h.get()) as usize;
 
     Position {
         offset: CharOffset(offset),
@@ -703,8 +697,8 @@ pub fn position_to_text_space(
     // lines seems better than an error box or something like that.
     #[allow(clippy::cast_precision_loss)]
     TextSpaceXY {
-        x: offset.0 as f32 * w,
-        y: line as f32 * h,
+        x: AbsPos::from(offset.0 as f32 * w),
+        y: AbsPos::from(line as f32 * h),
     }
 }
 
@@ -904,18 +898,18 @@ pub fn attempt_to_make_xy_visible(
 
     dbg!(x, to_make_visible_ss.x, min_x);
     if to_make_visible_ss.x < min_x {
-        scroll.x = f32::from(x - left_w);
+        scroll.x = x - left_w;
     } else if to_make_visible_ss.x >= max_x {
-        scroll.x = f32::from(x - (w - right_w));
+        scroll.x = x - (w - right_w);
     } else {
         // leave it alone
     }
 
     dbg!(y, to_make_visible_ss.y, min_y, max_y);
     if to_make_visible_ss.y < min_y {
-        scroll.y = f32::from(y - top_h);
+        scroll.y = y - top_h;
     } else if to_make_visible_ss.y >= max_y {
-        scroll.y = f32::from(y - (h - bottom_h));
+        scroll.y = y - (h - bottom_h);
     } else {
         // leave it alone
     }
@@ -956,7 +950,7 @@ macro_rules! ssr {
     //
     // Pattern matching
     //
-    (@pat $min_x: ident $(,)? $min_y: ident $(,)? $max_x: ident $(,)? $max_y: ident $(,)?) => {
+    ($min_x: ident $(,)? $min_y: ident $(,)? $max_x: ident $(,)? $max_y: ident $(,)?) => {
         ScreenSpaceRect {
             min: ($min_x, $min_y),
             max: ($max_x, $max_y),

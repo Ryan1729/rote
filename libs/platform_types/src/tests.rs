@@ -370,7 +370,7 @@ fn attempt_to_make_xy_visible_works_on_this_realistically_sized_example() {
     };
     let char_dim = char_dim!(30.0 60.0);
 
-    let xy = TextSpaceXY { x: 60.0, y: 600.0 };
+    let xy = tsxy!{ 60.0, 600.0 };
 
     xy_is_visible_assert!(not & screen, xy);
 
@@ -401,11 +401,11 @@ fn attempt_to_make_xy_visible_works_on_this_vertically_scrolled_realistically_si
 #[test]
 fn attempt_to_make_xy_visible_works_on_this_2020_01_realistically_sized_example() {
     let mut screen = ScrollableScreen {
-        scroll: ScrollXY { x: 320.0, y: 0.0 },
+        scroll: slxy!{ 320.0, 0.0 },
         wh: sswh!{1920.0 1080.0},
     };
     let char_dim = char_dim!(16.0 32.0);
-    let xy = TextSpaceXY { x: 0.0, y: 0.0 };
+    let xy = TextSpaceXY::default();
 
     xy_is_visible_assert!(not & screen, xy);
 
@@ -416,29 +416,29 @@ fn attempt_to_make_xy_visible_works_on_this_2020_01_realistically_sized_example(
 fn xy_is_visible_works_on_this_passed_in_screen(screen: &ScrollableScreen) {    // negated so `NaN` would end up here
     if !dbg!(screen.wh.w > 0.0 && screen.wh.h > 0.0) {
         // If we got here the no point should be considered visible!
-        xy_is_visible_assert!(not & screen, TextSpaceXY { x: 0.0, y: 0.0 });
+        xy_is_visible_assert!(not & screen, TextSpaceXY::default());
 
         xy_is_visible_assert!(
             not & screen,
-            TextSpaceXY {
-                x: screen.scroll.x,
-                y: 0.0
+            tsxy! {
+                screen.scroll.x,
+                0.0
             }
         );
 
         xy_is_visible_assert!(
             not & screen,
-            TextSpaceXY {
-                x: 0.0,
-                y: screen.scroll.y
+            tsxy! {
+                0.0,
+                screen.scroll.y
             }
         );
 
         xy_is_visible_assert!(
             not & screen,
-            TextSpaceXY {
-                x: screen.scroll.x,
-                y: screen.scroll.y
+            tsxy! {
+                screen.scroll.x,
+                screen.scroll.y
             }
         );
 
@@ -547,7 +547,7 @@ fn xy_is_visible_works_on_this_passed_in_screen(screen: &ScrollableScreen) {   
     xy_is_visible_assert!(
         not & screen,
         TextSpaceXY {
-            x: usual_f32_minimal_decrease(screen.scroll.x),
+            x: screen.scroll.x - AbsPos::MIN_POSITIVE,
             y: screen.scroll.y
         }
     );
@@ -555,14 +555,14 @@ fn xy_is_visible_works_on_this_passed_in_screen(screen: &ScrollableScreen) {   
         not & screen,
         TextSpaceXY {
             x: screen.scroll.x,
-            y: usual_f32_minimal_decrease(screen.scroll.y)
+            y: screen.scroll.y - AbsPos::MIN_POSITIVE
         }
     );
     xy_is_visible_assert!(
         not & screen,
         TextSpaceXY {
-            x: usual_f32_minimal_decrease(screen.scroll.x),
-            y: usual_f32_minimal_decrease(screen.scroll.y)
+            x: screen.scroll.x - AbsPos::MIN_POSITIVE,
+            y: screen.scroll.y - AbsPos::MIN_POSITIVE
         }
     );
 
@@ -613,9 +613,9 @@ proptest! {
 #[test]
 fn xy_is_visible_works_on_this_very_short_and_wide_screen() {
     let screen = ScrollableScreen {
-        scroll: ScrollXY {
-            x: 0.0,
-            y: 0.04851929,
+        scroll: slxy! {
+            0.0,
+            0.04851929,
         },
         wh: sswh!{
             511087840000000000000000000000000000.0,
@@ -635,9 +635,9 @@ fn xy_is_visible_works_on_this_realistic_example() {
 
     xy_is_visible_assert!(
         &screen,
-        TextSpaceXY {
-            x: 1000.0,
-            y: 480.0
+        tsxy! {
+            1000.0,
+            480.0
         }
     );
 }
@@ -758,7 +758,7 @@ proptest! {
 fn screen_space_to_position_then_position_to_screen_space_is_identity_after_one_conversion_for_this_generated_example(
 ) {
     screen_space_to_position_then_position_to_screen_space_is_identity_after_one_conversion_for_these(
-        ScrollableScreen { scroll: ScrollXY { x: 0.0, y: -135712.25 }, wh: sswh!() },
+        ScrollableScreen { scroll: slxy!{ 0.0, -135712.25 }, wh: sswh!() },
         ssxy!(),
         tbxy!()
     )
@@ -1047,16 +1047,16 @@ proptest! {
     }
 }
 
-const tbxy_1_1: TextBoxXY = TextBoxXY{ x: AbsPos::ONE, y: AbsPos::ONE };
+const TBXY_1_1: TextBoxXY = TextBoxXY{ x: AbsPos::ONE, y: AbsPos::ONE };
 
 #[test]
 fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_given_these_truncated_widths() {
-    let scroll = ScrollXY { x: -33590000.0, y: 0.0 };
+    let scroll = slxy!{ -33590000.0, 0.0 };
     let text_box_xywh = TextBoxXYWH { 
-        xy: tbxy_1_1,
+        xy: TBXY_1_1,
         wh: sswh!(33593811.0, 1.0)
     };
-    let cursor_xy = TextSpaceXY { x: 13030.0, y: 0.0 };
+    let cursor_xy = tsxy!{ 13030.0, 0.0 };
     if_attempt_to_make_visible_succeeds_the_cursor_is_visible_on(
         scroll,
         text_box_xywh,
@@ -1071,12 +1071,12 @@ proptest! {
         cursor_x in 0i32..13030,
         x in 0i32..33593811
     ) {
-        let scroll = ScrollXY { x: (-x) as f32, y: 0.0 };
+        let scroll = ScrollXY { x: ((-x) as f32).into(), y: d!() };
         let text_box_xywh = TextBoxXYWH { 
-            xy: tbxy_1_1,
+            xy: TBXY_1_1,
             wh: sswh!(x as f32, 1.0)
         };
-        let cursor_xy = TextSpaceXY { x: cursor_x as f32, y: 0.0 };
+        let cursor_xy = TextSpaceXY { x: (cursor_x as f32).into(), y: d!() };
         if_attempt_to_make_visible_succeeds_the_cursor_is_visible_on(
             scroll,
             text_box_xywh,
@@ -1088,12 +1088,12 @@ proptest! {
 
 #[test]
 fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_given_these_truncated_widths_reduction() {
-    let mut scroll = ScrollXY { x: -33590000.0, y: 0.0 };
+    let mut scroll = slxy!{ -33590000.0, 0.0 };
     let text_box_xywh = TextBoxXYWH { 
-        xy: tbxy_1_1,
+        xy: TBXY_1_1,
         wh: sswh!(33593811.0, 1.0)
     };
-    let cursor_xy = TextSpaceXY { x: 13030.0, y: 0.0 };
+    let cursor_xy = tsxy!{ 13030.0, 0.0 };
     let attempt_result = attempt_to_make_xy_visible(
         &mut scroll,
         text_box_xywh,
@@ -1120,29 +1120,29 @@ fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_given_these_truncat
 #[test]
 fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_on_this_incorrect_visualization_found_example() {
     if_attempt_to_make_visible_succeeds_the_cursor_is_visible_on(
-        ScrollXY{ x: 0.0, y: 52.5 },
+        slxy!{ 0.0, 52.5 },
         tbxywh!(170.75, 98.25, 69.5, 68.5),
         apron!(1.0),
-        TextSpaceXY { x: 0.0, y: 96.0 },
+        tsxy!{ 0.0, 96.0 },
     )
 }
 
 #[test]
 fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_on_this_visualization_found_example() {
     if_attempt_to_make_visible_succeeds_the_cursor_is_visible_on(
-        ScrollXY{ x: 0.0, y: 196.5 },
+        slxy!{ 0.0, 196.5 },
         tbxywh!(170.75, 98.25, 341.5, 196.5),
         apron!(1.0),
-        TextSpaceXY { x: 0.0, y: 160.0 },
+        tsxy! { 0.0, 160.0 },
     )
 }
 
 proptest!{
     #[test]
-    fn text_space_to_screen_space_to_text_space_is_identity(
-        text_space in arb::text_xy(usual()),
-        text_box_pos in arb::text_box_xy(usual()),
-        scroll in arb::scroll_xy(usual()),
+    fn text_space_to_screen_space_to_text_space_is_identity_if_all_values_are_small_enough(
+        text_space in arb::text_xy_quarter(),
+        text_box_pos in arb::text_box_xy_quarter(),
+        scroll in arb::scroll_xy_quarter(),
     ) {
         let converted = screen_space_to_text_space(
             text_space_to_screen_space(
@@ -1160,10 +1160,10 @@ proptest!{
 
 proptest!{
     #[test]
-    fn screen_space_to_text_space_to_screen_space_is_identity(
-        screen_space in arb::screen_xy(usual()),
-        text_box_pos in arb::text_box_xy(usual()),
-        scroll in arb::scroll_xy(usual()),
+    fn screen_space_to_text_space_to_screen_space_is_identity_if_all_values_are_small_enough(
+        screen_space in arb::screen_xy_quarter(),
+        text_box_pos in arb::text_box_xy_quarter(),
+        scroll in arb::scroll_xy_quarter(),
     ) {
         let converted = text_space_to_screen_space(
             scroll,

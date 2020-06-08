@@ -347,22 +347,22 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
 
     // If you didn't click on the same symbol, counting that as a double click seems like it
     // would be annoying.
-    let mouse_epsilon_radius: f32 = {
+    let mouse_epsilon_radius: AbsPos = {
         let char_dim = r_s.dimensions.font.text_char_dim;
         let (w, h) = (char_dim.w, char_dim.h);
 
         (if w < h { w } else { h }) / 2.0
-    };
+    }.into();
 
-    let (mut last_click_x, mut last_click_y) = (std::f32::NAN, std::f32::NAN);
+    let (mut last_click_x, mut last_click_y) = (d!(), d!());
 
     let mut dt = Duration::from_nanos(((1.0 / TARGET_RATE) * 1_000_000_000.0) as u64);
 
     macro_rules! mouse_within_radius {
         () => {{
             let mouse_pos = &r_s.ui.mouse_pos;
-            (last_click_x - mouse_pos.x).abs() <= mouse_epsilon_radius
-                && (last_click_y - mouse_pos.y).abs() <= mouse_epsilon_radius
+            AbsPos::abs(&(last_click_x - mouse_pos.x)) <= mouse_epsilon_radius
+                && AbsPos::abs(&(last_click_y - mouse_pos.y)) <= mouse_epsilon_radius
         }};
     }
 
@@ -968,7 +968,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         } => {
                             let ui = &mut r_s.ui;
                             let LogicalPosition::<f32> { x, y } = position.to_logical(get_hidpi_factor!());
-                            ui.mouse_pos = ScreenSpaceXY {
+                            ui.mouse_pos = ssxy!{
                                 x,
                                 y,
                             };

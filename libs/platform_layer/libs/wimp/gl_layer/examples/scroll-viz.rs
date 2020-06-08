@@ -57,7 +57,7 @@ fn main() -> Res<()> {
     let second_z: u16 = 1 << 14;
 
     let apron = apron!(1.0);
-    let move_amount: NonNegF32 = non_neg_f32!(16.0);
+    let move_amount: AbsPos = AbsPos::from(16.0);
 
     // User manipulatable state
     let mut scroll_xy: ScrollXY = d!();

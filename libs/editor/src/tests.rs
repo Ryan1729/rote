@@ -261,10 +261,10 @@ fn update_and_render_shows_the_cursor_when_pressing_ctrl_home() {
 
 #[test]
 fn attempt_to_make_sure_at_least_one_cursor_is_visible_reports_correctly_in_this_case() {
-    let mut scroll = ScrollXY {
-            x: 320.0,
-            y: 0.0,
-        };
+    let mut scroll = slxy!{
+        320.0,
+        0.0,
+    };
 
     let xywh = tbxywh!(480.0, 270.0, 960.0, 540.0);
 
@@ -295,10 +295,10 @@ fn attempt_to_make_sure_at_least_one_cursor_is_visible_reports_correctly_in_this
 
 #[test]
 fn attempt_to_make_xy_visible_reports_correctly_in_this_case() {
-    let mut scroll = ScrollXY {
-            x: 320.0,
-            y: 0.0,
-        };
+    let mut scroll = slxy! {
+        320.0,
+        0.0,
+    };
 
     let xywh = tbxywh!(480.0, 270.0, 960.0, 540.0);
 
@@ -315,10 +315,7 @@ fn attempt_to_make_xy_visible_reports_correctly_in_this_case() {
         &mut scroll,
         xywh,
         apron,
-        TextSpaceXY {
-            x: 0.0,
-            y: 0.0,
-        },
+        TextSpaceXY::default(),
     );
 
     if scroll.x != 320.0 {

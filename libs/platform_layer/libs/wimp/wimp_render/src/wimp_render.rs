@@ -1050,9 +1050,9 @@ fn text_box_view<'view>(
 
     let scroll = *scroll;
     
-    let text_box_pos = TextBoxXY {
-        x: outer_rect.min.0,
-        y: outer_rect.min.1,
+    let text_box_pos = tbxy!{
+        outer_rect.min.0,
+        outer_rect.min.1,
     };
     let scroll_offset = text_box_to_screen(
         text_to_text_box(TextSpaceXY::default(), scroll),
@@ -1081,8 +1081,8 @@ fn text_box_view<'view>(
         size,
         layout: TextLayout::UnboundedLayoutClipped(
             ssr!(
-                text_box_pos.x,
-                text_box_pos.y,
+                text_box_pos.x.into(),
+                text_box_pos.y.into(),
                 outer_rect.max.0,
                 outer_rect.max.1
             ),
@@ -1934,7 +1934,7 @@ pub fn get_edit_buffer_xywh(
     };
     let y = upper_position_info(tab_char_dim).edit_y;
     TextBoxXYWH {
-        xy: TextBoxXY { x: 0.0, y },
+        xy: tbxy!{ 0.0, y },
         wh: ScreenSpaceWH {
             w: width,
             h: pos_f32_trunc!(max_y - y),

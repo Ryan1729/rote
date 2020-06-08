@@ -1549,6 +1549,7 @@ dependencies = [
  "pos_f32",
  "pos_f32_trunc",
  "proptest",
+ "pub_arb_abs_pos",
  "pub_arb_f32_0_1",
  "pub_arb_g_i",
  "pub_arb_non_neg_f32",
@@ -1652,6 +1653,13 @@ dependencies = [
  "regex-syntax 0.6.17",
  "rusty-fork",
  "tempfile",
+]
+
+[[package]]
+name = "pub_arb_abs_pos"
+version = "0.1.0"
+dependencies = [
+ "abs_pos",
 ]
 
 [[package]]

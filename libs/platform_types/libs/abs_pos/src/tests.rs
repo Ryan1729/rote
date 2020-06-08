@@ -10,24 +10,35 @@ pub mod arb {
     use proptest::num::f32;
     
 
-    struct AbsPosValueTree(<f32::Any as Strategy>::Tree);
+    struct AbsPosValueTree(Kind, <f32::Any as Strategy>::Tree);
 
     impl ValueTree for AbsPosValueTree {
         type Value = AbsPos;
         fn current(&self) -> Self::Value {
-            self.0.current().into()
+            let pos = self.1.current().into();
+
+            match self.0 {
+                Kind::Full => pos,
+                Kind::Quarter => AbsPos(pos.0 / 4),
+            }
         }
         fn simplify(&mut self) -> bool {
-            self.0.simplify()
+            self.1.simplify()
         }
         fn complicate(&mut self) -> bool {
-            self.0.complicate()
+            self.1.complicate()
         }
     }
 
     #[derive(Clone, Copy, Debug)]
+    enum Kind {
+        Full,
+        Quarter
+    }
+
+    #[derive(Clone, Copy, Debug)]
     #[must_use = "strategies do nothing unless used"]
-    struct AbsPosStrat;
+    struct AbsPosStrat(Kind);
 
     impl Strategy for AbsPosStrat {
         type Tree = AbsPosValueTree;
@@ -36,16 +47,16 @@ pub mod arb {
         fn new_tree(&self, runner: &mut TestRunner) -> NewTree<Self> {
             f32::ANY
                 .new_tree(runner)
-                .map(AbsPosValueTree)
+                .map(|t| AbsPosValueTree(self.0, t))
         }
     }
 
     pub fn abs_pos() -> impl Strategy<Value = AbsPos> + Copy {
-        AbsPosStrat
+        AbsPosStrat(Kind::Full)
     }
 
-    pub fn abs_pos_quarter() -> impl Strategy<Value = AbsPos> {
-        AbsPosStrat.prop_map(|p| AbsPos(p.0 / 4))
+    pub fn abs_pos_quarter() -> impl Strategy<Value = AbsPos> + Copy {
+        AbsPosStrat(Kind::Quarter)
     }
 }
 

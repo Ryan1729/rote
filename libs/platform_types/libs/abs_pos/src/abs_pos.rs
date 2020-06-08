@@ -12,7 +12,9 @@ impl AbsPos {
     const SCALE: f32 = (1u64 << 32) as f32;
 
     pub const ZERO: AbsPos = AbsPos(0);
+    pub const MIN_POSITIVE: AbsPos = AbsPos(1);
     pub const ONE: AbsPos = AbsPos(1i64 << 32);
+
 
     #[must_use]
     pub fn from_f32(f: f32) -> Self {
@@ -43,6 +45,16 @@ impl AbsPos {
     #[must_use]
     pub fn get(&self) -> f32 {
         self.to_f32_lossy()
+    }
+
+    #[must_use]
+    pub fn abs(&self) -> Self {
+        let me = *self;
+        if me < Self::ZERO {
+            -me
+        } else {
+            me
+        }
     }
 
     #[must_use]
@@ -110,6 +122,8 @@ impl Add<f32> for AbsPos {
     }
 }
 
+add_assign!(<f32> for AbsPos);
+
 impl Add<AbsPos> for f32 {
     type Output = AbsPos;
 
@@ -127,6 +141,8 @@ impl Sub<f32> for AbsPos {
     }
 }
 
+sub_assign!(<f32> for AbsPos);
+
 impl Sub<AbsPos> for f32 {
     type Output = AbsPos;
 
@@ -143,6 +159,8 @@ impl Add<AbsPos> for AbsPos {
     }
 }
 
+add_assign!(<AbsPos> for AbsPos);
+
 impl Sub<AbsPos> for AbsPos {
     type Output = AbsPos;
 
@@ -150,6 +168,8 @@ impl Sub<AbsPos> for AbsPos {
         AbsPos::from_bits(self.0.saturating_sub(other.0))
     }
 }
+
+sub_assign!(<AbsPos> for AbsPos);
 
 impl Neg for AbsPos {
     type Output = AbsPos;
