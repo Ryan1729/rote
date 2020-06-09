@@ -841,13 +841,13 @@ pub fn attempt_to_make_xy_visible(
     // We clamp the aprons since we'd rather have the cursor end up closer to the 
     // middle than not be visible at all. 8388608 = 2^23 makes some tests pass where
     // 2^24 makes them fail.
-    const apron_minimum: f32 = 1.0 / 8388608.0;
+    const APRON_MINIMUM: f32 = 1.0 / 8388608.0;
 
     macro_rules! apron_clamp {
         ($ratio: expr) => {{
             let raw = $ratio.get();
-            if raw != 0.0 && raw <= apron_minimum {
-                f32_0_1!(apron_minimum)
+            if raw != 0.0 && raw <= APRON_MINIMUM {
+                f32_0_1!(APRON_MINIMUM)
             } else {
                 $ratio
             }
@@ -859,10 +859,10 @@ pub fn attempt_to_make_xy_visible(
     let top_h_ratio = apron_clamp!(apron.top_h_ratio);
     let bottom_h_ratio = apron_clamp!(apron.bottom_h_ratio);
 
-    let left_w = AbsPos::from(w.get() * F32_0_1::ONE_HALF * left_w_ratio);
-    let right_w = AbsPos::from(w.get() * F32_0_1::ONE_HALF *  right_w_ratio);
-    let top_h = AbsPos::from(h.get() * F32_0_1::ONE_HALF * top_h_ratio);
-    let bottom_h = AbsPos::from(h.get() * F32_0_1::ONE_HALF * bottom_h_ratio);
+    let left_w = AbsPos::from(w.get() * left_w_ratio.get()).halve();
+    let right_w = AbsPos::from(w.get() *  right_w_ratio.get()).halve();
+    let top_h = AbsPos::from(h.get() * top_h_ratio.get()).halve();
+    let bottom_h = AbsPos::from(h.get() * bottom_h_ratio.get()).halve();
 
     // In screen space
     let min_x: AbsPos = left_w + outer_rect.xy.x;

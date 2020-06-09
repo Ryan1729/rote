@@ -1,11 +1,12 @@
 //! This crate contains `AbsPos`, a type representing Absolute Position.
 #![deny(unconditional_recursion)]
-use macros::{fmt_display, add_assign, sub_assign, mul_assign, div_assign, d, u};
+use macros::{fmt_debug, fmt_display, add_assign, sub_assign, mul_assign, div_assign, d, u};
 use std::ops::{Add, Sub, Mul, Div, Neg};
 
-#[derive(Clone, Copy, Debug, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct AbsPos(i64);
 
+fmt_debug!(for AbsPos: AbsPos(bits) in "{}.{} ({})", bits >> 32, bits & 0xFFFF_FFFF, bits);
 fmt_display!(for AbsPos: AbsPos(bits) in "{}.{}", bits >> 32, bits & 0xFFFF_FFFF);
 
 impl AbsPos {
@@ -13,6 +14,7 @@ impl AbsPos {
 
     pub const ZERO: AbsPos = AbsPos(0);
     pub const MIN_POSITIVE: AbsPos = AbsPos(1);
+    pub const ONE_HALF: AbsPos = AbsPos(1i64 << 31);
     pub const ONE: AbsPos = AbsPos(1i64 << 32);
 
 
@@ -55,6 +57,10 @@ impl AbsPos {
         } else {
             me
         }
+    }
+
+    pub fn halve(&self) -> Self {
+        Self(self.0 >> 1)
     }
 
     #[must_use]
