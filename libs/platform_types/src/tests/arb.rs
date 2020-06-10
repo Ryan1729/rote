@@ -9,7 +9,6 @@ use pub_arb_std::{path_buf, f32::usual};
 use pub_arb_abs_pos::{abs_pos, abs_pos_quarter};
 use pub_arb_f32_0_1::{f32_0_1};
 use pub_arb_pos_f32::{pos_f32};
-use pub_arb_pos_f32_trunc::{pos_f32_trunc};
 
 pub fn apron() -> impl Strategy<Value = Apron> {
     let strat = f32_0_1();
@@ -26,7 +25,8 @@ pub fn char_dim() -> impl Strategy<Value = CharDim> {
     (strat, strat).prop_map(|(w, h)| CharDim { w, h })
 }
 
-pub fn scroll_xy(spec: f32::Any) -> impl Strategy<Value = ScrollXY> {
+pub fn scroll_xy() -> impl Strategy<Value = ScrollXY> {
+    let spec = abs_pos();
     (spec, spec).prop_map(|(x, y)| slxy!{ x, y })
 }
 
@@ -35,7 +35,8 @@ pub fn scroll_xy_quarter() -> impl Strategy<Value = ScrollXY> {
     (spec, spec).prop_map(|(x, y)| ScrollXY { x, y })
 }
 
-pub fn text_xy(spec: f32::Any) -> impl Strategy<Value = TextSpaceXY> {
+pub fn text_xy() -> impl Strategy<Value = TextSpaceXY> {
+    let spec = abs_pos();
     (spec, spec).prop_map(|(x, y)| tsxy!{ x, y })
 }
 
@@ -44,7 +45,8 @@ pub fn text_xy_quarter() -> impl Strategy<Value = TextSpaceXY> {
     (spec, spec).prop_map(|(x, y)| TextSpaceXY { x, y })
 }
 
-pub fn text_box_xy(spec: f32::Any) -> impl Strategy<Value = TextBoxXY> {
+pub fn text_box_xy() -> impl Strategy<Value = TextBoxXY> {
+    let spec = abs_pos();
     (spec, spec).prop_map(|(x, y)| tbxy!{ x, y })
 }
 
@@ -53,12 +55,13 @@ pub fn text_box_xy_quarter() -> impl Strategy<Value = TextBoxXY> {
     (spec, spec).prop_map(|(x, y)| tbxy!{ x, y })
 }
 
-pub fn text_box_space_xy(spec: f32::Any) -> impl Strategy<Value = TextBoxSpaceXY> {
+pub fn text_box_space_xy() -> impl Strategy<Value = TextBoxSpaceXY> {
+    let spec = abs_pos();
     (spec, spec).prop_map(|(x, y)| tbsxy!{ x, y })
 }
 
-pub fn text_box_xywh(spec: f32::Any) -> impl Strategy<Value = TextBoxXYWH> {
-    (text_box_xy(spec), wh()).prop_map(|(xy, wh)| TextBoxXYWH { xy, wh })
+pub fn text_box_xywh() -> impl Strategy<Value = TextBoxXYWH> {
+    (text_box_xy(), wh()).prop_map(|(xy, wh)| TextBoxXYWH { xy, wh })
 }
 
 pub fn rounded_non_negative_text_xy() -> impl Strategy<Value = TextSpaceXY> {
@@ -69,7 +72,8 @@ pub fn rounded_non_negative_text_xy() -> impl Strategy<Value = TextSpaceXY> {
     })
 }
 
-pub fn screen_xy(spec: f32::Any) -> impl Strategy<Value = ScreenSpaceXY> {
+pub fn screen_xy() -> impl Strategy<Value = ScreenSpaceXY> {
+    let spec = abs_pos();
     (spec, spec).prop_map(|(x, y)| ssxy!{ x, y })
 }
 
@@ -118,7 +122,7 @@ prop_compose!{
 }
 
 pub fn wh() -> impl Strategy<Value = ScreenSpaceWH> {
-    let strat = pos_f32_trunc();
+    let strat = abs_pos();
     (strat, strat).prop_map(|(w, h)| ScreenSpaceWH { w, h })
 }
 
@@ -400,18 +404,17 @@ prop_compose!{
     }
 }
 
-pub fn scrollable_screen(spec: f32::Any) -> impl Strategy<Value = ScrollableScreen> {
-    let strat = pos_f32_trunc();
-    (scroll_xy(spec), strat, strat).prop_map(|(scroll, w, h)| ScrollableScreen {
+pub fn scrollable_screen() -> impl Strategy<Value = ScrollableScreen> {
+    let strat = abs_pos();
+    (scroll_xy(), wh()).prop_map(|(scroll, wh)| ScrollableScreen {
         scroll,
-        wh: ScreenSpaceWH { w, h },
+        wh,
     })
 }
 
 pub fn plausible_scrollable_screen() -> impl Strategy<Value = ScrollableScreen> {
     let p = abs_pos();
-    let strat = pos_f32_trunc();
-    (p, p, strat, strat).prop_map(|(x, y, w, h)| ScrollableScreen {
+    (p, p, p, p).prop_map(|(x, y, w, h)| ScrollableScreen {
         scroll: ScrollXY { x, y },
         wh: ScreenSpaceWH { w, h },
     })

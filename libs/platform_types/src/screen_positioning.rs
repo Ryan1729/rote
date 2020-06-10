@@ -18,11 +18,10 @@ macro_rules! hash_to_bits {
     }
 }
 
-#[derive(Clone, Copy, Default, PartialEq)]
+#[derive(Clone, Copy, Default, Hash, PartialEq, PartialOrd)]
 /// The top left corner of the screen is `(0.0, 0.0)`, top right corner is `(width, 0.0)`,
 /// the bottom left corner is `(0.0, height)`. In other words, the x-axis point right, the y-axis
 /// points down.
-#[derive(Hash)]
 pub struct ScreenSpaceXY {
     pub x: AbsPos,
     pub y: AbsPos,
@@ -32,11 +31,11 @@ fmt_debug!(for ScreenSpaceXY: ScreenSpaceXY {x, y} in "ssxy!({},{})", x, y);
 
 fmt_display!(for ScreenSpaceXY: ScreenSpaceXY {x, y} in "({},{})", x, y);
 
-impl MapElements<f32> for ScreenSpaceXY {
-    fn map_elements(&self, mapper: &impl Fn(f32) -> f32) -> Self {
+impl MapElements<AbsPos> for ScreenSpaceXY {
+    fn map_elements(&self, mapper: &impl Fn(AbsPos) -> AbsPos) -> Self {
         Self { 
-            x: mapper(self.x.into()).into(),
-            y: mapper(self.y.into()).into(),
+            x: mapper(self.x),
+            y: mapper(self.y),
         }
     }
 }
@@ -75,7 +74,7 @@ impl From<ScreenSpaceXY> for (f32, f32) {
     }
 }
 
-impl std::ops::Add for ScreenSpaceXY {
+impl std::ops::Add<ScreenSpaceXY> for ScreenSpaceXY {
     type Output = ScreenSpaceXY;
 
     fn add(self, other: ScreenSpaceXY) -> ScreenSpaceXY {
@@ -85,6 +84,8 @@ impl std::ops::Add for ScreenSpaceXY {
         }
     }
 }
+
+add_assign!(<ScreenSpaceXY> for ScreenSpaceXY);
 
 impl std::ops::Add<(f32, f32)> for ScreenSpaceXY {
     type Output = ScreenSpaceXY;
@@ -107,35 +108,32 @@ impl std::ops::Add<ScreenSpaceXY> for (f32, f32) {
 }
 add_assign!(<ScreenSpaceXY> for (f32, f32));
 
-/// We truncate to pixels so that some tests pass.
-// TODO would it make sense for us to just move all this stuff over to integers or
-// maybe fixed point? Alternately, will we want to have non integer widths ever?
-#[derive(Clone, Copy, Default, PartialEq)]
+// TODO It it worth it to make a `NonNegAbsPos` or `PosAbsPos` type since these 
+// should never be negative?
+#[derive(Clone, Copy, Default, Hash, PartialEq)]
 pub struct ScreenSpaceWH {
-    pub w: PosF32Trunc,
-    pub h: PosF32Trunc,
+    pub w: AbsPos,
+    pub h: AbsPos,
 }
 
-fmt_debug!(for ScreenSpaceWH: ScreenSpaceWH {w, h} in "sswh!{:?}", (w.get(), h.get()));
+fmt_debug!(for ScreenSpaceWH: ScreenSpaceWH {w, h} in "sswh!({}, {})", w, h);
 
-fmt_display!(for ScreenSpaceWH: ScreenSpaceWH {w, h} in "{:?}", (w.get(), h.get()));
+fmt_display!(for ScreenSpaceWH: ScreenSpaceWH {w, h} in "{:?}", (w, h));
 
-hash_to_bits!(for ScreenSpaceWH: s, state in w, h);
-
-impl MapElements<PosF32> for ScreenSpaceWH {
-    fn map_elements(&self, mapper: &impl Fn(PosF32) -> PosF32) -> Self {
+impl MapElements<AbsPos> for ScreenSpaceWH {
+    fn map_elements(&self, mapper: &impl Fn(AbsPos) -> AbsPos) -> Self {
         Self {
-            w: pos_f32_trunc!(mapper(self.w.into()).get()),
-            h: pos_f32_trunc!(mapper(self.h.into()).get()),
+            w: mapper(self.w),
+            h: mapper(self.h),
         }
     }
 }
 
-impl MapElements<PosF32Trunc> for ScreenSpaceWH {
-    fn map_elements(&self, mapper: &impl Fn(PosF32Trunc) -> PosF32Trunc) -> Self {
+impl MapElements<PosF32> for ScreenSpaceWH {
+    fn map_elements(&self, mapper: &impl Fn(PosF32) -> PosF32) -> Self {
         Self {
-            w: mapper(self.w),
-            h: mapper(self.h),
+            w: AbsPos::from(mapper(pos_f32!(self.w.get())).get()),
+            h: AbsPos::from(mapper(pos_f32!(self.h.get())).get()),
         }
     }
 }
@@ -159,8 +157,8 @@ macro_rules! sswh {
     //
     ($w: literal $(,)? $h: literal $(,)?) => {
         $crate::ScreenSpaceWH { 
-            w: $crate::pos_f32_trunc!($w), 
-            h: $crate::pos_f32_trunc!($h)
+            w: $w.into(), 
+            h: $h.into()
         }
     };
     (raw $w: literal $(,)? $h: literal $(,)?) => {
@@ -168,8 +166,8 @@ macro_rules! sswh {
     };
     ($w: expr, $h: expr $(,)?) => {
         $crate::ScreenSpaceWH { 
-            w: $crate::pos_f32_trunc!($w),
-            h: $crate::pos_f32_trunc!($h)
+            w: $w.into(),
+            h: $h.into()
         }
     };
     (raw $w: expr, $h: expr $(,)?) => {
@@ -194,30 +192,33 @@ impl From<ScreenSpaceRect> for ScreenSpaceWH {
 
 pub fn inside_rect(
     ScreenSpaceXY { x, y }: ScreenSpaceXY,
-    ScreenSpaceRect { min, max }: ScreenSpaceRect,
+    ssr!{ min_x, min_y, max_x, max_y }: ScreenSpaceRect,
 ) -> bool {
-    x >= min.0 && x <= max.0 && y >= min.1 && y <= max.1
+    x >= min_x && x <= max_x && y >= min_y && y <= max_y
 }
 
-pub fn clamp_within(rect: &mut ScreenSpaceRect, ScreenSpaceRect { min, max }: ScreenSpaceRect) {
-    if rect.min.0 < min.0 {
-        rect.min.0 = min.0
+pub fn clamp_within(
+    rect: &mut ScreenSpaceRect,
+    ssr!{ min_x, min_y, max_x, max_y }: ScreenSpaceRect
+) {
+    if rect.min.x < min_x {
+        rect.min.x = min_x
     } else {
         // NaN ends up here
     };
-    if rect.min.1 < min.1 {
-        rect.min.1 = min.1
+    if rect.min.y < min_y {
+        rect.min.y = min_y
     } else {
         // NaN ends up here
     };
 
-    if rect.max.0 > max.0 {
-        rect.max.0 = max.0
+    if rect.max.x > max_x {
+        rect.max.x = max_x
     } else {
         // NaN ends up here
     };
-    if rect.max.1 > max.1 {
-        rect.max.1 = max.1
+    if rect.max.y > max_y {
+        rect.max.y = max_y
     } else {
         // NaN ends up here
     };
@@ -306,11 +307,11 @@ impl From<TextBoxXY> for ScreenSpaceXY {
     }
 }
 
-impl MapElements<f32> for TextBoxXY {
-    fn map_elements(&self, mapper: &impl Fn(f32) -> f32) -> Self {
+impl MapElements<AbsPos> for TextBoxXY {
+    fn map_elements(&self, mapper: &impl Fn(AbsPos) -> AbsPos) -> Self {
         Self { 
-            x: mapper(self.x.into()).into(),
-            y: mapper(self.y.into()).into(),
+            x: mapper(self.x),
+            y: mapper(self.y),
         }
     }
 }
@@ -483,15 +484,6 @@ macro_rules! tsxywh {
     };
 }
 
-impl MapElements<PosF32Trunc> for TextSpaceXYWH {
-    fn map_elements(&self, mapper: &impl Fn(PosF32Trunc) -> PosF32Trunc) -> Self {
-        TextSpaceXYWH {
-            xy: self.xy.map_elements(&|f| mapper(pos_f32_trunc!(f)).get()),
-            wh: self.wh.map_elements(mapper),
-        }
-    }
-}
-
 #[derive(Clone, Copy, Debug, Default, Hash, PartialEq)]
 /// An offset in TextBoxSpace.
 /// The top left corner of the text is `(0.0, 0.0)`, top right corner is `(width, 0.0)`,
@@ -534,11 +526,11 @@ macro_rules! slxy {
     };
 }
 
-impl MapElements<f32> for ScrollXY {
-    fn map_elements(&self, mapper: &impl Fn(f32) -> f32) -> Self {
+impl MapElements<AbsPos> for ScrollXY {
+    fn map_elements(&self, mapper: &impl Fn(AbsPos) -> AbsPos) -> Self {
         Self { 
-            x: mapper(self.x.into()).into(),
-            y: mapper(self.y.into()).into(),
+            x: mapper(self.x),
+            y: mapper(self.y),
         }
     }
 }
@@ -919,31 +911,16 @@ pub fn attempt_to_make_xy_visible(
     Succeeded
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Hash, PartialEq, PartialOrd)]
 pub struct ScreenSpaceRect {
     /// min: Position on screen to render, in pixels from top-left. Defaults to (0, 0).
-    pub min: (f32, f32),
+    pub min: ScreenSpaceXY,
     /// max: Max (width, height) bounds, in pixels from top-left. Defaults to unbounded.
-    pub max: (f32, f32),
+    pub max: ScreenSpaceXY,
 }
 d!(for ScreenSpaceRect : ScreenSpaceRect{
-min: (0.0, 0.0), max: (std::f32::INFINITY, std::f32::INFINITY)
+min: ssxy!(AbsPos::ZERO, AbsPos::ZERO), max: ssxy!(AbsPos::MAX, AbsPos::MAX)
 });
-ord!(and friends for ScreenSpaceRect : r, other in {
-// I don't care if this is the best ordering, I just want an ordering,
-r.min.0.to_bits().cmp(&other.min.0.to_bits())
-    .then_with(|| r.min.1.to_bits().cmp(&other.min.1.to_bits()))
-    .then_with(|| r.max.0.to_bits().cmp(&other.max.0.to_bits()))
-    .then_with(|| r.max.1.to_bits().cmp(&other.max.1.to_bits()))
-});
-
-impl std::hash::Hash for ScreenSpaceRect {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.min.0.to_bits().hash(state);
-        self.min.1.to_bits().hash(state);
-        self.max.0.to_bits().hash(state);
-        self.max.1.to_bits().hash(state);
-    }}
 
 #[macro_export]
 macro_rules! ssr {
@@ -952,32 +929,32 @@ macro_rules! ssr {
     //
     ($min_x: ident $(,)? $min_y: ident $(,)? $max_x: ident $(,)? $max_y: ident $(,)?) => {
         ScreenSpaceRect {
-            min: ($min_x, $min_y),
-            max: ($max_x, $max_y),
+            min: ScreenSpaceXY{ x: $min_x, y: $min_y },
+            max: ScreenSpaceXY{ x: $max_x, y: $max_y },
         }
     };
     ($min_x: ident $(,)? _ $(,)? $max_x: ident $(,)? _ $(,)?) => {
         ScreenSpaceRect {
-            min: ($min_x, _),
-            max: ($max_x, _),
+            min: ScreenSpaceXY{ x: $min_x, _ },
+            max: ScreenSpaceXY{ x: $max_x, _ },
         }
     };
     (_ $(,)? $min_y: ident $(,)? _ $(,)? $max_y: ident $(,)?) => {
         ScreenSpaceRect {
-            min: (_, $min_y),
-            max: (_, $max_y),
+            min: ScreenSpaceXY{ x: _, $min_y },
+            max: ScreenSpaceXY{ x: _, $max_y },
         }
     };
     ($min_x: ident $(,)? $min_y: ident $(,)? _ $(,)? _ $(,)?) => {
         ScreenSpaceRect {
-            min: ($min_x, $min_y),
-            max: (_, _),
+            min: ScreenSpaceXY{ x: $min_x, y: $min_y },
+            max: _,
         }
     };
     (_ $(,)? _ $(,)? $max_x: ident $(,)? $max_y: ident $(,)?) => {
         ScreenSpaceRect {
-            min: (_, _),
-            max: ($max_x, $max_y),
+            min: _,
+            max: ScreenSpaceXY{ x: $max_x, y: $max_y },
         }
     };
     ($min: ident $(,)? $max: ident $(,)?) => {
@@ -1003,8 +980,8 @@ macro_rules! ssr {
     //
     ($min_x: expr, $min_y: expr, $max_x: expr, $max_y: expr $(,)?) => {
         ScreenSpaceRect {
-            min: ($min_x, $min_y),
-            max: ($max_x, $max_y),
+            min: ssxy!($min_x, $min_y),
+            max: ssxy!($max_x, $max_y),
         }
     };
     ($min: expr, $max: expr $(,)?) => {
@@ -1036,49 +1013,49 @@ impl std::ops::Add<ScreenSpaceXY> for ScreenSpaceRect {
 
 impl ScreenSpaceRect {
     #[allow(dead_code)]
-    pub fn with_min_x(&self, min_x: f32) -> Self {
+    pub fn with_min_x(&self, min_x: AbsPos) -> Self {
         ScreenSpaceRect {
-            min: (min_x, self.min.1),
+            min: ssxy!(min_x, self.min.y),
             ..*self
         }
     }
-    pub fn with_min_y(&self, min_y: f32) -> Self {
+    pub fn with_min_y(&self, min_y: AbsPos) -> Self {
         ScreenSpaceRect {
-            min: (self.min.0, min_y),
-            ..*self
-        }
-    }
-
-    pub fn with_max_x(&self, max_x: f32) -> Self {
-        ScreenSpaceRect {
-            max: (max_x, self.max.1),
-            ..*self
-        }
-    }
-    pub fn with_max_y(&self, max_y: f32) -> Self {
-        ScreenSpaceRect {
-            max: (self.max.0, max_y),
+            min: ssxy!(self.min.x, min_y),
             ..*self
         }
     }
 
-    pub fn width(&self) -> f32 {
-        self.max.0 - self.min.0
+    pub fn with_max_x(&self, max_x: AbsPos) -> Self {
+        ScreenSpaceRect {
+            max: ssxy!(max_x, self.max.y),
+            ..*self
+        }
+    }
+    pub fn with_max_y(&self, max_y: AbsPos) -> Self {
+        ScreenSpaceRect {
+            max: ssxy!(self.max.x, max_y),
+            ..*self
+        }
     }
 
-    pub fn height(&self) -> f32 {
-        self.max.1 - self.min.1
+    pub fn width(&self) -> AbsPos {
+        self.max.x - self.min.x
     }
 
-    pub fn middle(&self) -> (f32, f32) {
+    pub fn height(&self) -> AbsPos {
+        self.max.y - self.min.y
+    }
+
+    pub fn middle(&self) -> (AbsPos, AbsPos) {
         (
-            (self.min.0 + self.max.0) / 2.0,
-            (self.min.1 + self.max.1) / 2.0,
+            (self.min.x + self.max.x).halve(),
+            (self.min.y + self.max.y).halve(),
         )
     }
 
     pub fn has_any_area(&self) -> bool {
-        self.min.0 < self.max.0 && self.min.1 < self.max.1
+        self.min.x < self.max.x && self.min.y < self.max.y
     }
 }
 
@@ -1096,19 +1073,19 @@ impl From<ScreenSpaceXYWH> for ScreenSpaceRect {
         }: ScreenSpaceXYWH,
     ) -> Self {
         ssr!(
-            x.into(),
-            y.into(),
-            (x + w.get()).into(),
-            (y + h.get()).into()
+            x,
+            y,
+            x + w,
+            y + h
         )
     }
 }
 
 impl From<(ScreenSpaceXY, ScreenSpaceWH)> for ScreenSpaceRect {
     fn from(
-        (ScreenSpaceXY { x, y }, ScreenSpaceWH { w, h }): (ScreenSpaceXY, ScreenSpaceWH),
+        (xy, wh): (ScreenSpaceXY, ScreenSpaceWH),
     ) -> Self {
-        ssr!(x.into(), y.into(), (x + w.get()).into(), (y + h.get()).into())
+        ssxywh!(xy, wh).into()
     }
 }
 
@@ -1181,6 +1158,15 @@ impl From<TextBoxXYWH> for ScreenSpaceRect {
     }
 }
 
+impl MapElements<AbsPos> for TextBoxXYWH {
+    fn map_elements(&self, mapper: &impl Fn(AbsPos) -> AbsPos) -> Self {
+        Self {
+            xy: self.xy.map_elements(mapper),
+            wh: self.wh.map_elements(mapper),
+        }
+    }
+}
+
 #[macro_export]
 macro_rules! tbxywh {
     //
@@ -1240,15 +1226,6 @@ macro_rules! tbxywh {
     () => {
         TextBoxXYWH::default()
     };
-}
-
-impl MapElements<PosF32Trunc> for TextBoxXYWH {
-    fn map_elements(&self, mapper: &impl Fn(PosF32Trunc) -> PosF32Trunc) -> Self {
-        Self {
-            xy: self.xy.map_elements(&|f| mapper(pos_f32_trunc!(f)).get()),
-            wh: self.wh.map_elements(mapper),
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug, Default, Hash, PartialEq)]

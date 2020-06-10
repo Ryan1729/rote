@@ -1,7 +1,7 @@
 //! This crate contains `AbsPos`, a type representing Absolute Position.
 #![deny(unconditional_recursion)]
-use macros::{fmt_debug, fmt_display, add_assign, sub_assign, mul_assign, div_assign, d, u};
-use std::ops::{Add, Sub, Mul, Div, Neg};
+use macros::{fmt_debug, fmt_display, add_assign, sub_assign, u};
+use std::ops::{Add, Sub, Neg};
 
 #[derive(Clone, Copy, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct AbsPos(i64);
@@ -12,10 +12,12 @@ fmt_display!(for AbsPos: AbsPos(bits) in "{}.{}", bits >> 32, bits & 0xFFFF_FFFF
 impl AbsPos {
     const SCALE: f32 = (1u64 << 32) as f32;
 
+    pub const MIN: AbsPos = AbsPos(-i64::max_value());
     pub const ZERO: AbsPos = AbsPos(0);
     pub const MIN_POSITIVE: AbsPos = AbsPos(1);
     pub const ONE_HALF: AbsPos = AbsPos(1i64 << 31);
     pub const ONE: AbsPos = AbsPos(1i64 << 32);
+    pub const MAX: AbsPos = AbsPos(i64::max_value());
 
 
     #[must_use]
@@ -23,17 +25,15 @@ impl AbsPos {
         u!{std::num::FpCategory}
         let scaled = f * Self::SCALE;
 
-        Self::from_bits(
-            match scaled.classify() {
-                Normal => scaled as i64,
-                Infinite => if scaled == f32::INFINITY {
-                    i64::MAX
-                } else {
-                    i64::MIN
-                },
-                Zero | Subnormal | Nan => 0,
+        match scaled.classify() {
+            Normal => Self::from_bits(scaled as i64),
+            Infinite => if scaled == f32::INFINITY {
+                Self::MAX
+            } else {
+                Self::MIN
             },
-        )
+            Zero | Subnormal | Nan => Self::ZERO,
+        }
     }
 
     #[must_use]
@@ -68,7 +68,7 @@ impl AbsPos {
         Self(
             std::cmp::max(
                 bits,
-                i64::MIN + 1
+                Self::MIN.0
             )
         )
     }

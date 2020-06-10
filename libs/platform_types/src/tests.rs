@@ -1029,11 +1029,11 @@ proptest! {
 
 proptest! {
     #[test]
-    fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_given_we_trunc_the_widths(
+    fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_given_we_trunc_and_clamp_the_widths(
         scroll in arb::scroll_xy(usual()),
         text_box_xywh in arb::text_box_xywh(usual())
             .prop_map(|t| t.map_elements(
-                &|pf32t| pos_f32_trunc!(pf32t.get().trunc())
+                &|pf32t| pos_f32_trunc!(clamp_exponent_to_24(pf32t.get().trunc()))
             )),
         apron in arb::apron(),
         cursor_xy in arb::rounded_non_negative_text_xy(),
@@ -1057,6 +1057,22 @@ fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_given_these_truncat
         wh: sswh!(33593811.0, 1.0)
     };
     let cursor_xy = tsxy!{ 13030.0, 0.0 };
+    if_attempt_to_make_visible_succeeds_the_cursor_is_visible_on(
+        scroll,
+        text_box_xywh,
+        d!(),
+        cursor_xy,
+    )
+}
+
+#[test]
+fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_given_these_truncated_widths_and_a_large_negative_scroll_x() {
+    let scroll = slxy!{ -16777216.0, 0.0 };
+    let text_box_xywh = TextBoxXYWH { 
+        xy: TBXY_1_1,
+        wh: sswh!(16777216.0, 16777216.0)
+    };
+    let cursor_xy = tsxy!{ 0.0, 0.0 };
     if_attempt_to_make_visible_succeeds_the_cursor_is_visible_on(
         scroll,
         text_box_xywh,
@@ -1115,185 +1131,6 @@ fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_given_these_truncat
             ).into()
         );
     }
-}
-
-#[test]
-fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_given_these_truncated_widths_19011971_wide() {
-    let cursor_x = 0;
-    let x = 19011971.0;
-
-    let scroll = ScrollXY { x: (-x).into(), y: d!() };
-    let outer_rect = TextBoxXYWH { 
-        xy: TBXY_1_1,
-        wh: sswh!(x, 1.0)
-    };
-    let to_make_visible = TextSpaceXY { x: (cursor_x as f32).into(), y: d!() };
-    if_attempt_to_make_visible_succeeds_the_cursor_is_visible_on(
-        scroll,
-        outer_rect,
-        d!(),
-        to_make_visible,
-    )
-}
-
-#[test]
-fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_given_these_truncated_widths_19011971_wide_reduction() {
-    let cursor_x = 0;
-    let x = 19011971.0;
-    dbg!(x);
-
-    let mut scroll = ScrollXY { x: (-x).into(), y: d!() };
-    let outer_rect = TextBoxXYWH { 
-        xy: TBXY_1_1,
-        wh: sswh!(x, 1.0)
-    };
-
-    dbg!(outer_rect);
-
-    let scroll = &mut scroll;
-    let apron: Apron = d!();
-    let cursor_xy = d!();
-    let to_make_visible = cursor_xy;
-
-    u!{std::num::FpCategory, VisibilityAttemptResult}
-
-    let w: AbsPos = outer_rect.wh.w.get().into();
-    let h: AbsPos = outer_rect.wh.h.get().into();
-
-    let TextSpaceXY { x, y } = to_make_visible;
-
-    let to_make_visible_ss = text_space_to_screen_space(
-        *scroll,
-        outer_rect.xy,
-        to_make_visible,
-    );
-
-    // We clamp the aprons since we'd rather have the cursor end up closer to the 
-    // middle than not be visible at all. 8388608 = 2^23 makes some tests pass where
-    // 2^24 makes them fail.
-    const APRON_MINIMUM: f32 = 1.0 / 8388608.0;
-
-    macro_rules! apron_clamp {
-        ($ratio: expr) => {{
-            let raw = $ratio.get();
-            if raw != 0.0 && raw <= APRON_MINIMUM {
-                f32_0_1!(APRON_MINIMUM)
-            } else {
-                $ratio
-            }
-        }}
-    }
-
-    let left_w_ratio = apron_clamp!(apron.left_w_ratio);
-    let right_w_ratio = apron_clamp!(apron.right_w_ratio);
-    let top_h_ratio = apron_clamp!(apron.top_h_ratio);
-    let bottom_h_ratio = apron_clamp!(apron.bottom_h_ratio);
-
-    let left_w = AbsPos::from(w.get() * left_w_ratio.get()).halve();
-    let right_w = AbsPos::from(w.get() *  right_w_ratio.get()).halve();
-    let top_h = AbsPos::from(h.get() * top_h_ratio.get()).halve();
-    let bottom_h = AbsPos::from(h.get() * bottom_h_ratio.get()).halve();
-
-    // In screen space
-    let min_x: AbsPos = left_w + outer_rect.xy.x;
-    let max_x: AbsPos = w - right_w + outer_rect.xy.x;
-    let min_y: AbsPos = top_h + outer_rect.xy.y;
-    let max_y: AbsPos = h - bottom_h + outer_rect.xy.y;
-
-    dbg!(    
-        &scroll,
-        &outer_rect,
-        x,
-        y,
-        w,
-        h,
-        &apron,
-        to_make_visible,
-        min_x,
-        max_x,
-        min_y,
-        max_y
-    );
-
-    // "Why do we assign x to scroll.x?":
-    // let to_make_visible = tmv
-    // (here = is the algebra =)
-    // tmv_screen = (tmv_text - scroll_xy) + outer_rect.xy
-    // so if we want tmv_screen = outer_rect.xy
-    // tmv_screen = (tmv_text - scroll_xy) + tmv_screen
-    // 0 = (tmv_text - scroll_xy)
-    // scroll_xy = tmv_text
-    // therefore setting scroll_xy to the value of tmv_text places the point
-    // at the top left corner of the text box. We make further adjustments as needed.
-
-    dbg!(x, to_make_visible_ss.x, min_x, max_x);
-    if to_make_visible_ss.x < min_x {
-        dbg!(x - left_w);
-        scroll.x = x - left_w;
-    } else if to_make_visible_ss.x >= max_x {
-        dbg!(x - (w - right_w));
-        scroll.x = x - (w - right_w);
-    } else {
-        // leave it alone
-    }
-
-    let xy: ScreenSpaceXY = text_space_to_screen_space(
-        *scroll,
-        outer_rect.xy,
-        cursor_xy,
-    );
-
-    let rect_w: AbsPos = outer_rect.wh.w.get().into();
-    let rect_max_x: AbsPos = outer_rect.xy.x + rect_w;
-
-    dbg!(rect_w, rect_max_x, xy);
-
-    let inside = xy.x >= outer_rect.xy.x 
-        && xy.x <= rect_max_x;
-
-    assert!(
-        inside,
-        "{:?} is not inside {:?} along x",
-        xy,
-        (outer_rect.xy.x, rect_max_x),
-    );
-
-    let xywh = ssxywh!(
-        outer_rect.xy.into(),
-        outer_rect.wh
-    );
-
-    let rect = xywh.into();
-
-    assert!(
-        inside_rect(
-            xy,
-            rect
-        ),
-        "{:?} is not inside the rect {:?} ({:?})",
-        xy,
-        rect,
-        xywh
-    );
-}
-
-#[test]
-fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_given_these_truncated_widths_19011971_wide_adjustment() {
-    let cursor_x = 0;
-    let x = 19011971.0;
-
-    let scroll = ScrollXY { x: (-x).into(), y: d!() };
-    let outer_rect = TextBoxXYWH { 
-        xy: tbxy!(2.0, 1.0), // <- this part changed
-        wh: sswh!(x, 1.0)
-    };
-    let to_make_visible = TextSpaceXY { x: (cursor_x as f32).into(), y: d!() };
-    if_attempt_to_make_visible_succeeds_the_cursor_is_visible_on(
-        scroll,
-        outer_rect,
-        d!(),
-        to_make_visible,
-    )
 }
 
 #[test]
@@ -1356,17 +1193,6 @@ proptest!{
 
         assert_eq!(converted, screen_space);
     }
-}
-
-// As written this will always fail, but it demonstrates an issue so it seems 
-// worth it to be in at least one commit.
-#[test]
-fn converting_to_sswh_gives_the_same_string() {
-    let x_str = "19011971";
-    let x = str::parse::<f32>(x_str).unwrap();
-    let wh = sswh!(x, 1.0);
-
-    assert_eq!(x_str, wh.w.get().to_string());
 }
 
 pub mod arb;

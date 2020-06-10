@@ -1,0 +1,342 @@
+warning: unused imports: `d`, `div_assign`, `mul_assign`
+ --> libs/platform_types/libs/abs_pos/./src/abs_pos.rs:3:62
+  |
+3 | use macros::{fmt_debug, fmt_display, add_assign, sub_assign, mul_assign, div_assign, d, u};
+  |                                                              ^^^^^^^^^^  ^^^^^^^^^^  ^
+  |
+  = note: `#[warn(unused_imports)]` on by default
+
+warning: unused imports: `Div`, `Mul`
+ --> libs/platform_types/libs/abs_pos/./src/abs_pos.rs:4:26
+  |
+4 | use std::ops::{Add, Sub, Mul, Div, Neg};
+  |                          ^^^  ^^^
+
+   Compiling platform_types v0.1.0 (/home/ryan/code/rote/libs/platform_types)
+error[E0308]: mismatched types
+   --> libs/platform_types/./src/screen_positioning.rs:191:15
+    |
+191 |         sswh!(max_x - min_x, max_y - min_y)
+    |               ^^^^^^^^^^^^^ expected `f32`, found struct `abs_pos::AbsPos`
+
+error[E0308]: mismatched types
+   --> libs/platform_types/./src/screen_positioning.rs:191:30
+    |
+191 |         sswh!(max_x - min_x, max_y - min_y)
+    |                              ^^^^^^^^^^^^^ expected `f32`, found struct `abs_pos::AbsPos`
+
+error[E0599]: no method named `to_bits` found for struct `abs_pos::AbsPos` in the current scope
+   --> libs/platform_types/./src/screen_positioning.rs:934:9
+    |
+934 | r.min.0.to_bits().cmp(&other.min.0.to_bits())
+    |         ^^^^^^^ method not found in `abs_pos::AbsPos`
+
+error[E0599]: no method named `to_bits` found for struct `abs_pos::AbsPos` in the current scope
+   --> libs/platform_types/./src/screen_positioning.rs:934:36
+    |
+934 | r.min.0.to_bits().cmp(&other.min.0.to_bits())
+    |                                    ^^^^^^^ method not found in `abs_pos::AbsPos`
+
+error[E0599]: no method named `to_bits` found for struct `abs_pos::AbsPos` in the current scope
+   --> libs/platform_types/./src/screen_positioning.rs:935:27
+    |
+935 |     .then_with(|| r.min.1.to_bits().cmp(&other.min.1.to_bits()))
+    |                           ^^^^^^^ method not found in `abs_pos::AbsPos`
+
+error[E0599]: no method named `to_bits` found for struct `abs_pos::AbsPos` in the current scope
+   --> libs/platform_types/./src/screen_positioning.rs:935:54
+    |
+935 |     .then_with(|| r.min.1.to_bits().cmp(&other.min.1.to_bits()))
+    |                                                      ^^^^^^^ method not found in `abs_pos::AbsPos`
+
+error[E0599]: no method named `to_bits` found for struct `abs_pos::AbsPos` in the current scope
+   --> libs/platform_types/./src/screen_positioning.rs:936:27
+    |
+936 |     .then_with(|| r.max.0.to_bits().cmp(&other.max.0.to_bits()))
+    |                           ^^^^^^^ method not found in `abs_pos::AbsPos`
+
+error[E0599]: no method named `to_bits` found for struct `abs_pos::AbsPos` in the current scope
+   --> libs/platform_types/./src/screen_positioning.rs:936:54
+    |
+936 |     .then_with(|| r.max.0.to_bits().cmp(&other.max.0.to_bits()))
+    |                                                      ^^^^^^^ method not found in `abs_pos::AbsPos`
+
+error[E0599]: no method named `to_bits` found for struct `abs_pos::AbsPos` in the current scope
+   --> libs/platform_types/./src/screen_positioning.rs:937:27
+    |
+937 |     .then_with(|| r.max.1.to_bits().cmp(&other.max.1.to_bits()))
+    |                           ^^^^^^^ method not found in `abs_pos::AbsPos`
+
+error[E0599]: no method named `to_bits` found for struct `abs_pos::AbsPos` in the current scope
+   --> libs/platform_types/./src/screen_positioning.rs:937:54
+    |
+937 |     .then_with(|| r.max.1.to_bits().cmp(&other.max.1.to_bits()))
+    |                                                      ^^^^^^^ method not found in `abs_pos::AbsPos`
+
+error[E0599]: no method named `to_bits` found for struct `abs_pos::AbsPos` in the current scope
+   --> libs/platform_types/./src/screen_positioning.rs:942:20
+    |
+942 |         self.min.0.to_bits().hash(state);
+    |                    ^^^^^^^ method not found in `abs_pos::AbsPos`
+
+error[E0599]: no method named `to_bits` found for struct `abs_pos::AbsPos` in the current scope
+   --> libs/platform_types/./src/screen_positioning.rs:943:20
+    |
+943 |         self.min.1.to_bits().hash(state);
+    |                    ^^^^^^^ method not found in `abs_pos::AbsPos`
+
+error[E0599]: no method named `to_bits` found for struct `abs_pos::AbsPos` in the current scope
+   --> libs/platform_types/./src/screen_positioning.rs:944:20
+    |
+944 |         self.max.0.to_bits().hash(state);
+    |                    ^^^^^^^ method not found in `abs_pos::AbsPos`
+
+error[E0599]: no method named `to_bits` found for struct `abs_pos::AbsPos` in the current scope
+   --> libs/platform_types/./src/screen_positioning.rs:945:20
+    |
+945 |         self.max.1.to_bits().hash(state);
+    |                    ^^^^^^^ method not found in `abs_pos::AbsPos`
+
+error[E0368]: binary assignment operation `+=` cannot be applied to type `(abs_pos::AbsPos, abs_pos::AbsPos)`
+    --> libs/platform_types/./src/screen_positioning.rs:1031:9
+     |
+1031 |         self.min += other;
+     |         --------^^^^^^^^^
+     |         |
+     |         cannot use `+=` on type `(abs_pos::AbsPos, abs_pos::AbsPos)`
+
+error[E0368]: binary assignment operation `+=` cannot be applied to type `(abs_pos::AbsPos, abs_pos::AbsPos)`
+    --> libs/platform_types/./src/screen_positioning.rs:1032:9
+     |
+1032 |         self.max += other;
+     |         --------^^^^^^^^^
+     |         |
+     |         cannot use `+=` on type `(abs_pos::AbsPos, abs_pos::AbsPos)`
+
+error[E0308]: mismatched types
+    --> libs/platform_types/./src/screen_positioning.rs:1041:19
+     |
+1041 |             min: (min_x, self.min.1),
+     |                   ^^^^^ expected struct `abs_pos::AbsPos`, found `f32`
+
+error[E0308]: mismatched types
+    --> libs/platform_types/./src/screen_positioning.rs:1047:31
+     |
+1047 |             min: (self.min.0, min_y),
+     |                               ^^^^^ expected struct `abs_pos::AbsPos`, found `f32`
+
+error[E0308]: mismatched types
+   --> libs/platform_types/./src/screen_positioning.rs:191:15
+    |
+191 |         sswh!(max_x - min_x, max_y - min_y)
+    |               ^^^^^^^^^^^^^ expected `f32`, found struct `abs_pos::AbsPos`
+
+error[E0308]: mismatched types
+    --> libs/platform_types/./src/screen_positioning.rs:1054:19
+     |
+1054 |             max: (max_x, self.max.1),
+     |                   ^^^^^ expected struct `abs_pos::AbsPos`, found `f32`
+
+error[E0308]: mismatched types
+   --> libs/platform_types/./src/screen_positioning.rs:191:30
+    |
+191 |         sswh!(max_x - min_x, max_y - min_y)
+    |                              ^^^^^^^^^^^^^ expected `f32`, found struct `abs_pos::AbsPos`
+
+error[E0599]: no method named `to_bits` found for struct `abs_pos::AbsPos` in the current scope
+   --> libs/platform_types/./src/screen_positioning.rs:934:9
+    |
+934 | r.min.0.to_bits().cmp(&other.min.0.to_bits())
+    |         ^^^^^^^ method not found in `abs_pos::AbsPos`
+
+error[E0599]: no method named `to_bits` found for struct `abs_pos::AbsPos` in the current scope
+   --> libs/platform_types/./src/screen_positioning.rs:934:36
+    |
+934 | r.min.0.to_bits().cmp(&other.min.0.to_bits())
+    |                                    ^^^^^^^ method not found in `abs_pos::AbsPos`
+
+error[E0599]: no method named `to_bits` found for struct `abs_pos::AbsPos` in the current scope
+   --> libs/platform_types/./src/screen_positioning.rs:935:27
+    |
+935 |     .then_with(|| r.min.1.to_bits().cmp(&other.min.1.to_bits()))
+    |                           ^^^^^^^ method not found in `abs_pos::AbsPos`
+
+error[E0599]: no method named `to_bits` found for struct `abs_pos::AbsPos` in the current scope
+   --> libs/platform_types/./src/screen_positioning.rs:935:54
+    |
+935 |     .then_with(|| r.min.1.to_bits().cmp(&other.min.1.to_bits()))
+    |                                                      ^^^^^^^ method not found in `abs_pos::AbsPos`
+
+error[E0599]: no method named `to_bits` found for struct `abs_pos::AbsPos` in the current scope
+   --> libs/platform_types/./src/screen_positioning.rs:936:27
+    |
+936 |     .then_with(|| r.max.0.to_bits().cmp(&other.max.0.to_bits()))
+    |                           ^^^^^^^ method not found in `abs_pos::AbsPos`
+
+error[E0599]: no method named `to_bits` found for struct `abs_pos::AbsPos` in the current scope
+   --> libs/platform_types/./src/screen_positioning.rs:936:54
+    |
+936 |     .then_with(|| r.max.0.to_bits().cmp(&other.max.0.to_bits()))
+    |                                                      ^^^^^^^ method not found in `abs_pos::AbsPos`
+
+error[E0599]: no method named `to_bits` found for struct `abs_pos::AbsPos` in the current scope
+   --> libs/platform_types/./src/screen_positioning.rs:937:27
+    |
+937 |     .then_with(|| r.max.1.to_bits().cmp(&other.max.1.to_bits()))
+    |                           ^^^^^^^ method not found in `abs_pos::AbsPos`
+
+error[E0308]: mismatched types
+    --> libs/platform_types/./src/screen_positioning.rs:1060:31
+     |
+1060 |             max: (self.max.0, max_y),
+     |                               ^^^^^ expected struct `abs_pos::AbsPos`, found `f32`
+
+error[E0599]: no method named `to_bits` found for struct `abs_pos::AbsPos` in the current scope
+   --> libs/platform_types/./src/screen_positioning.rs:937:54
+    |
+937 |     .then_with(|| r.max.1.to_bits().cmp(&other.max.1.to_bits()))
+    |                                                      ^^^^^^^ method not found in `abs_pos::AbsPos`
+
+error[E0599]: no method named `to_bits` found for struct `abs_pos::AbsPos` in the current scope
+   --> libs/platform_types/./src/screen_positioning.rs:942:20
+    |
+942 |         self.min.0.to_bits().hash(state);
+    |                    ^^^^^^^ method not found in `abs_pos::AbsPos`
+
+error[E0599]: no method named `to_bits` found for struct `abs_pos::AbsPos` in the current scope
+   --> libs/platform_types/./src/screen_positioning.rs:943:20
+    |
+943 |         self.min.1.to_bits().hash(state);
+    |                    ^^^^^^^ method not found in `abs_pos::AbsPos`
+
+error[E0599]: no method named `to_bits` found for struct `abs_pos::AbsPos` in the current scope
+   --> libs/platform_types/./src/screen_positioning.rs:944:20
+    |
+944 |         self.max.0.to_bits().hash(state);
+    |                    ^^^^^^^ method not found in `abs_pos::AbsPos`
+
+error[E0599]: no method named `to_bits` found for struct `abs_pos::AbsPos` in the current scope
+   --> libs/platform_types/./src/screen_positioning.rs:945:20
+    |
+945 |         self.max.1.to_bits().hash(state);
+    |                    ^^^^^^^ method not found in `abs_pos::AbsPos`
+
+error[E0368]: binary assignment operation `+=` cannot be applied to type `(abs_pos::AbsPos, abs_pos::AbsPos)`
+    --> libs/platform_types/./src/screen_positioning.rs:1031:9
+     |
+1031 |         self.min += other;
+     |         --------^^^^^^^^^
+     |         |
+     |         cannot use `+=` on type `(abs_pos::AbsPos, abs_pos::AbsPos)`
+
+error[E0368]: binary assignment operation `+=` cannot be applied to type `(abs_pos::AbsPos, abs_pos::AbsPos)`
+    --> libs/platform_types/./src/screen_positioning.rs:1032:9
+     |
+1032 |         self.max += other;
+     |         --------^^^^^^^^^
+     |         |
+     |         cannot use `+=` on type `(abs_pos::AbsPos, abs_pos::AbsPos)`
+
+error[E0308]: mismatched types
+    --> libs/platform_types/./src/screen_positioning.rs:1066:9
+     |
+1065 |     pub fn width(&self) -> f32 {
+     |                            --- expected `f32` because of return type
+1066 |         self.max.0 - self.min.0
+     |         ^^^^^^^^^^^^^^^^^^^^^^^ expected `f32`, found struct `abs_pos::AbsPos`
+
+error[E0308]: mismatched types
+    --> libs/platform_types/./src/screen_positioning.rs:1041:19
+     |
+1041 |             min: (min_x, self.min.1),
+     |                   ^^^^^ expected struct `abs_pos::AbsPos`, found `f32`
+
+error[E0308]: mismatched types
+    --> libs/platform_types/./src/screen_positioning.rs:1070:9
+     |
+1069 |     pub fn height(&self) -> f32 {
+     |                             --- expected `f32` because of return type
+1070 |         self.max.1 - self.min.1
+     |         ^^^^^^^^^^^^^^^^^^^^^^^ expected `f32`, found struct `abs_pos::AbsPos`
+
+error[E0369]: cannot divide `abs_pos::AbsPos` by `{float}`
+    --> libs/platform_types/./src/screen_positioning.rs:1075:39
+     |
+1075 |             (self.min.0 + self.max.0) / 2.0,
+     |             ------------------------- ^ --- {float}
+     |             |
+     |             abs_pos::AbsPos
+
+error[E0369]: cannot divide `abs_pos::AbsPos` by `{float}`
+    --> libs/platform_types/./src/screen_positioning.rs:1076:39
+     |
+1076 |             (self.min.1 + self.max.1) / 2.0,
+     |             ------------------------- ^ --- {float}
+     |             |
+     |             abs_pos::AbsPos
+
+error: aborting due to 24 previous errors
+
+Some errors have detailed explanations: E0308, E0368, E0369, E0599.
+For more information about an error, try `rustc --explain E0308`.
+error[E0308]: mismatched types
+    --> libs/platform_types/./src/screen_positioning.rs:1047:31
+     |
+1047 |             min: (self.min.0, min_y),
+     |                               ^^^^^ expected struct `abs_pos::AbsPos`, found `f32`
+
+error: could not compile `platform_types`.
+
+To learn more, run the command again with --verbose.
+warning: build failed, waiting for other jobs to finish...
+error[E0308]: mismatched types
+    --> libs/platform_types/./src/screen_positioning.rs:1054:19
+     |
+1054 |             max: (max_x, self.max.1),
+     |                   ^^^^^ expected struct `abs_pos::AbsPos`, found `f32`
+
+error[E0308]: mismatched types
+    --> libs/platform_types/./src/screen_positioning.rs:1060:31
+     |
+1060 |             max: (self.max.0, max_y),
+     |                               ^^^^^ expected struct `abs_pos::AbsPos`, found `f32`
+
+error[E0308]: mismatched types
+    --> libs/platform_types/./src/screen_positioning.rs:1066:9
+     |
+1065 |     pub fn width(&self) -> f32 {
+     |                            --- expected `f32` because of return type
+1066 |         self.max.0 - self.min.0
+     |         ^^^^^^^^^^^^^^^^^^^^^^^ expected `f32`, found struct `abs_pos::AbsPos`
+
+error[E0308]: mismatched types
+    --> libs/platform_types/./src/screen_positioning.rs:1070:9
+     |
+1069 |     pub fn height(&self) -> f32 {
+     |                             --- expected `f32` because of return type
+1070 |         self.max.1 - self.min.1
+     |         ^^^^^^^^^^^^^^^^^^^^^^^ expected `f32`, found struct `abs_pos::AbsPos`
+
+error[E0369]: cannot divide `abs_pos::AbsPos` by `{float}`
+    --> libs/platform_types/./src/screen_positioning.rs:1075:39
+     |
+1075 |             (self.min.0 + self.max.0) / 2.0,
+     |             ------------------------- ^ --- {float}
+     |             |
+     |             abs_pos::AbsPos
+
+error[E0369]: cannot divide `abs_pos::AbsPos` by `{float}`
+    --> libs/platform_types/./src/screen_positioning.rs:1076:39
+     |
+1076 |             (self.min.1 + self.max.1) / 2.0,
+     |             ------------------------- ^ --- {float}
+     |             |
+     |             abs_pos::AbsPos
+
+error: aborting due to 24 previous errors
+
+Some errors have detailed explanations: E0308, E0368, E0369, E0599.
+For more information about an error, try `rustc --explain E0308`.
+error: could not compile `platform_types`.
+
+To learn more, run the command again with --verbose.
