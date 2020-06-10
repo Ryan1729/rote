@@ -9,13 +9,10 @@ pub type Generation = u32;
 pub type LengthSize = u32;
 
 /// The amount of elements in the collection using generational indexes. Not a valid index.
-#[derive(Clone, Copy, Default, Hash)]
+#[derive(Clone, Copy, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Length(LengthSize);
 fmt_debug!(for Length: Length(l) in "{}", l);
 fmt_display!(for Length: Length(l) in "{}", l);
-ord!(and friends for Length: length, other in {
-    length.0.cmp(&other.0)
-});
 
 impl Length {
     /// This returns a `usize` to make comparing to usize lengths conveinient.
@@ -45,13 +42,10 @@ impl From<Length> for usize {
 
 /// The part of `Index` which does not have to do with generations. That is, the part which
 /// denotes which element in the collection is desired, in the usual 0-based way.
-#[derive(Clone, Copy, Default, Hash)]
+#[derive(Clone, Copy, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct IndexPart(LengthSize);
 fmt_debug!(for IndexPart: IndexPart(l) in "{}", l);
 fmt_display!(for IndexPart: IndexPart(l) in "{}", l);
-ord!(and friends for IndexPart: index_part, other in {
-    index_part.0.cmp(&other.0)
-});
 
 impl IndexPart {
     /// This returns a `usize` to make comparing to usize lengths conveinient.

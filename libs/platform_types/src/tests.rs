@@ -1140,11 +1140,15 @@ fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_given_these_truncat
 fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_given_these_truncated_widths_19011971_wide_reduction() {
     let cursor_x = 0;
     let x = 19011971.0;
+    dbg!(x);
+
     let mut scroll = ScrollXY { x: (-x).into(), y: d!() };
     let outer_rect = TextBoxXYWH { 
         xy: TBXY_1_1,
         wh: sswh!(x, 1.0)
     };
+
+    dbg!(outer_rect);
 
     let scroll = &mut scroll;
     let apron: Apron = d!();
@@ -1242,6 +1246,8 @@ fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_given_these_truncat
     let rect_w: AbsPos = outer_rect.wh.w.get().into();
     let rect_max_x: AbsPos = outer_rect.xy.x + rect_w;
 
+    dbg!(rect_w, rect_max_x, xy);
+
     let inside = xy.x >= outer_rect.xy.x 
         && xy.x <= rect_max_x;
 
@@ -1250,6 +1256,24 @@ fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_given_these_truncat
         "{:?} is not inside {:?} along x",
         xy,
         (outer_rect.xy.x, rect_max_x),
+    );
+
+    let xywh = ssxywh!(
+        outer_rect.xy.into(),
+        outer_rect.wh
+    );
+
+    let rect = xywh.into();
+
+    assert!(
+        inside_rect(
+            xy,
+            rect
+        ),
+        "{:?} is not inside the rect {:?} ({:?})",
+        xy,
+        rect,
+        xywh
     );
 }
 
@@ -1332,6 +1356,17 @@ proptest!{
 
         assert_eq!(converted, screen_space);
     }
+}
+
+// As written this will always fail, but it demonstrates an issue so it seems 
+// worth it to be in at least one commit.
+#[test]
+fn converting_to_sswh_gives_the_same_string() {
+    let x_str = "19011971";
+    let x = str::parse::<f32>(x_str).unwrap();
+    let wh = sswh!(x, 1.0);
+
+    assert_eq!(x_str, wh.w.get().to_string());
 }
 
 pub mod arb;
