@@ -1,6 +1,6 @@
 use platform_types::{
-    screen_positioning::{CharDim, ScreenSpaceRect, ScrollXY, TextSpaceXYWH},
-    NonNegF32, 
+    screen_positioning::{CharDim, ScreenSpaceXY, ScreenSpaceRect, ScrollXY, TextSpaceXYWH},
+    NonNegF32,
     char_dim, non_neg_f32, tsxywh, ssr,
 };
 use gl_layer_types::{Vertex, VertexStruct, TexCoords, set_alpha, TextOrRect, Res};
@@ -184,16 +184,9 @@ mod text_layouts {
         }
     }
 
+    #[derive(Hash)]
     pub struct WrapInRect {
         pub rect: ScreenSpaceRect,
-    }
-    impl std::hash::Hash for WrapInRect {
-        fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-            self.rect.min.0.to_bits().hash(state);
-            self.rect.min.1.to_bits().hash(state);
-            self.rect.max.0.to_bits().hash(state);
-            self.rect.max.1.to_bits().hash(state);
-        }
     }
 
     impl GlyphPositioner for WrapInRect {
@@ -212,24 +205,24 @@ mod text_layouts {
             let rect = self.rect;
             let mut wide_bounds = Wrap {}.bounds_rect(geometry);
 
-            wide_bounds.min.x = if wide_bounds.min.x < rect.min.0 {
-                rect.min.0
+            wide_bounds.min.x = if wide_bounds.min.x < rect.min.x {
+                rect.min.x.into()
             } else {
                 wide_bounds.min.x
             };
-            wide_bounds.min.y = if wide_bounds.min.y < rect.min.1 {
-                rect.min.1
+            wide_bounds.min.y = if wide_bounds.min.y < rect.min.y {
+                rect.min.y.into()
             } else {
                 wide_bounds.min.y
             };
 
-            wide_bounds.max.x = if wide_bounds.max.x > rect.max.0 {
-                rect.max.0
+            wide_bounds.max.x = if wide_bounds.max.x > rect.max.x {
+                rect.max.x.into()
             } else {
                 wide_bounds.max.x
             };
-            wide_bounds.max.y = if wide_bounds.max.y > rect.max.1 {
-                rect.max.1
+            wide_bounds.max.y = if wide_bounds.max.y > rect.max.y {
+                rect.max.y.into()
             } else {
                 wide_bounds.max.y
             };
@@ -716,8 +709,8 @@ impl <'font> State<'font> {
                     let ssr!(_, _, max_x, max_y) = rect;    
 
                     let mut bounds: Bounds = d!();
-                    bounds.max.x = max_x;
-                    bounds.max.y = max_y;
+                    bounds.max.x = max_x.into();
+                    bounds.max.y = max_y.into();
                     rect_specs.push(RectSpec {
                         pixel_coords,
                         bounds,
@@ -736,8 +729,8 @@ impl <'font> State<'font> {
                     let section = Section {
                         text: &text,
                         scale: get_scale(size, self.hidpi_factor),
-                        screen_position: rect.min,
-                        bounds: rect.max,
+                        screen_position: rect.min.into(),
+                        bounds: rect.max.into(),
                         color,
                         layout: match layout {
                             TextLayout::SingleLine => Layout::default_single_line(),
@@ -765,8 +758,8 @@ impl <'font> State<'font> {
                     perf_viz::start_record!("MulticolourText");
                     let scale = get_scale(size, self.hidpi_factor);
                     let section = VariedSection {
-                        screen_position: rect.min,
-                        bounds: rect.max,
+                        screen_position: rect.min.into(),
+                        bounds: rect.max.into(),
                         layout: match layout {
                             TextLayout::SingleLine => Layout::default_single_line(),
                             TextLayout::Wrap 
@@ -955,10 +948,10 @@ fn to_vertex_maker((screen_w, screen_h): (f32, f32)) -> impl Fn(glyph_brush::Gly
 
 fn ssr_to_rusttype_i32(ssr!(min_x, min_y, max_x, max_y): ScreenSpaceRect) -> Rect<i32> {
     let mut rect: Rect<i32> = d!();
-    rect.min.x = f32_to_i32_or_max(min_x);
-    rect.min.y = f32_to_i32_or_max(min_y);
-    rect.max.x = f32_to_i32_or_max(max_x);
-    rect.max.y = f32_to_i32_or_max(max_y);
+    rect.min.x = min_x.trunc_to_i32();
+    rect.min.y = min_y.trunc_to_i32();
+    rect.max.x = max_x.trunc_to_i32();
+    rect.max.y = max_y.trunc_to_i32();
     rect
 }
 

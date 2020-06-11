@@ -6,7 +6,7 @@ use proptest::collection::vec;
 use proptest::num::f32;
 use proptest::prelude::{prop_compose, any, Strategy};
 use pub_arb_std::{path_buf, f32::usual};
-use pub_arb_abs_pos::{abs_pos, abs_pos_quarter};
+use pub_arb_abs_pos::{abs_pos, abs_pos_quarter, pos_abs_pos};
 use pub_arb_f32_0_1::{f32_0_1};
 use pub_arb_pos_f32::{pos_f32};
 
@@ -122,7 +122,7 @@ prop_compose!{
 }
 
 pub fn wh() -> impl Strategy<Value = ScreenSpaceWH> {
-    let strat = abs_pos();
+    let strat = pos_abs_pos();
     (strat, strat).prop_map(|(w, h)| ScreenSpaceWH { w, h })
 }
 
@@ -224,7 +224,7 @@ arb_enum!{
 prop_compose!{
     pub fn buffer_view_data()(
         chars in ".*",
-        scroll in scroll_xy(usual()),
+        scroll in scroll_xy(),
         cursors in vec(cursor_view(), 0..=16),
         highlights in vec(highlight(), 0..=16),
         spans in vec(span_view(), 0..=16),
@@ -323,10 +323,10 @@ prop_compose!{
 prop_compose!{
     pub fn size_dependents()(
         f_i in proptest::option::of(font_info()),
-        buffer_xywh in proptest::option::of(text_box_xywh(usual())),
-        find_xywh in proptest::option::of(text_box_xywh(usual())),
-        replace_xywh in proptest::option::of(text_box_xywh(usual())),
-        go_to_position_xywh in proptest::option::of(text_box_xywh(usual())),
+        buffer_xywh in proptest::option::of(text_box_xywh()),
+        find_xywh in proptest::option::of(text_box_xywh()),
+        replace_xywh in proptest::option::of(text_box_xywh()),
+        go_to_position_xywh in proptest::option::of(text_box_xywh()),
     ) -> SizeDependents {
         SizeDependents {
             font_info: f_i,
@@ -405,7 +405,6 @@ prop_compose!{
 }
 
 pub fn scrollable_screen() -> impl Strategy<Value = ScrollableScreen> {
-    let strat = abs_pos();
     (scroll_xy(), wh()).prop_map(|(scroll, wh)| ScrollableScreen {
         scroll,
         wh,
@@ -413,8 +412,9 @@ pub fn scrollable_screen() -> impl Strategy<Value = ScrollableScreen> {
 }
 
 pub fn plausible_scrollable_screen() -> impl Strategy<Value = ScrollableScreen> {
-    let p = abs_pos();
-    (p, p, p, p).prop_map(|(x, y, w, h)| ScrollableScreen {
+    let a_p = abs_pos();
+    let p_a_p = pos_abs_pos();
+    (a_p, a_p, p_a_p, p_a_p).prop_map(|(x, y, w, h)| ScrollableScreen {
         scroll: ScrollXY { x, y },
         wh: ScreenSpaceWH { w, h },
     })
@@ -442,10 +442,10 @@ arb_enum!{
         MoveAllCursors(_) => r#move().prop_map(MoveAllCursors),
         ExtendSelectionForAllCursors(_) => r#move().prop_map(ExtendSelectionForAllCursors),
         SelectAll => Just(SelectAll),
-        SetCursor(_, _) => (text_box_space_xy(usual()), replace_or_add())
+        SetCursor(_, _) => (text_box_space_xy(), replace_or_add())
             .prop_map(|(xy, r_or_add)| SetCursor(xy, r_or_add)),
-        DragCursors(_) => text_box_space_xy(usual()).prop_map(DragCursors),
-        SelectCharTypeGrouping(_, _) => (text_box_space_xy(usual()), replace_or_add())
+        DragCursors(_) => text_box_space_xy().prop_map(DragCursors),
+        SelectCharTypeGrouping(_, _) => (text_box_space_xy(), replace_or_add())
             .prop_map(|(xy, r_or_add)| SelectCharTypeGrouping(xy, r_or_add)),
         ExtendSelectionWithSearch => Just(ExtendSelectionWithSearch),
         SavedAs(_, _) => (pub_arb_g_i::index(16), path_buf())

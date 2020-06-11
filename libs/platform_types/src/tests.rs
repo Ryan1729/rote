@@ -32,8 +32,6 @@ use floating_point::{
 };
 use proptest::{prop_compose, proptest, num::f32, strategy::Strategy};
 
-use pub_arb_std::usual;
-
 prop_compose! {
     fn arb_pos(max_line: usize, max_offset: usize)
     (line in 0..=max_line, offset in 0..=max_offset) -> Position {
@@ -218,13 +216,11 @@ fmt_display!(for ScrollableScreen : ScrollableScreen {scroll, wh}
       in "ScrollableScreen {{ scroll:{}, wh: {} }}", scroll, wh
 );
 
-impl MapElements<f32> for ScrollableScreen {
-    fn map_elements(&self, mapper: &impl Fn(f32) -> f32) -> Self {
+impl MapElements<AbsPos> for ScrollableScreen {
+    fn map_elements(&self, mapper: &impl Fn(AbsPos) -> AbsPos) -> Self {
         Self { 
             scroll: self.scroll.map_elements(mapper),
-            wh: self.wh.map_elements(
-                &|pf32: PosF32| { pos_f32!(mapper(pf32.get())) }
-            ),
+            wh: self.wh.map_elements(mapper),
         }
     }
 }
@@ -277,10 +273,10 @@ fn attempt_to_make_xy_visible_works_in_this_scenario(
     let text_box = tbxywh!(d!(), wh);
 
     let apron = apron!(
-        (char_dim.w / wh.w).get(),
-        (char_dim.w / wh.w).get(),
-        (char_dim.h / wh.h).get(),
-        (char_dim.h / wh.h).get(),
+        (char_dim.w / wh.w.get()),
+        (char_dim.w / wh.w.get()),
+        (char_dim.h / wh.h.get()),
+        (char_dim.h / wh.h.get()),
     );
 
     let attempt = attempt_to_make_xy_visible(
@@ -301,9 +297,9 @@ fn attempt_to_make_xy_visible_works_in_this_scenario(
 proptest! {
     #[test]
     fn attempt_to_make_xy_visible_works(
-        mut screen in arb::scrollable_screen(usual()),
+        mut screen in arb::scrollable_screen(),
         char_dim in arb::char_dim(),
-        xy in arb::text_xy(f32::POSITIVE | f32::ZERO),
+        xy in arb::text_xy(),
     ) {
         attempt_to_make_xy_visible_works_in_this_scenario(&mut screen, char_dim, xy);
     }
@@ -312,8 +308,8 @@ proptest! {
 proptest! {
     #[test]
     fn attempt_to_make_xy_visible_works_with_more_realistic_values(
-        mut screen in arb::scrollable_screen(usual()),
-        xy in arb::text_xy(f32::POSITIVE | f32::ZERO),
+        mut screen in arb::scrollable_screen(),
+        xy in arb::text_xy(),
     ) {
         attempt_to_make_xy_visible_works_in_this_scenario(
             &mut screen,
@@ -413,47 +409,16 @@ fn attempt_to_make_xy_visible_works_on_this_2020_01_realistically_sized_example(
     assert_eq!(attempt_result, VisibilityAttemptResult::Succeeded);
 }
 
-fn xy_is_visible_works_on_this_passed_in_screen(screen: &ScrollableScreen) {    // negated so `NaN` would end up here
-    if !dbg!(screen.wh.w > 0.0 && screen.wh.h > 0.0) {
-        // If we got here the no point should be considered visible!
-        xy_is_visible_assert!(not & screen, TextSpaceXY::default());
-
-        xy_is_visible_assert!(
-            not & screen,
-            tsxy! {
-                screen.scroll.x,
-                0.0
-            }
-        );
-
-        xy_is_visible_assert!(
-            not & screen,
-            tsxy! {
-                0.0,
-                screen.scroll.y
-            }
-        );
-
-        xy_is_visible_assert!(
-            not & screen,
-            tsxy! {
-                screen.scroll.x,
-                screen.scroll.y
-            }
-        );
-
-        return;
-    }
-
+fn xy_is_visible_works_on_this_passed_in_screen(screen: &ScrollableScreen) {
     if screen.scroll.x + screen.wh.w.get() == screen.scroll.x
         || screen.scroll.y - screen.wh.h.get() == screen.scroll.y
-        || screen.scroll.x + usual_f32_minimal_decrease(screen.wh.w)
+        || screen.scroll.x + screen.wh.w.minimal_decrease()
             == screen.scroll.x + screen.wh.w.get()
-        || screen.scroll.y + usual_f32_minimal_decrease(screen.wh.h)
+        || screen.scroll.y + screen.wh.h.minimal_decrease()
             == screen.scroll.y + screen.wh.h.get()
-        || screen.scroll.x - usual_f32_minimal_decrease(screen.wh.w)
+        || screen.scroll.x - screen.wh.w.minimal_decrease()
             == screen.scroll.x - screen.wh.w.get()
-        || screen.scroll.y - usual_f32_minimal_decrease(screen.wh.h)
+        || screen.scroll.y - screen.wh.h.minimal_decrease()
             == screen.scroll.y - screen.wh.h.get()
     {
         // We've hit the limits of f32 precision. If this turns out to be problem in practice,
@@ -494,8 +459,8 @@ fn xy_is_visible_works_on_this_passed_in_screen(screen: &ScrollableScreen) {   
         &screen,
         screen_space_to_text_space(
             ssxy!(
-                usual_f32_minimal_decrease(screen.wh.w),
-                usual_f32_minimal_decrease(screen.wh.h)
+                screen.wh.w.minimal_decrease(),
+                screen.wh.h.minimal_decrease()
             ),
             d!(),
             screen.scroll
@@ -569,7 +534,7 @@ fn xy_is_visible_works_on_this_passed_in_screen(screen: &ScrollableScreen) {   
     xy_is_visible_assert!(
         &screen,
         screen_space_to_text_space(
-            ssxy!(usual_f32_minimal_decrease(screen.wh.w), 0.0),
+            ssxy!(screen.wh.w.minimal_decrease(), 0.0),
             d!(),
             screen.scroll
         )
@@ -586,7 +551,7 @@ fn xy_is_visible_works_on_this_passed_in_screen(screen: &ScrollableScreen) {   
     xy_is_visible_assert!(
         &screen,
         screen_space_to_text_space(
-            ssxy!(0.0, usual_f32_minimal_decrease(screen.wh.h)),
+            ssxy!(0.0, screen.wh.h.minimal_decrease()),
             d!(),
             screen.scroll
         )
@@ -691,17 +656,25 @@ fn screen_space_to_position_then_position_to_screen_space_is_identity_after_one_
     assert_eq!(v, [xy; COUNT].to_vec());
 }
 
-fn clamp_to_65536(x: f32) -> f32 {
-    if x < 65536.0 {
+fn clamp_to_65536(x: AbsPos) -> AbsPos {
+    if x < AbsPos::from(65536.0) {
         x
     } else {
-        // NaN ends up here.
-        65536.0
+        AbsPos::from(65536.0)
     }
 }
 
-fn clamp_to_65536_and_trunc_to_16ths(x: f32) -> f32 {
-    ((clamp_to_65536(x) * 16.0).trunc()) / 16.0
+fn clamp_to_65536_and_trunc_to_16ths(x: AbsPos) -> AbsPos {
+    clamp_to_65536(x)
+        .double()
+        .double()
+        .double()
+        .double()        
+        .trunc()
+        .halve()
+        .halve()
+        .halve()
+        .halve()
 }
 
 // This test captures all the scenarios we (currently) expect to actually see.
@@ -709,7 +682,7 @@ fn clamp_to_65536_and_trunc_to_16ths(x: f32) -> f32 {
 proptest! {
     #[test]
     fn screen_space_to_position_then_position_to_screen_space_is_identity_after_one_conversion_if_we_clamp_to_65536_and_trunc_to_16ths(
-        screen in arb::scrollable_screen(usual()),
+        screen in arb::scrollable_screen(),
         xy in arb::rounded_non_negative_screen_xy(),
         text_box_as_screen in arb::rounded_non_negative_screen_xy(),
     ) {
@@ -727,7 +700,7 @@ proptest! {
 proptest! {
     #[test]
     fn screen_space_to_position_then_position_to_screen_space_is_identity_after_one_conversion_if_we_clamp_to_65536(
-        screen in arb::scrollable_screen(usual()),
+        screen in arb::scrollable_screen(),
         xy in arb::rounded_non_negative_screen_xy(),
         text_box_as_screen in arb::rounded_non_negative_screen_xy(),
     ) {
@@ -744,7 +717,7 @@ proptest! {
 proptest! {
     #[test]
     fn screen_space_to_position_then_position_to_screen_space_is_identity_after_one_conversion(
-        screen in arb::scrollable_screen(usual()),
+        screen in arb::scrollable_screen(),
         xy in arb::rounded_non_negative_screen_xy(),
         ScreenSpaceXY{x, y} in arb::rounded_non_negative_screen_xy(),
     ) {
@@ -844,7 +817,7 @@ fn screen_to_text_box_then_text_box_to_screen_is_identity_after_one_conversion_f
 proptest! {
     #[test]
     fn screen_to_text_box_then_text_box_to_screen_is_identity_after_one_conversion(
-        text_box_xy in arb::text_box_xy(usual()),
+        text_box_xy in arb::text_box_xy(),
         xy in arb::rounded_non_negative_screen_xy(),
     ) {
         screen_to_text_box_then_text_box_to_screen_is_identity_after_one_conversion_for_these(
@@ -898,13 +871,13 @@ fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_on(
     mut scroll: ScrollXY,
     outer_rect: TextBoxXYWH,
     apron: Apron,
-    cursor_xy: TextSpaceXY,
+    to_make_visible: TextSpaceXY,
 ) {
     let attempt_result = attempt_to_make_xy_visible(
         &mut scroll,
         outer_rect,
         apron,
-        cursor_xy,
+        to_make_visible,
     );
 
     // TODO would making this a discarded result help the input generation enough that it's worth doing?
@@ -913,7 +886,7 @@ fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_on(
             text_space_to_screen_space(
                 scroll,
                 outer_rect.xy,
-                cursor_xy,
+                to_make_visible,
             ),
             ssxywh!(
                 outer_rect.xy.into(),
@@ -926,8 +899,8 @@ fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_on(
 proptest! {
     #[test]
     fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible(
-        scroll in arb::scroll_xy(usual()),
-        text_box_xywh in arb::text_box_xywh(usual()),
+        scroll in arb::scroll_xy(),
+        text_box_xywh in arb::text_box_xywh(),
         apron in arb::apron(),
         cursor_xy in arb::rounded_non_negative_text_xy()
     ) {
@@ -940,29 +913,31 @@ proptest! {
     }
 }
 
-fn clamp_exponent_to_24(f: f32) -> f32 {
+fn clamp_exponent_to_24(p: AbsPos) -> AbsPos {
+    let f = p.get();
+
     if f > 2.0f32.powi(24) {
-        2.0f32.powi(24)
+        2.0f32.powi(24).into()
     } else if f > 2.0f32.powi(-24) {
-        f
+        p
     } else {
         // NaN goes here
-        2.0f32.powi(-24)
+        2.0f32.powi(-24).into()
     }
 }
 
 proptest! {
     #[test]
     fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_given_we_clamp_the_exponents_to_24(
-        scroll in arb::scroll_xy(usual())
+        scroll in arb::scroll_xy()
             .prop_map(|s| s.map_elements(&clamp_exponent_to_24)),
-        text_box_xywh in arb::text_box_xywh(usual())
+        text_box_xywh in arb::text_box_xywh()
             .prop_map(|t| t.map_elements(
-                &|pf32| pos_f32_trunc!(clamp_exponent_to_24(pf32.get()))
+                &clamp_exponent_to_24
             )),
         apron in arb::apron()
             .prop_map(|a| a.map_elements(
-                &|f0_1| f32_0_1!(clamp_exponent_to_24(f0_1.get()))
+                &|f32_0_1| f32_0_1!(clamp_exponent_to_24(f32_0_1.get().into()).get())
             )),
         cursor_xy in arb::rounded_non_negative_text_xy()
             .prop_map(|c| c.map_elements(&clamp_exponent_to_24))
@@ -976,44 +951,169 @@ proptest! {
     }
 }
 
-fn clamp_to_at_least_one(f: f32) -> f32 {
-    if f >= 1.0 {
-        f
+fn clamp_to_at_least_one(p: AbsPos) -> AbsPos {
+    if p >= AbsPos::ONE {
+        p
     } else {
-        // NaN goes here
-        1.0
+        AbsPos::ONE
     }
 }
 
 proptest! {
     #[test]
     fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_given_we_clamp_to_at_least_one(
-        scroll in arb::scroll_xy(usual())
+        scroll in arb::scroll_xy()
             .prop_map(|s| s.map_elements(&clamp_to_at_least_one)),
-        text_box_xywh in arb::text_box_xywh(usual())
-            .prop_map(|t| t.map_elements(
-                &|pf32| pos_f32_trunc!(clamp_to_at_least_one(pf32.get()))
-            )),
+        outer_rect in arb::text_box_xywh()
+            .prop_map(|t| t.map_elements(&clamp_to_at_least_one)),
         apron in arb::apron(),
-        cursor_xy in arb::rounded_non_negative_text_xy()
+        to_make_visible in arb::rounded_non_negative_text_xy()
             .prop_map(|c| c.map_elements(&clamp_to_at_least_one))
     ) {
         if_attempt_to_make_visible_succeeds_the_cursor_is_visible_on(
             scroll,
-            text_box_xywh,
+            outer_rect,
             apron,
-            cursor_xy,
+            to_make_visible,
         )
     }
+}
+
+#[test]
+fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_given_we_clamp_to_at_least_one_in_this_case() {
+    let scroll = ScrollXY { x: AbsPos::ONE, y: AbsPos::ONE };
+    let text_box_xywh = TextBoxXYWH { 
+        xy: TextBoxXY { x: AbsPos::ONE, y: AbsPos::ONE },
+        wh: sswh!(PosAbsPos::ONE, PosAbsPos::MAX) 
+    }; 
+    let apron: Apron = d!();
+    let cursor_xy = tsxy!{ AbsPos::ONE, AbsPos::ONE };
+
+    if_attempt_to_make_visible_succeeds_the_cursor_is_visible_on(
+        scroll,
+        text_box_xywh,
+        apron,
+        cursor_xy,
+    )
+}
+
+#[test]
+fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_given_we_clamp_to_at_least_one_in_this_case_reduction() {
+    let mut scroll = ScrollXY { x: AbsPos::ONE, y: AbsPos::ONE };
+    let outer_rect = TextBoxXYWH { 
+        xy: TextBoxXY { x: AbsPos::ONE, y: AbsPos::ONE },
+        wh: sswh!(PosAbsPos::ONE, PosAbsPos::MAX) 
+    }; 
+    let apron: Apron =  d!();
+    let to_make_visible = tsxy!{ AbsPos::ONE, AbsPos::ONE };
+
+    let w = outer_rect.wh.w;
+    let h = outer_rect.wh.h;
+
+    let TextSpaceXY { x, y } = to_make_visible;
+
+    let to_make_visible_ss = text_space_to_screen_space(
+        scroll,
+        outer_rect.xy,
+        to_make_visible,
+    );
+
+    // We clamp the aprons since we'd rather have the cursor end up closer to the 
+    // middle than not be visible at all. 8388608 = 2^23 makes some tests pass where
+    // 2^24 makes them fail.
+    const APRON_MINIMUM: f32 = 1.0 / 8388608.0;
+
+    macro_rules! apron_clamp {
+        ($ratio: expr) => {{
+            let raw = $ratio.get();
+            if raw != 0.0 && raw <= APRON_MINIMUM {
+                f32_0_1!(APRON_MINIMUM)
+            } else {
+                $ratio
+            }
+        }}
+    }
+
+    let left_w_ratio = apron_clamp!(apron.left_w_ratio);
+    let right_w_ratio = apron_clamp!(apron.right_w_ratio);
+    let top_h_ratio = apron_clamp!(apron.top_h_ratio);
+    let bottom_h_ratio = apron_clamp!(apron.bottom_h_ratio);
+
+    let left_w = AbsPos::from(w.get() * left_w_ratio.get()).halve();
+    let right_w = AbsPos::from(w.get() *  right_w_ratio.get()).halve();
+    let top_h = AbsPos::from(h.get() * top_h_ratio.get()).halve();
+    let bottom_h = AbsPos::from(h.get() * bottom_h_ratio.get()).halve();
+
+    // In screen space
+    let min_x: AbsPos = left_w + outer_rect.xy.x;
+    let max_x: AbsPos = AbsPos::from(w) - right_w + outer_rect.xy.x;
+    let min_y: AbsPos = top_h + outer_rect.xy.y;
+    let max_y: AbsPos = AbsPos::from(h) - bottom_h + outer_rect.xy.y;
+
+    dbg!(    
+        &scroll,
+        &outer_rect,
+        x,
+        y,
+        w,
+        h,
+        &apron,
+        to_make_visible,
+        min_x,
+        max_x,
+        min_y,
+        max_y
+    );
+
+    // "Why do we assign x to scroll.x?":
+    // let to_make_visible = tmv
+    // (here = is the algebra =)
+    // tmv_screen = (tmv_text - scroll_xy) + outer_rect.xy
+    // so if we want tmv_screen = outer_rect.xy
+    // tmv_screen = (tmv_text - scroll_xy) + tmv_screen
+    // 0 = (tmv_text - scroll_xy)
+    // scroll_xy = tmv_text
+    // therefore setting scroll_xy to the value of tmv_text places the point
+    // at the top left corner of the text box. We make further adjustments as needed.
+
+    dbg!(x, to_make_visible_ss.x, min_x);
+    if to_make_visible_ss.x < min_x {
+        scroll.x = x - left_w;
+    } else if to_make_visible_ss.x >= max_x {
+        scroll.x = x - (w - right_w);
+    } else {
+        // leave it alone
+    }
+
+    dbg!(y, to_make_visible_ss.y, min_y, max_y);
+    if to_make_visible_ss.y < min_y {
+        scroll.y = y - top_h;
+    } else if to_make_visible_ss.y >= max_y {
+        scroll.y = y - (h - bottom_h);
+    } else {
+        // leave it alone
+    }
+
+    assert_inside_rect!(
+        text_space_to_screen_space(
+            scroll,
+            outer_rect.xy,
+            to_make_visible,
+        ),
+        ssxywh!(
+            outer_rect.xy.into(),
+            outer_rect.wh
+        ).into()
+    );
 }
 
 proptest! {
     #[test]
     fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_given_we_clamp_the_widths_to_at_least_one(
-        scroll in arb::scroll_xy(usual()),
-        text_box_xywh in arb::text_box_xywh(usual())
+        scroll in arb::scroll_xy(),
+        text_box_xywh in arb::text_box_xywh()
             .prop_map(|t| t.map_elements(
-                &|pf32| pos_f32_trunc!(clamp_to_at_least_one(pf32.get()))
+                &clamp_to_at_least_one
             )),
         apron in arb::apron(),
         cursor_xy in arb::rounded_non_negative_text_xy(),
@@ -1030,19 +1130,19 @@ proptest! {
 proptest! {
     #[test]
     fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_given_we_trunc_and_clamp_the_widths(
-        scroll in arb::scroll_xy(usual()),
-        text_box_xywh in arb::text_box_xywh(usual())
+        scroll in arb::scroll_xy(),
+        outer_rect in arb::text_box_xywh()
             .prop_map(|t| t.map_elements(
-                &|pf32t| pos_f32_trunc!(clamp_exponent_to_24(pf32t.get().trunc()))
+                &|p| clamp_exponent_to_24(p.trunc())
             )),
         apron in arb::apron(),
-        cursor_xy in arb::rounded_non_negative_text_xy(),
+        to_make_visible in arb::rounded_non_negative_text_xy(),
     ) {
         if_attempt_to_make_visible_succeeds_the_cursor_is_visible_on(
             scroll,
-            text_box_xywh,
+            outer_rect,
             apron,
-            cursor_xy,
+            to_make_visible,
         )
     }
 }

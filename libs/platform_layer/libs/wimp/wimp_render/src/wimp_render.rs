@@ -1351,11 +1351,11 @@ pub const STATUS_Z: u16 = z_from_base(128);
 pub const TAB_Z: u16 = STATUS_Z;
 
 /// Ratios to tab width
-const TAB_MARGIN_RATIO: PosF32 = PosF32::ONE_THIRTY_SECONDTH;
-const TAB_PADDING_RATIO: PosF32 = PosF32::ONE_SIXTY_FOURTH;
-const TAB_MIN_W: PosF32 = PosF32::ONE_HUNDRED_TWENTY_EIGHT;
-const TAB_MIN_PADDING: PosF32 = PosF32::TWO;//TAB_MIN_W * TAB_PADDING_RATIO;
-const TAB_MIN_MARGIN: PosF32 = PosF32::FOUR;//TAB_MIN_W * TAB_MARGIN_RATIO;
+const TAB_MARGIN_RATIO: Ratio = Ratio::OneThirthySecondth;
+const TAB_PADDING_RATIO: Ratio = Ratio::OneSixtyFourth;
+const TAB_MIN_W: Ratio = Ratio::OneTwentyEight;
+const TAB_MIN_PADDING: Ratio = Ratio::Two;//TAB_MIN_W * TAB_PADDING_RATIO;
+const TAB_MIN_MARGIN: Ratio = Ratio::Four;//TAB_MIN_W * TAB_MARGIN_RATIO;
 
 #[derive(Clone, Copy)]
 pub enum Spacing {
@@ -1407,7 +1407,7 @@ fn get_tab_spaced_rect(
     tab_char_dim: CharDim,
     tab_index: usize,
     tab_count: usize,
-    width: PosF32Trunc,
+    width: PosAbsPos,
 ) -> SpacedRect {
     let UpperPositionInfo {
         tab_v_padding,

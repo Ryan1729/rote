@@ -4,7 +4,7 @@ pub use non_neg_f32::{NonNegF32, non_neg_f32};
 pub use pos_f32::{PosF32, pos_f32};
 pub use pos_f32_trunc::{PosF32Trunc, pos_f32_trunc};
 pub use f32_0_1::{F32_0_1, f32_0_1};
-pub use abs_pos::{AbsPos, abs_pos};
+pub use abs_pos::{AbsPos, abs_pos, PosAbsPos, pos_abs_pos};
 
 // TODO make a derive macro that hashes all the fields, but checks if fields are 
 // f32/f64 and calls `to_bits` if they are.
@@ -27,9 +27,9 @@ pub struct ScreenSpaceXY {
     pub y: AbsPos,
 }
 
-fmt_debug!(for ScreenSpaceXY: ScreenSpaceXY {x, y} in "ssxy!({},{})", x, y);
+fmt_debug!(for ScreenSpaceXY: ScreenSpaceXY {x, y} in "ssxy!({}, {})", x, y);
 
-fmt_display!(for ScreenSpaceXY: ScreenSpaceXY {x, y} in "({},{})", x, y);
+fmt_display!(for ScreenSpaceXY: ScreenSpaceXY {x, y} in "({}, {})", x, y);
 
 impl MapElements<AbsPos> for ScreenSpaceXY {
     fn map_elements(&self, mapper: &impl Fn(AbsPos) -> AbsPos) -> Self {
@@ -108,12 +108,10 @@ impl std::ops::Add<ScreenSpaceXY> for (f32, f32) {
 }
 add_assign!(<ScreenSpaceXY> for (f32, f32));
 
-// TODO It it worth it to make a `NonNegAbsPos` or `PosAbsPos` type since these 
-// should never be negative?
 #[derive(Clone, Copy, Default, Hash, PartialEq)]
 pub struct ScreenSpaceWH {
-    pub w: AbsPos,
-    pub h: AbsPos,
+    pub w: PosAbsPos,
+    pub h: PosAbsPos,
 }
 
 fmt_debug!(for ScreenSpaceWH: ScreenSpaceWH {w, h} in "sswh!({}, {})", w, h);
@@ -123,17 +121,17 @@ fmt_display!(for ScreenSpaceWH: ScreenSpaceWH {w, h} in "{:?}", (w, h));
 impl MapElements<AbsPos> for ScreenSpaceWH {
     fn map_elements(&self, mapper: &impl Fn(AbsPos) -> AbsPos) -> Self {
         Self {
-            w: mapper(self.w),
-            h: mapper(self.h),
+            w: pos_abs_pos!(mapper(self.w.into())),
+            h: pos_abs_pos!(mapper(self.h.into())),
         }
     }
 }
 
-impl MapElements<PosF32> for ScreenSpaceWH {
-    fn map_elements(&self, mapper: &impl Fn(PosF32) -> PosF32) -> Self {
+impl MapElements<PosAbsPos> for ScreenSpaceWH {
+    fn map_elements(&self, mapper: &impl Fn(PosAbsPos) -> PosAbsPos) -> Self {
         Self {
-            w: AbsPos::from(mapper(pos_f32!(self.w.get())).get()),
-            h: AbsPos::from(mapper(pos_f32!(self.h.get())).get()),
+            w: mapper(self.w),
+            h: mapper(self.h),
         }
     }
 }
@@ -186,7 +184,10 @@ impl From<ScreenSpaceWH> for (f32, f32) {
 
 impl From<ScreenSpaceRect> for ScreenSpaceWH {
     fn from(ssr!(min_x, min_y, max_x, max_y): ScreenSpaceRect) -> Self {
-        sswh!(max_x - min_x, max_y - min_y)
+        sswh!(
+            PosAbsPos::new_saturating(max_x - min_x),
+            PosAbsPos::new_saturating(max_y - min_y)
+        )
     }
 }
 
@@ -265,7 +266,7 @@ macro_rules! char_dim {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Hash)]
+#[derive(Clone, Copy, Default, PartialEq, Hash)]
 /// A postion in screen space which represents the top left corner of a text box
 /// Not to be confused with a `TextBoxSpaceXY`.
 pub struct TextBoxXY {
@@ -273,6 +274,7 @@ pub struct TextBoxXY {
     pub y: AbsPos,
 }
 
+fmt_debug!(for TextBoxXY: TextBoxXY {x, y} in "tbxy!({}, {})", x, y);
 fmt_display!(for TextBoxXY: TextBoxXY {x, y} in "({},{})", x, y);
 
 #[macro_export]
@@ -316,7 +318,7 @@ impl MapElements<AbsPos> for TextBoxXY {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Default, PartialEq)]
 /// A vector in the space with the origin at the top left corner of a given text box.
 /// The top left corner of the text box is `(0.0, 0.0), top right corner is `(width, 0.0)`,
 /// the bottom left corner is `(0.0, height)`. In other words, the x-axis point right, the y-axis
@@ -326,6 +328,7 @@ pub struct TextBoxSpaceXY {
     pub y: AbsPos,
 }
 
+fmt_debug!(for TextBoxSpaceXY: TextBoxSpaceXY {x, y} in "tbsxy!({}, {})", x, y);
 fmt_display!(for TextBoxSpaceXY: TextBoxSpaceXY {x, y} in "{:?}", (x, y));
 
 #[macro_export]
@@ -391,7 +394,7 @@ pub fn screen_to_text_box(xy: ScreenSpaceXY, pos: TextBoxXY) -> TextBoxSpaceXY {
     xy - pos
 }
 
-#[derive(Clone, Copy, Debug, Default, Hash, PartialEq)]
+#[derive(Clone, Copy, Default, Hash, PartialEq)]
 /// The top left corner of the text is `(0.0, 0.0), top right corner is `(width, 0.0)`,
 /// the bottom left corner is `(0.0, height)`. In other words, the x-axis point right, the y-axis
 /// points down. Note that this is different than `TextBoxSpaceXY` since the text can be scrolled.
@@ -400,6 +403,7 @@ pub struct TextSpaceXY {
     pub y: AbsPos,
 }
 
+fmt_debug!(for TextSpaceXY: TextSpaceXY {x, y} in "tsxy!({}, {})", x, y);
 fmt_display!(for TextSpaceXY: TextSpaceXY {x, y} in "{:?}", (x, y));
 
 #[macro_export]
@@ -427,11 +431,11 @@ impl From<TextSpaceXY> for (f32, f32) {
     }
 }
 
-impl MapElements<f32> for TextSpaceXY {
-    fn map_elements(&self, mapper: &impl Fn(f32) -> f32) -> Self {
+impl MapElements<AbsPos> for TextSpaceXY {
+    fn map_elements(&self, mapper: &impl Fn(AbsPos) -> AbsPos) -> Self {
         Self {
-            x: mapper(self.x.into()).into(),
-            y: mapper(self.y.into()).into(),
+            x: mapper(self.x),
+            y: mapper(self.y),
         }
     }
 }
@@ -447,11 +451,13 @@ impl std::ops::Add for TextSpaceXY {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, Hash, PartialEq)]
+#[derive(Clone, Copy, Default, Hash, PartialEq)]
 pub struct TextSpaceXYWH {
     pub xy: TextSpaceXY,
     pub wh: ScreenSpaceWH,
 }
+
+fmt_debug!(for TextSpaceXYWH: TextSpaceXYWH {xy, wh} in "tsxywh!({}, {})", xy, wh);
 
 #[macro_export]
 macro_rules! tsxywh {
@@ -484,7 +490,7 @@ macro_rules! tsxywh {
     };
 }
 
-#[derive(Clone, Copy, Debug, Default, Hash, PartialEq)]
+#[derive(Clone, Copy, Default, Hash, PartialEq)]
 /// An offset in TextBoxSpace.
 /// The top left corner of the text is `(0.0, 0.0)`, top right corner is `(width, 0.0)`,
 /// the bottom left corner is `(0.0, height)`. In other words, the x-axis point right, the y-axis
@@ -494,10 +500,11 @@ pub struct ScrollXY {
     pub y: AbsPos,
 }
 
+fmt_debug!(for ScrollXY: ScrollXY {x, y} in "slxy!({}, {})", x, y);
 fmt_display!(for ScrollXY: ScrollXY {x, y} in "{:?}", (x, y));
 
-/// This uses `slxy` becasue `scxy`, or `srxy` seem confusable with being for ScreenSpaceXY.
-/// `soxy` seems less evocative of scrolling than `slxy`.
+/// This uses `slxy` becasue `scxy`, or `srxy` seem confusable with being for 
+/// ScreenSpaceXY. `soxy` seems less evocative of scrolling than `slxy`.
 #[macro_export]
 macro_rules! slxy {
     //
@@ -817,10 +824,10 @@ pub fn attempt_to_make_xy_visible(
     apron: Apron,
     to_make_visible: TextSpaceXY,
 ) -> VisibilityAttemptResult {
-    u!{std::num::FpCategory, VisibilityAttemptResult}
+    u!{VisibilityAttemptResult}
 
-    let w: AbsPos = outer_rect.wh.w.get().into();
-    let h: AbsPos = outer_rect.wh.h.get().into();
+    let w = outer_rect.wh.w;
+    let h = outer_rect.wh.h;
 
     let TextSpaceXY { x, y } = to_make_visible;
 
