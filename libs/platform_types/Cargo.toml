@@ -9,7 +9,7 @@ path = "./src/platform_types.rs"
 
 [dependencies]
 vec1 = "1.4"
-abs_pos = { path = "./libs/abs_pos" }
+abs = { path = "./libs/abs" }
 f32_0_1 = { path = "./libs/f32_0_1" }
 g_i = { path = "./libs/g_i" }
 panic_safe_rope = { path = "../panic_safe_rope" }
@@ -22,7 +22,7 @@ non_neg_f32 = { path = "./libs/non_neg_f32" }
 text_pos = { path = "../text_pos" }
 proptest = { version = "0.9", optional = true }
 arb_macros = { path = "../arb_macros", optional = true }
-pub_arb_abs_pos = { path = "../pub_arb/abs_pos", optional = true }
+pub_arb_abs = { path = "../pub_arb/abs", optional = true }
 pub_arb_f32_0_1 = { path = "../pub_arb/f32_0_1", optional = true }
 pub_arb_g_i = { path = "../pub_arb/g_i", optional = true }
 pub_arb_pos_f32 = { path = "../pub_arb/pos_f32", optional = true }
@@ -33,7 +33,7 @@ pub_arb_std = { path = "../pub_arb/std", optional = true }
 [dev-dependencies]
 proptest = { version = "0.9.5" }
 arb_macros = { path = "../arb_macros" }
-pub_arb_abs_pos = { path = "../pub_arb/abs_pos" }
+pub_arb_abs = { path = "../pub_arb/abs" }
 pub_arb_f32_0_1 = { path = "../pub_arb/f32_0_1" }
 pub_arb_g_i = { path = "../pub_arb/g_i" }
 pub_arb_pos_f32 = { path = "../pub_arb/pos_f32" }
@@ -44,4 +44,4 @@ pub_arb_std = { path = "../pub_arb/std" }
 [features]
 default = []
 extra-prints = []
-pub_arb = ["pub_arb_g_i", "pub_arb_f32_0_1", "pub_arb_abs_pos", "pub_arb_pos_f32", "pub_arb_pos_f32_trunc", "pub_arb_non_neg_f32", "pub_arb_std", "arb_macros", "proptest"]
+pub_arb = ["pub_arb_g_i", "pub_arb_f32_0_1", "pub_arb_abs", "pub_arb_pos_f32", "pub_arb_pos_f32_trunc", "pub_arb_non_neg_f32", "pub_arb_std", "arb_macros", "proptest"]

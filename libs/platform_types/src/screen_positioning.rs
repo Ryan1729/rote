@@ -4,7 +4,7 @@ pub use non_neg_f32::{NonNegF32, non_neg_f32};
 pub use pos_f32::{PosF32, pos_f32};
 pub use pos_f32_trunc::{PosF32Trunc, pos_f32_trunc};
 pub use f32_0_1::{F32_0_1, f32_0_1};
-pub use abs_pos::{AbsPos, abs_pos, PosAbsPos, pos_abs_pos};
+pub use abs::{abs_pos, abs_length};
 
 // TODO make a derive macro that hashes all the fields, but checks if fields are 
 // f32/f64 and calls `to_bits` if they are.
@@ -23,16 +23,16 @@ macro_rules! hash_to_bits {
 /// the bottom left corner is `(0.0, height)`. In other words, the x-axis point right, the y-axis
 /// points down.
 pub struct ScreenSpaceXY {
-    pub x: AbsPos,
-    pub y: AbsPos,
+    pub x: abs::Pos,
+    pub y: abs::Pos,
 }
 
 fmt_debug!(for ScreenSpaceXY: ScreenSpaceXY {x, y} in "ssxy!({}, {})", x, y);
 
 fmt_display!(for ScreenSpaceXY: ScreenSpaceXY {x, y} in "({}, {})", x, y);
 
-impl MapElements<AbsPos> for ScreenSpaceXY {
-    fn map_elements(&self, mapper: &impl Fn(AbsPos) -> AbsPos) -> Self {
+impl MapElements<abs::Pos> for ScreenSpaceXY {
+    fn map_elements(&self, mapper: &impl Fn(abs::Pos) -> abs::Pos) -> Self {
         Self { 
             x: mapper(self.x),
             y: mapper(self.y),
@@ -110,25 +110,25 @@ add_assign!(<ScreenSpaceXY> for (f32, f32));
 
 #[derive(Clone, Copy, Default, Hash, PartialEq)]
 pub struct ScreenSpaceWH {
-    pub w: PosAbsPos,
-    pub h: PosAbsPos,
+    pub w: abs::Length,
+    pub h: abs::Length,
 }
 
 fmt_debug!(for ScreenSpaceWH: ScreenSpaceWH {w, h} in "sswh!({}, {})", w, h);
 
 fmt_display!(for ScreenSpaceWH: ScreenSpaceWH {w, h} in "{:?}", (w, h));
 
-impl MapElements<AbsPos> for ScreenSpaceWH {
-    fn map_elements(&self, mapper: &impl Fn(AbsPos) -> AbsPos) -> Self {
+impl MapElements<abs::Pos> for ScreenSpaceWH {
+    fn map_elements(&self, mapper: &impl Fn(abs::Pos) -> abs::Pos) -> Self {
         Self {
-            w: pos_abs_pos!(mapper(self.w.into())),
-            h: pos_abs_pos!(mapper(self.h.into())),
+            w: abs_length!(mapper(self.w.into())),
+            h: abs_length!(mapper(self.h.into())),
         }
     }
 }
 
-impl MapElements<PosAbsPos> for ScreenSpaceWH {
-    fn map_elements(&self, mapper: &impl Fn(PosAbsPos) -> PosAbsPos) -> Self {
+impl MapElements<abs::Length> for ScreenSpaceWH {
+    fn map_elements(&self, mapper: &impl Fn(abs::Length) -> abs::Length) -> Self {
         Self {
             w: mapper(self.w),
             h: mapper(self.h),
@@ -185,8 +185,8 @@ impl From<ScreenSpaceWH> for (f32, f32) {
 impl From<ScreenSpaceRect> for ScreenSpaceWH {
     fn from(ssr!(min_x, min_y, max_x, max_y): ScreenSpaceRect) -> Self {
         sswh!(
-            PosAbsPos::new_saturating(max_x - min_x),
-            PosAbsPos::new_saturating(max_y - min_y)
+            abs::Length::new_saturating(max_x - min_x),
+            abs::Length::new_saturating(max_y - min_y)
         )
     }
 }
@@ -270,8 +270,8 @@ macro_rules! char_dim {
 /// A postion in screen space which represents the top left corner of a text box
 /// Not to be confused with a `TextBoxSpaceXY`.
 pub struct TextBoxXY {
-    pub x: AbsPos,
-    pub y: AbsPos,
+    pub x: abs::Pos,
+    pub y: abs::Pos,
 }
 
 fmt_debug!(for TextBoxXY: TextBoxXY {x, y} in "tbxy!({}, {})", x, y);
@@ -309,8 +309,8 @@ impl From<TextBoxXY> for ScreenSpaceXY {
     }
 }
 
-impl MapElements<AbsPos> for TextBoxXY {
-    fn map_elements(&self, mapper: &impl Fn(AbsPos) -> AbsPos) -> Self {
+impl MapElements<abs::Pos> for TextBoxXY {
+    fn map_elements(&self, mapper: &impl Fn(abs::Pos) -> abs::Pos) -> Self {
         Self { 
             x: mapper(self.x),
             y: mapper(self.y),
@@ -324,8 +324,8 @@ impl MapElements<AbsPos> for TextBoxXY {
 /// the bottom left corner is `(0.0, height)`. In other words, the x-axis point right, the y-axis
 /// points down. Note that this is different than `TextSpaceXY` since the text can be scrolled.
 pub struct TextBoxSpaceXY {
-    pub x: AbsPos,
-    pub y: AbsPos,
+    pub x: abs::Pos,
+    pub y: abs::Pos,
 }
 
 fmt_debug!(for TextBoxSpaceXY: TextBoxSpaceXY {x, y} in "tbsxy!({}, {})", x, y);
@@ -399,8 +399,8 @@ pub fn screen_to_text_box(xy: ScreenSpaceXY, pos: TextBoxXY) -> TextBoxSpaceXY {
 /// the bottom left corner is `(0.0, height)`. In other words, the x-axis point right, the y-axis
 /// points down. Note that this is different than `TextBoxSpaceXY` since the text can be scrolled.
 pub struct TextSpaceXY {
-    pub x: AbsPos,
-    pub y: AbsPos,
+    pub x: abs::Pos,
+    pub y: abs::Pos,
 }
 
 fmt_debug!(for TextSpaceXY: TextSpaceXY {x, y} in "tsxy!({}, {})", x, y);
@@ -431,8 +431,8 @@ impl From<TextSpaceXY> for (f32, f32) {
     }
 }
 
-impl MapElements<AbsPos> for TextSpaceXY {
-    fn map_elements(&self, mapper: &impl Fn(AbsPos) -> AbsPos) -> Self {
+impl MapElements<abs::Pos> for TextSpaceXY {
+    fn map_elements(&self, mapper: &impl Fn(abs::Pos) -> abs::Pos) -> Self {
         Self {
             x: mapper(self.x),
             y: mapper(self.y),
@@ -496,8 +496,8 @@ macro_rules! tsxywh {
 /// the bottom left corner is `(0.0, height)`. In other words, the x-axis point right, the y-axis
 /// points down.
 pub struct ScrollXY {
-    pub x: AbsPos,
-    pub y: AbsPos,
+    pub x: abs::Pos,
+    pub y: abs::Pos,
 }
 
 fmt_debug!(for ScrollXY: ScrollXY {x, y} in "slxy!({}, {})", x, y);
@@ -533,8 +533,8 @@ macro_rules! slxy {
     };
 }
 
-impl MapElements<AbsPos> for ScrollXY {
-    fn map_elements(&self, mapper: &impl Fn(AbsPos) -> AbsPos) -> Self {
+impl MapElements<abs::Pos> for ScrollXY {
+    fn map_elements(&self, mapper: &impl Fn(abs::Pos) -> abs::Pos) -> Self {
         Self { 
             x: mapper(self.x),
             y: mapper(self.y),
@@ -696,8 +696,8 @@ pub fn position_to_text_space(
     // lines seems better than an error box or something like that.
     #[allow(clippy::cast_precision_loss)]
     TextSpaceXY {
-        x: AbsPos::from(offset.0 as f32 * w),
-        y: AbsPos::from(line as f32 * h),
+        x: abs::Pos::from(offset.0 as f32 * w),
+        y: abs::Pos::from(line as f32 * h),
     }
 }
 
@@ -858,16 +858,16 @@ pub fn attempt_to_make_xy_visible(
     let top_h_ratio = apron_clamp!(apron.top_h_ratio);
     let bottom_h_ratio = apron_clamp!(apron.bottom_h_ratio);
 
-    let left_w = AbsPos::from(w.get() * left_w_ratio.get()).halve();
-    let right_w = AbsPos::from(w.get() *  right_w_ratio.get()).halve();
-    let top_h = AbsPos::from(h.get() * top_h_ratio.get()).halve();
-    let bottom_h = AbsPos::from(h.get() * bottom_h_ratio.get()).halve();
+    let left_w = abs::Pos::from(w.get() * left_w_ratio.get()).halve();
+    let right_w = abs::Pos::from(w.get() *  right_w_ratio.get()).halve();
+    let top_h = abs::Pos::from(h.get() * top_h_ratio.get()).halve();
+    let bottom_h = abs::Pos::from(h.get() * bottom_h_ratio.get()).halve();
 
     // In screen space
-    let min_x: AbsPos = left_w + outer_rect.xy.x;
-    let max_x: AbsPos = AbsPos::from(w) - right_w + outer_rect.xy.x;
-    let min_y: AbsPos = top_h + outer_rect.xy.y;
-    let max_y: AbsPos = AbsPos::from(h) - bottom_h + outer_rect.xy.y;
+    let min_x: abs::Pos = left_w + outer_rect.xy.x;
+    let max_x: abs::Pos = abs::Pos::from(w) - right_w + outer_rect.xy.x;
+    let min_y: abs::Pos = top_h + outer_rect.xy.y;
+    let max_y: abs::Pos = abs::Pos::from(h) - bottom_h + outer_rect.xy.y;
 
     dbg!(    
         &scroll,
@@ -926,7 +926,7 @@ pub struct ScreenSpaceRect {
     pub max: ScreenSpaceXY,
 }
 d!(for ScreenSpaceRect : ScreenSpaceRect{
-min: ssxy!(AbsPos::ZERO, AbsPos::ZERO), max: ssxy!(AbsPos::MAX, AbsPos::MAX)
+min: ssxy!(abs::Pos::ZERO, abs::Pos::ZERO), max: ssxy!(abs::Pos::MAX, abs::Pos::MAX)
 });
 
 #[macro_export]
@@ -1020,41 +1020,41 @@ impl std::ops::Add<ScreenSpaceXY> for ScreenSpaceRect {
 
 impl ScreenSpaceRect {
     #[allow(dead_code)]
-    pub fn with_min_x(&self, min_x: AbsPos) -> Self {
+    pub fn with_min_x(&self, min_x: abs::Pos) -> Self {
         ScreenSpaceRect {
             min: ssxy!(min_x, self.min.y),
             ..*self
         }
     }
-    pub fn with_min_y(&self, min_y: AbsPos) -> Self {
+    pub fn with_min_y(&self, min_y: abs::Pos) -> Self {
         ScreenSpaceRect {
             min: ssxy!(self.min.x, min_y),
             ..*self
         }
     }
 
-    pub fn with_max_x(&self, max_x: AbsPos) -> Self {
+    pub fn with_max_x(&self, max_x: abs::Pos) -> Self {
         ScreenSpaceRect {
             max: ssxy!(max_x, self.max.y),
             ..*self
         }
     }
-    pub fn with_max_y(&self, max_y: AbsPos) -> Self {
+    pub fn with_max_y(&self, max_y: abs::Pos) -> Self {
         ScreenSpaceRect {
             max: ssxy!(self.max.x, max_y),
             ..*self
         }
     }
 
-    pub fn width(&self) -> AbsPos {
+    pub fn width(&self) -> abs::Pos {
         self.max.x - self.min.x
     }
 
-    pub fn height(&self) -> AbsPos {
+    pub fn height(&self) -> abs::Pos {
         self.max.y - self.min.y
     }
 
-    pub fn middle(&self) -> (AbsPos, AbsPos) {
+    pub fn middle(&self) -> (abs::Pos, abs::Pos) {
         (
             (self.min.x + self.max.x).halve(),
             (self.min.y + self.max.y).halve(),
@@ -1165,8 +1165,8 @@ impl From<TextBoxXYWH> for ScreenSpaceRect {
     }
 }
 
-impl MapElements<AbsPos> for TextBoxXYWH {
-    fn map_elements(&self, mapper: &impl Fn(AbsPos) -> AbsPos) -> Self {
+impl MapElements<abs::Pos> for TextBoxXYWH {
+    fn map_elements(&self, mapper: &impl Fn(abs::Pos) -> abs::Pos) -> Self {
         Self {
             xy: self.xy.map_elements(mapper),
             wh: self.wh.map_elements(mapper),

@@ -6,7 +6,7 @@ use proptest::collection::vec;
 use proptest::num::f32;
 use proptest::prelude::{prop_compose, any, Strategy};
 use pub_arb_std::{path_buf, f32::usual};
-use pub_arb_abs_pos::{abs_pos, abs_pos_quarter, pos_abs_pos};
+use pub_arb_abs::{abs_pos, abs_pos_quarter, abs_length};
 use pub_arb_f32_0_1::{f32_0_1};
 use pub_arb_pos_f32::{pos_f32};
 
@@ -122,7 +122,7 @@ prop_compose!{
 }
 
 pub fn wh() -> impl Strategy<Value = ScreenSpaceWH> {
-    let strat = pos_abs_pos();
+    let strat = abs_length();
     (strat, strat).prop_map(|(w, h)| ScreenSpaceWH { w, h })
 }
 
@@ -413,7 +413,7 @@ pub fn scrollable_screen() -> impl Strategy<Value = ScrollableScreen> {
 
 pub fn plausible_scrollable_screen() -> impl Strategy<Value = ScrollableScreen> {
     let a_p = abs_pos();
-    let p_a_p = pos_abs_pos();
+    let p_a_p = abs_length();
     (a_p, a_p, p_a_p, p_a_p).prop_map(|(x, y, w, h)| ScrollableScreen {
         scroll: ScrollXY { x, y },
         wh: ScreenSpaceWH { w, h },

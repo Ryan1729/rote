@@ -23,18 +23,18 @@ pub mod arb {
 
     #[derive(Clone, Copy, Debug)]
     #[must_use = "strategies do nothing unless used"]
-    struct AbsPosStrat(Kind);
+    struct PosStrat(Kind);
 
-struct AbsPosValueTree(Kind, <i64::Any as Strategy>::Tree);
+    struct PosValueTree(Kind, <i64::Any as Strategy>::Tree);
 
-    impl ValueTree for AbsPosValueTree {
-        type Value = AbsPos;
+    impl ValueTree for PosValueTree {
+        type Value = Pos;
         fn current(&self) -> Self::Value {
-            let pos = AbsPos::from_bits(self.1.current());
+            let pos = Pos::from_bits(self.1.current());
 
             match self.0 {
                 Kind::Full => pos,
-                Kind::Quarter => AbsPos(pos.0 / 4),
+                Kind::Quarter => Pos(pos.0 / 4),
             }
         }
         fn simplify(&mut self) -> bool {
@@ -45,40 +45,40 @@ struct AbsPosValueTree(Kind, <i64::Any as Strategy>::Tree);
         }
     }
 
-    impl Strategy for AbsPosStrat {
-        type Tree = AbsPosValueTree;
-        type Value = AbsPos;
+    impl Strategy for PosStrat {
+        type Tree = PosValueTree;
+        type Value = Pos;
 
         fn new_tree(&self, runner: &mut TestRunner) -> NewTree<Self> {
             i64::ANY
                 .new_tree(runner)
-                .map(|t| AbsPosValueTree(self.0, t))
+                .map(|t| PosValueTree(self.0, t))
         }
     }
 
-    pub fn abs_pos() -> impl Strategy<Value = AbsPos> + Copy {
-        AbsPosStrat(Kind::Full)
+    pub fn abs_pos() -> impl Strategy<Value = Pos> + Copy {
+        PosStrat(Kind::Full)
     }
 
-    pub fn abs_pos_quarter() -> impl Strategy<Value = AbsPos> + Copy {
-        AbsPosStrat(Kind::Quarter)
+    pub fn abs_pos_quarter() -> impl Strategy<Value = Pos> + Copy {
+        PosStrat(Kind::Quarter)
     }
 
     #[derive(Clone, Copy, Debug)]
     #[must_use = "strategies do nothing unless used"]
-    struct PosAbsPosStrat(Kind);
+    struct LengthStrat(Kind);
 
-    struct PosAbsPosValueTree(Kind, <i64::Any as Strategy>::Tree);
+    struct LengthValueTree(Kind, <i64::Any as Strategy>::Tree);
 
-    impl ValueTree for PosAbsPosValueTree {
-        type Value = PosAbsPos;
+    impl ValueTree for LengthValueTree {
+        type Value = Length;
         fn current(&self) -> Self::Value {
-            let pos = AbsPos::from_bits(self.1.current());
+            let pos = Pos::from_bits(self.1.current());
 
-            PosAbsPos::new_saturating(
+            Length::new_saturating(
                 match self.0 {
                     Kind::Full => pos,
-                    Kind::Quarter => AbsPos(pos.0 / 4),
+                    Kind::Quarter => Pos(pos.0 / 4),
                 }.abs()
             )
         }
@@ -90,41 +90,41 @@ struct AbsPosValueTree(Kind, <i64::Any as Strategy>::Tree);
         }
     }
 
-    impl Strategy for PosAbsPosStrat {
-        type Tree = PosAbsPosValueTree;
-        type Value = PosAbsPos;
+    impl Strategy for LengthStrat {
+        type Tree = LengthValueTree;
+        type Value = Length;
 
         fn new_tree(&self, runner: &mut TestRunner) -> NewTree<Self> {
             i64::ANY
                 .new_tree(runner)
-                .map(|t| PosAbsPosValueTree(self.0, t))
+                .map(|t| LengthValueTree(self.0, t))
         }
     }
 
-    pub fn pos_abs_pos() -> impl Strategy<Value = PosAbsPos> + Copy {
-        PosAbsPosStrat(Kind::Full)
+    pub fn abs_length() -> impl Strategy<Value = Length> + Copy {
+        LengthStrat(Kind::Full)
     }
 
-    pub fn pos_abs_pos_quarter() -> impl Strategy<Value = PosAbsPos> + Copy {
-        PosAbsPosStrat(Kind::Quarter)
+    pub fn abs_length_quarter() -> impl Strategy<Value = Length> + Copy {
+        LengthStrat(Kind::Quarter)
     }
 }
 
 // These operations not being inverses when expressed in f32 was the initial reason 
 // for this library to exist.
 fn a_space_to_b(
-    delta: AbsPos,
-    base: AbsPos,
-    a_space_point: AbsPos
-) -> AbsPos {
+    delta: Pos,
+    base: Pos,
+    a_space_point: Pos
+) -> Pos {
     (a_space_point - delta) + base
 }
 
 fn b_space_to_a(
-    b_space_point: AbsPos,
-    base: AbsPos,
-    delta: AbsPos
-) -> AbsPos {
+    b_space_point: Pos,
+    base: Pos,
+    delta: Pos
+) -> Pos {
     delta + (b_space_point - base)
 }
 
@@ -157,9 +157,9 @@ proptest!{
 }
 
 fn b_to_a_to_b_is_identity_on(
-    delta: AbsPos,
-    base: AbsPos,
-    b_space_point: AbsPos,
+    delta: Pos,
+    base: Pos,
+    b_space_point: Pos,
 ) {
     let intermediate = b_space_to_a(
         b_space_point,
@@ -204,7 +204,7 @@ fn b_to_a_to_b_is_identity_in_this_maximum_point_case() {
     b_to_a_to_b_is_identity_on(
         d!(),
         d!(),
-        AbsPos::from_f32(f32::INFINITY),
+        Pos::from_f32(f32::INFINITY),
     );
 }
 
@@ -213,10 +213,10 @@ proptest!{
     fn adding_default_is_identity(
         pos in arb::abs_pos(),
     ) {
-        let actual = pos + AbsPos::default();
+        let actual = pos + Pos::default();
         assert_eq!(actual, pos);
 
-        let actual = AbsPos::default() + pos;
+        let actual = Pos::default() + pos;
         assert_eq!(actual, pos);
     }
 }
@@ -226,7 +226,7 @@ proptest!{
     fn subtracting_default_is_identity(
         pos in arb::abs_pos(),
     ) {
-        let actual = pos - AbsPos::default();
+        let actual = pos - Pos::default();
         assert_eq!(actual, pos);
     }
 }
@@ -247,7 +247,7 @@ proptest!{
         pos in proptest::num::f32::ANY,
     ) {
         let actual = b_space_to_a(pos.into(), d!(), d!());
-        assert_eq!(actual, AbsPos::from(pos));
+        assert_eq!(actual, Pos::from(pos));
     }
 }
 
@@ -255,56 +255,105 @@ proptest!{
 fn b_space_to_a_with_defaults_is_identity_generated_reduction() {
     let pos = -51382920.0;
     
-    let actual: AbsPos = AbsPos::default() + (AbsPos::from(pos) - AbsPos::default());
+    let actual: Pos = Pos::default() + (Pos::from(pos) - Pos::default());
     assert_eq!(actual, pos);
 }
 
 #[test]
 fn b_space_to_a_with_defaults_is_identity_for_inf() {
-    let pos = AbsPos::from(f32::INFINITY);
+    let pos = Pos::from(f32::INFINITY);
     
-    let actual: AbsPos = AbsPos::default() + (pos - AbsPos::default());
+    let actual: Pos = Pos::default() + (pos - Pos::default());
     assert_eq!(actual, pos);
 }
 
 #[test]
 fn abs_pos_to_f32_and_f32_to_abs_pos_do_not_change_the_signum_numbers() {
-    assert_eq!(AbsPos::from(-1.0f32), AbsPos::NEGATIVE_ONE);
-    assert_eq!(f32::from(AbsPos::NEGATIVE_ONE), -1.0f32);
+    assert_eq!(Pos::from(-1.0f32), Pos::NEGATIVE_ONE, "Pos::from -1");
+    assert_eq!(f32::from(Pos::NEGATIVE_ONE), -1.0f32, "f32::from -1");
 
-    assert_eq!(AbsPos::from(0.0f32), AbsPos::ZERO);
-    assert_eq!(f32::from(AbsPos::ZERO), 0.0f32);
+    assert_eq!(Pos::from(0.0f32), Pos::ZERO, "Pos::from 0");
+    assert_eq!(f32::from(Pos::ZERO), 0.0f32, "f32::from 0");
 
-    assert_eq!(AbsPos::from(1.0f32), AbsPos::ONE);
-    assert_eq!(f32::from(AbsPos::ONE), 1.0f32);
+    assert_eq!(Pos::from(1.0f32), Pos::ONE, "Pos::from 1");
+    assert_eq!(f32::from(Pos::ONE), 1.0f32, "f32::from 1");
 }
 
+// We're okay with stuff truncating to 0, but something positive becoming negative,
+// is not desired.
 proptest!{
     #[test]
-    fn abs_pos_to_f32_to_abs_pos_does_not_change_the_signum(
+    fn abs_pos_to_f32_to_abs_pos_does_not_flip_the_signum(
         pos in arb::abs_pos(),
     ) {
         let expected = pos.signum();
 
         let f = f32::from(pos);
-        assert_eq!(f.signum(), f32::from(expected));
+        if expected == Pos::ONE {
+            assert_ne!(f32_signum(f), -1.0);
+        } else if expected == Pos::NEGATIVE_ONE {
+            assert_ne!(f32_signum(f), 1.0);
+        }
+        
+        let round_tripped = Pos::from(f);
 
-        let round_tripped = AbsPos::from(f);
-        assert_eq!(round_tripped.signum(), expected);   
+        if expected == Pos::ONE {
+            assert_ne!(round_tripped.signum(), Pos::NEGATIVE_ONE);
+        } else if expected == Pos::NEGATIVE_ONE {
+            assert_ne!(round_tripped.signum(), Pos::ONE);
+        }
+    }
+}
+
+fn f32_to_abs_pos_to_f32_does_not_change_the_signum_on(
+    f: f32,
+) {
+    let expected = f32_signum(f);
+
+    let pos = Pos::from(f);
+
+    if expected == 1.0 {
+        assert_ne!(
+            pos.signum(),
+            Pos::NEGATIVE_ONE,
+            "converting {} (f32) to {} (Pos) made the signum negative",
+            f,
+            pos
+        );
+    } else if expected == -1.0 {
+        assert_ne!(
+            pos.signum(),
+            Pos::ONE,
+            "converting {} (f32) to {} (Pos) made the signum positive",
+            f,
+            pos
+        );
+    }
+
+    let round_tripped = f32::from(pos);
+
+    if expected == 1.0 {
+        assert_ne!(f32_signum(round_tripped), -1.0);
+    } else if expected == -1.0 {
+        assert_ne!(f32_signum(round_tripped), 1.0);
     }
 }
 
 proptest!{
     #[test]
     fn f32_to_abs_pos_to_f32_does_not_change_the_signum(
-        f in proptest::num::f32::ANY,
+        f in proptest::num::f32::NORMAL,
     ) {
-        let expected = f.signum();
-
-        let pos = AbsPos::from(f);
-        assert_eq!(pos.signum(), AbsPos::from(expected));
-
-        let round_tripped = f32::from(pos);
-        assert_eq!(round_tripped.signum(), expected);   
+        f32_to_abs_pos_to_f32_does_not_change_the_signum_on(
+            f
+        )
     }
+}
+
+#[test]
+fn f32_to_abs_pos_to_f32_does_not_change_the_signum_on_zero(
+) {
+    f32_to_abs_pos_to_f32_does_not_change_the_signum_on(
+        0.0
+    )
 }

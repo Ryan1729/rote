@@ -39,7 +39,7 @@ prop_compose! {
     }
 }
 
-// I'm not sure it makes sense to compare highllights outside of tests, and if it does, that this
+// I'm not sure it makes sense to compare highlights outside of tests, and if it does, that this
 // comparison is the correct way to do it.
 #[derive(Debug)]
 struct OrdHighlight(Highlight);
@@ -216,8 +216,8 @@ fmt_display!(for ScrollableScreen : ScrollableScreen {scroll, wh}
       in "ScrollableScreen {{ scroll:{}, wh: {} }}", scroll, wh
 );
 
-impl MapElements<AbsPos> for ScrollableScreen {
-    fn map_elements(&self, mapper: &impl Fn(AbsPos) -> AbsPos) -> Self {
+impl MapElements<abs::Pos> for ScrollableScreen {
+    fn map_elements(&self, mapper: &impl Fn(abs::Pos) -> abs::Pos) -> Self {
         Self { 
             scroll: self.scroll.map_elements(mapper),
             wh: self.wh.map_elements(mapper),
@@ -229,16 +229,19 @@ impl MapElements<AbsPos> for ScrollableScreen {
 // given screen, assuming the text box origin is at (0,0) and
 // the text box fills the screen.
 // Turns out that we only need this in the tests anymore!
+// But we can implement it in term of inside_rect so we test that
+// actually used code.
 fn xy_is_visible(
     ScrollableScreen {
         scroll,
-        wh: ScreenSpaceWH { w, h },
+        wh,
     }: &ScrollableScreen,
     text: TextSpaceXY,
 ) -> bool {
     let text_box = text_to_text_box(text, *scroll);
-    let ScreenSpaceXY { x, y } = text_box_to_screen(text_box, d!());
-    x >= 0.0 && x < w.get() && y >= 0.0 && y < h.get()
+    let xy = text_box_to_screen(text_box, d!());
+
+    inside_rect(xy, ssxywh!{ d!(), *wh }.into())
 }
 
 macro_rules! xy_is_visible_assert {
@@ -466,17 +469,32 @@ fn xy_is_visible_works_on_this_passed_in_screen(screen: &ScrollableScreen) {
             screen.scroll
         )
     );
-    xy_is_visible_assert!(
-        not & screen,
-        screen_space_to_text_space(
-            ssxy!(
-                screen.wh.w.get(),
-                screen.wh.h.get()
-            ),
-            d!(),
-            screen.scroll
-        )
-    );
+    if screen.wh.w != abs::Length::MAX 
+    || screen.wh.h != abs::Length::MAX {
+        xy_is_visible_assert!(
+            not & screen,
+            screen_space_to_text_space(
+                ssxy!(
+                    screen.wh.w.minimal_increase(),
+                    screen.wh.h.minimal_increase()
+                ),
+                d!(),
+                screen.scroll
+            )
+        );
+    } else {
+        xy_is_visible_assert!(
+            & screen,
+            screen_space_to_text_space(
+                ssxy!(
+                    screen.wh.w.minimal_increase(),
+                    screen.wh.h.minimal_increase()
+                ),
+                d!(),
+                screen.scroll
+            )
+        );
+    }
 
     xy_is_visible_assert!(
         not & screen,
@@ -512,7 +530,7 @@ fn xy_is_visible_works_on_this_passed_in_screen(screen: &ScrollableScreen) {
     xy_is_visible_assert!(
         not & screen,
         TextSpaceXY {
-            x: screen.scroll.x - AbsPos::MIN_POSITIVE,
+            x: screen.scroll.x - abs::Pos::MIN_POSITIVE,
             y: screen.scroll.y
         }
     );
@@ -520,14 +538,14 @@ fn xy_is_visible_works_on_this_passed_in_screen(screen: &ScrollableScreen) {
         not & screen,
         TextSpaceXY {
             x: screen.scroll.x,
-            y: screen.scroll.y - AbsPos::MIN_POSITIVE
+            y: screen.scroll.y - abs::Pos::MIN_POSITIVE
         }
     );
     xy_is_visible_assert!(
         not & screen,
         TextSpaceXY {
-            x: screen.scroll.x - AbsPos::MIN_POSITIVE,
-            y: screen.scroll.y - AbsPos::MIN_POSITIVE
+            x: screen.scroll.x - abs::Pos::MIN_POSITIVE,
+            y: screen.scroll.y - abs::Pos::MIN_POSITIVE
         }
     );
 
@@ -539,14 +557,26 @@ fn xy_is_visible_works_on_this_passed_in_screen(screen: &ScrollableScreen) {
             screen.scroll
         )
     );
-    xy_is_visible_assert!(
-        not & screen,
-        screen_space_to_text_space(
-            ssxy!(screen.wh.w.get(), 0.0),
-            d!(),
-            screen.scroll
-        )
-    );
+
+    if screen.wh.w != abs::Length::MAX {
+        xy_is_visible_assert!(
+            not & screen,
+            screen_space_to_text_space(
+                ssxy!(screen.wh.w.minimal_increase(), 0.0),
+                d!(),
+                screen.scroll
+            )
+        );
+    } else {
+        xy_is_visible_assert!(
+            & screen,
+            screen_space_to_text_space(
+                ssxy!(screen.wh.w.minimal_increase(), 0.0),
+                d!(),
+                screen.scroll
+            )
+        );
+    }
 
     xy_is_visible_assert!(
         &screen,
@@ -556,14 +586,26 @@ fn xy_is_visible_works_on_this_passed_in_screen(screen: &ScrollableScreen) {
             screen.scroll
         )
     );
-    xy_is_visible_assert!(
-        not & screen,
-        screen_space_to_text_space(
-            ssxy!(0.0, screen.wh.h.get()),
-            d!(),
-            screen.scroll
-        )
-    );
+
+    if screen.wh.h != abs::Length::MAX {
+        xy_is_visible_assert!(
+            not & screen,
+            screen_space_to_text_space(
+                ssxy!(0.0, screen.wh.h.minimal_increase()),
+                d!(),
+                screen.scroll
+            )
+        );
+    } else {
+        xy_is_visible_assert!(
+            & screen,
+            screen_space_to_text_space(
+                ssxy!(0.0, screen.wh.h.minimal_increase()),
+                d!(),
+                screen.scroll
+            )
+        );
+    }
 }
 
 proptest! {
@@ -656,15 +698,15 @@ fn screen_space_to_position_then_position_to_screen_space_is_identity_after_one_
     assert_eq!(v, [xy; COUNT].to_vec());
 }
 
-fn clamp_to_65536(x: AbsPos) -> AbsPos {
-    if x < AbsPos::from(65536.0) {
+fn clamp_to_65536(x: abs::Pos) -> abs::Pos {
+    if x < abs::Pos::from(65536.0) {
         x
     } else {
-        AbsPos::from(65536.0)
+        abs::Pos::from(65536.0)
     }
 }
 
-fn clamp_to_65536_and_trunc_to_16ths(x: AbsPos) -> AbsPos {
+fn clamp_to_65536_and_trunc_to_16ths(x: abs::Pos) -> abs::Pos {
     clamp_to_65536(x)
         .double()
         .double()
@@ -913,7 +955,7 @@ proptest! {
     }
 }
 
-fn clamp_exponent_to_24(p: AbsPos) -> AbsPos {
+fn clamp_exponent_to_24(p: abs::Pos) -> abs::Pos {
     let f = p.get();
 
     if f > 2.0f32.powi(24) {
@@ -951,11 +993,11 @@ proptest! {
     }
 }
 
-fn clamp_to_at_least_one(p: AbsPos) -> AbsPos {
-    if p >= AbsPos::ONE {
+fn clamp_to_at_least_one(p: abs::Pos) -> abs::Pos {
+    if p >= abs::Pos::ONE {
         p
     } else {
-        AbsPos::ONE
+        abs::Pos::ONE
     }
 }
 
@@ -981,13 +1023,13 @@ proptest! {
 
 #[test]
 fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_given_we_clamp_to_at_least_one_in_this_case() {
-    let scroll = ScrollXY { x: AbsPos::ONE, y: AbsPos::ONE };
+    let scroll = ScrollXY { x: abs::Pos::ONE, y: abs::Pos::ONE };
     let text_box_xywh = TextBoxXYWH { 
-        xy: TextBoxXY { x: AbsPos::ONE, y: AbsPos::ONE },
-        wh: sswh!(PosAbsPos::ONE, PosAbsPos::MAX) 
+        xy: TextBoxXY { x: abs::Pos::ONE, y: abs::Pos::ONE },
+        wh: sswh!(abs::Length::ONE, abs::Length::MAX) 
     }; 
     let apron: Apron = d!();
-    let cursor_xy = tsxy!{ AbsPos::ONE, AbsPos::ONE };
+    let cursor_xy = tsxy!{ abs::Pos::ONE, abs::Pos::ONE };
 
     if_attempt_to_make_visible_succeeds_the_cursor_is_visible_on(
         scroll,
@@ -999,13 +1041,13 @@ fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_given_we_clamp_to_a
 
 #[test]
 fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_given_we_clamp_to_at_least_one_in_this_case_reduction() {
-    let mut scroll = ScrollXY { x: AbsPos::ONE, y: AbsPos::ONE };
+    let mut scroll = ScrollXY { x: abs::Pos::ONE, y: abs::Pos::ONE };
     let outer_rect = TextBoxXYWH { 
-        xy: TextBoxXY { x: AbsPos::ONE, y: AbsPos::ONE },
-        wh: sswh!(PosAbsPos::ONE, PosAbsPos::MAX) 
+        xy: TextBoxXY { x: abs::Pos::ONE, y: abs::Pos::ONE },
+        wh: sswh!(abs::Length::ONE, abs::Length::MAX) 
     }; 
     let apron: Apron =  d!();
-    let to_make_visible = tsxy!{ AbsPos::ONE, AbsPos::ONE };
+    let to_make_visible = tsxy!{ abs::Pos::ONE, abs::Pos::ONE };
 
     let w = outer_rect.wh.w;
     let h = outer_rect.wh.h;
@@ -1039,16 +1081,16 @@ fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_given_we_clamp_to_a
     let top_h_ratio = apron_clamp!(apron.top_h_ratio);
     let bottom_h_ratio = apron_clamp!(apron.bottom_h_ratio);
 
-    let left_w = AbsPos::from(w.get() * left_w_ratio.get()).halve();
-    let right_w = AbsPos::from(w.get() *  right_w_ratio.get()).halve();
-    let top_h = AbsPos::from(h.get() * top_h_ratio.get()).halve();
-    let bottom_h = AbsPos::from(h.get() * bottom_h_ratio.get()).halve();
+    let left_w = abs::Pos::from(w.get() * left_w_ratio.get()).halve();
+    let right_w = abs::Pos::from(w.get() *  right_w_ratio.get()).halve();
+    let top_h = abs::Pos::from(h.get() * top_h_ratio.get()).halve();
+    let bottom_h = abs::Pos::from(h.get() * bottom_h_ratio.get()).halve();
 
     // In screen space
-    let min_x: AbsPos = left_w + outer_rect.xy.x;
-    let max_x: AbsPos = AbsPos::from(w) - right_w + outer_rect.xy.x;
-    let min_y: AbsPos = top_h + outer_rect.xy.y;
-    let max_y: AbsPos = AbsPos::from(h) - bottom_h + outer_rect.xy.y;
+    let min_x: abs::Pos = left_w + outer_rect.xy.x;
+    let max_x: abs::Pos = abs::Pos::from(w) - right_w + outer_rect.xy.x;
+    let min_y: abs::Pos = top_h + outer_rect.xy.y;
+    let max_y: abs::Pos = abs::Pos::from(h) - bottom_h + outer_rect.xy.y;
 
     dbg!(    
         &scroll,
@@ -1147,7 +1189,7 @@ proptest! {
     }
 }
 
-const TBXY_1_1: TextBoxXY = TextBoxXY{ x: AbsPos::ONE, y: AbsPos::ONE };
+const TBXY_1_1: TextBoxXY = TextBoxXY{ x: abs::Pos::ONE, y: abs::Pos::ONE };
 
 #[test]
 fn if_attempt_to_make_visible_succeeds_the_cursor_is_visible_given_these_truncated_widths() {
@@ -1294,5 +1336,7 @@ proptest!{
         assert_eq!(converted, screen_space);
     }
 }
+
+
 
 pub mod arb;
