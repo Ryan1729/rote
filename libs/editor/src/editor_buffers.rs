@@ -211,10 +211,6 @@ impl EditorBuffers {
         self.buffers.get_current_element_mut()
     }
 
-    pub fn append_index(&self) -> g_i::Index {
-        self.buffers.append_index()
-    }
-
     pub fn push_and_select_new(&mut self, buffer: EditorBuffer) {
         self.buffers.push_and_select_new(buffer);
     }

@@ -4,9 +4,7 @@ use gl_layer::{TextLayout, TextOrRect, TextSpec, VisualSpec};
 use glutin::{Api, GlProfile, GlRequest};
 use platform_types::{screen_positioning::*, *};
 use shared::Res;
-use macros::{d, SaturatingSub};
-
-use core::f32::{INFINITY};
+use macros::{d};
 
 fn main() -> Res<()> {
     let events = glutin::event_loop::EventLoop::new();
@@ -57,9 +55,9 @@ fn main() -> Res<()> {
     let second_z: u16 = 1 << 14;
 
     let apron = apron!(1.0);
-    let move_amount: AbsPos = AbsPos::from(16.0);
+    let move_amount: abs::Length = abs::Length::from(16.0);
 
-    // User manipulatable state
+    // User manipulable state
     let mut scroll_xy: ScrollXY = d!();
     let mut text_box_xywh = tbxywh!(
         dimensions.width as f32 * 0.25,
@@ -100,24 +98,6 @@ fn main() -> Res<()> {
                         z: first_z,
                     }));
                     let first_z_add_1 = first_z.saturating_add(1);
-                    /*text_and_rects.push(TextOrRect::Text(TextSpec {
-                        text: if xy_is_visible(cursor_xy) {
-                            "is visible"
-                        } else {
-                            "is not visible"
-                        },
-                        size: TEXT_SIZE,
-                        spec: VisualSpec {
-                            rect: ScreenSpaceRect {
-                                min: (dimensions.width as f32 / 2.0, 0.0),
-                                max: (dimensions.width as f32, dimensions.height as f32),
-                            },
-                            color: text_colour,
-                            z: first_z_add_1,
-                        },
-                        layout: TextLayout::Wrap,
-                    }));*/
-
                     let text_space_ssr = ssxywh!(
                         text_space_to_screen_space(
                             scroll_xy,
@@ -177,12 +157,12 @@ fn main() -> Res<()> {
                         size: HELP_SIZE,
                         spec: VisualSpec {
                             rect: ScreenSpaceRect {
-                                min: (
+                                min: ssxy!(
                                     0.0,
                                     dimensions.height as f32
                                     - (info_text.lines().count() as f32 * HELP_SIZE)
                                 ),
-                                max: (dimensions.width as f32, dimensions.height as f32),
+                                max: ssxy!(dimensions.width as f32, dimensions.height as f32),
                             },
                             color: text_colour,
                             ..d!()
@@ -276,23 +256,19 @@ fn main() -> Res<()> {
                                     quit!();
                                 }
                                 VirtualKeyCode::Up => {
-                                    text_box_xywh.wh.h = pos_f32_trunc!(
-                                        text_box_xywh.wh.h.get() - move_amount.get()
-                                    );
+                                    text_box_xywh.wh.h = 
+                                        text_box_xywh.wh.h - move_amount;
                                 }
                                 VirtualKeyCode::Down => {
-                                    text_box_xywh.wh.h = pos_f32_trunc!(
-                                        text_box_xywh.wh.h.get() + move_amount.get()
-                                    );                                }
+                                    text_box_xywh.wh.h = 
+                                        text_box_xywh.wh.h + move_amount;                                }
                                 VirtualKeyCode::Left => {
-                                    text_box_xywh.wh.w = pos_f32_trunc!(
-                                        text_box_xywh.wh.w.get() - move_amount.get()
-                                    );
+                                    text_box_xywh.wh.w = 
+                                        text_box_xywh.wh.w - move_amount;
                                 }
                                 VirtualKeyCode::Right => {
-                                    text_box_xywh.wh.w = pos_f32_trunc!(
-                                        text_box_xywh.wh.w.get() + move_amount.get()
-                                    );
+                                    text_box_xywh.wh.w = 
+                                        text_box_xywh.wh.w + move_amount;
                                 }
                                 _ => {}
                             }

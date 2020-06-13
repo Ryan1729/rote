@@ -3,8 +3,16 @@
 //! * `Length`, a type representing Length, which is usually measured absolutely.
 //! * `Ratio`, a type which allows scaling Length values.
 #![deny(unconditional_recursion)]
-use macros::{fmt_debug, fmt_display, add_assign, sub_assign, u};
-use std::ops::{Add, Sub, Neg};
+use macros::{
+    fmt_debug, 
+    fmt_display, 
+    add_assign, 
+    sub_assign, 
+    mul_assign, 
+    div_assign,
+    u
+};
+use std::ops::{Add, Sub, Mul, Div, Neg, Not};
 
 #[derive(Clone, Copy, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Pos(i64);
@@ -38,6 +46,10 @@ impl Pos {
     pub const MIN_POSITIVE: Pos = Pos(1);
     pub const ONE_HALF: Pos = Pos(1i64 << (Self::SCALE_BIT_COUNT - 1));
     pub const ONE: Pos = Pos(Self::SCALE);
+    pub const TWO: Pos = Pos(Self::SCALE << 1);
+    pub const FOUR: Pos = Pos(Self::SCALE << 2);
+    pub const ONE_TWENTY_EIGHT: Pos = Pos(Self::SCALE << 7);
+    pub const TWO_FIFTY_SIX: Pos = Pos(Self::SCALE << 8);
     pub const MAX: Pos = Pos(i64::max_value());
 
 
@@ -115,6 +127,8 @@ impl Pos {
         (self.0 >> Self::SCALE_BIT_COUNT) as i32
     }
 
+    // TODO do `double` and `halve` on positions actually make sense?
+    // Should we be converting to `Length`s instead or something?
     #[must_use]
     pub fn double(&self) -> Self {
         Self::from_bits(self.0.saturating_mul(2))
@@ -262,7 +276,7 @@ impl Neg for Pos {
 }
 
 /// A type that represents the length of something, which since negative lengths
-// do not make sensem can never be negative. Has te same maximum valus as `Pos`
+// do not make sense, can never be negative. Has te same maximum valus as `Pos`
 #[derive(Clone, Copy, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Length(Pos);
 
@@ -276,14 +290,20 @@ fmt_display!(
 );
 
 impl Length {
-    pub const MIN: Length = Length(Pos::MIN_POSITIVE);
-    pub const MIN_POSITIVE: Length = Self::MIN;
+    pub const MIN: Length = Length(Pos::ZERO);
+    pub const ZERO: Length = Self::MIN;
+    pub const MIN_POSITIVE: Length = Length(Pos::MIN_POSITIVE);
     pub const ONE_HALF: Length = Length(Pos::ONE_HALF);
     pub const ONE: Length = Length(Pos::ONE);
+    pub const TWO: Length = Length(Pos::TWO);
+    pub const FOUR: Length = Length(Pos::FOUR);
+    pub const ONE_TWENTY_EIGHT: Length = Length(Pos::ONE_TWENTY_EIGHT);
+    pub const TWO_FIFTY_SIX: Length = Length(Pos::TWO_FIFTY_SIX);
     pub const MAX: Length = Length(Pos::MAX);
+    
 
     pub fn new_saturating(p: Pos) -> Self {
-        if p < Pos::MIN_POSITIVE {
+        if p < Self::MIN.0 {
             Self::MIN
         } else {
             Self(p)
@@ -311,13 +331,24 @@ impl Length {
     }
 
     #[must_use]
+    pub fn scale_saturating(&self, ratio: Ratio) -> Self {
+        let payload = ratio as i8;
+
+        if payload >= 0 {
+            Self::from_bits(self.to_bits().saturating_mul(1i64 << payload))
+        } else {
+            Self::from_bits(self.to_bits() >> (-payload))
+        }
+    }
+
+    #[must_use]
     pub fn double(&self) -> Self {
-        Self(self.0.double())
+        self.scale_saturating(Ratio::Two)
     }
 
     #[must_use]
     pub fn halve(&self) -> Self {
-        Self(self.0.halve())
+        self.scale_saturating(Ratio::Half)
     }
 
     #[must_use]
@@ -328,6 +359,16 @@ impl Length {
     #[must_use]
     pub fn minimal_increase(&self) -> Self {
         Self::new_saturating(self.0.minimal_increase())
+    }
+
+    #[must_use]
+    fn from_bits(bits: i64) -> Self {
+        Self(Pos::from_bits(bits))
+    }
+
+    #[must_use]
+    const fn to_bits(self) -> i64 {
+        (self.0).0
     }
 }
 
@@ -431,13 +472,125 @@ impl Add<Length> for Length {
 add_assign!(<Length> for Length);
 
 impl Sub<Length> for Length {
-    type Output = Pos;
+    type Output = Length;
 
     fn sub(self, other: Length) -> Self::Output {
-        self.0 - other.0
+        Length::new_saturating(self.0 - other.0)
     }
 }
 
+/// Ratio allows scaling a langth by a restricted set of values.
+#[derive(Copy, Clone, Debug)]
+#[repr(i8)]
+pub enum Ratio {
+    TwoFiftySixth = -8,
+    OneTwentyEighth = -7,
+    SixtyFourth = -6,
+    ThirtySecondth = -5,
+    Sixteenth = -4,
+    Eighth = -3,
+    Fourth = -2,
+    Half = -1,
+    One = 0,
+    Two = 1,
+    Four = 2,
+    Eight = 3,
+    Sixteen = 4,
+    ThirtyTwo = 5,
+    SixtyFour = 6,
+    OneTwentyEight = 7,
+    TwoFiftySix = 8,
+}
+
+impl Ratio {
+    fn from_i8_saturating(x: i8) -> Self {
+        u!{Ratio}
+        match x {
+          std::i8::MIN..=-8i8 => TwoFiftySixth,
+          -7 => OneTwentyEighth,
+          -6 => SixtyFourth,
+          -5 => ThirtySecondth,
+          -4 => Sixteenth,
+          -3 => Eighth,
+          -2 => Fourth,
+          -1 => Half,
+          0 => One,
+          1 => Two,
+          2 => Four,
+          3 => Eight,
+          4 => Sixteen,
+          5 => ThirtyTwo,
+          6 => SixtyFour,
+          7 => OneTwentyEight,
+          8i8..=std::i8::MAX => TwoFiftySix,
+        }
+    }
+
+    fn scale_saturating(self, other: Ratio) -> Ratio {
+        Self::from_i8_saturating(self as i8 + other as i8)
+    }
+}
+
+impl Mul<Ratio> for Ratio {
+    type Output = Ratio;
+
+    fn mul(self, other: Ratio) -> Self::Output {
+        self.scale_saturating(other)
+    }
+}
+
+impl Mul<Ratio> for Length {
+    type Output = Length;
+
+    fn mul(self, other: Ratio) -> Self::Output {
+        self.scale_saturating(other)
+    }
+}
+mul_assign!(<Ratio> for Length);
+
+impl Mul<Length> for Ratio {
+    type Output = Length;
+
+    fn mul(self, other: Length) -> Self::Output {
+        other.scale_saturating(self)
+    }
+}
+
+impl Div<Ratio> for Ratio {
+    type Output = Ratio;
+
+    fn div(self, other: Ratio) -> Self::Output {
+        self.scale_saturating(!other)
+    }
+}
+
+impl Div<Ratio> for Length {
+    type Output = Length;
+
+    fn div(self, other: Ratio) -> Self::Output {
+        self.scale_saturating(!other)
+    }
+}
+div_assign!(<Ratio> for Length);
+
+impl Div<Length> for Ratio {
+    type Output = Length;
+
+    fn div(self, other: Length) -> Self::Output {
+        other.scale_saturating(!self)
+    }
+}
+
+impl Not for Ratio {
+    type Output = Ratio;
+
+    fn not(self) -> Self::Output {
+        Ratio::from_i8_saturating(-(self as i8))
+    }
+}
+
+
+/// The default signum returns 1.0 for 0.0, where we want 0.0.
 fn f32_signum(f: f32) -> f32 {
     let no_zero = f.signum();
     if no_zero == 1.0 && f == 0.0 {

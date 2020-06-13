@@ -1,6 +1,6 @@
 #![deny(bindings_with_variant_name, dead_code, unused_variables)]
 use gl_layer::{ColouredText, MulticolourTextSpec, TextLayout, TextOrRect, TextSpec, VisualSpec};
-use wimp_types::{CommandsMap, LocalMenuView, View, WimpMenuMode, MenuMode, MenuView, WimpMenuView, FindReplaceMode, ui_id, ui, ui::{ButtonState}, BufferStatus, CommandKey, Dimensions, RunConsts, RunState, command_keys};
+use wimp_types::{CommandsMap, LocalMenuView, View, WimpMenuMode, MenuView, WimpMenuView, FindReplaceMode, ui_id, ui, ui::{ButtonState}, BufferStatus, CommandKey, Dimensions, RunConsts, RunState, command_keys};
 use macros::{c, d, dbg, invariant_assert, u};
 use platform_types::{*, g_i, BufferView, GoToPositionView, FindReplaceView, FileSwitcherView, BufferViewData, BufferIdKind, BufferId, b_id, CursorState, Highlight, HighlightKind, tbxy, tbxywh, Input, sswh, ssr, screen_positioning::*, SpanView};
 use std::{
@@ -244,7 +244,7 @@ pub fn view<'view>(
             margin,
             rect,
         } = get_tab_spaced_rect(&ui, *tab_char_dim, i, tab_count, width.into());
-        if rect.min.0 > width {
+        if rect.min.x > width {
             break;
         }
 
@@ -486,7 +486,8 @@ pub fn view<'view>(
                     let text_or_rects = &mut text_or_rects;
                 
                     let mut current_rect = first_button_rect;
-                    let vertical_shift = first_button_rect.height() + list_margin.into_ltrb().b;
+                    let vertical_shift = first_button_rect.height()
+                        + list_margin.into_ltrb().b;
                 
                     let mut navigated_result = None;
                     let results: Vec<CommandKey> = commands.keys().cloned().collect();
@@ -538,8 +539,8 @@ pub fn view<'view>(
                             &mut action,
                         );
                             
-                        current_rect.min.1 += vertical_shift;
-                        current_rect.max.1 += vertical_shift;
+                        current_rect.min.y += vertical_shift;
+                        current_rect.max.y += vertical_shift;
                     }
                 }
                 LocalMenuView::Debug => {
@@ -575,7 +576,7 @@ pub fn view<'view>(
     //
 
     perf_viz::start_record!("Status line");
-    let status_line_y = get_status_line_y(*status_char_dim, height.into());
+    let status_line_y = get_status_line_y(*status_char_dim, height);
 
     text_or_rects.push(TextOrRect::Rect(VisualSpec {
         rect: get_full_width_ssr(
@@ -604,25 +605,31 @@ pub fn view<'view>(
         size: STATUS_SIZE,
         layout: TextLayout::SingleLine,
         spec: VisualSpec {
-            rect: rect.with_min_y(status_line_y + 2.0 * SEPARATOR_LINE_THICKNESS),
+            rect: rect.with_min_y(status_line_y + abs::Ratio::Two * SEPARATOR_LINE_THICKNESS),
             color: CHROME_TEXT_COLOUR,
             z: STATUS_Z,
         },
     }));
 
     let far_right_button_rect = ssr!(
-        rect.max.0 - (status_char_dim.w + SEPARATOR_LINE_THICKNESS),
+        rect.max.x - (abs::Length::from(status_char_dim.w.get()) + SEPARATOR_LINE_THICKNESS),
         status_line_y + SEPARATOR_LINE_THICKNESS,
-        rect.max.0 - SEPARATOR_LINE_THICKNESS,
-        rect.max.1 - SEPARATOR_LINE_THICKNESS
+        rect.max.x - SEPARATOR_LINE_THICKNESS,
+        rect.max.y - SEPARATOR_LINE_THICKNESS
     );
 
-    let second_button_min_x = far_right_button_rect.min.0 - (status_char_dim.w + 2.0 * SEPARATOR_LINE_THICKNESS);
+    let second_button_min_x = far_right_button_rect.min.x
+        - (
+            abs::Length::from(status_char_dim.w.get())
+            + abs::Ratio::Two
+            * SEPARATOR_LINE_THICKNESS
+        );
 
     let second_button_rect = far_right_button_rect
     .with_min_x(second_button_min_x)
     .with_max_x(
-        second_button_min_x + (far_right_button_rect.max.0 - far_right_button_rect.min.0)
+        second_button_min_x
+        + (far_right_button_rect.width())
     );
 
     if do_outline_button(
@@ -634,7 +641,7 @@ pub fn view<'view>(
             size: STATUS_SIZE,
             char_dim: *status_char_dim,
             layout: TextLayout::SingleLine,
-            margin: Spacing::All(SEPARATOR_LINE_THICKNESS.get()),
+            margin: Spacing::All(SEPARATOR_LINE_THICKNESS),
             rect: second_button_rect,
             z: STATUS_Z,
             ..d!()
@@ -653,7 +660,7 @@ pub fn view<'view>(
             size: STATUS_SIZE,
             char_dim: *status_char_dim,
             layout: TextLayout::SingleLine,
-            margin: Spacing::All(SEPARATOR_LINE_THICKNESS.get()),
+            margin: Spacing::All(SEPARATOR_LINE_THICKNESS),
             rect: far_right_button_rect,
             z: STATUS_Z,
             ..d!()
@@ -755,7 +762,6 @@ fn render_file_switcher_menu<'view>(
     let FileSwitcherInfo {
         padding,
         margin,
-        list_padding,
         list_margin,
         top_y,
         bottom_y,
@@ -899,14 +905,14 @@ fn render_file_switcher_menu<'view>(
     // spacing bewteen the textbox and the first button is the same as the spacing
     // between subsequent buttons. If we added it in both, there would be a double
     // margin between buttons.
-    current_rect.min.1 += vertical_shift;
-    current_rect.min.1 += list_bottom_margin;
-    current_rect.max.1 += vertical_shift;
-    current_rect.max.1 += list_bottom_margin;
+    current_rect.min.y += vertical_shift;
+    current_rect.min.y += list_bottom_margin;
+    current_rect.max.y += vertical_shift;
+    current_rect.max.y += list_bottom_margin;
 
     for (result_index, result) in results.iter().enumerate() {
         let path_text = result.to_str().unwrap_or("Non-UTF8 Path");
-        let rect = enlarge_by(shrink_by(current_rect, margin), list_padding);
+        let rect = shrink_by(current_rect, list_margin);
 
         let result_id = get_result_id(result_index);
 
@@ -934,8 +940,8 @@ fn render_file_switcher_menu<'view>(
         ) {
             *action = ViewAction::Input(Input::OpenOrSelectBuffer(result.to_owned()));
         }
-        current_rect.min.1 += vertical_shift;
-        current_rect.max.1 += vertical_shift;
+        current_rect.min.y += vertical_shift;
+        current_rect.max.y += vertical_shift;
     }
 }
 
@@ -1051,8 +1057,8 @@ fn text_box_view<'view>(
     let scroll = *scroll;
     
     let text_box_pos = tbxy!{
-        outer_rect.min.0,
-        outer_rect.min.1,
+        outer_rect.min.x,
+        outer_rect.min.y,
     };
     let scroll_offset = text_box_to_screen(
         text_to_text_box(TextSpaceXY::default(), scroll),
@@ -1081,10 +1087,10 @@ fn text_box_view<'view>(
         size,
         layout: TextLayout::UnboundedLayoutClipped(
             ssr!(
-                text_box_pos.x.into(),
-                text_box_pos.y.into(),
-                outer_rect.max.0,
-                outer_rect.max.1
+                text_box_pos.x,
+                text_box_pos.y,
+                outer_rect.max.x,
+                outer_rect.max.y,
             ),
             scroll
         ),
@@ -1168,7 +1174,7 @@ fn make_nth_tab_visible_if_present(
 }
 struct LineSpec {
     colour: Colour,
-    thickness: f32,
+    thickness: abs::Length,
 }
 
 struct OutlineButtonSpec<'text> {
@@ -1316,7 +1322,7 @@ pub const FIND_REPLACE_SIZE: f32 = 26.0;
 pub const STATUS_SIZE: f32 = 22.0;
 pub const TAB_SIZE: f32 = 16.0;
 
-pub const SEPARATOR_LINE_THICKNESS: PosF32 = PosF32::TWO;
+pub const SEPARATOR_LINE_THICKNESS: abs::Length = abs::Length::TWO;
 
 pub const TEXT_SIZES: [f32; 4] = [TEXT_SIZE, STATUS_SIZE, TAB_SIZE, FIND_REPLACE_SIZE];
 pub const SCROLL_MULTIPLIER: f32 = TEXT_SIZE * 3.0;
@@ -1351,29 +1357,29 @@ pub const STATUS_Z: u16 = z_from_base(128);
 pub const TAB_Z: u16 = STATUS_Z;
 
 /// Ratios to tab width
-const TAB_MARGIN_RATIO: abs::Ratio = abs::Ratio::OneThirthySecondth;
-const TAB_PADDING_RATIO: abs::Ratio = abs::Ratio::OneSixtyFourth;
+const TAB_MARGIN_RATIO: abs::Ratio = abs::Ratio::ThirtySecondth;
+const TAB_PADDING_RATIO: abs::Ratio = abs::Ratio::SixtyFourth;
 const TAB_MIN_W: abs::Length = abs::Length::ONE_TWENTY_EIGHT;
 const TAB_MIN_PADDING: abs::Length = abs::Length::TWO;//TAB_MIN_W * TAB_PADDING_RATIO;
 const TAB_MIN_MARGIN: abs::Length = abs::Length::FOUR;//TAB_MIN_W * TAB_MARGIN_RATIO;
 
 #[derive(Clone, Copy)]
 pub enum Spacing {
-    All(f32),
-    Horizontal(f32),
-    Vertical(f32),
-    Axis(f32, f32),
-    LeftTopRightBottom(f32, f32, f32, f32),
+    All(abs::Length),
+    Horizontal(abs::Length),
+    Vertical(abs::Length),
+    Axis(abs::Length, abs::Length),
+    LeftTopRightBottom(abs::Length, abs::Length, abs::Length, abs::Length),
 }
 d!(for Spacing: Spacing::All(0.0));
 
 /// LRTB is short for `LeftTopRightBottom`. This represents what the values of a spacing would be
 /// if the spacing was the `LeftTopRightBottom` variant.
 struct LRTB {
-    l: f32,
-    r: f32,
-    t: f32,
-    b: f32,
+    l: abs::Length,
+    r: abs::Length,
+    t: abs::Length,
+    b: abs::Length,
 }
 
 impl Spacing {
@@ -1397,7 +1403,7 @@ struct SpacedRect {
 }
 
 impl SpacedRect {
-    fn width(&self) -> f32 {
+    fn width(&self) -> abs::Length {
         enlarge_by(self.rect, self.margin).width()
     }
 }
@@ -1407,7 +1413,7 @@ fn get_tab_spaced_rect(
     tab_char_dim: CharDim,
     tab_index: usize,
     tab_count: usize,
-    width: PosAbsPos,
+    width: abs::Length,
 ) -> SpacedRect {
     let UpperPositionInfo {
         tab_v_padding,
@@ -1523,17 +1529,17 @@ fn upper_position_info(tab_char_dim: &CharDim) -> UpperPositionInfo {
 
 /// A specification for spacing around something, containing values suitable for passing to `Spacing::All`.
 struct SpacingAllSpec {
-    margin: f32,
-    padding: f32,
+    margin: abs::Length,
+    padding: abs::Length,
 }
 
-fn get_menu_spacing(height: PosF32Trunc) -> SpacingAllSpec {
+fn get_menu_spacing(height: abs::Length) -> SpacingAllSpec {
     /// Ratios to screen height
-    const MARGIN_RATIO: f32 = 1.0 / 16.0;
-    const PADDING_RATIO: f32 = 1.0 / 32.0;
+    const MARGIN_RATIO: abs::Ratio = abs::Ratio::Sixteenth;
+    const PADDING_RATIO: abs::Ratio = abs::Ratio::ThirtySecondth;
 
-    const MIN_MARGIN: f32 = MARGIN_RATIO * 256.0;
-    const MIN_PADDING: f32 = PADDING_RATIO * 256.0;
+    const MIN_MARGIN: abs::Length = MARGIN_RATIO * abs::Length::TWO_FIFTY_SIX;
+    const MIN_PADDING: abs::Length = PADDING_RATIO * abs::Length::TWO_FIFTY_SIX;
 
     let mut margin = MARGIN_RATIO * height;
     margin = if margin > MIN_MARGIN {
@@ -1643,7 +1649,7 @@ pub struct FileSwitcherInfo {
     pub search_text_xywh: TextBoxXYWH,
 }
 
-const LIST_MARGIN_TO_PADDING_RATIO: f32 = 1.0 / 8.0;
+const LIST_MARGIN_TO_PADDING_RATIO: abs::Ratio = abs::Ratio::Eighth;
 
 pub fn get_file_switcher_info(
     Dimensions {
@@ -1690,8 +1696,9 @@ pub fn get_file_switcher_info(
     FileSwitcherInfo {
         margin: Spacing::All(margin),
         padding: Spacing::All(padding),
-        list_margin: Spacing::All(margin * LIST_MARGIN_TO_PADDING_RATIO),
-        list_padding: Spacing::All(margin * (1.0 - LIST_MARGIN_TO_PADDING_RATIO)),
+        list_margin: Spacing::All(
+            margin * LIST_MARGIN_TO_PADDING_RATIO
+        ),
         top_y,
         bottom_y,
         label_rect,
@@ -1771,7 +1778,6 @@ pub struct CommandMenuInfo {
     pub outer_rect: ScreenSpaceRect,
     pub first_button_rect: ScreenSpaceRect,
     pub list_margin: Spacing,
-    pub list_padding: Spacing,
 }
 
 pub fn get_command_menu_info(
@@ -1794,7 +1800,6 @@ pub fn get_command_menu_info(
     } = cover_text_area_info(dimensions);
 
     let list_margin = margin * LIST_MARGIN_TO_PADDING_RATIO;
-    let list_padding = margin * (1.0 - LIST_MARGIN_TO_PADDING_RATIO);
 
     let first_button_rect = shrink_by(
         get_full_width_ssr(0.0, width.get(), top_y + 2.0 * padding + tab_char_dim.h),
@@ -1807,7 +1812,6 @@ pub fn get_command_menu_info(
         bottom_y,
         outer_rect,
         list_margin: Spacing::All(list_margin),
-        list_padding: Spacing::All(list_padding),
         first_button_rect,
     }
 }
@@ -1857,7 +1861,6 @@ pub fn get_debug_menu_info(
         bottom_y,
         outer_rect,
         list_margin: Spacing::All(list_margin),
-        list_padding: Spacing::All(list_padding),
         first_button_rect,
     }
 }
@@ -1897,8 +1900,8 @@ pub fn cover_text_area_info(
     }
 }
 
-fn get_status_line_y(status_char_dim: CharDim, height: PosF32Trunc) -> f32 {
-    height.get() - (status_char_dim.h + 2.0 * SEPARATOR_LINE_THICKNESS)
+fn get_status_line_y(status_char_dim: CharDim, height: abs::Length) -> abs::Pos {
+    height - (status_char_dim.h + 2.0 * SEPARATOR_LINE_THICKNESS)
 }
 
 fn get_full_width_ssr<

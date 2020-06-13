@@ -349,8 +349,6 @@ fn make_nth_tab_visible_if_present_is_idemponent_on_this_generated_example() {
 #[test]
 /// The idea here is to make sure that going off the top of the list leads to the input box being selected.
 fn render_file_switcher_menu_selects_the_fileswitcher_buffer_when_the_navigation_is_up_from_index_0() {
-    use std::path::PathBuf;
-    
     let index = d!();
 
     let fs_view = FileSwitcherView {

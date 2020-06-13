@@ -63,6 +63,9 @@ path = "../pub_arb/text_buffer"
 [dev-dependencies.pub_arb_std]
 path = "../pub_arb/std"
 
+[dev-dependencies.pub_arb_abs]
+path = "../pub_arb/abs"
+
 [dev-dependencies.pub_arb_pos_f32]
 path = "../pub_arb/pos_f32"
 

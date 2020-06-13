@@ -3,16 +3,14 @@ use super::*;
 use platform_types::pos;
 
 use editor_types::{cur, Cursor};
-use macros::{u, dbg, SaturatingAdd};
+use macros::{u, dbg};
 use proptest::prelude::{proptest};
-
-use std::collections::HashMap;
 
 use pub_arb_std::non_line_break_char;
 
 mod arb {
     use super::*;
-    use proptest::prelude::{prop_compose, Strategy};
+    use proptest::prelude::{prop_compose};
 
     prop_compose!{
         pub fn state()(
@@ -62,6 +60,7 @@ mod arb {
         }
     }
 
+    pub use pub_arb_abs::{abs_pos, abs_length};
     pub use pub_arb_pos_f32::{pos_f32};
     pub use pub_arb_pos_f32_trunc::{pos_f32_trunc};
     pub use pub_arb_non_neg_f32::{non_neg_f32};
@@ -132,7 +131,7 @@ fn update_and_render_shows_the_cursor_when_searching_in_this_case() {
     let mut text = String::new();
     
     // The goal is enough text that it is definitely offscreen
-    for i in 0..(example_tbxywh.wh.h / example_char_dim.h).get() as u128 * 8 {
+    for i in 0..(example_tbxywh.wh.h.get() / example_char_dim.h.get()) as u128 * 8 {
         for _ in 0..i {
             text.push('.');
         }
@@ -216,14 +215,17 @@ fn update_and_render_shows_the_cursor_when_pressing_ctrl_home() {
     let mut runner = TestRunner::default();
 
     runner.run(&(
-        arb::pos_f32_trunc(),
-        arb::pos_f32_trunc(),
-        arb::pos_f32(),
-        arb::pos_f32(),
+        arb::abs_length(),
+        arb::abs_length(),
+        arb::abs_length(),
+        arb::abs_length(),
     ), |(box_w, box_h, w, h)| {
 
-        let w_max = pos_f32!(box_w / 2.0);
-        let w_min = pos_f32!(box_w / (CURSOR_SHOW_TEXT.len() as f32 / 2.0));
+        let w = pos_f32!(w.get());
+        let h = pos_f32!(h.get());
+
+        let w_max = pos_f32!(box_w.get() / 2.0);
+        let w_min = pos_f32!(box_w.get() / (CURSOR_SHOW_TEXT.len() as f32 / 2.0));
 
         let w: PosF32 = if w > w_max {
             w_max
@@ -234,7 +236,7 @@ fn update_and_render_shows_the_cursor_when_pressing_ctrl_home() {
             w_min
         };
 
-        let h_max = pos_f32!(box_h / 2.0);
+        let h_max = pos_f32!(box_h.halve().get());
         let h: PosF32 = if h > h_max {
             h_max
         } else {

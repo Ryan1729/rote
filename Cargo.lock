@@ -622,6 +622,7 @@ dependencies = [
  "perf_viz_proc_macro",
  "platform_types",
  "proptest",
+ "pub_arb_abs",
  "pub_arb_non_neg_f32",
  "pub_arb_platform_types",
  "pub_arb_pos_f32",

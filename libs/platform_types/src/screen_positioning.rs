@@ -858,10 +858,10 @@ pub fn attempt_to_make_xy_visible(
     let top_h_ratio = apron_clamp!(apron.top_h_ratio);
     let bottom_h_ratio = apron_clamp!(apron.bottom_h_ratio);
 
-    let left_w = abs::Pos::from(w.get() * left_w_ratio.get()).halve();
-    let right_w = abs::Pos::from(w.get() *  right_w_ratio.get()).halve();
-    let top_h = abs::Pos::from(h.get() * top_h_ratio.get()).halve();
-    let bottom_h = abs::Pos::from(h.get() * bottom_h_ratio.get()).halve();
+    let left_w = abs::Length::from(w.get() * left_w_ratio.get()).halve();
+    let right_w = abs::Length::from(w.get() *  right_w_ratio.get()).halve();
+    let top_h = abs::Length::from(h.get() * top_h_ratio.get()).halve();
+    let bottom_h = abs::Length::from(h.get() * bottom_h_ratio.get()).halve();
 
     // In screen space
     let min_x: abs::Pos = left_w + outer_rect.xy.x;

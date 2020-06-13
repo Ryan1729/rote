@@ -154,8 +154,8 @@ fn main() -> Res<()> {
 
                     text_and_rects.push(TextOrRect::Rect(VisualSpec {
                         rect: ScreenSpaceRect {
-                            min: (x0, y0),
-                            max: (x3, y3),
+                            min: ssxy!(x0, y0),
+                            max: ssxy!(x3, y3),
                         },
                         color: first_colour,
                         z: first_z,
@@ -166,8 +166,8 @@ fn main() -> Res<()> {
                         size: TEXT_SIZE,
                         spec: VisualSpec {
                             rect: ScreenSpaceRect {
-                                min: (x0, y1),
-                                max: (x3, y3),
+                                min: ssxy!(x0, y1),
+                                max: ssxy!(x3, y3),
                             },
                             color: text_colour,
                             z: first_z_sub_1,
@@ -180,8 +180,8 @@ fn main() -> Res<()> {
                         size: TEXT_SIZE,
                         spec: VisualSpec {
                             rect: ScreenSpaceRect {
-                                min: (x1, y2),
-                                max: (x3, y3),
+                                min: ssxy!(x1, y2),
+                                max: ssxy!(x3, y3),
                             },
                             color: text_colour,
                             z: first_z_sub_2,
@@ -191,8 +191,8 @@ fn main() -> Res<()> {
 
                     text_and_rects.push(TextOrRect::Rect(VisualSpec {
                         rect: ScreenSpaceRect {
-                            min: (x1, y1),
-                            max: (x4, y4),
+                            min: ssxy!(x1, y1),
+                            max: ssxy!(x4, y4),
                         },
                         color: second_colour,
                         z: second_z,
@@ -203,8 +203,8 @@ fn main() -> Res<()> {
                         size: TEXT_SIZE,
                         spec: VisualSpec {
                             rect: ScreenSpaceRect {
-                                min: (x1, y1),
-                                max: (x4, y4),
+                                min: ssxy!(x1, y1),
+                                max: ssxy!(x4, y4),
                             },
                             color: text_colour,
                             z: second_z_sub_1,
@@ -217,8 +217,8 @@ fn main() -> Res<()> {
                         size: TEXT_SIZE,
                         spec: VisualSpec {
                             rect: ScreenSpaceRect {
-                                min: (x1, y2),
-                                max: (x4, y4),
+                                min: ssxy!(x1, y2),
+                                max: ssxy!(x4, y4),
                             },
                             color: text_colour,
                             z: second_z_sub_2,
@@ -241,8 +241,8 @@ fn main() -> Res<()> {
                         size: HELP_SIZE,
                         spec: VisualSpec {
                             rect: ScreenSpaceRect {
-                                min: (x3, y0),
-                                max: (x4, y1),
+                                min: ssxy!(x3, y0),
+                                max: ssxy!(x4, y1),
                             },
                             color: text_colour,
                             ..d!()
@@ -255,8 +255,8 @@ fn main() -> Res<()> {
                         size: HELP_SIZE,
                         spec: VisualSpec {
                             rect: ScreenSpaceRect {
-                                min: (x0, y3),
-                                max: (x1, y4),
+                                min: ssxy!(x0, y3),
+                                max: ssxy!(x1, y4),
                             },
                             color: text_colour,
                             ..d!()

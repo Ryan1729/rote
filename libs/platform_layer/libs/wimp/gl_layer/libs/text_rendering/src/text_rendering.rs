@@ -1,3 +1,5 @@
+
+#![allow(unused_imports)]
 use platform_types::{
     screen_positioning::{CharDim, ScreenSpaceXY, ScreenSpaceRect, ScrollXY, TextSpaceXYWH},
     NonNegF32,
@@ -487,8 +489,8 @@ mod text_layouts {
             let v_metrics = font.v_metrics(scale);
             let line_height: f32 = v_metrics.ascent - v_metrics.descent + v_metrics.line_gap;
             
-            let mut min_y: f32 = clip.min.y as f32 - line_height - line_height;
-            let mut max_y: f32 = clip.max.y as f32 + line_height + line_height;
+            let min_y: f32 = clip.min.y as f32 - line_height - line_height;
+            let max_y: f32 = clip.max.y as f32 + line_height + line_height;
 
             perf_viz::end_record!("UnboundedLayoutClipped loop prep");
 
@@ -619,17 +621,6 @@ mod text_layouts {
     }
 }
 use text_layouts::{Unbounded, UnboundedLayoutClipped, Wrap, WrapInRect};
-
-/// As of this writing, casting f32 to i32 is undefined behaviour if the value does not fit!
-/// https://github.com/rust-lang/rust/issues/10184
-fn f32_to_i32_or_max(f: f32) -> i32 {
-    if f >= i32::min_value() as f32 && f <= i32::max_value() as f32 {
-        f as i32
-    } else {
-        // make this the default so NaN etc. end up here
-        i32::max_value()
-    }
-}
 
 pub type TextureRect = glyph_brush::rusttype::Rect<u32>;
 

@@ -277,6 +277,8 @@ impl State {
         let attempt_result = buffer.try_to_show_cursors_on(ScrollAdjustSpec::Calculate(char_dim, xywh));
         match attempt_result {
             VisibilityAttemptResult::Succeeded => Some(()),
+            // TODO remove VisibilityAttemptResult once we are sure we don't need it.
+            #[allow(unreachable_patterns)] 
             _ => Option::None,
         }
     }

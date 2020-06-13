@@ -98,7 +98,7 @@ impl<'font, L: LineBreaker, F: FontMap<'font>> Iterator for UnboundedLines<'_, '
 
         let mut progressed = false;
 
-        while let Some(word) = self.words.peek() {
+        while let Some(_) = self.words.peek() {
             let word = self.words.next().unwrap();
             progressed = true;
 
@@ -132,10 +132,10 @@ impl<'font, L: LineBreaker, F: FontMap<'font>> Iterator for UnboundedLines<'_, '
     }
 }
 
-type UnboundedWord<'font> = (
+/*type UnboundedWord<'font> = (
     Vec<(RelativePositionedGlyph<'font>, Color, FontId)>,
     VMetrics
-);
+);*/
 
 pub(crate) struct Word<'font> {
     pub glyphs: Vec<(RelativePositionedGlyph<'font>, Color, FontId)>,
@@ -258,7 +258,7 @@ struct PartInfo<'a> {
 }
 
 use std::{
-    iter::{FusedIterator, Iterator},
+    iter::{Iterator},
     marker::PhantomData,
     mem, slice,
     str::CharIndices,
