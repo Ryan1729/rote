@@ -1,6 +1,6 @@
 use glutin::event::{ModifiersState, VirtualKeyCode};
 use macros::{d, ord, u};
-use platform_types::{screen_positioning::*, g_i, Input, Cmd, EditedTransition};
+use platform_types::{screen_positioning::*, abs, g_i, Input, Cmd, EditedTransition};
 
 use std::collections::{VecDeque, BTreeMap};
 use std::path::PathBuf;
@@ -514,7 +514,7 @@ pub mod ui {
         pub mouse_pos: ScreenSpaceXY,
         pub left_mouse_state: PhysicalButtonState,
         pub enter_key_state: PhysicalButtonState,
-        pub tab_scroll: f32,
+        pub tab_scroll: abs::Pos,
         pub file_switcher_pos: ListPosition,
         pub command_menu_pos: ListPosition,
         /// This is should be in the range [0.0, 2.0]. This needs the extra space to repesent the down

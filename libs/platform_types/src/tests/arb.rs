@@ -21,7 +21,7 @@ pub fn apron() -> impl Strategy<Value = Apron> {
 }
 
 pub fn char_dim() -> impl Strategy<Value = CharDim> {
-    let strat = pos_f32();
+    let strat = abs_length();
     (strat, strat).prop_map(|(w, h)| CharDim { w, h })
 }
 

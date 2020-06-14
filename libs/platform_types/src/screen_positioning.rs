@@ -225,18 +225,16 @@ pub fn clamp_within(
     };
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
-/// It's nice for it to be harder to mixup screen dimensions and Character dimension.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Hash)]
+/// It's nice for it to be harder to mixup screen dimensions and Character dimensions.
 // Plus since `CharDim` came before `ScreenSpaceWH` less code has to change if we keep `CharDim`
 /// We are currently assuming the font is monospace!
 pub struct CharDim {
-    pub w: PosF32,
-    pub h: PosF32,
+    pub w: abs::Length,
+    pub h: abs::Length,
 }
 
-hash_to_bits!(for CharDim: s, state in w, h);
-
-fmt_display!(for CharDim: CharDim {w, h} in "{:?}", (w, h));
+fmt_display!(for CharDim: CharDim {w, h} in "({}, {})", w, h);
 
 impl From<CharDim> for (f32, f32) {
     fn from(CharDim { w, h }: CharDim) -> Self {
@@ -248,14 +246,14 @@ impl From<CharDim> for (f32, f32) {
 macro_rules! char_dim {
     ($w: literal $(,)? $h: literal $(,)?) => {
         CharDim {
-            w: $crate::pos_f32!($w),
-            h: $crate::pos_f32!($h),
+            w: $w.into(),
+            h: $h.into(),
         }
     };
     ($w: expr, $h: expr $(,)?) => {
         CharDim {
-            w: $crate::pos_f32!($w),
-            h: $crate::pos_f32!($h),
+            w: $w.into(),
+            h: $h.into(),
         }
     };
     (raw $w: expr, $h: expr $(,)?) => {
@@ -694,10 +692,9 @@ pub fn position_to_text_space(
 
     // Weird *graphical-only* stuff given a >2^24 long line and/or >2^24
     // lines seems better than an error box or something like that.
-    #[allow(clippy::cast_precision_loss)]
     TextSpaceXY {
-        x: abs::Pos::from(offset.0 as f32 * w),
-        y: abs::Pos::from(line as f32 * h),
+        x: abs::Pos::from(abs::Ratio::from(offset.0) * w),
+        y: abs::Pos::from(abs::Ratio::from(line) * h),
     }
 }
 
@@ -826,16 +823,40 @@ pub fn attempt_to_make_xy_visible(
 ) -> VisibilityAttemptResult {
     u!{VisibilityAttemptResult}
 
-    let w = outer_rect.wh.w;
-    let h = outer_rect.wh.h;
-
-    let TextSpaceXY { x, y } = to_make_visible;
-
-    let to_make_visible_ss = text_space_to_screen_space(
-        *scroll,
-        outer_rect.xy,
-        to_make_visible,
+    attempt_to_make_line_space_pos_visible(
+        &mut scroll.x,
+        (outer_rect.xy.x, outer_rect.wh.w),
+        apron.left_w_ratio,
+        apron.right_w_ratio,
+        to_make_visible.x,
     );
+
+    attempt_to_make_line_space_pos_visible(
+        &mut scroll.y,
+        (outer_rect.xy.y, outer_rect.wh.h),
+        apron.top_h_ratio,
+        apron.bottom_h_ratio,
+        to_make_visible.y,
+    );
+
+    dbg!(scroll);
+
+    Succeeded
+}
+
+/// By line space, I mean that `to_make_visible` must be relative to `line_min`
+/// and `visible` means within `line_min` to `line_min + w`, given `scroll` is
+/// added to `to_make_visible`.
+pub fn attempt_to_make_line_space_pos_visible(
+    scroll: &mut abs::Pos,
+    (line_min, w): (abs::Pos, abs::Length),
+    apron_min_ratio: F32_0_1,
+    apron_max_ratio: F32_0_1,
+    to_make_visible: abs::Pos,
+) -> VisibilityAttemptResult {
+    u!{VisibilityAttemptResult}
+
+    let to_make_visible_screen_space = (to_make_visible - *scroll) + line_min;
 
     // We clamp the aprons since we'd rather have the cursor end up closer to the 
     // middle than not be visible at all. 8388608 = 2^23 makes some tests pass where
@@ -853,67 +874,34 @@ pub fn attempt_to_make_xy_visible(
         }}
     }
 
-    let left_w_ratio = apron_clamp!(apron.left_w_ratio);
-    let right_w_ratio = apron_clamp!(apron.right_w_ratio);
-    let top_h_ratio = apron_clamp!(apron.top_h_ratio);
-    let bottom_h_ratio = apron_clamp!(apron.bottom_h_ratio);
+    let apron_min_ratio = apron_clamp!(apron_min_ratio);
+    let apron_max_ratio = apron_clamp!(apron_max_ratio);
 
-    let left_w = abs::Length::from(w.get() * left_w_ratio.get()).halve();
-    let right_w = abs::Length::from(w.get() *  right_w_ratio.get()).halve();
-    let top_h = abs::Length::from(h.get() * top_h_ratio.get()).halve();
-    let bottom_h = abs::Length::from(h.get() * bottom_h_ratio.get()).halve();
+    let left_w = abs::Length::from(w.get() * apron_min_ratio.get()).halve();
+    let right_w = abs::Length::from(w.get() *  apron_max_ratio.get()).halve();
 
     // In screen space
-    let min_x: abs::Pos = left_w + outer_rect.xy.x;
-    let max_x: abs::Pos = abs::Pos::from(w) - right_w + outer_rect.xy.x;
-    let min_y: abs::Pos = top_h + outer_rect.xy.y;
-    let max_y: abs::Pos = abs::Pos::from(h) - bottom_h + outer_rect.xy.y;
+    let min: abs::Pos = left_w + line_min;
+    let max: abs::Pos = abs::Pos::from(w) - right_w + line_min;
 
-    dbg!(    
-        &scroll,
-        &outer_rect,
-        x,
-        y,
-        w,
-        h,
-        &apron,
-        to_make_visible,
-        min_x,
-        max_x,
-        min_y,
-        max_y
-    );
-
-    // "Why do we assign x to scroll.x?":
+    // "Why do we assign to_make_visible to scroll?":
     // let to_make_visible = tmv
     // (here = is the algebra =)
-    // tmv_screen = (tmv_text - scroll_xy) + outer_rect.xy
-    // so if we want tmv_screen = outer_rect.xy
-    // tmv_screen = (tmv_text - scroll_xy) + tmv_screen
-    // 0 = (tmv_text - scroll_xy)
-    // scroll_xy = tmv_text
-    // therefore setting scroll_xy to the value of tmv_text places the point
+    // tmv_screen = (tmv - scroll) + line_min
+    // so if we want tmv_screen = line_min
+    // tmv_screen = (tmv - scroll) + tmv_screen
+    // 0 = (tmv - scroll)
+    // scroll = tmv
+    // therefore setting scroll to the value of tmv places the point
     // at the top left corner of the text box. We make further adjustments as needed.
 
-    dbg!(x, to_make_visible_ss.x, min_x);
-    if to_make_visible_ss.x < min_x {
-        scroll.x = x - left_w;
-    } else if to_make_visible_ss.x >= max_x {
-        scroll.x = x - (w - right_w);
+    if to_make_visible_screen_space < min {
+        *scroll = to_make_visible - left_w;
+    } else if to_make_visible_screen_space >= max {
+        *scroll = to_make_visible - (w - right_w);
     } else {
         // leave it alone
     }
-
-    dbg!(y, to_make_visible_ss.y, min_y, max_y);
-    if to_make_visible_ss.y < min_y {
-        scroll.y = y - top_h;
-    } else if to_make_visible_ss.y >= max_y {
-        scroll.y = y - (h - bottom_h);
-    } else {
-        // leave it alone
-    }
-
-    dbg!(scroll);
 
     Succeeded
 }
@@ -1046,12 +1034,12 @@ impl ScreenSpaceRect {
         }
     }
 
-    pub fn width(&self) -> abs::Pos {
-        self.max.x - self.min.x
+    pub fn width(&self) -> abs::Length {
+        (self.max.x - self.min.x).into()
     }
 
-    pub fn height(&self) -> abs::Pos {
-        self.max.y - self.min.y
+    pub fn height(&self) -> abs::Length {
+        (self.max.y - self.min.y).into()
     }
 
     pub fn middle(&self) -> (abs::Pos, abs::Pos) {

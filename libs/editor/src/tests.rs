@@ -273,10 +273,10 @@ fn attempt_to_make_sure_at_least_one_cursor_is_visible_reports_correctly_in_this
     let text_char_dim = char_dim!(16.0 32.0);
 
     let apron = apron!(
-        (text_char_dim.w / xywh.wh.w).get(),
-        (text_char_dim.w / xywh.wh.w).get(),
-        (text_char_dim.h / xywh.wh.h).get(),
-        (text_char_dim.h / xywh.wh.h).get(),
+        (text_char_dim.w.get() / xywh.wh.w.get()),
+        (text_char_dim.w.get() / xywh.wh.w.get()),
+        (text_char_dim.h.get() / xywh.wh.h.get()),
+        (text_char_dim.h.get() / xywh.wh.h.get()),
     );
 
     let text_space = position_to_text_space(pos!{}, text_char_dim);
@@ -307,10 +307,10 @@ fn attempt_to_make_xy_visible_reports_correctly_in_this_case() {
     let text_char_dim = char_dim!(16.0 32.0);
 
     let apron = apron!(
-        (text_char_dim.w / xywh.wh.w).get(),
-        (text_char_dim.w / xywh.wh.w).get(),
-        (text_char_dim.h / xywh.wh.h).get(),
-        (text_char_dim.h / xywh.wh.h).get(),
+        (text_char_dim.w.get() / xywh.wh.w.get()),
+        (text_char_dim.w.get() / xywh.wh.w.get()),
+        (text_char_dim.h.get() / xywh.wh.h.get()),
+        (text_char_dim.h.get() / xywh.wh.h.get()),
     );
 
     let attempt_result = attempt_to_make_xy_visible(
@@ -1179,7 +1179,7 @@ fn update_and_render_sets_the_views_buffer_selected_index_correctly_after_moving
     let previous_generation_expected_index = buffers.current_index();
 
     // Act
-    let (view, _) = update_and_render(
+    let (_, _) = update_and_render(
         state, 
         AdjustBufferSelection(
             SelectionAdjustment::Move(SelectionMove::Right)

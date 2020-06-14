@@ -332,23 +332,33 @@ impl Length {
 
     #[must_use]
     pub fn scale_saturating(&self, ratio: Ratio) -> Self {
-        let payload = ratio as i8;
+        let payload = ratio.0;
 
         if payload >= 0 {
-            Self::from_bits(self.to_bits().saturating_mul(1i64 << payload))
+            Self::from_bits(
+                self.to_bits()
+                    .saturating_mul(
+                        // 0 maps to 1, 1 maps to 2
+                        i64::from(payload + 1)
+                    )
+            )
         } else {
-            Self::from_bits(self.to_bits() >> (-payload))
+            Self::from_bits(
+                self.to_bits() 
+                    // -1 maps to 2, -2 maps to 3
+                    / i64::from(-(payload - 1))
+            )
         }
     }
 
     #[must_use]
     pub fn double(&self) -> Self {
-        self.scale_saturating(Ratio::Two)
+        self.scale_saturating(Ratio::TWO)
     }
 
     #[must_use]
     pub fn halve(&self) -> Self {
-        self.scale_saturating(Ratio::Half)
+        self.scale_saturating(Ratio::HALF)
     }
 
     #[must_use]
@@ -385,6 +395,12 @@ macro_rules! abs_length {
 impl From<Length> for Pos {
     fn from(p: Length) -> Self {
         p.0
+    }
+}
+
+impl From<Pos> for Length {
+    fn from(p: Pos) -> Self {
+        Length::new_saturating(p)
     }
 }
 
@@ -479,63 +495,61 @@ impl Sub<Length> for Length {
     }
 }
 
+type RatioBits = i32;
+
 /// Ratio allows scaling a langth by a restricted set of values.
 #[derive(Copy, Clone, Debug)]
-#[repr(i8)]
-pub enum Ratio {
-    TwoFiftySixth = -8,
-    OneTwentyEighth = -7,
-    SixtyFourth = -6,
-    ThirtySecondth = -5,
-    Sixteenth = -4,
-    Eighth = -3,
-    Fourth = -2,
-    Half = -1,
-    One = 0,
-    Two = 1,
-    Four = 2,
-    Eight = 3,
-    Sixteen = 4,
-    ThirtyTwo = 5,
-    SixtyFour = 6,
-    OneTwentyEight = 7,
-    TwoFiftySix = 8,
-}
+// Internal details: 
+//  0 means 1/1
+//  1 means 2/1
+// -1 means 1/2
+pub struct Ratio(RatioBits);
 
 impl Ratio {
-    fn from_i8_saturating(x: i8) -> Self {
-        u!{Ratio}
-        match x {
-          std::i8::MIN..=-8i8 => TwoFiftySixth,
-          -7 => OneTwentyEighth,
-          -6 => SixtyFourth,
-          -5 => ThirtySecondth,
-          -4 => Sixteenth,
-          -3 => Eighth,
-          -2 => Fourth,
-          -1 => Half,
-          0 => One,
-          1 => Two,
-          2 => Four,
-          3 => Eight,
-          4 => Sixteen,
-          5 => ThirtyTwo,
-          6 => SixtyFour,
-          7 => OneTwentyEight,
-          8i8..=std::i8::MAX => TwoFiftySix,
-        }
+    pub const TWO_FIFTY_SIXTH: Ratio = Ratio(-255);
+    pub const ONE_TWENTY_EIGHTH: Ratio = Ratio(-127);
+    pub const SIXTY_FOURTH: Ratio = Ratio(-63);
+    pub const THIRTY_SECONDTH: Ratio = Ratio(-31);
+    pub const SIXTEENTH: Ratio = Ratio(-15);
+    pub const EIGHTH: Ratio = Ratio(-7);
+    pub const QUARTER: Ratio = Ratio(-3);
+    pub const HALF: Ratio = Ratio(-1);
+    pub const ONE: Ratio = Ratio(0);
+    pub const TWO: Ratio = Ratio(1);
+    pub const THREE: Ratio = Ratio(2);
+    pub const FOUR: Ratio = Ratio(3);
+    pub const FIVE: Ratio = Ratio(4);
+    pub const SIX: Ratio = Ratio(5);
+    pub const SEVEN: Ratio = Ratio(6);
+    pub const EIGHT: Ratio = Ratio(7);
+    pub const SIXTEEN: Ratio = Ratio(15);
+    pub const THIRTY_TWO: Ratio = Ratio(31);
+    pub const SIXTY_FOUR: Ratio = Ratio(63);
+    pub const ONE_TWENTY_EIGHT: Ratio = Ratio(127);
+    pub const TWO_FIFTY_SIX: Ratio = Ratio(255);
+
+    // We eliminate some values so we don't need to check values during scaling
+    // or negation.
+    const BITS_MIN: RatioBits = RatioBits::min_value() + 2;
+    const BITS_MAX: RatioBits = RatioBits::max_value() - 1;
+
+    #[must_use]
+    pub fn from_bits(bits: RatioBits) -> Self {
+        Self(
+            std::cmp::max(
+                Self::BITS_MIN,
+                std::cmp::min(
+                    bits,
+                    Self::BITS_MAX
+                )
+            )
+        )
     }
 
-    fn scale_saturating(self, other: Ratio) -> Ratio {
-        Self::from_i8_saturating(self as i8 + other as i8)
-    }
-}
-
-impl Mul<Ratio> for Ratio {
-    type Output = Ratio;
-
-    fn mul(self, other: Ratio) -> Self::Output {
-        self.scale_saturating(other)
+    #[must_use]
+    /// 0 and 1 both map to a Ratio of 1
+    pub fn from_u16_saturating(x: u16) -> Self {
+        Self::from_bits(x.saturating_sub(1) as RatioBits)
     }
 }
 
@@ -553,14 +567,6 @@ impl Mul<Length> for Ratio {
 
     fn mul(self, other: Length) -> Self::Output {
         other.scale_saturating(self)
-    }
-}
-
-impl Div<Ratio> for Ratio {
-    type Output = Ratio;
-
-    fn div(self, other: Ratio) -> Self::Output {
-        self.scale_saturating(!other)
     }
 }
 
@@ -585,10 +591,15 @@ impl Not for Ratio {
     type Output = Ratio;
 
     fn not(self) -> Self::Output {
-        Ratio::from_i8_saturating(-(self as i8))
+        Ratio(-self.0)
     }
 }
 
+impl From<usize> for Ratio {
+    fn from(x: usize) -> Self {
+        Ratio::from_u16_saturating(x as _)
+    }
+}
 
 /// The default signum returns 1.0 for 0.0, where we want 0.0.
 fn f32_signum(f: f32) -> f32 {

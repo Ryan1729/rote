@@ -27,9 +27,6 @@ use screen_positioning::{
     TextSpaceXY,
     VisibilityAttemptResult,
 };
-use floating_point::{
-    usual_f32_minimal_decrease
-};
 use proptest::{prop_compose, proptest, num::f32, strategy::Strategy};
 
 prop_compose! {
@@ -276,10 +273,10 @@ fn attempt_to_make_xy_visible_works_in_this_scenario(
     let text_box = tbxywh!(d!(), wh);
 
     let apron = apron!(
-        (char_dim.w / wh.w.get()),
-        (char_dim.w / wh.w.get()),
-        (char_dim.h / wh.h.get()),
-        (char_dim.h / wh.h.get()),
+        (char_dim.w.get() / wh.w.get()),
+        (char_dim.w.get() / wh.w.get()),
+        (char_dim.h.get() / wh.h.get()),
+        (char_dim.h.get() / wh.h.get()),
     );
 
     let attempt = attempt_to_make_xy_visible(

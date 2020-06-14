@@ -4,8 +4,7 @@ use wimp_types::{CommandsMap, LocalMenuView, View, WimpMenuMode, MenuView, WimpM
 use macros::{c, d, dbg, invariant_assert, u};
 use platform_types::{*, g_i, BufferView, GoToPositionView, FindReplaceView, FileSwitcherView, BufferViewData, BufferIdKind, BufferId, b_id, CursorState, Highlight, HighlightKind, tbxy, tbxywh, Input, sswh, ssr, screen_positioning::*, SpanView};
 use std::{
-    borrow::Cow,
-    cmp::max,
+    borrow::Cow
 };
 
 
@@ -605,7 +604,7 @@ pub fn view<'view>(
         size: STATUS_SIZE,
         layout: TextLayout::SingleLine,
         spec: VisualSpec {
-            rect: rect.with_min_y(status_line_y + abs::Ratio::Two * SEPARATOR_LINE_THICKNESS),
+            rect: rect.with_min_y(status_line_y + abs::Ratio::TWO * SEPARATOR_LINE_THICKNESS),
             color: CHROME_TEXT_COLOUR,
             z: STATUS_Z,
         },
@@ -621,7 +620,7 @@ pub fn view<'view>(
     let second_button_min_x = far_right_button_rect.min.x
         - (
             abs::Length::from(status_char_dim.w.get())
-            + abs::Ratio::Two
+            + abs::Ratio::TWO
             * SEPARATOR_LINE_THICKNESS
         );
 
@@ -1116,17 +1115,17 @@ fn text_box_view<'view>(
         }));
     }
 
-    let (x, y) = offset_text_rect.min;
+    let ssxy!(x y) = offset_text_rect.min;
     let CharDim { w, h } = char_dim;
     text_or_rects.extend(
         highlights
             .iter()
             .filter_map(|Highlight { min, max, kind, .. }| {
                 let mut rect = ssr!(
-                    min.offset.0 as f32 * w + x,
-                    min.line as f32 * h + y,
-                    max.offset.0 as f32 * w + x,
-                    (max.line + 1) as f32 * h + y
+                    abs::Ratio::from(min.offset.0) * w + x,
+                    abs::Ratio::from(min.line) * h + y,
+                    abs::Ratio::from(max.offset.0) * w + x,
+                    abs::Ratio::from(max.line + 1) * h + y
                 );
 
                 clamp_within(&mut rect, outer_rect);
@@ -1157,7 +1156,7 @@ pub fn make_active_tab_visible<'view>(
     let tab_layout = get_tab_spaced_rect(&ui, tab_char_dim, 0, tab_count, window_width);
     let tab_width = tab_layout.width();
 
-    make_nth_tab_visible_if_present(ui, target_index_or_max, tab_count, tab_width);
+    make_nth_tab_visible_if_present(ui, target_index_or_max, tab_count, tab_width, window_width);
 
     Some(())
 }
@@ -1166,11 +1165,18 @@ fn make_nth_tab_visible_if_present(
     ui: &mut ui::State,
     target_index: usize,
     tab_count: usize,
-    tab_width: f32,
+    tab_width: abs::Length,
+    screen_width: abs::Length,
 ) {
-    if target_index < tab_count {
-        ui.tab_scroll = -(target_index as f32 * tab_width);
-    }
+    let min_pos = d!();
+
+    attempt_to_make_line_space_pos_visible(
+        &mut ui.tab_scroll,
+        (min_pos, screen_width),
+        d!(),
+        d!(),
+        min_pos + abs::Ratio::from(target_index) * tab_width,
+    );
 }
 struct LineSpec {
     colour: Colour,
@@ -1302,7 +1308,7 @@ fn render_outline_button<'view>(
 
     if let Some(LineSpec { colour, thickness }) = overline {
         text_or_rects.push(TextOrRect::Rect(VisualSpec {
-            rect: rect.with_max_y(rect.min.1 + thickness),
+            rect: rect.with_max_y(rect.min.y + thickness),
             color: colour,
             z: overline_z,
         }));
@@ -1310,7 +1316,7 @@ fn render_outline_button<'view>(
 
     if let Some(LineSpec { colour, thickness }) = underline {
         text_or_rects.push(TextOrRect::Rect(VisualSpec {
-            rect: rect.with_min_y(rect.max.1 - thickness),
+            rect: rect.with_min_y(rect.max.y - thickness),
             color: colour,
             z: underline_z,
         }));
@@ -1357,8 +1363,8 @@ pub const STATUS_Z: u16 = z_from_base(128);
 pub const TAB_Z: u16 = STATUS_Z;
 
 /// Ratios to tab width
-const TAB_MARGIN_RATIO: abs::Ratio = abs::Ratio::ThirtySecondth;
-const TAB_PADDING_RATIO: abs::Ratio = abs::Ratio::SixtyFourth;
+const TAB_MARGIN_RATIO: abs::Ratio = abs::Ratio::THIRTY_SECONDTH;
+const TAB_PADDING_RATIO: abs::Ratio = abs::Ratio::SIXTY_FOURTH;
 const TAB_MIN_W: abs::Length = abs::Length::ONE_TWENTY_EIGHT;
 const TAB_MIN_PADDING: abs::Length = abs::Length::TWO;//TAB_MIN_W * TAB_PADDING_RATIO;
 const TAB_MIN_MARGIN: abs::Length = abs::Length::FOUR;//TAB_MIN_W * TAB_MARGIN_RATIO;
@@ -1387,8 +1393,8 @@ impl Spacing {
         u!{Spacing}
         let (l, t, r, b) = match self {
             All(n) => (n, n, n, n),
-            Horizontal(n) => (n, 0.0, n, 0.0),
-            Vertical(n) => (0.0, n, 0.0, n),
+            Horizontal(n) => (n, d!(), n, d!()),
+            Vertical(n) => (d!(), n, d!(), n),
             Axis(x, y) => (x, y, x, y),
             LeftTopRightBottom(l, t, r, b) => (l, t, r, b),
         };
@@ -1421,10 +1427,7 @@ fn get_tab_spaced_rect(
         tab_y,
         edit_y
     } = upper_position_info(&tab_char_dim);
-    let tab_count: PosF32 = pos_f32!(
-        usize_to_f32_or_65536(max(tab_count, 1)).get()
-    );
-    let tab_w = width / tab_count;
+    let tab_w = width / tab_count.into();
     let tab_w = if tab_w > TAB_MIN_W {
         tab_w
     } else {
@@ -1434,13 +1437,13 @@ fn get_tab_spaced_rect(
     let tab_padding = tab_w * TAB_PADDING_RATIO;
     let tab_margin = tab_w * TAB_MARGIN_RATIO;
 
-    let min_x = usize_to_f32_or_65536(tab_index) * tab_w + tab_padding + ui.tab_scroll;
-    let max_x = usize_to_f32_or_65536(tab_index + 1) * tab_w - tab_padding + ui.tab_scroll;
+    let min_x: abs::Pos = abs::Ratio::from(tab_index) * tab_w + tab_padding + ui.tab_scroll;
+    let max_x: abs::Pos = abs::Ratio::from(tab_index + 1) * tab_w - tab_padding + ui.tab_scroll;
 
     SpacedRect {
-        padding: Spacing::Axis(tab_padding.get(), tab_v_padding),
-        margin: Spacing::Axis(tab_margin.get(), tab_v_margin),
-        rect: ssr!((min_x, tab_y), (max_x, edit_y - tab_y)),
+        padding: Spacing::Axis(tab_padding, tab_v_padding),
+        margin: Spacing::Axis(tab_margin, tab_v_margin),
+        rect: ssr!(min_x, tab_y, max_x, edit_y - tab_y),
     }
 }
 
@@ -1481,19 +1484,19 @@ fn shrink_by(
 }
 
 pub fn get_inner_text_rect(text: &str, char_dim: CharDim, rect: ScreenSpaceRect) -> ScreenSpaceRect {
-    let text_w = usize_to_f32_or_65536(text.chars().count()) * char_dim.w;
+    let text_w = abs::Ratio::from(text.chars().count()) * char_dim.w;
     
-    center_within((text_w, char_dim.h.into()), rect)
+    center_within((text_w.get().into(), char_dim.h.get().into()), rect)
 }
 
 /// returns a rectangle with the passed width and height centered inside the passed rectangle.
 fn center_within(
-    (w, h): (NonNegF32, NonNegF32),
+    (w, h): (abs::Length, abs::Length),
     rect: ScreenSpaceRect
 ) -> ScreenSpaceRect {
     let (middle_x, middle_y) = rect.middle();
-    let min = (middle_x - (w / 2.0), middle_y - (h / 2.0));
-    ssr!(min, (min.0 + w, min.1 + h))
+    let min = ssxy!(middle_x - (w.halve()), middle_y - (h.halve()));
+    ssr!(min.x, min.y, min.x + w, min.y + h)
 }
 
 // TODO Consider whether this size restriction is the right one and enforce 
@@ -1506,24 +1509,24 @@ fn usize_to_f32_or_65536(n: usize) -> NonNegF32 {
 }
 
 struct UpperPositionInfo {
-    tab_v_padding: f32,
-    tab_v_margin: f32,
-    tab_y: f32,
-    edit_y: f32,
+    tab_v_padding: abs::Length,
+    tab_v_margin: abs::Length,
+    tab_y: abs::Pos,
+    edit_y: abs::Pos,
 }
 
 #[perf_viz::record]
 fn upper_position_info(tab_char_dim: &CharDim) -> UpperPositionInfo {
     let tab_v_padding = TAB_MIN_PADDING;
     let tab_v_margin = TAB_MIN_MARGIN;
-    let tab_y = tab_v_margin;
+    let tab_y = tab_v_margin.into();
     let edit_y = tab_y + tab_v_padding + tab_char_dim.h + tab_v_padding + tab_y;
 
     UpperPositionInfo {
-        tab_v_padding: tab_v_padding.get(),
-        tab_v_margin: tab_v_margin.get(),
-        tab_y: tab_y.get(),
-        edit_y: edit_y.get(),
+        tab_v_padding,
+        tab_v_margin,
+        tab_y,
+        edit_y,
     }
 }
 
@@ -1535,8 +1538,8 @@ struct SpacingAllSpec {
 
 fn get_menu_spacing(height: abs::Length) -> SpacingAllSpec {
     /// Ratios to screen height
-    const MARGIN_RATIO: abs::Ratio = abs::Ratio::Sixteenth;
-    const PADDING_RATIO: abs::Ratio = abs::Ratio::ThirtySecondth;
+    const MARGIN_RATIO: abs::Ratio = abs::Ratio::SIXTEENTH;
+    const PADDING_RATIO: abs::Ratio = abs::Ratio::THIRTY_SECONDTH;
 
     const MIN_MARGIN: abs::Length = MARGIN_RATIO * abs::Length::TWO_FIFTY_SIX;
     const MIN_PADDING: abs::Length = PADDING_RATIO * abs::Length::TWO_FIFTY_SIX;
@@ -1565,8 +1568,8 @@ fn get_menu_spacing(height: abs::Length) -> SpacingAllSpec {
 pub struct FindReplaceInfo {
     pub margin: Spacing,
     pub padding: Spacing,
-    pub top_y: f32,
-    pub bottom_y: f32,
+    pub top_y: abs::Pos,
+    pub bottom_y: abs::Pos,
     pub label_rect: ScreenSpaceRect,
     pub find_outer_rect: ScreenSpaceRect,
     pub find_text_xywh: TextBoxXYWH,
@@ -1587,12 +1590,16 @@ pub fn get_find_replace_info(
     let SpacingAllSpec { margin, padding } = get_menu_spacing(height);
 
     let bottom_y = get_status_line_y(status_char_dim, height);
-    // assuming that there are two text buffers and a heading, each with the same margin and
-    //padding, without the margins being duplicated
-    let top_y = bottom_y - (margin * 4.0 + padding * 6.0 + find_replace_char_dim.h * 3.0);
+    // assuming that there are two text buffers and a heading, each with the same 
+    // margin and padding, without the margins being duplicated
+    let top_y = bottom_y - (
+        margin * abs::Ratio::FOUR
+        + padding * abs::Ratio::SIX
+        + find_replace_char_dim.h * abs::Ratio::THREE
+    );
 
     let mut current_y = top_y + margin;
-    let text_height = 2.0 * padding + find_replace_char_dim.h;
+    let text_height = abs::Ratio::TWO * padding + find_replace_char_dim.h;
 
     macro_rules! text_rect {
         () => {
@@ -1602,25 +1609,29 @@ pub fn get_find_replace_info(
             tbxywh!(
                 margin + $h_padding,
                 current_y + padding,
-                width - 2.0 * (margin + $h_padding),
-                text_height - 2.0 * padding
+                width - (margin + $h_padding).double(),
+                text_height - padding.double()
             )
         };
     }
 
-    let label_rect = text_rect!(0.0).into();
+    let label_rect = text_rect!(abs::Length::ZERO).into();
 
     current_y += text_height + margin;
     let find_outer_rect = ssr!(
-        (margin, current_y),
-        (width - margin, current_y + text_height)
+        margin,
+        current_y,
+        width - margin, 
+        current_y + text_height
     );
     let find_text_xywh = text_rect!();
 
     current_y += text_height + margin;
     let replace_outer_rect = ssr!(
-        (margin, current_y),
-        (width - margin, current_y + text_height)
+        margin,
+        current_y,
+        width - margin,
+        current_y + text_height
     );
     let replace_text_xywh = text_rect!();
 
@@ -1641,15 +1652,14 @@ pub struct FileSwitcherInfo {
     pub margin: Spacing,
     pub padding: Spacing,
     pub list_margin: Spacing,
-    pub list_padding: Spacing,
-    pub top_y: f32,
-    pub bottom_y: f32,
+    pub top_y: abs::Pos,
+    pub bottom_y: abs::Pos,
     pub label_rect: ScreenSpaceRect,
     pub search_outer_rect: ScreenSpaceRect,
     pub search_text_xywh: TextBoxXYWH,
 }
 
-const LIST_MARGIN_TO_PADDING_RATIO: abs::Ratio = abs::Ratio::Eighth;
+const LIST_MARGIN_TO_PADDING_RATIO: abs::Ratio = abs::Ratio::EIGHTH;
 
 pub fn get_file_switcher_info(
     Dimensions {
@@ -1668,7 +1678,7 @@ pub fn get_file_switcher_info(
     let top_y = upper_position_info(&tab_char_dim).edit_y;
 
     let mut current_y = top_y + margin;
-    let text_height = 2.0 * padding + find_replace_char_dim.h;
+    let text_height = padding.double() + find_replace_char_dim.h;
 
     macro_rules! text_rect {
         () => {
@@ -1684,7 +1694,7 @@ pub fn get_file_switcher_info(
         };
     }
 
-    let label_rect = text_rect!(0.0).into();
+    let label_rect = text_rect!(abs::Length::ZERO).into();
 
     current_y += text_height + margin;
     let search_outer_rect = ssr!(
@@ -1748,7 +1758,7 @@ pub fn get_go_to_position_info(
         };
     }
 
-    let label_rect = text_rect!(0.0).into();
+    let label_rect = text_rect!(abs::Length::ZERO).into();
 
     current_y += text_height + margin;
     let input_outer_rect = ssr!(
