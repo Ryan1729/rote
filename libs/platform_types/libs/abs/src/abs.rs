@@ -48,6 +48,8 @@ impl Pos {
     pub const ONE: Pos = Pos(Self::SCALE);
     pub const TWO: Pos = Pos(Self::SCALE << 1);
     pub const FOUR: Pos = Pos(Self::SCALE << 2);
+    pub const FIVE: Pos = Pos((Self::SCALE << 2) + Self::SCALE);
+    pub const SEVEN: Pos = Pos((Self::SCALE << 3) - Self::SCALE);
     pub const ONE_TWENTY_EIGHT: Pos = Pos(Self::SCALE << 7);
     pub const TWO_FIFTY_SIX: Pos = Pos(Self::SCALE << 8);
     pub const MAX: Pos = Pos(i64::max_value());
@@ -297,6 +299,8 @@ impl Length {
     pub const ONE: Length = Length(Pos::ONE);
     pub const TWO: Length = Length(Pos::TWO);
     pub const FOUR: Length = Length(Pos::FOUR);
+    pub const FIVE: Length = Length(Pos::FIVE);
+    pub const SEVEN: Length = Length(Pos::SEVEN);
     pub const ONE_TWENTY_EIGHT: Length = Length(Pos::ONE_TWENTY_EIGHT);
     pub const TWO_FIFTY_SIX: Length = Length(Pos::TWO_FIFTY_SIX);
     pub const MAX: Length = Length(Pos::MAX);

@@ -344,6 +344,58 @@ fn attempt_to_make_xy_visible_works_on_this_generated_example() {
 }
 
 #[test]
+fn attempt_to_make_xy_visible_works_on_this_edge_case_example() {
+    let mut screen = ScrollableScreen {
+        scroll: d!(),
+        wh: sswh!{256.0 256.0},
+    };
+    let char_dim = char_dim!{
+        0.0 
+        0.0
+    };
+    let xy = text_box_to_text(
+        screen_to_text_box(
+            ssxy!{256.0, 0.0},
+            d!(),
+        ),
+        d!()
+    );
+
+    attempt_to_make_xy_visible_works_in_this_scenario(&mut screen, char_dim, xy);
+}
+
+#[test]
+fn attempt_to_make_xy_visible_works_on_this_clearer_edge_case_example() {
+    let mut screen = ScrollableScreen {
+        scroll: d!(),
+        wh: sswh!{256.0 256.0},
+    };
+    let xy = tsxy!(257.0, 0.0);
+
+    let wh = sswh!{256.0 256.0};
+    // Assume the text box fills the screen
+    let text_box = tbxywh!(d!(), wh);
+
+    dbg!(
+        &mut screen.scroll,
+        text_box,
+        xy
+    );
+
+    let attempt = attempt_to_make_xy_visible(
+        &mut screen.scroll,
+        text_box,
+        d!(),
+        xy
+    );
+
+    if dbg!(attempt) == VisibilityAttemptResult::Succeeded {
+        dbg!(&screen);
+        xy_is_visible_assert!(&screen, xy);
+    }
+}
+
+#[test]
 fn attempt_to_make_xy_visible_works_on_this_realistic_example() {
     let mut screen = ScrollableScreen {
         scroll: slxy!(250.0, 440.0),

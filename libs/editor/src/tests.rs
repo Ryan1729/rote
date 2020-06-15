@@ -221,13 +221,10 @@ fn update_and_render_shows_the_cursor_when_pressing_ctrl_home() {
         arb::abs_length(),
     ), |(box_w, box_h, w, h)| {
 
-        let w = pos_f32!(w.get());
-        let h = pos_f32!(h.get());
+        let w_max = box_w.halve();
+        let w_min = box_w / abs::Ratio::from(CURSOR_SHOW_TEXT.len() / 2);
 
-        let w_max = pos_f32!(box_w.get() / 2.0);
-        let w_min = pos_f32!(box_w.get() / (CURSOR_SHOW_TEXT.len() as f32 / 2.0));
-
-        let w: PosF32 = if w > w_max {
+        let w = if w > w_max {
             w_max
         } else if w >= w_min {
             w
@@ -236,8 +233,8 @@ fn update_and_render_shows_the_cursor_when_pressing_ctrl_home() {
             w_min
         };
 
-        let h_max = pos_f32!(box_h.halve().get());
-        let h: PosF32 = if h > h_max {
+        let h_max = box_h.halve();
+        let h = if h > h_max {
             h_max
         } else {
             // NaN ends up here
@@ -463,10 +460,6 @@ proptest!{
             ch4,
         )
     }
-}
-
-fn len_chars(editor_buffer: &EditorBuffer) -> usize {
-    editor_buffer.text_buffer.borrow_rope().len_chars().0
 }
 
 fn first_char(buffer: &TextBuffer) -> Option<char> {

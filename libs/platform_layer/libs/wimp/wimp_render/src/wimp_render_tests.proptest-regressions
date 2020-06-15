@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 1c21f7cdf60d6cb3e49e47f16fa346249747e129abaf769b6be3d147510da8f2 # shrinks to spec = MakeNthTabVisibleSpec { tab_scroll: 26687.9618349650409073 (114623923278071), target_index: 0, tab_width: 689046816.5883975606411695 (2959433542660077816), screen_width: 689046816.5883975606411695 (2959433542660077816) }
+cc 878b3d6db8f47458c680e5b168b8dd0bc9f88800dbf44fadfd0a742501daf121 # shrinks to spec = MakeNthTabVisibleSpec { tab_scroll: -691880.36336172791197896 (-2971600412129742), target_index: 0, tab_width: 941673727.19855118868872523 (4044457861820203054), screen_width: 941673727.19855118868872523 (4044457861820203054) }

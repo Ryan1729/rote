@@ -17,7 +17,8 @@ platform_types = { path = "../../../../platform_types" }
 macros = { path = "../../../../macros" }
 
 [dev-dependencies]
-proptest = "0.9.3"
+pub_arb_abs = { path = "../../../../pub_arb/abs" }
+proptest = "0.9"
 
 [features]
 clip-debugging = []

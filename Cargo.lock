@@ -2689,6 +2689,7 @@ dependencies = [
  "perf_viz",
  "platform_types",
  "proptest",
+ "pub_arb_abs",
  "shared",
  "wimp_types",
 ]

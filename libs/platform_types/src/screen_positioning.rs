@@ -51,6 +51,9 @@ macro_rules! ssxy {
     ($x: expr, $y: expr $(,)?) => {
         ScreenSpaceXY { x: $x.into(), y: $y.into() }
     };
+    (raw $x: expr, $y: expr $(,)?) => {
+        ScreenSpaceXY { x: $x, y: $y }
+    };
     () => {
         ScreenSpaceXY::default()
     };
@@ -895,13 +898,25 @@ pub fn attempt_to_make_line_space_pos_visible(
     // therefore setting scroll to the value of tmv places the point
     // at the top left corner of the text box. We make further adjustments as needed.
 
+    dbg!(
+        to_make_visible,
+        to_make_visible_screen_space,
+        min,
+        max,
+        &scroll,
+    );
+
     if to_make_visible_screen_space < min {
+        dbg!();
         *scroll = to_make_visible - left_w;
     } else if to_make_visible_screen_space >= max {
+        dbg!();
         *scroll = to_make_visible - (w - right_w);
     } else {
         // leave it alone
     }
+
+    dbg!(scroll);
 
     Succeeded
 }
@@ -979,6 +994,18 @@ macro_rules! ssr {
             max: ssxy!($max_x, $max_y),
         }
     };
+    (_, _, $max_x: expr, $max_y: expr $(,)?) => {
+        ScreenSpaceRect {
+            max: ssxy!($max_x, $max_y),
+            ..ScreenSpaceRect::default()
+        }
+    };
+    (raw $min_x: expr, $min_y: expr, $max_x: expr, $max_y: expr $(,)?) => {
+        ScreenSpaceRect {
+            min: ssxy!(raw $min_x, $min_y),
+            max: ssxy!(raw $max_x, $max_y),
+        }
+    };
     ($min: expr, $max: expr $(,)?) => {
         ScreenSpaceRect {
             min: $min,
@@ -988,6 +1015,12 @@ macro_rules! ssr {
     ($min: expr $(,)?) => {
         ScreenSpaceRect {
             min: $min,
+            ..ScreenSpaceRect::default()
+        }
+    };
+    (_, $max: expr $(,)?) => {
+        ScreenSpaceRect {
+            max: $max,
             ..ScreenSpaceRect::default()
         }
     };

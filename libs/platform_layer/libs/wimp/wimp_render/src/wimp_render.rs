@@ -223,7 +223,7 @@ pub fn view<'view>(
     perf_viz::start_record!("fill text_or_rects");
 
     text_or_rects.push(TextOrRect::Rect(VisualSpec {
-        rect: ssr!(0.0, 0.0, width.get(), edit_y),
+        rect: ssr!(_, ssxy!(width, edit_y)),
         color: TAB_BAR_BACKGROUND_COLOUR,
         z: TAB_BACKGROUND_Z,
     }));
@@ -1156,7 +1156,7 @@ pub fn make_active_tab_visible<'view>(
     let tab_layout = get_tab_spaced_rect(&ui, tab_char_dim, 0, tab_count, window_width);
     let tab_width = tab_layout.width();
 
-    make_nth_tab_visible_if_present(ui, target_index_or_max, tab_count, tab_width, window_width);
+    make_nth_tab_visible_if_present(ui, target_index_or_max, tab_width, window_width);
 
     Some(())
 }
@@ -1164,18 +1164,23 @@ pub fn make_active_tab_visible<'view>(
 fn make_nth_tab_visible_if_present(
     ui: &mut ui::State,
     target_index: usize,
-    tab_count: usize,
     tab_width: abs::Length,
     screen_width: abs::Length,
 ) {
-    let min_pos = d!();
+    let min_pos: abs::Pos = d!();
+
+    let to_make_visible = if target_index == 0 {
+        d!()
+    } else {
+        abs::Ratio::from(target_index) * tab_width
+    };
 
     attempt_to_make_line_space_pos_visible(
         &mut ui.tab_scroll,
         (min_pos, screen_width),
         d!(),
         d!(),
-        min_pos + abs::Ratio::from(target_index) * tab_width,
+        min_pos + to_make_visible,
     );
 }
 struct LineSpec {
@@ -1377,7 +1382,7 @@ pub enum Spacing {
     Axis(abs::Length, abs::Length),
     LeftTopRightBottom(abs::Length, abs::Length, abs::Length, abs::Length),
 }
-d!(for Spacing: Spacing::All(0.0));
+d!(for Spacing: Spacing::All(d!()));
 
 /// LRTB is short for `LeftTopRightBottom`. This represents what the values of a spacing would be
 /// if the spacing was the `LeftTopRightBottom` variant.
@@ -1437,8 +1442,8 @@ fn get_tab_spaced_rect(
     let tab_padding = tab_w * TAB_PADDING_RATIO;
     let tab_margin = tab_w * TAB_MARGIN_RATIO;
 
-    let min_x: abs::Pos = abs::Ratio::from(tab_index) * tab_w + tab_padding + ui.tab_scroll;
-    let max_x: abs::Pos = abs::Ratio::from(tab_index + 1) * tab_w - tab_padding + ui.tab_scroll;
+    let min_x: abs::Pos = abs::Ratio::from(tab_index) * tab_w + tab_padding - ui.tab_scroll;
+    let max_x: abs::Pos = abs::Ratio::from(tab_index + 1) * tab_w - tab_padding - ui.tab_scroll;
 
     SpacedRect {
         padding: Spacing::Axis(tab_padding, tab_v_padding),
@@ -1499,15 +1504,6 @@ fn center_within(
     ssr!(min.x, min.y, min.x + w, min.y + h)
 }
 
-// TODO Consider whether this size restriction is the right one and enforce 
-// the correct restriction with a type.
-fn usize_to_f32_or_65536(n: usize) -> NonNegF32 {
-    use std::convert::TryFrom;
-    non_neg_f32!(
-        u16::try_from(n).unwrap_or(u16::max_value()).into()
-    )
-}
-
 struct UpperPositionInfo {
     tab_v_padding: abs::Length,
     tab_v_margin: abs::Length,
@@ -1541,22 +1537,22 @@ fn get_menu_spacing(height: abs::Length) -> SpacingAllSpec {
     const MARGIN_RATIO: abs::Ratio = abs::Ratio::SIXTEENTH;
     const PADDING_RATIO: abs::Ratio = abs::Ratio::THIRTY_SECONDTH;
 
-    const MIN_MARGIN: abs::Length = MARGIN_RATIO * abs::Length::TWO_FIFTY_SIX;
-    const MIN_PADDING: abs::Length = PADDING_RATIO * abs::Length::TWO_FIFTY_SIX;
+    let min_margin: abs::Length = MARGIN_RATIO * abs::Length::TWO_FIFTY_SIX;
+    let min_padding: abs::Length = PADDING_RATIO * abs::Length::TWO_FIFTY_SIX;
 
     let mut margin = MARGIN_RATIO * height;
-    margin = if margin > MIN_MARGIN {
+    margin = if margin > min_margin {
         margin
     } else {
         //NaN ends up here
-        MIN_MARGIN
+        min_margin
     };
     let mut padding = PADDING_RATIO * height;
-    padding = if padding > MIN_PADDING {
+    padding = if padding > min_padding {
         padding
     } else {
         //NaN ends up here
-        MIN_PADDING
+        min_padding
     };
 
     SpacingAllSpec {
@@ -1688,8 +1684,8 @@ pub fn get_file_switcher_info(
             tbxywh!(
                 margin + $h_padding,
                 current_y + padding,
-                width - 2.0 * (margin + $h_padding),
-                text_height - 2.0 * padding
+                width - (margin + $h_padding).double(),
+                text_height - padding.double()
             )
         };
     }
@@ -1698,8 +1694,10 @@ pub fn get_file_switcher_info(
 
     current_y += text_height + margin;
     let search_outer_rect = ssr!(
-        (margin, current_y),
-        (width - margin, current_y + text_height)
+        margin,
+        current_y,
+        width - margin,
+        current_y + text_height
     );
     let search_text_xywh = text_rect!();
 
@@ -1720,8 +1718,8 @@ pub fn get_file_switcher_info(
 pub struct GoToPositionInfo {
     pub margin: Spacing,
     pub padding: Spacing,
-    pub top_y: f32,
-    pub bottom_y: f32,
+    pub top_y: abs::Pos,
+    pub bottom_y: abs::Pos,
     pub label_rect: ScreenSpaceRect,
     pub input_outer_rect: ScreenSpaceRect,
     pub input_text_xywh: TextBoxXYWH,
@@ -1742,7 +1740,7 @@ pub fn get_go_to_position_info(
     let top_y = upper_position_info(&tab_char_dim).edit_y;
 
     let mut current_y = top_y + margin;
-    let text_height = 2.0 * padding + find_replace_char_dim.h;
+    let text_height = padding.double() + find_replace_char_dim.h;
 
     macro_rules! text_rect {
         () => {
@@ -1752,8 +1750,8 @@ pub fn get_go_to_position_info(
             tbxywh!(
                 margin + $h_padding,
                 current_y + padding,
-                width - 2.0 * (margin + $h_padding),
-                text_height - 2.0 * padding
+                width - (margin + $h_padding).double(),
+                text_height - padding.double()
             )
         };
     }
@@ -1762,8 +1760,10 @@ pub fn get_go_to_position_info(
 
     current_y += text_height + margin;
     let input_outer_rect = ssr!(
-        (margin, current_y),
-        (width - margin, current_y + text_height)
+        margin,
+        current_y,
+        width - margin,
+        current_y + text_height
     );
     let input_text_xywh = text_rect!();
 
@@ -1783,8 +1783,8 @@ pub fn get_go_to_position_info(
 pub struct CommandMenuInfo {
     pub margin: Spacing,
     pub padding: Spacing,
-    pub top_y: f32,
-    pub bottom_y: f32,
+    pub top_y: abs::Pos,
+    pub bottom_y: abs::Pos,
     pub outer_rect: ScreenSpaceRect,
     pub first_button_rect: ScreenSpaceRect,
     pub list_margin: Spacing,
@@ -1812,7 +1812,12 @@ pub fn get_command_menu_info(
     let list_margin = margin * LIST_MARGIN_TO_PADDING_RATIO;
 
     let first_button_rect = shrink_by(
-        get_full_width_ssr(0.0, width.get(), top_y + 2.0 * padding + tab_char_dim.h),
+        ssr!(
+            _,
+            _,
+            width, 
+            top_y + padding.double() + tab_char_dim.h
+        ),
         Spacing::Horizontal(margin)
     ).with_min_y(top_y + list_margin);
     CommandMenuInfo {
@@ -1830,12 +1835,11 @@ pub fn get_command_menu_info(
 pub struct DebugMenuInfo {
     pub margin: Spacing,
     pub padding: Spacing,
-    pub top_y: f32,
-    pub bottom_y: f32,
+    pub top_y: abs::Pos,
+    pub bottom_y: abs::Pos,
     pub outer_rect: ScreenSpaceRect,
     pub first_button_rect: ScreenSpaceRect,
     pub list_margin: Spacing,
-    pub list_padding: Spacing,
 }
 
 pub fn get_debug_menu_info(
@@ -1858,13 +1862,18 @@ pub fn get_debug_menu_info(
     } = cover_text_area_info(dimensions);
 
     let list_margin = margin * LIST_MARGIN_TO_PADDING_RATIO;
-    let list_padding = margin * (1.0 - LIST_MARGIN_TO_PADDING_RATIO);
 
     let first_button_rect = shrink_by(
-        get_full_width_ssr(0.0, width, top_y + 2.0 * padding + tab_char_dim.h),
+        ssr!(
+            _,
+            _,
+            width,
+            top_y + padding.double() + tab_char_dim.h
+        ),
         Spacing::Horizontal(margin)
     ).with_min_y(top_y + list_margin);
-    DebugMenuInfo {
+
+    DebugMenuInfo {
         margin: Spacing::All(margin),
         padding: Spacing::All(padding),
         top_y,
@@ -1877,10 +1886,10 @@ pub fn get_debug_menu_info(
 
 /// Info for making a rect that completely covers the text area.
 pub struct CoverTextAreaInfo {
-    pub margin: f32,
-    pub padding: f32,
-    pub top_y: f32,
-    pub bottom_y: f32,
+    pub margin: abs::Length,
+    pub padding: abs::Length,
+    pub top_y: abs::Pos,
+    pub bottom_y: abs::Pos,
     pub outer_rect: ScreenSpaceRect,
 }
 
@@ -1911,7 +1920,7 @@ pub fn cover_text_area_info(
 }
 
 fn get_status_line_y(status_char_dim: CharDim, height: abs::Length) -> abs::Pos {
-    height - (status_char_dim.h + 2.0 * SEPARATOR_LINE_THICKNESS)
+    abs::Pos::from(height) - (status_char_dim.h + SEPARATOR_LINE_THICKNESS.double())
 }
 
 fn get_full_width_ssr<
@@ -1942,15 +1951,14 @@ pub fn get_edit_buffer_xywh(
     let max_y = match mode {
         Hidden | GoToPosition => get_status_line_y(status_char_dim, height),
         FindReplace(_) => get_find_replace_info(dimensions).top_y,
-        // TODO Should all of the arms of this match return `NonNegF32`s?
-        FileSwitcher | Command | Debug => height.get(),
+        FileSwitcher | Command | Debug => height.into(),
     };
     let y = upper_position_info(tab_char_dim).edit_y;
     TextBoxXYWH {
-        xy: tbxy!{ 0.0, y },
+        xy: tbxy!{ abs::Pos::ZERO, y },
         wh: ScreenSpaceWH {
             w: width,
-            h: pos_f32_trunc!(max_y - y),
+            h: abs::Length::from(max_y - y),
         },
     }
 }

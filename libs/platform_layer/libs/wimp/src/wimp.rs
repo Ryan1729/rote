@@ -347,12 +347,12 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
 
     // If you didn't click on the same symbol, counting that as a double click seems like it
     // would be annoying.
-    let mouse_epsilon_radius: AbsPos = {
+    let mouse_epsilon_radius: abs::Length = {
         let char_dim = r_s.dimensions.font.text_char_dim;
         let (w, h) = (char_dim.w, char_dim.h);
 
-        (if w < h { w } else { h }) / 2.0
-    }.into();
+        (if w < h { w } else { h }).halve()
+    };
 
     let (mut last_click_x, mut last_click_y) = (d!(), d!());
 
@@ -361,8 +361,8 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
     macro_rules! mouse_within_radius {
         () => {{
             let mouse_pos = &r_s.ui.mouse_pos;
-            AbsPos::abs(&(last_click_x - mouse_pos.x)) <= mouse_epsilon_radius
-                && AbsPos::abs(&(last_click_y - mouse_pos.y)) <= mouse_epsilon_radius
+            abs::Pos::abs(&(last_click_x - mouse_pos.x)) <= mouse_epsilon_radius
+                && abs::Pos::abs(&(last_click_y - mouse_pos.y)) <= mouse_epsilon_radius
         }};
     }
 
@@ -943,7 +943,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                             let ui = &mut r_s.ui;
                             let scroll_y = y * wimp_render::SCROLL_MULTIPLIER;
                             if wimp_render::inside_tab_area(ui.mouse_pos, r_s.dimensions.font) {
-                                ui.tab_scroll += scroll_y;
+                                ui.tab_scroll -= scroll_y;
                             } else {
                                 call_u_and_r!(Input::ScrollVertically(scroll_y));
                             }
@@ -956,7 +956,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                             let ui = &mut r_s.ui;
                             let scroll_y = y * wimp_render::SCROLL_MULTIPLIER;
                             if wimp_render::inside_tab_area(ui.mouse_pos, r_s.dimensions.font) {
-                                ui.tab_scroll += scroll_y;
+                                ui.tab_scroll -= scroll_y;
                             } else {
                                 call_u_and_r!(Input::ScrollHorizontally(scroll_y));
                             }
