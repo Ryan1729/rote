@@ -1174,6 +1174,13 @@ fn unscrolled_tab_left_edge(
     }
 }
 
+fn unscrolled_tab_right_edge(
+    target_index: usize,
+    tab_width: abs::Length,
+) -> abs::Pos {
+    unscrolled_tab_left_edge(target_index + 1, tab_width)
+}
+
 fn make_nth_tab_visible_if_present(
     ui: &mut ui::State,
     target_index: usize,
@@ -1453,8 +1460,8 @@ fn get_tab_spaced_rect(
     let tab_padding = tab_w * TAB_PADDING_RATIO;
     let tab_margin = tab_w * TAB_MARGIN_RATIO;
 
-    let min_x: abs::Pos = abs::Ratio::from(tab_index) * tab_w + tab_padding - ui.tab_scroll;
-    let max_x: abs::Pos = abs::Ratio::from(tab_index + 1) * tab_w - tab_padding - ui.tab_scroll;
+    let min_x: abs::Pos = unscrolled_tab_left_edge(tab_index, tab_w) + tab_padding - ui.tab_scroll;
+    let max_x: abs::Pos = unscrolled_tab_right_edge(tab_index, tab_w) - tab_padding - ui.tab_scroll;
 
     SpacedRect {
         padding: Spacing::Axis(tab_padding, tab_v_padding),

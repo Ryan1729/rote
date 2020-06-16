@@ -161,7 +161,7 @@ fn left_edge(tab_scroll: abs::Pos, target_index: usize, tab_width: abs::Length) 
 }
 
 fn right_edge(tab_scroll: abs::Pos, target_index: usize, tab_width: abs::Length) -> abs::Pos {
-    abs::Ratio::from(target_index + 1) * tab_width - tab_scroll
+    unscrolled_tab_right_edge(target_index, tab_width) - tab_scroll
 }
 
 fn is_tab_left_edge_visible(tab_scroll: abs::Pos, target_index: usize, tab_width: abs::Length) -> bool {
