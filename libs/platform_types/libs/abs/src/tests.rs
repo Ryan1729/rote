@@ -357,3 +357,14 @@ fn f32_to_abs_pos_to_f32_does_not_change_the_signum_on_zero(
         0.0
     )
 }
+
+/// The default signum returns 1.0 for 0.0, where we want 0.0.
+fn f32_signum(f: f32) -> f32 {
+    let no_zero = f.signum();
+    if no_zero == 1.0 && f == 0.0 {
+        0.0
+    } else {
+        // NaN ends up here
+        no_zero
+    }
+}

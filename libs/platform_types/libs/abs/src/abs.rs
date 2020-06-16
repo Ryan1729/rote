@@ -607,17 +607,5 @@ impl From<usize> for Ratio {
     }
 }
 
-#[cfg(test)]
-/// The default signum returns 1.0 for 0.0, where we want 0.0.
-fn f32_signum(f: f32) -> f32 {
-    let no_zero = f.signum();
-    if no_zero == 1.0 && f == 0.0 {
-        0.0
-    } else {
-        // NaN ends up here
-        no_zero
-    }
-}
-
 #[cfg(any(test, feature = "pub_arb"))]
 pub mod tests;

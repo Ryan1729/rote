@@ -1,6 +1,8 @@
 // This module is inside `tests`
 use super::*;
 
+use panic_safe_rope::{LineIndex};
+
 use rope_pos::is_linebreak_char;
 
 use std::collections::HashMap;
