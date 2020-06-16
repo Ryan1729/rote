@@ -52,6 +52,8 @@ impl Pos {
     pub const SEVEN: Pos = Pos((Self::SCALE << 3) - Self::SCALE);
     pub const ONE_TWENTY_EIGHT: Pos = Pos(Self::SCALE << 7);
     pub const TWO_FIFTY_SIX: Pos = Pos(Self::SCALE << 8);
+
+    pub const TWO_TO_THE_TWENTY_THREE: Pos = Pos(Self::SCALE << 23);
     pub const MAX: Pos = Pos(i64::max_value());
 
 
@@ -605,6 +607,7 @@ impl From<usize> for Ratio {
     }
 }
 
+#[cfg(test)]
 /// The default signum returns 1.0 for 0.0, where we want 0.0.
 fn f32_signum(f: f32) -> f32 {
     let no_zero = f.signum();

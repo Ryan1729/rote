@@ -1161,6 +1161,19 @@ pub fn make_active_tab_visible<'view>(
     Some(())
 }
 
+fn unscrolled_tab_left_edge(
+    target_index: usize,
+    tab_width: abs::Length,
+) -> abs::Pos {
+    if target_index == 0 {
+        d!()
+    } else {
+        abs::Pos::from(
+            abs::Ratio::from(target_index) * tab_width
+        )
+    }
+}
+
 fn make_nth_tab_visible_if_present(
     ui: &mut ui::State,
     target_index: usize,
@@ -1169,17 +1182,15 @@ fn make_nth_tab_visible_if_present(
 ) {
     let min_pos: abs::Pos = d!();
 
-    let to_make_visible = if target_index == 0 {
-        d!()
-    } else {
-        abs::Ratio::from(target_index) * tab_width
-    };
+    let to_make_visible = 
+        unscrolled_tab_left_edge(target_index, tab_width)
+        + tab_width.halve();
 
     attempt_to_make_line_space_pos_visible(
         &mut ui.tab_scroll,
         (min_pos, screen_width),
-        d!(),
-        d!(),
+        F32_0_1::MAX,
+        F32_0_1::MAX,
         min_pos + to_make_visible,
     );
 }

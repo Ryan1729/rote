@@ -11,9 +11,11 @@ use std::ops::{Add, Sub, Mul, Div};
 pub struct F32_0_1(f32);
 
 impl F32_0_1 {
+    pub const MIN: F32_0_1 = Self::ZERO;
     pub const ZERO: F32_0_1 = F32_0_1(0.0);
     pub const ONE_HALF: F32_0_1 = F32_0_1(0.5);
     pub const ONE: F32_0_1 = F32_0_1(1.0);
+    pub const MAX: F32_0_1 = Self::ONE;
 }
 
 #[macro_export]

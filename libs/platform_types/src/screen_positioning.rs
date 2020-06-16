@@ -861,25 +861,6 @@ pub fn attempt_to_make_line_space_pos_visible(
 
     let to_make_visible_screen_space = (to_make_visible - *scroll) + line_min;
 
-    // We clamp the aprons since we'd rather have the cursor end up closer to the 
-    // middle than not be visible at all. 8388608 = 2^23 makes some tests pass where
-    // 2^24 makes them fail.
-    const APRON_MINIMUM: f32 = 1.0 / 8388608.0;
-
-    macro_rules! apron_clamp {
-        ($ratio: expr) => {{
-            let raw = $ratio.get();
-            if raw != 0.0 && raw <= APRON_MINIMUM {
-                f32_0_1!(APRON_MINIMUM)
-            } else {
-                $ratio
-            }
-        }}
-    }
-
-    let apron_min_ratio = apron_clamp!(apron_min_ratio);
-    let apron_max_ratio = apron_clamp!(apron_max_ratio);
-
     let left_w = abs::Length::from(w.get() * apron_min_ratio.get()).halve();
     let right_w = abs::Length::from(w.get() *  apron_max_ratio.get()).halve();
 

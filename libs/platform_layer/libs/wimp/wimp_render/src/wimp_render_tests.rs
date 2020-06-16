@@ -156,11 +156,20 @@ fn center_within_centers_this_no_edge_cases_example_properly() {
     );
 }
 
-fn is_tab_left_edge_visible(tab_scroll: abs::Pos, target_index: usize, tab_width: abs::Length) -> bool {
-    abs::Ratio::from(target_index) * tab_width - tab_scroll >= 0.0
+fn left_edge(tab_scroll: abs::Pos, target_index: usize, tab_width: abs::Length) -> abs::Pos {
+    unscrolled_tab_left_edge(target_index, tab_width) - tab_scroll
 }
+
+fn right_edge(tab_scroll: abs::Pos, target_index: usize, tab_width: abs::Length) -> abs::Pos {
+    abs::Ratio::from(target_index + 1) * tab_width - tab_scroll
+}
+
+fn is_tab_left_edge_visible(tab_scroll: abs::Pos, target_index: usize, tab_width: abs::Length) -> bool {
+    left_edge(tab_scroll, target_index, tab_width) >= 0.0
+}
+
 fn is_tab_right_edge_visible(tab_scroll: abs::Pos, target_index: usize, tab_width: abs::Length, screen_width: abs::Length) -> bool {
-    abs::Ratio::from(target_index + 1) * tab_width - tab_scroll <= screen_width
+    right_edge(tab_scroll, target_index, tab_width) <= screen_width
 }
 
 macro_rules! tab_visible_assert {
@@ -197,12 +206,42 @@ macro_rules! tab_as_visible_as_possible_assert {
         $tab_width: expr,
         $screen_width: expr,
     ) => {
+        use std::cmp::{min, max};
         let tab_scroll = $tab_scroll;
         let target_index = $target_index;
         let tab_width = $tab_width;
         let screen_width = $screen_width;
         
-        todo!()
+        // measure how much of the tab width is visible and assert that the value is 
+        // at least min(tab_width, screen_width)
+        
+        let left_e = left_edge(tab_scroll, target_index, tab_width);
+        let right_e = right_edge(tab_scroll, target_index, tab_width);
+
+        let screen_left_edge = abs::Pos::ZERO;
+        let screen_right_edge = abs::Pos::from(screen_width);
+
+        let clipped_left_e = max(screen_left_edge, min(left_e, screen_right_edge));
+        let clipped_right_e = max(screen_left_edge, min(right_e, screen_right_edge));
+
+        let covers = clipped_right_e - clipped_left_e;
+        let needs_to_cover = min(tab_width, screen_width);
+
+        assert!(
+            covers >= needs_to_cover,
+            "tab {} covers only {} pixels where it should cover at least {} on a {} wide screen when the tabs are {} wide and the `tab_scroll` is {} 
+            Begins at {} (clipped from {}) and ends at {} (clipped from {}).",
+            target_index,
+            covers,
+            needs_to_cover,
+            screen_width,
+            tab_width,
+            tab_scroll,
+            clipped_left_e,
+            left_e,
+            right_e,
+            clipped_right_e,
+        );
     };
 }
 
@@ -234,12 +273,33 @@ prop_compose! {
             }}),
             tab_width in Just(tab_width),
         ) -> MakeNthTabVisibleSpec {
-         MakeNthTabVisibleSpec {
-             tab_scroll,
-             target_index,
-             tab_width,
-             screen_width,
-         }
+        if cfg!(feature = "over-test") {
+            // don't clamp
+            MakeNthTabVisibleSpec {
+                tab_scroll,
+                target_index,
+                tab_width,
+                screen_width,
+            }
+        } else {
+            use std::cmp::min;
+            let max_reasonable = abs::Pos::TWO_TO_THE_TWENTY_THREE;
+            MakeNthTabVisibleSpec {
+                tab_scroll: min(tab_scroll, max_reasonable),
+                target_index,
+                tab_width: min(tab_width, max_reasonable.into()),
+                screen_width: min(screen_width, max_reasonable.into()),
+            }
+        }
+    }
+}
+
+proptest! {
+    #[test]
+    fn arb_make_nth_tab_visible_spec_behaves_properly(
+        spec in arb_make_nth_tab_visible_spec()
+    ) {
+        assert!(spec.tab_width <= spec.screen_width);
     }
 }
 
@@ -261,14 +321,14 @@ fn make_nth_tab_visible_if_present_works_on(
         ui.tab_scroll,
         target_index,
         tab_width,
-        SOME_SCREEN_WIDTH,
+        screen_width,
     );
 
     tab_as_visible_as_possible_assert!(
         ui.tab_scroll,
         target_index,
         tab_width,
-        SOME_SCREEN_WIDTH,
+        screen_width,
     );
 }
 

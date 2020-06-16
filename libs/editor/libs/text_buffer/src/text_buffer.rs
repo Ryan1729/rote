@@ -1,7 +1,7 @@
 use crate::move_cursor::{forward, get_next_selection_point, get_previous_selection_point};
 use editor_types::{Cursor, SetPositionAction};
 use macros::{d, dbg, u};
-use panic_safe_rope::{ByteIndex, LineIndex, Rope, RopeSlice, RopeSliceTrait};
+use panic_safe_rope::{ByteIndex, Rope, RopeSlice};
 use platform_types::{*, screen_positioning::*};
 use rope_pos::{AbsoluteCharOffsetRange, clamp_position, in_cursor_bounds, nearest_valid_position_on_same_line};
 
