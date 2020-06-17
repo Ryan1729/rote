@@ -340,21 +340,20 @@ impl Length {
     pub fn scale_saturating(&self, ratio: Ratio) -> Self {
         let payload = ratio.0;
 
-        if payload >= 0 {
-            Self::from_bits(
-                self.to_bits()
-                    .saturating_mul(
-                        // 0 maps to 1, 1 maps to 2
-                        i64::from(payload + 1)
-                    )
-            )
+        Self::from_bits(if payload >= 0 {
+            self.to_bits()
+                .saturating_mul(
+                    // 0 maps to 1, 1 maps to 2
+                    i64::from(payload + 1)
+                )
+        } else if payload > Ratio::ZERO_BITS {
+            self.to_bits() 
+                // -1 maps to 2, -2 maps to 3
+                / i64::from(-(payload - 1))
+            
         } else {
-            Self::from_bits(
-                self.to_bits() 
-                    // -1 maps to 2, -2 maps to 3
-                    / i64::from(-(payload - 1))
-            )
-        }
+            0
+        })
     }
 
     #[must_use]
@@ -509,9 +508,11 @@ type RatioBits = i32;
 //  0 means 1/1
 //  1 means 2/1
 // -1 means 1/2
+// 
 pub struct Ratio(RatioBits);
 
 impl Ratio {
+    pub const ZERO: Ratio = Ratio(Self::ZERO_BITS);
     pub const TWO_FIFTY_SIXTH: Ratio = Ratio(-255);
     pub const ONE_TWENTY_EIGHTH: Ratio = Ratio(-127);
     pub const SIXTY_FOURTH: Ratio = Ratio(-63);
@@ -534,28 +535,22 @@ impl Ratio {
     pub const ONE_TWENTY_EIGHT: Ratio = Ratio(127);
     pub const TWO_FIFTY_SIX: Ratio = Ratio(255);
 
-    // We eliminate some values so we don't need to check values during scaling
-    // or negation.
-    const BITS_MIN: RatioBits = RatioBits::min_value() + 2;
-    const BITS_MAX: RatioBits = RatioBits::max_value() - 1;
+    const ZERO_BITS: RatioBits = RatioBits::min_value();
 
     #[must_use]
     pub fn from_bits(bits: RatioBits) -> Self {
         Self(
-            std::cmp::max(
-                Self::BITS_MIN,
-                std::cmp::min(
-                    bits,
-                    Self::BITS_MAX
-                )
-            )
+            bits
         )
     }
 
     #[must_use]
-    /// 0 and 1 both map to a Ratio of 1
     pub fn from_u16_saturating(x: u16) -> Self {
-        Self::from_bits(x.saturating_sub(1) as RatioBits)
+        if x == 0 {
+            Self::ZERO
+        } else {
+            Self::from_bits((x - 1) as RatioBits)
+        }
     }
 }
 
@@ -597,7 +592,13 @@ impl Not for Ratio {
     type Output = Ratio;
 
     fn not(self) -> Self::Output {
-        Ratio(-self.0)
+        if self.0 == Self::ZERO_BITS {
+            // This seems reasonable since it makes dividing by zero give zero,
+            // which seems like the least unreasonable value.
+            Self::ZERO
+        } else {
+            Ratio(-self.0)
+        }
     }
 }
 
