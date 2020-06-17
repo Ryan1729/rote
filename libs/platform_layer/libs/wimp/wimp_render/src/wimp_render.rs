@@ -1165,13 +1165,9 @@ fn unscrolled_tab_left_edge(
     target_index: usize,
     tab_width: abs::Length,
 ) -> abs::Pos {
-    if target_index == 0 {
-        d!()
-    } else {
-        abs::Pos::from(
-            abs::Ratio::from(target_index) * tab_width
-        )
-    }
+    abs::Pos::from(
+        abs::Ratio::from(target_index) * tab_width
+    )    
 }
 
 fn unscrolled_tab_right_edge(

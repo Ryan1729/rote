@@ -10,6 +10,7 @@ use macros::{
     sub_assign, 
     mul_assign, 
     div_assign,
+    dbg,
     u
 };
 use std::ops::{Add, Sub, Mul, Div, Neg, Not};
@@ -344,13 +345,12 @@ impl Length {
             self.to_bits()
                 .saturating_mul(
                     // 0 maps to 1, 1 maps to 2
-                    i64::from(payload + 1)
+                    i64::from(payload.saturating_add(1))
                 )
         } else if payload > Ratio::ZERO_BITS {
             self.to_bits() 
                 // -1 maps to 2, -2 maps to 3
-                / i64::from(-(payload - 1))
-            
+                / i64::from((-payload).saturating_add(1))
         } else {
             0
         })

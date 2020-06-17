@@ -13,7 +13,7 @@ mod edit;
 use edit::{Applier, Change, Edit};
 
 mod move_cursor;
-use rope_pos::{char_offset_to_pos, pos_to_char_offset, offset_pair, strict_offset_pair};
+use rope_pos::{pos_to_char_offset, offset_pair, strict_offset_pair};
 
 mod cursors;
 use cursors::Cursors;

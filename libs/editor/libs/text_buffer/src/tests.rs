@@ -7,7 +7,7 @@ use super::{cursor_assert, r, *};
 
 use arb::TestEdit;
 use editor_types::{cur};
-use rope_pos::{OffsetPair};
+use rope_pos::{char_offset_to_pos, OffsetPair};
 use panic_safe_rope::{LineIndex, RopeSliceTrait};
 use platform_types::{pos, CursorState, vec1};
 use pretty_assertions::assert_eq;
