@@ -25,4 +25,4 @@ path = "../editor_types"
 path = "../rope_pos"
 
 [dev-dependencies]
-proptest = "0.9"
+proptest = "0.10"

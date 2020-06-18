@@ -22,4 +22,4 @@ path = "../../../panic_safe_rope"
 path = "../../../perf_viz"
 
 [dev-dependencies]
-proptest = "0.9"
+proptest = "0.10"

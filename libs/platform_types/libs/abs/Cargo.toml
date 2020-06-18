@@ -9,10 +9,10 @@ path = "./src/abs.rs"
 
 [dependencies]
 macros = { path = "../../../macros" }
-proptest = { version = "0.9", optional = true }
+proptest = { version = "0.10", optional = true }
 
 [dev-dependencies]
-proptest = "0.9"
+proptest = "0.10"
 
 [features]
 default = []

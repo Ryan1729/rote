@@ -13,7 +13,7 @@ perf_viz = { path = "../../../perf_viz" }
 macros = { path = "../../../macros" }
 move_mod = { path = "../move_mod" }
 mut_methods = { path = "./libs/mut_methods" }
-proptest = { version = "0.9.5", optional = true }
+proptest = { version = "0.10", optional = true }
 arb_macros = { path = "../../../arb_macros", optional = true }
 
 [dev-dependencies]

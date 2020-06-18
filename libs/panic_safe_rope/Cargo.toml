@@ -20,7 +20,7 @@ path = "../text_pos"
 path = "../macros"
 
 [dev-dependencies]
-proptest = "0.9"
+proptest = "0.10"
 
 [features]
 default = []

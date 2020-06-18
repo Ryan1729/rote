@@ -20,7 +20,7 @@ path = "../../../macros"
 path = "../../../platform_types"
 
 [dev-dependencies]
-proptest = "0.9"
+proptest = "0.10"
 
 [dev-dependencies.pub_arb_rust_code]
 path = "../../../pub_arb/rust_code"

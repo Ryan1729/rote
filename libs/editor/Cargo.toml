@@ -49,7 +49,7 @@ path = "libs/text_buffer"
 
 [dev-dependencies]
 criterion = "0.2"
-proptest = "0.9"
+proptest = "0.10"
 
 [dev-dependencies.arb_macros]
 path = "../arb_macros"

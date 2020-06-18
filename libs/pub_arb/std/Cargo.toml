@@ -8,4 +8,4 @@ edition = "2018"
 path = "./src/pub_arb_std.rs"
 
 [dependencies]
-proptest = "0.9"
+proptest = "0.10"

@@ -11,10 +11,10 @@ path = "./src/f32_0_1.rs"
 macros = { path = "../../../macros" }
 non_neg_f32 = { path = "../non_neg_f32" }
 pos_f32 = { path = "../pos_f32" }
-proptest = { version = "0.9", optional = true }
+proptest = { version = "0.10", optional = true }
 
 [dev-dependencies]
-proptest = "0.9"
+proptest = "0.10"
 
 [features]
 default = []

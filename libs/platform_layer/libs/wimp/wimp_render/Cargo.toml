@@ -18,7 +18,7 @@ macros = { path = "../../../../macros" }
 
 [dev-dependencies]
 pub_arb_abs = { path = "../../../../pub_arb/abs" }
-proptest = "0.9"
+proptest = "0.10"
 
 [features]
 clip-debugging = []
