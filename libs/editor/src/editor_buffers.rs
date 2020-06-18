@@ -241,10 +241,12 @@ impl EditorBuffers {
         };
     }
 
-    /// Returns `Some` iff a path was actually set.
-    pub fn set_path(&mut self, index: g_i::Index, path: PathBuf) -> Option<()> {
+    /// Sets the path and marks the buffer as unedited iff such a buffer exists.
+    /// Returns `Some` iff changes were made.
+    pub fn saved_as(&mut self, index: g_i::Index, path: PathBuf) -> Option<()> {
         if let Some(b) = self.buffers.get_mut(index) {
             (*b).name = BufferName::Path(path);
+            b.text_buffer.set_unedited();
             Some(())
         } else {
             None

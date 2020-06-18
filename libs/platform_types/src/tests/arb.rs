@@ -448,8 +448,7 @@ arb_enum!{
         SelectCharTypeGrouping(_, _) => (text_box_space_xy(), replace_or_add())
             .prop_map(|(xy, r_or_add)| SelectCharTypeGrouping(xy, r_or_add)),
         ExtendSelectionWithSearch => Just(ExtendSelectionWithSearch),
-        SavedAs(_, _) => (pub_arb_g_i::index(16), path_buf())
-            .prop_map(|(i, p)| SavedAs(i, p)),
+        SavedAs(_, _) => saved_as(),
         Undo => Just(Undo),
         Redo => Just(Redo),
         Cut => Just(Cut),
@@ -468,5 +467,13 @@ arb_enum!{
         CloseBuffer(_) => pub_arb_g_i::index(16).prop_map(CloseBuffer),
         SetMenuMode(_) => menu_mode().prop_map(SetMenuMode),
         SubmitForm => Just(SubmitForm),
+    }
+}
+
+prop_compose!{
+    pub fn saved_as()
+    (input in (pub_arb_g_i::index(16), path_buf())
+            .prop_map(|(i, p)| Input::SavedAs(i, p))) -> Input {
+        input
     }
 }

@@ -504,7 +504,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             let transition = $transition;
             if state.current_buffer_kind == BufferIdKind::Text {
                 let transition: Option<EditedTransition> = transition.into();
-    
+
                 if let Some(transition) = transition {
                     state.view.edited_transitions.push((
                         $index,
@@ -618,7 +618,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             text_buffer_call!(b.extend_selection_with_search());
         }
         SavedAs(buffer_index, path) => {
-            if let Some(()) = state.buffers.set_path(buffer_index, path) {
+            if let Some(()) = state.buffers.saved_as(buffer_index, path) {
                 mark_edited_transition!(buffer_index, ToUnedited);
             }
         }
@@ -656,6 +656,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                 data_op.unwrap_or_default(),
             ));
             state.current_buffer_kind = BufferIdKind::Text;
+
             mark_edited_transition!(current, ToUnedited);
         }
         TabIn => {
@@ -674,6 +675,8 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             state.current_buffer_kind = BufferIdKind::Text;
 
             buffer_view_sync!();
+            // We need to announce this so that the user can just track the 
+            // transitions and have an accurate notion of which buffers exist.
             mark_edited_transition!(current, ToUnedited);
         }
         AdjustBufferSelection(adjustment) => {

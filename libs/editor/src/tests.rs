@@ -4,7 +4,7 @@ use platform_types::pos;
 
 use editor_types::{cur, Cursor};
 use macros::{u, dbg};
-use proptest::prelude::{proptest};
+use proptest::prelude::{proptest, prop_oneof};
 
 use pub_arb_std::non_line_break_char;
 
@@ -14,7 +14,7 @@ mod arb {
 
     prop_compose!{
         pub fn state()(
-            buffers in editor_buffers::tests::arb::editor_buffers(),
+            buffers in editor_buffers(),
             /* TODO since we don't need the rest for the current tests
             buffer_xywh in tbxywh(),
             current_buffer_kind in buffer_id_kind(),
@@ -60,11 +60,40 @@ mod arb {
         }
     }
 
+    pub fn state_from_editor_buffers(buffers: EditorBuffers) -> State {
+        let mut state = State {
+            buffers,
+            ..d!()
+            /*
+            buffer_xywh,
+            current_buffer_kind,
+            menu_mode: mm,
+            file_switcher,
+            file_switcher_results: fsr,
+            find,
+            find_xywh,
+            replace,
+            replace_xywh,
+            go_to_position,
+            go_to_position_xywh,
+            font_info: fi,
+            clipboard_history: ch,
+            parsers: p,
+            */
+        };
+
+        // We do this so the view is always in sync.
+        editor_view::render(&mut state);
+
+        state
+    }
+
+    pub use editor_buffers::tests::arb::editor_buffers;
     pub use pub_arb_abs::{abs_pos, abs_length};
     pub use pub_arb_pos_f32::{pos_f32};
     pub use pub_arb_pos_f32_trunc::{pos_f32_trunc};
     pub use pub_arb_non_neg_f32::{non_neg_f32};
-    pub use pub_arb_platform_types::{menu_mode, view, input};
+    pub use pub_arb_platform_types::{menu_mode, view, input, saved_as};
 }
 
 const CURSOR_SHOW_TEXT: &'static str = "            abcdefghijklmnopqrstuvwxyz::abcdefghijk::abcdefghijklmnopqrstuvwxyz";
@@ -875,6 +904,53 @@ proptest!{
     }
 }
 
+proptest!{
+    #[test]
+    fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_with_heavy_saving(
+        state in arb::state(),
+        inputs in proptest::collection::vec(
+            prop_oneof![1 => arb::input(), 3 => arb::saved_as()],
+            0..=16
+        ),
+    ) {
+        tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+            state,
+            inputs
+        )
+    }
+}
+
+proptest!{
+    #[test]
+    fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_with_heavy_saving_from_editor_buffers(
+        buffers in arb::editor_buffers(),
+        inputs in proptest::collection::vec(
+            prop_oneof![1 => arb::input(), 3 => arb::saved_as()],
+            0..=16
+        ),
+    ) {
+        tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+            arb::state_from_editor_buffers(buffers),
+            inputs
+        )
+    }
+}
+
+proptest!{
+    #[test]
+    fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_with_heavy_saving_from_a_default_state(
+        inputs in proptest::collection::vec(
+            prop_oneof![1 => arb::input(), 3 => arb::saved_as()],
+            0..=24
+        ),
+    ) {
+        tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+            d!(),
+            inputs
+        )
+    }
+}
+
 #[test]
 fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_in_the_zero_case() {
     tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
@@ -1022,6 +1098,39 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
     )
 }
 
+#[test]
+fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_a_file_is_edited_then_saved_then_edited() {
+    u!{BufferName, Input, SelectionAdjustment, SelectionMove}
+
+    let state: g_i::State = d!();
+    let path: PathBuf = ".fakefile".into();
+    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+        d!(),
+        vec![
+            AddOrSelectBuffer(Path(path.clone()), "".to_owned()),
+            Insert('a'),
+            SavedAs(
+                state.new_index(g_i::IndexPart::or_max(1)),
+                path.clone()
+            ),
+            Insert('b'),
+        ]
+    )
+}
+
+#[test]
+fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_a_non_blank_file_is_added_then_edited() {
+    u!{BufferName, Input}
+    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+        d!(),
+        vec![
+            AddOrSelectBuffer(Path(".fakefile".into()), "A".to_owned()),
+            CloseBuffer(d!()),
+            Insert('B'),
+        ]
+    )
+}
+
 /// This test predicate simulates what we expected clients to do if they want to keep track 
 /// of which buffers are currently different from what is on disk. This is a little 
 /// complicated because the editor is the one who knows about the undo history, and the 
@@ -1031,6 +1140,19 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
     mut state: State,
     inputs: Vec<Input>,
 ) {
+    // we ensure that every path buffer starts off unedited since that makes the 
+    // expected editedness easier to track.
+    
+    let indexes_and_names: Vec<_> = state.buffers.iter_with_indexes()
+        .map(|(i, b)| (i, b.name.clone()))
+        .collect();
+
+    for (i, n) in indexes_and_names {
+        if let BufferName::Path(p) = n {
+            state.buffers.saved_as(i, p);
+        }
+    }
+
     let original_buffers = state.buffers.buffers();
     let mut unedited_buffer_states: g_i::Map<EditorBuffer> = g_i::Map::with_capacity(original_buffers.len());
     {
@@ -1060,7 +1182,7 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
                 if state.buffers.index_with_name(name).is_none() {
                     unedited_buffer_states.insert(
                         index_state,
-                        state.buffers.append_index(),
+                        state.buffers.buffers().append_index(),
                         EditorBuffer::new(name.clone(), data.clone()),
                     );
                     dbg!(&unedited_buffer_states);
@@ -1069,7 +1191,7 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
             NewScratchBuffer(ref data) => {
                 unedited_buffer_states.insert(
                     index_state,
-                    state.buffers.append_index(),
+                    state.buffers.buffers().append_index(),
                     EditorBuffer::new(
                         BufferName::Scratch(state.next_scratch_buffer_number()),
                         data.clone().unwrap_or_default()
@@ -1145,7 +1267,7 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
             assert_ne!(
                 Some(actual_data),
                 original_data,
-                "({:?}, {:?})",
+                "({:?}, {:?}) the data was reported as edited, but the data matches.",
                 i,
                 is_edited
             );
@@ -1154,12 +1276,51 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
                 actual_data,
                 original_data
                     .expect(&format!("original_data was None ({:?}, {:?})", i, is_edited)),
-                "({:?}, {:?})",
+                "({:?}, {:?}) the data was reported as not edited, but the data does not match.",
                 i,
                 is_edited
             );
         }
     }
+}
+
+#[test]
+fn inserting_after_a_re_save_marks_the_buffer_as_edited_in_this_case() {
+    u!{BufferName, Input, SelectionAdjustment, SelectionMove, EditedTransition}
+
+    let index_state: g_i::State = d!();
+
+    let mut state = d!();
+    let path: PathBuf = ".fakefile".into();
+
+    let _ = update_and_render(
+        &mut state,
+        AddOrSelectBuffer(Path(path.clone()), "".to_owned())
+    );
+
+    let (view, _) = update_and_render(
+        &mut state,
+        Insert('a')
+    );
+
+    assert_eq!(Some(ToEdited), view.edited_transitions.into_iter().next().map(|(_, t)| t));
+
+    let (view, _) = update_and_render(
+        &mut state,
+        SavedAs(
+            index_state.new_index(g_i::IndexPart::or_max(1)),
+            path.clone()
+        )
+    );
+
+    assert_eq!(Some(ToUnedited), view.edited_transitions.into_iter().next().map(|(_, t)| t), "precondition failure");
+
+    let (view, _) = update_and_render(
+        &mut state,
+        Insert('b')
+    );
+
+    assert_eq!(Some(ToEdited), view.edited_transitions.into_iter().next().map(|(_, t)| t));
 }
 
 fn update_and_render_sets_the_views_buffer_selected_index_correctly_after_moving_selection_right_on(

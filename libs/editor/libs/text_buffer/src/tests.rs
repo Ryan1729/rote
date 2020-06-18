@@ -8,7 +8,7 @@ use super::{cursor_assert, r, *};
 use arb::TestEdit;
 use editor_types::{cur};
 use rope_pos::{char_offset_to_pos, OffsetPair};
-use panic_safe_rope::{LineIndex, RopeSliceTrait};
+use panic_safe_rope::{RopeSliceTrait};
 use platform_types::{pos, CursorState, vec1};
 use pretty_assertions::assert_eq;
 use proptest::prelude::*;
@@ -870,6 +870,58 @@ fn inserting_then_deleting_preserves_editedness_in_this_minimal_example() {
     inserting_then_deleting_preserves_editedness_on(
         d!(),
         'a'
+    );
+}
+
+fn calling_set_unedited_acts_as_expected_after_a_second_insertion_on(
+    mut buffer: TextBuffer,
+    ch1: char,
+    ch2: char,
+) {
+    u!{Editedness}
+
+    buffer.insert(ch1);
+
+    assert_eq!(buffer.editedness(), Edited, "precondition_failure");
+
+    buffer.set_unedited();
+
+    assert_eq!(
+        buffer.editedness(),
+        Unedited,
+        "set_unedited did not set the buffer as unedited!",
+    );
+
+    buffer.insert(ch2);
+
+    assert_eq!(
+        buffer.editedness(),
+        Edited,
+        "the buffer was not reported as edited after an edit!",
+    );
+}
+
+proptest!{
+    #[test]
+    fn calling_set_unedited_acts_as_expected_after_a_second_insertion(
+        buffer in arb::text_buffer_with_many_cursors(),
+        ch1 in any::<char>(),
+        ch2 in any::<char>(),
+    ) {
+        calling_set_unedited_acts_as_expected_after_a_second_insertion_on(
+            buffer,
+            ch1,
+            ch2
+        );
+    }
+}
+
+#[test]
+fn calling_set_unedited_acts_as_expected_after_a_second_insertion_works_on_an_empty_buffer_with_these_chars() {
+    calling_set_unedited_acts_as_expected_after_a_second_insertion_on(
+        d!(),
+        'a',
+        'b'
     );
 }
 

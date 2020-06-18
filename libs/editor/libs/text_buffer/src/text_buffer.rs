@@ -18,7 +18,7 @@ mod move_cursor;
 mod cursors;
 use cursors::Cursors;
 
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct TextBuffer {
     /// We keep the rope private, and only allow non-mut borrows
     /// so we know that the history contains all the changes made
@@ -27,9 +27,21 @@ pub struct TextBuffer {
     cursors: Cursors,
     history: VecDeque<Edit>,
     history_index: usize,
-    unedited_index: usize,
+    unedited: Rope,
     pub scroll: ScrollXY,
 }
+
+d!(for TextBuffer: {
+    let rope: Rope = d!();
+    TextBuffer {
+        unedited: rope.clone(),
+        rope,
+        cursors: d!(),
+        history: d!(),
+        history_index: d!(),
+        scroll: d!(),
+    }
+});
 
 impl TextBuffer {
     #[perf_viz::record]
@@ -40,7 +52,6 @@ impl TextBuffer {
         self.history.hash(state);
         perf_viz::end_record!("history hash");
         self.history_index.hash(state);
-        self.unedited_index.hash(state);
         self.scroll.hash(state);
     }
 
@@ -48,6 +59,11 @@ impl TextBuffer {
     pub fn rope_hash<H: std::hash::Hasher>(&self, state: &mut H) {
         use std::hash::Hash;
         for c in self.rope.chunks() {
+            c.hash(state);    
+        }
+
+        // TODO is it worth it to have a third hash level?
+        for c in self.unedited.chunks() {
             c.hash(state);    
         }
     }
@@ -104,7 +120,7 @@ impl TextBuffer {
                 //small_xywh.wh.h /= 2.0;
             
                 let x_ratio = char_dim.w.get() / small_xywh.wh.w.get();
-                let y_ratio = char_dim.h.get() / small_xywh.wh.h.get();
+                let y_ratio = 3.0 * char_dim.h.get() / small_xywh.wh.h.get();
                 let apron = apron!(
                     x_ratio,
                     x_ratio,
@@ -143,6 +159,7 @@ impl From<String> for TextBuffer {
         let mut output: Self = d!();
 
         output.rope = Rope::from(s);
+        output.set_unedited();
 
         output
     }
@@ -153,6 +170,7 @@ impl From<&str> for TextBuffer {
         let mut output: Self = d!();
 
         output.rope = Rope::from(s);
+        output.set_unedited();
 
         output
     }
@@ -569,36 +587,16 @@ impl From<Change<Editedness>> for Option<EditedTransition> {
 impl TextBuffer {
     fn editedness(&mut self) -> Editedness {
         u!{Editedness}
-        // TODO can we make this faster by like, defining an algebra for edits or something,
-        // that allows us to compose edits together, and then check if we go the zero/identity
-        // edit when we combine all of the ones from the current index to the edited index?
-        
-        let mut rope_copy = self.rope.clone();
-        let mut cursors_copy = self.cursors.clone();
 
-        let mut history_index = self.history_index;
-
-        while let Some((i, edit)) = history_index.checked_sub(1)
-            .and_then(|new_index|
-                self.history.get(new_index).cloned().map(|e| (new_index, e))
-            ) {
-            dbg!(i, &edit);
-
-            let applier = Applier::new(
-                &mut rope_copy,
-                &mut cursors_copy
-            );
-            edit::apply(applier, &(!edit));
-
-            history_index = i;
-        }
-
-        if rope_copy == self.rope {
-            self.unedited_index = self.history_index;
+        if self.unedited == self.rope {
             Unedited
-        } else { 
+        } else {
             Edited
         }
+    }
+
+    pub fn set_unedited(&mut self) {
+        self.unedited = self.rope.clone();
     }
 }
 
