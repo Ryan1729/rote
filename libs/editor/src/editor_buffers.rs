@@ -2,7 +2,7 @@
 /// through a single path so we could more easily track down a bug where the index was 
 /// improperly set.
 use editor_types::{Cursor};
-use g_i::SelectableVec1;
+use g_i::{SelectableVec1};
 use macros::{d, fmt_debug, u};
 use platform_types::*;
 use parsers::{ParserKind};
@@ -50,6 +50,12 @@ impl From<&EditorBuffer> for String {
 impl From<&mut EditorBuffer> for String {
     fn from(e_b: &mut EditorBuffer) -> Self {
         (&e_b.text_buffer).into()
+    }
+}
+
+impl <I: Into<TextBuffer>> From<(BufferName, I)> for EditorBuffer {
+    fn from((n, i): (BufferName, I)) -> Self {
+        Self::new(n, i)
     }
 }
 
@@ -178,9 +184,9 @@ impl EditorBuffers {
 }
 
 impl EditorBuffers {
-    pub fn new(buffer: EditorBuffer) -> Self {
+    pub fn new<I: Into<EditorBuffer>>(buffer: I) -> Self {
         Self {
-            buffers: SelectableVec1::new(buffer),
+            buffers: SelectableVec1::new(buffer.into()),
             ..d!()
         }
     }
@@ -281,9 +287,15 @@ pub mod tests {
     use super::*;
     pub mod arb {
         use super::*;
+        use g_i::{svec1};
         use proptest::collection::vec;
         use pub_arb_text_buffer::{text_buffer_with_valid_cursors};
-        use pub_arb_platform_types::{buffer_name, position, selectable_vec1};
+        use pub_arb_platform_types::{
+            BufferNameSpec,
+            buffer_name_with_spec,
+            position, 
+            selectable_vec1,
+        };
         use proptest::prelude::{prop_compose, Just, any};
 
         prop_compose!{
@@ -318,9 +330,49 @@ pub mod tests {
         }
 
         prop_compose!{
+            pub fn editor_buffers_with_one_path_one_scratch()(
+                e1 in editor_buffer_with_spec(
+                    BufferNameSpec::Path.into()
+                ),
+                e2 in editor_buffer_with_spec(
+                    BufferNameSpec::Scratch.into()
+                ),
+                last_non_rope_hash in any::<u64>(),
+                last_full_hash in proptest::option::of(any::<u64>()),
+            ) -> EditorBuffers {
+                EditorBuffers {
+                    buffers: svec1!(e1, e2),
+                    last_full_hash,
+                    last_non_rope_hash,
+                }
+            }
+        }
+
+        prop_compose!{
             pub fn editor_buffer()(
+                e in editor_buffer_with_spec(d!())
+            ) -> EditorBuffer {
+                e
+            }
+        }
+
+        #[derive(Clone, Copy, Default)]
+        pub struct EditorBufferSpec {
+            name: BufferNameSpec,
+        }
+
+        impl From<BufferNameSpec> for EditorBufferSpec {
+            fn from(name: BufferNameSpec) -> Self {
+                Self {
+                    name
+                }
+            }
+        }
+
+        prop_compose!{
+            pub fn editor_buffer_with_spec(spec: EditorBufferSpec)(
                 text_buffer in text_buffer_with_valid_cursors(),
-                name in buffer_name(),
+                name in buffer_name_with_spec(spec.name),
                 s_r in search_results(16),
             ) -> EditorBuffer {
                 EditorBuffer {

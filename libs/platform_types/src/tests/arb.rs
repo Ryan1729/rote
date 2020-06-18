@@ -216,8 +216,39 @@ prop_compose!{
 
 arb_enum!{
     pub fn buffer_name() -> BufferName {
-        Path(_) => path_buf().prop_map(Path),
-        Scratch(_) => any::<u32>().prop_map(Scratch),
+        Scratch(_) => scratch_buffer_name(),
+        Path(_) => path_buffer_name(),
+    }
+}
+
+prop_compose!{
+    pub fn scratch_buffer_name()
+    (n in any::<u32>().prop_map(BufferName::Scratch)) -> BufferName {
+        n
+    }
+}
+
+prop_compose!{
+    pub fn path_buffer_name()
+    (n in path_buf().prop_map(BufferName::Path)) -> BufferName {
+        n
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum BufferNameSpec {
+    Any,
+    Path,
+    Scratch,
+}
+d!(for BufferNameSpec: BufferNameSpec::Any);
+
+pub fn buffer_name_with_spec(spec: BufferNameSpec) -> impl Strategy<Value = BufferName> {
+    u!{BufferNameSpec}
+    match spec {
+        Any => buffer_name().boxed(),
+        Path => path_buffer_name().boxed(),
+        Scratch => scratch_buffer_name().boxed(),
     }
 }
 

@@ -88,12 +88,20 @@ mod arb {
         state
     }
 
-    pub use editor_buffers::tests::arb::editor_buffers;
+    pub use editor_buffers::tests::arb::{
+        editor_buffers,
+        editor_buffers_with_one_path_one_scratch,
+    };
     pub use pub_arb_abs::{abs_pos, abs_length};
     pub use pub_arb_pos_f32::{pos_f32};
     pub use pub_arb_pos_f32_trunc::{pos_f32_trunc};
     pub use pub_arb_non_neg_f32::{non_neg_f32};
-    pub use pub_arb_platform_types::{menu_mode, view, input, saved_as};
+    pub use pub_arb_platform_types::{
+        menu_mode,
+        view,
+        input,
+        saved_as
+    };
 }
 
 const CURSOR_SHOW_TEXT: &'static str = "            abcdefghijklmnopqrstuvwxyz::abcdefghijk::abcdefghijklmnopqrstuvwxyz";
@@ -938,15 +946,43 @@ proptest!{
 
 proptest!{
     #[test]
+    fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_with_heavy_saving_when_there_is_one_path_buffer_and_one_scratch_buffer(
+        buffers in arb::editor_buffers_with_one_path_one_scratch(),
+        inputs in proptest::collection::vec(
+            prop_oneof![1 => arb::input(), 3 => arb::saved_as()],
+            0..=16
+        ),
+    ) {
+        tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+            arb::state_from_editor_buffers(buffers),
+            inputs
+        )
+    }
+}
+
+proptest!{
+    #[test]
     fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_with_heavy_saving_from_a_default_state(
         inputs in proptest::collection::vec(
             prop_oneof![1 => arb::input(), 3 => arb::saved_as()],
-            0..=24
+            0..=16
         ),
     ) {
         tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
             d!(),
             inputs
+        )
+    }
+}
+
+proptest!{
+    #[test]
+    fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_after_this_paste(
+        buffers in arb::editor_buffers_with_one_path_one_scratch(),
+    ) {
+        tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+            arb::state_from_editor_buffers(buffers),
+            vec![Input::Paste(Some("¡".to_string()))]
         )
     }
 }
@@ -1127,6 +1163,17 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
             AddOrSelectBuffer(Path(".fakefile".into()), "A".to_owned()),
             CloseBuffer(d!()),
             Insert('B'),
+        ]
+    )
+}
+
+#[test]
+fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_larger_chars_are_pasted() {
+    u!{BufferName, Input}
+    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+        arb::state_from_editor_buffers(EditorBuffers::new((d!(), "𐫀"))),
+        vec![
+            Paste(Some("¡".to_string())),
         ]
     )
 }
