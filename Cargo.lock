@@ -2005,7 +2005,7 @@ dependencies = [
 
 [[package]]
 name = "rote"
-version = "0.2.97"
+version = "0.2.100"
 dependencies = [
  "check_or_no_panic",
  "editor",
@@ -2626,6 +2626,7 @@ version = "0.1.0"
 dependencies = [
  "clipboard",
  "glutin",
+ "if_changed",
  "macros",
  "perf_viz",
  "platform_types",

@@ -379,13 +379,13 @@ ord!(and friends for CursorState: state, other in {
     }
 });
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct CursorView {
     pub position: Position,
     pub state: CursorState,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct StatusLineView {
     pub chars: String,
 }

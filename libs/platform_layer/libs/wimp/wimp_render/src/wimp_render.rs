@@ -820,9 +820,7 @@ fn render_file_switcher_menu<'view>(
         u!{ui::Navigation}
         match if_changed::dbg!(ui.navigation) {
             None => {
-                if current_buffer_id.kind != BufferIdKind::None {
-                    // do nothing
-                } else if let ui::Id::TaggedUsize(
+                if let ui::Id::TaggedUsize(
                     ui::Tag::FileSwitcherResults,
                     result_index,
                 ) = ui.keyboard.hot
@@ -831,7 +829,6 @@ fn render_file_switcher_menu<'view>(
                 }
             }
             Up => {
-                dbg!("Up", ui.keyboard.hot);
                 if let ui::Id::TaggedUsize(
                     ui::Tag::FileSwitcherResults,
                     result_index,
@@ -845,27 +842,24 @@ fn render_file_switcher_menu<'view>(
                 }
             }
             Down => {
-                if current_buffer_id == search_buffer_id {
+                std::dbg!("Down");
+                if let ui::Id::TaggedUsize(
+                    ui::Tag::FileSwitcherResults,
+                    result_index,
+                ) = ui.keyboard.hot
+                {
+                    navigated_result = Some((result_index + 1) % results.len());
+                } else {
                     if results.len() > 0 {
                         navigated_result = Some(0);
                         *action = ViewAction::Input(
                             Input::SelectBuffer(b_id!(BufferIdKind::None, buffer_index))
                         );
                     }
-                } else if current_buffer_id.kind != BufferIdKind::None {
-                    // do nothing
-                } else if let ui::Id::TaggedUsize(
-                    ui::Tag::FileSwitcherResults,
-                    result_index,
-                ) = ui.keyboard.hot
-                {
-                    navigated_result = Some((result_index + 1) % results.len());
                 }
             }
             Interact => {
-                if current_buffer_id.kind != BufferIdKind::None {
-                    // do nothing
-                } else if let ui::Id::TaggedUsize(
+                if let ui::Id::TaggedUsize(
                     ui::Tag::FileSwitcherResults,
                     result_index,
                 ) = ui.keyboard.hot

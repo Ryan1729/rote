@@ -246,10 +246,16 @@ mod view {
             None
         }
 
-        pub fn get_fresh_navigation(&self) -> Option<ui::Navigation> {
+        pub fn get_navigation_and_hash(&self) -> Option<(ui::Navigation, u64)> {
             self.get_selected_buffer_view_data()
                 .map(|bvd| {
-                    navigation_from_cursors(&bvd.cursors)
+                    use std::collections::hash_map::DefaultHasher;
+                    use std::hash::{Hash, Hasher};
+
+                    let mut hasher = DefaultHasher::new();
+                    bvd.cursors.hash(&mut hasher);
+
+                    (navigation_from_cursors(&bvd.cursors), hasher.finish())
                 })
         }
 
@@ -526,6 +532,7 @@ pub mod ui {
         pub mouse: Focus,
         pub keyboard: Focus,
         pub navigation: Navigation,
+        pub navigation_hash: u64,
         pub window_is_focused: bool,
     }
     
@@ -732,10 +739,17 @@ pub mod ui {
     
     #[perf_viz::record]
     pub fn begin_view(ui: &mut State, view: &View) {
-        if let Some(navigation) = view.get_fresh_navigation() {
-            ui.navigation = navigation;
-        } else {
-            // use the navigation that was set before `view` was called if there was one.
+        if let Some((navigation, hash)) = if_changed::dbg!(view.get_navigation_and_hash()) {
+            if hash != ui.navigation_hash {
+                ui.navigation = navigation;
+                std::dbg!(ui.navigation);
+                ui.navigation_hash = hash;
+            } else {
+                ui.navigation = d!();
+            }
+        }
+        if ui.navigation != Navigation::None {
+            println!("\n\n {:?} \n\n", ui.navigation);
         }
     }
     
