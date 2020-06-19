@@ -330,6 +330,17 @@ pub mod tests {
         }
 
         prop_compose!{
+            pub fn editor_buffers_blank_hash()(
+                buffers in selectable_vec1(editor_buffer(), 16),
+            ) -> EditorBuffers {
+                EditorBuffers {
+                    buffers,
+                    ..d!()
+                }
+            }
+        }
+
+        prop_compose!{
             pub fn editor_buffers_with_one_path_one_scratch()(
                 e1 in editor_buffer_with_spec(
                     BufferNameSpec::Path.into()
@@ -340,6 +351,26 @@ pub mod tests {
                 last_non_rope_hash in any::<u64>(),
                 last_full_hash in proptest::option::of(any::<u64>()),
             ) -> EditorBuffers {
+                EditorBuffers {
+                    buffers: svec1!(e1, e2),
+                    last_full_hash,
+                    last_non_rope_hash,
+                }
+            }
+        }
+
+        prop_compose!{
+            pub fn editor_buffers_with_one_default_path_one_scratch()(
+                e2 in editor_buffer_with_spec(
+                    BufferNameSpec::Scratch.into()
+                ),
+                last_non_rope_hash in any::<u64>(),
+                last_full_hash in proptest::option::of(any::<u64>()),
+            ) -> EditorBuffers {
+                let e1 = EditorBuffer {
+                    name: BufferName::Path(".fakefile".into()),
+                    ..d!()
+                };
                 EditorBuffers {
                     buffers: svec1!(e1, e2),
                     last_full_hash,
