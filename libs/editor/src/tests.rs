@@ -1214,37 +1214,6 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
 }
 
 #[test]
-fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_in_this_generated_long_input_list_example() {
-    u!{BufferName, Input, SelectionAdjustment}
-    use g_i::{Index, IndexPart};
-
-    let mut ebs = EditorBuffers::new(
-        (Path(".fakefile".into()), "")
-    );
-    let eb2: EditorBuffer = (d!(), "𒑰").into();
-    ebs.push_and_select_new(eb2);
-    ebs.set_current_index(d!());
-    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
-        arb::state_from_editor_buffers(ebs),
-        vec![
-            AdjustBufferSelection(Previous),
-            SavedAs(Index::new_from_parts(4019501785, IndexPart::or_max(1)), "\u{1a13b}\u{5}&=5\u{7f}\'\u{e8a3e}{&\u{7f}&\u{0}𒅱\u{90}Å\u{f235c}:?/%r\rKM/$<\u{38fc0}/\u{a1bf7}P.fakefile".into()),
-            Cut,
-            SavedAs(Index::new_from_parts(1897142533, IndexPart::or_max(2)), ".:¥ö¥_=§=\\\u{b}翷`4\u{11395}\u{7f}\u{bd37a}Ѩ.å\u{202e}7e\u{acd20}U\u{b}.fakefile".into()),
-            SavedAs(Index::new_from_parts(2937277343, IndexPart::or_max(3)), ".\u{b2362}w\u{92}.;\u{0}¥%%:\u{feff}YȺ?\\}Ѩx\rI\'\u{46a4c}�\u{1c540}D\u{d218b}&Ky.fakefile".into()),
-            SavedAs(Index::new_from_parts(2345331458, IndexPart::or_max(7)), "T\u{7db5c}Ѩ\u{7f}🕴\u{7a716}🕴:\u{0}\u{202e}&\\Q¥\u{5c795}.fakefile".into()),
-            SavedAs(Index::new_from_parts(3633829326, IndexPart::or_max(11)), ":*&⚪T\'ß¥{\u{b}🕴𘚬\t�!/[r\u{1b}&.fakefile".into()),
-            SavedAs(Index::new_from_parts(515728987, IndexPart::or_max(1)), "Ѩ\rk\u{8e}\\_\u{0}ÁѨ\'\u{10bb3a}.fakefile".into()),
-            SavedAs(Index::new_from_parts(3459497287, IndexPart::or_max(14)), "/\u{1b}\t\u{104378}{\u{5}$\u{dde31}1%\u{ef653}*.fakefile".into()),
-            SavedAs(Index::new_from_parts(1622980945, IndexPart::or_max(13)), "\u{157a8}\\\u{e70b1}cÝ\u{ab3ca}\u{6b27f}\u{7a96b}`\u{202e}�7\u{0}x\u{10143d}\u{5257b}:.fakefile".into()),
-            SavedAs(Index::new_from_parts(278383710, IndexPart::or_max(7)), "Ѩ8t\u{ecec7}\u{1b}.fakefile".into()),
-            SavedAs(Index::new_from_parts(4156671850, IndexPart::or_max(9)), "\u{d4e74}\'\u{b}\"V\u{bbe27}ô\u{94}\u{672d5}\u{1b}`\\\t🕴\u{feff}i\u{7f}\\\\/\u{b}\u{7024a}\u{8e4e0}\u{61584}🕴.fakefile".into()),
-            SavedAs(Index::new_from_parts(3711464726, IndexPart::or_max(16)), "🕴jѨd\"%\"\u{bae2b}&e.fakefile".into())
-        ]
-    )
-}
-
-#[test]
 fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_we_do_this_cut() {
     u!{BufferName, Input}
     let mut state = arb::state_from_editor_buffers(EditorBuffers::new((d!(), "")));
