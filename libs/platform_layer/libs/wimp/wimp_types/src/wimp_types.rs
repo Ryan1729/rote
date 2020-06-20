@@ -246,16 +246,10 @@ mod view {
             None
         }
 
-        pub fn get_navigation_and_hash(&self) -> Option<(ui::Navigation, u64)> {
+        pub fn get_navigation(&self) -> Option<ui::Navigation> {
             self.get_selected_buffer_view_data()
                 .map(|bvd| {
-                    use std::collections::hash_map::DefaultHasher;
-                    use std::hash::{Hash, Hasher};
-
-                    let mut hasher = DefaultHasher::new();
-                    bvd.cursors.hash(&mut hasher);
-
-                    (navigation_from_cursors(&bvd.cursors), hasher.finish())
+                    navigation_from_cursors(&bvd.cursors)
                 })
         }
 
@@ -378,9 +372,10 @@ impl std::fmt::Debug for LabelledCommand {
 pub type CommandsMap = BTreeMap<CommandKey, LabelledCommand>;
 
 #[derive(Debug)]
-/// Values that should not be changed (i.e. should be left constant,) whihc were lazily initialized by the `run`
-/// function, which can be shared by other functions called inside `run`. Keeping this separate from `RunState`
-/// also simplifies some borrow checking when using the `commands` map.
+/// Values that should not be changed (i.e. should be left constant,) which were 
+/// lazily initialized by the `run` function, which can be shared by other functions
+/// called inside `run`. Keeping this separate from `RunState` also simplifies some 
+/// borrow checking when using the `commands` map.
 pub struct RunConsts {
     pub commands: CommandsMap
 }
@@ -532,7 +527,8 @@ pub mod ui {
         pub mouse: Focus,
         pub keyboard: Focus,
         pub navigation: Navigation,
-        pub navigation_hash: u64,
+        pub fresh_navigation: Navigation,
+        pub previous_derived_navigation: Navigation,
         pub window_is_focused: bool,
     }
     
@@ -739,22 +735,30 @@ pub mod ui {
     
     #[perf_viz::record]
     pub fn begin_view(ui: &mut State, view: &View) {
-        if let Some((navigation, hash)) = if_changed::dbg!(view.get_navigation_and_hash()) {
-            if hash != ui.navigation_hash {
-                ui.navigation = navigation;
-                std::dbg!(ui.navigation);
-                ui.navigation_hash = hash;
+        if let Some(derived_navigation) = if_changed::dbg!(view.get_navigation()) {
+            // We want to allow the view state to keep indicating the same 
+            // navigation, but only propagate it when either the derived input has
+            // just changed, or the the the input is fresh, (AKA made this frame).
+            if ui.fresh_navigation != Navigation::None
+            || derived_navigation != ui.previous_derived_navigation {
+                ui.navigation = derived_navigation;
             } else {
                 ui.navigation = d!();
             }
+            ui.previous_derived_navigation = derived_navigation;
+        } else {
+            ui.previous_derived_navigation = d!();
         }
-        if ui.navigation != Navigation::None {
-            println!("\n\n {:?} \n\n", ui.navigation);
+
+        // Since `Interact` is never derived, we can always let it through.
+        if ui.fresh_navigation == Navigation::Interact {
+            ui.navigation = ui.fresh_navigation;
         }
     }
     
     #[perf_viz::record]
     pub fn end_view(ui: &mut State) {
+        ui.fresh_navigation = d!();
         ui.navigation = d!();
     }
 }

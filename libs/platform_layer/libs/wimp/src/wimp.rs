@@ -558,11 +558,11 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
             }]
             [empty, Up, "Move all cursors up.", r_s {
                 call_u_and_r!(r_s, Input::MoveAllCursors(Move::Up));
-                r_s.ui.navigation = Navigation::Up;
+                r_s.ui.fresh_navigation = Navigation::Up;
             }]
             [empty, Down, "Move all cursors down.", r_s {
                 call_u_and_r!(r_s, Input::MoveAllCursors(Move::Down));
-                r_s.ui.navigation = Navigation::Down;
+                r_s.ui.fresh_navigation = Navigation::Down;
             }]
             [empty, Left, "Move all cursors left.", r_s {
                 call_u_and_r!(r_s, Input::MoveAllCursors(Move::Left));
@@ -734,11 +734,11 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
             }]
             [SHIFT, Up, "Extend selection(s) upward.", r_s {
                 call_u_and_r!(r_s, Input::ExtendSelectionForAllCursors(Move::Up));
-                r_s.ui.navigation = Navigation::Up;
+                r_s.ui.fresh_navigation = Navigation::Up;
             }]
             [SHIFT, Down, "Extend selection(s) downward.", r_s {
                 call_u_and_r!(r_s, Input::ExtendSelectionForAllCursors(Move::Down));
-                r_s.ui.navigation = Navigation::Down;
+                r_s.ui.fresh_navigation = Navigation::Down;
             }]
             [SHIFT, Left, "Extend selection(s) leftward.", r_s {
                 call_u_and_r!(r_s, Input::ExtendSelectionForAllCursors(Move::Left));
@@ -908,13 +908,13 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                                 if c == '\n' {
                                     use BufferIdKind::*;
                                     match r_s.view.current_buffer_kind() {
-                                        None => {
-                                            r_s.ui.navigation = Navigation::Interact;
+                                        None | FileSwitcher => {
+                                            r_s.ui.fresh_navigation = Navigation::Interact;
                                         }
                                         Text => {
                                             call_u_and_r!(Input::Insert(c));
                                         }
-                                        Find | Replace | FileSwitcher | GoToPosition => {
+                                        Find | Replace | GoToPosition => {
                                             call_u_and_r!(Input::SubmitForm);
                                         }
                                     }
