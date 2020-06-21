@@ -466,6 +466,7 @@ pub struct FindReplaceView {
     pub mode: FindReplaceMode,
     pub find: BufferViewData,
     pub replace: BufferViewData,
+    pub result_count: usize,
 }
 
 #[derive(Clone, Default, Debug, PartialEq)]

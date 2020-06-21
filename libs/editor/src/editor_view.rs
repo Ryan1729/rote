@@ -115,6 +115,7 @@ pub fn render(
 
     let EditorBuffer {
         text_buffer: buffer,
+        search_results,
         ..
     } = buffers.get_current_buffer();
 
@@ -173,6 +174,7 @@ pub fn render(
                 &replace,
                 FIND_REPLACE_AVERAGE_SELECTION_LINES_ESTIMATE,
             ),
+            result_count: search_results.ranges.len(),
         }),
         MenuMode::FileSwitcher => {
             const FILE_SEARCH_SELECTION_LINES_ESTIMATE: usize = 1;

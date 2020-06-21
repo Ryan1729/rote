@@ -1078,7 +1078,6 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                 Event::RedrawRequested(_) => {
                     perf_viz::start_record!("frame");
                     r_s.ui.frame_init();
-                    if_changed::dbg!(&r_s.ui.keyboard);
 
                     let sswh!(width, height) = r_s.dimensions.window;
 

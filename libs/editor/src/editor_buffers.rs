@@ -3,7 +3,7 @@
 /// improperly set.
 use editor_types::{Cursor};
 use g_i::{SelectableVec1};
-use macros::{d, fmt_debug, u};
+use macros::{d, dbg, fmt_debug, u};
 use platform_types::*;
 use parsers::{ParserKind};
 use text_buffer::{TextBuffer};

@@ -1,8 +1,5 @@
 ## TODO
 
-* let the user know how many Ctrl-F search results there are somehow
-    * The need for this manifests most when there are 0 results, which currently results in no action rather than an explicit indication of that fact.
-
 * open file menu relative to the current tab's path if any
     * I think we can just pass the path to `nfd` for this.
 
@@ -36,6 +33,10 @@
 
 * Ctrl-E to toggle single line comments
   * could probably reuse tab insertion/deletion code.
+
+* prompt to reload files when they are changed on disk by an external program
+    * for example, `git`.
+    * I guess on linux we want to use `inotify`? Is there a cross-platform lib for this?
 
 * add code folding
     * Ctrl-. to collapse largest uncollapsed region by cursor(s)

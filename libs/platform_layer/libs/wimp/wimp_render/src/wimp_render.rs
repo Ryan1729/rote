@@ -233,7 +233,6 @@ pub fn view<'view>(
     //
     perf_viz::start_record!("render Tabs");
     let selected_index = view.current_text_index();
-    if_changed::dbg!(selected_index);
 
     let mut i = 0;
     let tab_count = buffer_count;
@@ -346,6 +345,7 @@ pub fn view<'view>(
                     mode,
                     find,
                     replace,
+                    result_count,
                 }) => {
                     //
                     //    Find/Replace
@@ -368,7 +368,23 @@ pub fn view<'view>(
                                 z: FIND_REPLACE_BACKGROUND_Z,
                             }));
                             text_or_rects.push(TextOrRect::Text(TextSpec {
-                                text: "In current file",
+                                text: if find.chars.len_bytes() == 0 {
+                                    "In current file"
+                                } else {
+                                    // cheap hack to avoid lifetime issues
+                                    match result_count {
+                                        0 => "In current file (0 results)",
+                                        1 => "In current file (1 result)",
+                                        2 => "In current file (2 results)",
+                                        3 => "In current file (3 results)",
+                                        4 => "In current file (4 results)",
+                                        5 => "In current file (5 results)",
+                                        6 => "In current file (6 results)",
+                                        7 => "In current file (7 results)",
+                                        8 => "In current file (8 results)",
+                                        _ => "In current file (9+ results)",
+                                    }
+                                },
                                 size: FIND_REPLACE_SIZE,
                                 layout: TextLayout::SingleLine,
                                 spec: VisualSpec {

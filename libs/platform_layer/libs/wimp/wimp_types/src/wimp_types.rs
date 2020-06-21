@@ -1,5 +1,5 @@
 use glutin::event::{ModifiersState, VirtualKeyCode};
-use macros::{d, ord, u};
+use macros::{d, dbg, ord, u};
 use platform_types::{screen_positioning::*, abs, g_i, Input, Cmd, EditedTransition};
 
 use std::collections::{VecDeque, BTreeMap};
@@ -8,6 +8,7 @@ use std::path::PathBuf;
 pub use glutin::event_loop::EventLoopProxy;
 
 mod clipboard_layer {
+    use super::dbg;
     pub use clipboard::ClipboardProvider;
     use shared::Res;
     use macros::fmt_debug;
@@ -60,6 +61,7 @@ mod clipboard_layer {
             }
         }
         fn set_contents(&mut self, s: String) -> Res<()> {
+            dbg!(format!("copied: {:?}", s));
             match self {
                 Clipboard::System(ctx) => ctx.set_contents(s),
                 Clipboard::Fallback(ctx) => ctx.set_contents(s),
@@ -735,7 +737,7 @@ pub mod ui {
     
     #[perf_viz::record]
     pub fn begin_view(ui: &mut State, view: &View) {
-        if let Some(derived_navigation) = if_changed::dbg!(view.get_navigation()) {
+        if let Some(derived_navigation) = view.get_navigation() {
             // We want to allow the view state to keep indicating the same 
             // navigation, but only propagate it when either the derived input has
             // just changed, or the the the input is fresh, (AKA made this frame).
