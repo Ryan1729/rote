@@ -1,17 +1,19 @@
 ## TODO
 
-* report the time the editor thread took to render the previous view. Maybe a rolling average too?
-    * how do linux load averages work? Would something like that make sense here?
-    * What about a tiny line chart?
-        * that doesn't fit into our current text and rectangles setup. 
-            * What about a histogram? 
-            * Or maybe just draw tall thin rects
+* let the user know how many Ctrl-F search results there are somehow
+    * The need for this manifests most when there are 0 results, which currently results in no action rather than an explicit indication of that fact.
 
-* fix tab order changing bugs
-    * after changing the order of the tabs the selection indicator no longer seems to work, and generally
-        it just seems like the indexing is incorrect
+* open file menu relative to the current tab's path if any
+    * I think we can just pass the path to `nfd` for this.
 
-* get both command menu and file switcher menus scrolling
+* if multiple things are copied with multiple cursors then if they are pasted with the same number of cursors then 
+    they should be pasted separately
+    * given the numbers are selected by three cursors represented by "|"
+        1|  copy then paste should be 11 not 1123 
+        2|                            22     2123 
+        3|                            33     3123
+
+* Make Esc pick only one of the mulitple cursors to keep and remove that one's selection if there is one.
 
 * I find myself doubting whether putting the keyboard menu selection in the ui::Id was a good idea.
     * if nothing else, it seems like it would be nice to have the scroll state of the command menu stick around,
@@ -19,55 +21,8 @@
         * why not the same keyboard shortcut? There is precedent for that in the tab scroll.
     * So, add fields to the ui::State for the file-switcher state and the command menu state.
 
-* put all keyboard responses into a menu so that any command can be dispatched with the mouse or the keyboard.
-    * keyboard responses should be defined in a single place where they end up in the menu and wired up to
-        the keyboard
-        * would setting up a space to put the menu population code be a good first step?
-    * a list of labeled buttons with the keyboard control for each shown
-        * make keyboard shortcut manadatory for each action
-    * macro that looks like this I guess:
-        * register_cmd!(CTRL | SHIFT, S, "Save new file", vars {
-            if let Some(i) = vars.view.visible_buffer {
-                file_chooser_call!(
-                    vars.save,
-                    p in CustomEvent::SaveNewFile(p, i)
-                );
-            }
-        });
-        * Okay, what would that get expanded to?
-            * Can we expand the block to a fn definition?
-                * If so, then we could store a pointer to that inside a BTreeMap,
-                keyed with the keyboard shortcut. The name can be stored in the same place.
-                * So an example would be:
-                {
-                    fn cmd_fn(vars: CmdVars) {
-                        if let Some(i) = vars.view.visible_buffer {
-                            file_chooser_call!(
-                                vars.save,
-                                p in CustomEvent::SaveNewFile(p, i)
-                            );
-                        }
-                    }
-                    cmds[(CTRL | ALT, S)] = ("Save New File", cmd_fn);
-                }
-    * We will need a way to activate the menu from the keyboard. The appropriate key seems to be the "menu" key.
-        * That key is not available on some laptop keyboards, so we'll want an alternate way. 
-            * clicakble menu button?
-                * we can use U+2261 ≡ "IDENTICAL TO"
-    * I'll note here that keyboard shortcuts are, and should remain, a platform-layer phenomenon. This is just an
-        improvement to the wimp platform layer.
-
-* fix slowness that shows up when selecting things with the mouse
-    * seems to have appeared when the parsing started so we could probably just start caching
-    previous trees, or actually complete the TODO to edit the tree with each keyboard edit.
-
-* fix Ctrl-Left/Right acting weird around unicode characters
-    * for example, try using Ctrl-Left/Right on the folowing line
-        * U+2261 ≡ "IDENTICAL TO"
-        * as of this writing, placing the cursor after the "L" then pressing Ctrl-Left does puts you *after* the I.
-    * possible proptest: for any set of characters and cursor position Ctrl-Left then Ctrl-Right then Ctrl-Left should put you in the same spot you were in after the first Ctrl-Left
-        * also with Left and Right swapped
-    * possible proptest: given you are not on either the first or final line, then Ctrl-Left should always move you at least one character back and Ctrl-Right should move you one character Right.
+* get both command menu and file switcher menus scrolling
+    * file switcher 90% works, but the code is ugly.
 
 * make Ctrl-D show the new cursors
     * First it should loop around properly.
@@ -79,30 +34,33 @@
     * desired: [abc|] abc abc => [abc|] [abc|] abc
     * also desired: [|abc] abc abc => [|abc] [|abc] abc
 
+* Ctrl-E to toggle single line comments
+  * could probably reuse tab insertion/deletion code.
+
 * add code folding
     * Ctrl-. to collapse largest uncollapsed region by cursor(s)
     * Ctrl-Shift-. to uncollapse smallest uncollapsed region by cursor(s)
     * maybe Logo-(Shift-). to do full collapse/uncollapse?
     * also a way to do it with mouse?
-        
 
-* if multiple things are copied with multiple cursors then if they are pasted with the same number of cursors then 
-    they should be pasted separately
-    * given the numbers are selected by three cursors represented by "|"
-        1|  copy then paste should be 11 not 1123 
-        2|                            22     2123 
-        3|                            33     3123
+* fix Ctrl-Left/Right acting weird around unicode characters
+    * for example, try using Ctrl-Left/Right on the folowing line
+        * U+2261 ≡ "IDENTICAL TO"
+        * as of this writing, placing the cursor after the "L" then pressing Ctrl-Left does puts you *after* the I.
+    * possible proptest: for any set of characters and cursor position Ctrl-Left then Ctrl-Right then Ctrl-Left should put you in the same spot you were in after the first Ctrl-Left
+        * also with Left and Right swapped
+    * possible proptest: given you are not on either the first or final line, then Ctrl-Left should always move you at least one character back and Ctrl-Right should move you one character Right.
 
-* Make Esc pick only one of the mulitple cursors to keep and remove that one's selection if there is one.
+* report the time the editor thread took to render the previous view. Maybe a rolling average too?
+    * how do linux load averages work? Would something like that make sense here?
+    * What about a tiny line chart?
+        * that doesn't fit into our current text and rectangles setup. 
+            * What about a histogram? 
+            * Or maybe just draw tall thin rects
 
-* Fix buggy/slow Ctrl-P menu.
-    * allow scrolling the list.
-
-* Ctrl-E to toggle single line comments
-  * could probably reuse tab insertion/deletion code.
-
-* refresh search spans on tab-in/out 
-    * Should be all edits really; are there other ones we missed? We should only need to put the refresh in one place.
+* fix slowness that shows up when selecting things with the mouse
+    * seems to have appeared when the parsing started so we could probably just start caching
+    previous trees, or actually complete the TODO to edit the tree with each keyboard edit.
 
 * fix Ctrl-F not looping properly
     * repro
@@ -134,6 +92,10 @@
             * in the outermost scope of the innermost module
         * do the above but also set/check that the cursors are in the right spots.
 
+* refresh search spans on tab-in/out 
+    * Should be all edits really; are there other ones we missed? We should only need to put the refresh in one place.
+    * Is this fixed now?
+
 * work on fleshing out requirements and implementing this list of features that are enabled by having a parser
     * list
         * extract to variable
@@ -146,9 +108,6 @@
         * macro snippet
     * we'll add fleshed out requirements above this in the file
 
-* let the user know how many search results there are somehow
-    * The need for this manifests most when there are 0 results, which currently results in no action rather than an explicit indication of that fact.
-
 * when a tab is switched to, any fullscreen menus should be hidden
 
 * prevent "No buffer selected" when re-opening already opened file
@@ -160,11 +119,10 @@
     * Does it make sense to make a proptest that claims that you can never get to the "No buffer selected" state,
         and then make the relevant generator avoid any cases that really cannot happen? That would hopefully 
         identify the problem, at least.
+    * We've now done some corrections to the generational indexes. This may actually be fixed.
 
 * soft focus follows mouse on menus?
     * if the cursor is on the main text when, for example, the find menu is up, then the main text should be scrolled, not the find box.
-
-* open file menu relative to the current tab's path if any
 
 * Ctrl, and up and down arrow keys to swap the current line with the one above it.
     * If mulktiple lines are selected, swap all of them
@@ -234,6 +192,8 @@
 
 * similar logic to the above auto-tabbing should be used to add in tabs when enter is pressed.
 
+* Do some compile-time profiling so I can see what is taking so long to compile and either pull that into a crate (meaning it is compiled less often) or change it in some way to make it compile faster
+
 * have some way to see what whitespace, (including line endings) is in a file.
     * see if we can get conditionally transforming ascii into the control pictures block fast enough
         * if not fast enough to do repeatedly and still scrolling, then at least 
@@ -244,29 +204,25 @@
         * how hard would moving the glyphs be to do at runtime?
             * having our own program to do that would be preferable to having to go find a font editor
                 if we end up wanting more changes later.
-        
-    
 
-* Do some compile-time profiling so I can see what is taking so long to compile and either pull that into a crate (meaning it is compiled less often) or change it in some way to make it compile faster
+* make auto-tab-scroll happen when a new tab is created
+  * fix auto-scroll drifting as the amount of tabs increases.
 
 * make it such that buffers are not considered edited if their contents matches what is on disk
     * do we want a hash here?
         * we would only want that as an optimization. 
         * let's try without one and see if we run into problems in practice
+    * We've added the hash but I'm not positive there aren't still issues here.
 
 * PageUp/Down?
     * maybe these could be jump to matching brace?
-
-* scrollable file search results list
 
 * update highlights after edits change the text
 
 * visual feedback on copy
     * as in, copy-paste
     * so say have the selection rectangle shrink towards the cursor?
-
-* make auto-tab-scroll happen when a new tab is created
-  * fix auto-scroll drifting as the amount of tabs increases.
+    * display what is in the copy buffer somewhere
 
 * make internal states clearer
   * whether buffer is selected or not (is cursor blinking enough?)
