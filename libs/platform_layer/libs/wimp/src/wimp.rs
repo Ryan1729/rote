@@ -485,16 +485,19 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
         }
 
         macro_rules! file_chooser_call {
-            ($event_proxy: expr, $func: ident, $path: ident in $event: expr) => {
+            ($event_proxy: expr, $func: ident, $default_path: expr, $path: ident in $event: expr) => {
                 let proxy =
                     std::sync::Arc::new(std::sync::Mutex::new($event_proxy.clone()));
                 let proxy = proxy.clone();
-                file_chooser::$func(move |$path: PathBuf| {
-                    let _bye = proxy
-                        .lock()
-                        .expect("file_chooser thread private mutex locked!?")
-                        .send_event($event);
-                })
+                file_chooser::$func(
+                    $default_path, 
+                    move |$path: PathBuf| {
+                        let _bye = proxy
+                            .lock()
+                            .expect("file_chooser thread private mutex locked!?")
+                            .send_event($event);
+                    }
+                )
             };
         }
 
@@ -620,7 +623,12 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                 switch_menu_mode!(r_s, MenuMode::GoToPosition);
             }]
             [CTRL, O, "Open file.", r_s {
-                file_chooser_call!(r_s.event_proxy, single, p in CustomEvent::OpenFile(p));
+                file_chooser_call!(
+                    r_s.event_proxy,
+                    single,
+                    r_s.view.current_path(),
+                    p in CustomEvent::OpenFile(p)
+                );
             }]
             [CTRL, P, "Switch files.", r_s {
                 switch_menu_mode!(r_s, MenuMode::FileSwitcher);
@@ -632,6 +640,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         file_chooser_call!(
                             r_s.event_proxy,
                             save,
+                            r_s.view.current_path(),
                             p in CustomEvent::SaveNewFile(p, i)
                         );
                     }
@@ -720,6 +729,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                 file_chooser_call!(
                     r_s.event_proxy,
                     save,
+                    r_s.view.current_path(),
                     p in CustomEvent::SaveNewFile(p, i)
                 );
             }]

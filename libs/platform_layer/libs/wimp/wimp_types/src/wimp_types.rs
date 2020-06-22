@@ -275,6 +275,10 @@ mod view {
             self.platform_view.get_buffer(index)
         }
 
+        pub fn current_path(&self) -> Option<std::path::PathBuf> {
+            self.platform_view.current_path()
+        }
+
         pub fn menu(&self) -> WimpMenuView {
             WimpMenuView {
                 platform_menu: &self.platform_view.menu,

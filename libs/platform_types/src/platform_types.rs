@@ -571,6 +571,15 @@ impl View {
             },
         }
     }
+
+    /// returns the currently visible editor buffer path if it has one.
+    pub fn current_path(&self) -> Option<PathBuf> {
+        u!{BufferName}
+        match self.buffers.get_current_element().name {
+            Path(ref p) => Some(p.to_owned()),
+            Scratch(_) => None,
+        }
+    }
 }
 
 #[derive(Clone, Default, PartialEq)]
