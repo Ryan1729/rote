@@ -231,6 +231,17 @@
     * decrease letter/cursor alpha?
       * this is sort of cheating the colour restriction thing, but if we imagine someone being colour-blind then stuff that is out of focus becoming unintelligible doesn't seem like an enormous issue?
       * But, we'd still want to be able to read the text for find and replace.
+  * If we really want to do this completely, we could write the following test:
+    * test steps
+      * generate an editor state
+      * run update and render on the state with an effective no-op and keep the view
+      * transform the view _back into_ an editor state
+      * check that we all of the differences between the old state and new state
+        are acceptable omissions of the state. For instance, not all of the text
+        needs to be there.
+      * for bonus points ensure the view that is renedered again is identical.
+    * the above steps ensure that all the required info from the state is present
+    in the view.
 
 * should the cursor blinking be (a fast approximation of) a sine wave instead?
 
