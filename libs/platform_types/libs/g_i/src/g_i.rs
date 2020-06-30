@@ -609,6 +609,10 @@ mod selectable_vec1 {
         pub fn previous_index(&self) -> Index {
             self.previous_index_from(self.current_index)
         }
+
+        pub fn previous_index_no_wrap(&self) -> Option<Index> {
+            self.previous_index_from_no_wrap(self.current_index)
+        }
     
         pub fn previous_index_from(&self, index: Index) -> Index {
             let i: usize = index.into();
@@ -616,6 +620,15 @@ mod selectable_vec1 {
                 self.last_index()
             } else {
                 index.saturating_sub(1)
+            }
+        }
+
+        pub fn previous_index_from_no_wrap(&self, index: Index) -> Option<Index> {
+            let i: usize = index.into();
+            if i == 0 {
+                None
+            } else {
+                Some(index.saturating_sub(1))
             }
         }
     
@@ -710,9 +723,8 @@ mod selectable_vec1 {
     
             if output.is_some() {
                 self.set_current_index(
-                    self.index_state
-                    .migrate(self.current_index)
-                    .or_else(|| self.index_state.migrate(self.previous_index()))
+                    self.previous_index_no_wrap()
+                    .and_then(|i| self.index_state.migrate(i))
                     .unwrap_or_else(||
                         // if the current index is zero and we remove it we end up pointing at the new
                         // first element. In this case, this is desired.
