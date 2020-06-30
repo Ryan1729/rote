@@ -189,11 +189,13 @@ prop_compose!{
         mode in find_replace_mode(),
         find in buffer_view_data(),
         replace in buffer_view_data(),
+        result_count in any::<usize>(),
     ) -> FindReplaceView {
         FindReplaceView {
             mode,
             find,
             replace,
+            result_count,
         }
     }
 }
