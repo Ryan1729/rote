@@ -1,15 +1,12 @@
 [package]
 name = "rote"
-version = "0.2.106"
+version = "0.2.107"
 authors = ["Ryan1729 <Ryan1729@gmail.com>"]
 license = "MIT and Apache 2.0"
 edition = "2018"
 
 [dependencies]
 lazy_static = "1.3.0"
-
-[dependencies.check_or_no_panic]
-path = "./libs/check_or_no_panic"
 
 [dependencies.editor]
 path = "./libs/editor"
@@ -27,8 +24,6 @@ path = "./libs/platform_types"
 path = "./libs/platform_layer"
 
 [dev-dependencies]
-quickcheck = "0.4"
-rand = "0.3"
 
 [features]
 default = []

@@ -11,9 +11,6 @@ path = "./src/editor.rs"
 # we want a fast hash, and the first platform layer used this already so, sure why not.
 rustc-hash = "1"
 
-[dependencies.check_or_no_panic]
-path = "../check_or_no_panic"
-
 [dependencies.editor_types]
 path = "libs/editor_types"
 
@@ -77,7 +74,7 @@ path = "../pub_arb/non_neg_f32"
 
 [features]
 default = []
-invariant-checking = ["check_or_no_panic/invariant-checking"]
+invariant-checking = []
 extra-prints = ["text_buffer/extra-prints"]
 no-cache = []
 
