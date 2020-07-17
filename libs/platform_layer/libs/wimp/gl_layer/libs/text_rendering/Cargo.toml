@@ -12,7 +12,7 @@ path = "./src/text_rendering.rs"
 [dependencies]
 gl_layer_types = {path = "../gl_layer_types"}
 glyph_brush = {path = "./libs/glyph-brush"}
-glyph_brush_layout = "0.1.9"
+glyph_brush_layout = {path = "./libs/glyph-brush-layout"}
 rusttype = "0.8"
 macros = { path = "../../../../../../macros" }
 panic_safe_rope = { path = "../../../../../../panic_safe_rope" }

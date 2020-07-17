@@ -16,7 +16,7 @@ pub(crate) const ZERO_V_METRICS: VMetrics = VMetrics {
 /// Single 'word' ie a sequence of `Character`s where the last is a line-break.
 ///
 /// Glyphs are relatively positioned from (0, 0) in a left-top alignment style.
-pub(crate) struct Word<'font> {
+pub struct Word<'font> {
     pub glyphs: Vec<(RelativePositionedGlyph<'font>, Color, FontId)>,
     /// pixel advance width of word includes ending spaces/invisibles
     pub layout_width: f32,
@@ -35,7 +35,7 @@ pub struct RelativePositionedGlyph<'font> {
 
 impl<'font> RelativePositionedGlyph<'font> {
     #[inline]
-    pub(crate) fn bounds(&self) -> Option<Rect<f32>> {
+    pub fn bounds(&self) -> Option<Rect<f32>> {
         self.glyph.exact_bounding_box().map(|mut bb| {
             bb.min.x += self.relative.x;
             bb.min.y += self.relative.y;
@@ -54,7 +54,7 @@ impl<'font> RelativePositionedGlyph<'font> {
 }
 
 /// `Word` iterator.
-pub(crate) struct Words<'a, 'b, 'font: 'a + 'b, L, F>
+pub struct Words<'a, 'b, 'font: 'a + 'b, L, F>
 where
     L: LineBreaker,
     F: FontMap<'font>,
@@ -67,7 +67,7 @@ where
     L: LineBreaker,
     F: FontMap<'font>,
 {
-    pub(crate) fn lines(self, width_bound: f32) -> Lines<'a, 'b, 'font, L, F> {
+    pub fn lines(self, width_bound: f32) -> Lines<'a, 'b, 'font, L, F> {
         Lines {
             words: self.peekable(),
             width_bound,

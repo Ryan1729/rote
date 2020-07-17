@@ -12,7 +12,7 @@ use std::{
 };
 
 /// Single character info
-pub(crate) struct Character<'font> {
+pub struct Character<'font> {
     pub glyph: ScaledGlyph<'font>,
     pub color: Color,
     pub font_id: FontId,
@@ -23,7 +23,7 @@ pub(crate) struct Character<'font> {
 }
 
 /// `Character` iterator
-pub(crate) struct Characters<'a, 'b, 'font, L, F>
+pub struct Characters<'a, 'b, 'font, L, F>
 where
     'font: 'a + 'b,
     L: LineBreaker,
@@ -49,7 +49,7 @@ where
     F: FontMap<'font>,
 {
     /// Returns a new `Characters` iterator.
-    pub(crate) fn new(
+    pub fn new(
         font_map: &'b F,
         section_text: slice::Iter<'a, SectionText<'a>>,
         line_breaker: L,
@@ -64,7 +64,7 @@ where
     }
 
     /// Wraps into a `Words` iterator.
-    pub(crate) fn words(self) -> Words<'a, 'b, 'font, L, F> {
+    pub fn words(self) -> Words<'a, 'b, 'font, L, F> {
         Words { characters: self }
     }
 }

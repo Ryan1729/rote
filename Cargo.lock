@@ -886,7 +886,7 @@ dependencies = [
  "env_logger",
  "gl",
  "glutin",
- "glyph_brush_layout 0.1.9",
+ "glyph_brush_layout",
  "if_changed",
  "log",
  "matches",
@@ -907,17 +907,6 @@ dependencies = [
  "once_cell",
  "ordered-float",
  "perf_viz",
- "rusttype 0.8.3",
- "xi-unicode",
-]
-
-[[package]]
-name = "glyph_brush_layout"
-version = "0.1.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b70adc570f1dc71b6b32e241cbcc2b42175f5aea71951fbf41e68b04aec24c7"
-dependencies = [
- "approx",
  "rusttype 0.8.3",
  "xi-unicode",
 ]
@@ -1887,7 +1876,7 @@ dependencies = [
 
 [[package]]
 name = "rote"
-version = "0.2.106"
+version = "0.2.107"
 dependencies = [
  "editor",
  "lazy_static 1.4.0",
@@ -2175,7 +2164,7 @@ version = "0.1.0"
 dependencies = [
  "gl_layer_types",
  "glyph_brush",
- "glyph_brush_layout 0.1.9 (registry+https://github.com/rust-lang/crates.io-index)",
+ "glyph_brush_layout",
  "macros",
  "panic_safe_rope",
  "perf_viz",

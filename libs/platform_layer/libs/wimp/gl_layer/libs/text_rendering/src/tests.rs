@@ -1,7 +1,6 @@
-use super::{*, text_layouts::*};
+use super::{*, text_layouts::*, unbounded::*};
 
 use glyph_brush::{
-    get_lines_iter,
     OwnedSectionText,
     rusttype::{point, vector, Point, PositionedGlyph, Rect},
 };

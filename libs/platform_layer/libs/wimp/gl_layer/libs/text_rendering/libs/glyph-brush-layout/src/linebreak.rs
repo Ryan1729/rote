@@ -112,7 +112,7 @@ impl LineBreaker for BuiltInLineBreaker {
 /// Line breakers can't easily tell the difference between the end of a slice being a hard
 /// break and the last character being itself a hard or soft break. This trait allows testing
 /// of eol characters being "true" eol line breakers.
-pub(crate) trait EolLineBreak<B: LineBreaker> {
+pub trait EolLineBreak<B: LineBreaker> {
     fn eol_line_break(&self, line_breaker: &B) -> Option<LineBreak>;
 
     #[inline]
