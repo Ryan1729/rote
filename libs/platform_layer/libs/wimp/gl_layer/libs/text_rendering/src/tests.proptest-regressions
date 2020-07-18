@@ -19,3 +19,4 @@ cc 7fa8b34bfa280a1795703cf342715f6fc61d122eff15524e274b3940db380f8b # shrinks to
 cc cbdba43aa17c2e09e77feec26c6632ff6f9b3e4b25c8ee0b66ae24f74ef8953f # shrinks to min_y = 32439751, height = 1, scale_y = 4040123, line_count = 7
 cc 2179e4aaf2787de3e1f64df7552e379861e98d68900f8abc1d90bb4b8ad07b28 # shrinks to min_y = 32041127, height = 1, scale_y = 4004187, line_count = 7
 cc 65d6c440693cac8834a5229b1924ab75d634873974f3d8b34974d4ff6104ae5e # shrinks to min_y = 32041127, scale_y = 4004187, line_count = 7
+cc 969c3bbb542b4863edd3d957aa65301e81edb39d708ede814e5a36c554551afe # shrinks to clip = Rect { min: Point { x: 1, y: 1 }, max: Point { x: 3, y: 3 } }, owned_sections = [OwnedSectionText { text: "A", scale: Scale { x: 1.0, y: 1.0 }, color: [0.0, 0.0, 0.0, 0.0], font_id: FontId(0) }]

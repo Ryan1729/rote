@@ -14,7 +14,7 @@ use std::convert::TryFrom;
 
 use glyph_brush::*;
 use glyph_brush::{
-    rusttype::{Font, Scale, Rect, VMetrics},
+    rusttype::{Font, Scale, Rect},
     Bounds, GlyphBrush, GlyphBrushBuilder, RectSpec, Layout, PixelCoords, Section,
 };
 
@@ -336,107 +336,7 @@ mod text_layouts {
     
         out
     }
-/*
-    type UnboundedLine<'font> = (
-        Vec<(RelativePositionedGlyph<'font>, [f32; 4], FontId)>,
-        VMetrics
-    );
 
-    const V_METRICS_ZERO: VMetrics = VMetrics {
-        ascent: 0.0,
-        descent: 0.0,
-        line_gap: 0.0,
-    };
-
-    fn get_unbounded_line_glyphs_iter<'a, 'b, 'font, F>(
-        fonts: &'b F,
-        sections: &'a [SectionText],
-    ) -> impl IntoIterator<
-        Item = UnboundedLine<'font>,
-        IntoIter = std::vec::IntoIter<UnboundedLine<'font>>
-    >
-    where
-        'font: 'a + 'b,
-        F: FontMap<'font>, {
-        let mut output: Vec<UnboundedLine> = Vec::with_capacity(sections.len());
-
-        let mut current_line = Vec::with_capacity(16);
-        let mut current_x = 0.0;
-        let mut current_y = 0.0;
-        let mut last_glyph_id = None;
-        let mut max_v_metrics = V_METRICS_ZERO;
-
-        macro_rules! push_line {
-            () => {
-                if current_line.len() > 0 {
-                    output.push((current_line, max_v_metrics));
-                }
-                current_line = Vec::with_capacity(16);
-                current_x = 0.0;
-                current_y = 0.0;
-                last_glyph_id = None;
-                max_v_metrics = V_METRICS_ZERO;
-            }
-        }
-
-        for section in sections.iter() {
-            let mut chars = section.text.chars().peekable();
-            while let Some(c) = chars.next() {
-                if c == '\r' && chars.peek() == Some(&'\n') {
-                    push_line!();
-                    chars.next();
-                } else if is_linebreak_char(c) {
-                    push_line!();
-                } else {
-                    let font = fonts
-                        .font(section.font_id);
-
-                    let glyph = font
-                        .glyph(c)
-                        .scaled(section.scale);
-
-                    let v_metrics = font.v_metrics(glyph.scale());
-                    if v_metrics.ascent > max_v_metrics.ascent {
-                        let diff_y = v_metrics.ascent - current_y;
-                        current_y += diff_y;
-        
-                        // modify all smaller lined glyphs to occupy the new larger line
-                        for (glyph, ..) in &mut current_line {
-                            glyph.relative.y += diff_y;
-                        }
-        
-                        max_v_metrics = v_metrics;
-                    }
-
-                    if let Some(id) = last_glyph_id.take() {
-                        current_x += font.pair_kerning(section.scale, id, glyph.id());
-                    }
-                    last_glyph_id = Some(glyph.id());
-
-                    let advance_width = glyph.h_metrics().advance_width;
-
-                    if !c.is_whitespace() {
-                        let rel_glyph = RelativePositionedGlyph {
-                            relative: point(current_x, current_y),
-                            glyph,
-                        };
-                    
-                        current_line.push(
-                            (rel_glyph, section.color, section.font_id),
-                        );
-                    }
-
-
-                    current_x += advance_width;
-                }
-            }     
-        }
-        
-        push_line!();
-
-        output
-    }
-*/
     // This is a separate function to aid in testing
     pub fn calculate_glyphs_unbounded_layout_clipped<'font, F>(
         clip: Rect<i32>,
@@ -979,12 +879,6 @@ mod unbounded {
         Vec<(RelativePositionedGlyph<'font>, [f32; 4], FontId)>
     ;
     
-    pub const V_METRICS_ZERO: VMetrics = VMetrics {
-        ascent: 0.0,
-        descent: 0.0,
-        line_gap: 0.0,
-    };
-    
     pub fn get_line_glyphs_iter<'a, 'b, 'font, F>(
             fonts: &'b F,
             sections: &'a [SectionText],
@@ -1026,7 +920,7 @@ mod unbounded {
             let mut line: UnboundedLine = 
                 Vec::new()
             ;
-            let mut max_v_metrics = V_METRICS_ZERO;
+            let mut max_v_ascent = 0.0;
     
             let mut progressed = false;
     
@@ -1035,8 +929,8 @@ mod unbounded {
                 progressed = true;
     
                 
-                if word.max_v_metrics.ascent > max_v_metrics.ascent {
-                    let diff_y = word.max_v_metrics.ascent - caret.y;
+                if word.max_v_ascent > max_v_ascent {
+                    let diff_y = word.max_v_ascent - caret.y;
                     caret.y += diff_y;
     
                     // modify all smaller lined glyphs to occupy the new larger line
@@ -1044,7 +938,7 @@ mod unbounded {
                         glyph.relative.y += diff_y;
                     }
     
-                    max_v_metrics = word.max_v_metrics;
+                    max_v_ascent = word.max_v_ascent;
                 }
     
                 line
@@ -1075,7 +969,7 @@ mod unbounded {
         pub layout_width: f32,
         /// pixel advance width of word not including any trailing spaces/invisibles
         pub layout_width_no_trail: f32,
-        pub max_v_metrics: VMetrics,
+        pub max_v_ascent: f32,
         /// indicates the break after the word is a hard one
         pub hard_break: bool,
     }
@@ -1102,7 +996,7 @@ mod unbounded {
             let mut caret = 0.0;
             let mut caret_no_trail = caret;
             let mut last_glyph_id = None;
-            let mut max_v_metrics = None;
+            let mut max_v_ascent = None;
             let mut hard_break = false;
             let mut progress = false;
     
@@ -1117,9 +1011,9 @@ mod unbounded {
                 progress = true;
                 {
                     let font = glyph.font().expect("standalone not supported");
-                    let v_metrics = font.v_metrics(glyph.scale());
-                    if max_v_metrics.is_none() || v_metrics > max_v_metrics.unwrap() {
-                        max_v_metrics = Some(v_metrics);
+                    let v_ascent = font.v_metrics(glyph.scale()).ascent;
+                    if max_v_ascent.is_none() || v_ascent > max_v_ascent.unwrap() {
+                        max_v_ascent = Some(v_ascent);
                     }
     
                     if let Some(id) = last_glyph_id.take() {
@@ -1160,7 +1054,7 @@ mod unbounded {
                     layout_width: caret,
                     layout_width_no_trail: caret_no_trail,
                     hard_break,
-                    max_v_metrics: max_v_metrics.unwrap_or(V_METRICS_ZERO),
+                    max_v_ascent: max_v_ascent.unwrap_or_default(),
                 });
             }
     
