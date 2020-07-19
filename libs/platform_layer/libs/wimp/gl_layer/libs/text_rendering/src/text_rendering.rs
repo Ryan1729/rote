@@ -567,7 +567,6 @@ impl <'font> State<'font> {
                 ($layout: ident, $section: ident) => {
                     perf_viz::start_record!("queue!");
                     match $layout {
-                        TextLayout::SingleLine => glyph_brush.queue($section),
                         TextLayout::Wrap => glyph_brush.queue_custom_layout($section, &Wrap {}),
                         TextLayout::Unbounded => {
                             glyph_brush.queue_custom_layout($section, &Unbounded {})
@@ -615,14 +614,7 @@ impl <'font> State<'font> {
                         screen_position: rect.min.into(),
                         bounds: rect.max.into(),
                         color,
-                        layout: match layout {
-                            TextLayout::SingleLine => Layout::default_single_line(),
-                            TextLayout::Wrap 
-                            | TextLayout::Unbounded 
-                            | TextLayout::UnboundedLayoutClipped(_, _) => {
-                                Layout::default_wrap()
-                            }
-                        },
+                        layout: Layout::default_wrap(),
                         z: z_to_f32(z),
                         ..d!()
                     };
@@ -642,14 +634,7 @@ impl <'font> State<'font> {
                     let section = VariedSection {
                         screen_position: rect.min.into(),
                         bounds: rect.max.into(),
-                        layout: match layout {
-                            TextLayout::SingleLine => Layout::default_single_line(),
-                            TextLayout::Wrap
-                            | TextLayout::Unbounded 
-                            | TextLayout::UnboundedLayoutClipped(_, _) => {
-                                Layout::default_wrap().line_breaker(glyph_brush::BuiltInLineBreaker::AnyCharLineBreaker)
-                            }
-                        },
+                        layout: Layout::default_wrap().line_breaker(glyph_brush::BuiltInLineBreaker::AnyCharLineBreaker),
                         z: z_to_f32(z),
                         text: text.iter().map(|ColouredText { text, colour }| {
                             SectionText {

@@ -254,7 +254,7 @@ pub fn view<'view>(
                 text: &name_string,
                 size: TAB_SIZE,
                 char_dim: *tab_char_dim,
-                layout: TextLayout::SingleLine,
+                layout: TextLayout::Unbounded,
                 margin,
                 rect,
                 underline: if index == selected_index {
@@ -386,7 +386,7 @@ pub fn view<'view>(
                                     }
                                 },
                                 size: FIND_REPLACE_SIZE,
-                                layout: TextLayout::SingleLine,
+                                layout: TextLayout::Unbounded,
                                 spec: VisualSpec {
                                     rect: label_rect,
                                     color: CHROME_TEXT_COLOUR,
@@ -459,7 +459,7 @@ pub fn view<'view>(
                     text_or_rects.push(TextOrRect::Text(TextSpec {
                         text: "Go to position",
                         size: FIND_REPLACE_SIZE,
-                        layout: TextLayout::SingleLine,
+                        layout: TextLayout::Unbounded,
                         spec: VisualSpec {
                             rect: label_rect,
                             color: CHROME_TEXT_COLOUR,
@@ -618,7 +618,7 @@ pub fn view<'view>(
     text_or_rects.push(TextOrRect::Text(TextSpec {
         text: &view.status_line().chars,
         size: STATUS_SIZE,
-        layout: TextLayout::SingleLine,
+        layout: TextLayout::Unbounded,
         spec: VisualSpec {
             rect: rect.with_min_y(status_line_y + abs::Ratio::TWO * SEPARATOR_LINE_THICKNESS),
             color: CHROME_TEXT_COLOUR,
@@ -655,7 +655,7 @@ pub fn view<'view>(
             text: "?", // 0x3F
             size: STATUS_SIZE,
             char_dim: *status_char_dim,
-            layout: TextLayout::SingleLine,
+            layout: TextLayout::Unbounded,
             margin: Spacing::All(SEPARATOR_LINE_THICKNESS),
             rect: second_button_rect,
             z: STATUS_Z,
@@ -674,7 +674,7 @@ pub fn view<'view>(
             text: "≡", // U+2261
             size: STATUS_SIZE,
             char_dim: *status_char_dim,
-            layout: TextLayout::SingleLine,
+            layout: TextLayout::Unbounded,
             margin: Spacing::All(SEPARATOR_LINE_THICKNESS),
             rect: far_right_button_rect,
             z: STATUS_Z,
@@ -747,7 +747,7 @@ fn command_button<'view> (
                 text: cmd.label,
                 size: TAB_SIZE,
                 char_dim: dimensions.font.tab_char_dim,
-                layout: TextLayout::SingleLine,
+                layout: TextLayout::Unbounded,
                 margin: Spacing::All(margin * LIST_MARGIN_TO_PADDING_RATIO),
                 rect,
                 z: TAB_Z,
@@ -811,7 +811,7 @@ fn render_file_switcher_menu<'view>(
             }
         },
         size: FIND_REPLACE_SIZE,
-        layout: TextLayout::SingleLine,
+        layout: TextLayout::Unbounded,
         spec: VisualSpec {
             rect: label_rect,
             color: CHROME_TEXT_COLOUR,
@@ -940,7 +940,7 @@ fn render_file_switcher_menu<'view>(
                 text: &path_text,
                 size: TAB_SIZE,
                 char_dim: *tab_char_dim,
-                layout: TextLayout::SingleLine,
+                layout: TextLayout::Unbounded,
                 margin: list_margin,
                 rect,
                 z: TAB_Z,
@@ -1227,7 +1227,7 @@ d!(for OutlineButtonSpec<'static>: OutlineButtonSpec {
     text: "OutlineButtonSpec default",
     size: 16.0,
     char_dim: char_dim!(16.0 16.0),
-    layout: TextLayout::SingleLine,
+    layout: TextLayout::Unbounded,
     margin: d!(),
     rect: d!(),
     z: gl_layer::DEFAULT_Z,
