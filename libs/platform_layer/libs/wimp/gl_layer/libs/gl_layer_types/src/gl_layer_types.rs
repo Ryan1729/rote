@@ -150,8 +150,6 @@ d!(for VisualSpec: VisualSpec{
 
 #[derive(Clone, Debug)]
 pub enum TextLayout {
-    Wrap,
-    //TODO get wrapping working properly with cursors etc. or get rid of the unused variants here.
     Unbounded,
     UnboundedLayoutClipped(ScreenSpaceRect, ScrollXY)
 }

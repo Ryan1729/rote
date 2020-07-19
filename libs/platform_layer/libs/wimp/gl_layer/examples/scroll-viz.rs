@@ -139,7 +139,7 @@ fn main() -> Res<()> {
                             },
                             z: first_z_add_1,
                         },
-                        layout: TextLayout::Wrap,
+                        layout: TextLayout::Unbounded,
                     }));
 
                     let info_text = &format!(
@@ -167,7 +167,7 @@ fn main() -> Res<()> {
                             color: text_colour,
                             ..d!()
                         },
-                        layout: TextLayout::Wrap,
+                        layout: TextLayout::Unbounded,
                     }));
  
                     gl_layer::render(&mut gl_state, text_and_rects, width as _, height as _)

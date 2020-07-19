@@ -515,7 +515,7 @@ mod text_layouts {
         }
     }
 }
-use text_layouts::{Unbounded, UnboundedLayoutClipped, Wrap};
+use text_layouts::{Unbounded, UnboundedLayoutClipped};
 
 pub type TextureRect = glyph_brush::rusttype::Rect<u32>;
 
@@ -567,7 +567,6 @@ impl <'font> State<'font> {
                 ($layout: ident, $section: ident) => {
                     perf_viz::start_record!("queue!");
                     match $layout {
-                        TextLayout::Wrap => glyph_brush.queue_custom_layout($section, &Wrap {}),
                         TextLayout::Unbounded => {
                             glyph_brush.queue_custom_layout($section, &Unbounded {})
                         }

@@ -132,7 +132,7 @@ fn main() -> Res<()> {
                             color: text_colour,
                             z: first_z_sub_1,
                         },
-                        layout: TextLayout::Wrap,
+                        layout: TextLayout::Unbounded,
                     }));
                     let first_z_sub_2 = first_z.saturating_sub(2);
                     text_and_rects.push(TextOrRect::Text(TextSpec {
@@ -146,7 +146,7 @@ fn main() -> Res<()> {
                             color: text_colour,
                             z: first_z_sub_2,
                         },
-                        layout: TextLayout::Wrap,
+                        layout: TextLayout::Unbounded,
                     }));
 
                     text_and_rects.push(TextOrRect::Rect(VisualSpec {
@@ -169,7 +169,7 @@ fn main() -> Res<()> {
                             color: text_colour,
                             z: second_z_sub_1,
                         },
-                        layout: TextLayout::Wrap,
+                        layout: TextLayout::Unbounded,
                     }));
                     let second_z_sub_2 = second_z.saturating_sub(2);
                     text_and_rects.push(TextOrRect::Text(TextSpec {
@@ -183,7 +183,7 @@ fn main() -> Res<()> {
                             color: text_colour,
                             z: second_z_sub_2,
                         },
-                        layout: TextLayout::Wrap,
+                        layout: TextLayout::Unbounded,
                     }));
 
                     let z_text = format!(
@@ -207,7 +207,7 @@ fn main() -> Res<()> {
                             color: text_colour,
                             ..d!()
                         },
-                        layout: TextLayout::Wrap,
+                        layout: TextLayout::Unbounded,
                     }));
 
                     text_and_rects.push(TextOrRect::Text(TextSpec {
@@ -221,7 +221,7 @@ fn main() -> Res<()> {
                             color: text_colour,
                             ..d!()
                         },
-                        layout: TextLayout::Wrap,
+                        layout: TextLayout::Unbounded,
                     }));
 
                     gl_layer::render(&mut gl_state, text_and_rects, width as _, height as _)
