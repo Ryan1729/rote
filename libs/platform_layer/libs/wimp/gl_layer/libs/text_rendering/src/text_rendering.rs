@@ -1,5 +1,4 @@
-#![deny(unused_variables)]
-#![deny(unused_imports)]
+#![deny(unused)]
 use platform_types::{
     screen_positioning::{CharDim, ScreenSpaceXY, ScreenSpaceRect, ScrollXY},
     char_dim, ssr,
@@ -35,9 +34,6 @@ mod text_layouts {
             y: INFINITY,
         },
     };
-
-    #[derive(Hash)]
-    pub(crate) struct Wrap {}
 
     //
     // Most of this is copied from the  <L: LineBreaker> GlyphPositioner for Layout<L> impl in
@@ -133,114 +129,6 @@ mod text_layouts {
     //
     //
     //
-    impl GlyphPositioner for Wrap {
-        fn calculate_glyphs<'font, F: FontMap<'font>>(
-            &self,
-            font_map: &F,
-            geometry: &SectionGeometry,
-            sections: &[SectionText<'_>],
-        ) -> Vec<(PositionedGlyph<'font>, Color, FontId)> {
-            let SectionGeometry {
-                screen_position,
-                bounds: (bound_w, _),
-                ..
-            } = *geometry;
-
-            calculate_glyphs(font_map, screen_position, bound_w, sections)
-        }
-
-        fn bounds_rect(&self, geometry: &SectionGeometry) -> Rect<f32> {
-            let SectionGeometry {
-                screen_position: (screen_x, screen_y),
-                bounds: (bound_w, bound_h),
-            } = *geometry;
-
-            let (x_min, x_max) = HorizontalAlign::Left.x_bounds(screen_x, bound_w);
-            let (y_min, _) = VerticalAlign::Top.y_bounds(screen_y, bound_h);
-            let y_max = INFINITY; // never cut off the bottom of the text.
-
-            Rect {
-                min: point(x_min, y_min),
-                max: point(x_max, y_max),
-            }
-        }
-
-        #[allow(clippy::float_cmp)]
-        fn recalculate_glyphs<'font, F>(
-            &self,
-            previous: Cow<'_, Vec<(PositionedGlyph<'font>, Color, FontId)>>,
-            change: GlyphChange,
-            fonts: &F,
-            geometry: &SectionGeometry,
-            sections: &[SectionText<'_>],
-        ) -> Vec<(PositionedGlyph<'font>, Color, FontId)>
-        where
-            F: FontMap<'font>,
-        {
-            recalculate_glyphs_body!(self, previous, change, fonts, geometry, sections)
-        }
-    }
-
-    #[derive(Hash)]
-    pub(crate) struct WrapInRect {
-        pub(crate) rect: ScreenSpaceRect,
-    }
-
-    impl GlyphPositioner for WrapInRect {
-        fn calculate_glyphs<'font, F>(
-            &self,
-            fonts: &F,
-            geometry: &SectionGeometry,
-            sections: &[SectionText],
-        ) -> Vec<(PositionedGlyph<'font>, [f32; 4], FontId)>
-        where
-            F: FontMap<'font>,
-        {
-            Wrap {}.calculate_glyphs(fonts, geometry, sections)
-        }
-        fn bounds_rect(&self, geometry: &SectionGeometry) -> Rect<f32> {
-            let rect = self.rect;
-            let mut wide_bounds = Wrap {}.bounds_rect(geometry);
-
-            wide_bounds.min.x = if wide_bounds.min.x < rect.min.x {
-                rect.min.x.into()
-            } else {
-                wide_bounds.min.x
-            };
-            wide_bounds.min.y = if wide_bounds.min.y < rect.min.y {
-                rect.min.y.into()
-            } else {
-                wide_bounds.min.y
-            };
-
-            wide_bounds.max.x = if wide_bounds.max.x > rect.max.x {
-                rect.max.x.into()
-            } else {
-                wide_bounds.max.x
-            };
-            wide_bounds.max.y = if wide_bounds.max.y > rect.max.y {
-                rect.max.y.into()
-            } else {
-                wide_bounds.max.y
-            };
-            wide_bounds
-        }
-
-        fn recalculate_glyphs<'font, F>(
-            &self,
-            previous: Cow<Vec<(PositionedGlyph<'font>, [f32; 4], FontId)>>,
-            change: GlyphChange,
-            fonts: &F,
-            geometry: &SectionGeometry,
-            sections: &[SectionText],
-        ) -> Vec<(PositionedGlyph<'font>, [f32; 4], FontId)>
-        where
-            F: FontMap<'font>,
-        {
-            recalculate_glyphs_body!(self, previous, change, fonts, geometry, sections)
-        }
-    }
-
     #[derive(Hash)]
     pub(crate) struct Unbounded {}
 
