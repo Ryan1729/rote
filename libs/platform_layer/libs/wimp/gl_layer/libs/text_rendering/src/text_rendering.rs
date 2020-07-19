@@ -1,16 +1,13 @@
-
-#![allow(unused_imports)]
+#![deny(unused_variables)]
+#![deny(unused_imports)]
 use platform_types::{
-    screen_positioning::{CharDim, ScreenSpaceXY, ScreenSpaceRect, ScrollXY, TextSpaceXYWH},
-    NonNegF32,
-    char_dim, non_neg_f32, tsxywh, ssr,
+    screen_positioning::{CharDim, ScreenSpaceXY, ScreenSpaceRect, ScrollXY},
+    char_dim, ssr,
 };
-use gl_layer_types::{Vertex, VertexStruct, TexCoords, set_alpha, TextOrRect, Res};
+use gl_layer_types::{Vertex, VertexStruct, set_alpha, TextOrRect, Res};
 
+#[allow(unused_imports)]
 use macros::{d, dbg};
-use panic_safe_rope::is_linebreak_char;
-
-use std::convert::TryFrom;
 
 use glyph_brush::*;
 use glyph_brush::{
@@ -40,7 +37,7 @@ mod text_layouts {
     };
 
     #[derive(Hash)]
-    pub struct Wrap {}
+    pub(crate) struct Wrap {}
 
     //
     // Most of this is copied from the  <L: LineBreaker> GlyphPositioner for Layout<L> impl in
@@ -185,8 +182,8 @@ mod text_layouts {
     }
 
     #[derive(Hash)]
-    pub struct WrapInRect {
-        pub rect: ScreenSpaceRect,
+    pub(crate) struct WrapInRect {
+        pub(crate) rect: ScreenSpaceRect,
     }
 
     impl GlyphPositioner for WrapInRect {
@@ -245,7 +242,7 @@ mod text_layouts {
     }
 
     #[derive(Hash)]
-    pub struct Unbounded {}
+    pub(crate) struct Unbounded {}
 
     impl GlyphPositioner for Unbounded {
         fn calculate_glyphs<'font, F>(
@@ -278,7 +275,7 @@ mod text_layouts {
     }
 
     #[derive(Hash)]
-    pub struct UnboundedLayoutClipped {
+    pub(crate) struct UnboundedLayoutClipped {
         clip: Rect<i32>,
         // only needed for the hash, so that the glyph_brush caching
         // works properly.
@@ -286,7 +283,7 @@ mod text_layouts {
     }
 
     impl UnboundedLayoutClipped {
-        pub fn new(clip_ssr: ScreenSpaceRect, scroll: ScrollXY) -> Self {
+        pub(crate) fn new(clip_ssr: ScreenSpaceRect, scroll: ScrollXY) -> Self {
             Self { 
                 clip: ssr_to_rusttype_i32(clip_ssr),
                 scroll,
@@ -338,7 +335,7 @@ mod text_layouts {
     }
 
     // This is a separate function to aid in testing
-    pub fn calculate_glyphs_unbounded_layout_clipped<'font, F>(
+    pub(crate) fn calculate_glyphs_unbounded_layout_clipped<'font, F>(
         clip: Rect<i32>,
         fonts: &F,
         geometry: &SectionGeometry,
@@ -518,13 +515,13 @@ mod text_layouts {
         }
     }
 }
-use text_layouts::{Unbounded, UnboundedLayoutClipped, Wrap, WrapInRect};
+use text_layouts::{Unbounded, UnboundedLayoutClipped, Wrap};
 
 pub type TextureRect = glyph_brush::rusttype::Rect<u32>;
 
 pub struct State<'font> {
-    pub glyph_brush: GlyphBrush<'font, Vertex>,
-    pub hidpi_factor: f32,
+    pub(crate) glyph_brush: GlyphBrush<'font, Vertex>,
+    pub(crate) hidpi_factor: f32,
 }
 
 impl <'font> State<'font> {
@@ -540,7 +537,7 @@ impl <'font> State<'font> {
         self.glyph_brush.texture_dimensions()
     }
 
-    pub fn resize_texture(&mut self, new_width: u32, new_height: u32) {
+    pub(crate) fn resize_texture(&mut self, new_width: u32, new_height: u32) {
         self.glyph_brush.resize_texture(new_width, new_height);
     }
 
@@ -572,9 +569,6 @@ impl <'font> State<'font> {
                     match $layout {
                         TextLayout::SingleLine => glyph_brush.queue($section),
                         TextLayout::Wrap => glyph_brush.queue_custom_layout($section, &Wrap {}),
-                        TextLayout::WrapInRect(rect) => {
-                            glyph_brush.queue_custom_layout($section, &WrapInRect { rect })
-                        }
                         TextLayout::Unbounded => {
                             glyph_brush.queue_custom_layout($section, &Unbounded {})
                         }
@@ -624,7 +618,6 @@ impl <'font> State<'font> {
                         layout: match layout {
                             TextLayout::SingleLine => Layout::default_single_line(),
                             TextLayout::Wrap 
-                            | TextLayout::WrapInRect(_) 
                             | TextLayout::Unbounded 
                             | TextLayout::UnboundedLayoutClipped(_, _) => {
                                 Layout::default_wrap()
@@ -651,8 +644,7 @@ impl <'font> State<'font> {
                         bounds: rect.max.into(),
                         layout: match layout {
                             TextLayout::SingleLine => Layout::default_single_line(),
-                            TextLayout::Wrap 
-                            | TextLayout::WrapInRect(_) 
+                            TextLayout::Wrap
                             | TextLayout::Unbounded 
                             | TextLayout::UnboundedLayoutClipped(_, _) => {
                                 Layout::default_wrap().line_breaker(glyph_brush::BuiltInLineBreaker::AnyCharLineBreaker)
@@ -700,7 +692,7 @@ impl <'font> State<'font> {
     }
 }
 
-pub type CharDims = Vec<CharDim>;
+pub(crate) type CharDims = Vec<CharDim>;
 
 const FONT_BYTES: &[u8] = include_bytes!("./fonts/FiraCode-Retina.ttf");
 
@@ -847,7 +839,7 @@ fn ssr_to_rusttype_i32(ssr!(min_x, min_y, max_x, max_y): ScreenSpaceRect) -> Rec
 mod unbounded {
     use super::*;
 
-    pub use glyph_brush_layout::{
+    pub(crate) use glyph_brush_layout::{
         lines::Lines,
         characters,
         rusttype::{
@@ -857,7 +849,7 @@ mod unbounded {
         }
     };
     #[perf_viz::record]
-    pub fn get_lines_iter<'a, 'b, 'font, F>(
+    pub(crate) fn get_lines_iter<'a, 'b, 'font, F>(
         font_map: &'b F,
         sections: &'a [SectionText<'a>],
         bound_w: f32,
@@ -875,11 +867,11 @@ mod unbounded {
         .lines(bound_w)
     }
     
-    pub type UnboundedLine<'font> = 
+    pub(crate) type UnboundedLine<'font> = 
         Vec<(RelativePositionedGlyph<'font>, [f32; 4], FontId)>
     ;
     
-    pub fn get_line_glyphs_iter<'a, 'b, 'font, F>(
+    pub(crate) fn get_line_glyphs_iter<'a, 'b, 'font, F>(
             fonts: &'b F,
             sections: &'a [SectionText],
         ) -> impl IntoIterator<
@@ -964,14 +956,12 @@ mod unbounded {
     );*/
     
     pub(crate) struct Word<'font> {
-        pub glyphs: Vec<(RelativePositionedGlyph<'font>, Color, FontId)>,
+        pub(crate) glyphs: Vec<(RelativePositionedGlyph<'font>, Color, FontId)>,
         /// pixel advance width of word includes ending spaces/invisibles
-        pub layout_width: f32,
-        /// pixel advance width of word not including any trailing spaces/invisibles
-        pub layout_width_no_trail: f32,
-        pub max_v_ascent: f32,
+        pub(crate) layout_width: f32,
+        pub(crate) max_v_ascent: f32,
         /// indicates the break after the word is a hard one
-        pub hard_break: bool,
+        pub(crate) hard_break: bool,
     }
     
     /// `Word` iterator.
@@ -994,7 +984,6 @@ mod unbounded {
         fn next(&mut self) -> Option<Self::Item> {
             let mut glyphs = Vec::new();
             let mut caret = 0.0;
-            let mut caret_no_trail = caret;
             let mut last_glyph_id = None;
             let mut max_v_ascent = None;
             let mut hard_break = false;
@@ -1034,9 +1023,6 @@ mod unbounded {
     
                     if positioned.bounds().is_some() {
                         glyphs.push((positioned, color, font_id));
-    
-                        // not an invisible trail
-                        caret_no_trail = caret;
                     }
                 }
     
@@ -1052,7 +1038,6 @@ mod unbounded {
                 return Some(Word {
                     glyphs,
                     layout_width: caret,
-                    layout_width_no_trail: caret_no_trail,
                     hard_break,
                     max_v_ascent: max_v_ascent.unwrap_or_default(),
                 });
@@ -1199,13 +1184,13 @@ mod unbounded {
     
     /// Single character info
     pub(crate) struct Character<'font> {
-        pub glyph: ScaledGlyph<'font>,
-        pub color: Color,
-        pub font_id: FontId,
+        pub(crate) glyph: ScaledGlyph<'font>,
+        pub(crate) color: Color,
+        pub(crate) font_id: FontId,
         /// Line break proceeding this character.
-        pub line_break: Option<LineBreak>,
+        pub(crate) line_break: Option<LineBreak>,
         /// Equivalent to `char::is_control()`.
-        pub control: bool,
+        pub(crate) control: bool,
     }
 }
 

@@ -9,6 +9,7 @@ path = "./src/abs.rs"
 
 [dependencies]
 macros = { path = "../../../macros" }
+perf_viz = { path = "../../../perf_viz" }
 proptest = { version = "0.10", optional = true }
 
 [dev-dependencies]

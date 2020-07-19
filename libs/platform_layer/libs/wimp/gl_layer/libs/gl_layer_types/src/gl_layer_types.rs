@@ -153,7 +153,6 @@ pub enum TextLayout {
     Wrap,
     SingleLine,
     //TODO get wrapping working properly with cursors etc. or get rid of the unused variants here.
-    WrapInRect(ScreenSpaceRect),
     Unbounded,
     UnboundedLayoutClipped(ScreenSpaceRect, ScrollXY)
 }

@@ -11,7 +11,7 @@ pub struct OwnedVariedSection {
     pub z: f32,
     /// Built in layout, can be overridden with custom layout logic
     /// see [`queue_custom_layout`](struct.GlyphBrush.html#method.queue_custom_layout)
-    pub layout: Layout<BuiltInLineBreaker>,
+    layout: Layout<BuiltInLineBreaker>,
     /// Text to render, rendered next to one another according the layout.
     pub text: Vec<OwnedSectionText>,
 }

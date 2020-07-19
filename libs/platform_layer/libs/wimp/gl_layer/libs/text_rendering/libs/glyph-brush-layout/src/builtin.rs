@@ -63,56 +63,6 @@ impl Layout<BuiltInLineBreaker> {
 }
 
 impl<L: LineBreaker> Layout<L> {
-    /// Returns an identical `Layout` but with the input `h_align`
-    pub fn h_align(self, h_align: HorizontalAlign) -> Self {
-        use crate::Layout::*;
-        match self {
-            SingleLine {
-                line_breaker,
-                v_align,
-                ..
-            } => SingleLine {
-                line_breaker,
-                v_align,
-                h_align,
-            },
-            Wrap {
-                line_breaker,
-                v_align,
-                ..
-            } => Wrap {
-                line_breaker,
-                v_align,
-                h_align,
-            },
-        }
-    }
-
-    /// Returns an identical `Layout` but with the input `v_align`
-    pub fn v_align(self, v_align: VerticalAlign) -> Self {
-        use crate::Layout::*;
-        match self {
-            SingleLine {
-                line_breaker,
-                h_align,
-                ..
-            } => SingleLine {
-                line_breaker,
-                v_align,
-                h_align,
-            },
-            Wrap {
-                line_breaker,
-                h_align,
-                ..
-            } => Wrap {
-                line_breaker,
-                v_align,
-                h_align,
-            },
-        }
-    }
-
     /// Returns an identical `Layout` but with the input `line_breaker`
     pub fn line_breaker<L2: LineBreaker>(self, line_breaker: L2) -> Layout<L2> {
         use crate::Layout::*;

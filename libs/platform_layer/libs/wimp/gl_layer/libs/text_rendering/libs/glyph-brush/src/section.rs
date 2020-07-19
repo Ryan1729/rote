@@ -1,4 +1,4 @@
-use super::{owned_section::*, *};
+use super::*;
 use ordered_float::OrderedFloat;
 use std::{borrow::Cow, f32, hash::*};
 
@@ -118,16 +118,6 @@ fn hash_section_text<H: Hasher>(state: &mut H, text: &[SectionText]) {
 }
 
 impl<'text> VariedSection<'text> {
-    pub fn to_owned(&self) -> OwnedVariedSection {
-        OwnedVariedSection {
-            screen_position: self.screen_position,
-            bounds: self.bounds,
-            z: self.z,
-            layout: self.layout,
-            text: self.text.iter().map(OwnedSectionText::from).collect(),
-        }
-    }
-
     pub(crate) fn to_hashable_parts(&self) -> HashableVariedSectionParts<'_> {
         let VariedSection {
             screen_position: (screen_x, screen_y),

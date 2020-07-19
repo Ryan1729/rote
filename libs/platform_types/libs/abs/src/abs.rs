@@ -127,6 +127,7 @@ impl Pos {
         Self(self.0 & Self::TRUNC_BIT_MASK)
     }
 
+    #[perf_viz::record]
     #[must_use]
     pub fn trunc_to_i32(&self) -> i32 {
         (self.0 >> Self::SCALE_BIT_COUNT) as i32

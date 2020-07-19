@@ -5,6 +5,7 @@ name = "abs"
 version = "0.1.0"
 dependencies = [
  "macros",
+ "perf_viz",
  "proptest",
 ]
 
