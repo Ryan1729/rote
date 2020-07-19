@@ -11,11 +11,6 @@ use std::{borrow::Cow, mem};
 /// Takes generic [`LineBreaker`](trait.LineBreaker.html) to indicate the wrapping style.
 /// See [`BuiltInLineBreaker`](enum.BuiltInLineBreaker.html).
 ///
-/// # Example
-/// ```
-/// # use glyph_brush_layout::*;
-/// let layout = Layout::default().h_align(HorizontalAlign::Right);
-/// ```
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum Layout<L: LineBreaker> {
     /// Renders a single line from left-to-right according to the inner alignment.

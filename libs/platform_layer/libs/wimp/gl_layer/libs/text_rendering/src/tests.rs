@@ -2,12 +2,11 @@ use super::{*, text_layouts::*, unbounded::*};
 
 use glyph_brush::{
     OwnedSectionText,
-    rusttype::{point, vector, Point, PositionedGlyph, Rect},
+    rusttype::{Point, PositionedGlyph, Rect},
 };
-use std::borrow::Cow;
 
 use proptest::prelude::{proptest};
-use pub_arb_std::{f32::{usual, within_0_to_1, rounded_non_negative}};
+use pub_arb_std::{f32::{within_0_to_1, rounded_non_negative}};
 
 mod arb {
     use super::*;
