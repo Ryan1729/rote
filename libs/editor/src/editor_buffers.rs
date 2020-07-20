@@ -21,7 +21,7 @@ pub struct EditorBuffer {
     pub search_results: SearchResults,
     // If this is none, then it was not set by the user, and
     // we will use the default.
-    parser_kind: Option<ParserKind>,
+    pub parser_kind: Option<ParserKind>,
 }
 
 fmt_debug!(collapse default for EditorBuffer: me {
@@ -38,6 +38,8 @@ impl EditorBuffer {
 
     fn non_rope_hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.text_buffer.non_rope_hash(state);
+        use std::hash::Hash;
+        self.parser_kind.hash(state);
     }
 }
 

@@ -701,7 +701,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
             [CTRL | ALT, Key0, "Insert sequential numbers at cursors.", state {
                 call_u_and_r!(state, Input::InsertNumbersAtCursors);
             }]
-            [CTRL | ALT, L, "Insert sequential numbers at cursors.", state {
+            [CTRL | ALT, L, "Switch document parsing to next language.", state {
                 call_u_and_r!(state, Input::NextLanguage);
             }]
             [CTRL | SHIFT, Home, "Move all cursors to buffer start.", state {
@@ -899,6 +899,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                              && c != '\u{7}'    // bell (sent with Ctrl-g)
                              && c != '\u{8}'    // backspace (sent with Ctrl-h)
                              && c != '\u{9}'    // horizontal tab (sent with Ctrl-i)
+                             && c != '\u{c}'    // new page/form feed (sent with Ctrl-l)
                              && c != '\u{f}'    // "shift in" AKA use black ink apparently, (sent with Ctrl-o)
                              && c != '\u{10}'   // "data link escape" AKA interprt the following as raw data, (sent with Ctrl-p)
                              && c != '\u{13}'   // "device control 3" (sent with Ctrl-s)
