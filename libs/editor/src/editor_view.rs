@@ -1,7 +1,7 @@
 use super::*;
 const AVERAGE_SELECTION_LINES_ESTIMATE: usize = 4;
 
-use macros::{dbg, SaturatingAdd};
+use macros::{dbg, format_if, SaturatingAdd};
 use search::SearchResults;
 
 #[perf_viz::record]
@@ -113,12 +113,11 @@ pub fn render(
 
     view.status_line.chars.clear();
 
-    let EditorBuffer {
-        text_buffer: buffer,
-        search_results,
-        ..
-    } = buffers.get_current_buffer();
+    
+    let editor_buffer = buffers.get_current_buffer();
 
+    let search_results = &editor_buffer.search_results;
+    let buffer = &editor_buffer.text_buffer;
     let scroll = buffer.scroll;
     
     fn display_option_compactly<A: ToString>(op: Option<A>) -> String {
@@ -138,13 +137,33 @@ pub fn render(
         usize::from(buffers.len())
     );
 
+    let _cannot_actually_fail = write!(chars, " {}{}", 
+        display_option_compactly(editor_buffer.parser_kind),
+        format_if!(
+            editor_buffer.parser_kind.is_none(),
+            "({})",
+            editor_buffer.get_parser_kind()
+        )
+    );
+
     // debugging
     let _cannot_actually_fail = write!(chars, "  ? t{} s{}", text_char_dim, scroll);
 
-    for c in buffer.borrow_cursors().iter() {
+    let cursors = buffer.borrow_cursors();
+    let cursors_len = cursors.len();
+    let _cannot_actually_fail = write!(
+        chars,
+        " {}",
+        if cursors.len() == 1 {
+            "c".to_string()
+        } else {
+            format!("cs({})", cursors_len)
+        }
+    );
+    for c in cursors.iter() {
         let _cannot_actually_fail = write!(
             chars,
-            "{} {} ({}|{}), ",
+            " {} {} ({}|{}),",
             c,
             position_to_screen_space(c.get_position(), text_char_dim, scroll, text_box_pos),
             display_option_compactly(buffer.find_index(c).and_then(|o| if o == 0 {

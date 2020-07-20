@@ -432,7 +432,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
 
     macro_rules! editor_buffer_call {
         (sync $buffer: ident . $($method_call:tt)*) => {
-            editor_buffer_call!(sync $buffer . $($method_call)*);
+            editor_buffer_call!($buffer . $($method_call)*);
             post_edit_sync!();
         };
         ($buffer: ident . $($method_call:tt)*) => {

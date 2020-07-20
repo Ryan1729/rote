@@ -1,4 +1,4 @@
-use macros::{d, fmt_debug, fmt_display, ord};
+use macros::{d, fmt_debug, fmt_display, format_if, ord};
 pub use platform_types::{AbsoluteCharOffset, CharOffset, CursorState, Position};
 use std::borrow::Borrow;
 
@@ -131,11 +131,10 @@ fmt_display! {
             sticky_offset,
             highlight_position,
             ..
-        } in "{}({}){}",
+        } in "{}{}{}",
         position,
-        sticky_offset,
-        //kind of annoying duplication here.
-        Some(highlight_position).filter(|&p| p != position).map(|h| format!("h:{}", h)).unwrap_or_default()
+        format_if!(*sticky_offset != position.offset, "({})", sticky_offset),
+        format_if!(highlight_position != position, "h:{}", highlight_position)
 }
 fmt_debug!(for Cursor : Cursor {
             position,
@@ -145,17 +144,22 @@ fmt_debug!(for Cursor : Cursor {
         } in "cur!{{l {} o {}{}{}{}}}",
         position.line,
         position.offset,
-        Some(highlight_position).filter(|&p| p != position).map(|h| format!(" h l {} o {}", h.line,  h.offset)).unwrap_or_default(),
-        if sticky_offset == &Cursor::new(*position).sticky_offset {
-            "".to_owned()
-        } else {
-            format!(" sticky_offset: {:?},", sticky_offset)
-        },
-        if state == &CursorState::default() {
-            "".to_owned()
-        } else {
-            format!(" state: {:?},", state)
-        },
+        format_if!(
+            highlight_position != position, 
+            " h l {} o {}", 
+            highlight_position.line,  
+            highlight_position.offset
+        ),
+        format_if!(
+            sticky_offset != &Cursor::new(*position).sticky_offset,
+            " sticky_offset: {:?},",
+            sticky_offset
+        ),
+        format_if!(
+            state != &CursorState::default(),
+            " state: {:?},",
+            state
+        ),
 );
 d!(for Cursor: Cursor::new(d!()));
 

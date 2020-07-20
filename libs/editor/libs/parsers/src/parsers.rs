@@ -1,5 +1,5 @@
 #![deny(unused_variables)]
-use macros::{d, fmt_debug};
+use macros::{d, fmt_debug, fmt_display};
 use platform_types::{SpanView, SpanKind, sk};
 
 use tree_sitter::{Parser, Language, LanguageError, Node, Query, QueryCapture, QueryCursor, QueryError, Tree, TreeCursor};
@@ -13,6 +13,14 @@ pub enum Style {
     TreeDepth
 }
 d!(for Style: Style::Extra);
+
+fmt_display!(
+    for Style: match s {
+        Extra => "extra",
+        Basic => "basic",
+        TreeDepth => "tree-depth" 
+    }
+);
 
 impl Iterator for Style {
     type Item = Style;
@@ -43,6 +51,13 @@ pub enum ParserKind {
 }
 d!(for ParserKind: ParserKind::Plaintext);
 
+fmt_display!(
+    for ParserKind: match p {
+        Plaintext => "txt".to_string(),
+        Rust(s) => format!("rs({})", s),
+    }
+);
+
 impl Iterator for ParserKind {
     type Item = ParserKind;
 
@@ -70,6 +85,16 @@ pub enum Parsers {
     FailedToInitialize(InitializationError)
 }
 d!(for Parsers: Parsers::NotInitializedYet);
+
+fmt_display!(
+    for Parsers: match p {
+        NotInitializedYet => "---".to_string(),
+        Initialized(i_p) => {
+            format!("{:?}", i_p)
+        },
+        FailedToInitialize(InitializationError(e)) => e.to_owned(),
+    }
+);
 
 pub struct InitializationError(String);
 fmt_debug!(for InitializationError: InitializationError(e) in "{:?}", e);

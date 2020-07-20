@@ -480,6 +480,21 @@ macro_rules! u {
 
 #[macro_export]
 macro_rules! fmt_display {
+    ($(<$generics:tt>)? for $name:path : match $self:ident { $($variant: pat => $display: expr),+ $(,)? }) => (
+        impl $(<$generics>)? std::fmt::Display for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                use $name::*;
+                let $self = self;
+                write!(
+                    f,
+                    "{}",
+                    match $self {
+                        $($variant => $display),+
+                    }
+                )
+            }
+        }
+    );
     ($(<$generics:tt>)? for $name:ty : $pattern:pat in $($args:tt)+) => (
         impl $(<$generics>)? std::fmt::Display for $name {
             fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -506,6 +521,21 @@ macro_rules! fmt_display {
 /// ```
 #[macro_export]
 macro_rules! fmt_debug {
+    ($(<$generics:tt>)? for $name:path : match $self:ident { $($variant: pat => $display: expr),+ $(,)? }) => (
+        impl $(<$generics>)? std::fmt::Debug for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                use $name::*;
+                let $self = self;
+                write!(
+                    f,
+                    "{}",
+                    match $self {
+                        $($variant => $display),+
+                    }
+                )
+            }
+        }
+    );
     ($(<$generics:tt>)? for $name:ty : $pattern:pat in $($args:tt)+) => (
         impl $(<$generics>)? std::fmt::Debug for $name {
             fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -551,6 +581,18 @@ macro_rules! fmt_debug {
             }
         }
     };
+}
+
+/// Returns the empty string if the first parameter is false
+#[macro_export]
+macro_rules! format_if {
+    ($boolean: expr, $($tokens:tt)*) => {
+        if $boolean {
+            format!($($tokens)*)
+        } else {
+            String::new()
+        }
+    }
 }
 
 #[macro_export]
