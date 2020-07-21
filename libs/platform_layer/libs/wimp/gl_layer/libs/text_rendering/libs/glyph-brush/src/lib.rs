@@ -1,3 +1,4 @@
+#![deny(unused)]
 mod glyph_brush;
 mod glyph_calculator;
 mod owned_section;

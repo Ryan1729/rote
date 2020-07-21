@@ -1,4 +1,5 @@
 //! Text layout for [rusttype](https://gitlab.redox-os.org/redox-os/rusttype).
+#![deny(unused)]
 mod builtin;
 pub mod characters;
 mod font;

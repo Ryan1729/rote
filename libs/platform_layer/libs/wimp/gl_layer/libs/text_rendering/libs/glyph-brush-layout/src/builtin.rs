@@ -1,10 +1,10 @@
 use super::{
     BuiltInLineBreaker, Color, FontId, FontMap, GlyphPositioner, LineBreaker, PositionedGlyph,
-    Rect, SectionGeometry, SectionText,
+    SectionGeometry, SectionText,
 };
-use crate::{characters::Characters, rusttype::{point, Point}, GlyphChange};
+use crate::{characters::Characters, GlyphChange};
 use full_rusttype::vector;
-use std::{borrow::Cow, mem};
+use std::{borrow::Cow};
 
 /// Built-in [`GlyphPositioner`](trait.GlyphPositioner.html) implementations.
 ///
@@ -147,7 +147,7 @@ impl<L: LineBreaker> GlyphPositioner for Layout<L> {
                             let (min_y, max_y) = v_align.y_bounds(screen_position.1, bound_h);
 
                             // y-position and filter out-of-bounds glyphs
-                            let shifted: Vec<_> = out
+                            out = out
                                 .drain(..)
                                 .filter_map(|(mut g, color, font)| {
                                     let mut pos = g.position();
@@ -165,7 +165,6 @@ impl<L: LineBreaker> GlyphPositioner for Layout<L> {
                                     })
                                 })
                                 .collect();
-                            mem::replace(&mut out, shifted);
                         }
                     }
                 }

@@ -121,7 +121,6 @@ pub trait GlyphCruncher<'font> {
         S: Into<Cow<'a, VariedSection<'a>>>,
     {
         let section = section.into();
-        let geometry = SectionGeometry::from(section.as_ref());
 
         self.glyphs_custom_layout(section, custom_layout)
             .filter_map(|glyph| glyph.font().map(|f| (f, glyph)))
@@ -246,7 +245,6 @@ impl<H: BuildHasher> GlyphCalculatorGuard<'_, '_, H> {
         if let Entry::Vacant(entry) = self.glyph_cache.entry(section_hash) {
             let geometry = SectionGeometry::from(section);
             entry.insert(GlyphedSection {
-                bounds: INFINITY_RECT,
                 glyphs: layout.calculate_glyphs(self.fonts, &geometry, &section.text),
                 z: section.z,
             });
@@ -395,15 +393,13 @@ impl<'a, H: BuildHasher> GlyphCalculatorBuilder<'a, H> {
 
 #[derive(Debug, Clone)]
 pub(crate) struct GlyphedSection<'font> {
-    pub bounds: Rect<f32>,
     pub glyphs: Vec<(PositionedGlyph<'font>, Color, FontId)>,
     pub z: f32,
 }
 
 impl<'a> PartialEq<GlyphedSection<'a>> for GlyphedSection<'a> {
     fn eq(&self, other: &Self) -> bool {
-        self.bounds == other.bounds
-            && self.z == other.z
+        self.z == other.z
             && self.glyphs.len() == other.glyphs.len()
             && self.glyphs.iter().zip(other.glyphs.iter()).all(|(l, r)| {
                 l.2 == r.2
@@ -418,43 +414,8 @@ impl<'a> PartialEq<GlyphedSection<'a>> for GlyphedSection<'a> {
 impl<'font> GlyphedSection<'font> {
     pub(crate) fn pixel_bounds(&self) -> Option<Rect<i32>> {
         let Self {
-            ref glyphs, bounds, ..
+            ref glyphs, ..
         } = *self;
-
-        let to_i32 = |f: f32| {
-            if f > i32::MAX as f32 {
-                i32::MAX
-            } else if f < i32::MIN as f32 {
-                i32::MIN
-            } else {
-                f as i32
-            }
-        };
-
-        let section_bounds = Rect {
-            min: point(to_i32(bounds.min.x.floor()), to_i32(bounds.min.y.floor())),
-            max: point(to_i32(bounds.max.x.ceil()), to_i32(bounds.max.y.ceil())),
-        };
-
-        let inside_layout = |rect: Rect<i32>| {
-            if rect.max.x < section_bounds.min.x
-                || rect.max.y < section_bounds.min.y
-                || rect.min.x > section_bounds.max.x
-                || rect.min.y > section_bounds.max.y
-            {
-                return None;
-            }
-            Some(Rect {
-                min: Point {
-                    x: rect.min.x.max(section_bounds.min.x),
-                    y: rect.min.y.max(section_bounds.min.y),
-                },
-                max: Point {
-                    x: rect.max.x.min(section_bounds.max.x),
-                    y: rect.max.y.min(section_bounds.max.y),
-                },
-            })
-        };
 
         let mut no_match = true;
 
@@ -466,7 +427,6 @@ impl<'font> GlyphedSection<'font> {
         for Rect { min, max } in glyphs
             .iter()
             .filter_map(|&(ref g, ..)| g.pixel_bounding_box())
-            .filter_map(inside_layout)
         {
             if no_match || min.x < pixel_bounds.min.x {
                 pixel_bounds.min.x = min.x;

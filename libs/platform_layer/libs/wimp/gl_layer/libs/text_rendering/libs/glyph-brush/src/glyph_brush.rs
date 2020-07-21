@@ -214,11 +214,10 @@ where
     pub fn queue_pre_positioned(
         &mut self,
         glyphs: Vec<(PositionedGlyph<'font>, Color, FontId)>,
-        bounds: Rect<f32>,
         z: f32,
     ) {
         self.pre_positioned
-            .push(Glyphed::new(GlyphedSection { glyphs, bounds, z }));
+            .push(Glyphed::new(GlyphedSection { glyphs, z }));
     }
 
     /// Returns the calculate_glyph_cache key for this sections glyphs
@@ -266,7 +265,6 @@ where
                 self.calculate_glyph_cache.insert(
                     section_hash.full,
                     Glyphed::new(GlyphedSection {
-                        bounds: INFINITY_RECT,
                         glyphs: recalculated_glyphs.unwrap_or_else(|| {
                             layout.calculate_glyphs(&self.fonts, &geometry, &section.text)
                         }),
@@ -279,7 +277,6 @@ where
             self.calculate_glyph_cache.insert(
                 section_hash.full,
                 Glyphed::new(GlyphedSection {
-                    bounds: INFINITY_RECT,
                     glyphs: layout.calculate_glyphs(&self.fonts, &geometry, &section.text),
                     z: section.z,
                 }),
@@ -471,7 +468,7 @@ where
             let active = mem::take(&mut self.keep_in_cache);
             self.calculate_glyph_cache
                 .retain(|key, _| active.contains(key));
-            mem::replace(&mut self.keep_in_cache, active);
+            self.keep_in_cache = active;
 
             self.keep_in_cache.clear();
 
@@ -706,7 +703,6 @@ impl<'font, V> Glyphed<'font, V> {
         }
 
         let GlyphedSection {
-            bounds,
             z,
             ref glyphs,
         } = self.positioned;
@@ -724,23 +720,13 @@ impl<'font, V> Glyphed<'font, V> {
                         None
                     },
                     Ok(Some((tex_coords, pixel_coords))) => {
-                        let is_outside = pixel_coords.min.x as f32 > bounds.max.x
-                            || pixel_coords.min.y as f32 > bounds.max.y
-                            || bounds.min.x > pixel_coords.max.x as f32
-                            || bounds.min.y > pixel_coords.max.y as f32;
-                        if is_outside
-                        {
-                            // glyph is totally outside the bounds
-                            None
-                        } else {
-                            Some(to_vertex(GlyphVertex {
-                                tex_coords,
-                                pixel_coords,
-                                bounds,
-                                color: *color,
-                                z,
-                            }))
-                        }
+                        Some(to_vertex(GlyphVertex {
+                            tex_coords,
+                            pixel_coords,
+                            bounds: INFINITY_RECT,
+                            color: *color,
+                            z,
+                        }))
                     }
                 }
             }));

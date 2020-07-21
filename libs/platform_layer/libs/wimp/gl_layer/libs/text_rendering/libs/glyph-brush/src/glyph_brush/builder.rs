@@ -218,7 +218,7 @@ impl<'a, H: BuildHasher> GlyphBrushBuilder<'a, H> {
     /// Rebuilds an existing `GlyphBrush` with this builder's properties. This will clear all
     /// caches and queues.
     pub fn rebuild<V>(self, brush: &mut GlyphBrush<'a, V, H>) {
-        std::mem::replace(brush, self.build());
+        *brush = self.build();
     }
 }
 

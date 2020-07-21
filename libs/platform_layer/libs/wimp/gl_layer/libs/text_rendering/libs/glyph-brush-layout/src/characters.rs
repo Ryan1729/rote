@@ -7,7 +7,7 @@ use crate::{
 use std::{
     iter::{FusedIterator, Iterator},
     marker::PhantomData,
-    mem, slice,
+    slice,
     str::CharIndices,
 };
 
@@ -114,7 +114,7 @@ where
                     loop {
                         let next = line_breaks.next();
                         if next.is_none() || next.unwrap().offset() > byte_index {
-                            mem::replace(next_break, next);
+                            *next_break = next;
                             break;
                         }
                     }
