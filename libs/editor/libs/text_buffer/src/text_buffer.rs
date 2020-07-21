@@ -110,6 +110,8 @@ impl TextBuffer {
                 Succeeded
             }
             Calculate(char_dim, xywh) => {
+                let text_space = position_to_text_space(dbg!(self.cursors.last().get_position()), char_dim);
+
                 // We try first with this smaller xywh to make the cursor appear
                 // in the center more often.
                 let small_xywh = xywh.clone();
@@ -122,14 +124,11 @@ impl TextBuffer {
                 let x_ratio = char_dim.w.get() / small_xywh.wh.w.get();
                 let y_ratio = 3.0 * char_dim.h.get() / small_xywh.wh.h.get();
                 let apron = apron!(
+                    0.0,
                     x_ratio,
-                    x_ratio,
-                    y_ratio,
+                    0.0,
                     y_ratio,
                 );
-                dbg!(apron);
-                let text_space = position_to_text_space(dbg!(self.cursors.last().get_position()), char_dim);
-                dbg!(text_space);
             
                 let mut attempt_result;
                 attempt_result = attempt_to_make_xy_visible(

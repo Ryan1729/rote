@@ -943,7 +943,7 @@ mod unbounded {
     use std::{
         iter::{Iterator},
         marker::PhantomData,
-        mem, slice,
+        slice,
         str::CharIndices,
     };
     
@@ -1024,7 +1024,7 @@ mod unbounded {
                         loop {
                             let next = line_breaks.next();
                             if next.is_none() || next.unwrap().offset() > byte_index {
-                                mem::replace(next_break, next);
+                                *next_break = next;
                                 break;
                             }
                         }

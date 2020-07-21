@@ -783,8 +783,6 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                     state.buffers.get_current_buffer_mut().advance_or_refresh_search_results(
                         (&state.find).into(),
                     );
-                    dbg!("try_to_show_cursors");
-                    dbg!(get_text_buffer_mut!(state, BufferIdKind::Text).unwrap().scroll);
                     
                     try_to_show_cursors!(BufferIdKind::Text);
                     try_to_show_cursors!();
