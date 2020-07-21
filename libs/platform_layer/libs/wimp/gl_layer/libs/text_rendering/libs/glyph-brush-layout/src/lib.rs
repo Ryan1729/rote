@@ -34,10 +34,6 @@ pub trait GlyphPositioner: Hash {
         sections: &[SectionText<'_>],
     ) -> Vec<(PositionedGlyph<'font>, Color, FontId)>;
 
-    /// Return a screen rectangle according to the requested render position and bounds
-    /// appropriate for the glyph layout.
-    fn bounds_rect(&self, geometry: &SectionGeometry) -> Rect<f32>;
-
     /// Recalculate a glyph sequence after a change.
     ///
     /// The default implementation simply calls `calculate_glyphs` so must be implemented

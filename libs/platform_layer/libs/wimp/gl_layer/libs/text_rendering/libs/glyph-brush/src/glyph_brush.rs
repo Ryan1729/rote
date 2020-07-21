@@ -13,6 +13,19 @@ use std::{
     i32, mem,
 };
 
+use std::f32::INFINITY;
+//const INFINITY: f32 = 65536.0; // 64k pixels ought to be enough for anybody!
+pub(crate) const INFINITY_RECT: Rect<f32> = Rect {
+    min: Point {
+        x: -INFINITY,
+        y: -INFINITY,
+    },
+    max: Point {
+        x: INFINITY,
+        y: INFINITY,
+    },
+};
+
 /// A hash of `Section` data
 type SectionHash = u64;
 
@@ -253,7 +266,7 @@ where
                 self.calculate_glyph_cache.insert(
                     section_hash.full,
                     Glyphed::new(GlyphedSection {
-                        bounds: layout.bounds_rect(&geometry),
+                        bounds: INFINITY_RECT,
                         glyphs: recalculated_glyphs.unwrap_or_else(|| {
                             layout.calculate_glyphs(&self.fonts, &geometry, &section.text)
                         }),
@@ -266,7 +279,7 @@ where
             self.calculate_glyph_cache.insert(
                 section_hash.full,
                 Glyphed::new(GlyphedSection {
-                    bounds: layout.bounds_rect(&geometry),
+                    bounds: INFINITY_RECT,
                     glyphs: layout.calculate_glyphs(&self.fonts, &geometry, &section.text),
                     z: section.z,
                 }),

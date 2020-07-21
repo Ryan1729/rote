@@ -18,22 +18,9 @@ mod text_layouts {
     use super::*;
     use macros::{dbg};
     use glyph_brush::{
-        rusttype::{point, vector, Point, PositionedGlyph, Rect},
+        rusttype::{point, vector, PositionedGlyph, Rect},
     };
     use std::borrow::Cow;
-
-    use std::f32::INFINITY;
-    //const INFINITY: f32 = 65536.0; // 64k pixels ought to be enough for anybody!
-    const INFINITY_RECT: Rect<f32> = Rect {
-        min: Point {
-            x: -INFINITY,
-            y: -INFINITY,
-        },
-        max: Point {
-            x: INFINITY,
-            y: INFINITY,
-        },
-    };
 
     //
     // Most of this is copied from the  <L: LineBreaker> GlyphPositioner for Layout<L> impl in
@@ -142,10 +129,7 @@ mod text_layouts {
         where
             F: FontMap<'font>,
         {
-            calculate_glyphs(fonts, geometry.screen_position, INFINITY, sections)
-        }
-        fn bounds_rect(&self, _: &SectionGeometry) -> Rect<f32> {
-            INFINITY_RECT
+            calculate_glyphs(fonts, geometry.screen_position, std::f32::INFINITY, sections)
         }
         fn recalculate_glyphs<'font, F>(
             &self,
@@ -384,9 +368,6 @@ mod text_layouts {
                 geometry,
                 sections,
             )
-        }
-        fn bounds_rect(&self, _: &SectionGeometry) -> Rect<f32> {
-            INFINITY_RECT
         }
         fn recalculate_glyphs<'font, F>(
             &self,

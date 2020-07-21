@@ -110,9 +110,6 @@ pub trait GlyphCruncher<'font> {
     /// Invisible glyphs, like spaces, are discarded during layout so trailing ones will
     /// not affect the bounds.
     ///
-    /// The bounds will always lay within the specified layout bounds, ie that returned
-    /// by the layout's `bounds_rect` function.
-    ///
     /// Benefits from caching, see [caching behaviour](#caching-behaviour).
     fn glyph_bounds_custom_layout<'a, S, L>(
         &mut self,
@@ -148,15 +145,6 @@ pub trait GlyphCruncher<'font> {
                     }
                 })
                 .or_else(|| Some(lbound))
-            })
-            .map(|mut b| {
-                // cap the glyph bounds to the layout specified max bounds
-                let Rect { min, max } = custom_layout.bounds_rect(&geometry);
-                b.min.x = b.min.x.max(min.x);
-                b.min.y = b.min.y.max(min.y);
-                b.max.x = b.max.x.min(max.x);
-                b.max.y = b.max.y.min(max.y);
-                b
             })
     }
 
@@ -258,7 +246,7 @@ impl<H: BuildHasher> GlyphCalculatorGuard<'_, '_, H> {
         if let Entry::Vacant(entry) = self.glyph_cache.entry(section_hash) {
             let geometry = SectionGeometry::from(section);
             entry.insert(GlyphedSection {
-                bounds: layout.bounds_rect(&geometry),
+                bounds: INFINITY_RECT,
                 glyphs: layout.calculate_glyphs(self.fonts, &geometry, &section.text),
                 z: section.z,
             });

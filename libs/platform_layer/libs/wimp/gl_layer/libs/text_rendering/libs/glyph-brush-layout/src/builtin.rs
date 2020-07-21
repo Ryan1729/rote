@@ -2,7 +2,7 @@ use super::{
     BuiltInLineBreaker, Color, FontId, FontMap, GlyphPositioner, LineBreaker, PositionedGlyph,
     Rect, SectionGeometry, SectionText,
 };
-use crate::{characters::Characters, rusttype::point, GlyphChange};
+use crate::{characters::Characters, rusttype::{point, Point}, GlyphChange};
 use full_rusttype::vector;
 use std::{borrow::Cow, mem};
 
@@ -172,32 +172,6 @@ impl<L: LineBreaker> GlyphPositioner for Layout<L> {
 
                 out
             }
-        }
-    }
-
-    fn bounds_rect(&self, geometry: &SectionGeometry) -> Rect<f32> {
-        use crate::Layout::{SingleLine, Wrap};
-
-        let SectionGeometry {
-            screen_position: (screen_x, screen_y),
-            bounds: (bound_w, bound_h),
-        } = *geometry;
-
-        let (h_align, v_align) = match *self {
-            Wrap {
-                h_align, v_align, ..
-            }
-            | SingleLine {
-                h_align, v_align, ..
-            } => (h_align, v_align),
-        };
-
-        let (x_min, x_max) = h_align.x_bounds(screen_x, bound_w);
-        let (y_min, y_max) = v_align.y_bounds(screen_y, bound_h);
-
-        Rect {
-            min: point(x_min, y_min),
-            max: point(x_max, y_max),
         }
     }
 
