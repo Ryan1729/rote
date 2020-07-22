@@ -1,6 +1,5 @@
 //! Text layout for [rusttype](https://gitlab.redox-os.org/redox-os/rusttype).
 #![deny(unused)]
-mod builtin;
 pub mod characters;
 mod font;
 pub mod linebreak;
@@ -8,7 +7,7 @@ pub mod lines;
 mod section;
 mod words;
 
-pub use self::{builtin::*, font::*, linebreak::*, section::*, words::{RelativePositionedGlyph}};
+pub use self::{font::*, linebreak::*, section::*, words::{RelativePositionedGlyph}};
 use std::borrow::Cow;
 
 /// Re-exported rusttype types.

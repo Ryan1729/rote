@@ -47,7 +47,7 @@ mod text_layouts {
             */
 
             let line_height = line.line_height();
-            out.extend(line.aligned_on_screen(caret, HorizontalAlign::Left, VerticalAlign::Top));
+            out.extend(line.aligned_on_screen(caret));
             caret.1 += line_height;
         }
 
@@ -181,7 +181,7 @@ mod text_layouts {
         for line in lines {
             let line_height = line.line_height();
     
-            let tuples = line.aligned_on_screen(caret, HorizontalAlign::Left, VerticalAlign::Top);
+            let tuples = line.aligned_on_screen(caret);
     
             out.extend(
                 tuples
