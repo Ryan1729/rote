@@ -9,9 +9,6 @@ pub struct OwnedVariedSection {
     pub bounds: (f32, f32),
     /// Z values for use in depth testing. Defaults to 0.0
     pub z: f32,
-    /// Built in layout, can be overridden with custom layout logic
-    /// see [`queue_custom_layout`](struct.GlyphBrush.html#method.queue_custom_layout)
-    layout: Layout<BuiltInLineBreaker>,
     /// Text to render, rendered next to one another according the layout.
     pub text: Vec<OwnedSectionText>,
 }
@@ -22,7 +19,6 @@ impl Default for OwnedVariedSection {
             screen_position: (0.0, 0.0),
             bounds: (f32::INFINITY, f32::INFINITY),
             z: 0.0,
-            layout: Layout::default(),
             text: vec![],
         }
     }
@@ -34,7 +30,6 @@ impl OwnedVariedSection {
             screen_position: self.screen_position,
             bounds: self.bounds,
             z: self.z,
-            layout: self.layout,
             text: self.text.iter().map(|t| t.into()).collect(),
         }
     }

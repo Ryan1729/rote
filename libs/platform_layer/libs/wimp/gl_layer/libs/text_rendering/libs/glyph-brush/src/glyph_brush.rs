@@ -193,33 +193,6 @@ where
         self.keep_in_cache.insert(section_hash);
     }
 
-    /// Queues a section/layout to be processed by the next call of
-    /// [`process_queued`](struct.GlyphBrush.html#method.process_queued). Can be called multiple
-    /// times to queue multiple sections for drawing.
-    ///
-    /// Benefits from caching, see [caching behaviour](#caching-behaviour).
-    ///
-    pub fn queue<'a, S>(&mut self, section: S)
-    where
-        S: Into<Cow<'a, VariedSection<'a>>>,
-    {
-        let section = section.into();
-        let layout = section.layout;
-        self.queue_custom_layout(section, &layout)
-    }
-
-    /// Queues pre-positioned glyphs to be processed by the next call of
-    /// [`process_queued`](struct.GlyphBrush.html#method.process_queued). Can be called multiple
-    /// times.
-    pub fn queue_pre_positioned(
-        &mut self,
-        glyphs: Vec<(PositionedGlyph<'font>, Color, FontId)>,
-        z: f32,
-    ) {
-        self.pre_positioned
-            .push(Glyphed::new(GlyphedSection { glyphs, z }));
-    }
-
     /// Returns the calculate_glyph_cache key for this sections glyphs
     #[allow(clippy::map_entry)] // further borrows are required after the contains_key check
     fn cache_glyphs<L>(&mut self, section: &VariedSection<'_>, layout: &L) -> SectionHash
@@ -488,68 +461,6 @@ where
         mem::swap(&mut self.last_pre_positioned, &mut self.pre_positioned);
         self.pre_positioned.clear();
     }
-
-    /// Adds an additional font to the one(s) initially added on build.
-    ///
-    /// Returns a new [`FontId`](struct.FontId.html) to reference this font.
-    pub fn add_font_bytes<'a: 'font, B: Into<SharedBytes<'a>>>(&mut self, font_data: B) -> FontId {
-        self.add_font(Font::from_bytes(font_data.into()).unwrap())
-    }
-
-    /// Adds an additional font to the one(s) initially added on build.
-    ///
-    /// Returns a new [`FontId`](struct.FontId.html) to reference this font.
-    pub fn add_font<'a: 'font>(&mut self, font_data: Font<'a>) -> FontId {
-        self.fonts.push(font_data);
-        FontId(self.fonts.len() - 1)
-    }
-
-    /// Retains the section in the cache as if it had been used in the last draw-frame.
-    ///
-    /// Should not generally be necessary, see [caching behaviour](#caching-behaviour).
-    pub fn keep_cached_custom_layout<'a, S, G>(&mut self, section: S, custom_layout: &G)
-    where
-        S: Into<Cow<'a, VariedSection<'a>>>,
-        G: GlyphPositioner,
-    {
-        if !self.cache_glyph_positioning {
-            return;
-        }
-        let section = section.into();
-        if cfg!(debug_assertions) {
-            for text in &section.text {
-                assert!(self.fonts.len() > text.font_id.0, "Invalid font id");
-            }
-        }
-
-        let section_hash = SectionHashDetail::new(&self.section_hasher, &section, custom_layout);
-        self.keep_in_cache.insert(section_hash.full);
-    }
-
-    /// Retains the section in the cache as if it had been used in the last draw-frame.
-    ///
-    /// Should not generally be necessary, see [caching behaviour](#caching-behaviour).
-    pub fn keep_cached<'a, S>(&mut self, section: S)
-    where
-        S: Into<Cow<'a, VariedSection<'a>>>,
-    {
-        let section = section.into();
-        let layout = section.layout;
-        self.keep_cached_custom_layout(section, &layout);
-    }
-}
-
-impl<'font, V, H: BuildHasher + Clone> GlyphBrush<'font, V, H> {
-    /// Return a [`GlyphBrushBuilder`](struct.GlyphBrushBuilder.html) prefilled with the
-    /// properties of this `GlyphBrush`.
-    pub fn to_builder(&self) -> GlyphBrushBuilder<'font, H> {
-        let mut builder = GlyphBrushBuilder::using_fonts(self.fonts.clone())
-            .cache_glyph_positioning(self.cache_glyph_positioning)
-            .cache_glyph_drawing(self.cache_glyph_drawing)
-            .section_hasher(self.section_hasher.clone());
-        builder.gpu_cache_builder = self.texture_cache.to_builder();
-        builder
-    }
 }
 
 #[derive(Debug, Default, PartialEq)]
@@ -557,7 +468,7 @@ struct LastDrawInfo {
     text_state: u64,
 }
 
-pub type TexCoords = Rect<f32>;
+pub(crate) type TexCoords = Rect<f32>;
 pub type PixelCoords = Rect<i32>;
 pub type Bounds = Rect<f32>;
 

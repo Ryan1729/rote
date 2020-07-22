@@ -11,7 +11,7 @@ use macros::{d, dbg};
 use glyph_brush::*;
 use glyph_brush::{
     rusttype::{Font, Scale, Rect},
-    Bounds, GlyphBrush, GlyphBrushBuilder, RectSpec, Layout, PixelCoords, Section,
+    Bounds, GlyphBrush, GlyphBrushBuilder, RectSpec, PixelCoords, Section,
 };
 
 mod text_layouts {
@@ -482,7 +482,6 @@ impl <'font> State<'font> {
                         screen_position: rect.min.into(),
                         bounds: rect.max.into(),
                         color,
-                        layout: Layout::default_wrap(),
                         z: z_to_f32(z),
                         ..d!()
                     };
@@ -502,7 +501,6 @@ impl <'font> State<'font> {
                     let section = VariedSection {
                         screen_position: rect.min.into(),
                         bounds: rect.max.into(),
-                        layout: Layout::default_wrap().line_breaker(glyph_brush::BuiltInLineBreaker::AnyCharLineBreaker),
                         z: z_to_f32(z),
                         text: text.iter().map(|ColouredText { text, colour }| {
                             SectionText {
