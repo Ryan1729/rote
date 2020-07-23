@@ -2,32 +2,6 @@ use super::*;
 use ordered_float::OrderedFloat;
 use std::{borrow::Cow, f32, hash::*};
 
-/// An object that contains all the info to render a varied section of text. That is one including
-/// many parts with differing fonts/scales/colors bowing to a single layout.
-///
-/// For single font/scale/color sections it may be simpler to use
-/// [`Section`](struct.Section.html).
-///
-/// # Example
-///
-/// ```
-/// use glyph_brush::{SectionText, VariedSection};
-///
-/// let section = VariedSection {
-///     text: vec![
-///         SectionText {
-///             text: "I looked around and it was ",
-///             ..SectionText::default()
-///         },
-///         SectionText {
-///             text: "RED",
-///             color: [1.0, 0.0, 0.0, 1.0],
-///             ..SectionText::default()
-///         },
-///     ],
-///     ..VariedSection::default()
-/// };
-/// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct VariedSection<'a> {
     /// Position on screen to render text, in pixels from top-left. Defaults to (0, 0).
@@ -36,6 +10,7 @@ pub struct VariedSection<'a> {
     pub bounds: (f32, f32),
     /// Z values for use in depth testing. Defaults to 0.0
     pub z: f32,
+    pub font_id: FontId,
     /// Text to render, rendered next to one another according the layout.
     pub text: Vec<SectionText<'a>>,
 }
@@ -47,6 +22,7 @@ impl Default for VariedSection<'static> {
             screen_position: (0.0, 0.0),
             bounds: (f32::INFINITY, f32::INFINITY),
             z: 0.0,
+            font_id: FontId::default(),
             text: vec![],
         }
     }
@@ -69,9 +45,12 @@ impl Hash for VariedSection<'_> {
         let VariedSection {
             screen_position: (screen_x, screen_y),
             bounds: (bound_w, bound_h),
+            font_id,
             z,
             ref text,
         } = *self;
+
+        font_id.hash(state);
 
         let ord_floats: &[OrderedFloat<_>] = &[
             screen_x.into(),
@@ -94,7 +73,6 @@ fn hash_section_text<H: Hasher>(state: &mut H, text: &[SectionText]) {
             text,
             scale,
             color,
-            font_id,
         } = *t;
 
         let ord_floats: &[OrderedFloat<_>] = &[
@@ -106,7 +84,7 @@ fn hash_section_text<H: Hasher>(state: &mut H, text: &[SectionText]) {
             color[3].into(),
         ];
 
-        (text, font_id, ord_floats).hash(state);
+        (text, ord_floats).hash(state);
     }
 }
 
@@ -212,10 +190,10 @@ impl<'a> From<&Section<'a>> for VariedSection<'a> {
                 text,
                 scale,
                 color,
-                font_id,
             }],
             screen_position,
             bounds,
+            font_id,
             z,
         }
     }
@@ -262,13 +240,12 @@ impl HashableVariedSectionParts<'_> {
             let SectionText {
                 text,
                 scale,
-                font_id,
                 ..
             } = *t;
 
             let ord_floats: &[OrderedFloat<_>] = &[scale.x.into(), scale.y.into()];
 
-            (text, font_id, ord_floats).hash(state);
+            (text, ord_floats).hash(state);
         }
     }
 

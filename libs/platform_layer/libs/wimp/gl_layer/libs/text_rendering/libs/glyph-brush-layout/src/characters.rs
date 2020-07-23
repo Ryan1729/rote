@@ -78,6 +78,7 @@ where
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
+        None/*
         if self.part_info.is_none() {
             let mut section;
             loop {
@@ -141,6 +142,7 @@ where
 
         self.part_info = None;
         self.next()
+        */
     }
 }
 

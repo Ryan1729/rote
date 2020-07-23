@@ -204,10 +204,11 @@ where
     let mut out = vec![];
 
     let lines = get_lines_iter(fonts, sections, std::f32::INFINITY);
+    let font = fonts.font(font_id);
+    let v_metrics = font.v_metrics(scale);
+    let line_height: f32 = v_metrics.ascent - v_metrics.descent + v_metrics.line_gap;
 
     for line in lines {
-        let line_height = line.line_height();
-
         let tuples = line.aligned_on_screen(caret);
 
         out.extend(

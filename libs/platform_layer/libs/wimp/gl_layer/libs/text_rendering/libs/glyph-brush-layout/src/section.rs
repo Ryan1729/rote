@@ -1,4 +1,4 @@
-use crate::{font::FontId, rusttype::Scale};
+use crate::{rusttype::Scale};
 use std::f32;
 
 /// RGBA `[0, 1]` color data.
@@ -30,12 +30,6 @@ pub struct SectionText<'a> {
     pub scale: Scale,
     /// Rgba color of rendered text. Defaults to black.
     pub color: Color,
-    /// Font id to use for this section.
-    ///
-    /// It must be known to the `GlyphBrush` it is being used with,
-    /// either `FontId::default()` or the return of
-    /// [`add_font`](struct.GlyphBrushBuilder.html#method.add_font).
-    pub font_id: FontId,
 }
 
 impl Default for SectionText<'static> {
@@ -45,7 +39,6 @@ impl Default for SectionText<'static> {
             text: "",
             scale: Scale::uniform(16.0),
             color: [0.0, 0.0, 0.0, 1.0],
-            font_id: FontId::default(),
         }
     }
 }

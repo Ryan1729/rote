@@ -9,6 +9,7 @@ pub struct OwnedVariedSection {
     pub bounds: (f32, f32),
     /// Z values for use in depth testing. Defaults to 0.0
     pub z: f32,
+    pub font_id: FontId,
     /// Text to render, rendered next to one another according the layout.
     pub text: Vec<OwnedSectionText>,
 }
@@ -19,6 +20,7 @@ impl Default for OwnedVariedSection {
             screen_position: (0.0, 0.0),
             bounds: (f32::INFINITY, f32::INFINITY),
             z: 0.0,
+            font_id: FontId::default(),
             text: vec![],
         }
     }
@@ -30,6 +32,7 @@ impl OwnedVariedSection {
             screen_position: self.screen_position,
             bounds: self.bounds,
             z: self.z,
+            font_id: self.font_id,
             text: self.text.iter().map(|t| t.into()).collect(),
         }
     }
@@ -55,12 +58,6 @@ pub struct OwnedSectionText {
     pub scale: Scale,
     /// Rgba color of rendered text. Defaults to black.
     pub color: [f32; 4],
-    /// Font id to use for this section.
-    ///
-    /// It must be known to the `GlyphBrush` it is being used with,
-    /// either `FontId::default()` or the return of
-    /// [`add_font`](struct.GlyphBrushBuilder.html#method.add_font).
-    pub font_id: FontId,
 }
 
 impl Default for OwnedSectionText {
@@ -69,7 +66,6 @@ impl Default for OwnedSectionText {
             text: String::new(),
             scale: Scale::uniform(16.0),
             color: [0.0, 0.0, 0.0, 1.0],
-            font_id: FontId::default(),
         }
     }
 }
@@ -80,7 +76,6 @@ impl<'a> From<&'a OwnedSectionText> for SectionText<'a> {
             text: owned.text.as_str(),
             scale: owned.scale,
             color: owned.color,
-            font_id: owned.font_id,
         }
     }
 }
@@ -91,7 +86,6 @@ impl From<&SectionText<'_>> for OwnedSectionText {
             text: st.text.into(),
             scale: st.scale,
             color: st.color,
-            font_id: st.font_id,
         }
     }
 }

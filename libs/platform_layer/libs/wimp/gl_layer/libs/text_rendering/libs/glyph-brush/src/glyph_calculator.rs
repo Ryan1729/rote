@@ -187,8 +187,10 @@ impl<H: BuildHasher> GlyphCalculatorGuard<'_, '_, H> {
 
         if let Entry::Vacant(entry) = self.glyph_cache.entry(section_hash) {
             let geometry = SectionGeometry::from(section);
+            let font_id = section.font_id;
+            let font = &self.fonts.font(font_id);
             entry.insert(GlyphedSection {
-                glyphs: layout.calculate_glyphs(self.fonts, &geometry, &section.text),
+                glyphs: layout.calculate_glyphs(font, font_id, &geometry, &section.text),
                 z: section.z,
             });
         }

@@ -1,5 +1,5 @@
 //! Text layout for [rusttype](https://gitlab.redox-os.org/redox-os/rusttype).
-#![deny(unused)]
+//#![deny(unused)]
 pub mod characters;
 mod font;
 pub mod linebreak;
@@ -27,9 +27,10 @@ use std::hash::Hash;
 pub trait GlyphPositioner: Hash {
     /// Calculate a sequence of positioned glyphs to render. Custom implementations should
     /// return the same result when called with the same arguments to allow layout caching.
-    fn calculate_glyphs<'font, F: FontMap<'font>>(
+    fn calculate_glyphs<'font>(
         &self,
-        fonts: &F,
+        font: &Font<'font>,
+        font_id: FontId,
         geometry: &SectionGeometry,
         sections: &[SectionText<'_>],
     ) -> Vec<(PositionedGlyph<'font>, Color, FontId)>;
@@ -38,19 +39,18 @@ pub trait GlyphPositioner: Hash {
     ///
     /// The default implementation simply calls `calculate_glyphs` so must be implemented
     /// to provide benefits as such benefits are spefic to the internal layout logic.
-    fn recalculate_glyphs<'font, F>(
+    fn recalculate_glyphs<'font>(
         &self,
         previous: Cow<'_, Vec<(PositionedGlyph<'font>, Color, FontId)>>,
         change: GlyphChange,
-        fonts: &F,
+        font: &Font<'font>,
+        font_id: FontId,
         geometry: &SectionGeometry,
         sections: &[SectionText<'_>],
     ) -> Vec<(PositionedGlyph<'font>, Color, FontId)>
-    where
-        F: FontMap<'font>,
     {
         let _ = (previous, change);
-        self.calculate_glyphs(fonts, geometry, sections)
+        self.calculate_glyphs(font, font_id, geometry, sections)
     }
 }
 

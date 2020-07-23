@@ -18,7 +18,7 @@ mod text_layouts {
     use super::*;
     use macros::{dbg};
     use glyph_brush::{
-        rusttype::{point, vector, PositionedGlyph, Rect},
+        rusttype::{point, vector, PositionedGlyph},
     };
     use std::borrow::Cow;
 
@@ -27,26 +27,19 @@ mod text_layouts {
     // `glyph-brush-layout`. The one part I wanted to change is noted below, but while I was at it
     // I simplified it by removing support for layout options I have yet to have a need for.
     //
-    fn calculate_glyphs<'font, F: FontMap<'font>>(
-        font_map: &F,
+    fn calculate_glyphs<'font>(
+        font: &Font<'font>,
+        font_id: FontId,
         mut caret: (f32, f32),
-        bound_w: f32,
         sections: &[SectionText<'_>],
     ) -> Vec<(PositionedGlyph<'font>, Color, FontId)> {
         let mut out = vec![];
 
-        let lines = unbounded::get_lines_iter(font_map, sections, bound_w);
-
+        let lines = unbounded::get_lines_iter(font, font_id, sections);
+        
         for line in lines {
-            // This is the part that needed to be changed.
-            /*
-            // top align can bound check & exit early
-            if v_align_top && caret.1 >= screen_position.1 + bound_h {
-                break;
-            }
-            */
-
-            let line_height = line.line_height();
+            let v_metrics = font.v_metrics(line.max_scale);
+            let line_height: f32 = v_metrics.ascent - v_metrics.descent + v_metrics.line_gap;
             out.extend(line.aligned_on_screen(caret));
             caret.1 += line_height;
         }
@@ -57,12 +50,13 @@ mod text_layouts {
     /// This is a macro since traits with generics can't be made into objects.
     macro_rules! recalculate_glyphs_body {
         (
-            $positioner: expr, $previous: expr, $change: expr, $fonts: expr, $geometry: expr, $sections: expr
+            $positioner: expr, $previous: expr, $change: expr, $fonts: expr, $font_id: expr, $geometry: expr, $sections: expr
         ) => {{
             let positioner = $positioner;
             let previous = $previous;
             let change = $change;
             let fonts = $fonts;
+            let font_id = $font_id;
             let geometry = $geometry;
             let sections = $sections;
             match change {
@@ -92,7 +86,7 @@ mod text_layouts {
                         }
                         glyphs
                     } else {
-                        positioner.calculate_glyphs(fonts, geometry, sections)
+                        positioner.calculate_glyphs(fonts, font_id, geometry, sections)
                     }
                 }
                 GlyphChange::Alpha if !sections.is_empty() && !previous.is_empty() => {
@@ -106,10 +100,10 @@ mod text_layouts {
                         }
                         glyphs
                     } else {
-                        positioner.calculate_glyphs(fonts, geometry, sections)
+                        positioner.calculate_glyphs(fonts, font_id, geometry, sections)
                     }
                 }
-                _ => positioner.calculate_glyphs(fonts, geometry, sections),
+                _ => positioner.calculate_glyphs(fonts, font_id, geometry, sections),
             }
         }};
     }
@@ -120,29 +114,27 @@ mod text_layouts {
     pub(crate) struct Unbounded {}
 
     impl GlyphPositioner for Unbounded {
-        fn calculate_glyphs<'font, F>(
+        fn calculate_glyphs<'font>(
             &self,
-            fonts: &F,
+            font: &Font<'font>,
+            font_id: FontId,
             geometry: &SectionGeometry,
             sections: &[SectionText],
         ) -> Vec<(PositionedGlyph<'font>, [f32; 4], FontId)>
-        where
-            F: FontMap<'font>,
         {
-            calculate_glyphs(fonts, geometry.screen_position, std::f32::INFINITY, sections)
+            calculate_glyphs(font, font_id, geometry.screen_position, sections)
         }
-        fn recalculate_glyphs<'font, F>(
+        fn recalculate_glyphs<'font>(
             &self,
             previous: Cow<Vec<(PositionedGlyph<'font>, [f32; 4], FontId)>>,
             change: GlyphChange,
-            fonts: &F,
+            fonts: &Font<'font>,
+            font_id: FontId,
             geometry: &SectionGeometry,
             sections: &[SectionText],
         ) -> Vec<(PositionedGlyph<'font>, [f32; 4], FontId)>
-        where
-            F: FontMap<'font>,
         {
-            recalculate_glyphs_body!(self, previous, change, fonts, geometry, sections)
+            recalculate_glyphs_body!(self, previous, change, fonts, font_id, geometry, sections)
         }
     }
 
@@ -163,24 +155,24 @@ mod text_layouts {
         }
     }
     
-    fn calculate_glyphs_unbounded_layout_clipped_slow<'font, F>(
+    fn calculate_glyphs_unbounded_layout_clipped_slow<'font>(
         clip: Rect<i32>,
-        fonts: &F,
+        font: &Font<'font>,
+        font_id: FontId,
         geometry: &SectionGeometry,
         sections: &[SectionText],
     ) -> Vec<(PositionedGlyph<'font>, [f32; 4], FontId)>
-    where
-        F: FontMap<'font>,
     {
         // TODO reduce duplication with calculate_glyphs fn
         let mut caret = geometry.screen_position;
         let mut out = vec![];
     
-        let lines = unbounded::get_lines_iter(fonts, sections, std::f32::INFINITY);
-    
+        let lines = unbounded::get_lines_iter(font, font_id, sections);
+
         for line in lines {
-            let line_height = line.line_height();
-    
+            let v_metrics = font.v_metrics(line.max_scale);
+            let line_height: f32 = v_metrics.ascent - v_metrics.descent + v_metrics.line_gap;
+            
             let tuples = line.aligned_on_screen(caret);
     
             out.extend(
@@ -199,7 +191,7 @@ mod text_layouts {
                             .unwrap_or(true)
                     })
             );
-    
+
             caret.1 += line_height;
         }
     
@@ -207,28 +199,28 @@ mod text_layouts {
     }
 
     // This is a separate function to aid in testing
-    pub(crate) fn calculate_glyphs_unbounded_layout_clipped<'font, F>(
+    pub(crate) fn calculate_glyphs_unbounded_layout_clipped<'font>(
         clip: Rect<i32>,
-        fonts: &F,
+        font: &Font<'font>,
+        font_id: FontId,
         geometry: &SectionGeometry,
         sections: &[SectionText],
     ) -> Vec<(PositionedGlyph<'font>, [f32; 4], FontId)>
-    where
-        F: FontMap<'font>, {
+    {
         perf_viz::record_guard!("UnboundedLayoutClipped::calculate_glyphs");
         
         perf_viz::start_record!("has_multiple_scales_or_fonts");
-        let has_multiple_scales_or_fonts = !sections.windows(2)
+        let has_multiple_scales = !sections.windows(2)
             .all(|w| 
                 w[0].scale == w[1].scale
-                && w[0].font_id == w[1].font_id
             );
         perf_viz::end_record!("has_multiple_scales_or_fonts");
 
-        if has_multiple_scales_or_fonts {
+        if has_multiple_scales {
             return calculate_glyphs_unbounded_layout_clipped_slow(
                 clip,
-                fonts,
+                font,
+                font_id,
                 geometry,
                 sections,
             );
@@ -240,11 +232,9 @@ mod text_layouts {
             return out;
         }
 
-        let (font_id, scale) = (sections[0].font_id, sections[0].scale);
+        let scale = sections[0].scale;
 
-        let font = fonts.font(font_id);
-
-        let lines_vec = unbounded::get_line_glyphs_iter(fonts, sections);
+        let lines_vec = unbounded::get_line_glyphs_iter(font, font_id, sections);
 
         let mut lines = lines_vec.into_iter();
 
@@ -308,6 +298,7 @@ mod text_layouts {
                     let screen_pos = point(caret.0, caret.1);
 
                     let tuples = glyphs
+                        .glyphs
                         .into_iter()
                         .map(|(glyph, color, font_id)| 
                             (glyph.screen_positioned(screen_pos), color, font_id)
@@ -353,34 +344,33 @@ mod text_layouts {
     }
 
     impl GlyphPositioner for UnboundedLayoutClipped {
-        fn calculate_glyphs<'font, F>(
+        fn calculate_glyphs<'font>(
             &self,
-            fonts: &F,
+            font: &Font<'font>,
+            font_id: FontId,
             geometry: &SectionGeometry,
             sections: &[SectionText],
         ) -> Vec<(PositionedGlyph<'font>, [f32; 4], FontId)>
-        where
-            F: FontMap<'font>,
         {
             calculate_glyphs_unbounded_layout_clipped(
                 self.clip,
-                fonts,
+                font,
+                font_id,
                 geometry,
                 sections,
             )
         }
-        fn recalculate_glyphs<'font, F>(
+        fn recalculate_glyphs<'font>(
             &self,
             previous: Cow<Vec<(PositionedGlyph<'font>, [f32; 4], FontId)>>,
             change: GlyphChange,
-            fonts: &F,
+            font: &Font<'font>,
+            font_id: FontId,
             geometry: &SectionGeometry,
             sections: &[SectionText],
         ) -> Vec<(PositionedGlyph<'font>, [f32; 4], FontId)>
-        where
-            F: FontMap<'font>,
         {
-            recalculate_glyphs_body!(self, previous, change, fonts, geometry, sections)
+            recalculate_glyphs_body!(self, previous, change, font, font_id, geometry, sections)
         }
     }
 }
@@ -690,40 +680,59 @@ fn ssr_to_rusttype_i32(ssr!(min_x, min_y, max_x, max_y): ScreenSpaceRect) -> Rec
 mod unbounded {
     use super::*;
 
-    pub(crate) use glyph_brush_layout::{
-        lines::Lines,
-        characters,
-        rusttype::{
-            ScaledGlyph,
-            point,
-            vector,
-        }
+    use glyph_brush::{
+        ScaledGlyph,
+        PositionedGlyph,
+        point,
+        vector,
+        Scale
     };
     #[perf_viz::record]
-    pub(crate) fn get_lines_iter<'a, 'b, 'font, F>(
-        font_map: &'b F,
+    pub(crate) fn get_lines_iter<'a, 'b, 'font>(
+        font: &'b Font<'font>,
+        font_id: FontId,
         sections: &'a [SectionText<'a>],
-        bound_w: f32,
-    ) -> Lines<'a, 'b, 'font, BuiltInLineBreaker, F>
+    ) -> UnboundedLines<'a, 'b, 'font, BuiltInLineBreaker>
     where
         'font: 'a + 'b,
-        F: FontMap<'font>,
     {
-        characters::Characters::new(
-            font_map,
+        Characters::new(
+            font,
+            font_id,
             sections.iter(),
             BuiltInLineBreaker::UnicodeLineBreaker,
         )
         .words()
-        .lines(bound_w)
+        .lines()
     }
     
-    pub(crate) type UnboundedLine<'font> = 
-        Vec<(RelativePositionedGlyph<'font>, [f32; 4], FontId)>
-    ;
+    pub(crate) struct UnboundedLine<'font> {
+        pub(crate) glyphs: Vec<(RelativePositionedGlyph<'font>, [f32; 4], FontId)>,
+        pub(crate) max_scale: Scale,
+    }
+
+    impl<'font> UnboundedLine<'font> {
+        /// Returns line glyphs positioned on the screen and aligned.
+        pub fn aligned_on_screen(
+            self,
+            screen_position: (f32, f32),
+        ) -> Vec<(PositionedGlyph<'font>, Color, FontId)> {
+            if self.glyphs.is_empty() {
+                return Vec::new();
+            }
     
-    pub(crate) fn get_line_glyphs_iter<'a, 'b, 'font, F>(
-            fonts: &'b F,
+            let screen_pos = point(screen_position.0, screen_position.1);
+    
+            self.glyphs
+                .into_iter()
+                .map(|(glyph, color, font_id)| (glyph.screen_positioned(screen_pos), color, font_id))
+                .collect()
+        }
+    }
+    
+    pub(crate) fn get_line_glyphs_iter<'a, 'b, 'font>(
+            font: &'b Font<'font>,
+            font_id: FontId,
             sections: &'a [SectionText],
         ) -> impl IntoIterator<
             Item = UnboundedLine<'font>,
@@ -731,10 +740,11 @@ mod unbounded {
         >
         where
             'font: 'a + 'b,
-            F: FontMap<'font>, {
+    {
         let v: Vec<_> = UnboundedLines {
             words: Characters::new(
-                fonts,
+                font,
+                font_id,
                 sections.iter(),
                 BuiltInLineBreaker::UnicodeLineBreaker,
             )
@@ -746,23 +756,23 @@ mod unbounded {
     }
     
     use std::iter::Peekable;
-    struct UnboundedLines<'a, 'b, 'font, L, F>
+    pub(crate) struct UnboundedLines<'a, 'b, 'font, L>
     where
         'font: 'a + 'b,
         L: LineBreaker,
-        F: FontMap<'font>,
     {
-        pub(crate) words: Peekable<Words<'a, 'b, 'font, L, F>>,
+        pub(crate) words: Peekable<Words<'a, 'b, 'font, L>>,
     }
     
-    impl<'font, L: LineBreaker, F: FontMap<'font>> Iterator for UnboundedLines<'_, '_, 'font, L, F> {
+    impl<'font, L: LineBreaker> Iterator for UnboundedLines<'_, '_, 'font, L> {
         type Item = UnboundedLine<'font>;
     
         fn next(&mut self) -> Option<Self::Item> {
             let mut caret = vector(0.0, 0.0);
-            let mut line: UnboundedLine = 
-                Vec::new()
-            ;
+            let mut line: UnboundedLine = UnboundedLine{
+                glyphs: Vec::new(),
+                max_scale: ZERO_SCALE,
+            };
             let mut max_v_ascent = 0.0;
     
             let mut progressed = false;
@@ -771,20 +781,21 @@ mod unbounded {
                 let word = self.words.next().unwrap();
                 progressed = true;
     
-                
                 if word.max_v_ascent > max_v_ascent {
                     let diff_y = word.max_v_ascent - caret.y;
                     caret.y += diff_y;
     
                     // modify all smaller lined glyphs to occupy the new larger line
-                    for (glyph, ..) in &mut line {
+                    for (glyph, ..) in &mut line.glyphs {
                         glyph.relative.y += diff_y;
                     }
     
                     max_v_ascent = word.max_v_ascent;
+                    line.max_scale = word.max_scale;
                 }
     
                 line
+                    .glyphs
                     .extend(word.glyphs.into_iter().map(|(mut g, color, font_id)| {
                         g.relative = g.relative + caret;
                         (g, color, font_id)
@@ -801,33 +812,40 @@ mod unbounded {
         }
     }
     
-    /*type UnboundedWord<'font> = (
-        Vec<(RelativePositionedGlyph<'font>, Color, FontId)>,
-        VMetrics
-    );*/
-    
     pub(crate) struct Word<'font> {
         pub(crate) glyphs: Vec<(RelativePositionedGlyph<'font>, Color, FontId)>,
         /// pixel advance width of word includes ending spaces/invisibles
         pub(crate) layout_width: f32,
         pub(crate) max_v_ascent: f32,
+        pub(crate) max_scale: Scale,
         /// indicates the break after the word is a hard one
         pub(crate) hard_break: bool,
     }
     
     /// `Word` iterator.
-    pub(crate) struct Words<'a, 'b, 'font: 'a + 'b, L, F>
+    pub(crate) struct Words<'a, 'b, 'font: 'a + 'b, L>
     where
         L: LineBreaker,
-        F: FontMap<'font>,
     {
-        pub(crate) characters: Characters<'a, 'b, 'font, L, F>,
+        pub(crate) characters: Characters<'a, 'b, 'font, L>,
+    }
+
+    impl<'a, 'b, 'font, L> Words<'a, 'b, 'font, L>
+    where
+        L: LineBreaker,
+    {
+        pub fn lines(self) -> UnboundedLines<'a, 'b, 'font, L> {
+            UnboundedLines {
+                words: self.peekable(),
+            }
+        }
     }
     
-    impl<'font, L, F> Iterator for Words<'_, '_, 'font, L, F>
+    const ZERO_SCALE: Scale = Scale { x: 0.0, y: 0.0 };
+
+    impl<'font, L> Iterator for Words<'_, '_, 'font, L>
     where
         L: LineBreaker,
-        F: FontMap<'font>,
     {
         type Item = Word<'font>;
     
@@ -837,13 +855,14 @@ mod unbounded {
             let mut caret = 0.0;
             let mut last_glyph_id = None;
             let mut max_v_ascent = None;
+            let mut max_scale = None;
             let mut hard_break = false;
             let mut progress = false;
     
+            let font_id = self.characters.font_id;
             for Character {
                 glyph,
                 color,
-                font_id,
                 line_break,
                 control,
             } in &mut self.characters
@@ -851,9 +870,11 @@ mod unbounded {
                 progress = true;
                 {
                     let font = glyph.font().expect("standalone not supported");
-                    let v_ascent = font.v_metrics(glyph.scale()).ascent;
+                    let scale = glyph.scale();
+                    let v_ascent = font.v_metrics(scale).ascent;
                     if max_v_ascent.is_none() || v_ascent > max_v_ascent.unwrap() {
                         max_v_ascent = Some(v_ascent);
+                        max_scale = Some(scale);
                     }
     
                     if let Some(id) = last_glyph_id.take() {
@@ -891,6 +912,7 @@ mod unbounded {
                     layout_width: caret,
                     hard_break,
                     max_v_ascent: max_v_ascent.unwrap_or_default(),
+                    max_scale: max_scale.unwrap_or(ZERO_SCALE),
                 });
             }
     
@@ -899,13 +921,13 @@ mod unbounded {
     }
     
     /// `Character` iterator
-    pub(crate) struct Characters<'a, 'b, 'font, L, F>
+    pub(crate) struct Characters<'a, 'b, 'font, L>
     where
         'font: 'a + 'b,
         L: LineBreaker,
-        F: FontMap<'font>,
     {
-        font_map: &'b F,
+        font: &'b Font<'font>,
+        font_id: FontId,
         section_text: slice::Iter<'a, SectionText<'a>>,
         line_breaker: L,
         part_info: Option<PartInfo<'a>>,
@@ -926,19 +948,20 @@ mod unbounded {
         str::CharIndices,
     };
     
-    impl<'a, 'b, 'font, L, F> Characters<'a, 'b, 'font, L, F>
+    impl<'a, 'b, 'font, L> Characters<'a, 'b, 'font, L>
     where
         L: LineBreaker,
-        F: FontMap<'font>,
     {
         /// Returns a new `Characters` iterator.
         pub(crate) fn new(
-            font_map: &'b F,
+            font: &'b Font<'font>,
+            font_id: FontId,
             section_text: slice::Iter<'a, SectionText<'a>>,
             line_breaker: L,
         ) -> Self {
             Self {
-                font_map,
+                font,
+                font_id,
                 section_text,
                 line_breaker,
                 part_info: None,
@@ -947,7 +970,7 @@ mod unbounded {
         }
     
         /// Wraps into a `Words` iterator.
-        pub(crate) fn words(self) -> Words<'a, 'b, 'font, L, F> {
+        pub(crate) fn words(self) -> Words<'a, 'b, 'font, L> {
             Words { characters: self }
         }
     }
@@ -958,10 +981,9 @@ mod unbounded {
         x > 0.0 && y > 0.0
     }
     
-    impl<'font, L, F> Iterator for Characters<'_, '_, 'font, L, F>
+    impl<'font, L> Iterator for Characters<'_, '_, 'font, L>
     where
         L: LineBreaker,
-        F: FontMap<'font>,
     {
         type Item = Character<'font>;
     
@@ -990,7 +1012,6 @@ mod unbounded {
                         SectionText {
                             scale,
                             color,
-                            font_id,
                             text,
                         },
                     info_chars,
@@ -1009,7 +1030,7 @@ mod unbounded {
                         }
                     }
     
-                    let glyph = self.font_map.font(*font_id).glyph(c).scaled(*scale);
+                    let glyph = self.font.glyph(c).scaled(*scale);
     
                     let c_len = c.len_utf8();
                     let mut line_break = next_break.filter(|b| b.offset() == byte_index + c_len);
@@ -1021,7 +1042,6 @@ mod unbounded {
                     return Some(Character {
                         glyph,
                         color: *color,
-                        font_id: *font_id,
                         line_break,
                         control: c.is_control(),
                     });
@@ -1037,7 +1057,6 @@ mod unbounded {
     pub(crate) struct Character<'font> {
         pub(crate) glyph: ScaledGlyph<'font>,
         pub(crate) color: Color,
-        pub(crate) font_id: FontId,
         /// Line break proceeding this character.
         pub(crate) line_break: Option<LineBreak>,
         /// Equivalent to `char::is_control()`.

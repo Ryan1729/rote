@@ -184,9 +184,7 @@ where
     {
         let section = section.into();
         if cfg!(debug_assertions) {
-            for text in &section.text {
-                assert!(self.fonts.len() > text.font_id.0, "Invalid font id");
-            }
+            assert!(self.fonts.len() > section.font_id.0, "Invalid font id");
         }
         let section_hash = self.cache_glyphs(&section, custom_layout);
         self.section_buffer.push(section_hash);
@@ -213,6 +211,8 @@ where
                     .get(frame_seq_id)
                     .cloned()
                     .and_then(|hash| {
+                        let font_id = section.font_id;
+                        let font = &self.fonts.font(font_id);
                         let change = hash.diff(section_hash);
                         if let GlyphChange::Unknown = change {
                             return None;
@@ -229,7 +229,8 @@ where
                         Some(layout.recalculate_glyphs(
                             old_glyphs,
                             change,
-                            &self.fonts,
+                            font,
+                            font_id,
                             &geometry,
                             &section.text,
                         ))
@@ -239,7 +240,14 @@ where
                     section_hash.full,
                     Glyphed::new(GlyphedSection {
                         glyphs: recalculated_glyphs.unwrap_or_else(|| {
-                            layout.calculate_glyphs(&self.fonts, &geometry, &section.text)
+                            let font_id = section.font_id;
+                            let font = &self.fonts.font(font_id);
+                            layout.calculate_glyphs(
+                                font,
+                                font_id,
+                                &geometry,
+                                &section.text
+                            )
                         }),
                         z: section.z,
                     }),
@@ -247,10 +255,17 @@ where
             }
         } else {
             let geometry = SectionGeometry::from(section);
+            let font_id = section.font_id;
+            let font = &self.fonts.font(font_id);
             self.calculate_glyph_cache.insert(
                 section_hash.full,
                 Glyphed::new(GlyphedSection {
-                    glyphs: layout.calculate_glyphs(&self.fonts, &geometry, &section.text),
+                    glyphs: layout.calculate_glyphs(
+                        font,
+                        font_id,
+                        &geometry,
+                        &section.text
+                    ),
                     z: section.z,
                 }),
             );

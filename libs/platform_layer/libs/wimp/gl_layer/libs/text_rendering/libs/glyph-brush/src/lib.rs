@@ -6,8 +6,7 @@ mod section;
 
 pub use crate::{glyph_brush::*, glyph_calculator::*, owned_section::*, section::*};
 pub use glyph_brush_layout::*;
-
-use glyph_brush_layout::rusttype::*;
+pub use glyph_brush_layout::rusttype::*;
 
 /// A "practically collision free" `Section` hasher
 #[cfg(not(target_arch = "wasm32"))]
