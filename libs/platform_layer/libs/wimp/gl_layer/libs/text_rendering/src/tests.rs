@@ -1,8 +1,8 @@
-use super::{*, text_layouts::*, unbounded::*};
+use super::{*, text_layouts::*};
 
 use glyph_brush::{
     OwnedSectionText,
-    rusttype::{Point, PositionedGlyph, Rect},
+    rusttype::{Point, Rect},
 };
 
 use proptest::prelude::{proptest};
@@ -61,7 +61,6 @@ mod arb {
                 text,
                 scale,
                 color,
-                font_id: SINGLE_FONT_ID,
             }
         }
     }
@@ -92,7 +91,6 @@ mod arb {
                 text,
                 scale,
                 color,
-                font_id: SINGLE_FONT_ID,
             }
         }
     }
@@ -148,7 +146,6 @@ mod arb {
                 text,
                 scale,
                 color,
-                font_id: SINGLE_FONT_ID,
             }
         }
     }
@@ -161,7 +158,6 @@ mod arb {
                 text,
                 scale,
                 color,
-                font_id: SINGLE_FONT_ID,
             }
         }
     }
@@ -190,50 +186,6 @@ mod arb {
     }
 }
 
-fn calculate_glyphs_unbounded_layout_clipped_slow<'font, F>(
-    clip: Rect<i32>,
-    fonts: &F,
-    geometry: &SectionGeometry,
-    sections: &[SectionText],
-) -> Vec<(PositionedGlyph<'font>, [f32; 4], FontId)>
-where
-    F: FontMap<'font>,
-{
-    // TODO reduce duplication with calculate_glyphs fn
-    let mut caret = geometry.screen_position;
-    let mut out = vec![];
-
-    let lines = get_lines_iter(fonts, sections, std::f32::INFINITY);
-    let font = fonts.font(font_id);
-    let v_metrics = font.v_metrics(scale);
-    let line_height: f32 = v_metrics.ascent - v_metrics.descent + v_metrics.line_gap;
-
-    for line in lines {
-        let tuples = line.aligned_on_screen(caret);
-
-        out.extend(
-            tuples
-                .into_iter()
-                .filter(|(glyph, _, _)| {
-                    // TODO when is this None?
-                    glyph.pixel_bounding_box()
-                        .map(move |pixel_coords| {
-                            // true if pixel_coords intersects clip
-                            pixel_coords.min.x <= clip.max.x
-                            && pixel_coords.min.y <= clip.max.y
-                            && clip.min.x <= pixel_coords.max.x
-                            && clip.min.y <= pixel_coords.max.y
-                        })
-                        .unwrap_or(true)
-                })
-        );
-
-        caret.1 += line_height;
-    }
-
-    out
-}
-
 fn single_font_map() -> [Font<'static>; 1] {
     [Font::from_bytes(FONT_BYTES).unwrap()]
 }
@@ -258,14 +210,16 @@ fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
 
     let actual = calculate_glyphs_unbounded_layout_clipped(
         clip.clone(),
-        font_map,
+        &font_map.font(SINGLE_FONT_ID),
+        SINGLE_FONT_ID,
         &geometry,
         sections,
     );
 
     let expected = calculate_glyphs_unbounded_layout_clipped_slow(
         clip.clone(),            
-        font_map,
+        &font_map.font(SINGLE_FONT_ID),
+        SINGLE_FONT_ID,
         &geometry,
         sections,
     );
@@ -285,7 +239,6 @@ macro_rules! ost {
             text: $text.to_string(),
             scale: scale!($scale_x, $scale_y),
             color: [0.0, 0.0, 0.0, 1.0],
-            font_id: SINGLE_FONT_ID
         }
     };
     ($text: literal $(,)? s $scale: expr) => {
@@ -293,7 +246,6 @@ macro_rules! ost {
             text: $text.to_string(),
             scale: $scale,
             color: [0.0, 0.0, 0.0, 1.0],
-            font_id: SINGLE_FONT_ID
         }
     };
     ($text: expr, sx $scale_x: literal sy $scale_y: literal) => {
@@ -301,7 +253,6 @@ macro_rules! ost {
             text: $text.to_string(),
             scale: scale!($scale_x, $scale_y),
             color: [0.0, 0.0, 0.0, 1.0],
-            font_id: SINGLE_FONT_ID
         }
     };
     ($text: expr, s $scale: expr) => {
@@ -309,7 +260,6 @@ macro_rules! ost {
             text: $text.to_string(),
             scale: $scale,
             color: [0.0, 0.0, 0.0, 1.0],
-            font_id: SINGLE_FONT_ID
         }
     }
 }

@@ -1,13 +1,37 @@
 //! Text layout for [rusttype](https://gitlab.redox-os.org/redox-os/rusttype).
 //#![deny(unused)]
-pub mod characters;
 mod font;
 pub mod linebreak;
-pub mod lines;
 mod section;
-mod words;
 
-pub use self::{font::*, linebreak::*, section::*, words::{RelativePositionedGlyph}};
+pub use self::{font::*, linebreak::*, section::*};
+
+/// A scaled glyph that's relatively positioned.
+pub struct RelativePositionedGlyph<'font> {
+    pub relative: Point<f32>,
+    pub glyph: ScaledGlyph<'font>,
+}
+
+impl<'font> RelativePositionedGlyph<'font> {
+    #[inline]
+    pub fn bounds(&self) -> Option<Rect<f32>> {
+        self.glyph.exact_bounding_box().map(|mut bb| {
+            bb.min.x += self.relative.x;
+            bb.min.y += self.relative.y;
+            bb.max.x += self.relative.x;
+            bb.max.y += self.relative.y;
+            bb
+        })
+    }
+
+    #[inline]
+    pub fn screen_positioned(self, mut pos: Point<f32>) -> PositionedGlyph<'font> {
+        pos.x += self.relative.x;
+        pos.y += self.relative.y;
+        self.glyph.positioned(pos)
+    }
+}
+
 use std::borrow::Cow;
 
 /// Re-exported rusttype types.

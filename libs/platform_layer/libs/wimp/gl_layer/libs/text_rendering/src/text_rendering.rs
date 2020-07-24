@@ -155,7 +155,7 @@ mod text_layouts {
         }
     }
     
-    fn calculate_glyphs_unbounded_layout_clipped_slow<'font>(
+    pub(crate) fn calculate_glyphs_unbounded_layout_clipped_slow<'font>(
         clip: Rect<i32>,
         font: &Font<'font>,
         font_id: FontId,
