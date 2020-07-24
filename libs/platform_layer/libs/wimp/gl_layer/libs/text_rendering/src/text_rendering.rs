@@ -692,7 +692,7 @@ mod unbounded {
         font: &'b Font<'font>,
         font_id: FontId,
         sections: &'a [SectionText<'a>],
-    ) -> UnboundedLines<'a, 'b, 'font, BuiltInLineBreaker>
+    ) -> UnboundedLines<'a, 'b, 'font>
     where
         'font: 'a + 'b,
     {
@@ -700,7 +700,6 @@ mod unbounded {
             font,
             font_id,
             sections.iter(),
-            BuiltInLineBreaker::UnicodeLineBreaker,
         )
         .words()
         .lines()
@@ -745,8 +744,7 @@ mod unbounded {
             words: Characters::new(
                 font,
                 font_id,
-                sections.iter(),
-                BuiltInLineBreaker::UnicodeLineBreaker,
+                sections.iter()
             )
             .words()
             .peekable(),
@@ -756,15 +754,14 @@ mod unbounded {
     }
     
     use std::iter::Peekable;
-    pub(crate) struct UnboundedLines<'a, 'b, 'font, L>
+    pub(crate) struct UnboundedLines<'a, 'b, 'font>
     where
         'font: 'a + 'b,
-        L: LineBreaker,
     {
-        pub(crate) words: Peekable<Words<'a, 'b, 'font, L>>,
+        pub(crate) words: Peekable<Words<'a, 'b, 'font>>,
     }
     
-    impl<'font, L: LineBreaker> Iterator for UnboundedLines<'_, '_, 'font, L> {
+    impl<'font> Iterator for UnboundedLines<'_, '_, 'font> {
         type Item = UnboundedLine<'font>;
     
         fn next(&mut self) -> Option<Self::Item> {
@@ -823,18 +820,14 @@ mod unbounded {
     }
     
     /// `Word` iterator.
-    pub(crate) struct Words<'a, 'b, 'font: 'a + 'b, L>
-    where
-        L: LineBreaker,
+    pub(crate) struct Words<'a, 'b, 'font: 'a + 'b>
     {
-        pub(crate) characters: Characters<'a, 'b, 'font, L>,
+        pub(crate) characters: Characters<'a, 'b, 'font>,
     }
 
-    impl<'a, 'b, 'font, L> Words<'a, 'b, 'font, L>
-    where
-        L: LineBreaker,
+    impl<'a, 'b, 'font> Words<'a, 'b, 'font>
     {
-        pub fn lines(self) -> UnboundedLines<'a, 'b, 'font, L> {
+        pub fn lines(self) -> UnboundedLines<'a, 'b, 'font> {
             UnboundedLines {
                 words: self.peekable(),
             }
@@ -843,9 +836,7 @@ mod unbounded {
     
     const ZERO_SCALE: Scale = Scale { x: 0.0, y: 0.0 };
 
-    impl<'font, L> Iterator for Words<'_, '_, 'font, L>
-    where
-        L: LineBreaker,
+    impl<'font> Iterator for Words<'_, '_, 'font>
     {
         type Item = Word<'font>;
     
@@ -921,15 +912,13 @@ mod unbounded {
     }
     
     /// `Character` iterator
-    pub(crate) struct Characters<'a, 'b, 'font, L>
+    pub(crate) struct Characters<'a, 'b, 'font>
     where
         'font: 'a + 'b,
-        L: LineBreaker,
     {
         font: &'b Font<'font>,
         font_id: FontId,
         section_text: slice::Iter<'a, SectionText<'a>>,
-        line_breaker: L,
         part_info: Option<PartInfo<'a>>,
         phantom: PhantomData<&'font ()>,
     }
@@ -948,29 +937,25 @@ mod unbounded {
         str::CharIndices,
     };
     
-    impl<'a, 'b, 'font, L> Characters<'a, 'b, 'font, L>
-    where
-        L: LineBreaker,
+    impl<'a, 'b, 'font> Characters<'a, 'b, 'font>
     {
         /// Returns a new `Characters` iterator.
         pub(crate) fn new(
             font: &'b Font<'font>,
             font_id: FontId,
             section_text: slice::Iter<'a, SectionText<'a>>,
-            line_breaker: L,
         ) -> Self {
             Self {
                 font,
                 font_id,
                 section_text,
-                line_breaker,
                 part_info: None,
                 phantom: PhantomData,
             }
         }
     
         /// Wraps into a `Words` iterator.
-        pub(crate) fn words(self) -> Words<'a, 'b, 'font, L> {
+        pub(crate) fn words(self) -> Words<'a, 'b, 'font> {
             Words { characters: self }
         }
     }
@@ -981,9 +966,7 @@ mod unbounded {
         x > 0.0 && y > 0.0
     }
     
-    impl<'font, L> Iterator for Characters<'_, '_, 'font, L>
-    where
-        L: LineBreaker,
+    impl<'font> Iterator for Characters<'_, '_, 'font>
     {
         type Item = Character<'font>;
     
@@ -997,11 +980,10 @@ mod unbounded {
                         break;
                     }
                 }
-                let line_breaks = self.line_breaker.line_breaks(section.text);
                 self.part_info = Some(PartInfo {
                     section,
                     info_chars: section.text.char_indices(),
-                    line_breaks,
+                    line_breaks: line_breaks(section.text),
                     next_break: None,
                 });
             }
@@ -1036,7 +1018,32 @@ mod unbounded {
                     let mut line_break = next_break.filter(|b| b.offset() == byte_index + c_len);
                     if line_break.is_some() && byte_index + c_len == text.len() {
                         // handle inherent end-of-str hard breaks
-                        line_break = line_break.and(c.eol_line_break(&self.line_breaker));
+                        fn eol_line_break(c: char) -> Option<LineBreak> {
+                            use std::str;
+                            // to check if the previous end char (say '$') should hard break construct
+                            // a str "$ " an check if the line break logic flags a hard break at index 1
+                            let mut last_end_bytes: [u8; 5] = [b' '; 5];
+                            c.encode_utf8(&mut last_end_bytes);
+                            let len_utf8 = c.len_utf8();
+                            if let Ok(last_end_padded) = str::from_utf8(&last_end_bytes[0..=len_utf8]) {
+                                match glyph_brush::line_breaks(last_end_padded).next() {
+                                    l @ Some(LineBreak::Soft(1)) | l @ Some(LineBreak::Hard(1)) => return l,
+                                    _ => {}
+                                }
+                            }
+                    
+                            // check for soft breaks using str "$a"
+                            last_end_bytes[len_utf8] = b'a';
+                            if let Ok(last_end_padded) = str::from_utf8(&last_end_bytes[0..=len_utf8]) {
+                                match glyph_brush::line_breaks(last_end_padded).next() {
+                                    l @ Some(LineBreak::Soft(1)) | l @ Some(LineBreak::Hard(1)) => return l,
+                                    _ => {}
+                                }
+                            }
+                    
+                            None
+                        }
+                        line_break = line_break.and(eol_line_break(c));
                     }
     
                     return Some(Character {
