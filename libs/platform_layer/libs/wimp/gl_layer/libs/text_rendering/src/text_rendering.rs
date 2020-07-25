@@ -890,9 +890,10 @@ mod unbounded {
                 }
     
                 if line_break.is_some() {
-                    if let Some(LineBreak::Hard(..)) = line_break {
+                    //if let Some(LineBreak::Hard(..)) = line_break {
                         hard_break = true
-                    }
+                    //}
+                        hard_break = true;
                     break;
                 }
             }

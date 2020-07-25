@@ -66,6 +66,26 @@ mod arb {
     }
 
     prop_compose!{
+        pub fn reasonable_scale_section_text_vec()
+        (v in vec(reasonable_scale_section_text(), 0..16))
+        -> Vec<OwnedSectionText> {
+            v
+        }
+    }
+
+    prop_compose!{
+        pub fn reasonable_scale_section_text()
+        (text in ".*", scale in reasonable_scale(), color in proptest::array::uniform4(within_0_to_1()))
+        -> OwnedSectionText {
+            OwnedSectionText {
+                text,
+                scale,
+                color,
+            }
+        }
+    }
+
+    prop_compose!{
         pub fn same_scale_section_text_vec()
         (scale in scale())
         (v in vec(section_text_with_scale(scale), 0..16))
@@ -266,9 +286,23 @@ macro_rules! ost {
 
 proptest!{
     #[test]
+    #[ignore]
     fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version(
         clip in arb::positive_rect_i32(),
         owned_sections in arb::section_text_vec()
+    ) {
+        calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
+            clip,
+            owned_sections
+        )
+    }
+}
+
+proptest!{
+    #[test]
+    fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_with_reasonable_scales(
+        clip in arb::positive_rect_i32(),
+        owned_sections in arb::reasonable_scale_section_text_vec()
     ) {
         calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
             clip,
@@ -292,9 +326,8 @@ fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_in_this_ge
     )
 }
 
-/* this test took a while to reduce from the above, and has revealed multiple tests that have been 
-copied below, but no it seems to only be failing because the scales are not the same for all 
-sections, which we would like to be able to assume in order to optimize.
+// this test took a while to reduce from the above, and has revealed multiple tests that have been 
+// copied below.
 #[test]
 fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_in_this_generated_case_reduction() {
     let clip = Rect { min: Point { x: 2, y: 2 }, max: Point { x: 3, y: 4 } };
@@ -308,7 +341,47 @@ fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_in_this_ge
         owned_sections
     )
 }
-*/
+
+// These add_with_overflow tests came up because rusttype uses i32's internally.
+// We don't currently care about screens/windows that large so we're ignoring these for now.
+#[test]
+#[ignore]
+fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_in_this_add_with_overflow_generated_case() {
+    let clip = Rect { min: Point { x: 1, y: 1 }, max: Point { x: 3, y: 3 } };
+    let owned_sections = vec![
+        ost!("¡a\u{0}A   a" sx 1.0 sy 12728093.0),
+        ost!("¡¡a¡A\u{0}¡¡A¡ \u{b}0¡\u{0}¡\u{b}¡ ¡¡A ¡¡¡A" sx 1.0 sy 12728093.0),
+        ost!("\u{0}a\u{b}¡  ¡¡  A" sx 1.0 sy 14058921.0),
+        ost!("\u{0}a\u{b}¡  ¡¡  A" sx 1.0 sy 8725665.0),
+        ost!("AA¡ ¡0\u{0}AA\u{0} A\u{b}¡\u{b}aa \u{b} 0 " sx 1.0 sy 12224096.0),
+        ost!("A0¡0\u{e000}¡ a¡\u{b}\u{0}\u{0}¡" sx 1.0 sy 14327201.0),
+        ost!(" 0¡\u{b}aA¡\u{0}\u{b}¡ a" sx 1.0 sy 5589313.0),
+        ost!("aa¡ ¡¡¡¡¡ aa\u{e000}a¡\u{0}A0A 0\u{0}¡a" sx 1.0 sy 16520385.0),
+        ost!("¡¡¡ aaa¡¡¡¡A 0¡  a" sx 1.0 sy 12679874.0),
+        ost!("\u{0}¡¡a\u{0}\u{b}0 A\u{0}0a¡¡A¡aa\u{b}¡ \u{b}¡ \u{0} \u{e000}aA\u{0}0" sx 1.0 sy 2587585.0),
+        ost!("0  ¡¡A¡¡¡0\u{b}   ¡¡ \u{b}¡0¡¡  ¡¡AaA" sx 1.0 sy 10627905.0),
+        ost!("¡\u{0}\u{0}¡aaaſ" sx 1.0 sy 5006479.0),
+    ]; 
+
+    calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
+        clip,
+        owned_sections
+    )
+}
+
+#[test]
+#[ignore]
+fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_in_this_add_with_overflow_reduced_case() {
+    let clip = Rect { min: Point { x: 1, y: 1 }, max: Point { x: 3, y: 3 } };
+    let owned_sections = vec![
+        ost!("_____" sx 1.0 sy 2_140_000_000.0),
+    ]; 
+
+    calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
+        clip,
+        owned_sections
+    )
+}
 
 proptest!{
     #[test]
