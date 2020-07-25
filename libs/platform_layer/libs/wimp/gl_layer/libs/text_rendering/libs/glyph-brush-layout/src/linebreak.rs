@@ -1,5 +1,4 @@
 use std::{
-    fmt,
     hash::Hash,
     iter::FusedIterator,
     str::{self, CharIndices},

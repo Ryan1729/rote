@@ -854,7 +854,7 @@ mod unbounded {
             for Character {
                 glyph,
                 color,
-                line_break,
+                is_line_break,
                 control,
             } in &mut self.characters
             {
@@ -889,10 +889,8 @@ mod unbounded {
                     }
                 }
     
-                if line_break.is_some() {
-                    if let Some(LineBreak::Hard(..)) = line_break {
-                        hard_break = true;
-                    }
+                if is_line_break {
+                    hard_break = true;
                     break;
                 }
             }
@@ -1018,38 +1016,28 @@ mod unbounded {
                     let mut line_break = next_break.filter(|b| b.offset() == byte_index + c_len);
                     if line_break.is_some() && byte_index + c_len == text.len() {
                         // handle inherent end-of-str hard breaks
-                        fn eol_line_break(c: char) -> Option<LineBreak> {
-                            use std::str;
-                            // to check if the previous end char (say '$') should hard break construct
-                            // a str "$ " an check if the line break logic flags a hard break at index 1
-                            let mut last_end_bytes: [u8; 5] = [b' '; 5];
-                            c.encode_utf8(&mut last_end_bytes);
-                            let len_utf8 = c.len_utf8();
-                            if let Ok(last_end_padded) = str::from_utf8(&last_end_bytes[0..=len_utf8]) {
-                                match glyph_brush::line_breaks(last_end_padded).next() {
-                                    l @ Some(LineBreak::Soft(1)) | l @ Some(LineBreak::Hard(1)) => return l,
-                                    _ => {}
-                                }
-                            }
-                    
-                            // check for soft breaks using str "$a"
-                            last_end_bytes[len_utf8] = b'a';
-                            if let Ok(last_end_padded) = str::from_utf8(&last_end_bytes[0..=len_utf8]) {
-                                match glyph_brush::line_breaks(last_end_padded).next() {
-                                    l @ Some(LineBreak::Soft(1)) | l @ Some(LineBreak::Hard(1)) => return l,
-                                    _ => {}
-                                }
-                            }
-                    
+
+                        // to check if the previous end char (say '$') should hard break construct
+                        // a str "$ " an check if the line break logic flags a hard break at index 1
+                        let mut last_end_bytes: [u8; 5] = [b' '; 5];
+                        c.encode_utf8(&mut last_end_bytes);
+                        line_break = if let Ok(last_end_padded) = std::str::from_utf8(&last_end_bytes[0..=c_len]) {
+                            glyph_brush::line_breaks(last_end_padded).next()
+                        } else {
                             None
-                        }
-                        line_break = line_break.and(eol_line_break(c));
+                        };
                     }
+
+                    let is_line_break = if let Some(LineBreak::Hard(..)) = line_break {
+                        true
+                    } else {
+                        false
+                    };
     
                     return Some(Character {
                         glyph,
                         color: *color,
-                        line_break,
+                        is_line_break,
                         control: c.is_control(),
                     });
                 }
@@ -1064,8 +1052,7 @@ mod unbounded {
     pub(crate) struct Character<'font> {
         pub(crate) glyph: ScaledGlyph<'font>,
         pub(crate) color: Color,
-        /// Line break proceeding this character.
-        pub(crate) line_break: Option<LineBreak>,
+        pub(crate) is_line_break: bool,
         /// Equivalent to `char::is_control()`.
         pub(crate) control: bool,
     }
