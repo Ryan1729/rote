@@ -626,10 +626,46 @@ fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_in_this_ge
     let owned_sections = vec![
         ost!("aaa\n" sx 45700.0 sy 1.0),
         ost!("\naaa" sx 10000.0 sy 2.0),
-    ]; 
+    ];
 
     calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
         clip,
         owned_sections
     )
+}
+
+#[test]
+fn calculate_glyphs_unbounded_layout_clipped_slow_puts_5_a_characters_on_the_same_line() {
+    let clip = Rect { min: Point { x: 0, y: 1 }, max: Point { x: 99999, y: 99999 } };
+    let font_map = &single_font_map();
+
+    let geometry = SectionGeometry {
+        screen_position: (0.0, 0.0),
+        bounds: (99999.0, 99999.0),
+    };
+
+    let owned_sections = vec![
+        ost!("aaa" sx 16.0 sy 16.0),
+        ost!("aa" sx 16.0 sy 16.0),
+    ];
+
+    let sections_vec: Vec<SectionText<'_>> = owned_sections
+        .iter()
+        .map(|owned| SectionText::from(owned))
+        .collect();
+    let sections = &sections_vec;
+
+    let glyphs = calculate_glyphs_unbounded_layout_clipped_slow(
+        clip.clone(),            
+        &font_map.font(SINGLE_FONT_ID),
+        SINGLE_FONT_ID,
+        &geometry,
+        sections,
+    );
+
+    for w in glyphs.windows(2) {
+        let y1 = w[0].0.position().y;
+        let y2 = w[1].0.position().y;
+        assert_eq!(y1, y2);
+    }
 }
