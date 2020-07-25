@@ -1,5 +1,5 @@
 //! Text layout for [rusttype](https://gitlab.redox-os.org/redox-os/rusttype).
-//#![deny(unused)]
+#![deny(unused)]
 mod font;
 pub mod linebreak;
 mod section;

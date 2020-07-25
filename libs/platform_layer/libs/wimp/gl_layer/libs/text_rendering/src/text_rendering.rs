@@ -981,7 +981,7 @@ mod unbounded {
                 self.part_info = Some(PartInfo {
                     section,
                     info_chars: section.text.char_indices(),
-                    line_breaks: line_breaks(section.text),
+                    line_breaks: glyph_brush::line_breaks(section.text),
                     next_break: None,
                 });
             }

@@ -452,3 +452,10 @@ proptest! {
         get_ranges_slow_returns_only_locations_that_match_the_needle_on(&needle, &haystack);
     }
 }
+
+#[test]
+fn get_ranges_slow_returns_only_locations_that_match_the_needle_in_this_generated_unicode_case() {
+    let (needle, haystack) = ("ȺȺ", "{�=𐆠𑤐�gqš\'=.¥⿵â🯳ȺȺȺ𝒪𑖮�𐠼෴=ῥ");
+    get_ranges_slow_returns_only_locations_that_match_the_needle_on(&needle, &haystack);
+}
+
