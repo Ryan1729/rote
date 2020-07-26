@@ -1,9 +1,10 @@
 #![deny(unused)]
 mod glyph_brush;
 mod glyph_calculator;
+mod owned_section;
 mod section;
 
-pub use crate::{glyph_brush::*, glyph_calculator::*, section::*};
+pub use crate::{glyph_brush::*, glyph_calculator::*, owned_section::*, section::*};
 pub use glyph_brush_layout::*;
 pub use glyph_brush_layout::rusttype::*;
 

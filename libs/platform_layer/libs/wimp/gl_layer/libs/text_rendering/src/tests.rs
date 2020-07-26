@@ -55,61 +55,10 @@ mod arb {
 
     prop_compose!{
         pub fn section_text()
-        (text in ".*", scale in scale(), color in proptest::array::uniform4(within_0_to_1()))
-        -> OwnedSectionText {
-            OwnedSectionText {
-                text,
-                scale,
-                color,
-            }
-        }
-    }
-
-    prop_compose!{
-        pub fn reasonable_scale_section_text_vec()
-        (v in vec(reasonable_scale_section_text(), 0..16))
-        -> Vec<OwnedSectionText> {
-            v
-        }
-    }
-
-    prop_compose!{
-        pub fn reasonable_scale_section_text()
-        (text in ".*", scale in reasonable_scale(), color in proptest::array::uniform4(within_0_to_1()))
-        -> OwnedSectionText {
-            OwnedSectionText {
-                text,
-                scale,
-                color,
-            }
-        }
-    }
-
-    prop_compose!{
-        pub fn same_scale_section_text_vec()
-        (scale in scale())
-        (v in vec(section_text_with_scale(scale), 0..16))
-        -> Vec<OwnedSectionText> {
-            v
-        }
-    }
-
-    prop_compose!{
-        pub fn same_reasonable_scale_section_text_vec()
-        (scale in reasonable_scale())
-        (v in vec(section_text_with_scale(scale), 0..16))
-        -> Vec<OwnedSectionText> {
-            v
-        }
-    }
-
-    prop_compose!{
-        pub fn section_text_with_scale(scale: Scale)
         (text in ".*", color in proptest::array::uniform4(within_0_to_1()))
         -> OwnedSectionText {
             OwnedSectionText {
                 text,
-                scale,
                 color,
             }
         }
@@ -159,24 +108,22 @@ mod arb {
     
 
     prop_compose!{
-        pub fn section_text_with_many_newlines_and_scale(scale: Scale)
+        pub fn section_text_with_many_newlines()
         (text in string_with_many_newlines(), color in color())
         -> OwnedSectionText {
             OwnedSectionText {
                 text,
-                scale,
                 color,
             }
         }
     }
 
     prop_compose!{
-        pub fn section_text_with_only_periods_and_newlines_and_scale(scale: Scale)
+        pub fn section_text_with_only_periods_and_newlines()
         (text in "[\\.\\n]+", color in color())
         -> OwnedSectionText {
             OwnedSectionText {
                 text,
-                scale,
                 color,
             }
         }
@@ -224,7 +171,7 @@ fn calculate_glyphs_unbounded_layout_clipped_slow<'font>(
     let lines = unbounded::get_lines_iter(font, font_id, scale, sections);
 
     for line in lines {
-        let v_metrics = font.v_metrics(line.max_scale);
+        let v_metrics = font.v_metrics(scale);
         let line_height: f32 = v_metrics.ascent - v_metrics.descent + v_metrics.line_gap;
         
         let tuples = line.aligned_on_screen(caret);
@@ -259,6 +206,7 @@ const SINGLE_FONT_ID: FontId = FontId(0);
 
 fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
     clip: Rect<i32>,
+    scale: Scale,
     owned_sections: Vec<OwnedSectionText>
 ) {
     let font_map = &single_font_map();
@@ -278,6 +226,7 @@ fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
         clip.clone(),
         &font_map.font(SINGLE_FONT_ID),
         SINGLE_FONT_ID,
+        scale,
         &geometry,
         sections,
     );
@@ -286,6 +235,7 @@ fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
         clip.clone(),            
         &font_map.font(SINGLE_FONT_ID),
         SINGLE_FONT_ID,
+        scale,
         &geometry,
         sections,
     );
@@ -294,37 +244,24 @@ fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
 }
 
 macro_rules! scale {
+    ($scale: expr) => {
+        Scale { x: $scale, y: $scale }
+    };
     ($scale_x: expr, $scale_y: expr) => {
         Scale { x: $scale_x, y: $scale_y }
     }
 }
 
 macro_rules! ost {
-    ($text: literal $(,)? sx $scale_x: literal sy $scale_y: literal) => {
+    ($text: expr) => {
         OwnedSectionText { 
             text: $text.to_string(),
-            scale: scale!($scale_x, $scale_y),
             color: [0.0, 0.0, 0.0, 1.0],
         }
     };
-    ($text: literal $(,)? s $scale: expr) => {
+    ($text: expr) => {
         OwnedSectionText { 
             text: $text.to_string(),
-            scale: $scale,
-            color: [0.0, 0.0, 0.0, 1.0],
-        }
-    };
-    ($text: expr, sx $scale_x: literal sy $scale_y: literal) => {
-        OwnedSectionText { 
-            text: $text.to_string(),
-            scale: scale!($scale_x, $scale_y),
-            color: [0.0, 0.0, 0.0, 1.0],
-        }
-    };
-    ($text: expr, s $scale: expr) => {
-        OwnedSectionText { 
-            text: $text.to_string(),
-            scale: $scale,
             color: [0.0, 0.0, 0.0, 1.0],
         }
     }
@@ -335,10 +272,12 @@ proptest!{
     #[ignore]
     fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version(
         clip in arb::positive_rect_i32(),
+        scale in arb::scale(),
         owned_sections in arb::section_text_vec()
     ) {
         calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
             clip,
+            scale,
             owned_sections
         )
     }
@@ -348,10 +287,12 @@ proptest!{
     #[test]
     fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_with_reasonable_scales(
         clip in arb::positive_rect_i32(),
-        owned_sections in arb::reasonable_scale_section_text_vec()
+        scale in arb::reasonable_scale(),
+        owned_sections in arb::section_text_vec()
     ) {
         calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
             clip,
+            scale,
             owned_sections
         )
     }
@@ -360,14 +301,16 @@ proptest!{
 #[test]
 fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_in_this_generated_case() {
     let clip = Rect { min: Point { x: 11897398, y: 2 }, max: Point { x: 11897399, y: 25882408 } };
+    let scale = scale!(12639997.0, 128678.0);
     let owned_sections = vec![
-        ost!("¡¡A" sx 5075140.0 sy 1.0),
-        ost!("A ¡4\u{b}!" sx 2204342.0 sy 2.0),
-        ost!("\u{b}¡0!" sx 12639997.0 sy 128678.0),
+        ost!("¡¡A"),
+        ost!("A ¡4\u{b}!"),
+        ost!("\u{b}¡0!"),
     ]; 
 
     calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
         clip,
+        scale,
         owned_sections
     )
 }
@@ -377,13 +320,15 @@ fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_in_this_ge
 #[test]
 fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_in_this_generated_case_reduction() {
     let clip = Rect { min: Point { x: 2, y: 2 }, max: Point { x: 3, y: 4 } };
+    let scale = scale!(1.0, 2.0);
     let owned_sections = vec![
-        ost!("  .\n." sx 1.0 sy 2.0),
-        ost!("\n ." sx 2.0 sy 1.0),
+        ost!("  .\n."),
+        ost!("\n ."),
     ]; 
 
     calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
         clip,
+        scale,
         owned_sections
     )
 }
@@ -394,23 +339,25 @@ fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_in_this_ge
 #[ignore]
 fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_in_this_add_with_overflow_generated_case() {
     let clip = Rect { min: Point { x: 1, y: 1 }, max: Point { x: 3, y: 3 } };
+    let scale = scale!(1.0, 16520385.0);
     let owned_sections = vec![
-        ost!("¡a\u{0}A   a" sx 1.0 sy 12728093.0),
-        ost!("¡¡a¡A\u{0}¡¡A¡ \u{b}0¡\u{0}¡\u{b}¡ ¡¡A ¡¡¡A" sx 1.0 sy 12728093.0),
-        ost!("\u{0}a\u{b}¡  ¡¡  A" sx 1.0 sy 14058921.0),
-        ost!("\u{0}a\u{b}¡  ¡¡  A" sx 1.0 sy 8725665.0),
-        ost!("AA¡ ¡0\u{0}AA\u{0} A\u{b}¡\u{b}aa \u{b} 0 " sx 1.0 sy 12224096.0),
-        ost!("A0¡0\u{e000}¡ a¡\u{b}\u{0}\u{0}¡" sx 1.0 sy 14327201.0),
-        ost!(" 0¡\u{b}aA¡\u{0}\u{b}¡ a" sx 1.0 sy 5589313.0),
-        ost!("aa¡ ¡¡¡¡¡ aa\u{e000}a¡\u{0}A0A 0\u{0}¡a" sx 1.0 sy 16520385.0),
-        ost!("¡¡¡ aaa¡¡¡¡A 0¡  a" sx 1.0 sy 12679874.0),
-        ost!("\u{0}¡¡a\u{0}\u{b}0 A\u{0}0a¡¡A¡aa\u{b}¡ \u{b}¡ \u{0} \u{e000}aA\u{0}0" sx 1.0 sy 2587585.0),
-        ost!("0  ¡¡A¡¡¡0\u{b}   ¡¡ \u{b}¡0¡¡  ¡¡AaA" sx 1.0 sy 10627905.0),
-        ost!("¡\u{0}\u{0}¡aaaſ" sx 1.0 sy 5006479.0),
+        ost!("¡a\u{0}A   a"),
+        ost!("¡¡a¡A\u{0}¡¡A¡ \u{b}0¡\u{0}¡\u{b}¡ ¡¡A ¡¡¡A"),
+        ost!("\u{0}a\u{b}¡  ¡¡  A"),
+        ost!("\u{0}a\u{b}¡  ¡¡  A"),
+        ost!("AA¡ ¡0\u{0}AA\u{0} A\u{b}¡\u{b}aa \u{b} 0 "),
+        ost!("A0¡0\u{e000}¡ a¡\u{b}\u{0}\u{0}¡"),
+        ost!(" 0¡\u{b}aA¡\u{0}\u{b}¡ a"),
+        ost!("aa¡ ¡¡¡¡¡ aa\u{e000}a¡\u{0}A0A 0\u{0}¡a"),
+        ost!("¡¡¡ aaa¡¡¡¡A 0¡  a"),
+        ost!("\u{0}¡¡a\u{0}\u{b}0 A\u{0}0a¡¡A¡aa\u{b}¡ \u{b}¡ \u{0} \u{e000}aA\u{0}0"),
+        ost!("0  ¡¡A¡¡¡0\u{b}   ¡¡ \u{b}¡0¡¡  ¡¡AaA"),
+        ost!("¡\u{0}\u{0}¡aaaſ"),
     ]; 
 
     calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
         clip,
+        scale,
         owned_sections
     )
 }
@@ -419,12 +366,14 @@ fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_in_this_ad
 #[ignore]
 fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_in_this_add_with_overflow_reduced_case() {
     let clip = Rect { min: Point { x: 1, y: 1 }, max: Point { x: 3, y: 3 } };
+    let scale = scale!(1.0, 2_140_000_000.0);
     let owned_sections = vec![
-        ost!("_____" sx 1.0 sy 2_140_000_000.0),
+        ost!("_____"),
     ]; 
 
     calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
         clip,
+        scale,
         owned_sections
     )
 }
@@ -433,11 +382,12 @@ proptest!{
     #[test]
     fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_when_the_scales_match_the_above(
         clip in arb::positive_rect_i32(),
-        s1 in arb::section_text_with_scale(scale!(1.0, 2.0)),
-        s2 in arb::section_text_with_scale(scale!(2.0, 1.0)),
+        s1 in arb::section_text(),
+        s2 in arb::section_text(),
     ) {
         calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
             clip,
+            scale!(1.0, 2.0),
             vec![s1, s2]
         )
     }
@@ -447,11 +397,12 @@ proptest!{
     #[test]
     fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_with_many_newlines_when_the_scales_match_the_above(
         clip in arb::positive_rect_i32(),
-        s1 in arb::section_text_with_many_newlines_and_scale(scale!(1.0, 2.0)),
-        s2 in arb::section_text_with_many_newlines_and_scale(scale!(2.0, 1.0)),
+        s1 in arb::section_text_with_many_newlines(),
+        s2 in arb::section_text_with_many_newlines(),
     ) {
         calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
             clip,
+            scale!(1.0, 2.0),
             vec![s1, s2]
         )
     }
@@ -461,11 +412,12 @@ proptest!{
     #[test]
     fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_with_only_periods_and_newlines_when_the_scales_match_the_above(
         clip in arb::positive_rect_i32(),
-        s1 in arb::section_text_with_only_periods_and_newlines_and_scale(scale!(1.0, 2.0)),
-        s2 in arb::section_text_with_only_periods_and_newlines_and_scale(scale!(2.0, 1.0)),
+        s1 in arb::section_text_with_only_periods_and_newlines(),
+        s2 in arb::section_text_with_only_periods_and_newlines(),
     ) {
         calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
             clip,
+            scale!(1.0, 2.0),
             vec![s1, s2]
         )
     }
@@ -475,10 +427,12 @@ proptest!{
     #[test]
     fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_if_the_scales_match(
         clip in arb::positive_rect_i32(),
-        owned_sections in arb::same_reasonable_scale_section_text_vec()
+        scale in arb::reasonable_scale(),
+        owned_sections in arb::section_text_vec()
     ) {
         calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
             clip,
+            scale,
             owned_sections
         )
     }
@@ -487,16 +441,17 @@ proptest!{
 #[test]
 fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_if_the_scales_match_in_this_generated_case() {
     let clip = Rect { min: Point { x: 14730591, y: 2 }, max: Point { x: 16281178, y: 44250215 } };
-    let scale = Scale { x: 1292157.0, y: 15391379.0 };
+    let scale = scale!(1292157.0, 15391379.0);
     let owned_sections = vec![
-        ost!("¡¡0 \u{e000}0¡A¡0Ì\u{102e5c}`\u{b4f4e}%¥%*\'.\u{43106}/\u{35bb6}" s scale),
-        ost!("*&\u{7d0c9}\u{1b}\u{c92af}:V\u{dd382}\r{<H$\tV$?\u{7532a}&@{?d㎽`{\r\u{56590}U" s scale),
-        ost!("OgÐ\u{32bcd}</\u{fd2cd}Ξ\u{c4f}\u{3e42b}\u{3}" s scale),
-        ost!("�𢣻\\%.\u{2e}E*O$/s¥\u{59680}�\u{4f20d}\u{202e}%5\u{6860c}\u{afb1a}\u{202e}\u{6bcda}`\u{3}?" s scale),
+        ost!("¡¡0 \u{e000}0¡A¡0Ì\u{102e5c}`\u{b4f4e}%¥%*\'.\u{43106}/\u{35bb6}"),
+        ost!("*&\u{7d0c9}\u{1b}\u{c92af}:V\u{dd382}\r{<H$\tV$?\u{7532a}&@{?d㎽`{\r\u{56590}U"),
+        ost!("OgÐ\u{32bcd}</\u{fd2cd}Ξ\u{c4f}\u{3e42b}\u{3}"),
+        ost!("�𢣻\\%.\u{2e}E*O$/s¥\u{59680}�\u{4f20d}\u{202e}%5\u{6860c}\u{afb1a}\u{202e}\u{6bcda}`\u{3}?"),
     ];
 
     calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
         clip,
+        scale,
         owned_sections
     )
 }
@@ -506,11 +461,12 @@ fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_if_the_sca
     let clip = Rect { min: Point { x: 14730591, y: 2 }, max: Point { x: 16281178, y: 44250215 } };
     let scale = Scale { x: 1289999.0, y: 2.0 };
     let owned_sections = vec![
-        ost!("                      - \n-\n                      - " s scale),
+        ost!("                      - \n-\n                      - "),
     ];
 
     calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
         clip,
+        scale,
         owned_sections
     )
 }
@@ -521,11 +477,12 @@ fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_if_the_sca
     let clip = Rect { min: Point { x: 1, y: 2 }, max: Point { x: 16281178, y: 44250000 } };
     let scale = Scale { x: 1.0, y: 15391300.0 };
     let owned_sections = vec![
-        ost!("\n\n        aaaaaaaaaaaaaaa" s scale),
+        ost!("\n\n        aaaaaaaaaaaaaaa"),
     ];
 
     calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
         clip,
+        scale,
         owned_sections
     )
 }
@@ -593,10 +550,12 @@ proptest!{
     #[test]
     fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_if_there_is_only_one_section(
         clip in arb::positive_rect_i32(),
+        scale in arb::reasonable_scale(),
         section_text in arb::section_text()
     ) {
         calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
             clip,
+            scale,
             vec![section_text]
         )
     }
@@ -606,11 +565,13 @@ proptest!{
     #[test]
     fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_if_there_is_exactly_two_sections(
         clip in arb::positive_rect_i32(),
+        scale in arb::reasonable_scale(),
         s1 in arb::section_text(),
         s2 in arb::section_text(),
     ) {
         calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
             clip,
+            scale,
             vec![s1, s2]
         )
     }
@@ -637,11 +598,11 @@ r"
 .
   *
 "
-        s scale!(1.0, 1.0)
     );
 
     calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
         clip,
+        scale!(1.0, 1.0),
         vec![section_text]
     )
 }
@@ -655,13 +616,13 @@ r"
   .
 .
   .
-" 
-            sx 2.0 sy 1.0
+"
         )
     ]; 
 
     calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
         clip,
+        scale!(2.0, 1.0),
         owned_sections
     )
 }
@@ -670,12 +631,13 @@ r"
 fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_in_this_generated_case_reduction_alternate2() {
     let clip = Rect { min: Point { x: 9008, y: 1 }, max: Point { x: 9009, y: 25882408 } };
     let owned_sections = vec![
-        ost!("aaa\n" sx 45700.0 sy 1.0),
-        ost!("\naaa" sx 10000.0 sy 2.0),
+        ost!("aaa\n"),
+        ost!("\naaa"),
     ];
 
     calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
         clip,
+        scale!(45700.0, 1.0),
         owned_sections
     )
 }
@@ -683,6 +645,7 @@ fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_in_this_ge
 #[test]
 fn calculate_glyphs_unbounded_layout_clipped_slow_puts_5_a_characters_on_the_same_line() {
     let clip = Rect { min: Point { x: 0, y: 1 }, max: Point { x: 99999, y: 99999 } };
+    let scale = scale!(16.0);
     let font_map = &single_font_map();
 
     let geometry = SectionGeometry {
@@ -691,8 +654,8 @@ fn calculate_glyphs_unbounded_layout_clipped_slow_puts_5_a_characters_on_the_sam
     };
 
     let owned_sections = vec![
-        ost!("aaa" sx 16.0 sy 16.0),
-        ost!("aa" sx 16.0 sy 16.0),
+        ost!("aaa"),
+        ost!("aa"),
     ];
 
     let sections_vec: Vec<SectionText<'_>> = owned_sections
@@ -705,6 +668,7 @@ fn calculate_glyphs_unbounded_layout_clipped_slow_puts_5_a_characters_on_the_sam
         clip.clone(),            
         &font_map.font(SINGLE_FONT_ID),
         SINGLE_FONT_ID,
+        scale,
         &geometry,
         sections,
     );
