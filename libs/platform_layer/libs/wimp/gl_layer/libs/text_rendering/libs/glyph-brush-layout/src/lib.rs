@@ -55,6 +55,7 @@ pub trait GlyphPositioner: Hash {
         &self,
         font: &Font<'font>,
         font_id: FontId,
+        scale: Scale,
         geometry: &SectionGeometry,
         sections: &[SectionText<'_>],
     ) -> Vec<(PositionedGlyph<'font>, Color, FontId)>;
@@ -69,12 +70,13 @@ pub trait GlyphPositioner: Hash {
         change: GlyphChange,
         font: &Font<'font>,
         font_id: FontId,
+        scale: Scale,
         geometry: &SectionGeometry,
         sections: &[SectionText<'_>],
     ) -> Vec<(PositionedGlyph<'font>, Color, FontId)>
     {
         let _ = (previous, change);
-        self.calculate_glyphs(font, font_id, geometry, sections)
+        self.calculate_glyphs(font, font_id, scale, geometry, sections)
     }
 }
 

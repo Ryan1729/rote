@@ -30,16 +30,18 @@ mod text_layouts {
     fn calculate_glyphs<'font>(
         font: &Font<'font>,
         font_id: FontId,
+        scale: Scale,
         mut caret: (f32, f32),
         sections: &[SectionText<'_>],
     ) -> Vec<(PositionedGlyph<'font>, Color, FontId)> {
         let mut out = vec![];
 
-        let lines = unbounded::get_lines_iter(font, font_id, sections);
+        let lines = unbounded::get_lines_iter(font, font_id, scale, sections);
         
-        for line in lines {
-            let v_metrics = font.v_metrics(line.max_scale);
-            let line_height: f32 = v_metrics.ascent - v_metrics.descent + v_metrics.line_gap;
+        let v_metrics = font.v_metrics(scale);
+        let line_height: f32 = v_metrics.ascent - v_metrics.descent + v_metrics.line_gap;
+
+        for line in lines {    
             out.extend(line.aligned_on_screen(caret));
             caret.1 += line_height;
         }
@@ -50,13 +52,14 @@ mod text_layouts {
     /// This is a macro since traits with generics can't be made into objects.
     macro_rules! recalculate_glyphs_body {
         (
-            $positioner: expr, $previous: expr, $change: expr, $fonts: expr, $font_id: expr, $geometry: expr, $sections: expr
+            $positioner: expr, $previous: expr, $change: expr, $fonts: expr, $font_id: expr, $scale: expr, $geometry: expr, $sections: expr
         ) => {{
             let positioner = $positioner;
             let previous = $previous;
             let change = $change;
             let fonts = $fonts;
             let font_id = $font_id;
+            let scale = $scale;
             let geometry = $geometry;
             let sections = $sections;
             match change {
@@ -86,7 +89,7 @@ mod text_layouts {
                         }
                         glyphs
                     } else {
-                        positioner.calculate_glyphs(fonts, font_id, geometry, sections)
+                        positioner.calculate_glyphs(fonts, font_id, scale, geometry, sections)
                     }
                 }
                 GlyphChange::Alpha if !sections.is_empty() && !previous.is_empty() => {
@@ -100,10 +103,10 @@ mod text_layouts {
                         }
                         glyphs
                     } else {
-                        positioner.calculate_glyphs(fonts, font_id, geometry, sections)
+                        positioner.calculate_glyphs(fonts, font_id, scale, geometry, sections)
                     }
                 }
-                _ => positioner.calculate_glyphs(fonts, font_id, geometry, sections),
+                _ => positioner.calculate_glyphs(fonts, font_id, scale, geometry, sections),
             }
         }};
     }
@@ -118,11 +121,12 @@ mod text_layouts {
             &self,
             font: &Font<'font>,
             font_id: FontId,
+            scale: Scale,
             geometry: &SectionGeometry,
             sections: &[SectionText],
         ) -> Vec<(PositionedGlyph<'font>, [f32; 4], FontId)>
         {
-            calculate_glyphs(font, font_id, geometry.screen_position, sections)
+            calculate_glyphs(font, font_id, scale, geometry.screen_position, sections)
         }
         fn recalculate_glyphs<'font>(
             &self,
@@ -130,11 +134,12 @@ mod text_layouts {
             change: GlyphChange,
             fonts: &Font<'font>,
             font_id: FontId,
+            scale: Scale,
             geometry: &SectionGeometry,
             sections: &[SectionText],
         ) -> Vec<(PositionedGlyph<'font>, [f32; 4], FontId)>
         {
-            recalculate_glyphs_body!(self, previous, change, fonts, font_id, geometry, sections)
+            recalculate_glyphs_body!(self, previous, change, fonts, font_id, scale, geometry, sections)
         }
     }
 
@@ -154,87 +159,25 @@ mod text_layouts {
             }
         }
     }
-    
-    pub(crate) fn calculate_glyphs_unbounded_layout_clipped_slow<'font>(
-        clip: Rect<i32>,
-        font: &Font<'font>,
-        font_id: FontId,
-        geometry: &SectionGeometry,
-        sections: &[SectionText],
-    ) -> Vec<(PositionedGlyph<'font>, [f32; 4], FontId)>
-    {
-        // TODO reduce duplication with calculate_glyphs fn
-        let mut caret = geometry.screen_position;
-        let mut out = vec![];
-    
-        let lines = unbounded::get_lines_iter(font, font_id, sections);
-
-        for line in lines {
-            let v_metrics = font.v_metrics(line.max_scale);
-            let line_height: f32 = v_metrics.ascent - v_metrics.descent + v_metrics.line_gap;
-            
-            let tuples = line.aligned_on_screen(caret);
-    
-            out.extend(
-                tuples
-                    .into_iter()
-                    .filter(|(glyph, _, _)| {
-                        // TODO when is this None?
-                        glyph.pixel_bounding_box()
-                            .map(move |pixel_coords| {
-                                // true if pixel_coords intersects clip
-                                pixel_coords.min.x <= clip.max.x
-                                && pixel_coords.min.y <= clip.max.y
-                                && clip.min.x <= pixel_coords.max.x
-                                && clip.min.y <= pixel_coords.max.y
-                            })
-                            .unwrap_or(true)
-                    })
-            );
-
-            caret.1 += line_height;
-        }
-    
-        out
-    }
 
     // This is a separate function to aid in testing
     pub(crate) fn calculate_glyphs_unbounded_layout_clipped<'font>(
         clip: Rect<i32>,
         font: &Font<'font>,
         font_id: FontId,
+        scale: Scale,
         geometry: &SectionGeometry,
         sections: &[SectionText],
     ) -> Vec<(PositionedGlyph<'font>, [f32; 4], FontId)>
     {
         perf_viz::record_guard!("UnboundedLayoutClipped::calculate_glyphs");
-        
-        perf_viz::start_record!("has_multiple_scales_or_fonts");
-        let has_multiple_scales = !sections.windows(2)
-            .all(|w| 
-                w[0].scale == w[1].scale
-            );
-        perf_viz::end_record!("has_multiple_scales_or_fonts");
-
-        if has_multiple_scales {
-            return calculate_glyphs_unbounded_layout_clipped_slow(
-                clip,
-                font,
-                font_id,
-                geometry,
-                sections,
-            );
-        }
-
         let mut out = vec![];
 
         if sections.len() == 0 {
             return out;
         }
 
-        let scale = sections[0].scale;
-
-        let lines_vec = unbounded::get_line_glyphs_iter(font, font_id, sections);
+        let lines_vec = unbounded::get_line_glyphs_iter(font, font_id, scale, sections);
 
         let mut lines = lines_vec.into_iter();
 
@@ -348,6 +291,7 @@ mod text_layouts {
             &self,
             font: &Font<'font>,
             font_id: FontId,
+            scale: Scale,
             geometry: &SectionGeometry,
             sections: &[SectionText],
         ) -> Vec<(PositionedGlyph<'font>, [f32; 4], FontId)>
@@ -356,6 +300,7 @@ mod text_layouts {
                 self.clip,
                 font,
                 font_id,
+                scale,
                 geometry,
                 sections,
             )
@@ -366,11 +311,12 @@ mod text_layouts {
             change: GlyphChange,
             font: &Font<'font>,
             font_id: FontId,
+            scale: Scale,
             geometry: &SectionGeometry,
             sections: &[SectionText],
         ) -> Vec<(PositionedGlyph<'font>, [f32; 4], FontId)>
         {
-            recalculate_glyphs_body!(self, previous, change, font, font_id, geometry, sections)
+            recalculate_glyphs_body!(self, previous, change, font, font_id, scale, geometry, sections)
         }
     }
 }
@@ -491,16 +437,15 @@ impl <'font> State<'font> {
                     let section = VariedSection {
                         screen_position: rect.min.into(),
                         bounds: rect.max.into(),
+                        scale,
                         z: z_to_f32(z),
                         text: text.iter().map(|ColouredText { text, colour }| {
                             SectionText {
                                 text: &text,
-                                scale,
                                 color: *colour,
-                                ..d!()
                             }
                         }).collect(),
-                        ..d!()
+                        font_id: d!(),
                     };
     
                     queue!(layout, section);
@@ -691,6 +636,7 @@ mod unbounded {
     pub(crate) fn get_lines_iter<'a, 'b, 'font>(
         font: &'b Font<'font>,
         font_id: FontId,
+        scale: Scale,
         sections: &'a [SectionText<'a>],
     ) -> UnboundedLines<'a, 'b, 'font>
     where
@@ -699,6 +645,7 @@ mod unbounded {
         Characters::new(
             font,
             font_id,
+            scale,
             sections.iter(),
         )
         .words()
@@ -732,6 +679,7 @@ mod unbounded {
     pub(crate) fn get_line_glyphs_iter<'a, 'b, 'font>(
             font: &'b Font<'font>,
             font_id: FontId,
+            scale: Scale,
             sections: &'a [SectionText],
         ) -> impl IntoIterator<
             Item = UnboundedLine<'font>,
@@ -744,6 +692,7 @@ mod unbounded {
             words: Characters::new(
                 font,
                 font_id,
+                scale,
                 sections.iter()
             )
             .words()
@@ -916,6 +865,7 @@ mod unbounded {
     {
         font: &'b Font<'font>,
         font_id: FontId,
+        scale: Scale,
         section_text: slice::Iter<'a, SectionText<'a>>,
         part_info: Option<PartInfo<'a>>,
         phantom: PhantomData<&'font ()>,
@@ -941,11 +891,13 @@ mod unbounded {
         pub(crate) fn new(
             font: &'b Font<'font>,
             font_id: FontId,
+            scale: Scale,
             section_text: slice::Iter<'a, SectionText<'a>>,
         ) -> Self {
             Self {
                 font,
                 font_id,
+                scale,
                 section_text,
                 part_info: None,
                 phantom: PhantomData,
@@ -958,12 +910,6 @@ mod unbounded {
         }
     }
     
-    #[inline]
-    fn valid_section(s: &SectionText<'_>) -> bool {
-        let Scale { x, y } = s.scale;
-        x > 0.0 && y > 0.0
-    }
-    
     impl<'font> Iterator for Characters<'_, '_, 'font>
     {
         type Item = Character<'font>;
@@ -971,13 +917,7 @@ mod unbounded {
         #[inline]
         fn next(&mut self) -> Option<Self::Item> {
             if self.part_info.is_none() {
-                let mut section;
-                loop {
-                    section = self.section_text.next()?;
-                    if valid_section(&section) {
-                        break;
-                    }
-                }
+                let section = self.section_text.next()?;
                 self.part_info = Some(PartInfo {
                     section,
                     info_chars: section.text.char_indices(),
@@ -990,7 +930,6 @@ mod unbounded {
                 let PartInfo {
                     section:
                         SectionText {
-                            scale,
                             color,
                             text,
                         },
@@ -1010,7 +949,7 @@ mod unbounded {
                         }
                     }
     
-                    let glyph = self.font.glyph(c).scaled(*scale);
+                    let glyph = self.font.glyph(c).scaled(self.scale);
     
                     let c_len = c.len_utf8();
                     let mut line_break = next_break.filter(|b| b.offset() == byte_index + c_len);

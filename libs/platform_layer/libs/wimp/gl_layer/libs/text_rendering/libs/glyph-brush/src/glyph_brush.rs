@@ -202,6 +202,8 @@ where
         let frame_seq_id = self.frame_seq_id_sections.len();
         self.frame_seq_id_sections.push(section_hash);
 
+        let scale = section.scale;
+
         if self.cache_glyph_positioning {
             if !self.calculate_glyph_cache.contains_key(&section_hash.full) {
                 let geometry = SectionGeometry::from(section);
@@ -231,6 +233,7 @@ where
                             change,
                             font,
                             font_id,
+                            scale,
                             &geometry,
                             &section.text,
                         ))
@@ -245,6 +248,7 @@ where
                             layout.calculate_glyphs(
                                 font,
                                 font_id,
+                                scale,
                                 &geometry,
                                 &section.text
                             )
@@ -263,6 +267,7 @@ where
                     glyphs: layout.calculate_glyphs(
                         font,
                         font_id,
+                        scale,
                         &geometry,
                         &section.text
                     ),

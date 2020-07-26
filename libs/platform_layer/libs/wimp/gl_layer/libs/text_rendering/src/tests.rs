@@ -206,6 +206,52 @@ mod arb {
     }
 }
 
+// This version is meant to be clearly correct, but willing to be slow in order to
+// meet that goal.
+fn calculate_glyphs_unbounded_layout_clipped_slow<'font>(
+    clip: Rect<i32>,
+    font: &Font<'font>,
+    font_id: FontId,
+    scale: Scale,
+    geometry: &SectionGeometry,
+    sections: &[SectionText],
+) -> Vec<(PositionedGlyph<'font>, [f32; 4], FontId)>
+{
+    // TODO reduce duplication with calculate_glyphs fn
+    let mut caret = geometry.screen_position;
+    let mut out = vec![];
+
+    let lines = unbounded::get_lines_iter(font, font_id, scale, sections);
+
+    for line in lines {
+        let v_metrics = font.v_metrics(line.max_scale);
+        let line_height: f32 = v_metrics.ascent - v_metrics.descent + v_metrics.line_gap;
+        
+        let tuples = line.aligned_on_screen(caret);
+
+        out.extend(
+            tuples
+                .into_iter()
+                .filter(|(glyph, _, _)| {
+                    // TODO when is this None?
+                    glyph.pixel_bounding_box()
+                        .map(move |pixel_coords| {
+                            // true if pixel_coords intersects clip
+                            pixel_coords.min.x <= clip.max.x
+                            && pixel_coords.min.y <= clip.max.y
+                            && clip.min.x <= pixel_coords.max.x
+                            && clip.min.y <= pixel_coords.max.y
+                        })
+                        .unwrap_or(true)
+                })
+        );
+
+        caret.1 += line_height;
+    }
+
+    out
+}
+
 fn single_font_map() -> [Font<'static>; 1] {
     [Font::from_bytes(FONT_BYTES).unwrap()]
 }

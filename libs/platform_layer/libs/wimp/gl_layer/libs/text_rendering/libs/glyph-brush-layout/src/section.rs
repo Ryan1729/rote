@@ -1,4 +1,3 @@
-use crate::{rusttype::Scale};
 use std::f32;
 
 /// RGBA `[0, 1]` color data.
@@ -26,8 +25,6 @@ impl Default for SectionGeometry {
 pub struct SectionText<'a> {
     /// Text to render
     pub text: &'a str,
-    /// Position on screen to render text, in pixels from top-left. Defaults to (0, 0).
-    pub scale: Scale,
     /// Rgba color of rendered text. Defaults to black.
     pub color: Color,
 }
@@ -37,7 +34,6 @@ impl Default for SectionText<'static> {
     fn default() -> Self {
         Self {
             text: "",
-            scale: Scale::uniform(16.0),
             color: [0.0, 0.0, 0.0, 1.0],
         }
     }

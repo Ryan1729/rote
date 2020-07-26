@@ -190,7 +190,7 @@ impl<H: BuildHasher> GlyphCalculatorGuard<'_, '_, H> {
             let font_id = section.font_id;
             let font = &self.fonts.font(font_id);
             entry.insert(GlyphedSection {
-                glyphs: layout.calculate_glyphs(font, font_id, &geometry, &section.text),
+                glyphs: layout.calculate_glyphs(font, font_id, section.scale, &geometry, &section.text),
                 z: section.z,
             });
         }

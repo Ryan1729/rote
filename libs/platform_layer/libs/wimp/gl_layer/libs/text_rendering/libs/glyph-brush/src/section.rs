@@ -11,6 +11,7 @@ pub struct VariedSection<'a> {
     /// Z values for use in depth testing. Defaults to 0.0
     pub z: f32,
     pub font_id: FontId,
+    pub scale: Scale,
     /// Text to render, rendered next to one another according the layout.
     pub text: Vec<SectionText<'a>>,
 }
@@ -23,6 +24,7 @@ impl Default for VariedSection<'static> {
             bounds: (f32::INFINITY, f32::INFINITY),
             z: 0.0,
             font_id: FontId::default(),
+            scale: Scale::uniform(16.0),
             text: vec![],
         }
     }
@@ -46,6 +48,7 @@ impl Hash for VariedSection<'_> {
             screen_position: (screen_x, screen_y),
             bounds: (bound_w, bound_h),
             font_id,
+            scale,
             z,
             ref text,
         } = *self;
@@ -57,6 +60,8 @@ impl Hash for VariedSection<'_> {
             screen_y.into(),
             bound_w.into(),
             bound_h.into(),
+            scale.x.into(),
+            scale.y.into(),
             z.into(),
         ];
 
@@ -71,13 +76,10 @@ fn hash_section_text<H: Hasher>(state: &mut H, text: &[SectionText]) {
     for t in text {
         let SectionText {
             text,
-            scale,
             color,
         } = *t;
 
         let ord_floats: &[OrderedFloat<_>] = &[
-            scale.x.into(),
-            scale.y.into(),
             color[0].into(),
             color[1].into(),
             color[2].into(),
@@ -188,12 +190,12 @@ impl<'a> From<&Section<'a>> for VariedSection<'a> {
         VariedSection {
             text: vec![SectionText {
                 text,
-                scale,
                 color,
             }],
             screen_position,
             bounds,
             font_id,
+            scale,
             z,
         }
     }
@@ -239,13 +241,10 @@ impl HashableVariedSectionParts<'_> {
         for t in self.text {
             let SectionText {
                 text,
-                scale,
                 ..
             } = *t;
 
-            let ord_floats: &[OrderedFloat<_>] = &[scale.x.into(), scale.y.into()];
-
-            (text, ord_floats).hash(state);
+            text.hash(state);
         }
     }
 
