@@ -158,17 +158,16 @@ mod arb {
 fn calculate_glyphs_unbounded_layout_clipped_slow<'font>(
     clip: Rect<i32>,
     font: &Font<'font>,
-    font_id: FontId,
     scale: Scale,
     geometry: &SectionGeometry,
     sections: &[SectionText],
-) -> Vec<(PositionedGlyph<'font>, [f32; 4], FontId)>
+) -> Vec<CalculatedGlyph<'font>>
 {
     // TODO reduce duplication with calculate_glyphs fn
     let mut caret = geometry.screen_position;
     let mut out = vec![];
 
-    let lines = unbounded::get_lines_iter(font, font_id, scale, sections);
+    let lines = unbounded::get_lines_iter(font, scale, sections);
 
     for line in lines {
         let v_metrics = font.v_metrics(scale);
@@ -179,7 +178,7 @@ fn calculate_glyphs_unbounded_layout_clipped_slow<'font>(
         out.extend(
             tuples
                 .into_iter()
-                .filter(|(glyph, _, _)| {
+                .filter(|(glyph, _)| {
                     // TODO when is this None?
                     glyph.pixel_bounding_box()
                         .map(move |pixel_coords| {
@@ -225,7 +224,6 @@ fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
     let actual = calculate_glyphs_unbounded_layout_clipped(
         clip.clone(),
         &font_map.font(SINGLE_FONT_ID),
-        SINGLE_FONT_ID,
         scale,
         &geometry,
         sections,
@@ -234,7 +232,6 @@ fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
     let expected = calculate_glyphs_unbounded_layout_clipped_slow(
         clip.clone(),            
         &font_map.font(SINGLE_FONT_ID),
-        SINGLE_FONT_ID,
         scale,
         &geometry,
         sections,
@@ -667,7 +664,6 @@ fn calculate_glyphs_unbounded_layout_clipped_slow_puts_5_a_characters_on_the_sam
     let glyphs = calculate_glyphs_unbounded_layout_clipped_slow(
         clip.clone(),            
         &font_map.font(SINGLE_FONT_ID),
-        SINGLE_FONT_ID,
         scale,
         &geometry,
         sections,
