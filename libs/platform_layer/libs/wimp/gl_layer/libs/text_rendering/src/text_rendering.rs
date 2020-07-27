@@ -18,25 +18,19 @@ mod text_layouts {
     use super::*;
     use macros::{dbg};
     use glyph_brush::{
-        rusttype::{point, vector, PositionedGlyph},
+        rusttype::{point, vector},
     };
     use std::borrow::Cow;
 
-    //
-    // Most of this is copied from the  <L: LineBreaker> GlyphPositioner for Layout<L> impl in
-    // `glyph-brush-layout`. The one part I wanted to change is noted below, but while I was at it
-    // I simplified it by removing support for layout options I have yet to have a need for.
-    //
     fn calculate_glyphs<'font>(
         font: &Font<'font>,
-        font_id: FontId,
         scale: Scale,
         mut caret: (f32, f32),
         sections: &[SectionText<'_>],
-    ) -> Vec<(PositionedGlyph<'font>, Color, FontId)> {
+    ) -> Vec<CalculatedGlyph<'font>> {
         let mut out = vec![];
 
-        let lines = unbounded::get_lines_iter(font, font_id, scale, sections);
+        let lines = unbounded::get_lines_iter(font, scale, sections);
         
         let v_metrics = font.v_metrics(scale);
         let line_height: f32 = v_metrics.ascent - v_metrics.descent + v_metrics.line_gap;
@@ -52,13 +46,12 @@ mod text_layouts {
     /// This is a macro since traits with generics can't be made into objects.
     macro_rules! recalculate_glyphs_body {
         (
-            $positioner: expr, $previous: expr, $change: expr, $fonts: expr, $font_id: expr, $scale: expr, $geometry: expr, $sections: expr
+            $positioner: expr, $previous: expr, $change: expr, $fonts: expr, $scale: expr, $geometry: expr, $sections: expr
         ) => {{
             let positioner = $positioner;
             let previous = $previous;
             let change = $change;
             let fonts = $fonts;
-            let font_id = $font_id;
             let scale = $scale;
             let geometry = $geometry;
             let sections = $sections;
@@ -89,7 +82,7 @@ mod text_layouts {
                         }
                         glyphs
                     } else {
-                        positioner.calculate_glyphs(fonts, font_id, scale, geometry, sections)
+                        positioner.calculate_glyphs(fonts, scale, geometry, sections)
                     }
                 }
                 GlyphChange::Alpha if !sections.is_empty() && !previous.is_empty() => {
@@ -103,10 +96,10 @@ mod text_layouts {
                         }
                         glyphs
                     } else {
-                        positioner.calculate_glyphs(fonts, font_id, scale, geometry, sections)
+                        positioner.calculate_glyphs(fonts, scale, geometry, sections)
                     }
                 }
-                _ => positioner.calculate_glyphs(fonts, font_id, scale, geometry, sections),
+                _ => positioner.calculate_glyphs(fonts, scale, geometry, sections),
             }
         }};
     }
@@ -120,26 +113,24 @@ mod text_layouts {
         fn calculate_glyphs<'font>(
             &self,
             font: &Font<'font>,
-            font_id: FontId,
             scale: Scale,
             geometry: &SectionGeometry,
             sections: &[SectionText],
-        ) -> Vec<(PositionedGlyph<'font>, [f32; 4], FontId)>
+        ) -> Vec<CalculatedGlyph<'font>>
         {
-            calculate_glyphs(font, font_id, scale, geometry.screen_position, sections)
+            calculate_glyphs(font, scale, geometry.screen_position, sections)
         }
         fn recalculate_glyphs<'font>(
             &self,
-            previous: Cow<Vec<(PositionedGlyph<'font>, [f32; 4], FontId)>>,
+            previous: Cow<Vec<CalculatedGlyph<'font>>>,
             change: GlyphChange,
             fonts: &Font<'font>,
-            font_id: FontId,
             scale: Scale,
             geometry: &SectionGeometry,
             sections: &[SectionText],
-        ) -> Vec<(PositionedGlyph<'font>, [f32; 4], FontId)>
+        ) -> Vec<CalculatedGlyph<'font>>
         {
-            recalculate_glyphs_body!(self, previous, change, fonts, font_id, scale, geometry, sections)
+            recalculate_glyphs_body!(self, previous, change, fonts, scale, geometry, sections)
         }
     }
 
@@ -164,11 +155,10 @@ mod text_layouts {
     pub(crate) fn calculate_glyphs_unbounded_layout_clipped<'font>(
         clip: Rect<i32>,
         font: &Font<'font>,
-        font_id: FontId,
         scale: Scale,
         geometry: &SectionGeometry,
         sections: &[SectionText],
-    ) -> Vec<(PositionedGlyph<'font>, [f32; 4], FontId)>
+    ) -> Vec<CalculatedGlyph<'font>>
     {
         perf_viz::record_guard!("UnboundedLayoutClipped::calculate_glyphs");
         let mut out = vec![];
@@ -177,13 +167,13 @@ mod text_layouts {
             return out;
         }
 
-        let lines_vec = unbounded::get_line_glyphs_iter(font, font_id, scale, sections);
+        let lines_vec = unbounded::get_line_glyphs_iter(font, scale, sections);
 
         let mut lines = lines_vec.into_iter();
 
         perf_viz::record_guard!("UnboundedLayoutClipped loop");
 
-        if let Some(mut glyphs) = lines.next() {
+        if let Some(mut line) = lines.next() {
             perf_viz::start_record!("UnboundedLayoutClipped loop prep");
 
             let v_metrics = font.v_metrics(scale);
@@ -217,8 +207,8 @@ mod text_layouts {
 
             if to_skip > 0 {
                 caret.1 = caret.1 + f32::from(to_skip) * line_height;
-                if let Some(g) = lines.nth((to_skip - 1) as _) {
-                    glyphs = g;
+                if let Some(l) = lines.nth((to_skip - 1) as _) {
+                    line = l;
                 } else {
                     perf_viz::end_record!("lines.nth");
                     return out;
@@ -240,11 +230,11 @@ mod text_layouts {
                     perf_viz::start_record!("glyph.screen_positioned");
                     let screen_pos = point(caret.0, caret.1);
 
-                    let tuples = glyphs
+                    let tuples = line
                         .glyphs
                         .into_iter()
-                        .map(|(glyph, color, font_id)| 
-                            (glyph.screen_positioned(screen_pos), color, font_id)
+                        .map(|(glyph, color)| 
+                            (glyph.screen_positioned(screen_pos), color)
                         );
                     perf_viz::end_record!("glyph.screen_positioned");
         
@@ -252,7 +242,7 @@ mod text_layouts {
                     out.extend(
                         tuples
                             .into_iter()
-                            .filter(|(glyph, _, _): &(PositionedGlyph<'_>, [f32; 4], FontId)| {
+                            .filter(|(glyph, _): &CalculatedGlyph<'_>| {
                                 // TODO when is this None?
                                 let should_keep = glyph.pixel_bounding_box()
                                     .map(move |pixel_coords| {
@@ -273,8 +263,8 @@ mod text_layouts {
                 caret.1 = new_caret_height;
                 
                 perf_viz::start_record!("lines.next()");
-                if let Some(g) = lines.next() {
-                    glyphs = g;
+                if let Some(l) = lines.next() {
+                    line = l;
                     perf_viz::end_record!("lines.next()");
                 } else {
                     perf_viz::end_record!("lines.next()");
@@ -290,16 +280,14 @@ mod text_layouts {
         fn calculate_glyphs<'font>(
             &self,
             font: &Font<'font>,
-            font_id: FontId,
             scale: Scale,
             geometry: &SectionGeometry,
             sections: &[SectionText],
-        ) -> Vec<(PositionedGlyph<'font>, [f32; 4], FontId)>
+        ) -> Vec<CalculatedGlyph<'font>>
         {
             calculate_glyphs_unbounded_layout_clipped(
                 self.clip,
                 font,
-                font_id,
                 scale,
                 geometry,
                 sections,
@@ -307,16 +295,15 @@ mod text_layouts {
         }
         fn recalculate_glyphs<'font>(
             &self,
-            previous: Cow<Vec<(PositionedGlyph<'font>, [f32; 4], FontId)>>,
+            previous: Cow<Vec<CalculatedGlyph<'font>>>,
             change: GlyphChange,
             font: &Font<'font>,
-            font_id: FontId,
             scale: Scale,
             geometry: &SectionGeometry,
             sections: &[SectionText],
-        ) -> Vec<(PositionedGlyph<'font>, [f32; 4], FontId)>
+        ) -> Vec<CalculatedGlyph<'font>>
         {
-            recalculate_glyphs_body!(self, previous, change, font, font_id, scale, geometry, sections)
+            recalculate_glyphs_body!(self, previous, change, font, scale, geometry, sections)
         }
     }
 }
@@ -623,19 +610,23 @@ fn ssr_to_rusttype_i32(ssr!(min_x, min_y, max_x, max_y): ScreenSpaceRect) -> Rec
 }
 
 mod unbounded {
-    use super::*;
-
     use glyph_brush::{
-        ScaledGlyph,
-        PositionedGlyph,
-        point,
-        vector,
-        Scale
+        rusttype::{
+            ScaledGlyph,
+            point,
+            vector,
+            Scale,
+            Font,
+        },
+        CalculatedGlyph,
+        RelativePositionedGlyph,
+        LineBreak,
+        SectionText,
+        Color,
     };
     #[perf_viz::record]
     pub(crate) fn get_lines_iter<'a, 'b, 'font>(
         font: &'b Font<'font>,
-        font_id: FontId,
         scale: Scale,
         sections: &'a [SectionText<'a>],
     ) -> UnboundedLines<'a, 'b, 'font>
@@ -644,7 +635,6 @@ mod unbounded {
     {
         Characters::new(
             font,
-            font_id,
             scale,
             sections.iter(),
         )
@@ -653,7 +643,7 @@ mod unbounded {
     }
     
     pub(crate) struct UnboundedLine<'font> {
-        pub(crate) glyphs: Vec<(RelativePositionedGlyph<'font>, [f32; 4], FontId)>,
+        pub(crate) glyphs: Vec<(RelativePositionedGlyph<'font>, [f32; 4])>,
         pub(crate) max_scale: Scale,
     }
 
@@ -662,7 +652,7 @@ mod unbounded {
         pub fn aligned_on_screen(
             self,
             screen_position: (f32, f32),
-        ) -> Vec<(PositionedGlyph<'font>, Color, FontId)> {
+        ) -> Vec<CalculatedGlyph<'font>> {
             if self.glyphs.is_empty() {
                 return Vec::new();
             }
@@ -671,27 +661,25 @@ mod unbounded {
     
             self.glyphs
                 .into_iter()
-                .map(|(glyph, color, font_id)| (glyph.screen_positioned(screen_pos), color, font_id))
+                .map(|(glyph, color)| (glyph.screen_positioned(screen_pos), color))
                 .collect()
         }
     }
     
     pub(crate) fn get_line_glyphs_iter<'a, 'b, 'font>(
-            font: &'b Font<'font>,
-            font_id: FontId,
-            scale: Scale,
-            sections: &'a [SectionText],
-        ) -> impl IntoIterator<
-            Item = UnboundedLine<'font>,
-            IntoIter = std::vec::IntoIter<UnboundedLine<'font>>
-        >
-        where
-            'font: 'a + 'b,
+        font: &'b Font<'font>,
+        scale: Scale,
+        sections: &'a [SectionText],
+    ) -> impl IntoIterator<
+        Item = UnboundedLine<'font>,
+        IntoIter = std::vec::IntoIter<UnboundedLine<'font>>
+    >
+    where
+        'font: 'a + 'b,
     {
         let v: Vec<_> = UnboundedLines {
             words: Characters::new(
                 font,
-                font_id,
                 scale,
                 sections.iter()
             )
@@ -742,9 +730,9 @@ mod unbounded {
     
                 line
                     .glyphs
-                    .extend(word.glyphs.into_iter().map(|(mut g, color, font_id)| {
+                    .extend(word.glyphs.into_iter().map(|(mut g, color)| {
                         g.relative = g.relative + caret;
-                        (g, color, font_id)
+                        (g, color)
                     }));
     
                 caret.x += word.layout_width;
@@ -759,7 +747,7 @@ mod unbounded {
     }
     
     pub(crate) struct Word<'font> {
-        pub(crate) glyphs: Vec<(RelativePositionedGlyph<'font>, Color, FontId)>,
+        pub(crate) glyphs: Vec<(RelativePositionedGlyph<'font>, Color)>,
         /// pixel advance width of word includes ending spaces/invisibles
         pub(crate) layout_width: f32,
         pub(crate) max_v_ascent: f32,
@@ -799,7 +787,6 @@ mod unbounded {
             let mut hard_break = false;
             let mut progress = false;
     
-            let font_id = self.characters.font_id;
             for Character {
                 glyph,
                 color,
@@ -834,7 +821,7 @@ mod unbounded {
                     caret += advance_width;
     
                     if positioned.bounds().is_some() {
-                        glyphs.push((positioned, color, font_id));
+                        glyphs.push((positioned, color));
                     }
                 }
     
@@ -864,7 +851,6 @@ mod unbounded {
         'font: 'a + 'b,
     {
         font: &'b Font<'font>,
-        font_id: FontId,
         scale: Scale,
         section_text: slice::Iter<'a, SectionText<'a>>,
         part_info: Option<PartInfo<'a>>,
@@ -890,13 +876,11 @@ mod unbounded {
         /// Returns a new `Characters` iterator.
         pub(crate) fn new(
             font: &'b Font<'font>,
-            font_id: FontId,
             scale: Scale,
             section_text: slice::Iter<'a, SectionText<'a>>,
         ) -> Self {
             Self {
                 font,
-                font_id,
                 scale,
                 section_text,
                 part_info: None,

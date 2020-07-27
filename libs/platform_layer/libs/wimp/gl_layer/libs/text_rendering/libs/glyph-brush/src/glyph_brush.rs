@@ -119,7 +119,7 @@ where
         &'b mut self,
         section: S,
         custom_layout: &L,
-    ) -> PositionedGlyphIter<'b, 'font>
+    ) -> CalculatedGlyphIter<'b, 'font>
     where
         L: GlyphPositioner + Hash,
         S: Into<Cow<'a, VariedSection<'a>>>,
@@ -203,6 +203,7 @@ where
         self.frame_seq_id_sections.push(section_hash);
 
         let scale = section.scale;
+        let font_id = section.font_id;
 
         if self.cache_glyph_positioning {
             if !self.calculate_glyph_cache.contains_key(&section_hash.full) {
@@ -213,7 +214,6 @@ where
                     .get(frame_seq_id)
                     .cloned()
                     .and_then(|hash| {
-                        let font_id = section.font_id;
                         let font = &self.fonts.font(font_id);
                         let change = hash.diff(section_hash);
                         if let GlyphChange::Unknown = change {
@@ -232,46 +232,44 @@ where
                             old_glyphs,
                             change,
                             font,
-                            font_id,
                             scale,
                             &geometry,
                             &section.text,
                         ))
                     });
 
+                
                 self.calculate_glyph_cache.insert(
                     section_hash.full,
                     Glyphed::new(GlyphedSection {
                         glyphs: recalculated_glyphs.unwrap_or_else(|| {
-                            let font_id = section.font_id;
                             let font = &self.fonts.font(font_id);
                             layout.calculate_glyphs(
                                 font,
-                                font_id,
                                 scale,
                                 &geometry,
                                 &section.text
                             )
                         }),
                         z: section.z,
+                        font_id,
                     }),
                 );
             }
         } else {
             let geometry = SectionGeometry::from(section);
-            let font_id = section.font_id;
             let font = &self.fonts.font(font_id);
             self.calculate_glyph_cache.insert(
                 section_hash.full,
                 Glyphed::new(GlyphedSection {
                     glyphs: layout.calculate_glyphs(
                         font,
-                        font_id,
                         scale,
                         &geometry,
                         &section.text
                     ),
                     z: section.z,
+                    font_id,
                 }),
             );
         }
@@ -328,24 +326,30 @@ where
             // be retained in the texture cache avoiding cache thrashing if they are rendered
             // in a 2-draw per frame style.
             for section_hash in &self.keep_in_cache {
-                for &(ref glyph, _, font_id) in self
+                for positioned in self
                     .calculate_glyph_cache
                     .get(section_hash)
                     .iter()
-                    .flat_map(|gs| &gs.positioned.glyphs)
+                    .map(|gs| &gs.positioned)
                 {
-                    self.texture_cache.queue_glyph(font_id.0, glyph.clone());
-                    some_text = true;
+                    let font_id = positioned.font_id;
+                    for &(ref glyph, _) in positioned.glyphs.iter() {
+                        self.texture_cache.queue_glyph(font_id.0, glyph.clone());
+                        some_text = true;
+                    }
                 }
             }
 
-            for &(ref glyph, _, font_id) in self
+            for positioned in self
                 .pre_positioned
                 .iter()
-                .flat_map(|p| &p.positioned.glyphs)
+                .map(|p| &p.positioned)
             {
-                self.texture_cache.queue_glyph(font_id.0, glyph.clone());
-                some_text = true;
+                let font_id = positioned.font_id;
+                for &(ref glyph, _) in positioned.glyphs.iter() {
+                    self.texture_cache.queue_glyph(font_id.0, glyph.clone());
+                    some_text = true;
+                }
             }
 
             if some_text {
@@ -635,13 +639,14 @@ impl<'font, V> Glyphed<'font, V> {
 
         let GlyphedSection {
             z,
+            font_id,
             ref glyphs,
         } = self.positioned;
 
         self.vertices.reserve(glyphs.len());
         perf_viz::record_guard!("ensure_vertices extend");
         self.vertices
-            .extend(glyphs.iter().filter_map(|(glyph, color, font_id)| {
+            .extend(glyphs.iter().filter_map(|(glyph, color)| {
                 match texture_cache.rect_for(font_id.0, glyph) {
                     Err(err) => {
                         error!("Cache miss?: {:?}, {:?}: {}", font_id, glyph, err);

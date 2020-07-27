@@ -45,6 +45,8 @@ pub mod rusttype {
 use crate::rusttype::*;
 use std::hash::Hash;
 
+pub type CalculatedGlyph<'font> = (PositionedGlyph<'font>, Color);
+
 /// Logic to calculate glyph positioning using [`Font`](struct.Font.html),
 /// [`SectionGeometry`](struct.SectionGeometry.html) and
 /// [`SectionText`](struct.SectionText.html).
@@ -54,11 +56,10 @@ pub trait GlyphPositioner: Hash {
     fn calculate_glyphs<'font>(
         &self,
         font: &Font<'font>,
-        font_id: FontId,
         scale: Scale,
         geometry: &SectionGeometry,
         sections: &[SectionText<'_>],
-    ) -> Vec<(PositionedGlyph<'font>, Color, FontId)>;
+    ) -> Vec<CalculatedGlyph<'font>>;
 
     /// Recalculate a glyph sequence after a change.
     ///
@@ -66,17 +67,16 @@ pub trait GlyphPositioner: Hash {
     /// to provide benefits as such benefits are spefic to the internal layout logic.
     fn recalculate_glyphs<'font>(
         &self,
-        previous: Cow<'_, Vec<(PositionedGlyph<'font>, Color, FontId)>>,
+        previous: Cow<'_, Vec<CalculatedGlyph<'font>>>,
         change: GlyphChange,
         font: &Font<'font>,
-        font_id: FontId,
         scale: Scale,
         geometry: &SectionGeometry,
         sections: &[SectionText<'_>],
-    ) -> Vec<(PositionedGlyph<'font>, Color, FontId)>
+    ) -> Vec<CalculatedGlyph<'font>>
     {
         let _ = (previous, change);
-        self.calculate_glyphs(font, font_id, scale, geometry, sections)
+        self.calculate_glyphs(font, scale, geometry, sections)
     }
 }
 

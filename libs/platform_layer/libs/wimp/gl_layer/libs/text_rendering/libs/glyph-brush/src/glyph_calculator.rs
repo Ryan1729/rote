@@ -10,11 +10,10 @@ use std::{
     sync::{Mutex, MutexGuard},
 };
 
-/// [`PositionedGlyph`](struct.PositionedGlyph.html) iterator.
-pub type PositionedGlyphIter<'a, 'font> = std::iter::Map<
-    slice::Iter<'a, (rusttype::PositionedGlyph<'font>, [f32; 4], FontId)>,
+pub type CalculatedGlyphIter<'a, 'font> = std::iter::Map<
+    slice::Iter<'a, CalculatedGlyph<'font>>,
     fn(
-        &'a (rusttype::PositionedGlyph<'font>, [f32; 4], FontId),
+        &'a CalculatedGlyph<'font>,
     ) -> &'a rusttype::PositionedGlyph<'font>,
 >;
 
@@ -57,7 +56,7 @@ pub trait GlyphCruncher<'font> {
         &'b mut self,
         section: S,
         custom_layout: &L,
-    ) -> PositionedGlyphIter<'b, 'font>
+    ) -> CalculatedGlyphIter<'b, 'font>
     where
         L: GlyphPositioner + Hash,
         S: Into<Cow<'a, VariedSection<'a>>>;
@@ -190,7 +189,8 @@ impl<H: BuildHasher> GlyphCalculatorGuard<'_, '_, H> {
             let font_id = section.font_id;
             let font = &self.fonts.font(font_id);
             entry.insert(GlyphedSection {
-                glyphs: layout.calculate_glyphs(font, font_id, section.scale, &geometry, &section.text),
+                glyphs: layout.calculate_glyphs(font, section.scale, &geometry, &section.text),
+                font_id,
                 z: section.z,
             });
         }
@@ -224,7 +224,7 @@ impl<'font, H: BuildHasher> GlyphCruncher<'font> for GlyphCalculatorGuard<'_, 'f
         &'b mut self,
         section: S,
         custom_layout: &L,
-    ) -> PositionedGlyphIter<'b, 'font>
+    ) -> CalculatedGlyphIter<'b, 'font>
     where
         L: GlyphPositioner + Hash,
         S: Into<Cow<'a, VariedSection<'a>>>,
@@ -338,17 +338,18 @@ impl<'a, H: BuildHasher> GlyphCalculatorBuilder<'a, H> {
 
 #[derive(Debug, Clone)]
 pub(crate) struct GlyphedSection<'font> {
-    pub glyphs: Vec<(PositionedGlyph<'font>, Color, FontId)>,
+    pub glyphs: Vec<CalculatedGlyph<'font>>,
+    pub font_id: FontId,
     pub z: f32,
 }
 
 impl<'a> PartialEq<GlyphedSection<'a>> for GlyphedSection<'a> {
     fn eq(&self, other: &Self) -> bool {
         self.z == other.z
+        && self.font_id == other.font_id
             && self.glyphs.len() == other.glyphs.len()
             && self.glyphs.iter().zip(other.glyphs.iter()).all(|(l, r)| {
-                l.2 == r.2
-                    && l.1 == r.1
+                    l.1 == r.1
                     && l.0.id() == r.0.id()
                     && l.0.position() == r.0.position()
                     && l.0.scale() == r.0.scale()
@@ -392,7 +393,7 @@ impl<'font> GlyphedSection<'font> {
     }
 
     #[inline]
-    pub(crate) fn glyphs(&self) -> PositionedGlyphIter<'_, 'font> {
+    pub(crate) fn glyphs(&self) -> CalculatedGlyphIter<'_, 'font> {
         self.glyphs.iter().map(|(g, ..)| g)
     }
 }
