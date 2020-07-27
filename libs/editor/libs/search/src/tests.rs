@@ -51,12 +51,11 @@ fn given_get_ranges_returns_only_locations_that_match_the_needle_on(
 
     let ranges = selected_impl(needle.full_slice(), haystack.full_slice(), None);
 
-    assert!(ranges.len() > 0);
+    assert!(ranges.len() > 0, "Preconditon failure: {:?} was not found in {:?}", needle, haystack);
 
     let mut chars = haystack.chars();
-    let mut previously_used = CharOffset(0);
     for (start, end) in ranges {
-        for _ in previously_used.0..start.0 {
+        for _ in 0..start.0 {
             chars.next().unwrap();
         }
 
@@ -65,7 +64,7 @@ fn given_get_ranges_returns_only_locations_that_match_the_needle_on(
             assert_eq!(chars.next(), n_chars.next());
         }
 
-        previously_used = end;
+        chars = haystack.chars();
     }
 }
 
@@ -407,6 +406,11 @@ fn get_ranges_impl_matches_the_slow_impl_in_this_generated_case() {
     get_ranges_impl_matches_the_slow_impl_on("a", "ab");
 }
 
+#[test]
+fn get_ranges_impl_matches_the_slow_impl_in_this_overlapping_results_case() {
+    get_ranges_impl_matches_the_slow_impl_on("aa", "aaab");
+}
+
 /// This version is meant to be obviously correct, but willing to be slow to maintain that property.
 fn get_ranges_slow_impl(
     needle: RopeSlice,
@@ -420,6 +424,7 @@ fn get_ranges_slow_impl(
         let mut haystack_chars = haystack.chars_at(CharOffset(i)).unwrap();
 
         // zip would end early and we don't want that.
+        dbg!(CharOffset(i));
         loop { 
             match dbg!(needle_chars.next(), haystack_chars.next()) {
                 (None, _) => { 
@@ -437,7 +442,9 @@ fn get_ranges_slow_impl(
         output.truncate(max_needed.get());
     }
 
+    dbg!(
     output
+    )
 }
 
 fn get_ranges_slow_returns_only_locations_that_match_the_needle_on(needle: &str, haystack: &str) {
@@ -456,6 +463,26 @@ proptest! {
 #[test]
 fn get_ranges_slow_returns_only_locations_that_match_the_needle_in_this_generated_unicode_case() {
     let (needle, haystack) = ("ȺȺ", "{�=𐆠𑤐�gqš\'=.¥⿵â🯳ȺȺȺ𝒪𑖮�𐠼෴=ῥ");
+    get_ranges_slow_returns_only_locations_that_match_the_needle_on(&needle, &haystack);
+}
+
+#[test]
+fn get_ranges_slow_returns_only_locations_that_match_the_needle_in_this_generated_unicode_case_reduction() {
+    let (needle, haystack) = ("ȺȺ", "ȺȺȺ𝒪");
+    get_ranges_slow_returns_only_locations_that_match_the_needle_on(&needle, &haystack);
+}
+
+#[test]
+fn get_ranges_slow_returns_only_locations_that_match_the_needle_in_this_generated_unicode_case_reduction_after_escape_unicode() {
+    let (needle, haystack) = ("\u{23a}\u{23a}", "\u{23a}\u{23a}\u{23a}\u{1d4aa}");
+    get_ranges_slow_returns_only_locations_that_match_the_needle_on(&needle, &haystack);
+}
+
+// reduced from:
+// get_ranges_slow_returns_only_locations_that_match_the_needle_in_this_generated_unicode_case_reduction_after_escape_unicode
+#[test]
+fn get_ranges_slow_returns_only_locations_that_match_the_needle_in_this_overlapping_results_case() {
+    let (needle, haystack) = ("aa", "aaab");
     get_ranges_slow_returns_only_locations_that_match_the_needle_on(&needle, &haystack);
 }
 
