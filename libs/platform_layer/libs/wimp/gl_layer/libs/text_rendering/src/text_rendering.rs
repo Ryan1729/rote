@@ -682,13 +682,13 @@ mod unbounded {
                 glyphs: Vec::new(),
             };
     
-            let mut progressed = false;
+            let mut line_progressed = false;
 
             loop {
                 let mut layout_width = 0.0;
                 let mut last_glyph_id = None;
                 let mut hard_break = false;
-                let mut progress = false;
+                let mut character_progressed = false;
         
                 let font = self.characters.font;
                 let scale = self.characters.scale;
@@ -699,7 +699,7 @@ mod unbounded {
                     control,
                 } in &mut self.characters
                 {
-                    progress = true;
+                    character_progressed = true;
                     {
                         if let Some(id) = last_glyph_id.take() {
                             layout_width += font.pair_kerning(scale, id, glyph.id());
@@ -729,8 +729,8 @@ mod unbounded {
                     }
                 }
         
-                if progress {
-                    progressed = true;
+                if character_progressed {
+                    line_progressed = true;
                     caret.x += layout_width;
                     if hard_break {
                         break
@@ -740,7 +740,7 @@ mod unbounded {
                 }
             }
     
-            Some(line).filter(|_| progressed)
+            Some(line).filter(|_| line_progressed)
         }
     }
     
