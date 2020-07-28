@@ -636,7 +636,6 @@ mod unbounded {
             scale,
             sections.iter(),
         )
-        .words()
         .lines()
     }
     
@@ -667,14 +666,14 @@ mod unbounded {
     where
         'font: 'a + 'b,
     {
-        pub(crate) words: Words<'a, 'b, 'font>,
+        pub(crate) characters: Characters<'a, 'b, 'font>,
     }
     
     impl<'font> Iterator for UnboundedLines<'_, '_, 'font> {
         type Item = UnboundedLine<'font>;
     
         fn next(&mut self) -> Option<Self::Item> {
-            let characters = &self.words.characters;
+            let characters = &self.characters;
             let mut caret = vector(
                 0.0,
                 characters.font.v_metrics(characters.scale).ascent
@@ -685,7 +684,63 @@ mod unbounded {
     
             let mut progressed = false;
 
-            while let Some(word) = self.words.next() {
+            fn words_next<'font>(characters: &mut Characters<'_, '_, 'font>) -> Option<Word<'font>> {
+                let mut glyphs = Vec::new();
+                let mut layout_width = 0.0;
+                let mut last_glyph_id = None;
+                let mut hard_break = false;
+                let mut progress = false;
+        
+                let font = characters.font;
+                let scale = characters.scale;
+                for Character {
+                    glyph,
+                    color,
+                    is_line_break,
+                    control,
+                } in characters
+                {
+                    progress = true;
+                    {
+                        if let Some(id) = last_glyph_id.take() {
+                            layout_width += font.pair_kerning(scale, id, glyph.id());
+                        }
+                        last_glyph_id = Some(glyph.id());
+                    }
+        
+                    let advance_width = glyph.h_metrics().advance_width;
+        
+                    if !control {
+                        let positioned = RelativePositionedGlyph {
+                            relative: point(layout_width, 0.0),
+                            glyph,
+                        };
+        
+                        layout_width += advance_width;
+        
+                        if positioned.bounds().is_some() {
+                            glyphs.push((positioned, color));
+                        }
+                    }
+        
+                    if is_line_break {
+                        hard_break = true;
+                        break;
+                    }
+                }
+        
+                if progress {
+                    Some(Word {
+                        glyphs,
+                        layout_width,
+                        hard_break,
+                    })
+                } else {
+                    None
+                }
+            }
+
+            while let Some(word) = words_next(&mut self.characters) {
                 progressed = true;
     
                 line
@@ -712,83 +767,6 @@ mod unbounded {
         pub(crate) layout_width: f32,
         /// indicates the break after the word is a hard one
         pub(crate) hard_break: bool,
-    }
-    
-    /// `Word` iterator.
-    pub(crate) struct Words<'a, 'b, 'font: 'a + 'b>
-    {
-        pub(crate) characters: Characters<'a, 'b, 'font>,
-    }
-
-    impl<'a, 'b, 'font> Words<'a, 'b, 'font>
-    {
-        pub fn lines(self) -> UnboundedLines<'a, 'b, 'font> {
-            UnboundedLines {
-                words: self,
-            }
-        }
-    }
-
-    impl<'font> Iterator for Words<'_, '_, 'font>
-    {
-        type Item = Word<'font>;
-    
-        #[inline]
-        fn next(&mut self) -> Option<Self::Item> {
-            let mut glyphs = Vec::new();
-            let mut layout_width = 0.0;
-            let mut last_glyph_id = None;
-            let mut hard_break = false;
-            let mut progress = false;
-    
-            let font = self.characters.font;
-            let scale = self.characters.scale;
-            for Character {
-                glyph,
-                color,
-                is_line_break,
-                control,
-            } in &mut self.characters
-            {
-                progress = true;
-                {
-                    if let Some(id) = last_glyph_id.take() {
-                        layout_width += font.pair_kerning(scale, id, glyph.id());
-                    }
-                    last_glyph_id = Some(glyph.id());
-                }
-    
-                let advance_width = glyph.h_metrics().advance_width;
-    
-                if !control {
-                    let positioned = RelativePositionedGlyph {
-                        relative: point(layout_width, 0.0),
-                        glyph,
-                    };
-    
-                    layout_width += advance_width;
-    
-                    if positioned.bounds().is_some() {
-                        glyphs.push((positioned, color));
-                    }
-                }
-    
-                if is_line_break {
-                    hard_break = true;
-                    break;
-                }
-            }
-    
-            if progress {
-                Some(Word {
-                    glyphs,
-                    layout_width,
-                    hard_break,
-                })
-            } else {
-                None
-            }
-        }
     }
     
     /// `Character` iterator
@@ -831,9 +809,10 @@ mod unbounded {
             }
         }
     
-        /// Wraps into a `Words` iterator.
-        pub(crate) fn words(self) -> Words<'a, 'b, 'font> {
-            Words { characters: self }
+        pub fn lines(self) -> UnboundedLines<'a, 'b, 'font> {
+            UnboundedLines {
+                characters: self,
+            }
         }
     }
     
