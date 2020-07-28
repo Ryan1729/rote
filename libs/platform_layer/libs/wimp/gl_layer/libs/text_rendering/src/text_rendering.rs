@@ -656,7 +656,7 @@ mod unbounded {
     where
         'font: 'a + 'b,
     {
-        pub(crate) characters: Characters<'a, 'b, 'font>,
+        characters: Characters<'a, 'b, 'font>,
     }
     
     impl<'font> Iterator for UnboundedLines<'_, '_, 'font> {
@@ -735,7 +735,7 @@ mod unbounded {
     }
     
     /// `Character` iterator
-    pub(crate) struct Characters<'a, 'b, 'font>
+    struct Characters<'a, 'b, 'font>
     where
         'font: 'a + 'b,
     {
@@ -761,7 +761,7 @@ mod unbounded {
     impl<'a, 'b, 'font> Characters<'a, 'b, 'font>
     {
         /// Returns a new `Characters` iterator.
-        pub(crate) fn new(
+        fn new(
             font: &'b Font<'font>,
             scale: Scale,
             section_text: slice::Iter<'a, SectionText<'a>>,
@@ -774,7 +774,7 @@ mod unbounded {
             }
         }
     
-        pub fn lines(self) -> UnboundedLines<'a, 'b, 'font> {
+        fn lines(self) -> UnboundedLines<'a, 'b, 'font> {
             UnboundedLines {
                 characters: self,
             }
@@ -859,12 +859,12 @@ mod unbounded {
     }
     
     /// Single character info
-    pub(crate) struct Character<'font> {
-        pub(crate) glyph: ScaledGlyph<'font>,
-        pub(crate) color: Color,
-        pub(crate) is_line_break: bool,
+    struct Character<'font> {
+        glyph: ScaledGlyph<'font>,
+        color: Color,
+        is_line_break: bool,
         /// Equivalent to `char::is_control()`.
-        pub(crate) control: bool,
+        control: bool,
     }
 }
 
