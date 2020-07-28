@@ -35,8 +35,18 @@ mod text_layouts {
         let v_metrics = font.v_metrics(scale);
         let line_height: f32 = v_metrics.ascent - v_metrics.descent + v_metrics.line_gap;
 
-        for line in lines {    
-            out.extend(line.aligned_on_screen(caret));
+        for line in lines {
+            if line.glyphs.len() > 0 {
+                let screen_pos = point(caret.0, caret.1);
+    
+                out.extend(
+                    line.glyphs
+                        .into_iter()
+                        .map(|(glyph, color)| 
+                            (glyph.screen_positioned(screen_pos), color)
+                        )
+                );
+            }
             caret.1 += line_height;
         }
 
@@ -616,7 +626,6 @@ mod unbounded {
             Scale,
             Font,
         },
-        CalculatedGlyph,
         RelativePositionedGlyph,
         LineBreak,
         SectionText,
@@ -641,25 +650,6 @@ mod unbounded {
     
     pub(crate) struct UnboundedLine<'font> {
         pub(crate) glyphs: Vec<(RelativePositionedGlyph<'font>, [f32; 4])>,
-    }
-
-    impl<'font> UnboundedLine<'font> {
-        /// Returns line glyphs positioned on the screen and aligned.
-        pub fn aligned_on_screen(
-            self,
-            screen_position: (f32, f32),
-        ) -> Vec<CalculatedGlyph<'font>> {
-            if self.glyphs.is_empty() {
-                return Vec::new();
-            }
-    
-            let screen_pos = point(screen_position.0, screen_position.1);
-    
-            self.glyphs
-                .into_iter()
-                .map(|(glyph, color)| (glyph.screen_positioned(screen_pos), color))
-                .collect()
-        }
     }
     
     pub(crate) struct UnboundedLines<'a, 'b, 'font>
