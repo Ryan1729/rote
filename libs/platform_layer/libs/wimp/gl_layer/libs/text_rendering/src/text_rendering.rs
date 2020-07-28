@@ -694,6 +694,7 @@ mod unbounded {
                 characters: &mut Characters<'_, '_, 'font>,
                 caret: &mut Vector<f32>,
                 glyphs: &mut Vec<(RelativePositionedGlyph<'font>, [f32; 4])>,
+                progressed: &mut bool,
             ) -> Option<Word> {
                 let mut layout_width = 0.0;
                 let mut last_glyph_id = None;
@@ -740,6 +741,7 @@ mod unbounded {
                 }
         
                 if progress {
+                    *progressed = true;
                     caret.x += layout_width;
                     Some(Word {
                         hard_break,
@@ -752,10 +754,9 @@ mod unbounded {
             while let Some(word) = words_next(
                 &mut self.characters,
                 &mut caret,
-                &mut line.glyphs
+                &mut line.glyphs,
+                &mut progressed,
             ) {
-                progressed = true;
-    
                 if word.hard_break {
                     break;
                 }
