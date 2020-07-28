@@ -613,7 +613,6 @@ mod unbounded {
             ScaledGlyph,
             point,
             vector,
-            Vector,
             Scale,
             Font,
         },
@@ -685,25 +684,20 @@ mod unbounded {
     
             let mut progressed = false;
 
-            fn words_next<'font>(
-                characters: &mut Characters<'_, '_, 'font>,
-                caret: &mut Vector<f32>,
-                glyphs: &mut Vec<(RelativePositionedGlyph<'font>, [f32; 4])>,
-                progressed: &mut bool,
-            ) -> Option<()> {
+            loop {
                 let mut layout_width = 0.0;
                 let mut last_glyph_id = None;
                 let mut hard_break = false;
                 let mut progress = false;
         
-                let font = characters.font;
-                let scale = characters.scale;
+                let font = self.characters.font;
+                let scale = self.characters.scale;
                 for Character {
                     glyph,
                     color,
                     is_line_break,
                     control,
-                } in characters
+                } in &mut self.characters
                 {
                     progress = true;
                     {
@@ -724,8 +718,8 @@ mod unbounded {
                         layout_width += advance_width;
         
                         if positioned.bounds().is_some() {
-                            positioned.relative = positioned.relative + *caret;
-                            glyphs.push((positioned, color));
+                            positioned.relative = positioned.relative + caret;
+                            line.glyphs.push((positioned, color));
                         }
                     }
         
@@ -736,24 +730,14 @@ mod unbounded {
                 }
         
                 if progress {
-                    *progressed = true;
+                    progressed = true;
                     caret.x += layout_width;
                     if hard_break {
-                        None
-                    } else {
-                        Some(())
+                        break
                     }
                 } else {
-                    None
+                    break
                 }
-            }
-
-            while let Some(_) = words_next(
-                &mut self.characters,
-                &mut caret,
-                &mut line.glyphs,
-                &mut progressed,
-            ) {
             }
     
             Some(line).filter(|_| progressed)
