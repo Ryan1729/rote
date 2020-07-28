@@ -663,28 +663,29 @@ mod unbounded {
         }
     }
     
-    use std::iter::Peekable;
     pub(crate) struct UnboundedLines<'a, 'b, 'font>
     where
         'font: 'a + 'b,
     {
-        pub(crate) words: Peekable<Words<'a, 'b, 'font>>,
-        pub(crate) v_ascent: f32,
+        pub(crate) words: Words<'a, 'b, 'font>,
     }
     
     impl<'font> Iterator for UnboundedLines<'_, '_, 'font> {
         type Item = UnboundedLine<'font>;
     
         fn next(&mut self) -> Option<Self::Item> {
-            let mut caret = vector(0.0, self.v_ascent);
+            let characters = &self.words.characters;
+            let mut caret = vector(
+                0.0,
+                characters.font.v_metrics(characters.scale).ascent
+            );
             let mut line: UnboundedLine = UnboundedLine{
                 glyphs: Vec::new(),
             };
     
             let mut progressed = false;
 
-            while let Some(_) = self.words.peek() {
-                let word = self.words.next().unwrap();
+            while let Some(word) = self.words.next() {
                 progressed = true;
     
                 line
@@ -723,8 +724,7 @@ mod unbounded {
     {
         pub fn lines(self) -> UnboundedLines<'a, 'b, 'font> {
             UnboundedLines {
-                v_ascent: self.characters.font.v_metrics(self.characters.scale).ascent,
-                words: self.peekable(),
+                words: self,
             }
         }
     }
