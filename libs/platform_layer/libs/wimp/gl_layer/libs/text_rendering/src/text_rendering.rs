@@ -644,7 +644,6 @@ mod unbounded {
     
     pub(crate) struct UnboundedLine<'font> {
         pub(crate) glyphs: Vec<(RelativePositionedGlyph<'font>, [f32; 4])>,
-        pub(crate) max_scale: Scale,
     }
 
     impl<'font> UnboundedLine<'font> {
@@ -677,15 +676,7 @@ mod unbounded {
     where
         'font: 'a + 'b,
     {
-        let v: Vec<_> = UnboundedLines {
-            words: Characters::new(
-                font,
-                scale,
-                sections.iter()
-            )
-            .words()
-            .peekable(),
-        }.collect();
+        let v: Vec<_> = get_lines_iter(font, scale, sections).collect();
     
         v
     }
@@ -696,6 +687,7 @@ mod unbounded {
         'font: 'a + 'b,
     {
         pub(crate) words: Peekable<Words<'a, 'b, 'font>>,
+        pub(crate) v_ascent: f32,
     }
     
     impl<'font> Iterator for UnboundedLines<'_, '_, 'font> {
@@ -705,28 +697,15 @@ mod unbounded {
             let mut caret = vector(0.0, 0.0);
             let mut line: UnboundedLine = UnboundedLine{
                 glyphs: Vec::new(),
-                max_scale: ZERO_SCALE,
             };
-            let mut max_v_ascent = 0.0;
     
             let mut progressed = false;
-    
+
+            caret.y += self.v_ascent;
+
             while let Some(_) = self.words.peek() {
                 let word = self.words.next().unwrap();
                 progressed = true;
-    
-                if word.max_v_ascent > max_v_ascent {
-                    let diff_y = word.max_v_ascent - caret.y;
-                    caret.y += diff_y;
-    
-                    // modify all smaller lined glyphs to occupy the new larger line
-                    for (glyph, ..) in &mut line.glyphs {
-                        glyph.relative.y += diff_y;
-                    }
-    
-                    max_v_ascent = word.max_v_ascent;
-                    line.max_scale = word.max_scale;
-                }
     
                 line
                     .glyphs
@@ -750,8 +729,6 @@ mod unbounded {
         pub(crate) glyphs: Vec<(RelativePositionedGlyph<'font>, Color)>,
         /// pixel advance width of word includes ending spaces/invisibles
         pub(crate) layout_width: f32,
-        pub(crate) max_v_ascent: f32,
-        pub(crate) max_scale: Scale,
         /// indicates the break after the word is a hard one
         pub(crate) hard_break: bool,
     }
@@ -766,12 +743,11 @@ mod unbounded {
     {
         pub fn lines(self) -> UnboundedLines<'a, 'b, 'font> {
             UnboundedLines {
+                v_ascent: self.characters.font.v_metrics(self.characters.scale).ascent,
                 words: self.peekable(),
             }
         }
     }
-    
-    const ZERO_SCALE: Scale = Scale { x: 0.0, y: 0.0 };
 
     impl<'font> Iterator for Words<'_, '_, 'font>
     {
@@ -782,11 +758,11 @@ mod unbounded {
             let mut glyphs = Vec::new();
             let mut caret = 0.0;
             let mut last_glyph_id = None;
-            let mut max_v_ascent = None;
-            let mut max_scale = None;
             let mut hard_break = false;
             let mut progress = false;
     
+            let font = self.characters.font;
+            let scale = self.characters.scale;
             for Character {
                 glyph,
                 color,
@@ -796,16 +772,8 @@ mod unbounded {
             {
                 progress = true;
                 {
-                    let font = glyph.font().expect("standalone not supported");
-                    let scale = glyph.scale();
-                    let v_ascent = font.v_metrics(scale).ascent;
-                    if max_v_ascent.is_none() || v_ascent > max_v_ascent.unwrap() {
-                        max_v_ascent = Some(v_ascent);
-                        max_scale = Some(scale);
-                    }
-    
                     if let Some(id) = last_glyph_id.take() {
-                        caret += font.pair_kerning(glyph.scale(), id, glyph.id());
+                        caret += font.pair_kerning(scale, id, glyph.id());
                     }
                     last_glyph_id = Some(glyph.id());
                 }
@@ -836,8 +804,6 @@ mod unbounded {
                     glyphs,
                     layout_width: caret,
                     hard_break,
-                    max_v_ascent: max_v_ascent.unwrap_or_default(),
-                    max_scale: max_scale.unwrap_or(ZERO_SCALE),
                 });
             }
     
