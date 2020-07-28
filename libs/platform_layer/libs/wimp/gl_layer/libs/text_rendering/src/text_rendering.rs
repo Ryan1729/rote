@@ -685,17 +685,12 @@ mod unbounded {
     
             let mut progressed = false;
 
-            struct Word {
-                /// indicates the break after the word is a hard one
-                hard_break: bool,
-            }
-
             fn words_next<'font>(
                 characters: &mut Characters<'_, '_, 'font>,
                 caret: &mut Vector<f32>,
                 glyphs: &mut Vec<(RelativePositionedGlyph<'font>, [f32; 4])>,
                 progressed: &mut bool,
-            ) -> Option<Word> {
+            ) -> Option<()> {
                 let mut layout_width = 0.0;
                 let mut last_glyph_id = None;
                 let mut hard_break = false;
@@ -743,23 +738,22 @@ mod unbounded {
                 if progress {
                     *progressed = true;
                     caret.x += layout_width;
-                    Some(Word {
-                        hard_break,
-                    })
+                    if hard_break {
+                        None
+                    } else {
+                        Some(())
+                    }
                 } else {
                     None
                 }
             }
 
-            while let Some(word) = words_next(
+            while let Some(_) = words_next(
                 &mut self.characters,
                 &mut caret,
                 &mut line.glyphs,
                 &mut progressed,
             ) {
-                if word.hard_break {
-                    break;
-                }
             }
     
             Some(line).filter(|_| progressed)
