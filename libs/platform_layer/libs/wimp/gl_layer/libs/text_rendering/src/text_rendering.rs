@@ -736,7 +736,7 @@ mod unbounded {
         #[inline]
         fn next(&mut self) -> Option<Self::Item> {
             let mut glyphs = Vec::new();
-            let mut caret = 0.0;
+            let mut layout_width = 0.0;
             let mut last_glyph_id = None;
             let mut hard_break = false;
             let mut progress = false;
@@ -753,7 +753,7 @@ mod unbounded {
                 progress = true;
                 {
                     if let Some(id) = last_glyph_id.take() {
-                        caret += font.pair_kerning(scale, id, glyph.id());
+                        layout_width += font.pair_kerning(scale, id, glyph.id());
                     }
                     last_glyph_id = Some(glyph.id());
                 }
@@ -762,11 +762,11 @@ mod unbounded {
     
                 if !control {
                     let positioned = RelativePositionedGlyph {
-                        relative: point(caret, 0.0),
+                        relative: point(layout_width, 0.0),
                         glyph,
                     };
     
-                    caret += advance_width;
+                    layout_width += advance_width;
     
                     if positioned.bounds().is_some() {
                         glyphs.push((positioned, color));
@@ -780,14 +780,14 @@ mod unbounded {
             }
     
             if progress {
-                return Some(Word {
+                Some(Word {
                     glyphs,
-                    layout_width: caret,
+                    layout_width,
                     hard_break,
-                });
+                })
+            } else {
+                None
             }
-    
-            None
         }
     }
     
@@ -800,7 +800,6 @@ mod unbounded {
         scale: Scale,
         section_text: slice::Iter<'a, SectionText<'a>>,
         part_info: Option<PartInfo<'a>>,
-        phantom: PhantomData<&'font ()>,
     }
     
     struct PartInfo<'a> {
@@ -812,7 +811,6 @@ mod unbounded {
     
     use std::{
         iter::{Iterator},
-        marker::PhantomData,
         slice,
         str::CharIndices,
     };
@@ -830,7 +828,6 @@ mod unbounded {
                 scale,
                 section_text,
                 part_info: None,
-                phantom: PhantomData,
             }
         }
     
