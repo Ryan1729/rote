@@ -613,6 +613,7 @@ mod unbounded {
             ScaledGlyph,
             point,
             vector,
+            Vector,
             Scale,
             Font,
         },
@@ -684,7 +685,10 @@ mod unbounded {
     
             let mut progressed = false;
 
-            fn words_next<'font>(characters: &mut Characters<'_, '_, 'font>) -> Option<Word<'font>> {
+            fn words_next<'font>(
+                characters: &mut Characters<'_, '_, 'font>,
+                caret: &Vector<f32>,
+            ) -> Option<Word<'font>> {
                 let mut glyphs = Vec::new();
                 let mut layout_width = 0.0;
                 let mut last_glyph_id = None;
@@ -708,10 +712,10 @@ mod unbounded {
                         last_glyph_id = Some(glyph.id());
                     }
         
-                    let advance_width = glyph.h_metrics().advance_width;
-        
                     if !control {
-                        let positioned = RelativePositionedGlyph {
+                        let advance_width = glyph.h_metrics().advance_width;
+
+                        let mut positioned = RelativePositionedGlyph {
                             relative: point(layout_width, 0.0),
                             glyph,
                         };
@@ -719,6 +723,7 @@ mod unbounded {
                         layout_width += advance_width;
         
                         if positioned.bounds().is_some() {
+                            positioned.relative = positioned.relative + *caret;
                             glyphs.push((positioned, color));
                         }
                     }
@@ -740,15 +745,12 @@ mod unbounded {
                 }
             }
 
-            while let Some(word) = words_next(&mut self.characters) {
+            while let Some(word) = words_next(&mut self.characters, &caret) {
                 progressed = true;
     
                 line
                     .glyphs
-                    .extend(word.glyphs.into_iter().map(|(mut g, color)| {
-                        g.relative = g.relative + caret;
-                        (g, color)
-                    }));
+                    .extend(word.glyphs.into_iter());
     
                 caret.x += word.layout_width;
     

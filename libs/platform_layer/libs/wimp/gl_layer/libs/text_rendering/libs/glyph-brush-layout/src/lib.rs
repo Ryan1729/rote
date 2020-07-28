@@ -38,7 +38,7 @@ use std::borrow::Cow;
 pub mod rusttype {
     pub use full_rusttype::{
         point, vector, Error, Font, Glyph, GlyphId, HMetrics, Point, PositionedGlyph,
-        Rect, Scale, ScaledGlyph, SharedBytes, VMetrics,
+        Rect, Scale, ScaledGlyph, SharedBytes, Vector, VMetrics,
     };
 }
 
