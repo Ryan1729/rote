@@ -167,9 +167,7 @@ mod text_layouts {
             return out;
         }
 
-        let lines_vec = unbounded::get_line_glyphs_iter(font, scale, sections);
-
-        let mut lines = lines_vec.into_iter();
+        let mut lines = unbounded::get_lines_iter(font, scale, sections);
 
         perf_viz::record_guard!("UnboundedLayoutClipped loop");
 
@@ -665,22 +663,6 @@ mod unbounded {
         }
     }
     
-    pub(crate) fn get_line_glyphs_iter<'a, 'b, 'font>(
-        font: &'b Font<'font>,
-        scale: Scale,
-        sections: &'a [SectionText],
-    ) -> impl IntoIterator<
-        Item = UnboundedLine<'font>,
-        IntoIter = std::vec::IntoIter<UnboundedLine<'font>>
-    >
-    where
-        'font: 'a + 'b,
-    {
-        let v: Vec<_> = get_lines_iter(font, scale, sections).collect();
-    
-        v
-    }
-    
     use std::iter::Peekable;
     pub(crate) struct UnboundedLines<'a, 'b, 'font>
     where
@@ -694,14 +676,12 @@ mod unbounded {
         type Item = UnboundedLine<'font>;
     
         fn next(&mut self) -> Option<Self::Item> {
-            let mut caret = vector(0.0, 0.0);
+            let mut caret = vector(0.0, self.v_ascent);
             let mut line: UnboundedLine = UnboundedLine{
                 glyphs: Vec::new(),
             };
     
             let mut progressed = false;
-
-            caret.y += self.v_ascent;
 
             while let Some(_) = self.words.peek() {
                 let word = self.words.next().unwrap();
