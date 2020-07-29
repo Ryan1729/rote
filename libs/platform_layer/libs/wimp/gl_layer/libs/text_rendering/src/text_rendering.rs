@@ -813,6 +813,7 @@ mod unbounded {
                     if next_break.is_none() || next_break.unwrap().offset() <= byte_index {
                         loop {
                             let next = line_breaks.next();
+                            dbg!(byte_index, c, &next);
                             if next.is_none() || next.unwrap().offset() > byte_index {
                                 *next_break = next;
                                 break;
@@ -832,7 +833,7 @@ mod unbounded {
                         let mut last_end_bytes: [u8; 5] = [b' '; 5];
                         c.encode_utf8(&mut last_end_bytes);
                         line_break = if let Ok(last_end_padded) = std::str::from_utf8(&last_end_bytes[0..=c_len]) {
-                            glyph_brush::line_breaks(last_end_padded).next()
+                            dbg!(glyph_brush::line_breaks(last_end_padded).next())
                         } else {
                             None
                         };
