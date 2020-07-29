@@ -24,115 +24,49 @@ impl LineBreak {
     }
 }
 
-type LineBreakIterator<'a> = xi_unicode::LineBreakIterator<'a>;
-//type LineBreakIterator<'a> = LineBreakIter<'a>;
-/*
 #[inline]
-pub fn line_breaks<'a>(text: &'a str) -> Box<dyn Iterator<Item = LineBreak> + 'a> {
-    let mut unicode_breaker = LineBreakIterator::new(text);
-    let current_break = unicode_breaker.next();
-
-    Box::new(AnyCharLineBreakerIter {
-        chars: text.char_indices(),
-        breaks: unicode_breaker,
-        current_break,
-    })
-}
-*/
-#[inline]
-pub fn line_breaks<'a>(text: &'a str) -> Box<dyn Iterator<Item = LineBreak> + 'a> {
-    Box::new(LineBreakIter::new(text).map(|(i, is_hard)|
-        if is_hard {
-            LineBreak::Hard(i)
-        } else {
-            LineBreak::Soft(i)
-        }
-    ))
-}
-
-// Iterator that indicates all characters are soft line breaks, except hard ones which are hard.
-struct AnyCharLineBreakerIter<'a> {
-    chars: CharIndices<'a>,
-    breaks: LineBreakIterator<'a>,
-    current_break: Option<(usize, bool)>,
-}
-
-impl Iterator for AnyCharLineBreakerIter<'_> {
-    type Item = LineBreak;
-
-    #[inline]
-    fn next(&mut self) -> Option<LineBreak> {
-        let (b_index, c) = self.chars.next()?;
-        let c_len = c.len_utf8();
-        while self.current_break.is_some() {
-            if self.current_break.as_ref().unwrap().0 < b_index + c_len {
-                self.current_break = self.breaks.next();
-            } else {
-                break;
-            }
-        }
-        if let Some((break_index, true)) = self.current_break {
-            if break_index == b_index + c_len {
-                return Some(LineBreak::Hard(break_index));
-            }
-        }
-        Some(LineBreak::Soft(b_index + c_len))
+pub fn line_breaks<'a>(text: &'a str) -> LineBreakIter {
+    LineBreakIter {
+        chars: text.char_indices().peekable(),
+        len: text.len(),
+        already_emitted_end: false,
     }
 }
 
-impl FusedIterator for AnyCharLineBreakerIter<'_> {}
-
-struct LineBreakIter<'a> {
+pub struct LineBreakIter<'a> {
     chars: Peekable<CharIndices<'a>>,
     len: usize,
     already_emitted_end: bool,
 }
 
-impl<'a> LineBreakIter<'a> {
-    #[allow(dead_code)]
-    /// Create a new iterator for the given string slice.
-    pub fn new(s: &str) -> LineBreakIter {
-        LineBreakIter {
-            chars: s.char_indices().peekable(),
-            len: s.len(),
-            already_emitted_end: false,
-        }
-    }
-}
-
 impl Iterator for LineBreakIter<'_> {
-    type Item = (usize, bool);
+    type Item = LineBreak;
 
     #[inline]
-    fn next(&mut self) -> Option<(usize, bool)> {
-        loop {
-            match self.chars.next() {
-                None => {
-                    return if self.already_emitted_end {
-                        None
-                    } else {
-                        self.already_emitted_end = true;
-                        Some((self.len, true))
-                    };
+    fn next(&mut self) -> Option<Self::Item> {
+        use LineBreak::*;
+        match self.chars.next() {
+            None => if self.already_emitted_end {
+                None
+            } else {
+                self.already_emitted_end = true;
+                Some(Hard(self.len))
+            },
+            Some((index, ch)) => if ch == '\r' {
+                let next_char = self.chars
+                    .peek()
+                    .map(|(_, c)| *c)
+                    .unwrap_or('\0');
+                if next_char == '\n' {
+                    let nl_i = self.chars.next().unwrap().0;
+                    Some(Hard(nl_i + 1))
+                } else {
+                    Some(Hard(index + 1))
                 }
-                Some((index, ch)) => {
-                    if ch == '\r' {
-                        let next_char = self.chars
-                            .peek()
-                            .map(|(_, c)| *c)
-                            .unwrap_or('\0');
-                        if next_char == '\n' {
-                            let nl_i = self.chars.next().unwrap().0;
-                            return Some((nl_i + 1, true));
-                        } else {
-                            return Some((index + 1, true));
-                        }
-                    } else if is_linebreak_char(ch) {
-                        return Some((index + 1, true));
-                    } else {
-                        return Some((index, false));
-                    }
-                }
+            } else if is_linebreak_char(ch) {
+                Some(Hard(index + 1))
+            } else {
+                Some(Soft(index + 1))
             }
         }
     }

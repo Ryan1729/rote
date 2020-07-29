@@ -628,6 +628,7 @@ mod unbounded {
         },
         RelativePositionedGlyph,
         LineBreak,
+        LineBreakIter,
         SectionText,
         Color,
     };
@@ -748,7 +749,7 @@ mod unbounded {
     struct PartInfo<'a> {
         section: &'a SectionText<'a>,
         info_chars: CharIndices<'a>,
-        line_breaks: Box<dyn Iterator<Item = LineBreak> + 'a>,
+        line_breaks: LineBreakIter<'a>,
         next_break: Option<LineBreak>,
     }
     
