@@ -130,8 +130,7 @@ impl Iterator for LineBreakIter<'_> {
                     } else if is_linebreak_char(ch) {
                         return Some((index + 1, true));
                     } else {
-                        //keep iterating
-                        //return Some((index, false));
+                        return Some((index, false));
                     }
                 }
             }
