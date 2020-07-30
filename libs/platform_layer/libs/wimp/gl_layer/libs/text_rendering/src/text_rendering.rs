@@ -518,10 +518,6 @@ pub fn new(hidpi_factor: f32, text_sizes: &[f32]) -> Res<(State, CharDims)> {
 
 fn get_glyph_brush<'font, A: Clone>(font: &Font<'font>) -> GlyphBrush<'font, A> {
     GlyphBrushBuilder::using_font(font.clone())
-        // Leaving this at the default of 0.1 makes the cache get cleared too often.
-        // Putting this at 1.0 means that the characters are visibly poorly kerned.
-        // This value seems like a happy medium at the moment.
-        .gpu_cache_position_tolerance(0.25)
         .build()
 }
 
