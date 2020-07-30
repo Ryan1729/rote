@@ -167,7 +167,7 @@ impl State {
 
             if z1 > z2 {
                 Less
-            } else if z2 < z1 {
+            } else if z1 < z2 {
                 Greater
             } else {
                 // NaN ends up here
