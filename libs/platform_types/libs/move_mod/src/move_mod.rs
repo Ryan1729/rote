@@ -1,6 +1,6 @@
 use macros::{fmt_display, ord};
 
-#[derive(Clone, Copy, Debug, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Move {
     Up,
     Down,
@@ -45,7 +45,7 @@ macro_rules! to_num {
     };
 }
 
-ord!(and friends for Move: r#move, other in to_num!(r#move).cmp(&to_num!(other)));
+ord!(for Move: r#move, other in to_num!(r#move).cmp(&to_num!(other)));
 
 impl std::ops::Not for Move {
     type Output = Move;

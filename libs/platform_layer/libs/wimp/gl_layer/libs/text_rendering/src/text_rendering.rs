@@ -83,6 +83,8 @@ mod text_layouts {
                 }
                 GlyphChange::Color if !sections.is_empty() && !previous.is_empty() => {
                     let new_color = sections[0].color;
+                    // even if the colour changed only slightly, we still want to do a fresh calculation
+                    #[allow(clippy::float_cmp)]
                     if sections.iter().all(|s| s.color == new_color) {
                         // if only the color changed, but the new section only use a single color
                         // we can simply set all the olds to the new color
@@ -97,6 +99,8 @@ mod text_layouts {
                 }
                 GlyphChange::Alpha if !sections.is_empty() && !previous.is_empty() => {
                     let new_alpha = sections[0].color[3];
+                    // even if the alpha changed only slightly, we still want to do a fresh calculation
+                    #[allow(clippy::float_cmp)]
                     if sections.iter().all(|s| s.color[3] == new_alpha) {
                         // if only the alpha changed, but the new section only uses a single alpha
                         // we can simply set all the olds to the new alpha

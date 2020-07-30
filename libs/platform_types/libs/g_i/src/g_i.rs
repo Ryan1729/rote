@@ -197,14 +197,14 @@ impl State {
     }
 }
 
-#[derive(Clone, Copy, Default, Debug, Hash)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, Debug, Hash)]
 /// A generational index
 pub struct Index {
     generation: Generation,
     /// 4 billion what-zits ought to be enough for anybody!
     index: IndexPart,
 }
-ord!(and friends for Index: index, other in {
+ord!(for Index: index, other in {
     index.generation.cmp(&other.generation).then_with(|| index.index.cmp(&other.index))
 });
 
@@ -400,7 +400,7 @@ mod selectable_vec1 {
     /// "selected" or is "the current element". This "selected" element can be borrowed
     /// and the operations that change the currently selected index and/or move the selected
     /// element around are also made more convenient.
-    #[derive(Debug, Eq, PartialEq)]
+    #[derive(Debug)]
     pub struct SelectableVec1<A> {
         elements: Vec1<A>,
         index_state: State,
@@ -437,6 +437,16 @@ mod selectable_vec1 {
             self.current_index.hash(state);
         }
     }
+
+    impl <A: PartialEq> PartialEq for SelectableVec1<A> {
+        fn eq(&self, other: &Self) -> bool {
+            self.index_state == other.index_state
+            && self.current_index == other.current_index
+            && self.elements == other.elements
+        }
+    }
+
+    impl <A: Eq> Eq for SelectableVec1<A> {}
 
     impl<A: Hash> Hash for SelectableVec1<A> {
         fn hash<H: Hasher>(&self, state: &mut H) {

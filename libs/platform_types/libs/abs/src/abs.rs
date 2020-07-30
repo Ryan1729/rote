@@ -30,7 +30,7 @@ fmt_display!(
         (bits & Pos::FRAC_BIT_MASK) as f64 
         / Pos::SCALE as f64
     )
-    .to_string().trim_start_matches("0")
+    .to_string().trim_start_matches('0')
 );
 
 impl Pos {

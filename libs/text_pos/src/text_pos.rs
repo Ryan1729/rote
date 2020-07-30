@@ -5,7 +5,7 @@ use macros::{
 /// The nth space between utf8 characters. So in the string "aöc" there are
 /// five possibe `CharOffset`s. (Note that "ö" is two characters: "o\u{308}".)
 /// Here they are represented as vertical bars: "|a|o|̈|c|"
-#[derive(Clone, Copy, Debug, Default, Hash)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct CharOffset(pub usize);
 
 usize_newtype! {
@@ -19,7 +19,7 @@ integer_newtype! {
 fmt_display! {for CharOffset : CharOffset(offset) in "{}", offset}
 
 /// A `CharOffset` that is counting from the start of the buffer
-#[derive(Clone, Copy, Debug, Default, Hash)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct AbsoluteCharOffset(pub usize);
 
 usize_newtype! {
@@ -121,11 +121,17 @@ ord!(and friends for AbsoluteCharOffset: s, other in s.0.cmp(&other.0));
 fmt_display! {for AbsoluteCharOffset : AbsoluteCharOffset(offset) in "{}(abs.)", offset}
 
 /// `offset` indicates a location before or after characters, not at the charaters.
-#[derive(Copy, Clone, Default, Hash)]
+#[derive(Copy, Clone, Default, PartialEq, Eq, Hash)]
 pub struct Position {
     pub line: usize,
     pub offset: CharOffset,
 }
+
+ord!(for Position: p, other in {
+    p.line
+        .cmp(&other.line)
+        .then_with(|| p.offset.cmp(&other.offset))
+});
 
 #[macro_export]
 macro_rules! pos {
@@ -206,9 +212,3 @@ pub fn unappend_positions(left: Position, right: Position) -> Position {
         })),
     }
 }
-
-ord!(and friends for Position: p, other in {
-    p.line
-        .cmp(&other.line)
-        .then_with(|| p.offset.cmp(&other.offset))
-});

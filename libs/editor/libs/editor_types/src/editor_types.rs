@@ -10,7 +10,7 @@ pub enum SetPositionAction {
 }
 d!(for SetPositionAction: SetPositionAction::ClearHighlight);
 
-#[derive(Clone, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Cursor {
     // These are private so we can make sure whether to clear highlight or not 
     // is considered on each mutation of `position. And we can use a state we 
@@ -22,6 +22,22 @@ pub struct Cursor {
     pub sticky_offset: CharOffset,
     pub state: CursorState,
 }
+
+ord!(for Cursor: c, other in {
+    // We don't really have a preferred ordering for ranges with the same start and end. So we
+    // treat two cursors where one's position is the other's highlight_position and vice-versa
+    // as equal.
+    let min = std::cmp::min(c.position, c.highlight_position);
+    let max = std::cmp::max(c.position, c.highlight_position);
+
+    let other_min = std::cmp::min(other.position, other.highlight_position);
+    let other_max = std::cmp::max(other.position, other.highlight_position);
+
+    min.cmp(&other_min)
+        .then_with(|| max.cmp(&other_max))
+        .then_with(|| c.sticky_offset.cmp(&other.sticky_offset))
+        .then_with(|| c.state.cmp(&other.state))
+});
 
 impl Cursor {
     pub fn new(position: Position) -> Self {
@@ -173,22 +189,6 @@ impl Borrow<Position> for &Cursor {
         &self.position
     }
 }
-
-ord!(and friends for Cursor: c, other in {
-    // We don't really have a preferred ordering for ranges with the same start and end. So we
-    // treat two cursors where one's position is the other's highlight_position and vice-versa
-    // as equal.
-    let min = std::cmp::min(c.position, c.highlight_position);
-    let max = std::cmp::max(c.position, c.highlight_position);
-
-    let other_min = std::cmp::min(other.position, other.highlight_position);
-    let other_max = std::cmp::max(other.position, other.highlight_position);
-
-    min.cmp(&other_min)
-        .then_with(|| max.cmp(&other_max))
-        .then_with(|| c.sticky_offset.cmp(&other.sticky_offset))
-        .then_with(|| c.state.cmp(&other.state))
-});
 
 impl From<Position> for Cursor {
     fn from(p: Position) -> Self {

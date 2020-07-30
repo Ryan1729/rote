@@ -116,13 +116,6 @@ macro_rules! ord {
     (and friends for $name:ty : $self:ident, $other:ident in $code:expr) => {
         $crate::ord!(for $name : $self, $other in $code);
 
-        impl std::cmp::PartialOrd for $name {
-            fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-                use std::cmp::Ord;
-                Some(self.cmp(other))
-            }
-        }
-
         impl PartialEq for $name {
             fn eq(&self, other: &Self) -> bool {
                 use std::cmp::Ord;
@@ -140,6 +133,13 @@ macro_rules! ord {
                 let $self = self;
                 let $other = other;
                 $code
+            }
+        }
+
+        impl std::cmp::PartialOrd for $name {
+            fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+                use std::cmp::Ord;
+                Some(self.cmp(other))
             }
         }
     };
@@ -344,6 +344,12 @@ macro_rules! usize_newtype {
         impl PartialEq<usize> for $name {
             fn eq(&self, other: &usize) -> bool {
                 self.0 == *other
+            }
+        }
+
+        impl std::hash::Hash for $name {
+            fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+                self.0.hash(state);
             }
         }
     };

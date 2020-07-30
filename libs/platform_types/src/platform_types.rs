@@ -300,7 +300,7 @@ pub fn push_highlights<O: Into<Option<Position>>>(
     }
 }
 
-#[derive(Clone, Debug, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum BufferName {
     Path(PathBuf),
     Scratch(u32),
@@ -315,7 +315,7 @@ fmt_display!(for BufferName: name in "{}",
         BufferName::Scratch(n) => format!("*scratch {}*", n),
     }
  );
-ord!(and friends for BufferName: name, other in {
+ord!(for BufferName: name, other in {
      use BufferName::*;
      use std::cmp::Ordering::*;
      match (name, other) {
@@ -355,7 +355,7 @@ impl BufferName {
     }
 }
 
-#[derive(Clone, Copy, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CursorState {
     None,
     PressedAgainstWall(Move),
@@ -367,7 +367,7 @@ fmt_debug!(for CursorState: s in "{}", match s {
     CursorState::PressedAgainstWall(r#move) => std::borrow::Cow::Owned(format!("->|({})", r#move))
 });
 
-ord!(and friends for CursorState: state, other in {
+ord!(for CursorState: state, other in {
     use std::cmp::Ordering::*;
     match (state, other) {
         (CursorState::None, CursorState::None) => Equal,
