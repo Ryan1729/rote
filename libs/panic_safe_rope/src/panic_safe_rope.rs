@@ -6,6 +6,8 @@ pub use slice::{RopeLine, RopeSlice, RopeSliceTrait, Bytes, Chars, Chunks};
 
 use macros::{fmt_debug, fmt_display, integer_newtype, some_if, usize_newtype};
 pub use text_pos::{AbsoluteCharOffset, CharOffset};
+pub use is_linebreak_char::is_linebreak_char;
+
 use std::io;
 use std::iter::FromIterator;
 use std::ops::RangeBounds;
@@ -120,6 +122,8 @@ impl Rope {
         }
     }
 
+    #[allow(clippy::should_implement_trait)]
+    // our from_str cannot fail so the FromStr trait's type doesn't match.
     #[inline]
     pub fn from_str(text: &str) -> Self {
         Rope {
@@ -507,15 +511,6 @@ impl std::cmp::PartialOrd<Rope> for Rope {
     fn partial_cmp(&self, other: &Rope) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
-}
-
-pub fn is_linebreak_char(c: char) -> bool {
-    // ropey treats these as line breaks, so we do too.
-    // See also https://www.unicode.org/reports/tr14/tr14-32.html
-    (c >= '\u{a}' && c <= '\r')
-        || c == '\u{0085}'
-        || c == '\u{2028}'
-        || c == '\u{2029}'
 }
 
 #[cfg(test)]

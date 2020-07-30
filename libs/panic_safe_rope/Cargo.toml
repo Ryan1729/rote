@@ -10,6 +10,9 @@ path = "./src/panic_safe_rope.rs"
 [dependencies]
 ropey = "1.1.0"
 
+[dependencies.is_linebreak_char]
+path = "../is_linebreak_char"
+
 [dependencies.text_pos]
 path = "../text_pos"
 

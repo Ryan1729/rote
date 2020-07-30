@@ -113,7 +113,7 @@ pub fn render(
     let search_results = &editor_buffer.search_results;
 
     perf_viz::start_record!("write view.status_line");
-if cfg!(feature = "0") {
+
     view.status_line.chars.clear();
 
     let buffer = &editor_buffer.text_buffer;
@@ -175,7 +175,6 @@ if cfg!(feature = "0") {
     }
 
     perf_viz::end_record!("write view.status_line");
-}
     perf_viz::start_record!("set view.menu");
 
     const FIND_REPLACE_AVERAGE_SELECTION_LINES_ESTIMATE: usize = 1;

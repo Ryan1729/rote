@@ -627,10 +627,12 @@ mod unbounded {
             Font,
         },
         RelativePositionedGlyph,
-        LineBreak,
-        LineBreakIter,
         SectionText,
         Color,
+    };
+    use linebreak::{
+        Linebreak,
+        LinebreakIter,
     };
     #[perf_viz::record]
     pub(crate) fn get_lines_iter<'a, 'b, 'font>(
@@ -686,7 +688,7 @@ mod unbounded {
                 for Character {
                     glyph,
                     color,
-                    is_line_break,
+                    is_linebreak,
                     control,
                 } in &mut self.characters
                 {
@@ -714,7 +716,7 @@ mod unbounded {
                         }
                     }
         
-                    if is_line_break {
+                    if is_linebreak {
                         hard_break = true;
                         break;
                     }
@@ -749,8 +751,8 @@ mod unbounded {
     struct PartInfo<'a> {
         section: &'a SectionText<'a>,
         info_chars: CharIndices<'a>,
-        line_breaks: LineBreakIter<'a>,
-        next_break: Option<LineBreak>,
+        linebreaks: LinebreakIter<'a>,
+        next_break: Option<Linebreak>,
     }
     
     use std::{
@@ -793,7 +795,7 @@ mod unbounded {
                 self.part_info = Some(PartInfo {
                     section,
                     info_chars: section.text.char_indices(),
-                    line_breaks: glyph_brush::line_breaks(section.text),
+                    linebreaks: linebreak::iter(section.text),
                     next_break: None,
                 });
             }
@@ -806,14 +808,14 @@ mod unbounded {
                             text,
                         },
                     info_chars,
-                    line_breaks,
+                    linebreaks,
                     next_break,
                 } = self.part_info.as_mut().unwrap();
     
                 if let Some((byte_index, c)) = info_chars.next() {
                     if next_break.is_none() || next_break.unwrap().offset() <= byte_index {
                         loop {
-                            let next = line_breaks.next();
+                            let next = linebreaks.next();
                             if next.is_none() || next.unwrap().offset() > byte_index {
                                 *next_break = next;
                                 break;
@@ -824,22 +826,22 @@ mod unbounded {
                     let glyph = self.font.glyph(c).scaled(self.scale);
     
                     let c_len = c.len_utf8();
-                    let mut line_break = next_break.filter(|b| b.offset() == byte_index + c_len);
-                    if line_break.is_some() && byte_index + c_len == text.len() {
+                    let mut linebreak = next_break.filter(|b| b.offset() == byte_index + c_len);
+                    if linebreak.is_some() && byte_index + c_len == text.len() {
                         // handle inherent end-of-str hard breaks
 
                         // to check if the previous end char (say '$') should hard break construct
                         // a str "$ " an check if the line break logic flags a hard break at index 1
                         let mut last_end_bytes: [u8; 5] = [b' '; 5];
                         c.encode_utf8(&mut last_end_bytes);
-                        line_break = if let Ok(last_end_padded) = std::str::from_utf8(&last_end_bytes[0..=c_len]) {
-                            glyph_brush::line_breaks(last_end_padded).next()
+                        linebreak = if let Ok(last_end_padded) = std::str::from_utf8(&last_end_bytes[0..=c_len]) {
+                            linebreak::iter(last_end_padded).next()
                         } else {
                             None
                         };
                     }
 
-                    let is_line_break = if let Some(LineBreak::Hard(..)) = line_break {
+                    let is_linebreak = if let Some(Linebreak::Hard(..)) = linebreak {
                         true
                     } else {
                         false
@@ -848,7 +850,7 @@ mod unbounded {
                     return Some(Character {
                         glyph,
                         color: *color,
-                        is_line_break,
+                        is_linebreak,
                         control: c.is_control(),
                     });
                 }
@@ -863,7 +865,7 @@ mod unbounded {
     struct Character<'font> {
         glyph: ScaledGlyph<'font>,
         color: Color,
-        is_line_break: bool,
+        is_linebreak: bool,
         /// Equivalent to `char::is_control()`.
         control: bool,
     }

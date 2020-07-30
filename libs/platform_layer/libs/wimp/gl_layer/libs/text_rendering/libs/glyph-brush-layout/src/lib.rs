@@ -1,10 +1,9 @@
 //! Text layout for [rusttype](https://gitlab.redox-os.org/redox-os/rusttype).
 #![deny(unused)]
 mod font;
-pub mod linebreak;
 mod section;
 
-pub use self::{font::*, linebreak::*, section::*};
+pub use self::{font::*, section::*};
 
 /// A scaled glyph that's relatively positioned.
 pub struct RelativePositionedGlyph<'font> {
