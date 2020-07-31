@@ -178,9 +178,11 @@ impl std::str::FromStr for Position {
                                  .collect();
 
         let line = chunks.get(0)
-            .map(|&s| s).unwrap_or_default().parse::<usize>()?;
+            .copied()
+            .unwrap_or_default().parse::<usize>()?;
         let offset = chunks.get(1)
-            .map(|&s| s).unwrap_or_else(|| "0").parse::<usize>()
+            .copied()
+            .unwrap_or_else(|| "0").parse::<usize>()
             .map(CharOffset).unwrap_or_default();
 
         Ok(Position { line, offset })

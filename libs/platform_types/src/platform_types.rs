@@ -215,6 +215,8 @@ pub fn push_highlights<O: Into<Option<Position>>>(
             // TODO Is this optimization actually worth it? The sticky cursor offset does make this
             // more likely than it would otherwise be.
             if min.offset != 0 && min.offset == max.offset {
+                // [|_______________________|]
+                //  ^min_middle   max_middle^
                 let min_middle = min.line + if min.offset == 0 { 0 } else { 1 };
                 // Since We know the lines must be different, we know `max.line > 0`
                 let max_middle = max.line - 1;
@@ -227,7 +229,7 @@ pub fn push_highlights<O: Into<Option<Position>>>(
                             line: min.line,
                         },
                         Position {
-                            offset: CharOffset(0xFFFF_FFFF__FFFF_FFFF),
+                            offset: CharOffset::max_value(),
                             line: max_middle,
                         },
                     ),
@@ -256,7 +258,7 @@ pub fn push_highlights<O: Into<Option<Position>>>(
                     (
                         min,
                         Position {
-                            offset: CharOffset(0xFFFF_FFFF__FFFF_FFFF),
+                            offset: CharOffset::max_value(),
                             ..min
                         },
                     ),
@@ -275,7 +277,7 @@ pub fn push_highlights<O: Into<Option<Position>>>(
                             line: min_middle,
                         },
                         Position {
-                            offset: CharOffset(0xFFFF_FFFF__FFFF_FFFF),
+                            offset: CharOffset::max_value(),
                             line: max_middle,
                         },
                     ),

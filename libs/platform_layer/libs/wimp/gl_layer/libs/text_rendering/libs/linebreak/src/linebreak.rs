@@ -26,7 +26,7 @@ impl Linebreak {
 }
 
 #[inline]
-pub fn iter<'a>(text: &'a str) -> LinebreakIter {
+pub fn iter(text: &'_ str) -> LinebreakIter {
     LinebreakIter {
         chars: text.char_indices().peekable(),
         len: text.len(),

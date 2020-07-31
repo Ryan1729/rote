@@ -352,6 +352,12 @@ macro_rules! usize_newtype {
                 self.0.hash(state);
             }
         }
+
+        impl $name {
+            pub fn max_value() -> Self {
+                Self(usize::max_value())
+            }
+        }
     };
 }
 

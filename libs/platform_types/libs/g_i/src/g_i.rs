@@ -232,9 +232,9 @@ impl Index {
             Some(self.index)
         } else if self.generation == state.current.wrapping_sub(1) {
             use Invalidation::*;
+            use std::cmp::Ordering::*;
             match state.invalidation {
                 RemovedAt(i) => {
-                    use std::cmp::Ordering::*;
                     // Imagine the vec looks like this:
                     // `vec![10, 11, 12, 13, 14]`.
                     // and that we called `v.remove(2)` so now it looks like:
@@ -255,22 +255,18 @@ impl Index {
                         _ => Some(self.index)
                     }
                 }
-                MovedTo(source, target) => {
-                    if source == target {
-                        Some(self.index)
-                    } else if source > target {
-                        match self.index {
-                            i if i == source => Some(target),
-                            i if i >= target && i < source => Some(self.index.saturating_add(1)),
-                            _ => Some(self.index)
-                        }
-                    } else { // source < target
-                        match self.index {
-                            i if i == source => Some(target),
-                            i if i > source && i <= target => Some(self.index.saturating_sub(1)),
-                            _ => Some(self.index)
-                        }
-                    }
+                MovedTo(source, target) => match source.cmp(&target) {
+                    Equal => Some(self.index),
+                    Less => match self.index {
+                        i if i == source => Some(target),
+                        i if i > source && i <= target => Some(self.index.saturating_sub(1)),
+                        _ => Some(self.index)
+                    },
+                    Greater => match self.index {
+                        i if i == source => Some(target),
+                        i if i >= target && i < source => Some(self.index.saturating_add(1)),
+                        _ => Some(self.index)
+                    },
                 }
             }
         } else {
@@ -423,8 +419,8 @@ mod selectable_vec1 {
         fn clone(&self) -> Self {
             Self {
                 elements: self.elements.clone(),
-                index_state: self.index_state.clone(),
-                current_index: self.current_index.clone(),
+                index_state: self.index_state,
+                current_index: self.current_index,
             }
         }
     }
@@ -472,7 +468,10 @@ mod selectable_vec1 {
             }
         }
     
+        
         /// Since there is always at least one element, this always returns at least 1.
+        #[allow(clippy::len_without_is_empty)]
+        // an is_empty method would always return false.
         pub fn len(&self) -> Length {
             debug_assert!(self.elements.len() <= Length::max_value());
             Length::or_max(self.elements.len())
@@ -791,7 +790,7 @@ mod selectable_vec1 {
     
         fn next(&mut self) -> Option<Self::Item> {
             self.iter.next().map(|b| {
-                let i = self.index.clone();
+                let i = self.index;
     
                 self.index = self.index.saturating_add(1);
     
@@ -821,7 +820,7 @@ mod selectable_vec1 {
             let mut index = self.index_state.new_index(d!());
 
             let v: Vec<_> = self.elements.into_iter().map(|a| {
-                let i = index.clone();
+                let i = index;
 
                 index = index.saturating_add(1);
 
@@ -873,6 +872,10 @@ impl <A> Map<A> {
     pub fn len(&self) -> Length {
         debug_assert!(self.map.len() <= Length::max_value());
         Length::or_max(self.map.len())
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.map.is_empty()
     }
 
     pub fn get(&mut self, state: State, index: Index) -> Option<&A> {
