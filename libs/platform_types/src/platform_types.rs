@@ -51,7 +51,7 @@ pub enum Input {
     ResetScroll,
     ScrollVertically(f32),
     ScrollHorizontally(f32),
-    SetSizeDependents(SizeDependents),
+    SetSizeDependents(Box<SizeDependents>),
     MoveAllCursors(Move),
     ExtendSelectionForAllCursors(Move),
     SelectAll,
@@ -392,7 +392,7 @@ pub struct StatusLineView {
     pub chars: String,
 }
 
-pub const DEFAULT_STATUS_LINE_CHARS: &'static str = "No buffer selected.";
+pub const DEFAULT_STATUS_LINE_CHARS: &str = "No buffer selected.";
 d!(for StatusLineView: StatusLineView {chars: DEFAULT_STATUS_LINE_CHARS.to_owned()});
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -500,6 +500,10 @@ impl EditedTransitions {
         self.0.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = &IndexedEditedTransition> {
         self.0.iter()
     }
@@ -594,7 +598,7 @@ pub struct BufferView {
 
 fmt_debug!(collapse default for BufferView: me {
     blank_if_default!(name);
-    blank_if_default!(name_string, me.name_string.len() == 0);
+    blank_if_default!(name_string, me.name_string.is_empty());
     blank_if_default!(data);
 });
 
@@ -683,9 +687,9 @@ pub struct BufferViewData {
 fmt_debug!(collapse default for BufferViewData: me {
     blank_if_default!(chars, me.chars == Rope::default());
     blank_if_default!(scroll);
-    blank_if_default!(cursors, me.cursors.len() == 0);
-    blank_if_default!(highlights, me.highlights.len() == 0);
-    blank_if_default!(spans, me.spans.len() == 0);
+    blank_if_default!(cursors, me.cursors.is_empty());
+    blank_if_default!(highlights, me.highlights.is_empty());
+    blank_if_default!(spans, me.spans.is_empty());
 });
 
 #[macro_export]
@@ -708,12 +712,6 @@ pub enum Cmd {
 }
 
 d!(for Cmd : Cmd::NoCmd);
-
-impl Cmd {
-    pub fn take(&mut self) -> Cmd {
-        std::mem::replace(self, d!())
-    }
-}
 
 pub type UpdateAndRenderOutput = (View, Cmd);
 pub type UpdateAndRender = fn(Input) -> UpdateAndRenderOutput;

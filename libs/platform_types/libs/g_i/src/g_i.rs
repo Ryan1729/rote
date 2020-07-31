@@ -451,6 +451,8 @@ mod selectable_vec1 {
         }
     }
 
+    #[allow(clippy::len_without_is_empty)]
+    // an is_empty method would always return false.
     impl<A> SelectableVec1<A> {
         pub fn new(inital_element: A) -> Self {
             Self {
@@ -467,11 +469,8 @@ mod selectable_vec1 {
                 current_index: d!(),
             }
         }
-    
         
         /// Since there is always at least one element, this always returns at least 1.
-        #[allow(clippy::len_without_is_empty)]
-        // an is_empty method would always return false.
         pub fn len(&self) -> Length {
             debug_assert!(self.elements.len() <= Length::max_value());
             Length::or_max(self.elements.len())

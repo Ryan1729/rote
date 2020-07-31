@@ -204,7 +204,7 @@ struct Match<'capture> {
 
 fn get_spans_capacity(to_parse: &str) -> usize {
     const AVERAGE_BYTES_PER_TOKEN: usize = 4;
-    return to_parse.len() / AVERAGE_BYTES_PER_TOKEN;
+    to_parse.len() / AVERAGE_BYTES_PER_TOKEN
 }
 
 fn query_spans_for<'to_parse>(
@@ -390,10 +390,8 @@ fn tree_depth_spans_for<'to_parse>(
         }
         if spans[i + 1].kind != spans[i].kind {
             if spans[i + 1].end_byte_index <= spans[i].end_byte_index
-            {
-                if spans[i].end_byte_index >= prev_max {
-                    spans.remove(i);
-                }
+            && spans[i].end_byte_index >= prev_max {
+                spans.remove(i);
             }
 
             prev_max = spans[i].end_byte_index;
@@ -567,7 +565,7 @@ impl InitializedParsers {
     }
 }
 
-const RUST_BASIC_QUERY_SOURCE: &'static str = "
+const RUST_BASIC_QUERY_SOURCE: &str = "
 (line_comment) @comment
 (block_comment) @comment
 (string_literal) @string

@@ -130,16 +130,19 @@ pub fn char_offset_to_pos(rope: &Rope, offset: AbsoluteCharOffset) -> Option<Pos
 
         offset
             .checked_sub(start_of_line)
-            .map(|o: CharOffset| Position {
+            .map(|offset: CharOffset| Position {
                 line: line_index.0,
-                offset: o.into(),
+                offset,
             })
     })
 }
 
 pub fn clamp_position(rope: &Rope, position: Position) -> Position {
     clamp_position_helper(rope, position)
-        .unwrap_or_else(|| char_offset_to_pos(rope, rope.len_chars()).unwrap_or_default())
+        .unwrap_or_else(|| 
+            char_offset_to_pos(rope, rope.len_chars())
+                .unwrap_or_default()
+        )
 }
 
 fn clamp_position_helper(rope: &Rope, position: Position) -> Option<Position> {
@@ -162,9 +165,9 @@ fn clamp_position_helper(rope: &Rope, position: Position) -> Option<Position> {
 
         abs_offset
             .checked_sub(start_of_line)
-            .map(|o: CharOffset| Position {
+            .map(|offset: CharOffset| Position {
                 line: line_index.0,
-                offset: o.into(),
+                offset,
             })
     })
 }

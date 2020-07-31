@@ -27,7 +27,7 @@ pub struct TexCoords {
 ///     color * 4, 
 /// ]
 /// ```
-pub const VERTEX_SPEC: [(&'static str, i32); 6] = [
+pub const VERTEX_SPEC: [(&str, i32); 6] = [
     ("left_top", 3),
     ("override_alpha", 1),
     ("right_bottom", 2),

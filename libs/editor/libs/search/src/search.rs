@@ -80,8 +80,8 @@ pub fn get_ranges(
 
     let offsets = get_ranges_impl(needle, slice, max_needed);
 
-    perf_viz::start_record!("offsets.into_iter() char_offset_to_pos");
-    let output = offsets
+    perf_viz::record_guard!("offsets.into_iter() char_offset_to_pos");
+    offsets
         .into_iter()
         .filter_map(|(o_min, o_max)| {
             let a_o_min = AbsoluteCharOffset(o_min.0 + min);
@@ -90,9 +90,7 @@ pub fn get_ranges(
             char_offset_to_pos(haystack, a_o_min)
                 .and_then(|p_min| char_offset_to_pos(haystack, a_o_max).map(|p_max| (p_min, p_max)))
         })
-        .collect();
-    perf_viz::end_record!("offsets.into_iter() char_offset_to_pos");
-    output
+        .collect()
 }
 
 // TODO benchmark with previous version used in tests

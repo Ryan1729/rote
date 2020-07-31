@@ -279,7 +279,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
         }}
     }
 
-    macro_rules! get_non_font_size_dependents {
+    macro_rules! get_non_font_size_dependents_input {
         ($mode: expr, $dimensions: expr) => {{
             let dimensions = $dimensions;
             let FindReplaceInfo {
@@ -291,7 +291,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                 input_text_xywh,
                 ..
             } = get_go_to_position_info(dimensions);
-            SizeDependents {
+            Input::SetSizeDependents(Box::new(SizeDependents {
                 buffer_xywh: wimp_render::get_edit_buffer_xywh(
                     $mode,
                     dimensions
@@ -301,7 +301,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                 replace_xywh: replace_text_xywh.into(),
                 go_to_position_xywh: input_text_xywh.into(),
                 font_info: dimensions.font.into(),
-            }
+            }))
         }};
     }
 
@@ -315,9 +315,9 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
             ),
         };
 
-        let (v, c) = update_and_render(Input::SetSizeDependents(
-            get_non_font_size_dependents!(d!(), dimensions)
-        ));
+        let (v, c) = update_and_render(
+            get_non_font_size_dependents_input!(d!(), dimensions)
+        );
 
         let mut cmds = VecDeque::with_capacity(EVENTS_PER_FRAME);
         cmds.push_back(c);
@@ -511,17 +511,19 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                 
                 call_u_and_r!(r_s, Input::SetMenuMode(mode));
 
-                call_u_and_r!(r_s, Input::SetSizeDependents(SizeDependents {
-                    buffer_xywh: wimp_render::get_edit_buffer_xywh(
-                        mode.into(),
-                        r_s.dimensions,
-                    )
-                    .into(),
-                    find_xywh: None,
-                    replace_xywh: None,
-                    go_to_position_xywh: None,
-                    font_info: None,
-                }));
+                call_u_and_r!(r_s, Input::SetSizeDependents(
+                    Box::new(SizeDependents {
+                        buffer_xywh: wimp_render::get_edit_buffer_xywh(
+                            mode.into(),
+                            r_s.dimensions,
+                        )
+                        .into(),
+                        find_xywh: None,
+                        replace_xywh: None,
+                        go_to_position_xywh: None,
+                        font_info: None,
+                    })
+                ));
             };
         }
 
@@ -540,17 +542,19 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
             [empty, Escape, "Close menus.", r_s {
                 r_s.view.close_menus();
 
-                call_u_and_r!(r_s, Input::SetSizeDependents(SizeDependents {
-                    buffer_xywh: wimp_render::get_edit_buffer_xywh(
-                        d!(),
-                        r_s.dimensions
-                    )
-                    .into(),
-                    find_xywh: None,
-                    replace_xywh: None,
-                    go_to_position_xywh: None,
-                    font_info: None,
-                }));
+                call_u_and_r!(r_s, Input::SetSizeDependents(
+                    Box::new(SizeDependents {
+                        buffer_xywh: wimp_render::get_edit_buffer_xywh(
+                            d!(),
+                            r_s.dimensions
+                        )
+                        .into(),
+                        find_xywh: None,
+                        replace_xywh: None,
+                        go_to_position_xywh: None,
+                        font_info: None,
+                    })
+                ));
                 call_u_and_r!(r_s, Input::CloseMenuIfAny);
             }]
             [empty, F1, "Delete lines.", r_s {
@@ -874,12 +878,12 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                             let hidpi_factor = get_hidpi_factor!();
                             glutin_context.resize(size);
                             r_s.dimensions.window = wh_from_size!(size);
-                            call_u_and_r!(Input::SetSizeDependents(
-                                get_non_font_size_dependents!(
+                            call_u_and_r!(
+                                get_non_font_size_dependents_input!(
                                     r_s.view.menu_mode(),
                                     r_s.dimensions
                                 )
-                            ));
+                            );
                             let sswh!(w, h) = r_s.dimensions.window;
                             gl_layer::set_dimensions(
                                 &mut gl_state,

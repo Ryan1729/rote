@@ -256,7 +256,7 @@ mod text_layouts {
                             .into_iter()
                             .filter(|(glyph, _): &CalculatedGlyph<'_>| {
                                 // TODO when is this None?
-                                let should_keep = glyph.pixel_bounding_box()
+                                glyph.pixel_bounding_box()
                                     .map(move |pixel_coords| {
                                         // true if pixel_coords intersects clip
                                         pixel_coords.min.x <= clip.max.x
@@ -264,9 +264,7 @@ mod text_layouts {
                                         && clip.min.x <= pixel_coords.max.x
                                         && clip.min.y <= pixel_coords.max.y
                                     })
-                                    .unwrap_or(true);
-        
-                                should_keep
+                                    .unwrap_or(true)
                             })
                     );
                     perf_viz::end_record!("out.extend");
