@@ -280,9 +280,7 @@ fn get_next_position(
     };
 
     line_index_and_section.and_then(|(line_index, offset, section, final_offset)| {
-        // The variable is needed to cause the `likely_edit_offsets` iterator to be dropped
-        // at the right time.
-        let output = get_offsets(section, kind, IncludeStringLength::No)
+        get_offsets(section, kind, IncludeStringLength::No)
             // So we actually move if we started on a word boundary. This also causes us to
             // skip the first location on each line going forwards, but many other text
             // editors do it, and it seems plauible that the second edit location is used
@@ -299,9 +297,7 @@ fn get_next_position(
                     line: line_index.0,
                     offset: final_offset,
                 })
-            });
-
-        output
+            })
     })
 }
 
@@ -499,7 +495,7 @@ where
         position = backward(rope, position?);
     }
 
-    return position;
+    position
 }
 
 #[allow(dead_code)]
@@ -513,7 +509,7 @@ where
         position = forward(rope, position?);
     }
 
-    return position;
+    position
 }
 
 #[cfg(test)]

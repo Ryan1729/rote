@@ -69,12 +69,9 @@ pub fn render(
         resize_texture,
     );
     
-    match replacement_vertices {
-        Some(vertices) => {
-            perf_viz::record_guard!("open_gl.draw_vertices");
-            state.open_gl.draw_vertices(vertices);
-        }
-        None => {}
+    if let Some(vertices) = replacement_vertices {
+        perf_viz::record_guard!("open_gl.draw_vertices");
+        state.open_gl.draw_vertices(vertices);
     }
 
     state.open_gl.end_frame();

@@ -36,7 +36,7 @@ mod text_layouts {
         let line_height: f32 = v_metrics.ascent - v_metrics.descent + v_metrics.line_gap;
 
         for line in lines {
-            if line.glyphs.len() > 0 {
+            if line.glyphs.is_empty() {
                 let screen_pos = point(caret.0, caret.1);
     
                 out.extend(
@@ -177,7 +177,7 @@ mod text_layouts {
         perf_viz::record_guard!("UnboundedLayoutClipped::calculate_glyphs");
         let mut out = vec![];
 
-        if sections.len() == 0 {
+        if sections.is_empty() {
             return out;
         }
 
@@ -218,7 +218,7 @@ mod text_layouts {
             } as u16;
 
             if to_skip > 0 {
-                caret.1 = caret.1 + f32::from(to_skip) * line_height;
+                caret.1 += f32::from(to_skip) * line_height;
                 if let Some(l) = lines.nth((to_skip - 1) as _) {
                     line = l;
                 } else {
@@ -253,7 +253,6 @@ mod text_layouts {
                     perf_viz::start_record!("out.extend");
                     out.extend(
                         tuples
-                            .into_iter()
                             .filter(|(glyph, _): &CalculatedGlyph<'_>| {
                                 // TODO when is this None?
                                 glyph.pixel_bounding_box()
@@ -509,7 +508,7 @@ pub fn new(hidpi_factor: f32, text_sizes: &[f32]) -> Res<(State, CharDims)> {
 
     let glyph_brush = get_glyph_brush(&font);
 
-    return Ok((
+    Ok((
         State {
             glyph_brush,
             hidpi_factor,

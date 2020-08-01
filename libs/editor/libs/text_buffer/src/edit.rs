@@ -368,7 +368,7 @@ pub fn get_cut_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
     })
 }
 
-pub const TAB_STR: &'static str = "    "; //four spaces
+pub const TAB_STR: &str = "    "; //four spaces
 pub const TAB_STR_CHAR: char = ' ';
 pub const TAB_STR_CHAR_COUNT: usize = 4; // this isn't const (yet?) TAB_STR.chars().count();
 
