@@ -219,7 +219,8 @@ mod tests {
     use super::*;
     use platform_types::pos;
     #[test]
-    fn these_two_cursors_are_equal() {
+    fn these_two_cursors_are_sorted_equally() {
+        use std::cmp::Ordering::Equal;
         let mut c1 = Cursor::new(pos! {l 1 o 2});
         c1.set_highlight_position(pos! {l 3 o 4});
         c1.sticky_offset = d!();
@@ -228,6 +229,7 @@ mod tests {
         c2.set_highlight_position(pos! {l 1 o 2});
         c2.sticky_offset = d!();
 
-        assert_eq!(c1, c2);
+        assert_eq!(c1.cmp(&c2), Equal);
+        assert_eq!(c2.cmp(&c1), Equal);
     }
 }
