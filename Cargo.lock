@@ -648,7 +648,7 @@ dependencies = [
 [[package]]
 name = "flame"
 version = "0.2.1-pre"
-source = "git+https://github.com/TyOverby/flame.git?branch=master#205b5ec7649845946df47638df6f73ae86955973"
+source = "git+https://github.com/TyOverby/flame.git#205b5ec7649845946df47638df6f73ae86955973"
 dependencies = [
  "lazy_static 1.4.0",
  "serde",
@@ -887,7 +887,6 @@ dependencies = [
  "env_logger",
  "gl",
  "glutin",
- "glyph_brush_layout",
  "if_changed",
  "log",
  "matches",
@@ -898,18 +897,6 @@ dependencies = [
  "rusttype 0.8.3",
  "spin_sleep",
  "twox-hash",
-]
-
-[[package]]
-name = "glyph_brush_layout"
-version = "0.1.9"
-dependencies = [
- "approx",
- "once_cell",
- "ordered-float",
- "perf_viz",
- "rusttype 0.8.3",
- "xi-unicode",
 ]
 
 [[package]]
@@ -2177,7 +2164,6 @@ version = "0.1.0"
 dependencies = [
  "gl_layer_types",
  "glyph_brush",
- "glyph_brush_layout",
  "linebreak",
  "macros",
  "panic_safe_rope",
@@ -2611,12 +2597,6 @@ name = "xdg"
 version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d089681aa106a86fade1b0128fb5daf07d5867a509ab036d99988dec80429a57"
-
-[[package]]
-name = "xi-unicode"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7395cdb9d0a6219fa0ea77d08c946adf9c1984c72fcd443ace30365f3daadef7"
 
 [[package]]
 name = "xml-rs"

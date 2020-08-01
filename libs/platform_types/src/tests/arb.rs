@@ -471,7 +471,9 @@ arb_enum!{
         ResetScroll => Just(ResetScroll),
         ScrollVertically(_) => usual().prop_map(ScrollVertically),
         ScrollHorizontally(_) => usual().prop_map(ScrollHorizontally),
-        SetSizeDependents(_) => size_dependents().prop_map(SetSizeDependents),
+        SetSizeDependents(_) => size_dependents()
+            .prop_map(Box::new)
+            .prop_map(SetSizeDependents),
         MoveAllCursors(_) => r#move().prop_map(MoveAllCursors),
         ExtendSelectionForAllCursors(_) => r#move().prop_map(ExtendSelectionForAllCursors),
         SelectAll => Just(SelectAll),

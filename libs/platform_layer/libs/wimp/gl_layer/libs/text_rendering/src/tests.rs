@@ -173,11 +173,15 @@ fn calculate_glyphs_unbounded_layout_clipped_slow<'font>(
         let v_metrics = font.v_metrics(scale);
         let line_height: f32 = v_metrics.ascent - v_metrics.descent + v_metrics.line_gap;
         
-        let tuples = line.aligned_on_screen(caret);
+        let screen_pos = point(caret.0, caret.1);
 
         out.extend(
-            tuples
+            line
+                .glyphs
                 .into_iter()
+                .map(|(glyph, color)| 
+                    (glyph.screen_positioned(screen_pos), color)
+                )
                 .filter(|(glyph, _)| {
                     // TODO when is this None?
                     glyph.pixel_bounding_box()
