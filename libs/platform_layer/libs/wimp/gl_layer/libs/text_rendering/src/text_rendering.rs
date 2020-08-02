@@ -11,7 +11,7 @@ use macros::{d, dbg};
 use glyph_brush::*;
 use glyph_brush::{
     rusttype::{Font, Scale, Rect},
-    Bounds, GlyphBrush, GlyphBrushBuilder, RectSpec, PixelCoords, Section,
+    Bounds, GlyphBrush, RectSpec, PixelCoords, Section,
 };
 
 mod text_layouts {
@@ -506,20 +506,13 @@ pub fn new(hidpi_factor: f32, text_sizes: &[f32]) -> Res<(State, CharDims)> {
         char_dims.push(get_char_dim!(get_scale(*size, hidpi_factor)));
     }
 
-    let glyph_brush = get_glyph_brush(&font);
-
     Ok((
         State {
-            glyph_brush,
+            glyph_brush: GlyphBrush::using_font(font.clone()),
             hidpi_factor,
         },
         char_dims
     ))
-}
-
-fn get_glyph_brush<'font, A: Clone>(font: &Font<'font>) -> GlyphBrush<'font, A> {
-    GlyphBrushBuilder::using_font(font.clone())
-        .build()
 }
 
 fn get_scale(size: f32, hidpi_factor: f32) -> Scale {

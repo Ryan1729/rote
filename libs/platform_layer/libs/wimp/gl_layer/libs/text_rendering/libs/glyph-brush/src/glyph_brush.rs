@@ -1,7 +1,3 @@
-mod builder;
-
-pub use self::builder::*;
-
 use super::*;
 use full_rusttype::gpu_cache::{Cache, CachedBy};
 use log::error;
@@ -12,6 +8,8 @@ use std::{
     hash::{BuildHasher, Hash, Hasher},
     i32, mem,
 };
+
+use crate::{DefaultSectionHasher, Font};
 
 use std::f32::INFINITY;
 //const INFINITY: f32 = 65536.0; // 64k pixels ought to be enough for anybody!
@@ -91,6 +89,43 @@ pub struct GlyphBrush<'font, V, H = DefaultSectionHasher> {
 impl<V, H> fmt::Debug for GlyphBrush<'_, V, H> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "GlyphBrush")
+    }
+}
+
+impl <'font, V> GlyphBrush<'font, V, DefaultSectionHasher>
+where
+    V: Clone + 'static,
+{
+    pub fn using_font(font_0: Font<'font>) -> Self {
+        Self::using_fonts(vec![font_0])
+    }
+
+    pub(crate) fn using_fonts<Fonts: Into<Vec<Font<'font>>>>(fonts: Fonts) -> Self {
+        GlyphBrush {
+            fonts: fonts.into(),
+            texture_cache: Cache::builder()
+                .dimensions(256, 256)
+                .scale_tolerance(0.5)
+                .position_tolerance(0.25)
+                .align_4x4(false)
+                .build(),
+            last_draw: <_>::default(),
+            section_buffer: <_>::default(),
+            calculate_glyph_cache: <_>::default(),
+
+            last_frame_seq_id_sections: <_>::default(),
+            frame_seq_id_sections: <_>::default(),
+
+            keep_in_cache: <_>::default(),
+
+            cache_glyph_positioning: true,
+            cache_glyph_drawing: true,
+
+            section_hasher: DefaultSectionHasher::default(),
+
+            last_pre_positioned: <_>::default(),
+            pre_positioned: <_>::default(),
+        }
     }
 }
 
