@@ -9,7 +9,6 @@ use std::path::PathBuf;
 use std::time::Duration;
 use wimp_render::{get_find_replace_info, FindReplaceInfo, get_go_to_position_info, GoToPositionInfo, ViewOutput, ViewAction};
 use wimp_types::{ui, ui::{PhysicalButtonState, Navigation}, transform_at, BufferStatus, BufferStatusTransition, CustomEvent, get_clipboard, ClipboardProvider, Dimensions, LabelledCommand, RunConsts, RunState, MenuMode};
-use file_chooser;
 use macros::{d, dbg};
 use platform_types::{screen_positioning::screen_to_text_box, *};
 use shared::{Res};
@@ -39,10 +38,10 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
     let mut data_dir = None;
     let mut hidpi_factor_override = None;
 
-    const VERSION: &'static str = "--version";
-    const HELP: &'static str = "--help";
-    const DATA_DIR_OVERRIDE: &'static str = "--data-dir-override";
-    const HIDPI_OVERRIDE: &'static str = "--hidpi-override";
+    const VERSION: &str = "--version";
+    const HELP: &str = "--help";
+    const DATA_DIR_OVERRIDE: &str = "--data-dir-override";
+    const HIDPI_OVERRIDE: &str = "--hidpi-override";
 
     while let Some(s) = args.next() {
         let s: &str = &s;

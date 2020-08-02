@@ -299,7 +299,7 @@ mod view {
         }
     }
 
-    fn navigation_from_cursors(cursors: &Vec<CursorView>) -> ui::Navigation {
+    fn navigation_from_cursors(cursors: &[CursorView]) -> ui::Navigation {
         let mut output = d!();
     
         for c in cursors.iter() {
@@ -429,7 +429,7 @@ pub mod ui {
                     }
                 }
 
-                if s.len() == 0 {
+                if s.is_empty() {
                     "\"\"".to_string()
                 } else {
                     s
@@ -694,16 +694,14 @@ pub mod ui {
                 ui.keyboard.set_not_active();
             }
         } else {
-            if ui.mouse.hot == id {
-                if mouse_state == PhysicalButtonState::PressedThisFrame {
-                    ui.mouse.set_active(id);
-                }
+            if ui.mouse.hot == id 
+            && mouse_state == PhysicalButtonState::PressedThisFrame {
+                ui.mouse.set_active(id);
             }
     
-            if ui.keyboard.hot == id {
-                if enter_key_state == PhysicalButtonState::PressedThisFrame {
-                    ui.keyboard.set_active(id);
-                }
+            if ui.keyboard.hot == id
+            && enter_key_state == PhysicalButtonState::PressedThisFrame {
+                ui.keyboard.set_active(id);
             }
         }
     

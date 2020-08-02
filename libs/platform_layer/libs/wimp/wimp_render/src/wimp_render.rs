@@ -241,7 +241,7 @@ pub fn view<'view>(
             padding,
             margin,
             rect,
-        } = get_tab_spaced_rect(&ui, *tab_char_dim, i, tab_count, width.into());
+        } = get_tab_spaced_rect(&ui, *tab_char_dim, i, tab_count, width);
         if rect.min.x > width {
             break;
         }
@@ -514,7 +514,7 @@ pub fn view<'view>(
                             None => {}
                             Up => {
                                 ui.file_switcher_pos.index = if ui.file_switcher_pos.index == 0 {
-                                    results.len().clone().checked_sub(1).unwrap_or(0)
+                                    results.len().clone().saturating_sub(1)
                                 } else {
                                     ui.file_switcher_pos.index - 1
                                 };
@@ -865,13 +865,11 @@ fn render_file_switcher_menu<'view>(
                 ) = ui.keyboard.hot
                 {
                     navigated_result = Some((result_index + 1) % results.len());
-                } else {
-                    if results.len() > 0 {
-                        navigated_result = Some(0);
-                        *action = ViewAction::Input(
-                            Input::SelectBuffer(b_id!(BufferIdKind::None, buffer_index))
-                        );
-                    }
+                } else if results.is_empty() {
+                    navigated_result = Some(0);
+                    *action = ViewAction::Input(
+                        Input::SelectBuffer(b_id!(BufferIdKind::None, buffer_index))
+                    );
                 }
             }
             Interact => {
@@ -1074,7 +1072,7 @@ fn text_box_view<'view>(
         text_box_pos,
     );
     
-    let offset_text_rect = shrink_by(ssr!(scroll_offset.into(), outer_rect.max), padding);
+    let offset_text_rect = shrink_by(ssr!(scroll_offset, outer_rect.max), padding);
 
     text_or_rects.push(TextOrRect::MulticolourText(MulticolourTextSpec {
         text: {
@@ -1109,7 +1107,7 @@ fn text_box_view<'view>(
 
     for c in cursors.iter() {
         let screen_xy = position_to_screen_space(c.position, char_dim, scroll, text_box_pos);
-        let cursor_rect = shrink_by(ssr!(screen_xy.into(), outer_rect.max), padding);
+        let cursor_rect = shrink_by(ssr!(screen_xy, outer_rect.max), padding);
         text_or_rects.push(TextOrRect::Text(TextSpec {
             text: "▏",
             size,
@@ -2022,8 +2020,8 @@ pub fn should_show_text_cursor(
                 ..
             } = get_find_replace_info(dimensions);
 
-            inside_rect(xy, find_outer_rect.into())
-            || inside_rect(xy, replace_outer_rect.into())
+            inside_rect(xy, find_outer_rect)
+            || inside_rect(xy, replace_outer_rect)
         }
         FileSwitcher => {
             let FileSwitcherInfo {
@@ -2031,7 +2029,7 @@ pub fn should_show_text_cursor(
                 ..
             } = get_file_switcher_info(dimensions);
 
-            inside_rect(xy, search_outer_rect.into())
+            inside_rect(xy, search_outer_rect)
         }
         GoToPosition => {
             let GoToPositionInfo {
@@ -2039,7 +2037,7 @@ pub fn should_show_text_cursor(
                 ..
             } = get_go_to_position_info(dimensions);
 
-            inside_rect(xy, input_outer_rect.into())
+            inside_rect(xy, input_outer_rect)
         }
         
     }

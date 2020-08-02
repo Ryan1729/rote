@@ -11,7 +11,7 @@ use rope_pos::{AbsoluteCharOffsetRange, char_offset_to_pos, final_non_newline_of
 
 use std::cmp::{min, max};
 
-pub fn apply<'rope, 'cursors>(mut applier: Applier, edit: &Edit) {
+pub fn apply(mut applier: Applier, edit: &Edit) {
     // we assume that the edits are in the proper order so we won't mess up our indexes with our
     // own inserts and removals. I'm not positive that there being a single order that works
     // is possible for all possible edits, but in practice I think the edits we will actually
@@ -177,7 +177,7 @@ fn get_standard_insert_range_edits(
     let range = AbsoluteCharOffsetRange::new(offset, offset + char_count);
 
     let mut post_delta_shift = d!();
-    if chars.starts_with("\n") {
+    if chars.starts_with('\n') {
         if let Some(char_before_insert) = offset.checked_sub_one().and_then(|o| rope.char(o)) {
             if char_before_insert == '\r' {
                 post_delta_shift = PostDeltaShift::Left;

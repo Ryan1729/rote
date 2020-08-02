@@ -286,8 +286,7 @@ fn get_next_position(
             // editors do it, and it seems plauible that the second edit location is used
             // more often than the first edit location. Making the other edit locations
             // "closer" doesn't seem like a bad thing. I guess we'll keep it.
-            .skip_while(|&o| o == 0)
-            .next()
+            .find(|&o| o > 0)
             .map(|o| Position {
                 line: line_index.0,
                 offset: std::cmp::min(offset + o, final_offset),
@@ -419,12 +418,12 @@ pub fn to_absolute_offset(
 // utils
 
 fn nth_line_count(rope: &Rope, n: usize) -> Option<CharOffset> {
-    rope.lines().nth(n).map(|l| l.len_chars().into())
+    rope.lines().nth(n).map(|l| l.len_chars())
 }
 
 pub fn last_position(rope: &Rope) -> Option<Position> {
     rope.lines()
-        .map(|l| l.len_chars().into())
+        .map(|l| l.len_chars())
         .enumerate()
         .last()
         .map(|(line, offset)| Position { line, offset })
@@ -490,7 +489,7 @@ pub fn backward_n<P>(rope: &Rope, position: P, n: usize) -> Option<Position>
 where
     P: Borrow<Position>,
 {
-    let mut position = Some(position.borrow().clone());
+    let mut position = Some(*position.borrow());
     for _ in 0..n {
         position = backward(rope, position?);
     }
@@ -504,7 +503,7 @@ pub fn forward_n<P>(rope: &Rope, position: P, n: usize) -> Option<Position>
 where
     P: Borrow<Position>,
 {
-    let mut position = Some(position.borrow().clone());
+    let mut position = Some(*position.borrow());
     for _ in 0..n {
         position = forward(rope, position?);
     }

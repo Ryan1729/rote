@@ -102,11 +102,8 @@ pub fn load_previous_tabs(
     for (name, uuid) in pairs {
         let path = edited_files_dir.join(get_path(name.to_string(), &uuid));
 
-        match std::fs::read_to_string(path) {
-            Ok(data) => {
-                result.push((name, data));
-            }
-            _ => {}
+        if let Ok(data) = std::fs::read_to_string(path) {
+            result.push((name, data));
         }
     }
     result
@@ -118,8 +115,8 @@ fn get_path(buffer_name: String, uuid: &u128) -> PathBuf {
     PathBuf::from(format!("{}_{:032x}", slug, uuid))
 }
 
-const PATH_PREFIX: &'static str = "Path: ";
-const SCRATCH_PREFIX: &'static str = "Scratch: ";
+const PATH_PREFIX: &str = "Path: ";
+const SCRATCH_PREFIX: &str = "Scratch: ";
 const SCRATCH_PREFIX_LENGTH: usize = 9;
 
 const UUID_SUFFIX_LENGTH: usize = 32
@@ -177,11 +174,11 @@ fn deserialize(s: &str) -> Option<(BufferName, u128)> {
     None
 }
 
-fn split_off_uuid_and_comma<'s>(s: &'s str) -> Option<(u128, &'s str)> {
+fn split_off_uuid_and_comma(s: &str) -> Option<(u128, &str)> {
     // > not >= to exclude "" as a `rest`!
     if s.chars().count() > UUID_SUFFIX_LENGTH {
         let (uuid_and_comma, rest) = &s.split_at(UUID_SUFFIX_LENGTH);
-        if uuid_and_comma.ends_with(",") {
+        if uuid_and_comma.ends_with(',') {
             if let Ok(uuid) = u128::from_str_radix(&uuid_and_comma[..(UUID_SUFFIX_LENGTH - 1)], 16)
             {
                 return Some((uuid, rest));

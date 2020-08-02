@@ -80,6 +80,10 @@ impl TextBuffer {
         self.borrow_rope().chars().count()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.rope.len_bytes() == 0
+    }
+
     pub fn borrow_rope(&self) -> &Rope {
         &self.rope
     }
