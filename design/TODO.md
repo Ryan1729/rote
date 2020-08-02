@@ -1,5 +1,11 @@
 ## TODO
 
+* It seems like the editor thread slows down sometimes. Possibly when there are many
+files open, or just when the editor has been open a long time
+    * So as a first step start measuring and displaying how long it took the last 
+    call to `editor::update_and_render` to run so we can more easily notice the
+    problem and when it occurs.
+
 * if multiple things are copied with multiple cursors then if they are pasted with the same number of cursors then 
     they should be pasted separately
     * given the numbers are selected by three cursors represented by "|"
