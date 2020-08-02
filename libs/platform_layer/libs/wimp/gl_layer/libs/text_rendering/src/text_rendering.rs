@@ -36,7 +36,7 @@ mod text_layouts {
         let line_height: f32 = v_metrics.ascent - v_metrics.descent + v_metrics.line_gap;
 
         for line in lines {
-            if line.glyphs.is_empty() {
+            if !line.glyphs.is_empty() {
                 let screen_pos = point(caret.0, caret.1);
     
                 out.extend(
