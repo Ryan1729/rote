@@ -2,9 +2,11 @@
 
 * It seems like the editor thread slows down sometimes. Possibly when there are many
 files open, or just when the editor has been open a long time
-    * So as a first step start measuring and displaying how long it took the last 
-    call to `editor::update_and_render` to run so we can more easily notice the
-    problem and when it occurs.
+    * We've started measuring and displaying how long it took the last call to 
+    `editor::update_and_render` to run. Do we need more visualization than that?
+        * If we do, the next obvious step would be a bar chart of the last N view
+        renders, where the x axis is the Input variant, and the y axis is duration
+        statisics like maximum, mean, median and mode.
 
 * if multiple things are copied with multiple cursors then if they are pasted with the same number of cursors then 
     they should be pasted separately

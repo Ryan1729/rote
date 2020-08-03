@@ -662,6 +662,9 @@ pub fn view<'view>(
             ..d!()
         },
     ) {
+        // TODO render a bar chart of the last N view renders, where the x axis is 
+        // the Input variant, and the y axis is duration statisics like maximum, 
+        // mean, median and mode.
         action = Some(command_keys::debug_menu()).into()
     }
 

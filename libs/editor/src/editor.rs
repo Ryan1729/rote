@@ -3,7 +3,10 @@ use macros::{d, dbg, fmt_debug, u, SaturatingSub};
 use platform_types::{screen_positioning::*, *};
 use parsers::{Parsers};
 
-use std::path::PathBuf;
+use std::{
+    path::PathBuf,
+    time::Instant,
+};
 use text_buffer::{ScrollAdjustSpec, TextBuffer, PossibleEditedTransition};
 
 mod editor_view;
@@ -376,6 +379,7 @@ macro_rules! set_if_present {
 //#[check_or_no_panic::check_or_no_panic]
 pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutput {
     perf_viz::record_guard!("update_and_render");
+    let start_time = Instant::now();
 
     macro_rules! try_to_show_cursors {
         () => {
@@ -810,8 +814,13 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
     }
 
     // updates the view
-    editor_view::render(state);
-    (state.view.clone(), cmd)
+    editor_view::render(state);
+
+    let mut cloned_view = state.view.clone();
+    // We want to measure the cloning time.
+    cloned_view.stats.latest_render_duration = Instant::now() - start_time;
+
+    (cloned_view, cmd)
 }
 
 #[cfg(test)]

@@ -94,10 +94,10 @@ pub enum CustomEvent {
 
 /// This module exists because when adding WIMP only UI elements we found that 
 /// we wanted to have several parts of the code start checking the whether a 
-/// WIMP only menu was up. Because I was not sure where all the places that 
-/// parts of the code were that were talking directly to the 
-/// `platform_types::View` and therefore might need to be changed, I wanted to 
-/// lean on the compiler to find all those places for me.
+/// WIMP only menu was up. Because I was not sure where all the parts of the code 
+/// that were that were talking directly to the `platform_types::View` and therefore
+/// might need to be changed, I wanted to lean on the compiler to find all those 
+/// places for me.
 mod view {
     use macros::{d};
     use super::ui; // Your app's written in Electron? Shoulda used Super UI.
@@ -277,6 +277,10 @@ mod view {
 
         pub fn current_path(&self) -> Option<std::path::PathBuf> {
             self.platform_view.current_path()
+        }
+
+        pub fn stats(&self) -> &platform_types::ViewStats {
+            &self.platform_view.stats
         }
 
         pub fn menu(&self) -> WimpMenuView {

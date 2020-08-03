@@ -1,7 +1,10 @@
 use macros::{
     add_assign, d, fmt_debug, fmt_display, ord, u,
 };
-use std::path::PathBuf;
+use std::{
+    time::Duration,
+    path::PathBuf
+};
 
 pub use vec1::{vec1, Vec1};
 pub use panic_safe_rope::Rope;
@@ -524,6 +527,7 @@ pub struct View {    pub buffers: SelectableVec1<BufferView>,
     pub status_line: StatusLineView,
     pub current_buffer_kind: BufferIdKind,
     pub edited_transitions: EditedTransitions,
+    pub stats: ViewStats,
 }
 
 impl View {
@@ -715,6 +719,11 @@ d!(for Cmd : Cmd::NoCmd);
 
 pub type UpdateAndRenderOutput = (View, Cmd);
 pub type UpdateAndRender = fn(Input) -> UpdateAndRenderOutput;
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ViewStats {
+    pub latest_render_duration: Duration
+}
 
 #[cfg(any(test, feature = "pub_arb"))]
 pub mod tests;

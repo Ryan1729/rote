@@ -4,9 +4,11 @@
 // (at commit 90e7c7c331e9f991e11de6404b2ca073c0a09e61)
 
 use glutin::{dpi::LogicalPosition, Api, GlProfile, GlRequest};
-use std::collections::VecDeque;
-use std::path::PathBuf;
-use std::time::Duration;
+use std::{
+    collections::VecDeque,
+    path::PathBuf,
+    time::Duration,
+};
 use wimp_render::{get_find_replace_info, FindReplaceInfo, get_go_to_position_info, GoToPositionInfo, ViewOutput, ViewAction};
 use wimp_types::{ui, ui::{PhysicalButtonState, Navigation}, transform_at, BufferStatus, BufferStatusTransition, CustomEvent, get_clipboard, ClipboardProvider, Dimensions, LabelledCommand, RunConsts, RunState, MenuMode};
 use macros::{d, dbg};
@@ -1144,16 +1146,20 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                     }
 
                     perf_viz::start_record!("report_rate");
-                    if let Some(rate) = loop_helper.report_rate() {
+                    if let Some(render_rate) = loop_helper.report_rate() {
+                        // TODO move the string into editor_view, as a secondary
+                        // status line? Either this and the status line should
+                        // both be in editor_view, or neither of them should be.
                         glutin_context.window().set_title(&format!(
-                            "{}{} {:.0} FPS {:?} click {:?}",
+                            "{}{} {:.0} FPS e{: >6.3} ms {:?} click {:?}",
                             title,
                             if cfg!(debug_assertions) {
                                 " DEBUG"
                             } else {
                                 ""
                             },
-                            rate,
+                            render_rate,
+                            r_s.view.stats().latest_render_duration.as_micros() as f32 / 1000.0,
                             (r_s.ui.mouse_pos.x, r_s.ui.mouse_pos.y),
                             (last_click_x, last_click_y),
                         ));
