@@ -1,6 +1,6 @@
 #![deny(unused)]
 use platform_types::{
-    screen_positioning::{CharDim, ScreenSpaceXY, ScreenSpaceRect, ScrollXY},
+    screen_positioning::{CharDim, ScreenSpaceXY, ScreenSpaceRect},
     char_dim, ssr,
 };
 use gl_layer_types::{Vertex, VertexStruct, set_alpha, TextOrRect, Res};
@@ -8,19 +8,38 @@ use gl_layer_types::{Vertex, VertexStruct, set_alpha, TextOrRect, Res};
 #[allow(unused_imports)]
 use macros::{d, dbg};
 
-use glyph_brush::*;
 use glyph_brush::{
-    rusttype::{Font, Scale, Rect},
-    Bounds, GlyphBrush, RectSpec, PixelCoords, Section,
+    rusttype::{Font, Scale},
+    Bounds, BrushAction, BrushError, GlyphBrush,
+    RectSpec, PixelCoords, Section, SectionText, VariedSection,
+    AdditionalRects, GlyphVertex,
 };
 
 mod text_layouts {
-    use super::*;
-    use macros::{dbg};
+    use super::unbounded;
+    use macros::{d, dbg};
+    use platform_types::{
+        screen_positioning::{ScreenSpaceXY, ScreenSpaceRect, ScrollXY},
+        ssr,
+    };
     use glyph_brush::{
-        rusttype::{point, vector},
+        rusttype::{Font, Scale, Rect, point, vector},
+        CalculatedGlyph, 
+        GlyphChange,
+        GlyphPositioner,
+        SectionGeometry,
+        SectionText,
     };
     use std::borrow::Cow;
+
+    pub fn ssr_to_rusttype_i32(ssr!(min_x, min_y, max_x, max_y): ScreenSpaceRect) -> Rect<i32> {
+        let mut rect: Rect<i32> = d!();
+        rect.min.x = min_x.trunc_to_i32();
+        rect.min.y = min_y.trunc_to_i32();
+        rect.max.x = max_x.trunc_to_i32();
+        rect.max.y = max_y.trunc_to_i32();
+        rect
+    }
 
     fn calculate_glyphs<'font>(
         font: &Font<'font>,
@@ -386,7 +405,8 @@ impl <'font> State<'font> {
                     z,
                 }) => {
                     perf_viz::start_record!("Rect");
-                    let pixel_coords: PixelCoords = ssr_to_rusttype_i32(rect);
+                    let pixel_coords: PixelCoords = 
+                        text_layouts::ssr_to_rusttype_i32(rect);
 
                     let ssr!(_, _, max_x, max_y) = rect;    
 
@@ -519,18 +539,16 @@ fn get_scale(size: f32, hidpi_factor: f32) -> Scale {
     Scale::uniform((size * hidpi_factor).round())
 }
 
-
-
 #[inline]
 #[perf_viz::record]
-fn to_vertex_maker((screen_w, screen_h): (f32, f32)) -> impl Fn(glyph_brush::GlyphVertex) -> Vertex + Copy {
-    move |glyph_brush::GlyphVertex {
+fn to_vertex_maker((screen_w, screen_h): (f32, f32)) -> impl Fn(GlyphVertex) -> Vertex + Copy {
+    move |GlyphVertex {
         mut tex_coords,
         pixel_coords,
         bounds,
         color,
         z,
-    }: glyph_brush::GlyphVertex| {
+    }: GlyphVertex| {
         perf_viz::record_guard!("to_vertex");
         let gl_bounds = rusttype::Rect {
             min: rusttype::point(
@@ -598,15 +616,6 @@ fn to_vertex_maker((screen_w, screen_h): (f32, f32)) -> impl Fn(glyph_brush::Gly
     }
 }
 
-fn ssr_to_rusttype_i32(ssr!(min_x, min_y, max_x, max_y): ScreenSpaceRect) -> Rect<i32> {
-    let mut rect: Rect<i32> = d!();
-    rect.min.x = min_x.trunc_to_i32();
-    rect.min.y = min_y.trunc_to_i32();
-    rect.max.x = max_x.trunc_to_i32();
-    rect.max.y = max_y.trunc_to_i32();
-    rect
-}
-
 mod unbounded {
     use glyph_brush::{
         rusttype::{
@@ -624,6 +633,13 @@ mod unbounded {
         Linebreak,
         LinebreakIter,
     };
+
+    use std::{
+        iter::{Iterator},
+        slice,
+        str::CharIndices,
+    };
+
     #[perf_viz::record]
     pub(crate) fn get_lines_iter<'a, 'b, 'font>(
         font: &'b Font<'font>,
@@ -744,12 +760,6 @@ mod unbounded {
         linebreaks: LinebreakIter<'a>,
         next_break: Option<Linebreak>,
     }
-    
-    use std::{
-        iter::{Iterator},
-        slice,
-        str::CharIndices,
-    };
     
     impl<'a, 'b, 'font> Characters<'a, 'b, 'font>
     {
