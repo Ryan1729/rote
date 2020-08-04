@@ -420,12 +420,23 @@ prop_compose!{
 }
 
 prop_compose!{
+    pub fn stats()(
+        (secs, nanos) in (any::<u64>(), any::<u32>()),
+    ) -> ViewStats {
+        ViewStats {
+            latest_render_duration: Duration::new(secs, nanos)
+        }
+    }
+}
+
+prop_compose!{
     pub fn view()(
         current_buffer_kind in buffer_id_kind(),
         buffers in selectable_vec1(buffer_view(), 16),
         menu in menu_view(),
         status_line in status_line_view(),
         e_t in edited_transitions(),
+        stats in stats(),
     ) -> View {
         View {
             current_buffer_kind,
@@ -433,6 +444,7 @@ prop_compose!{
             menu,
             status_line,
             edited_transitions: e_t,
+            stats,
         }
     }
 }
