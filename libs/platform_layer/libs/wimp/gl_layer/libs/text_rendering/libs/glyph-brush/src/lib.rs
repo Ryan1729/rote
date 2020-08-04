@@ -1,14 +1,12 @@
 #![deny(unused)]
 mod font;
 mod glyph_brush;
-mod glyph_calculator;
 mod owned_section;
 mod section;
 
 pub use crate::{
     font::*,
-    glyph_brush::*, 
-    glyph_calculator::*, 
+    glyph_brush::*,
     owned_section::*,
     rusttype::*,
     section::*,

@@ -129,47 +129,74 @@ where
     }
 }
 
-impl<'font, V, H> GlyphCruncher<'font> for GlyphBrush<'font, V, H>
-where
-    V: Clone + 'static,
-    H: BuildHasher,
-{
-    fn pixel_bounds_custom_layout<'a, S, L>(
-        &mut self,
-        section: S,
-        custom_layout: &L,
-    ) -> Option<Rect<i32>>
-    where
-        L: GlyphPositioner + Hash,
-        S: Into<Cow<'a, VariedSection<'a>>>,
-    {
-        let section_hash = self.cache_glyphs(&section.into(), custom_layout);
-        self.keep_in_cache.insert(section_hash);
-        self.calculate_glyph_cache[&section_hash]
-            .positioned
-            .pixel_bounds()
-    }
+#[derive(Debug, Clone)]
+pub struct GlyphedSection<'font> {
+    pub glyphs: Vec<CalculatedGlyph<'font>>,
+    pub font_id: FontId,
+    pub z: f32,
+}
 
-    fn glyphs_custom_layout<'a, 'b, S, L>(
-        &'b mut self,
-        section: S,
-        custom_layout: &L,
-    ) -> CalculatedGlyphIter<'b, 'font>
-    where
-        L: GlyphPositioner + Hash,
-        S: Into<Cow<'a, VariedSection<'a>>>,
-    {
-        let section_hash = self.cache_glyphs(&section.into(), custom_layout);
-        self.keep_in_cache.insert(section_hash);
-        self.calculate_glyph_cache[&section_hash]
-            .positioned
-            .glyphs()
-    }
-
-    fn fonts(&self) -> &[Font<'font>] {
-        &self.fonts
+impl<'a> PartialEq<GlyphedSection<'a>> for GlyphedSection<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        self.z == other.z
+        && self.font_id == other.font_id
+            && self.glyphs.len() == other.glyphs.len()
+            && self.glyphs.iter().zip(other.glyphs.iter()).all(|(l, r)| {
+                    l.1 == r.1
+                    && l.0.id() == r.0.id()
+                    && l.0.position() == r.0.position()
+                    && l.0.scale() == r.0.scale()
+            })
     }
 }
+
+impl<'font> GlyphedSection<'font> {
+    pub fn pixel_bounds(&self) -> Option<Rect<i32>> {
+        let Self {
+            ref glyphs, ..
+        } = *self;
+
+        let mut no_match = true;
+
+        let mut pixel_bounds = Rect {
+            min: point(0, 0),
+            max: point(0, 0),
+        };
+
+        for Rect { min, max } in glyphs
+            .iter()
+            .filter_map(|&(ref g, ..)| g.pixel_bounding_box())
+        {
+            if no_match || min.x < pixel_bounds.min.x {
+                pixel_bounds.min.x = min.x;
+            }
+            if no_match || min.y < pixel_bounds.min.y {
+                pixel_bounds.min.y = min.y;
+            }
+            if no_match || max.x > pixel_bounds.max.x {
+                pixel_bounds.max.x = max.x;
+            }
+            if no_match || max.y > pixel_bounds.max.y {
+                pixel_bounds.max.y = max.y;
+            }
+            no_match = false;
+        }
+
+        Some(pixel_bounds).filter(|_| !no_match)
+    }
+
+    #[inline]
+    pub fn glyphs(&self) -> CalculatedGlyphIter<'_, 'font> {
+        self.glyphs.iter().map(|(g, ..)| g)
+    }
+}
+
+pub type CalculatedGlyphIter<'a, 'font> = std::iter::Map<
+    std::slice::Iter<'a, CalculatedGlyph<'font>>,
+    fn(
+        &'a CalculatedGlyph<'font>,
+    ) -> &'a rusttype::PositionedGlyph<'font>,
+>;
 
 #[derive(Clone, Default, Debug)]
 pub struct RectSpec {
