@@ -17,7 +17,7 @@ rusttype = "0.8"
 macros = { path = "../../../../../../macros" }
 panic_safe_rope = { path = "../../../../../../panic_safe_rope" }
 perf_viz = { path = "../../../../../../perf_viz" }
-platform_types = { path = "../../../../../../platform_types" }
+screen_space = { path = "../../../../../../screen_space" }
 
 [dev-dependencies]
 proptest = "0.10"

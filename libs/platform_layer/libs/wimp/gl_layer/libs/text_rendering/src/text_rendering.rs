@@ -1,6 +1,6 @@
 #![deny(unused)]
-use platform_types::{
-    screen_positioning::{CharDim, ScreenSpaceXY, ScreenSpaceRect},
+use screen_space::{
+    CharDim, ScreenSpaceXY, ScreenSpaceRect,
     char_dim, ssr,
 };
 use gl_layer_types::{Vertex, VertexStruct, set_alpha, TextOrRect, Res};
@@ -18,8 +18,9 @@ use glyph_brush::{
 mod text_layouts {
     use super::unbounded;
     use macros::{d, dbg};
-    use platform_types::{
-        screen_positioning::{ScreenSpaceXY, ScreenSpaceRect, ScrollXY},
+    use screen_space::{
+        ScreenSpaceXY,
+        ScreenSpaceRect,
         ssr,
     };
     use glyph_brush::{
@@ -170,16 +171,20 @@ mod text_layouts {
     #[derive(Hash)]
     pub(crate) struct UnboundedLayoutClipped {
         clip: Rect<i32>,
-        // only needed for the hash, so that the glyph_brush caching
-        // works properly.
-        scroll: ScrollXY
+        // Needed for when this struct is hashed, so that the characters are 
+        // adjusted properly when the scroll changes.
+        scroll_hash: u64
     }
 
     impl UnboundedLayoutClipped {
-        pub(crate) fn new(clip_ssr: ScreenSpaceRect, scroll: ScrollXY) -> Self {
+        pub(crate) fn new<H: std::hash::Hash>(clip_ssr: ScreenSpaceRect, scroll: H) -> Self {
+            // TODO use rustc hash after moving into glyph_brush
+            use std::hash::{Hasher};
+            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+            scroll.hash(&mut hasher);
             Self { 
                 clip: ssr_to_rusttype_i32(clip_ssr),
-                scroll,
+                scroll_hash: hasher.finish(),
             }
         }
     }
@@ -391,7 +396,10 @@ impl <'font> State<'font> {
                             glyph_brush.queue_custom_layout($section, &Unbounded {})
                         }
                         TextLayout::UnboundedLayoutClipped(ssr, scroll) => {
-                            glyph_brush.queue_custom_layout($section, &UnboundedLayoutClipped::new(ssr, scroll))
+                            glyph_brush.queue_custom_layout(
+                                $section,
+                                &UnboundedLayoutClipped::new(ssr, scroll)
+                            )
                         }
                     };
                     perf_viz::end_record!("queue!");

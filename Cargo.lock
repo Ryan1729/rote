@@ -1475,6 +1475,7 @@ dependencies = [
  "pub_arb_pos_f32",
  "pub_arb_pos_f32_trunc",
  "pub_arb_std",
+ "screen_space",
  "text_pos",
  "vec1",
 ]
@@ -1972,6 +1973,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d29ab0c6d3fc0ee92fe66e2d99f700eab17a8d57d1c1d3b748380fb20baa78cd"
 
 [[package]]
+name = "screen_space"
+version = "0.1.0"
+dependencies = [
+ "abs",
+ "macros",
+]
+
+[[package]]
 name = "search"
 version = "0.1.0"
 dependencies = [
@@ -2168,10 +2177,10 @@ dependencies = [
  "macros",
  "panic_safe_rope",
  "perf_viz",
- "platform_types",
  "proptest",
  "pub_arb_std",
  "rusttype 0.8.3",
+ "screen_space",
 ]
 
 [[package]]

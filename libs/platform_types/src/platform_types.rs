@@ -1,6 +1,6 @@
 #![deny(unused)]
 use macros::{
-    add_assign, d, fmt_debug, fmt_display, ord, u,
+    d, fmt_debug, fmt_display, ord, u,
 };
 use std::{
     time::Duration,
@@ -24,7 +24,10 @@ pub use screen_positioning::{
     TextBoxXY,
     TextBoxSpaceXY,
     TextSpaceXY,
-    TextSpaceXYWH
+    TextSpaceXYWH,
+    ssr,
+    sswh,
+    ssxy,
 };
 
 pub use abs;

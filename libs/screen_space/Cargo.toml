@@ -1,14 +1,12 @@
 [package]
-name = "pub_arb_abs"
+name = "screen_space"
 version = "0.1.0"
 authors = ["Ryan1729 <Ryan1729@gmail.com>"]
 edition = "2018"
 
 [lib]
-path = "./src/pub_arb_abs.rs"
+path = "./src/screen_space.rs"
 
 [dependencies]
-
-[dependencies.abs]
-path = "../../abs"
-features = ["pub_arb"]
+abs = { path = "../abs" }
+macros = { path = "../macros" }
