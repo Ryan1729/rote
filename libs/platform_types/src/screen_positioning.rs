@@ -1,5 +1,5 @@
 use super::*;
-use macros::{dbg, u};
+use macros::{fmt_debug, fmt_display, d, dbg, u};
 pub use non_neg_f32::{NonNegF32, non_neg_f32};
 pub use pos_f32::{PosF32, pos_f32};
 pub use pos_f32_trunc::{PosF32Trunc, pos_f32_trunc};
@@ -229,7 +229,9 @@ pub fn clamp_within(
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Hash)]
-/// It's nice for it to be harder to mixup screen dimensions and Character dimensions.
+/// The dimensions of a character, in screen-space. This is very similar to 
+/// `ScreenSpaceWH`, but it's nice for it to be harder to mixup generic screen
+/// dimensions and Character dimensions.
 // Plus since `CharDim` came before `ScreenSpaceWH` less code has to change if we keep `CharDim`
 /// We are currently assuming the font is monospace!
 pub struct CharDim {

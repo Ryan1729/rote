@@ -1,3 +1,4 @@
+#![deny(unused)]
 use macros::{
     add_assign, d, fmt_debug, fmt_display, ord, u,
 };

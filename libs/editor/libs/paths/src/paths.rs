@@ -5,7 +5,7 @@ pub fn find_in<'path, I: Iterator<Item = &'path Path>>(
     paths: I,
     needle: &str,
 ) -> Vec<PathBuf> {
-    if needle.len() == 0 {
+    if needle.is_empty() {
         return Vec::new();
     }
     let len = {
@@ -63,7 +63,7 @@ pub fn find_in<'path, I: Iterator<Item = &'path Path>>(
             }};
         }
 
-        let i = if output.len() == 0 {
+        let i = if output.is_empty() {
             // base case for when we don't havea second path to compare to.
             contains_needle = match path.to_str() {
                 // Fast(er) path for valid unicde paths
