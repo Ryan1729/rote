@@ -722,6 +722,8 @@ pub fn view<'view>(
     }
 }
 
+// This is a private function so having a slightly awkward API is tolerable
+#[allow(clippy::too_many_arguments)]
 fn command_button<'view> (
     ui: &mut ui::State,
     id: ui::Id,
@@ -990,6 +992,8 @@ fn colourize<'text>(text: Cow<'text, str>, spans: &[SpanView]) -> Vec<ColouredTe
     }).collect()
 }
 
+// These are private functions so having a slightly awkward API is tolerable
+#[allow(clippy::too_many_arguments)]
 fn text_box<'view>(
     ui: &mut ui::State,
     text_or_rects: &mut Vec<TextOrRect<'view>>,
@@ -1039,6 +1043,7 @@ fn text_box<'view>(
     input
 }
 
+#[allow(clippy::too_many_arguments)]
 fn text_box_view<'view>(
     text_or_rects: &mut Vec<TextOrRect<'view>>,
     outer_rect: ScreenSpaceRect,
