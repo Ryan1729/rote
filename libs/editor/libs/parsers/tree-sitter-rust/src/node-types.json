@@ -336,6 +336,10 @@
         "named": true
       },
       {
+        "type": "or_pattern",
+        "named": true
+      },
+      {
         "type": "range_pattern",
         "named": true
       },
@@ -1055,6 +1059,32 @@
           "named": true
         }
       ]
+    }
+  },
+  {
+    "type": "const_parameter",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "type": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "_type",
+            "named": true
+          }
+        ]
+      }
     }
   },
   {
@@ -1796,12 +1826,8 @@
       },
       "trait": {
         "multiple": false,
-        "required": true,
+        "required": false,
         "types": [
-          {
-            "type": "fn",
-            "named": false
-          },
           {
             "type": "scoped_type_identifier",
             "named": true
@@ -2283,6 +2309,10 @@
           {
             "type": "identifier",
             "named": true
+          },
+          {
+            "type": "scoped_identifier",
+            "named": true
           }
         ]
       }
@@ -2421,7 +2451,7 @@
       }
     },
     "children": {
-      "multiple": true,
+      "multiple": false,
       "required": true,
       "types": [
         {
@@ -2608,6 +2638,21 @@
           }
         ]
       }
+    }
+  },
+  {
+    "type": "or_pattern",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "_pattern",
+          "named": true
+        }
+      ]
     }
   },
   {
@@ -3802,7 +3847,15 @@
       "required": true,
       "types": [
         {
+          "type": "_literal",
+          "named": true
+        },
+        {
           "type": "_type",
+          "named": true
+        },
+        {
+          "type": "block",
           "named": true
         },
         {
@@ -3923,6 +3976,10 @@
       "required": true,
       "types": [
         {
+          "type": "const_parameter",
+          "named": true
+        },
+        {
           "type": "constrained_type_parameter",
           "named": true
         },
@@ -3966,7 +4023,7 @@
     "fields": {
       "body": {
         "multiple": false,
-        "required": false,
+        "required": true,
         "types": [
           {
             "type": "field_declaration_list",
@@ -4200,7 +4257,7 @@
     "fields": {},
     "children": {
       "multiple": false,
-      "required": true,
+      "required": false,
       "types": [
         {
           "type": "crate",
@@ -4737,8 +4794,16 @@
     "named": false
   },
   {
+    "type": "lifetime",
+    "named": false
+  },
+  {
     "type": "line_comment",
     "named": true
+  },
+  {
+    "type": "literal",
+    "named": false
   },
   {
     "type": "loop",
@@ -4858,6 +4923,10 @@
   },
   {
     "type": "use",
+    "named": false
+  },
+  {
+    "type": "vis",
     "named": false
   },
   {

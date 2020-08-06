@@ -5,13 +5,17 @@ Macro invocation - no arguments
 a!();
 b![];
 c!{};
+d::e!();
+f::g::h!{};
 
 ---
 
 (source_file
   (macro_invocation (identifier) (token_tree))
   (macro_invocation (identifier) (token_tree))
-  (macro_invocation (identifier) (token_tree)))
+  (macro_invocation (identifier) (token_tree))
+  (macro_invocation (scoped_identifier (identifier) (identifier)) (token_tree))
+  (macro_invocation (scoped_identifier (scoped_identifier (identifier) (identifier)) (identifier)) (token_tree)))
 
 ============================================
 Macro invocation - arbitrary tokens
@@ -21,6 +25,9 @@ a!(* a *);
 a!(& a &);
 a!(- a -);
 a!(b + c + +);
+a!('a'..='z');
+a!('\u{0}'..='\u{2}');
+a!('lifetime)
 
 ----
 
@@ -36,7 +43,16 @@ a!(b + c + +);
     (token_tree (identifier)))
   (macro_invocation
     (identifier)
-    (token_tree (identifier) (identifier))))
+    (token_tree (identifier) (identifier)))
+  (macro_invocation
+    (identifier)
+    (token_tree (char_literal) (char_literal)))
+  (macro_invocation
+    (identifier)
+    (token_tree (char_literal) (char_literal)))
+  (macro_invocation
+    (identifier)
+    (token_tree (identifier))))
 
 ============================================
 Macro definition

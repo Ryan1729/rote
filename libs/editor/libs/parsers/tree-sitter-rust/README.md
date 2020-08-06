@@ -1,7 +1,3 @@
-# Rote specific note
-
-This folder consists of the [tree-sitter-rust repo](https://github.com/tree-sitter/tree-sitter-rust) @ [1c37782](https://github.com/tree-sitter/tree-sitter-rust/commit/1c37782a5528979a22991f8ed50dd3d3e423ac92)
-
 # tree-sitter-rust
 
 [![Build Status](https://travis-ci.org/tree-sitter/tree-sitter-rust.svg?branch=master)](https://travis-ci.org/tree-sitter/tree-sitter-rust)
