@@ -118,7 +118,7 @@ impl TextBuffer {
 
                 // We try first with this smaller xywh to make the cursor appear
                 // in the center more often.
-                let small_xywh = xywh.clone();
+                let small_xywh = xywh;
                 //let mut small_xywh = xywh.clone();
                 //small_xywh.xy.x += small_xywh.wh.w / 4.0;
                 //small_xywh.wh.w /= 2.0;
@@ -138,7 +138,7 @@ impl TextBuffer {
                 attempt_result = attempt_to_make_xy_visible(
                     scroll,
                     small_xywh,
-                    apron.clone(),
+                    apron,
                     text_space,
                 );
             
@@ -510,7 +510,7 @@ impl TextBuffer {
         };
 
         self.apply_edit(
-            change.clone().into(),
+            change.into(),
             // We don't record cursor movements for undo purposes
             // so you can undo, select, copy and then redo...
             ApplyKind::Playback,
@@ -676,7 +676,7 @@ impl TextBuffer {
     }
 
     pub fn has_no_edits(&self) -> bool {
-        self.history.len() == 0
+        self.history.is_empty()
     }
 }
 

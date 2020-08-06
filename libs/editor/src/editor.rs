@@ -690,11 +690,8 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
         }
         SelectBuffer(id) => {
             state.set_id(id);
-            match id.kind {
-                BufferIdKind::Text => {
-                    close_menu_if_any!();
-                }
-                _ => {}
+            if let BufferIdKind::Text = id.kind {
+                close_menu_if_any!();
             }
         }
         OpenOrSelectBuffer(path) => {

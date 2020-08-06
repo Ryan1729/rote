@@ -373,7 +373,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                 call_u_and_r!(r_s, $input)
             };
             ($vars: ident, $input:expr) => {
-                call_u_and_r!(&mut $vars.ui, &mut $vars.editor_in_sink, $input)
+                call_u_and_r!(&mut $vars.ui, &$vars.editor_in_sink, $input)
             };
             ($ui: expr, $editor_in_sink: expr, $input: expr) => {{
                 $ui.note_interaction();
@@ -428,7 +428,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
         // to display it to the user.
         macro_rules! handle_platform_error {
             ($r_s: ident, $err: expr) => {
-                handle_platform_error!(&mut $r_s.ui, &mut $r_s.editor_in_sink, $err)
+                handle_platform_error!(&mut $r_s.ui, &$r_s.editor_in_sink, $err)
             };
             ($ui: expr, $editor_in_sink: expr, $err: expr) => {
                 let error = format!("{},{}: {}", file!(), line!(), $err);
@@ -444,7 +444,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
             ($r_s: ident, $path: expr, $str: expr, $buffer_index: expr) => {
                 save_to_disk!(
                     &mut $r_s.ui,
-                    &mut $r_s.editor_in_sink,
+                    &$r_s.editor_in_sink,
                     &mut $r_s.buffer_status_map,
                     &$r_s.view,
                     $path,
@@ -846,17 +846,14 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                     }
 
                     if cfg!(feature = "print-raw-input") {
-                        match &event {
-                            &WindowEvent::KeyboardInput { ref input, .. } => {
-                                println!(
-                                    "{:?}",
-                                    (
-                                        input.virtual_keycode.unwrap_or(VirtualKeyCode::WebStop),
-                                        input.state
-                                    )
-                                );
-                            }
-                            _ => {}
+                        if let WindowEvent::KeyboardInput { ref input, .. } = event {
+                            println!(
+                                "{:?}",
+                                (
+                                    input.virtual_keycode.unwrap_or(VirtualKeyCode::WebStop),
+                                    input.state
+                                )
+                            );
                         }
                     }
 

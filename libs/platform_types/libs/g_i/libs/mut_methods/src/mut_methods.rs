@@ -32,19 +32,13 @@ impl VisitMut for MutMethods {
     fn visit_impl_item_method_mut(&mut self, method: &mut ImplItemMethod) {
         visit_impl_item_method_mut(self, method);
 
-        match method.vis {
-            Visibility::Public(_) => {
-                let signature = &method.sig;
-                match signature.receiver() {
-                    Some(FnArg::Receiver(r)) => {
-                        if r.mutability.is_some() {
-                            self.method_names.push(signature.ident.to_string())
-                        }
-                    }, 
-                    _ => {}
+        if let Visibility::Public(_) = method.vis {
+            let signature = &method.sig;
+            if let Some(FnArg::Receiver(r)) = signature.receiver() {
+                if r.mutability.is_some() {
+                    self.method_names.push(signature.ident.to_string())
                 }
-            },
-            _ => {}
+            }
         }
     }
 }
