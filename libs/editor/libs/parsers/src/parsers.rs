@@ -2,7 +2,18 @@
 use macros::{d, fmt_debug, fmt_display};
 use platform_types::{SpanView, SpanKind, sk};
 
-use tree_sitter::{Parser, Language, LanguageError, Node, Query, QueryCapture, QueryCursor, QueryError, Tree, TreeCursor};
+use tree_sitter::{
+    Parser,
+    Language,
+    LanguageError,
+    Node,
+    Query,
+    QueryCapture,
+    QueryCursor,
+    QueryError,
+    Tree,
+    TreeCursor
+};
 
 use std::borrow::Cow;
 

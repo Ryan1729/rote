@@ -43,11 +43,14 @@ fn editor_to_buffer_view_data(
     let mut buffer_view_data =
         text_buffer_to_buffer_view_data(&editor_buffer.text_buffer, selection_lines_estimate);
 
+    perf_viz::start_record!("parsers.get_spans");
     buffer_view_data.spans = parsers.get_spans(
         buffer_view_data.chars.clone().into(),
         editor_buffer.get_parser_kind()
     );
+    perf_viz::end_record!("parsers.get_spans");
 
+    perf_viz::start_record!("push all highlights");
     let highlights = &mut buffer_view_data.highlights;
     let SearchResults {
         ref ranges,
@@ -62,6 +65,7 @@ fn editor_to_buffer_view_data(
         };
         push_highlights(highlights, p1, p2, kind);
     }
+    perf_viz::end_record!("push all highlights");
 
     buffer_view_data
 }
