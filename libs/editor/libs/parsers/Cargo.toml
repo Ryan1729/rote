@@ -19,6 +19,9 @@ path = "../../../macros"
 [dependencies.platform_types]
 path = "../../../platform_types"
 
+[dependencies.edit]
+path = "../edit"
+
 [dev-dependencies]
 proptest = "0.10"
 

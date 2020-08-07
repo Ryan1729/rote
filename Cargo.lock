@@ -507,6 +507,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "cursors"
+version = "0.1.0"
+dependencies = [
+ "editor_types",
+ "macros",
+ "panic_safe_rope",
+ "perf_viz",
+ "platform_types",
+ "rope_pos",
+]
+
+[[package]]
 name = "derivative"
 version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -565,6 +577,20 @@ name = "downcast-rs"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "52ba6eb47c2131e784a38b726eb54c1e1484904f013e576a25354d0124161af6"
+
+[[package]]
+name = "edit"
+version = "0.1.0"
+dependencies = [
+ "cursors",
+ "editor_types",
+ "macros",
+ "move_cursor",
+ "panic_safe_rope",
+ "perf_viz",
+ "platform_types",
+ "rope_pos",
+]
 
 [[package]]
 name = "edited_storage"
@@ -1157,6 +1183,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "move_cursor"
+version = "0.1.0"
+dependencies = [
+ "editor_types",
+ "lazy_static 1.4.0",
+ "macros",
+ "panic_safe_rope",
+ "perf_viz",
+ "platform_types",
+ "regex",
+ "rope_pos",
+]
+
+[[package]]
 name = "move_mod"
 version = "0.1.0"
 dependencies = [
@@ -1404,6 +1444,7 @@ name = "parsers"
 version = "0.1.0"
 dependencies = [
  "cc",
+ "edit",
  "macros",
  "platform_types",
  "proptest",
@@ -2145,10 +2186,12 @@ dependencies = [
 name = "text_buffer"
 version = "0.1.0"
 dependencies = [
+ "cursors",
+ "edit",
  "editor_types",
  "if_changed",
- "lazy_static 1.4.0",
  "macros",
+ "move_cursor",
  "panic_safe_rope",
  "perf_viz",
  "platform_types",

@@ -1,21 +1,24 @@
-use crate::move_cursor::{forward, get_next_selection_point, get_previous_selection_point};
+#![deny(unused)]
+use move_cursor::{forward, get_next_selection_point, get_previous_selection_point};
 use editor_types::{Cursor, SetPositionAction};
 use macros::{d, dbg, u};
 use panic_safe_rope::{ByteIndex, Rope, RopeSlice};
 use platform_types::{*, screen_positioning::*};
-use rope_pos::{AbsoluteCharOffsetRange, clamp_position, in_cursor_bounds, nearest_valid_position_on_same_line};
+use rope_pos::{
+    AbsoluteCharOffsetRange,
+    in_cursor_bounds,
+    pos_to_char_offset,
+    offset_pair,
+    nearest_valid_position_on_same_line,
+};
 
-use std::borrow::Borrow;
-use std::cmp::{max, min};
-use std::collections::VecDeque;
+use std::{
+    borrow::Borrow,
+    collections::VecDeque,
+};
 
-mod edit;
-use edit::{Applier, Change, Edit};
+use edit::{Applier, Change, Edit, change};
 
-mod move_cursor;
-use rope_pos::{pos_to_char_offset, offset_pair, strict_offset_pair};
-
-mod cursors;
 use cursors::Cursors;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -531,13 +534,18 @@ impl TextBuffer {
 
     #[perf_viz::record]
     fn record_edit(&mut self, edit: Edit) -> PossibleEditedTransition {
+        u!{Editedness, EditedTransition}
         let old_editedness = self.editedness();
         dbg!(old_editedness);
 
         self.apply_edit(edit, ApplyKind::Record);
 
         dbg!(self.editedness());
-        change!(old_editedness, self.editedness()).into()
+        match change!(old_editedness, self.editedness()) {
+            change!(Edited, Edited) | change!(Unedited, Unedited) => None,
+            change!(Edited, Unedited) => Some(ToUnedited),
+            change!(Unedited, Edited) => Some(ToEdited),
+        }
     }
 
     #[perf_viz::record]
@@ -574,17 +582,6 @@ impl TextBuffer {
 enum Editedness {
     Edited,
     Unedited
-}
-
-impl From<Change<Editedness>> for Option<EditedTransition> {
-    fn from(c: Change<Editedness>) -> Self {
-        u!{Editedness, EditedTransition}
-        match c {
-            change!(Edited, Edited) | change!(Unedited, Unedited) => None,
-            change!(Edited, Unedited) => Some(ToUnedited),
-            change!(Unedited, Edited) => Some(ToEdited),
-        }
-    }
 }
 
 impl TextBuffer {

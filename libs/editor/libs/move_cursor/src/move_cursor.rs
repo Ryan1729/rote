@@ -1,4 +1,3 @@
-// this module is inside `text_buffer`
 use rope_pos::{
     char_offset_to_pos, final_non_newline_offset_for_rope_line, in_cursor_bounds,
     nearest_valid_position_on_same_line,

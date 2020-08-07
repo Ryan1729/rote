@@ -1,4 +1,10 @@
-use super::*;
+#![deny(unused)]
+use core::cmp::{max, min};
+use editor_types::{Cursor, SetPositionAction};
+use panic_safe_rope::{Rope};
+use platform_types::{Vec1};
+use macros::{d};
+use rope_pos::{clamp_position, offset_pair};
 
 #[derive(Clone, Debug, Default, Hash, PartialEq, Eq)]
 pub struct Cursors {
@@ -66,7 +72,7 @@ impl Cursors {
 
     fn clamp_vec_to_rope(cursors: &mut Vec1<Cursor>, rope: &Rope) {
         for cursor in cursors.iter_mut() {
-            let (p_op, h_op) = strict_offset_pair(rope, cursor);
+            let (p_op, h_op) = offset_pair(rope, cursor);
 
             if h_op.is_none() {
                 if let Some(h) = cursor.get_highlight_position() {

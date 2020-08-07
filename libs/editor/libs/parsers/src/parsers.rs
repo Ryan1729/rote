@@ -1,6 +1,7 @@
-#![deny(unused_variables)]
+#![deny(unused)]
 use macros::{d, fmt_debug, fmt_display};
 use platform_types::{SpanView, SpanKind, sk};
+use edit::{Edit};
 
 use tree_sitter::{
     Parser,
@@ -159,6 +160,19 @@ impl Parsers {
             },
             NotInitializedYet | FailedToInitialize(_) => {
                 plaintext_spans_for(to_parse)
+            }
+        }
+    }
+
+    pub fn acknowledge_edit(&mut self, _edit: &Edit) {
+        use Parsers::*;
+
+        match self {
+            Initialized(_p) => {
+                todo!() 
+            },
+            NotInitializedYet | FailedToInitialize(_) => {
+                debug_assert!(false, "acknowledge_edit called on uninitalized Parsers");
             }
         }
     }

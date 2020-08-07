@@ -1,0 +1,34 @@
+[package]
+name = "edit"
+version = "0.1.0"
+authors = ["Ryan1729 <Ryan1729@gmail.com>"]
+edition = "2018"
+
+[lib]
+path = "./src/edit.rs"
+
+[dependencies]
+
+[dependencies.cursors]
+path = "../cursors"
+
+[dependencies.editor_types]
+path = "../editor_types"
+
+[dependencies.macros]
+path = "../../../macros"
+
+[dependencies.move_cursor]
+path = "../move_cursor"
+
+[dependencies.panic_safe_rope]
+path = "../../../panic_safe_rope"
+
+[dependencies.perf_viz]
+path = "../../../perf_viz"
+
+[dependencies.platform_types]
+path = "../../../platform_types"
+
+[dependencies.rope_pos]
+path = "../rope_pos"
