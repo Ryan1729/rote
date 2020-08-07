@@ -79,16 +79,17 @@ fn get_edit<F>(original_rope: &Rope, original_cursors: &Cursors, mut mapper: F) 
 where
     F: FnMut(&Cursor, &mut Rope, usize) -> (RangeEdits, CursorPlacementSpec),
 {
-    perf_viz::start_record!("init cloning + sort");
-    // We need to sort cursors, so our `range_edits` are in the right order, so we can go
-    // backwards, when we apply them so our indexes don't get messed up but our own inserts
-    // and deletes.
-    // Should we just always maintin that the cursors in sorted order?
-    let mut cloned_cursors = sort_cursors(original_cursors.get_cloned_cursors());
+    perf_viz::start_record!("init cloning");
+    // We need the cursors to be sorted in reverse order, so our `range_edits` 
+    // are in the right order, so we can go backwards when we apply them, so 
+    // our indexes don't get messed up by our own inserts and deletes. 
+    // The Cursors type is expected to maintain this ordering.
+    let mut cloned_cursors = original_cursors.get_cloned_cursors();
     let mut cloned_rope = original_rope.clone();
-    perf_viz::end_record!("init cloning + sort");
+    perf_viz::end_record!("init cloning");
 
-    // the index needs to account for the order being from the high positions to the low positions
+    // the index needs to account for the order being from the high positions
+    // to the low positions.
     perf_viz::start_record!("range_edits");
     let mut index = cloned_cursors.len();
     let mut specs = Vec::with_capacity(index);
@@ -722,17 +723,6 @@ macro_rules! change {
     ($old: expr, $new: expr) => {
         Change { old: $old, new: $new }
     };
-}
-
-#[perf_viz::record]
-fn sort_cursors(cursors: Vec1<Cursor>) -> Vec1<Cursor> {
-    let mut cursors = cursors.to_vec();
-
-    cursors.sort();
-    cursors.reverse();
-
-    // This unwrap is fine because we knew it was a Vec1 at the start.
-    Vec1::try_from_vec(cursors).unwrap()
 }
 
 /// returns a `RangeEdit` representing the deletion. and the relevant cursor positioning info
