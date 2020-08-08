@@ -37,6 +37,7 @@ fn text_buffer_to_buffer_view_data(
 #[perf_viz::record]
 fn editor_to_buffer_view_data(
     parsers: &mut Parsers,
+    buffer_name: BufferName,
     editor_buffer: &EditorBuffer,
     selection_lines_estimate: usize,
 ) -> BufferViewData {
@@ -46,6 +47,7 @@ fn editor_to_buffer_view_data(
     perf_viz::start_record!("parsers.get_spans");
     buffer_view_data.spans = parsers.get_spans(
         buffer_view_data.chars.clone().into(),
+        buffer_name,
         editor_buffer.get_parser_kind()
     );
     perf_viz::end_record!("parsers.get_spans");
@@ -105,7 +107,7 @@ pub fn render(
                 BufferView {
                     name: name.clone(),
                     name_string: name.to_string(),
-                    data: editor_to_buffer_view_data(parsers, &editor_buffer, AVERAGE_SELECTION_LINES_ESTIMATE),
+                    data: editor_to_buffer_view_data(parsers, name.clone(), &editor_buffer, AVERAGE_SELECTION_LINES_ESTIMATE),
                 }
             }
         );

@@ -88,7 +88,7 @@ pub enum Input {
 d!(for Input : Input::None);
 
 
-#[derive(Clone, Copy, Default, Debug)]
+#[derive(Clone, Copy, Default, Debug, Hash)]
 pub struct BufferId {
     pub kind: BufferIdKind,
     pub index: g_i::Index,
@@ -116,7 +116,7 @@ macro_rules! b_id {
     };
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Hash)]
 pub enum BufferIdKind {
     /// Used to indicate that the keyboard is focused on a non-buffer.
     None,

@@ -141,6 +141,15 @@ fmt_debug!(collapse default for EditorBuffers: me {
 });
 
 impl EditorBuffers {
+    pub fn new<I: Into<EditorBuffer>>(buffer: I) -> Self {
+        Self {
+            buffers: SelectableVec1::new(buffer.into()),
+            ..d!()
+        }
+    }
+}
+
+impl EditorBuffers {
     #[perf_viz::record]
     pub fn should_render_buffer_views(&mut self) -> bool {
         if cfg!(feature = "no-cache") {
@@ -185,14 +194,8 @@ impl EditorBuffers {
     }
 }
 
-impl EditorBuffers {
-    pub fn new<I: Into<EditorBuffer>>(buffer: I) -> Self {
-        Self {
-            buffers: SelectableVec1::new(buffer.into()),
-            ..d!()
-        }
-    }
 
+impl EditorBuffers {
     /// Since there is always at least one buffer, this always returns at least 1.
     pub fn len(&self) -> g_i::Length {
         self.buffers.len()
