@@ -1,8 +1,11 @@
 #![deny(unused)]
-use move_cursor::{forward, get_next_selection_point, get_previous_selection_point};
+use cursors::Cursors;
+use edit::{Applier, Change, Edit, change};
 use editor_types::{Cursor, SetPositionAction};
 use macros::{d, dbg, u};
+use move_cursor::{forward, get_next_selection_point, get_previous_selection_point};
 use panic_safe_rope::{ByteIndex, Rope, RopeSlice};
+use parsers::Parsers;
 use platform_types::{*, screen_positioning::*};
 use rope_pos::{
     AbsoluteCharOffsetRange,
@@ -16,10 +19,6 @@ use std::{
     borrow::Borrow,
     collections::VecDeque,
 };
-
-use edit::{Applier, Change, Edit, change};
-
-use cursors::Cursors;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct TextBuffer {
@@ -259,42 +258,72 @@ fn char_to_string(c: char) -> String {
 
 pub type PossibleEditedTransition = Option<EditedTransition>;
 
+pub struct ParserEditListener<'name, 'parsers> {
+    pub buffer_name: &'name BufferName,
+    pub parsers: &'parsers mut Parsers,
+}
+
+pub type PossibleParserEditListener<'name, 'parsers> = Option<
+    ParserEditListener<'name, 'parsers>
+>;
+
+// This macro will make it easier to change this if we ever need to,
+// since most methods will just need to pass it through.
+#[macro_export]
+macro_rules! ppel {
+    () => {
+        $crate::PossibleParserEditListener<'_, '_>
+    }
+}
+
 impl TextBuffer {
     #[perf_viz::record]
-    pub fn insert(&mut self, c: char) -> PossibleEditedTransition {
+    pub fn insert(&mut self, c: char, listener: ppel!()) -> PossibleEditedTransition {
         dbg!("\n\n\ninsert\n\n\n");
-        self.insert_string(char_to_string(c))
+        self.insert_string(char_to_string(c), listener)
     }
 
     #[perf_viz::record]
-    pub fn insert_string(&mut self, s: String) -> PossibleEditedTransition {
+    pub fn insert_string(
+        &mut self,
+        s: String,
+        listener: ppel!()
+    ) -> PossibleEditedTransition {
         let o = self.record_edit(
-            edit::get_insert_edit(&self.rope, &self.cursors, |_| s.clone())
+            edit::get_insert_edit(&self.rope, &self.cursors, |_| s.clone()),
+            listener
         );
         dbg!(&self);
         o
     }
 
-    pub fn insert_at_each_cursor<F>(&mut self, func: F) -> PossibleEditedTransition
+    pub fn insert_at_each_cursor<F>(
+        &mut self,
+        func: F,
+        listener: ppel!()
+    ) -> PossibleEditedTransition
     where
         F: Fn(usize) -> String,
     {
         self.record_edit(
-            edit::get_insert_edit(&self.rope, &self.cursors, func)
+            edit::get_insert_edit(&self.rope, &self.cursors, func),
+            listener,
         )
     }
 
     #[perf_viz::record]
-    pub fn delete(&mut self) -> PossibleEditedTransition {
+    pub fn delete(&mut self, listener: ppel!()) -> PossibleEditedTransition {
         self.record_edit(
-            edit::get_delete_edit(&self.rope, &self.cursors)
+            edit::get_delete_edit(&self.rope, &self.cursors),
+            listener,
         )
     }
 
     #[perf_viz::record]
-    pub fn delete_lines(&mut self) -> PossibleEditedTransition {
+    pub fn delete_lines(&mut self, listener: ppel!()) -> PossibleEditedTransition {
         self.record_edit(
-            edit::get_delete_lines_edit(&self.rope, &self.cursors)
+            edit::get_delete_lines_edit(&self.rope, &self.cursors),
+            listener,
         )
     }
 
@@ -322,10 +351,10 @@ impl TextBuffer {
         self.get_selections_and_cut_edit().0
     }
 
-    pub fn cut_selections(&mut self) -> (Vec<String>, PossibleEditedTransition) {
+    pub fn cut_selections(&mut self, listener: ppel!()) -> (Vec<String>, PossibleEditedTransition) {
         let (strings, edit) = self.get_selections_and_cut_edit();
 
-        (strings, self.record_edit(edit))
+        (strings, self.record_edit(edit, listener))
     }
 
     fn get_selections_and_cut_edit(&self) -> (Vec<String>, Edit) {
@@ -335,9 +364,13 @@ impl TextBuffer {
     }
 
     #[perf_viz::record]
-    pub fn set_cursor<C: Into<Cursor>>(&mut self, cursor: C, replace_or_add: ReplaceOrAdd) {
+    pub fn set_cursor<C: Into<Cursor>>(
+        &mut self,
+        cursor: C,
+        replace_or_add: ReplaceOrAdd
+    ) {
         if let Some(cursors) = self.get_new_cursors(cursor, replace_or_add) {
-            self.apply_cursor_edit(cursors);
+            self.apply_cursor_only_edit(cursors);
         }
     }
 
@@ -383,7 +416,7 @@ impl TextBuffer {
             for c in new.iter_mut() {
                 c.set_position_custom(p, SetPositionAction::OldPositionBecomesHighlightIfItIsNone);
             }
-            self.apply_cursor_edit(new);
+            self.apply_cursor_only_edit(new);
         }
     }
 
@@ -437,7 +470,7 @@ impl TextBuffer {
                 SetPositionAction::ClearHighlightOnlyIfItMatchesNewPosition,
             );
 
-            self.apply_cursor_edit(new);
+            self.apply_cursor_only_edit(new);
         }
     }
 
@@ -499,14 +532,17 @@ impl TextBuffer {
             }
         };
 
-        self.apply_cursor_edit(new);
+        self.apply_cursor_only_edit(new);
 
         Some(())
     }
 
     /// It is important that all edits that only involve cursor changes go through here
     /// This is because they require special handling regarding undo/redo.
-    fn apply_cursor_edit(&mut self, new: Vec1<Cursor>) {
+    fn apply_cursor_only_edit(
+        &mut self,
+        new: Vec1<Cursor>,
+    ) {
         let change = edit::Change {
             old: self.cursors.clone(),
             new: Cursors::new(&self.rope, new),
@@ -515,30 +551,35 @@ impl TextBuffer {
         self.apply_edit(
             change.into(),
             // We don't record cursor movements for undo purposes
-            // so you can undo, select, copy and then redo...
+            // so you can undo, select, copy and then redo.
             ApplyKind::Playback,
+            // Since we know that this edit only involves cursors, we know the
+            // parsers won't care about it.
+            None,
         );
     }
 
-    pub fn tab_in(&mut self) -> PossibleEditedTransition {
+    pub fn tab_in(&mut self, listener: PossibleParserEditListener) -> PossibleEditedTransition {
         self.record_edit(
             edit::get_tab_in_edit(&self.rope, &self.cursors),
+            listener
         )
     }
 
-    pub fn tab_out(&mut self) -> PossibleEditedTransition {
+    pub fn tab_out(&mut self, listener: PossibleParserEditListener) -> PossibleEditedTransition {
         self.record_edit(
             edit::get_tab_out_edit(&self.rope, &self.cursors),
+            listener,
         )
     }
 
     #[perf_viz::record]
-    fn record_edit(&mut self, edit: Edit) -> PossibleEditedTransition {
+    fn record_edit(&mut self, edit: Edit, listener: PossibleParserEditListener) -> PossibleEditedTransition {
         u!{Editedness, EditedTransition}
         let old_editedness = self.editedness();
         dbg!(old_editedness);
 
-        self.apply_edit(edit, ApplyKind::Record);
+        self.apply_edit(edit, ApplyKind::Record, listener);
 
         dbg!(self.editedness());
         match change!(old_editedness, self.editedness()) {
@@ -549,12 +590,24 @@ impl TextBuffer {
     }
 
     #[perf_viz::record]
-    fn apply_edit(&mut self, edit: Edit, kind: ApplyKind) {
+    fn apply_edit(
+        &mut self,
+        edit: Edit,
+        kind: ApplyKind,
+        listener: ppel!(),
+    ) {
         let applier = Applier::new(
             &mut self.rope,
             &mut self.cursors
         );
         edit::apply(applier, &edit);
+
+        if let Some(listener) = listener {
+            listener.parsers.acknowledge_edit(
+                listener.buffer_name,
+                &edit
+            );
+        }
 
         match kind {
             ApplyKind::Record => {
@@ -639,12 +692,12 @@ impl HistoryNavOutcome {
 }
 
 impl TextBuffer {
-    pub fn redo(&mut self) -> HistoryNavOutcome {
+    pub fn redo(&mut self, listener: ppel!()) -> HistoryNavOutcome {
         u!{HistoryNavOutcome}
         let old_editedness = self.editedness();
 
         if let Some(edit) = self.history.get(self.history_index).cloned() {
-            self.apply_edit(edit, ApplyKind::Playback);
+            self.apply_edit(edit, ApplyKind::Playback, listener);
             self.history_index += 1;
 
             change!(old_editedness, self.editedness()).into()
@@ -653,7 +706,7 @@ impl TextBuffer {
         }
     }
 
-    pub fn undo(&mut self) -> HistoryNavOutcome {
+    pub fn undo(&mut self, listener: ppel!()) -> HistoryNavOutcome {
         u!{HistoryNavOutcome}
         let old_editedness = self.editedness();
 
@@ -663,7 +716,7 @@ impl TextBuffer {
             );
 
         if let Some((new_index, edit)) = opt {
-            self.apply_edit(!edit, ApplyKind::Playback);
+            self.apply_edit(!edit, ApplyKind::Playback, listener);
             self.history_index = new_index;
 
             change!(old_editedness, self.editedness()).into()

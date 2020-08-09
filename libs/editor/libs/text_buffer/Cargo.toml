@@ -28,6 +28,9 @@ path = "../move_cursor"
 [dependencies.panic_safe_rope]
 path = "../../../panic_safe_rope"
 
+[dependencies.parsers]
+path = "../parsers"
+
 [dependencies.perf_viz]
 path = "../../../perf_viz"
 

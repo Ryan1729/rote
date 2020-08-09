@@ -224,7 +224,7 @@ impl Parsers {
     /// This method should be called whenever the ToParse associated with a buffer
     /// is changed, so that we can update the stored parse tree. Updating the parse
     /// tree like this enables significant optimizations.
-    pub fn acknowledge_edit(&mut self, _buffer_name: BufferName, _edit: &Edit) {
+    pub fn acknowledge_edit(&mut self, _buffer_name: &BufferName, _edit: &Edit) {
         use Parsers::*;
 
         match self {
@@ -239,12 +239,12 @@ impl Parsers {
 
     /// This method should be called when a buffer is closed, so we don't waste memory
     /// on storing the parse state for it.
-    pub fn remove_buffer_state(&mut self, buffer_name: BufferName) {
+    pub fn remove_buffer_state(&mut self, buffer_name: &BufferName) {
         use Parsers::*;
 
         match self {
             Initialized(p) => {
-                p.parser_map.remove(&buffer_name);
+                p.parser_map.remove(buffer_name);
             },
             NotInitializedYet | FailedToInitialize(_) => {}
         }

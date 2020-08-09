@@ -1918,7 +1918,7 @@ dependencies = [
 
 [[package]]
 name = "rote"
-version = "0.2.127"
+version = "0.2.128"
 dependencies = [
  "editor",
  "lazy_static 1.4.0",
@@ -2193,6 +2193,7 @@ dependencies = [
  "macros",
  "move_cursor",
  "panic_safe_rope",
+ "parsers",
  "perf_viz",
  "platform_types",
  "pretty_assertions",

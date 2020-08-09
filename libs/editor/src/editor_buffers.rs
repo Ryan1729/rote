@@ -5,7 +5,7 @@ use editor_types::{Cursor};
 use g_i::{SelectableVec1};
 use macros::{d, dbg, fmt_debug, u};
 use platform_types::*;
-use parsers::{ParserKind};
+use parsers::{ParserKind, Parsers};
 use text_buffer::{TextBuffer};
 use search::{SearchResults};
 use panic_safe_rope::{RopeSlice, RopeSliceTrait};
@@ -268,8 +268,10 @@ impl EditorBuffers {
         self.buffers.adjust_selection(adjustment);
     }
 
-    pub fn close_buffer(&mut self, index: g_i::Index) {
-        self.buffers.remove_if_present(index);
+    pub fn close_buffer(&mut self, index: g_i::Index, parsers: &mut Parsers) {
+        if let Some(buffer) = self.buffers.remove_if_present(index) {
+            parsers.remove_buffer_state(&buffer.name);
+        }
     }
 
     pub fn buffers(&self) -> &SelectableVec1<EditorBuffer> {

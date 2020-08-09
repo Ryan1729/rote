@@ -7,7 +7,12 @@ use std::{
     path::PathBuf,
     time::Instant,
 };
-use text_buffer::{ScrollAdjustSpec, TextBuffer, PossibleEditedTransition};
+use text_buffer::{
+    PossibleEditedTransition,
+    ScrollAdjustSpec,
+    TextBuffer,
+    ppel,
+};
 
 mod editor_view;
 mod editor_buffers;
@@ -29,8 +34,8 @@ mod clipboard_history {
     const AVERAGE_SELECTION_SIZE_ESTIMATE: usize = 32;
     
     impl ClipboardHistory {
-        pub fn cut(&mut self, buffer: &mut TextBuffer) -> (Option<String>, PossibleEditedTransition) {
-            let (selections, transition) = buffer.cut_selections();
+        pub fn cut(&mut self, buffer: &mut TextBuffer, listener: ppel!()) -> (Option<String>, PossibleEditedTransition) {
+            let (selections, transition) = buffer.cut_selections(listener);
             let joined_selections = self.push_and_join_into_option(selections);
 
             (joined_selections, transition)
@@ -38,7 +43,12 @@ mod clipboard_history {
         pub fn copy(&mut self, buffer: &TextBuffer) -> Option<String> {
             self.push_and_join_into_option(buffer.copy_selections())
         }
-        pub fn paste(&mut self, buffer: &mut TextBuffer, possible_string: Option<String>) -> Option<EditedTransition> {
+        pub fn paste(
+            &mut self,
+            buffer: &mut TextBuffer,
+            possible_string: Option<String>,
+            listener: ppel!(),
+        ) -> Option<EditedTransition> {
             let mut output = None;
     
             if let Some(s) = possible_string {
@@ -46,17 +56,22 @@ mod clipboard_history {
             }
     
             if let Some(s) = self.entries.get(self.index) {
-                output = buffer.insert_string(s.to_owned());
+                output = buffer.insert_string(s.to_owned(), listener);
             }
     
             output
         }
     
-        fn push_and_join_into_option(&mut self, strings: Vec<String>) -> Option<String> {
+        fn push_and_join_into_option(
+            &mut self,
+            strings: Vec<String>
+        ) -> Option<String> {
             if strings.is_empty() {
                 None
             } else {
-                let mut output = String::with_capacity(strings.len() * AVERAGE_SELECTION_SIZE_ESTIMATE);
+                let mut output = String::with_capacity(
+                    strings.len() * AVERAGE_SELECTION_SIZE_ESTIMATE
+                );
     
                 let mut sep = "";
                 for s in strings {
@@ -152,6 +167,27 @@ macro_rules! get_text_buffer_mut {
             FileSwitcher => Some(&mut $state.file_switcher),
             GoToPosition => Some(&mut $state.go_to_position),
         }
+    }};
+    /* -> Option<(&mut TextBuffer, PossibleParserEditListener)> */
+    ($state: expr ; listener) => {{
+        u!{BufferIdKind}
+        match $state.current_buffer_kind {
+            None => Option::None,
+            Text => {
+                let buffer = $state.buffers.get_current_buffer_mut();
+                Some((
+                    &mut buffer.text_buffer,
+                    Some(text_buffer::ParserEditListener {
+                        buffer_name: &buffer.name,
+                        parsers: &mut $state.parsers,
+                    })
+                ))
+            },
+            Find => Some((&mut $state.find, Option::None)),
+            Replace => Some((&mut $state.replace, Option::None)),
+            FileSwitcher => Some((&mut $state.file_switcher, Option::None)),
+            GoToPosition => Some((&mut $state.go_to_position, Option::None)),
+        }
     }}
 }
 
@@ -216,7 +252,7 @@ impl State {
     }
 
     fn close_buffer(&mut self, index: g_i::Index) {
-        self.buffers.close_buffer(index);
+        self.buffers.close_buffer(index, &mut self.parsers);
     }
 
     fn set_id(&mut self, id: BufferId) {
@@ -460,8 +496,13 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
         ($buffer: ident . $($method_call:tt)*) => {
             text_buffer_call!($buffer {$buffer.$($method_call)*})
         };
-        (sync $buffer: ident $tokens:block) => {{
-            text_buffer_call!($buffer $tokens);
+        (sync $buffer: ident $(,)? $listener: ident $tokens:block) => {{
+            if let Some((
+                $buffer,
+                $listener
+            )) = get_text_buffer_mut!(state; listener) {
+                $tokens;
+            }
             post_edit_sync!();
         }};
         ($buffer: ident $tokens:block) => {{
@@ -526,20 +567,20 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
         CloseMenuIfAny => {
             close_menu_if_any!();
         }
-        Insert(c) => text_buffer_call!(sync b{
-            mark_edited_transition!(current, b.insert(c));
+        Insert(c) => text_buffer_call!(sync b, l {
+            mark_edited_transition!(current, b.insert(c, l));
         }),
-        Delete => text_buffer_call!(sync b {
-            mark_edited_transition!(current, b.delete());
+        Delete => text_buffer_call!(sync b, l {
+            mark_edited_transition!(current, b.delete(l));
         }),
-        DeleteLines => text_buffer_call!(sync b {
-            mark_edited_transition!(current, b.delete_lines());
+        DeleteLines => text_buffer_call!(sync b, l {
+            mark_edited_transition!(current, b.delete_lines(l));
         }),
-        Redo => text_buffer_call!(sync b {
-            mark_edited_transition!(current, b.redo());
+        Redo => text_buffer_call!(sync b, l {
+            mark_edited_transition!(current, b.redo(l));
         }),
-        Undo => text_buffer_call!(sync b {
-            mark_edited_transition!(current, b.undo());
+        Undo => text_buffer_call!(sync b, l {
+            mark_edited_transition!(current, b.undo(l));
         }),
         MoveAllCursors(r#move) => {
             text_buffer_call!(b{
@@ -626,8 +667,8 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                 mark_edited_transition!(buffer_index, ToUnedited);
             }
         }
-        Cut => text_buffer_call!(sync b {
-            let (s, transition) = state.clipboard_history.cut(b);
+        Cut => text_buffer_call!(sync b, l {
+            let (s, transition) = state.clipboard_history.cut(b, l);
             if let Some(s) = s {
                 cmd = Cmd::SetClipboard(s);
             }
@@ -642,16 +683,16 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             }
             try_to_show_cursors!();
         }),
-        Paste(op_s) => text_buffer_call!(sync b {
+        Paste(op_s) => text_buffer_call!(sync b, l {
             mark_edited_transition!(
                 current,
-                state.clipboard_history.paste(b, op_s)
+                state.clipboard_history.paste(b, op_s, l)
             );
         }),
-        InsertNumbersAtCursors => text_buffer_call!(sync b {
+        InsertNumbersAtCursors => text_buffer_call!(sync b, l {
             mark_edited_transition!(
                 current,
-                b.insert_at_each_cursor(|i| i.to_string())
+                b.insert_at_each_cursor(|i| i.to_string(), l)
             );
         }),
         NewScratchBuffer(data_op) => {
@@ -664,13 +705,13 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             mark_edited_transition!(current, ToUnedited);
         }
         TabIn => {
-            text_buffer_call!(sync b { 
-                mark_edited_transition!(current, b.tab_in());
+            text_buffer_call!(sync b, l { 
+                mark_edited_transition!(current, b.tab_in(l));
             });
         }
         TabOut => {
-            text_buffer_call!(sync b { 
-                mark_edited_transition!(current, b.tab_out());
+            text_buffer_call!(sync b, l { 
+                mark_edited_transition!(current, b.tab_out(l));
             });
         }
         AddOrSelectBuffer(name, str) => {
@@ -745,9 +786,9 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                     (s, _) => {s}
                 };
 
-                // We know that this is a non-editor buffer, so we don't need to care about
-                // edited transitions at the current time.
-                text_buffer_call!(b{
+                // We know that this is a non-editor buffer, so we don't need to 
+                // care about edited transitions at the current time.
+                text_buffer_call!(b {
                     if let Some(selection) = selection {
                         // For the small menu buffers I'd rather keep all the history
                         // even if the history order is confusing, since the text 
@@ -756,13 +797,17 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                         // Use a bound like this just in case, since we do actually 
                         // proiritize a sufficently quick response over a perfect history
                         for _ in 0..UPPER_LOOP_BOUND {
-                            if b.redo().ran_out_of_history() {
+                            // Since we know this is a non-editor buffer, we also
+                            // know the parsers don't need to hear about changes
+                            // to it. That's why the listener parameter can be None.
+                            if b.redo(Option::None).ran_out_of_history() {
                                 break;
                             }
                         }
     
                         b.select_all();
-                        b.insert_string(selection);
+                        // See note above about listener parameter.
+                        b.insert_string(selection, Option::None);
                     }
 
                     b.select_all();
