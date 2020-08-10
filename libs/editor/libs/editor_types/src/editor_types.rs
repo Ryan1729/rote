@@ -24,9 +24,9 @@ pub struct Cursor {
 }
 
 ord!(for Cursor: c, other in {
-    // We don't really have a preferred ordering for ranges with the same start and end. So we
-    // treat two cursors where one's position is the other's highlight_position and vice-versa
-    // as equal.
+    // We don't really have a preferred ordering for ranges with the same start and
+    // end. So we treat two cursors where one's position is the other's 
+    // highlight_position and vice-versa as equal.
     let min = std::cmp::min(c.position, c.highlight_position);
     let max = std::cmp::max(c.position, c.highlight_position);
 

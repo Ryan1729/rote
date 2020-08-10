@@ -596,18 +596,19 @@ impl TextBuffer {
         kind: ApplyKind,
         listener: ppel!(),
     ) {
+        if let Some(listener) = listener {
+            listener.parsers.acknowledge_edit(
+                listener.buffer_name,
+                &edit,
+                &self.rope
+            );
+        }
+
         let applier = Applier::new(
             &mut self.rope,
             &mut self.cursors
         );
         edit::apply(applier, &edit);
-
-        if let Some(listener) = listener {
-            listener.parsers.acknowledge_edit(
-                listener.buffer_name,
-                &edit
-            );
-        }
 
         match kind {
             ApplyKind::Record => {

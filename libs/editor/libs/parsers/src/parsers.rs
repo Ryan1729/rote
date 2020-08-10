@@ -1,10 +1,12 @@
 #![deny(unused)]
-use macros::{d, fmt_debug, fmt_display, u};
-use platform_types::{BufferName};
-use edit::{Edit};
+use macros::{d, fmt_debug, fmt_display, some_or, u};
+use platform_types::{BufferName, Rope};
+use edit::{Change, Edit, RangeEdits};
 
 use tree_sitter::{
+    InputEdit,
     Parser,
+    Point,
     Language,
     LanguageError,
     Query,
@@ -15,6 +17,7 @@ use tree_sitter::{
 use std::{
     borrow::Cow,
     collections::HashMap,
+    cmp::{max, min}
 };
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -224,12 +227,104 @@ impl Parsers {
     /// This method should be called whenever the ToParse associated with a buffer
     /// is changed, so that we can update the stored parse tree. Updating the parse
     /// tree like this enables significant optimizations.
-    pub fn acknowledge_edit(&mut self, _buffer_name: &BufferName, _edit: &Edit) {
+    pub fn acknowledge_edit(
+        &mut self,
+        buffer_name: &BufferName,
+        edit: &Edit,
+        rope: &Rope
+    ) {
         use Parsers::*;
 
         match self {
-            Initialized(_p) => {
-                todo!() 
+            Initialized(initialized_point) => {
+                if let Some(buffer_state) = initialized_point.parser_map.get_mut(buffer_name) {
+                    if let Some(tree) = buffer_state.tree.as_mut() {
+                        for i in 0..edit.len() {
+                            let (
+                                Change{ old, new },
+                                RangeEdits{ delete_range, insert_range }
+                            ) = edit.read_at(i).unwrap();
+                        
+                            let (start_byte, old_end_byte, new_end_byte) = 
+                            match (delete_range, insert_range) {
+                                (Some(del_range), Some(ins_range)) => {
+                                    let del_start_byte = rope.char_to_byte(
+                                        del_range.range.min()
+                                    );
+                                    let del_end_byte = rope.char_to_byte(
+                                        del_range.range.max()
+                                    );
+                                    let ins_start_byte = rope.char_to_byte(
+                                        ins_range.range.min()
+                                    );
+                                    let ins_end_byte = rope.char_to_byte(
+                                        ins_range.range.max()
+                                    );
+
+                                    debug_assert_eq!(
+                                        del_start_byte,
+                                        ins_start_byte
+                                    );
+                                    (del_start_byte, del_end_byte, ins_end_byte)
+                                }
+                                (Some(del_range), None) => {
+                                    let start_byte = rope.char_to_byte(
+                                        del_range.range.min()
+                                    );
+                                    let end_byte = rope.char_to_byte(
+                                        del_range.range.max()
+                                    );
+                                    (start_byte, end_byte, start_byte)
+                                },
+                                (None, Some(ins_range)) => {
+                                    let start_byte = rope.char_to_byte(
+                                        ins_range.range.min()
+                                    );
+                                    let end_byte = rope.char_to_byte(
+                                        ins_range.range.max()
+                                    );
+                                    (start_byte, start_byte, end_byte)
+                                }
+                                (None, None) => continue,
+                            };
+                            let start_byte = some_or!(start_byte, continue).0;
+                            let old_end_byte = some_or!(old_end_byte, continue).0;
+                            let new_end_byte = some_or!(new_end_byte, continue).0;
+
+                            let old_pos = old.get_position();
+                            let old_h_pos = old.get_highlight_position_or_position();
+                            let old_min = min(old_pos, old_h_pos);
+                            let old_max = max(old_pos, old_h_pos);
+
+                            let new_pos = new.get_position();
+                            let new_h_pos = new.get_highlight_position_or_position();
+                            let new_min = min(new_pos, new_h_pos);
+                            let new_max = max(new_pos, new_h_pos);
+
+                            debug_assert_eq!(old_min, new_min);
+
+                            tree.edit(&InputEdit{
+                                start_byte,
+                                old_end_byte,
+                                new_end_byte,
+                                start_position: Point{ 
+                                    row: old_min.line,
+                                    column: old_min.offset.0
+                                },
+                                old_end_position: Point{ 
+                                    row: old_max.line,
+                                    column: old_max.offset.0
+                                },
+                                new_end_position: Point{ 
+                                    row: new_max.line,
+                                    column: new_max.offset.0
+                                },
+                            });
+                        }
+                    }
+                } else {
+                    debug_assert!(false, "acknowledge_edit called on absent buffer");
+                }
             },
             NotInitializedYet | FailedToInitialize(_) => {
                 debug_assert!(false, "acknowledge_edit called on uninitalized Parsers");

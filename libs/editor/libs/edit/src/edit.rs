@@ -610,6 +610,31 @@ impl Edit {
 
         strings
     }
+
+    pub fn len(&self) -> usize {
+        self.range_edits.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn read_at(&self, i: usize) -> Option<(Change<&Cursor>, &RangeEdits)> {
+        let old_cursors = self.cursors.old.borrow_cursors();
+        let new_cursors = self.cursors.new.borrow_cursors();
+        let len = self.range_edits.len();
+        if i >= len {
+            return None;
+        }
+        debug_assert_eq!(len, old_cursors.len());
+        debug_assert_eq!(len, new_cursors.len());
+        let old = old_cursors.get(i).unwrap();
+        let new = new_cursors.get(i).unwrap();
+        
+        Some(
+            (Change {old, new}, &self.range_edits[i])
+        )
+    }
 }
 
 impl From<Change<Cursors>> for Edit {
@@ -641,21 +666,21 @@ impl std::ops::Not for Edit {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
-struct RangeEdit {
-    chars: String,
-    range: AbsoluteCharOffsetRange,
+pub struct RangeEdit {
+    pub chars: String,
+    pub range: AbsoluteCharOffsetRange,
 }
 
 /// Some seemingly redundant information is stored here, for example the insert's range's maximum
 /// is never read. But that information is needed if the edits are ever negated, which swaps the
 /// insert and delete ranges.
 #[derive(Clone, Debug, Default, Hash, PartialEq, Eq)]
-struct RangeEdits {
+pub struct RangeEdits {
     /// The characters to insert and a range that only the minimum of which is used as the
     /// insertion point. Applied second.
-    insert_range: Option<RangeEdit>,
+    pub insert_range: Option<RangeEdit>,
     /// The characters to delete and where to delete them from. Applied first.
-    delete_range: Option<RangeEdit>,
+    pub delete_range: Option<RangeEdit>,
 }
 
 impl RangeEdits {
@@ -722,7 +747,8 @@ macro_rules! change {
     };
 }
 
-/// returns a `RangeEdit` representing the deletion. and the relevant cursor positioning info
+/// returns a `RangeEdit` representing the deletion. and the relevant cursor 
+/// positioning info
 fn delete_within_range(
     rope: &mut Rope,
     range: AbsoluteCharOffsetRange,
@@ -768,7 +794,7 @@ pub fn copy_string(rope: &Rope, range: AbsoluteCharOffsetRange) -> String {
 
 /// We want to ensure that the cursors are always kept within bounds, meaning the whenever they
 /// are changed they need to be clamped to the range of the rope. But we want to have a different
-/// module handle the actual changes. So we give the pass an instance of this struct which allows
+/// module handle the actual changes. So we pass an instance of this struct which allows
 /// editing the rope and cursors in a controlled fashion.
 // TODO given we've moved this into the `edit` module, does this still make sense?
 pub struct Applier<'rope, 'cursors> {
