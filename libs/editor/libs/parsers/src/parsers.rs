@@ -179,6 +179,7 @@ impl std::error::Error for SpanError {}
 type SpansResult<'to_parse> = Result<Spans, (ToParse<'to_parse>, SpanError)>;
 
 impl Parsers {
+    #[perf_viz::record]
     pub fn get_spans(
         &mut self,
         to_parse: ToParse<'_>,
@@ -227,6 +228,7 @@ impl Parsers {
     /// This method should be called whenever the ToParse associated with a buffer
     /// is changed, so that we can update the stored parse tree. Updating the parse
     /// tree like this enables significant optimizations.
+    #[perf_viz::record]
     pub fn acknowledge_edit(
         &mut self,
         buffer_name: &BufferName,
@@ -376,6 +378,7 @@ fn get_or_init_buffer_state(
 }
 
 impl InitializedParsers {
+    #[perf_viz::record]
     fn get_spans<'to_parse>(
         &mut self,
         to_parse: ToParse<'to_parse>,
@@ -395,7 +398,9 @@ impl InitializedParsers {
                     kind,
                     self.rust_lang,
                 );
+                perf_viz::start_record!("state.parser.parse");
                 state.tree = state.parser.parse(to_parse.as_ref(), state.tree.as_ref());
+                perf_viz::end_record!("state.parser.parse");
 
                 if let Some(tree) = state.tree.as_ref() {
                     // TODO stop requiring these query functions to handle None.
@@ -546,6 +551,7 @@ mod query {
         to_parse.len() / AVERAGE_BYTES_PER_TOKEN
     }
 
+    #[perf_viz::record]
     pub fn plaintext_spans_for(s: ToParse<'_>) -> Spans {
         vec![plaintext_end_span_for(s)]
     }
@@ -554,6 +560,7 @@ mod query {
         SpanView { kind: SpanKind::PLAIN, end_byte_index: s.len()}
     }
 
+    #[perf_viz::record]
     pub fn spans_for<'to_parse>(
         tree: Option<&Tree>,
         query: &Query,
@@ -657,6 +664,7 @@ mod query {
         spans
     }
     
+    #[perf_viz::record]
     pub fn totally_classified_spans_for<'to_parse>(
         tree: Option<&Tree>,
         to_parse: &'to_parse str,
@@ -679,19 +687,27 @@ mod query {
     
         let mut drop_until_end_byte = None;
     
+        perf_viz::start_record!("DepthFirst::new(tree)");
         for (_, node) in DepthFirst::new(tree) {
+            perf_viz::record_guard!("for (_, node) in DepthFirst::new(tree) body");
             use SpanKindSpec::*;
     
+            perf_viz::start_record!("node.end_byte()");
             let end_byte_index = node.end_byte();
+            perf_viz::end_record!("node.end_byte()");
     
-            if let Some(end_byte) = drop_until_end_byte {
-                if end_byte_index > end_byte {
-                    drop_until_end_byte = None;
-                } else {
-                    continue;
+            {
+                perf_viz::record_guard!("set drop_until_end_byte or continue");
+                if let Some(end_byte) = drop_until_end_byte {
+                    if end_byte_index > end_byte {
+                        drop_until_end_byte = None;
+                    } else {
+                        continue;
+                    }
                 }
             }
     
+            perf_viz::start_record!("spans.push match");
             match span_kind_from_node(node) {
                 DropNode => {}
                 Kind(kind) => {
@@ -709,12 +725,16 @@ mod query {
                     });
                 }
             }
+            perf_viz::end_record!("spans.push match");
         }
+        perf_viz::end_record!("DepthFirst::new(tree)");
     
+        perf_viz::start_record!("spans.sort_by");
         // TODO maybe there's a way to do this without an O(n log n) sort?
         spans.sort_by(|s1, s2|{
             s1.end_byte_index.cmp(&s2.end_byte_index)
         });
+        perf_viz::end_record!("spans.sort_by");
     
         filter_spans(&mut spans);
     
@@ -723,6 +743,7 @@ mod query {
     
     type Depth = u8;
     
+    #[perf_viz::record]
     pub fn tree_depth_spans_for<'to_parse>(
         tree: Option<&Tree>,
         to_parse: &'to_parse str,
@@ -812,6 +833,7 @@ mod query {
         type Item = (Depth, Node<'tree>);
     
         fn next(&mut self) -> Option<Self::Item> {
+            perf_viz::record_guard!("DepthFirst::next");
             let mut done = false;
             let depth = &mut self.depth;
             let output = self.cursor.as_mut().and_then(|cursor| {
@@ -838,6 +860,7 @@ mod query {
         }
     }
     
+    #[perf_viz::record]
     fn filter_spans(spans: &mut Spans) {
         dedup_by_end_byte_keeping_last(spans);
         dedup_by_kind_keeping_last(spans);

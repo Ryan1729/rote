@@ -1446,6 +1446,7 @@ dependencies = [
  "cc",
  "edit",
  "macros",
+ "perf_viz",
  "platform_types",
  "proptest",
  "pub_arb_rust_code",
@@ -1918,7 +1919,7 @@ dependencies = [
 
 [[package]]
 name = "rote"
-version = "0.2.129"
+version = "0.2.130"
 dependencies = [
  "editor",
  "lazy_static 1.4.0",
