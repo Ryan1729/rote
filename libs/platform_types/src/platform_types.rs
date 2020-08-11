@@ -41,53 +41,6 @@ pub use move_mod::Move;
 pub use g_i;
 pub use g_i::{SelectionAdjustment, SelectionMove, SelectableVec1};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ReplaceOrAdd {
-    Replace,
-    Add,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum Input {
-    None,
-    Quit,
-    CloseMenuIfAny,
-    Insert(char),
-    Delete,
-    DeleteLines,
-    ResetScroll,
-    ScrollVertically(f32),
-    ScrollHorizontally(f32),
-    SetSizeDependents(Box<SizeDependents>),
-    MoveAllCursors(Move),
-    ExtendSelectionForAllCursors(Move),
-    SelectAll,
-    SetCursor(TextBoxSpaceXY, ReplaceOrAdd),
-    DragCursors(TextBoxSpaceXY),
-    SelectCharTypeGrouping(TextBoxSpaceXY, ReplaceOrAdd),
-    ExtendSelectionWithSearch,
-    SavedAs(g_i::Index, PathBuf),
-    Undo,
-    Redo,
-    Cut,
-    Copy,
-    Paste(Option<String>),
-    InsertNumbersAtCursors,
-    AddOrSelectBuffer(BufferName, String),
-    NewScratchBuffer(Option<String>),
-    TabIn,
-    TabOut,
-    AdjustBufferSelection(SelectionAdjustment),
-    NextLanguage,
-    SelectBuffer(BufferId),
-    OpenOrSelectBuffer(PathBuf),
-    CloseBuffer(g_i::Index),
-    SetMenuMode(MenuMode),
-    SubmitForm,
-}
-d!(for Input : Input::None);
-
-
 #[derive(Clone, Copy, Default, Debug, Hash)]
 pub struct BufferId {
     pub kind: BufferIdKind,
@@ -200,113 +153,6 @@ macro_rules! highlight {
     (l $min_line:literal o $min_offset:literal l $max_line:literal o max ) => {
         highlight!(l $min_line o $min_offset l $max_line o 0xFFFF_FFFF__FFFF_FFFF)
     };
-}
-
-pub fn push_highlights<O: Into<Option<Position>>>(
-    highlights: &mut Vec<Highlight>,
-    position: Position,
-    highlight_position: O,
-    kind: HighlightKind,
-) {
-    match highlight_position.into() {
-        Some(h) if h != position => {
-            let min = std::cmp::min(position, h);
-            let max = std::cmp::max(position, h);
-
-            if min.line == max.line {
-                highlights.push(Highlight::new((min, max), kind));
-                return;
-            }
-
-            // This early return is merely an optimization from three rectangles to two.
-            // TODO Is this optimization actually worth it? The sticky cursor offset does make this
-            // more likely than it would otherwise be.
-            if min.offset != 0 && min.offset == max.offset {
-                // [|_______________________|]
-                //  ^min_middle   max_middle^
-                let min_middle = min.line + if min.offset == 0 { 0 } else { 1 };
-                // Since We know the lines must be different, we know `max.line > 0`
-                let max_middle = max.line - 1;
-
-                let offset = min.offset;
-                highlights.push(Highlight::new(
-                    (
-                        Position {
-                            offset,
-                            line: min.line,
-                        },
-                        Position {
-                            offset: CharOffset::max_value(),
-                            line: max_middle,
-                        },
-                    ),
-                    kind,
-                ));
-
-                highlights.push(Highlight::new(
-                    (
-                        Position {
-                            offset: CharOffset(0),
-                            line: min_middle,
-                        },
-                        Position {
-                            offset,
-                            line: max.line,
-                        },
-                    ),
-                    kind,
-                ));
-
-                return;
-            }
-
-            if min.offset != 0 {
-                highlights.push(Highlight::new(
-                    (
-                        min,
-                        Position {
-                            offset: CharOffset::max_value(),
-                            ..min
-                        },
-                    ),
-                    kind,
-                ));
-            }
-
-            let min_middle = min.line + if min.offset == 0 { 0 } else { 1 };
-            // Since We know the lines must be different, we know `max.line > 0`
-            let max_middle = max.line - 1;
-            if min_middle <= max_middle {
-                highlights.push(Highlight::new(
-                    (
-                        Position {
-                            offset: CharOffset(0),
-                            line: min_middle,
-                        },
-                        Position {
-                            offset: CharOffset::max_value(),
-                            line: max_middle,
-                        },
-                    ),
-                    kind,
-                ));
-            }
-
-            if max.offset != 0 {
-                highlights.push(Highlight::new(
-                    (
-                        Position {
-                            offset: CharOffset(0),
-                            ..max
-                        },
-                        max,
-                    ),
-                    kind,
-                ));
-            }
-        }
-        _ => {}
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -720,9 +566,6 @@ pub enum Cmd {
 }
 
 d!(for Cmd : Cmd::NoCmd);
-
-pub type UpdateAndRenderOutput = (View, Cmd);
-pub type UpdateAndRender = fn(Input) -> UpdateAndRenderOutput;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ViewStats {
