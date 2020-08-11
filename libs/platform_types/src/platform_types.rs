@@ -8,7 +8,7 @@ use std::{
 };
 
 pub use vec1::{vec1, Vec1};
-pub use panic_safe_rope::Rope;
+type Rope = ();
 pub use text_pos::*;
 
 pub mod floating_point;

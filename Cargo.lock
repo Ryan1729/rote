@@ -130,10 +130,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "is_linebreak_char"
-version = "0.1.0"
-
-[[package]]
 name = "itoa"
 version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -160,12 +156,6 @@ checksum = "9457b06509d27052635f90d6466700c65095fdf75409b3fbdd903e988b886f49"
 [[package]]
 name = "macros"
 version = "0.1.0"
-
-[[package]]
-name = "maybe-uninit"
-version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "60302e4db3a61da70c0cb7991976248362f30319e88850c487b9b95bbf059e00"
 
 [[package]]
 name = "move_mod"
@@ -201,17 +191,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "panic_safe_rope"
-version = "0.1.0"
-dependencies = [
- "is_linebreak_char",
- "macros",
- "proptest",
- "ropey",
- "text_pos",
-]
-
-[[package]]
 name = "perf_viz"
 version = "0.1.0"
 dependencies = [
@@ -237,7 +216,6 @@ dependencies = [
  "macros",
  "move_mod",
  "non_neg_f32",
- "panic_safe_rope",
  "perf_viz",
  "pos_f32",
  "pos_f32_trunc",
@@ -405,15 +383,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ropey"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba326a8508a4add47e7b260333aa2d896213a5f3572fde11ed6e9130241b7f71"
-dependencies = [
- "smallvec",
-]
-
-[[package]]
 name = "rote"
 version = "0.2.131"
 
@@ -469,15 +438,6 @@ dependencies = [
  "itoa",
  "ryu",
  "serde",
-]
-
-[[package]]
-name = "smallvec"
-version = "0.6.13"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f7b0758c52e15a8b5e3691eae6cc559f08eee9406e548a4477ba4e67770a82b6"
-dependencies = [
- "maybe-uninit",
 ]
 
 [[package]]

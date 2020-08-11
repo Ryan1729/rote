@@ -12,7 +12,6 @@ vec1 = "1.4"
 abs = { path = "../abs" }
 f32_0_1 = { path = "./libs/f32_0_1" }
 g_i = { path = "./libs/g_i" }
-panic_safe_rope = { path = "../panic_safe_rope" }
 perf_viz = { path = "../perf_viz" }
 pos_f32 = { path = "./libs/pos_f32" }
 pos_f32_trunc = { path = "./libs/pos_f32_trunc" }
