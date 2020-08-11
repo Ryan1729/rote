@@ -15,5 +15,5 @@ default = []
 [workspace]
 
 members = [
-    "libs/platform_layer",
+    "libs/platform_types",
 ]
