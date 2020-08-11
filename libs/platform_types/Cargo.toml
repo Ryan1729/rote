@@ -7,6 +7,8 @@ edition = "2018"
 [lib]
 path = "./src/platform_types.rs"
 
+[workspace]
+
 [dependencies]
 proptest = { version = "0.10", optional = true }
 
