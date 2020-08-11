@@ -2,8 +2,10 @@
 #![cfg_attr(feature = "pub_arb", allow(unused_macros))]
 #![cfg_attr(feature = "pub_arb", allow(unused_imports))]
 
+use macros::{d, fmt_display, ord};
 use super::*;
-use screen_positioning::{
+use screen_space::{char_dim, ssxywh};
+use crate::screen_positioning::{
     screen_space_to_position,
     screen_space_to_text_space,
     position_to_screen_space,
@@ -27,6 +29,7 @@ use screen_positioning::{
     TextSpaceXY,
     VisibilityAttemptResult,
 };
+use crate::{apron, pos, slxy, tbsxy, tbxy, tbxywh, tsxy};
 use proptest::{prop_compose, proptest, num::f32, strategy::Strategy};
 
 prop_compose! {

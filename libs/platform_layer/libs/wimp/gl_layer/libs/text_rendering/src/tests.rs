@@ -1,6 +1,8 @@
 use super::{*, text_layouts::*};
 
 use glyph_brush::{
+    CalculatedGlyph,
+    SectionGeometry,
     OwnedSectionText,
     rusttype::{Point, Rect},
 };

@@ -926,9 +926,9 @@ mod query {
             }
         }
     }
+
+    #[cfg(test)]
+    mod tests;
 }
 use query::{Spans};
-
-#[cfg(test)]
-mod tests;
 

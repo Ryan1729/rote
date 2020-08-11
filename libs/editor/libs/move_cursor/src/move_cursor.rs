@@ -511,12 +511,17 @@ where
 }
 
 #[cfg(test)]
-use super::*;
-
-#[cfg(test)]
 mod tests {
     use super::*;
+    
     use platform_types::pos;
+
+    // TODO remove duplication with text_buffer/test_macros
+    macro_rules! r {
+        ($s:expr) => {
+            Rope::from_str(&$s)
+        };
+    }
 
     #[test]
     fn forward_works_across_line_feeds() {
