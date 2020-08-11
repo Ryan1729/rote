@@ -12,8 +12,3 @@ proptest = { version = "0.10", optional = true }
 
 [dev-dependencies]
 proptest = { version = "0.10" }
-
-[features]
-default = []
-extra-prints = []
-pub_arb = []

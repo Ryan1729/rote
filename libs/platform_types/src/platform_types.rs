@@ -1,6 +1,6 @@
 #![deny(unused)]
 
-#[cfg(any(test, feature = "pub_arb"))]
+#[cfg(test)]
 pub mod tests{
 use proptest::prelude::{Strategy};
 use pub_arb_abs::{abs_pos};
