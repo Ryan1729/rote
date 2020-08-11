@@ -2,8 +2,9 @@
 #![cfg_attr(feature = "pub_arb", allow(unused_macros))]
 #![cfg_attr(feature = "pub_arb", allow(unused_imports))]
 
-use super::*;
-use screen_positioning::{
+
+use screen_space::*;
+use crate::screen_positioning::{
     screen_space_to_position,
     screen_space_to_text_space,
     position_to_screen_space,
