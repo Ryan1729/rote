@@ -3,16 +3,13 @@
 #[cfg(any(test, feature = "pub_arb"))]
 pub mod tests{
 use screen_space::*;
-use crate::screen_positioning::{
-    ScreenSpaceWH,
-};
 use proptest::prelude::{Strategy};
 use pub_arb_abs::{abs_pos, abs_length};
 
 #[derive(Default, Debug)]
 pub struct ScrollableScreen {
     pub scroll: ScrollXY,
-    pub wh: ScreenSpaceWH,
+    pub wh: (),
 }
 
 pub fn scroll_xy() -> impl Strategy<Value = ScrollXY> {
@@ -20,9 +17,9 @@ pub fn scroll_xy() -> impl Strategy<Value = ScrollXY> {
     (spec, spec).prop_map(|(x, y)| slxy!{ x, y })
 }
 
-pub fn wh() -> impl Strategy<Value = ScreenSpaceWH> {
+pub fn wh() -> impl Strategy<Value = ()> {
     let strat = abs_length();
-    (strat, strat).prop_map(|(w, h)| ScreenSpaceWH { w, h })
+    (strat, strat).prop_map(|(_w, _h)| ())
 }
 
 pub fn scrollable_screen() -> impl Strategy<Value = ScrollableScreen> {
