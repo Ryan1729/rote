@@ -1,9 +1,0 @@
-# Seeds for failure cases proptest has generated in the past. It is
-# automatically read and these particular cases re-run before any
-# novel cases are generated.
-#
-# It is recommended to check this file in to source control so that
-# everyone who runs the test benefits from these saved cases.
-cc fb5f012e210b905cc244ab5a410bca1e02aaea3fa221911d47f0e13f4cda7273 # shrinks to (needle, haystack) = ("𞺥", "𞺥 ")
-cc ac2efd5d9c2d0af019462aa653b735cabf48631874a0ca87e41713c36ca89e70 # shrinks to (needle, haystack) = ("a", "a0")
-cc f12606380cd61c9663357c0424f58a9026607316e11955cdbf3997ad240b9e93 # shrinks to (needle, haystack) = ("ȺȺ", "{�=𐆠𑤐�gqš\'=.¥⿵â🯳ȺȺȺ𝒪𑖮�𐠼෴=ῥ")
