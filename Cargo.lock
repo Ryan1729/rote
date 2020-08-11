@@ -1738,14 +1738,6 @@ dependencies = [
 [[package]]
 name = "rote"
 version = "0.2.131"
-dependencies = [
- "editor",
- "lazy_static 1.4.0",
- "macros",
- "perf_viz",
- "platform_layer",
- "platform_types",
-]
 
 [[package]]
 name = "rust-argon2"

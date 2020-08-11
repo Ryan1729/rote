@@ -6,41 +6,14 @@ license = "MIT and Apache 2.0"
 edition = "2018"
 
 [dependencies]
-lazy_static = "1.3.0"
-
-[dependencies.editor]
-path = "./libs/editor"
-
-[dependencies.macros]
-path = "./libs/macros"
-
-[dependencies.perf_viz]
-path = "./libs/perf_viz"
-
-[dependencies.platform_types]
-path = "./libs/platform_types"
-
-[dependencies.platform_layer]
-path = "./libs/platform_layer"
 
 [dev-dependencies]
 
 [features]
 default = []
-disable-fade-alpha = ["platform_layer/disable-fade-alpha"]
-invariant-checking = ["platform_layer/invariant-checking", "editor/invariant-checking"]
-time-render = ["platform_layer/time-render"]
-flame-chart = ["perf_viz/flame-chart"]
-flame-graph = ["perf_viz/flame-graph"]
-extra-prints = ["platform_types/extra-prints", "platform_layer/extra-prints", "editor/extra-prints"]
-print-raw-input = ["platform_layer/print-raw-input"]
 
 [workspace]
 
 members = [
-    "libs/editor",
-    "libs/macros",
-    "libs/perf_viz",
-    "libs/platform_types",
     "libs/platform_layer",
 ]
