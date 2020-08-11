@@ -8,76 +8,9 @@ edition = "2018"
 path = "./src/editor.rs"
 
 [dependencies]
-# we want a fast hash, and the first platform layer used this already so, sure why not.
-rustc-hash = "1"
-
-[dependencies.editor_types]
-path = "libs/editor_types"
-
-[dependencies.if_changed]
-path = "../if_changed"
-
-[dependencies.panic_safe_rope]
-path = "../panic_safe_rope"
-
-[dependencies.perf_viz]
-path = "../perf_viz"
-
-[dependencies.perf_viz_proc_macro]
-path = "../perf_viz/libs/perf_viz_proc_macro"
-
-[dependencies.platform_types]
-path = "../platform_types"
-
-[dependencies.macros]
-path = "../macros"
-
-[dependencies.parsers]
-path = "libs/parsers"
-
-[dependencies.paths]
-path = "libs/paths"
-
-[dependencies.search]
-path = "libs/search"
-
-[dependencies.text_buffer]
-path = "libs/text_buffer"
-
-[dev-dependencies]
-criterion = "0.2"
-proptest = "0.10"
-
-[dev-dependencies.arb_macros]
-path = "../arb_macros"
-
-[dev-dependencies.pub_arb_platform_types]
-path = "../pub_arb/platform_types"
-
-[dev-dependencies.pub_arb_text_buffer]
-path = "../pub_arb/text_buffer"
-
-[dev-dependencies.pub_arb_std]
-path = "../pub_arb/std"
-
-[dev-dependencies.pub_arb_abs]
-path = "../pub_arb/abs"
-
-[dev-dependencies.pub_arb_pos_f32]
-path = "../pub_arb/pos_f32"
-
-[dev-dependencies.pub_arb_pos_f32_trunc]
-path = "../pub_arb/pos_f32_trunc"
-
-[dev-dependencies.pub_arb_non_neg_f32]
-path = "../pub_arb/non_neg_f32"
 
 [features]
 default = []
 invariant-checking = []
-extra-prints = ["text_buffer/extra-prints"]
-no-cache = []
+extra-prints = []
 
-[[bench]]
-name = "user_input"
-harness = false
