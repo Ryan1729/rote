@@ -815,5 +815,7 @@ impl<'rope, 'cursors> Applier<'rope, 'cursors> {
     }
 }
 
-#[cfg(test)]
-mod edit_tests;
+#[cfg(any(test, feature = "pub_arb"))]
+pub mod tests {
+    pub mod arb;
+}

@@ -1,4 +1,12 @@
-use super::*;
+use crate::{
+    Parser,
+    ParserKind,
+    Parsers,
+    Style,
+    tree_sitter_rust,
+    query::{self, *, sk},
+};
+use macros::d;
 use proptest::proptest;
 
 const SOME_AMOUNT: usize = 16;
@@ -158,7 +166,7 @@ fn query_spans_for_produces_valid_rust_spans_on(
 
     let tree = rust.parse(&code, None);
     
-    let spans = query_spans_for(tree.as_ref(), &query, code, arbitary_span_kind_from_match);
+    let spans = query::spans_for_inner(tree.as_ref(), &query, code, arbitary_span_kind_from_match);
 
     spans_assert!(spans);
 }
@@ -230,7 +238,7 @@ fn query_spans_for_produces_the_right_result_on_this_multiple_match_case() {
 
     let tree = rust.parse(foo, None);
     
-    let spans = query_spans_for(tree.as_ref(), &query, foo, span_kind_from_match_example);
+    let spans = query::spans_for_inner(tree.as_ref(), &query, foo, span_kind_from_match_example);
 
     assert_eq!(
         spans,
@@ -273,7 +281,7 @@ let hi = \"hi\";
 
     let tree = rust.parse(foo, None);
     
-    let spans = query_spans_for(tree.as_ref(), &query, foo, span_kind_from_match_example);
+    let spans = query::spans_for_inner(tree.as_ref(), &query, foo, span_kind_from_match_example);
 
     assert_eq!(
         spans,
@@ -317,7 +325,7 @@ let yo = \"yo\";
 
     let tree = rust.parse(foo, None);
     
-    let spans = query_spans_for(tree.as_ref(), &query, foo, span_kind_from_match_example);
+    let spans = query::spans_for_inner(tree.as_ref(), &query, foo, span_kind_from_match_example);
 
     assert_eq!(
         spans,
@@ -340,7 +348,10 @@ fn arbitary_span_kind_from_node(node: Node) -> SpanKindSpec {
 fn totally_classified_spans_for_produces_valid_rust_spans_on(code: &str) {
     let tree = get_rust_tree!(code);
 
-    let spans = totally_classified_spans_for(tree.as_ref(), code, arbitary_span_kind_from_node);
+    let spans = query::totally_classified_spans_for(
+        tree.as_ref(),
+        code,
+    );
 
     spans_assert!(spans);
 }
@@ -506,7 +517,11 @@ fn rust_extra_spans_should_not_give_paired_tokens_different_kinds_on(
         return
     }
 
-    let spans = Parsers::default().get_spans_with_previous(code.into(), ParserKind::Rust(Style::Extra), None);
+    let spans = Parsers::default().get_spans_result(
+        code.into(), 
+        d!(),
+        ParserKind::Rust(Style::Extra),
+    ).expect("inside rust_extra_spans_should_not_give_paired_tokens_different_kinds_on");
     
     spans_assert!(&spans);
 
@@ -594,7 +609,11 @@ fn rust_extra_spans_should_not_give_paired_tokens_different_kinds_on_this_reduce
 }
 
 fn rust_extra_spans_produces_valid_spans_on(code: &str) {
-    let spans = Parsers::default().get_spans_with_previous(code.into(), ParserKind::Rust(Style::Extra), None);
+    let spans = Parsers::default().get_spans_result(
+        code.into(),
+        d!(),
+        ParserKind::Rust(Style::Extra),
+    ).expect("inside rust_extra_spans_produces_valid_spans_on");
 
     spans_assert!(spans);
 }

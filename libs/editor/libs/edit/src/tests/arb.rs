@@ -27,7 +27,7 @@ prop_compose! {
     }
 }
 
-pub(crate) fn edit<'rope, R: 'rope + Borrow<Rope>>(rope: R) -> impl Strategy<Value = Edit> + 'rope {
+pub fn edit<'rope, R: 'rope + Borrow<Rope>>(rope: R) -> impl Strategy<Value = Edit> + 'rope {
     let rope = rope.borrow();
     let rope = rope.clone();
 
@@ -43,5 +43,12 @@ pub(crate) fn edit<'rope, R: 'rope + Borrow<Rope>>(rope: R) -> impl Strategy<Val
                 range_edits,
                 cursors,
             })
+    })
+}
+
+pub fn edit_with_cursors<'rope, R: 'rope + Borrow<Rope>>(rope: R, cursors: Cursors) -> impl Strategy<Value = Edit> + 'rope {
+    edit(rope).prop_map(move |mut edit| {
+        edit.cursors.old = cursors;
+        edit
     })
 }

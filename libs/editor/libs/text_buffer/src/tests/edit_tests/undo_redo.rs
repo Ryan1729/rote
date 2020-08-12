@@ -1,5 +1,6 @@
 use super::*;
 
+use macros::{dbg};
 use crate::{assert_text_buffer_rope_eq, assert_text_buffer_eq_ignoring_history, char_to_string, t_b, InsertString, TextBuffer};
 use pretty_assertions::assert_eq;
 
@@ -7,11 +8,10 @@ use std::borrow::Borrow;
 
 #[allow(dead_code)]
 fn arb_edit_from_buffer(text_buffer: TextBuffer) -> impl Strategy<Value = Edit> {
-    let cs = text_buffer.cursors.clone();
-    edit_arb::edit(text_buffer.rope).prop_map(move |mut edit| {
-        edit.cursors.old = cs.clone();
-        edit
-    })
+    edit_arb::edit_with_cursors(
+        text_buffer.rope,
+        text_buffer.cursors.clone()
+    )
 }
 
 prop_compose! {

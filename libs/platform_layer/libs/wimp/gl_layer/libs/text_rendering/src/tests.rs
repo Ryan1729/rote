@@ -4,6 +4,7 @@ use glyph_brush::{
     CalculatedGlyph,
     SectionGeometry,
     OwnedSectionText,
+    point,
     rusttype::{Point, Rect},
 };
 
@@ -204,17 +205,16 @@ fn calculate_glyphs_unbounded_layout_clipped_slow<'font>(
     out
 }
 
-fn single_font_map() -> [Font<'static>; 1] {
-    [Font::from_bytes(FONT_BYTES).unwrap()]
+fn single_font() -> Font<'static> {
+    Font::from_bytes(FONT_BYTES).unwrap()
 }
-const SINGLE_FONT_ID: FontId = FontId(0);
 
 fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
     clip: Rect<i32>,
     scale: Scale,
     owned_sections: Vec<OwnedSectionText>
 ) {
-    let font_map = &single_font_map();
+    let font = &single_font();
 
     let geometry = SectionGeometry {
         screen_position: (0.0, 0.0),
@@ -229,7 +229,7 @@ fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
 
     let actual = calculate_glyphs_unbounded_layout_clipped(
         clip.clone(),
-        &font_map.font(SINGLE_FONT_ID),
+        &font,
         scale,
         &geometry,
         sections,
@@ -237,7 +237,7 @@ fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
 
     let expected = calculate_glyphs_unbounded_layout_clipped_slow(
         clip.clone(),            
-        &font_map.font(SINGLE_FONT_ID),
+        &font,
         scale,
         &geometry,
         sections,
@@ -649,7 +649,7 @@ fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_in_this_ge
 fn calculate_glyphs_unbounded_layout_clipped_slow_puts_5_a_characters_on_the_same_line() {
     let clip = Rect { min: Point { x: 0, y: 1 }, max: Point { x: 99999, y: 99999 } };
     let scale = scale!(16.0);
-    let font_map = &single_font_map();
+    let font = &single_font();
 
     let geometry = SectionGeometry {
         screen_position: (0.0, 0.0),
@@ -669,7 +669,7 @@ fn calculate_glyphs_unbounded_layout_clipped_slow_puts_5_a_characters_on_the_sam
 
     let glyphs = calculate_glyphs_unbounded_layout_clipped_slow(
         clip.clone(),            
-        &font_map.font(SINGLE_FONT_ID),
+        font,
         scale,
         &geometry,
         sections,

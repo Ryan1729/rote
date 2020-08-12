@@ -7,7 +7,7 @@ use super::{cursor_assert, r, *};
 
 use arb::TestEdit;
 use editor_types::{cur};
-use rope_pos::{char_offset_to_pos, OffsetPair};
+use rope_pos::{char_offset_to_pos, clamp_position, OffsetPair};
 use panic_safe_rope::{RopeSliceTrait};
 use platform_types::{pos, CursorState, vec1};
 use pretty_assertions::assert_eq;
@@ -927,4 +927,5 @@ fn calling_set_unedited_acts_as_expected_after_a_second_insertion_works_on_an_em
 
 pub mod arb;
 mod cursor_manipulation;
+mod edit_tests;
 mod inserting_then_deleting;

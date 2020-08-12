@@ -1,7 +1,8 @@
 #![deny(dead_code, unused_variables)]
 
 use super::*;
-
+use macros::{dbg};
+use panic_safe_rope::LineIndex;
 use pretty_assertions::assert_eq;
 
 #[test]

@@ -1,9 +1,20 @@
 use super::*;
+use cursors::curs;
+use arb::get_counts;
+use edit::{
+    TAB_STR_CHAR_COUNT,
+    RangeEdit,
+    RangeEdits,
+    get_cut_edit,
+    get_delete_edit,
+    get_delete_lines_edit,
+    get_insert_edit,
+    get_tab_in_edit,
+    get_tab_out_edit,
+    line_indicies_touched_by
+};
 use crate::{
     assert_text_buffer_eq_ignoring_history,
-    curs,
-    edit,
-    move_cursor::last_position,
     r, 
     t_b,
     tests::{
@@ -14,8 +25,10 @@ use crate::{
     TextBuffer,
 };
 use editor_types::{cur, Cursor};
+use macros::{some_or, dbg};
+use move_cursor::last_position;
 use platform_types::{CursorState, vec1};
-use arb::get_counts;
+use rope_pos::get_first_non_white_space_offset_in_range;
 
 use pretty_assertions::assert_eq;
 use proptest::prelude::*;
