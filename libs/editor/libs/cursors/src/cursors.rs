@@ -194,3 +194,9 @@ pub fn set_cursors(rope: &Rope, pointer: &mut Cursors, mut new: Cursors) {
     new.clamp_to_rope(rope);
     *pointer = new;
 }
+
+#[cfg(any(test, feature = "pub_arb"))]
+pub mod tests {
+    pub mod arb;
+}
+

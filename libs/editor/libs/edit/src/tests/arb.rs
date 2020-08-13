@@ -1,4 +1,9 @@
-use super::*;
+use proptest::{
+    option,
+    prelude::*,
+};
+
+use rope_pos::AbsoluteCharOffsetRange;
 
 prop_compose! {
     fn arb_absolute_char_offset_range(max_len: usize)

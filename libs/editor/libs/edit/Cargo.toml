@@ -32,3 +32,6 @@ path = "../../../platform_types"
 
 [dependencies.rope_pos]
 path = "../rope_pos"
+
+[dev-dependencies]
+proptest = "0.10"
