@@ -9,3 +9,11 @@ path = "./src/text_pos.rs"
 
 [dependencies]
 macros = { path = "../macros" }
+proptest = { version = "0.10", optional = true }
+
+[dev-dependencies]
+proptest = "0.10"
+
+[features]
+default = []
+pub_arb = ["proptest"]

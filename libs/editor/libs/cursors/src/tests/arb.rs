@@ -1,18 +1,25 @@
-use crate::*;
-use panic_safe_rope::{LineIndex};
+use super::*;
+use editor_types::{AbsoluteCharOffset};
+use panic_safe_rope::{RopeSliceTrait, LineIndex, CharOffset};
 use proptest::{
     collection,
     prelude::{Strategy, prop_compose}
 };
+use pub_arb_platform_types::{cursor_state};
+use pub_arb_text_pos::{char_offset, pos};
 use pub_arb_vec1::{vec1};
+use rope_pos::char_offset_to_pos;
+
+use core::borrow::Borrow;
+
 use vec1::{Vec1};
 
 prop_compose! {
     pub fn cursor(LineIndex(max_line): LineIndex, CharOffset(max_offset): CharOffset)(
-        position in arb_pos(max_line, max_offset),
-        highlight_position in arb_pos(max_line, max_offset),
-        sticky_offset in arb_char_offset(max_offset),
-        state in arb_cursor_state()
+        position in pos(max_line, max_offset),
+        highlight_position in pos(max_line, max_offset),
+        sticky_offset in char_offset(max_offset),
+        state in cursor_state()
     ) -> Cursor {
         let mut c = Cursor::new(position);
         c.set_highlight_position(highlight_position);
@@ -94,7 +101,7 @@ pub fn many_valid_non_highlight_cursors_for_rope<'rope, R: 'rope + Borrow<Rope>>
     .prop_map(move |c| Cursors::new(&rope2, c))
 }
 
-fn all_but_end_cursors_for_rope(rope: &Rope) -> Vec<Cursor> {
+pub fn all_but_end_cursors_for_rope(rope: &Rope) -> Vec<Cursor> {
     let len = rope.len_chars().0;
     let mut output = Vec::with_capacity(len);
     if len > 1 {
@@ -109,4 +116,17 @@ fn all_but_end_cursors_for_rope(rope: &Rope) -> Vec<Cursor> {
     }
 
     output
+}
+
+prop_compose! {
+    pub fn non_highlight_cursor(LineIndex(max_line): LineIndex, CharOffset(max_offset): CharOffset)(
+        position in pos(max_line, max_offset),
+        sticky_offset in char_offset(max_offset),
+        state in cursor_state()
+    ) -> Cursor {
+        let mut c = Cursor::new(position);
+        c.sticky_offset = sticky_offset;
+        c.state = state;
+        c
+    }
 }

@@ -214,3 +214,27 @@ pub fn unappend_positions(left: Position, right: Position) -> Position {
         })),
     }
 }
+
+#[cfg(any(tests, feature = "pub_arb"))]
+pub mod tests {
+    use super::*;
+    pub mod arb {
+        use super::*;
+        use proptest::{
+            prelude::{prop_compose}
+        };
+
+        prop_compose! {
+            pub fn char_offset(max_len: usize)(offset in 0..=max_len) -> CharOffset {
+                CharOffset(offset)
+            }
+        }
+        
+        prop_compose! {
+            pub fn pos(max_line: usize, max_offset: usize)
+            (line in 0..=max_line, offset in 0..=max_offset) -> Position {
+                Position{ line, offset: CharOffset(offset) }
+            }
+        }
+    }
+}

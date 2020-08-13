@@ -33,10 +33,14 @@ path = "../rope_pos"
 
 [dependencies]
 proptest = { version = "0.10", optional = true }
+pub_arb_cursors = { path = "../../../pub_arb/cursors", optional = true }
+pub_arb_vec1 = { path = "../../../pub_arb/vec1", optional = true }
 
 [dev-dependencies]
 proptest = "0.10"
+pub_arb_cursors = { path = "../../../pub_arb/cursors" }
+pub_arb_vec1 = { path = "../../../pub_arb/vec1" }
 
 [features]
 default = []
-pub_arb = ["proptest"]
+pub_arb = ["proptest", "pub_arb_cursors", "pub_arb_vec1"]

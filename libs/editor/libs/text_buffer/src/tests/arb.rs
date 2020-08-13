@@ -7,6 +7,18 @@ use rope_pos::is_linebreak_char;
 
 use std::collections::HashMap;
 
+pub use pub_arb_cursors::{
+    all_but_end_cursors_for_rope,
+    cursor,
+    many_valid_cursors_for_rope,
+    many_valid_non_highlight_cursors_for_rope,
+    valid_cursors_for_rope,
+    vec1_of_cursors,
+};
+pub use pub_arb_edit::absolute_char_offset;
+pub use pub_arb_text_pos::{pos};
+pub use pub_arb_vec1::{vec1};
+
 // TODO move all `arb` fns in here
 
 prop_compose! {
@@ -24,19 +36,6 @@ prop_compose! {
 prop_compose! {
     pub fn non_0_to_9_char_rope()(s in "[^0-9]*") -> Rope {
         r!(s)
-    }
-}
-
-prop_compose! {
-    pub fn non_highlight_cursor(LineIndex(max_line): LineIndex, CharOffset(max_offset): CharOffset)(
-        position in arb_pos(max_line, max_offset),
-        sticky_offset in arb_char_offset(max_offset),
-        state in arb_cursor_state()
-    ) -> Cursor {
-        let mut c = Cursor::new(position);
-        c.sticky_offset = sticky_offset;
-        c.state = state;
-        c
     }
 }
 
@@ -276,10 +275,10 @@ impl TestEdit {
     pub fn apply_ref(buffer: &mut TextBuffer, edit: &TestEdit) {
         use TestEdit::*;
         match edit {
-            Insert(c) => { buffer.insert(*c); },
-            InsertString(s) => { buffer.insert_string(s.to_owned()); },
-            Delete => { buffer.delete(); },
-            DeleteLines => { buffer.delete_lines(); },
+            Insert(c) => { buffer.insert(*c, None); },
+            InsertString(s) => { buffer.insert_string(s.to_owned(), None); },
+            Delete => { buffer.delete(None); },
+            DeleteLines => { buffer.delete_lines(None); },
             MoveAllCursors(r#move) => buffer.move_all_cursors(*r#move),
             ExtendSelectionForAllCursors(r#move) => buffer.extend_selection_for_all_cursors(*r#move),
             MoveCursors(index, r#move) => buffer.move_cursor(*index, *r#move),
@@ -291,14 +290,16 @@ impl TestEdit {
             }
             SelectAll => buffer.select_all(),
             Cut => {
-                buffer.cut_selections();
+                buffer.cut_selections(None);
             }
-            InsertNumbersAtCursors => { buffer.insert_at_each_cursor(|i| i.to_string()); },
-            TabIn => { buffer.tab_in(); },
-            TabOut => { buffer.tab_out(); },
+            InsertNumbersAtCursors => { buffer.insert_at_each_cursor(|i| i.to_string(), None); },
+            TabIn => { buffer.tab_in(None); },
+            TabOut => { buffer.tab_out(None); },
         };
     }
 
+    // TODO: can we use the ppel!() type, that was created for other reasons, to
+    // do this instead? We'd need to make ppel!() into a trait I suppose.
     pub fn apply_with_counts(buffer: &mut TextBuffer, counts: &mut Counts, edit: &TestEdit) {
         fn apply_delete_edit(counts: &mut Counts, buffer: &TextBuffer, cursors_vec: Vec1<Cursor>) {
             let cursors = Cursors::new(&buffer.rope, cursors_vec);
@@ -399,7 +400,7 @@ impl TestEdit {
             TabOut => {
                 //TODO do something better than this tautology
                 let mut clone = deep_clone(&buffer);
-                clone.tab_out();
+                clone.tab_out(None);
                 let clone_counts = get_counts(&clone);
 
                 // We don't want any non-whitespace characters to be changed
@@ -459,13 +460,13 @@ pub fn test_edit() -> impl Strategy<Value = TestEdit> {
         // The user can attempt to move the cursor to invalid positions,
         // and their cursor may get snapped to a valid position producing an actual movement.
         (
-            arb_pos(MORE_THAN_SOME_AMOUNT, MORE_THAN_SOME_AMOUNT),
+            pos(MORE_THAN_SOME_AMOUNT, MORE_THAN_SOME_AMOUNT),
             replace_or_add()
         )
             .prop_map(|(p, r)| SetCursor(p, r)),
-        arb_pos(MORE_THAN_SOME_AMOUNT, MORE_THAN_SOME_AMOUNT).prop_map(DragCursors),
+        pos(MORE_THAN_SOME_AMOUNT, MORE_THAN_SOME_AMOUNT).prop_map(DragCursors),
         (
-            arb_pos(MORE_THAN_SOME_AMOUNT, MORE_THAN_SOME_AMOUNT),
+            pos(MORE_THAN_SOME_AMOUNT, MORE_THAN_SOME_AMOUNT),
             replace_or_add()
         )
             .prop_map(|(p, r)| SelectCharTypeGrouping(p, r)),
@@ -494,7 +495,7 @@ pub fn test_edit_regex_insert(regex: Regex) -> impl Strategy<Value = TestEdit> {
 pub fn test_edit_set_cursor_heavy() -> impl Strategy<Value = TestEdit> {
     use TestEdit::*;
     prop_oneof![
-        9 => arb_pos(MORE_THAN_SOME_AMOUNT, MORE_THAN_SOME_AMOUNT).prop_map(|p| SetCursor(p, ReplaceOrAdd::Add)),
+        9 => pos(MORE_THAN_SOME_AMOUNT, MORE_THAN_SOME_AMOUNT).prop_map(|p| SetCursor(p, ReplaceOrAdd::Add)),
         1 => test_edit()
     ]
 }
@@ -532,13 +533,13 @@ pub fn test_edit_selection_changes() -> impl Strategy<Value = TestEdit> {
         // The user can attempt to move the cursor to invalid positions,
         // and their cursor may get snapped to a valid position producing an actual movement.
         (
-            arb_pos(MORE_THAN_SOME_AMOUNT, MORE_THAN_SOME_AMOUNT),
+            pos(MORE_THAN_SOME_AMOUNT, MORE_THAN_SOME_AMOUNT),
             replace_or_add()
         )
             .prop_map(|(p, r)| SetCursor(p, r)),
-        arb_pos(MORE_THAN_SOME_AMOUNT, MORE_THAN_SOME_AMOUNT).prop_map(DragCursors),
+        pos(MORE_THAN_SOME_AMOUNT, MORE_THAN_SOME_AMOUNT).prop_map(DragCursors),
         (
-            arb_pos(MORE_THAN_SOME_AMOUNT, MORE_THAN_SOME_AMOUNT),
+            pos(MORE_THAN_SOME_AMOUNT, MORE_THAN_SOME_AMOUNT),
             replace_or_add()
         )
             .prop_map(|(p, r)| SelectCharTypeGrouping(p, r)),

@@ -1,21 +1,34 @@
+use crate::{Change, Edit};
 use proptest::{
     option,
     prelude::*,
 };
+use cursors::Cursors;
 use pub_arb_cursors::{valid_cursors_for_rope};
-
+use pub_arb_vec1::{vec1};
+use panic_safe_rope::{Rope, AbsoluteCharOffset};
+use crate::{RangeEdit, RangeEdits};
 use rope_pos::AbsoluteCharOffsetRange;
+use core::borrow::Borrow;
+
+const SOME_AMOUNT: usize = 16;
 
 prop_compose! {
-    fn arb_absolute_char_offset_range(max_len: usize)
-    (o1 in arb_absolute_char_offset(max_len), o2 in arb_absolute_char_offset(max_len)) -> AbsoluteCharOffsetRange {
+    pub fn absolute_char_offset(max_len: usize)(offset in 0..=max_len) -> AbsoluteCharOffset {
+        AbsoluteCharOffset(offset)
+    }
+}
+
+prop_compose! {
+    fn absolute_char_offset_range(max_len: usize)
+    (o1 in absolute_char_offset(max_len), o2 in absolute_char_offset(max_len)) -> AbsoluteCharOffsetRange {
         AbsoluteCharOffsetRange::new(o1, o2)
     }
 }
 
 prop_compose! {
     fn range_edit(max_len: usize)
-    (chars in ".*", range in arb_absolute_char_offset_range(max_len)) -> RangeEdit {
+    (chars in ".*", range in absolute_char_offset_range(max_len)) -> RangeEdit {
         RangeEdit {
             chars,
             range
@@ -54,7 +67,7 @@ pub fn edit<'rope, R: 'rope + Borrow<Rope>>(rope: R) -> impl Strategy<Value = Ed
 
 pub fn edit_with_cursors<'rope, R: 'rope + Borrow<Rope>>(rope: R, cursors: Cursors) -> impl Strategy<Value = Edit> + 'rope {
     edit(rope).prop_map(move |mut edit| {
-        edit.cursors.old = cursors;
+        edit.cursors.old = cursors.clone();
         edit
     })
 }

@@ -4,13 +4,15 @@ use macros::{dbg};
 use crate::{assert_text_buffer_rope_eq, assert_text_buffer_eq_ignoring_history, char_to_string, t_b, InsertString, TextBuffer};
 use pretty_assertions::assert_eq;
 
+use pub_arb_edit::edit_with_cursors;
+
 use std::borrow::Borrow;
 
 #[allow(dead_code)]
 fn arb_edit_from_buffer(text_buffer: TextBuffer) -> impl Strategy<Value = Edit> {
-    edit_arb::edit_with_cursors(
+    edit_with_cursors(
         text_buffer.rope,
-        text_buffer.cursors.clone()
+        text_buffer.cursors
     )
 }
 
@@ -45,15 +47,15 @@ proptest! {
 fn negated_edit_undo_redos_properly(initial_buffer: TextBuffer, edit: Edit) {
     let mut buffer: TextBuffer = deep_clone(&initial_buffer);
 
-    buffer.apply_edit(edit.clone(), ApplyKind::Record);
+    buffer.apply_edit(edit.clone(), ApplyKind::Record, None);
 
     let modified_buffer = deep_clone(&buffer);
 
-    buffer.apply_edit(!(edit.clone()), ApplyKind::Playback);
+    buffer.apply_edit(!(edit.clone()), ApplyKind::Playback, None);
 
     assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
 
-    buffer.apply_edit(edit, ApplyKind::Playback);
+    buffer.apply_edit(edit, ApplyKind::Playback, None);
 
     assert_text_buffer_eq_ignoring_history!(buffer, modified_buffer);
 }
@@ -234,14 +236,14 @@ fn undo_redo_works_on_these_edits_and_index<TestEdits: Borrow<[TestEdit]>>(
     if len != 0 {
         for _ in 0..dbg!(dbg!(len - 1) - index) {
             dbg!();
-            buffer.undo();
+            buffer.undo(None);
         }
     }
 
     assert_text_buffer_eq_ignoring_history!(buffer, expected_buffer_at_index);
 
     for _ in 0..len {
-        buffer.redo();
+        buffer.redo(None);
     }
 
     dbg!();
@@ -250,7 +252,7 @@ fn undo_redo_works_on_these_edits_and_index<TestEdits: Borrow<[TestEdit]>>(
     // Redo with no redos left should be a no-op
     for _ in 0..10 {
         dbg!();
-        buffer.redo();
+        buffer.redo(None);
     }
 
     dbg!();
@@ -258,7 +260,7 @@ fn undo_redo_works_on_these_edits_and_index<TestEdits: Borrow<[TestEdit]>>(
 
     for _ in 0..len {
         dbg!();
-        dbg!(&mut buffer).undo();
+        dbg!(&mut buffer).undo(None);
     }
 
     dbg!();
@@ -267,7 +269,7 @@ fn undo_redo_works_on_these_edits_and_index<TestEdits: Borrow<[TestEdit]>>(
     // undo with no undos left should be a no-op
     for _ in 0..10 {
         dbg!();
-        buffer.undo();
+        buffer.undo(None);
     }
 
     dbg!();
@@ -334,14 +336,14 @@ fn undo_redo_works_on_these_edits_and_index_regarding_ropes_with_this_buffer<Tes
     if len != 0 {
         for _ in 0..dbg!(dbg!(len - 1) - index) {
             dbg!();
-            buffer.undo();
+            buffer.undo(None);
         }
     }
 
     assert_text_buffer_rope_eq!(buffer, expected_buffer_at_index);
 
     for _ in 0..len {
-        buffer.redo();
+        buffer.redo(None);
     }
 
     dbg!();
@@ -350,7 +352,7 @@ fn undo_redo_works_on_these_edits_and_index_regarding_ropes_with_this_buffer<Tes
     // Redo with no redos left should be a no-op
     for _ in 0..10 {
         dbg!();
-        buffer.redo();
+        buffer.redo(None);
     }
 
     dbg!();
@@ -358,7 +360,7 @@ fn undo_redo_works_on_these_edits_and_index_regarding_ropes_with_this_buffer<Tes
 
     for _ in 0..len {
         dbg!();
-        dbg!(&mut buffer).undo();
+        dbg!(&mut buffer).undo(None);
     }
 
     dbg!();
@@ -367,7 +369,7 @@ fn undo_redo_works_on_these_edits_and_index_regarding_ropes_with_this_buffer<Tes
     // undo with no undos left should be a no-op
     for _ in 0..10 {
         dbg!();
-        buffer.undo();
+        buffer.undo(None);
     }
 
     dbg!();
@@ -404,14 +406,14 @@ fn undo_redo_works_on_all_these_edits<TestEdits: Borrow<[TestEdit]>>(
     if len != 0 {
         for i in (0..len).rev() {
             assert_text_buffer_eq_ignoring_history!(buffer, expected_buffers[i]);
-            buffer.undo();
+            buffer.undo(None);
         }
     }
 
     assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
 
     for i in 0..len {
-        buffer.redo();
+        buffer.redo(None);
         assert_text_buffer_eq_ignoring_history!(buffer, expected_buffers[i]);
     }
 
@@ -421,7 +423,7 @@ fn undo_redo_works_on_all_these_edits<TestEdits: Borrow<[TestEdit]>>(
     // Redo with no redos left should be a no-op
     for _ in 0..10 {
         dbg!();
-        buffer.redo();
+        buffer.redo(None);
     }
 
     dbg!();
@@ -429,7 +431,7 @@ fn undo_redo_works_on_all_these_edits<TestEdits: Borrow<[TestEdit]>>(
 
     for _ in 0..len {
         dbg!();
-        dbg!(&mut buffer).undo();
+        dbg!(&mut buffer).undo(None);
     }
 
     dbg!();
@@ -438,7 +440,7 @@ fn undo_redo_works_on_all_these_edits<TestEdits: Borrow<[TestEdit]>>(
     // undo with no undos left should be a no-op
     for _ in 0..10 {
         dbg!();
-        buffer.undo();
+        buffer.undo(None);
     }
 
     dbg!();
@@ -981,7 +983,7 @@ fn does_not_allow_applying_stale_redos_on<TestEdits: Borrow<[TestEdit]>>(
     }
 
     for _ in (index..len).rev() {
-        buffer.undo();
+        buffer.undo(None);
     }
 
     TestEdit::apply(&mut buffer, TestEdit::Insert('6'));
@@ -989,14 +991,14 @@ fn does_not_allow_applying_stale_redos_on<TestEdits: Borrow<[TestEdit]>>(
     let final_buffer = deep_clone(&buffer);
 
     for _ in index..(len + 2) {
-        buffer.redo();
+        buffer.redo(None);
         assert_text_buffer_eq_ignoring_history!(buffer, final_buffer);
     }
 
     if len != 0 {
         for _ in 0..len {
             dbg!();
-            dbg!(&mut buffer).undo();
+            dbg!(&mut buffer).undo(None);
         }
 
         assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
@@ -1026,8 +1028,8 @@ fn does_not_allow_applying_stale_redos_in_this_case() {
     // precondition
     assert_eq!(buffer.rope.to_string(), "12345");
 
-    buffer.undo();
-    buffer.undo();
+    buffer.undo(None);
+    buffer.undo(None);
 
     // precondition
     assert_text_buffer_eq_ignoring_history!(buffer, buffer_after_3);
@@ -1039,7 +1041,7 @@ fn does_not_allow_applying_stale_redos_in_this_case() {
     assert_eq!(buffer.rope.to_string(), "1236");
     let buffer_after_6 = deep_clone(&buffer);
 
-    buffer.redo();
+    buffer.redo(None);
     
     assert_text_buffer_eq_ignoring_history!(buffer, buffer_after_6);
     assert_eq!(buffer.rope.to_string(), "1236");
@@ -1061,12 +1063,12 @@ fn undoes_pastes_properly_in_this_case() {
     // precondition
     assert_eq!(buffer.rope.to_string(), "12345");
 
-    buffer.undo();
+    buffer.undo(None);
 
     assert_text_buffer_eq_ignoring_history!(buffer, buffer_after_paste);
 
-    buffer.undo();
-    buffer.undo();
+    buffer.undo(None);
+    buffer.undo(None);
 
     assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
 }

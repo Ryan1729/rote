@@ -515,6 +515,8 @@ dependencies = [
  "panic_safe_rope",
  "perf_viz",
  "proptest",
+ "pub_arb_platform_types",
+ "pub_arb_text_pos",
  "pub_arb_vec1",
  "rope_pos",
  "vec1 0.1.0",
@@ -592,6 +594,8 @@ dependencies = [
  "perf_viz",
  "platform_types",
  "proptest",
+ "pub_arb_cursors",
+ "pub_arb_vec1",
  "rope_pos",
 ]
 
@@ -1628,6 +1632,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "pub_arb_cursors"
+version = "0.1.0"
+dependencies = [
+ "cursors",
+ "proptest",
+]
+
+[[package]]
+name = "pub_arb_edit"
+version = "0.1.0"
+dependencies = [
+ "edit",
+ "proptest",
+]
+
+[[package]]
 name = "pub_arb_f32_0_1"
 version = "0.1.0"
 dependencies = [
@@ -1690,6 +1710,14 @@ name = "pub_arb_text_buffer"
 version = "0.1.0"
 dependencies = [
  "text_buffer",
+]
+
+[[package]]
+name = "pub_arb_text_pos"
+version = "0.1.0"
+dependencies = [
+ "proptest",
+ "text_pos",
 ]
 
 [[package]]
@@ -2210,7 +2238,11 @@ dependencies = [
  "platform_types",
  "pretty_assertions",
  "proptest",
+ "pub_arb_cursors",
+ "pub_arb_edit",
  "pub_arb_std",
+ "pub_arb_text_pos",
+ "pub_arb_vec1",
  "regex",
  "rope_pos",
  "search",
@@ -2221,6 +2253,7 @@ name = "text_pos"
 version = "0.1.0"
 dependencies = [
  "macros",
+ "proptest",
 ]
 
 [[package]]

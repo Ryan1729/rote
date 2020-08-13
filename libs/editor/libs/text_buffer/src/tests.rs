@@ -46,12 +46,6 @@ pub fn deep_clone(buffer: &TextBuffer) -> TextBuffer {
 }
 
 prop_compose! {
-    pub fn arb_absolute_char_offset(max_len: usize)(offset in 0..=max_len) -> AbsoluteCharOffset {
-        AbsoluteCharOffset(offset)
-    }
-}
-
-prop_compose! {
     pub fn arb_rope_and_offset()
         (s in ".*")
         (offset in 0..=r!(&s).len_chars().0, s in Just(s)) -> (Rope, AbsoluteCharOffset) {
@@ -90,22 +84,6 @@ prop_compose! {
     ((rope, pos) in arb_rope_and_pos())
     (offset in 0..=rope.len_chars().0, (r, p) in (Just(rope), Just(pos))) -> (Rope, Position, AbsoluteCharOffset) {
         (r, p, AbsoluteCharOffset(offset))
-    }
-}
-
-prop_compose! {
-    fn arb_char_offset(max_len: usize)(offset in 0..=max_len) -> CharOffset {
-        CharOffset(offset)
-    }
-}
-
-// This is duplicated from `platform_types`'s `tests` module. There is a way to avoid thi s
-// duplication, but its complex enough that it does not seem worth ti for this code.
-// https://stackoverflow.com/a/42329538
-prop_compose! {
-    fn arb_pos(max_line: usize, max_offset: usize)
-    (line in 0..=max_line, offset in 0..=max_offset) -> Position {
-        Position{ line, offset: CharOffset(offset) }
     }
 }
 
@@ -263,8 +241,8 @@ fn arb_move() -> impl Strategy<Value = Move> {
 
 prop_compose! {
     fn arb_offset_pair()(
-        o1 in option::of(arb_absolute_char_offset(SOME_AMOUNT)),
-        o2 in option::of(arb_absolute_char_offset(SOME_AMOUNT))
+        o1 in option::of(arb::absolute_char_offset(SOME_AMOUNT)),
+        o2 in option::of(arb::absolute_char_offset(SOME_AMOUNT))
     ) -> OffsetPair {
         (o1, o2)
     }
@@ -274,7 +252,7 @@ proptest! {
     #[test]
     fn nearest_valid_position_on_same_line_is_identity_for_positions_in_bounds(
         rope in arb::rope(),
-        position in arb_pos(SOME_AMOUNT, SOME_AMOUNT)
+        position in arb::pos(SOME_AMOUNT, SOME_AMOUNT)
     ) {
         let manually_checked = if in_cursor_bounds(&rope, position) {
             Some(position)
@@ -295,7 +273,7 @@ fn this_multi_cursor_example_produces_the_correct_final_string() {
     buffer.set_cursor(pos! {l 3 o 3}, ReplaceOrAdd::Add);
     buffer.set_cursor(pos! {l 4 o 0}, ReplaceOrAdd::Add);
 
-    buffer.insert('5');
+    buffer.insert('5', None);
 
     let expected = "5000\n1511\n2252\n3335\n5".to_owned();
     let actual: String = buffer.rope.into();
@@ -314,7 +292,7 @@ fn buffer_inserts_all_the_requested_numbers_in_order(buffer: &TextBuffer) {
 
     let get_string = |i: usize| i.to_string();
 
-    buffer.insert_at_each_cursor(get_string);
+    buffer.insert_at_each_cursor(get_string, None);
 
     let expected_strings = (0..cursors_len).map(get_string);
 
@@ -880,7 +858,7 @@ fn calling_set_unedited_acts_as_expected_after_a_second_insertion_on(
 ) {
     u!{Editedness}
 
-    buffer.insert(ch1);
+    buffer.insert(ch1, None);
 
     assert_eq!(buffer.editedness(), Edited, "precondition_failure");
 
@@ -892,7 +870,7 @@ fn calling_set_unedited_acts_as_expected_after_a_second_insertion_on(
         "set_unedited did not set the buffer as unedited!",
     );
 
-    buffer.insert(ch2);
+    buffer.insert(ch2, None);
 
     assert_eq!(
         buffer.editedness(),
