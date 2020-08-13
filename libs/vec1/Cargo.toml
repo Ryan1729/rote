@@ -1,0 +1,16 @@
+[package]
+name = "vec1"
+version = "0.1.0"
+authors = ["Ryan1729 <Ryan1729@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+vec1 = "1.4"
+proptest = { version = "0.10", optional = true }
+
+[dev-dependencies]
+proptest = "0.10"
+
+[features]
+default = []
+pub_arb = ["proptest"]

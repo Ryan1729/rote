@@ -1,0 +1,12 @@
+[package]
+name = "pub_arb_cursors"
+version = "0.1.0"
+authors = ["Ryan1729 <ryan1729@gmail.com>"]
+edition = "2018"
+
+[lib]
+path = "./src/pub_arb_cursors.rs"
+
+[dependencies]
+cursors = { path = "../../../libs/editor/libs/cursors", features = ["pub_arb"]}
+proptest = "0.10"

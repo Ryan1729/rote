@@ -7,8 +7,6 @@ edition = "2018"
 [lib]
 path = "./src/edit.rs"
 
-[dependencies]
-
 [dependencies.cursors]
 path = "../cursors"
 
@@ -33,5 +31,12 @@ path = "../../../platform_types"
 [dependencies.rope_pos]
 path = "../rope_pos"
 
+[dependencies]
+proptest = { version = "0.10", optional = true }
+
 [dev-dependencies]
 proptest = "0.10"
+
+[features]
+default = []
+pub_arb = ["proptest"]

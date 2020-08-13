@@ -2,6 +2,7 @@ use proptest::{
     option,
     prelude::*,
 };
+use pub_arb_cursors::{valid_cursors_for_rope};
 
 use rope_pos::AbsoluteCharOffsetRange;
 
@@ -37,8 +38,8 @@ pub fn edit<'rope, R: 'rope + Borrow<Rope>>(rope: R) -> impl Strategy<Value = Ed
     let rope = rope.clone();
 
     (1..SOME_AMOUNT).prop_flat_map(move |len| {
-        let cursor_strat = arb::valid_cursors_for_rope(rope.clone(), len);
-        let cursor_strat2 = arb::valid_cursors_for_rope(rope.clone(), len);
+        let cursor_strat = valid_cursors_for_rope(rope.clone(), len);
+        let cursor_strat2 = valid_cursors_for_rope(rope.clone(), len);
 
         (
             vec1(range_edits(len), len),

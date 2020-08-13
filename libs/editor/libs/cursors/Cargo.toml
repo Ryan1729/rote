@@ -7,8 +7,6 @@ edition = "2018"
 [lib]
 path = "./src/cursors.rs"
 
-[dependencies]
-
 [dependencies.editor_types]
 path = "../editor_types"
 
@@ -21,8 +19,20 @@ path = "../../../panic_safe_rope"
 [dependencies.perf_viz]
 path = "../../../perf_viz"
 
-[dependencies.platform_types]
-path = "../../../platform_types"
-
 [dependencies.rope_pos]
 path = "../rope_pos"
+
+[dependencies.vec1]
+path = "../../../vec1"
+
+[dependencies]
+proptest = { version = "0.10", optional = true }
+pub_arb_vec1 = { path = "../../../pub_arb/vec1", optional = true }
+
+[dev-dependencies]
+proptest = "0.10"
+pub_arb_vec1 = { path = "../../../pub_arb/vec1" }
+
+[features]
+default = []
+pub_arb = ["pub_arb_vec1"]

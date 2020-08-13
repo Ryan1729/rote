@@ -8,12 +8,12 @@ edition = "2018"
 path = "./src/g_i.rs"
 
 [dependencies]
-vec1 = "1.4"
 perf_viz = { path = "../../../perf_viz" }
 macros = { path = "../../../macros" }
 move_mod = { path = "../move_mod" }
 mut_methods = { path = "./libs/mut_methods" }
 proptest = { version = "0.10", optional = true }
+vec1 = { path = "../../../vec1" }
 arb_macros = { path = "../../../arb_macros", optional = true }
 
 [dev-dependencies]

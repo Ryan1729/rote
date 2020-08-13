@@ -2,7 +2,7 @@
 use core::cmp::{max, min};
 use editor_types::{Cursor, SetPositionAction};
 use panic_safe_rope::{Rope};
-use platform_types::{Vec1};
+use vec1::{Vec1};
 use macros::{d};
 use rope_pos::{clamp_position, offset_pair};
 
@@ -197,6 +197,7 @@ pub fn set_cursors(rope: &Rope, pointer: &mut Cursors, mut new: Cursors) {
 
 #[cfg(any(test, feature = "pub_arb"))]
 pub mod tests {
+    use super::*;
     pub mod arb;
 }
 

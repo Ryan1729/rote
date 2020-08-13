@@ -514,8 +514,10 @@ dependencies = [
  "macros",
  "panic_safe_rope",
  "perf_viz",
- "platform_types",
+ "proptest",
+ "pub_arb_vec1",
  "rope_pos",
+ "vec1 0.1.0",
 ]
 
 [[package]]
@@ -759,7 +761,7 @@ dependencies = [
  "mut_methods",
  "perf_viz",
  "proptest",
- "vec1",
+ "vec1 0.1.0",
 ]
 
 [[package]]
@@ -1520,7 +1522,7 @@ dependencies = [
  "pub_arb_std",
  "screen_space",
  "text_pos",
- "vec1",
+ "vec1 1.5.0",
 ]
 
 [[package]]
@@ -1688,6 +1690,14 @@ name = "pub_arb_text_buffer"
 version = "0.1.0"
 dependencies = [
  "text_buffer",
+]
+
+[[package]]
+name = "pub_arb_vec1"
+version = "0.1.0"
+dependencies = [
+ "proptest",
+ "vec1 0.1.0",
 ]
 
 [[package]]
@@ -2313,6 +2323,14 @@ name = "unicode-xid"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "826e7639553986605ec5979c7dd957c7895e93eabed50ab2ffa7f6128a75097c"
+
+[[package]]
+name = "vec1"
+version = "0.1.0"
+dependencies = [
+ "proptest",
+ "vec1 1.5.0",
+]
 
 [[package]]
 name = "vec1"
