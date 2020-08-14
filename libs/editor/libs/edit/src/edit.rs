@@ -599,6 +599,14 @@ pub struct Edit {
 }
 
 impl Edit {
+    pub fn range_edits(&self) -> &Vec1<RangeEdits> {
+        &self.range_edits
+    }
+
+    pub fn cursors(&self) -> &Change<Cursors> {
+        &self.cursors
+    }
+
     pub fn selected(&self) -> Vec<String> {
         let mut strings = Vec::with_capacity(self.range_edits.len());
 

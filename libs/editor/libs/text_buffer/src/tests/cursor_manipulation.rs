@@ -24,14 +24,14 @@ fn insert_with_matching_cursor_and_highlight_sets_highlight_to_none() {
         buffer.set_cursors_from_vec1(Vec1::new(c));
     }
 
-    buffer.insert('1');
+    buffer.insert('1', None);
 
     {
         let c = buffer.cursors.first();
         assert_eq!(c.get_highlight_position(), None);
     }
 
-    buffer.insert('2');
+    buffer.insert('2', None);
 
     {
         let c = buffer.cursors.first();
@@ -43,10 +43,10 @@ fn insert_with_matching_cursor_and_highlight_sets_highlight_to_none() {
 fn insertion_with_forward_selection_deletes_selected_text() {
     // Arrange
     let mut buffer: TextBuffer = d!();
-    buffer.insert('1');
-    buffer.insert('2');
-    buffer.insert('5'); // We will attempt to fix this as part of the test
-    buffer.insert('4');
+    buffer.insert('1', None);
+    buffer.insert('2', None);
+    buffer.insert('5', None); // We will attempt to fix this as part of the test
+    buffer.insert('4', None);
 
     // TODO move these sanity checks into a separate test?
     cursor_assert! {
@@ -73,7 +73,7 @@ fn insertion_with_forward_selection_deletes_selected_text() {
     }
 
     // Act
-    buffer.insert('3');
+    buffer.insert('3', None);
 
     // Assert
     let s: String = buffer.rope.into();
@@ -95,7 +95,7 @@ fn insert_string_places_cursor_at_the_end() {
     buffer.move_cursor(0, Move::Right);
 
     // Act
-    buffer.insert_string("34".into());
+    buffer.insert_string("34".into(), None);
 
     // Assert
     let s: String = buffer.rope.into();
@@ -126,7 +126,7 @@ fn newline_places_cursor_in_correct_spot() {
         p: pos! {l 0 o 3},
     }
 
-    buffer.insert('\n');
+    buffer.insert('\n', None);
 
     cursor_assert! {
         buffer,

@@ -4,6 +4,7 @@ use proptest::{
     prelude::*,
 };
 use cursors::Cursors;
+use vec1::{Vec1};
 use pub_arb_cursors::{valid_cursors_for_rope};
 use pub_arb_vec1::{vec1};
 use panic_safe_rope::{Rope, AbsoluteCharOffset};
@@ -70,4 +71,23 @@ pub fn edit_with_cursors<'rope, R: 'rope + Borrow<Rope>>(rope: R, cursors: Curso
         edit.cursors.old = cursors.clone();
         edit
     })
+}
+
+pub fn edit_from_pieces(
+    range_edits: Vec1<RangeEdits>,
+    cursors: Change<Cursors>,
+) -> Result<Edit, &'static str> {
+    if range_edits.len() == cursors.old.len()
+    && range_edits.len() == cursors.new.len() {
+        Ok(Edit {
+            range_edits,
+            cursors,
+        })
+    } else {
+        Err("from_pieces: len mismatch!")
+    }
+}
+
+pub fn edit_range_edits_mut(edit: &mut Edit) -> &mut Vec1<RangeEdits> {
+    &mut edit.range_edits
 }

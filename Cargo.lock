@@ -597,6 +597,7 @@ dependencies = [
  "pub_arb_cursors",
  "pub_arb_vec1",
  "rope_pos",
+ "vec1 0.1.0",
 ]
 
 [[package]]
@@ -1958,7 +1959,7 @@ dependencies = [
 
 [[package]]
 name = "rote"
-version = "0.2.133"
+version = "0.2.134"
 dependencies = [
  "editor",
  "lazy_static 1.4.0",

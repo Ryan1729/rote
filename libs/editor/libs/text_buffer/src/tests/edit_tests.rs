@@ -28,6 +28,7 @@ use editor_types::{cur, Cursor};
 use macros::{some_or, dbg};
 use move_cursor::last_position;
 use platform_types::{CursorState, vec1};
+use pub_arb_edit::{edit_from_pieces, edit_range_edits_mut};
 use rope_pos::get_first_non_white_space_offset_in_range;
 
 use pretty_assertions::assert_eq;
@@ -101,16 +102,16 @@ fn get_tab_in_edit_produces_the_expected_edit_from_this_buffer_with_different_le
             chars: text,
         });
 
-        Edit {
-            range_edits: Vec1::new(RangeEdits {
+        edit_from_pieces(
+            Vec1::new(RangeEdits {
                 insert_range,
                 delete_range,
             }),
-            cursors: Change {
+            Change {
                 new: Cursors::new(&new_rope, Vec1::new(cursor)),
                 old: cursors.clone(),
             },
-        }
+        ).unwrap()
     };
 
     assert_eq!(edit, expected);
@@ -225,13 +226,13 @@ fn get_tab_in_edit_produces_the_expected_edit_with_multiple_cursors_in_this_buff
             }
         };
 
-        Edit {
-            range_edits: vec1![last_range_edits, first_range_edits],
-            cursors: Change {
+        edit_from_pieces(
+            vec1![last_range_edits, first_range_edits],
+            Change {
                 new: new_cursors,
                 old: cursors.clone(),
             },
-        }
+        ).unwrap()
     };
 
     assert_eq!(edit, expected);
@@ -252,7 +253,7 @@ fn get_tab_in_edit_produces_the_expected_change_when_two_cursors_are_on_the_same
 
     dbg!(&edit);
 
-    buffer.apply_edit(edit, ApplyKind::Playback);
+    buffer.apply_edit(edit, ApplyKind::Playback, None);
 
     let s: String = buffer.rope.into();
     //2 + (2 * 4) = 10 ___1234567890
@@ -275,7 +276,7 @@ fn get_tab_in_edit_produces_the_expected_change_when_three_cursors_are_on_the_sa
 
     dbg!(&edit);
 
-    buffer.apply_edit(edit, ApplyKind::Playback);
+    buffer.apply_edit(edit, ApplyKind::Playback, None);
 
     let s: String = buffer.rope.into();
     //7 + (3 * 4) = 19 ___1234567890123456789
@@ -290,7 +291,7 @@ fn get_delete_edit_produces_the_expected_change_in_this_case() {
 
     dbg!(&edit);
 
-    buffer.apply_edit(edit, ApplyKind::Playback);
+    buffer.apply_edit(edit, ApplyKind::Playback, None);
 
     let s: String = buffer.rope.into();
 
@@ -342,7 +343,7 @@ fn delete_lines_deletes_everything_in_this_two_line_case() {
 fn delete_lines_deletes_everything_in_this_reduced_two_line_case() {
     let mut buffer = t_b!("\na", vec1![cur!{l 0 o 0 h l 1 o 1}]);
     
-    buffer.delete_lines();
+    buffer.delete_lines(None);
 
     assert_eq!(buffer.rope.len_chars(), 0);
 }
@@ -616,8 +617,8 @@ fn tab_out_acts_as_expected_on_this_further_simplified_example_based_on_the_abov
 fn get_expected_tab_out_edit() -> Edit {
     let large_rope = get_large_rope();
 
-    Edit {
-        range_edits: vec1![
+    edit_from_pieces(
+        vec1![
             RangeEdits {
                 insert_range: Some(
                     RangeEdit {
@@ -633,7 +634,7 @@ fn get_expected_tab_out_edit() -> Edit {
                 ),
             },
         ],
-        cursors: Change {
+        Change {
             old: curs!{
                 large_rope,
                 cur!{l 1 o 4 h l 0 o 0},
@@ -643,7 +644,7 @@ fn get_expected_tab_out_edit() -> Edit {
                 cur!{l 1 o 0 h l 0 o 0},
             },
         },
-    }
+    ).unwrap()
 }
 
 #[test]
@@ -665,7 +666,7 @@ fn changing_the_range_on_this_tab_out_edit_fixes_the_problem_from_this_further_s
 
     let mut edit = get_tab_out_edit(&buffer.rope, &buffer.cursors);
 
-    let range_edit = &mut edit.range_edits[0];
+    let range_edit = &mut edit_range_edits_mut(&mut edit)[0];
     
     if let Some(d_r) = range_edit.delete_range.as_mut() {
         d_r.range = AbsoluteCharOffsetRange::new(
@@ -676,7 +677,7 @@ fn changing_the_range_on_this_tab_out_edit_fixes_the_problem_from_this_further_s
         assert!(false);
     };
 
-    buffer.apply_edit(edit, ApplyKind::Playback);
+    buffer.apply_edit(edit, ApplyKind::Playback, None);
 
     assert_eq!(&buffer.rope.to_string(), "\n");
 }
@@ -689,7 +690,7 @@ fn applying_this_tab_out_edit_has_the_expected_effect() {
 
     let edit = get_expected_tab_out_edit();
 
-    buffer.apply_edit(edit, ApplyKind::Playback);
+    buffer.apply_edit(edit, ApplyKind::Playback, None);
 
     assert_eq!(&buffer.rope.to_string(), "\n");
 }
@@ -913,13 +914,13 @@ fn get_insert_edit_produces_the_expected_edit_on_this_cr_lf_edit_example() {
             }
         };
 
-        Edit {
-            range_edits: vec1![range_edits],
-            cursors: Change {
+        edit_from_pieces(
+            vec1![range_edits],
+            Change {
                 new: new_cursors,
                 old: cursors.clone(),
             },
-        }
+        ).unwrap()
     };
 
     assert_eq!(edit, expected);
@@ -962,13 +963,13 @@ fn get_delete_edit_produces_the_expected_edit_on_this_cr_lf_edit_example() {
             }
         };
 
-        Edit {
-            range_edits: vec1![range_edits],
-            cursors: Change {
+        edit_from_pieces(
+            vec1![range_edits],
+            Change {
                 new: new_cursors,
                 old: cursors.clone(),
             },
-        }
+        ).unwrap()
     };
 
     assert_eq!(edit, expected);
@@ -1010,13 +1011,13 @@ fn get_delete_lines_edit_produces_the_expected_edit_on_this_backslash_example() 
             }
         };
 
-        Edit {
-            range_edits: vec1![range_edits],
-            cursors: Change {
+        edit_from_pieces(
+            vec1![range_edits],
+            Change {
                 new: new_cursors,
                 old: cursors.clone(),
             },
-        }
+        ).unwrap()
     };
 
     assert_eq!(edit, expected);
@@ -1071,13 +1072,13 @@ fn get_insert_edit_produces_the_expected_edit_on_this_multi_byte_char_example() 
             ]
         };
 
-        Edit {
+        edit_from_pieces(
             range_edits,
-            cursors: Change {
+            Change {
                 new: new_cursors,
                 old: cursors.clone(),
             },
-        }
+        ).unwrap()
     };
 
     assert_eq!(edit, expected);
@@ -1141,13 +1142,13 @@ fn get_insert_edit_produces_the_expected_edit_on_this_multi_cursor_cr_lf_example
             ]
         };
 
-        Edit {
+        edit_from_pieces(
             range_edits,
-            cursors: Change {
+            Change {
                 new: new_cursors,
                 old: cursors.clone(),
             },
-        }
+        ).unwrap()
     };
 
     assert_eq!(edit, expected);
@@ -1519,7 +1520,7 @@ fn tab_in_does_what_is_expected_with_this_selection() {
 
     let edit = dbg!(get_tab_in_edit(&buffer.rope, &buffer.cursors));
 
-    buffer.apply_edit(edit, ApplyKind::Playback);
+    buffer.apply_edit(edit, ApplyKind::Playback, None);
 
     let mut expected_buffer = t_b!("     0");
     expected_buffer.set_cursor(cur!{l 0 o 5 h l 0 o 4}, Replace);
@@ -1540,25 +1541,24 @@ fn get_large_rope() -> Rope {
 fn get_expected_tab_in_edit() -> Edit {
     let large_rope = get_large_rope();
 
-    Edit {
-        range_edits: 
-            vec1![
-                RangeEdits {
-                    insert_range: Some(
-                        RangeEdit {
-                            chars: "     ".to_owned(),
-                            range: AbsoluteCharOffsetRange::new_usize(0, 5),
-                        },
-                    ),
-                    delete_range: Some(
-                        RangeEdit {
-                            chars: " ".to_owned(),
-                            range: AbsoluteCharOffsetRange::new_usize(0, 1),
-                        },
-                    ),
-                },
-            ],
-        cursors: Change {
+    edit_from_pieces(
+        vec1![
+            RangeEdits {
+                insert_range: Some(
+                    RangeEdit {
+                        chars: "     ".to_owned(),
+                        range: AbsoluteCharOffsetRange::new_usize(0, 5),
+                    },
+                ),
+                delete_range: Some(
+                    RangeEdit {
+                        chars: " ".to_owned(),
+                        range: AbsoluteCharOffsetRange::new_usize(0, 1),
+                    },
+                ),
+            },
+        ],
+        Change {
             old: curs!{
                 large_rope,
                 cur!{l 0 o 1 h l 0 o 0},
@@ -1568,7 +1568,7 @@ fn get_expected_tab_in_edit() -> Edit {
                 cur!{l 0 o 5 h l 0 o 4},
             },
         },
-    }
+    ).unwrap()
 }
 
 #[test]
@@ -1579,7 +1579,7 @@ fn this_tab_in_edit_does_what_is_expected_with_this_selection() {
 
     let edit = get_expected_tab_in_edit();
 
-    buffer.apply_edit(edit, ApplyKind::Playback);
+    buffer.apply_edit(edit, ApplyKind::Playback, None);
 
     let mut expected_buffer = t_b!("     0");
     expected_buffer.set_cursor(cur!{l 0 o 5 h l 0 o 4}, Replace);
@@ -1665,7 +1665,7 @@ fn get_tab_out_edit_returns_an_edit_with_the_right_selection_in_this_case() {
 
     assert_eq!(edit.selected(), vec!["!"]);
 
-    buffer.apply_edit(dbg!(edit), ApplyKind::Playback);
+    buffer.apply_edit(dbg!(edit), ApplyKind::Playback, None);
 
     assert_eq!(buffer.rope, r!("!\u{2000}"));
 }
@@ -1735,8 +1735,8 @@ proptest!{
 
         let edit = get_cut_edit(&buffer.rope, &buffer.cursors);
 
-        assert_eq!(&edit.cursors.new, &expected);
-        assert_eq!(edit.cursors.new, edit.cursors.old);
+        assert_eq!(&edit.cursors().new, &expected);
+        assert_eq!(edit.cursors().new, edit.cursors().old);
     }
 }
 
@@ -1751,8 +1751,8 @@ fn get_cut_edit_does_not_affect_a_lone_cursor_if_there_is_no_selection_in_this_s
 
     let edit = get_cut_edit(&buffer.rope, &buffer.cursors);
 
-    assert_eq!(&edit.cursors.new, &expected);
-    assert_eq!(edit.cursors.new, edit.cursors.old);
+    assert_eq!(&edit.cursors().new, &expected);
+    assert_eq!(edit.cursors().new, edit.cursors().old);
 }
 
 proptest!{
@@ -1840,9 +1840,9 @@ fn get_tab_out_edit_returns_the_right_chars_in_this_unicode_case() {
 
     let edit = edit::get_tab_out_edit(&buffer.rope, &buffer.cursors);
 
-    assert_eq!(edit.range_edits.len(), 1);
+    assert_eq!(edit.len(), 1);
 
-    let range_edit = edit.range_edits.first().clone();
+    let range_edit = edit.range_edits().first().clone();
 
     // tab out here should not cause any changes to the chars
     assert_eq!(
@@ -1860,9 +1860,9 @@ fn get_tab_out_edit_returns_the_right_chars_in_this_ascii_case() {
 
     let edit = edit::get_tab_out_edit(&buffer.rope, &buffer.cursors);
 
-    assert_eq!(edit.range_edits.len(), 1);
+    assert_eq!(edit.len(), 1);
 
-    let range_edit = edit.range_edits.first().clone();
+    let range_edit = edit.range_edits().first().clone();
 
     // tab out here should not cause any changes to the chars
     assert_eq!(

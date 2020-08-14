@@ -786,9 +786,9 @@ proptest!{
         // Arrange
         let mut buffer = t_b!("");
     
-        buffer.insert(ch1);
-        buffer.insert(ch2);
-        buffer.insert(ch3);
+        buffer.insert(ch1, None);
+        buffer.insert(ch2, None);
+        buffer.insert(ch3, None);
     
         buffer.move_all_cursors(Move::Left);
         buffer.extend_selection_for_all_cursors(Move::Left);
@@ -803,7 +803,7 @@ proptest!{
         assert_eq!(cursor, cur!{l 0 o 3});
     
         // Act
-        buffer.insert(ch4);
+        buffer.insert(ch4, None);
     
         // Assert
         let cursor = single_cursor(&buffer);

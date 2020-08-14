@@ -348,9 +348,10 @@ fn arbitary_span_kind_from_node(node: Node) -> SpanKindSpec {
 fn totally_classified_spans_for_produces_valid_rust_spans_on(code: &str) {
     let tree = get_rust_tree!(code);
 
-    let spans = query::totally_classified_spans_for(
+    let spans = query::totally_classified_spans_for_inner(
         tree.as_ref(),
         code,
+        arbitary_span_kind_from_node,
     );
 
     spans_assert!(spans);

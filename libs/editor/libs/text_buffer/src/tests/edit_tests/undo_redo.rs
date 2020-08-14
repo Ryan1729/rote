@@ -104,7 +104,7 @@ fn negated_edits_undo_redo_this_edit_that_only_changes_the_sticky_offset() {
     }
     .into();
 
-    buffer.apply_edit(edit.clone(), ApplyKind::Record);
+    buffer.apply_edit(edit.clone(), ApplyKind::Record, None);
 
     let modified_buffer = deep_clone(&buffer);
 
@@ -112,18 +112,18 @@ fn negated_edits_undo_redo_this_edit_that_only_changes_the_sticky_offset() {
 
     let undo_edit = !(edit.clone());
 
-    match (&undo_edit.cursors, &edit.cursors) {
+    match (undo_edit.cursors(), edit.cursors()) {
         (u, e) => {
             assert_eq!(u.old, e.new);
             assert_eq!(u.new, e.old);
         }
     }
 
-    buffer.apply_edit(undo_edit, ApplyKind::Playback);
+    buffer.apply_edit(undo_edit, ApplyKind::Playback, None);
 
     assert_eq!(buffer.cursors.first(), initial_buffer.cursors.first());
 
-    buffer.apply_edit(edit, ApplyKind::Playback);
+    buffer.apply_edit(edit, ApplyKind::Playback, None);
 
     assert_eq!(buffer.cursors.first(), modified_buffer.cursors.first());
 }
@@ -133,8 +133,8 @@ fn undo_undoes() {
     let initial_buffer: TextBuffer = d!();
     let mut buffer: TextBuffer = deep_clone(&initial_buffer);
 
-    buffer.insert('a');
-    buffer.undo();
+    buffer.insert('a', None);
+    buffer.undo(None);
 
     assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
 }
@@ -142,13 +142,13 @@ fn undo_undoes() {
 #[test]
 fn redo_redoes() {
     let mut buffer: TextBuffer = d!();
-    buffer.insert('a');
+    buffer.insert('a', None);
 
     let final_buffer: TextBuffer = deep_clone(&buffer);
 
-    buffer.undo();
+    buffer.undo(None);
 
-    buffer.redo();
+    buffer.redo(None);
 
     assert_text_buffer_eq_ignoring_history!(buffer, final_buffer);
 }
@@ -163,13 +163,13 @@ proptest! {
 
         // Redo with no redos left should be a no-op
         for _ in 0..3 {
-            buffer.redo();
+            buffer.redo(None);
             assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
         }
 
         // undo with no undos left should be a no-op
         for _ in 0..3 {
-            buffer.undo();
+            buffer.undo(None);
             assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
         }
     }
@@ -570,13 +570,13 @@ fn undo_redo_works_on_this_reduced_set_of_edits_with_a_cut_and_a_tab_out_regardi
 
     for _ in 0..dbg!(dbg!(len - 1)) {
         dbg!(&buffer);
-        buffer.undo();
+        buffer.undo(None);
     }
 
     assert_text_buffer_rope_eq!(buffer, expected_buffer_at_index);
 
     for _ in 0..len {
-        buffer.redo();
+        buffer.redo(None);
     }
 
     dbg!();
@@ -585,7 +585,7 @@ fn undo_redo_works_on_this_reduced_set_of_edits_with_a_cut_and_a_tab_out_regardi
     // Redo with no redos left should be a no-op
     for _ in 0..10 {
         dbg!();
-        buffer.redo();
+        buffer.redo(None);
     }
 
     dbg!();
@@ -593,7 +593,7 @@ fn undo_redo_works_on_this_reduced_set_of_edits_with_a_cut_and_a_tab_out_regardi
 
     for _ in 0..len {
         dbg!();
-        dbg!(&mut buffer).undo();
+        dbg!(&mut buffer).undo(None);
     }
 
     dbg!();
@@ -602,7 +602,7 @@ fn undo_redo_works_on_this_reduced_set_of_edits_with_a_cut_and_a_tab_out_regardi
     // undo with no undos left should be a no-op
     for _ in 0..10 {
         dbg!();
-        buffer.undo();
+        buffer.undo(None);
     }
 
     dbg!();
@@ -652,13 +652,13 @@ fn undo_redo_works_on_this_reduced_set_of_edits_with_a_movement_and_a_tab_out_re
 
     for _ in 0..dbg!(dbg!(len - 1)) {
         dbg!(&buffer);
-        buffer.undo();
+        buffer.undo(None);
     }
 
     assert_text_buffer_rope_eq!(buffer, expected_buffer_at_index);
 
     for _ in 0..len {
-        buffer.redo();
+        buffer.redo(None);
     }
 
     dbg!();
@@ -667,7 +667,7 @@ fn undo_redo_works_on_this_reduced_set_of_edits_with_a_movement_and_a_tab_out_re
     // Redo with no redos left should be a no-op
     for _ in 0..10 {
         dbg!();
-        buffer.redo();
+        buffer.redo(None);
     }
 
     dbg!();
@@ -675,7 +675,7 @@ fn undo_redo_works_on_this_reduced_set_of_edits_with_a_movement_and_a_tab_out_re
 
     for _ in 0..len {
         dbg!();
-        dbg!(&mut buffer).undo();
+        dbg!(&mut buffer).undo(None);
     }
 
     dbg!();
@@ -684,7 +684,7 @@ fn undo_redo_works_on_this_reduced_set_of_edits_with_a_movement_and_a_tab_out_re
     // undo with no undos left should be a no-op
     for _ in 0..10 {
         dbg!();
-        buffer.undo();
+        buffer.undo(None);
     }
 
     dbg!();
@@ -706,11 +706,11 @@ fn undo_redo_works_in_this_reduced_scenario() {
 
     TestEdit::apply(&mut buffer, TestEdit::Insert('\n'));
 
-    buffer.undo();
+    buffer.undo(None);
 
     assert_text_buffer_eq_ignoring_history!(buffer, expected_mid_buffer);
 
-    buffer.undo();
+    buffer.undo(None);
 
     assert_text_buffer_eq_ignoring_history!(buffer, expected_final_buffer);
 }
@@ -788,15 +788,15 @@ fn undo_redo_works_in_this_familiar_scenario() {
 
     TestEdit::apply(&mut buffer, TestEdit::Insert('3'));
 
-    buffer.undo();
+    buffer.undo(None);
 
     assert_text_buffer_eq_ignoring_history!(buffer, buffer_with_2);
 
-    buffer.undo();
+    buffer.undo(None);
 
     assert_text_buffer_eq_ignoring_history!(buffer, buffer_with_1);
 
-    buffer.undo();
+    buffer.undo(None);
 
     assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
 }
@@ -825,17 +825,17 @@ fn undo_redo_works_on_this_reduced_simple_insert_delete_case() {
         .get(buffer.history_index.checked_sub(1).unwrap())
         .unwrap();
 
-    match &delete_edit.range_edits.first().delete_range {
+    match &delete_edit.range_edits().first().delete_range {
         Some(r_e) => assert_eq!(r_e.chars, char_to_string(inserted_char)),
         _ => assert!(false),
     }
 
     dbg!();
-    buffer.undo();
+    buffer.undo(None);
 
     assert_text_buffer_eq_ignoring_history!(buffer, buffer_with_a);
     dbg!();
-    buffer.undo();
+    buffer.undo(None);
 
     assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
 }
@@ -889,14 +889,14 @@ fn undo_redo_works_on_this_reduced_case_involving_two_characters_at_once() {
 
     TestEdit::apply(&mut buffer, InsertString!("¡A"));
 
-    dbg!(&mut buffer).undo();
+    dbg!(&mut buffer).undo(None);
 
     assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
 
     // undo with no undos left should be a no-op
     for _ in 0..3 {
         dbg!();
-        buffer.undo();
+        buffer.undo(None);
     }
 
     dbg!();
@@ -960,7 +960,7 @@ fn undo_redo_works_on_this_reduced_case_involving_a_select_bewtween_char_type_gr
 
     dbg!(&mut buffer);
 
-    buffer.undo();
+    buffer.undo(None);
 
     dbg!(&mut buffer);
 

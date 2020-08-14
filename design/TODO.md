@@ -8,6 +8,14 @@ files open, or just when the editor has been open a long time
         renders, where the x axis is the Input variant, and the y axis is duration
         statisics like maximum, mean, median and mode.
 
+* as part of making the state of the editor more observable, when holding down 
+modifier keys, indicate what pressing non-modifiers will do.
+
+* make some way to jump to tab a given tab, say by making numbers appear on tabs when 
+holding down modifiers
+    * We'll probably want to make "making the current tab visible when changing to it"
+     work, before doing this.
+
 * if multiple things are copied with multiple cursors then if they are pasted with the same number of cursors then 
     they should be pasted separately
     * given the numbers are selected by three cursors represented by "|"
