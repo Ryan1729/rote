@@ -47,7 +47,7 @@ fn editor_to_buffer_view_data(
     perf_viz::start_record!("parsers.get_spans");
     buffer_view_data.spans = parsers.get_spans(
         buffer_view_data.chars.clone().into(),
-        buffer_name,
+        &buffer_name,
         editor_buffer.get_parser_kind()
     );
     perf_viz::end_record!("parsers.get_spans");

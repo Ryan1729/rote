@@ -1394,19 +1394,19 @@ fn inserting_after_a_re_save_marks_the_buffer_as_edited_in_this_case() {
 
     let mut state = d!();
     let path: PathBuf = ".fakefile".into();
-
+    std::dbg!();
     let _ = update_and_render(
         &mut state,
         AddOrSelectBuffer(Path(path.clone()), "".to_owned())
     );
-
+    std::dbg!();
     let (view, _) = update_and_render(
         &mut state,
         Insert('a')
     );
 
     assert_eq!(Some(ToEdited), view.edited_transitions.into_iter().next().map(|(_, t)| t));
-
+    std::dbg!();
     let (view, _) = update_and_render(
         &mut state,
         SavedAs(
@@ -1416,7 +1416,7 @@ fn inserting_after_a_re_save_marks_the_buffer_as_edited_in_this_case() {
     );
 
     assert_eq!(Some(ToUnedited), view.edited_transitions.into_iter().next().map(|(_, t)| t), "precondition failure");
-
+    std::dbg!();
     let (view, _) = update_and_render(
         &mut state,
         Insert('b')

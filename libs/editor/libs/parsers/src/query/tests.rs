@@ -518,9 +518,10 @@ fn rust_extra_spans_should_not_give_paired_tokens_different_kinds_on(
         return
     }
 
+    let buffer_name = d!();
     let spans = Parsers::default().get_spans_result(
         code.into(), 
-        d!(),
+        &buffer_name,
         ParserKind::Rust(Style::Extra),
     ).expect("inside rust_extra_spans_should_not_give_paired_tokens_different_kinds_on");
     
@@ -610,9 +611,10 @@ fn rust_extra_spans_should_not_give_paired_tokens_different_kinds_on_this_reduce
 }
 
 fn rust_extra_spans_produces_valid_spans_on(code: &str) {
+    let buffer_name = d!();
     let spans = Parsers::default().get_spans_result(
         code.into(),
-        d!(),
+        &buffer_name,
         ParserKind::Rust(Style::Extra),
     ).expect("inside rust_extra_spans_produces_valid_spans_on");
 

@@ -1,7 +1,7 @@
 
 use macros::{d, dbg, fmt_debug, u, SaturatingSub};
 use platform_types::{screen_positioning::*, *};
-use parsers::{Parsers};
+use parsers::{Parsers, ParserKind};
 
 use std::{
     path::PathBuf,
@@ -175,10 +175,14 @@ macro_rules! get_text_buffer_mut {
             None => Option::None,
             Text => {
                 let buffer = $state.buffers.get_current_buffer_mut();
+                let parser_kind = buffer.parser_kind.unwrap_or_else(||
+                    ParserKind::default_from_name(&buffer.name)
+                );
                 Some((
                     &mut buffer.text_buffer,
                     Some(text_buffer::ParserEditListener {
                         buffer_name: &buffer.name,
+                        parser_kind,
                         parsers: &mut $state.parsers,
                     })
                 ))

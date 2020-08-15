@@ -5,7 +5,7 @@ use editor_types::{Cursor, SetPositionAction};
 use macros::{d, dbg, u};
 use move_cursor::{forward, get_next_selection_point, get_previous_selection_point};
 use panic_safe_rope::{ByteIndex, Rope, RopeSlice};
-use parsers::Parsers;
+use parsers::{Parsers, ParserKind};
 use platform_types::{*, screen_positioning::*};
 use rope_pos::{
     AbsoluteCharOffsetRange,
@@ -260,6 +260,7 @@ pub type PossibleEditedTransition = Option<EditedTransition>;
 
 pub struct ParserEditListener<'name, 'parsers> {
     pub buffer_name: &'name BufferName,
+    pub parser_kind: ParserKind,
     pub parsers: &'parsers mut Parsers,
 }
 
@@ -599,6 +600,7 @@ impl TextBuffer {
         if let Some(listener) = listener {
             listener.parsers.acknowledge_edit(
                 listener.buffer_name,
+                listener.parser_kind,
                 &edit,
                 &self.rope
             );

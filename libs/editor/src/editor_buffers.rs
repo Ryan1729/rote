@@ -71,12 +71,9 @@ impl EditorBuffer {
 
     pub fn get_parser_kind(&self) -> ParserKind {
         u!{ParserKind}
-        self.parser_kind.unwrap_or_else(|| {
-            match self.name.get_extension_or_empty() {
-                "rs" => Rust(d!()),
-                _ => Plaintext,
-            }
-        })
+        self.parser_kind.unwrap_or_else(||
+            ParserKind::default_from_name(&self.name)
+        )
     }
 
     pub fn next_language(&mut self) {

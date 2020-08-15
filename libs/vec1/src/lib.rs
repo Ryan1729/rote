@@ -1,4 +1,4 @@
-pub use vec1::*;
+pub use vec1_external::*;
 
 #[cfg(any(test, feature = "pub_arb"))]
 pub mod tests {
