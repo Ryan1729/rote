@@ -4,74 +4,6 @@ const AVERAGE_SELECTION_LINES_ESTIMATE: usize = 4;
 use macros::{dbg, format_if, SaturatingAdd};
 use search::SearchResults;
 
-#[perf_viz::record]
-fn text_buffer_to_buffer_view_data(
-    buffer: &TextBuffer,
-    selection_lines_estimate: usize,
-) -> BufferViewData {
-    let buffer_cursors = buffer.borrow_cursors();
-    let cursors_len = buffer_cursors.len();
-    let mut cursors = Vec::with_capacity(cursors_len);
-    let mut highlights = Vec::with_capacity(cursors.len() * selection_lines_estimate);
-
-    for c in buffer_cursors.iter() {
-        let position = c.get_position();
-
-        cursors.push(CursorView {
-            position,
-            state: c.state,
-        });
-
-        push_highlights(&mut highlights, position, c.get_highlight_position(), d!());
-    }
-
-    BufferViewData {
-        scroll: buffer.scroll,
-        chars: buffer.clone_rope(),
-        cursors,
-        highlights,
-        ..d!()
-    }
-}
-
-#[perf_viz::record]
-fn editor_to_buffer_view_data(
-    parsers: &mut Parsers,
-    buffer_name: BufferName,
-    editor_buffer: &EditorBuffer,
-    selection_lines_estimate: usize,
-) -> BufferViewData {
-    let mut buffer_view_data =
-        text_buffer_to_buffer_view_data(&editor_buffer.text_buffer, selection_lines_estimate);
-
-    perf_viz::start_record!("parsers.get_spans");
-    buffer_view_data.spans = parsers.get_spans(
-        buffer_view_data.chars.clone().into(),
-        &buffer_name,
-        editor_buffer.get_parser_kind()
-    );
-    perf_viz::end_record!("parsers.get_spans");
-
-    perf_viz::start_record!("push all highlights");
-    let highlights = &mut buffer_view_data.highlights;
-    let SearchResults {
-        ref ranges,
-        current_range,
-        ..
-    } = editor_buffer.search_results;
-    for (i, &(p1, p2)) in ranges.iter().enumerate() {
-        let kind = if i == current_range {
-            HighlightKind::CurrentResult
-        } else {
-            HighlightKind::Result
-        };
-        push_highlights(highlights, p1, p2, kind);
-    }
-    perf_viz::end_record!("push all highlights");
-
-    buffer_view_data
-}
-
 // Mainly mutates `state.view`
 #[perf_viz::record]
 pub fn render(
@@ -111,11 +43,12 @@ pub fn render(
                 }
             }
         );
-
+        
         dbg!(&view.buffers);
     }
     
     let editor_buffer = buffers.get_current_buffer();
+
     let search_results = &editor_buffer.search_results;
 
     perf_viz::start_record!("write view.status_line");
@@ -220,6 +153,75 @@ pub fn render(
         },
     };
     perf_viz::end_record!("set view.menu");
-
+    
     view.current_buffer_kind = state.current_buffer_kind;
 }
+
+#[perf_viz::record]
+fn text_buffer_to_buffer_view_data(
+    buffer: &TextBuffer,
+    selection_lines_estimate: usize,
+) -> BufferViewData {
+    let buffer_cursors = buffer.borrow_cursors();
+    let cursors_len = buffer_cursors.len();
+    let mut cursors = Vec::with_capacity(cursors_len);
+    let mut highlights = Vec::with_capacity(cursors.len() * selection_lines_estimate);
+
+    for c in buffer_cursors.iter() {
+        let position = c.get_position();
+
+        cursors.push(CursorView {
+            position,
+            state: c.state,
+        });
+
+        push_highlights(&mut highlights, position, c.get_highlight_position(), d!());
+    }
+
+    BufferViewData {
+        scroll: buffer.scroll,
+        chars: buffer.clone_rope(),
+        cursors,
+        highlights,
+        ..d!()
+    }
+}
+
+#[perf_viz::record]
+fn editor_to_buffer_view_data(
+    parsers: &mut Parsers,
+    buffer_name: BufferName,
+    editor_buffer: &EditorBuffer,
+    selection_lines_estimate: usize,
+) -> BufferViewData {
+    let mut buffer_view_data =
+        text_buffer_to_buffer_view_data(&editor_buffer.text_buffer, selection_lines_estimate);
+
+    perf_viz::start_record!("parsers.get_spans");
+    buffer_view_data.spans = parsers.get_spans(
+        buffer_view_data.chars.clone().into(),
+        &buffer_name,
+        editor_buffer.get_parser_kind()
+    );
+    perf_viz::end_record!("parsers.get_spans");
+
+    perf_viz::start_record!("push all highlights");
+    let highlights = &mut buffer_view_data.highlights;
+    let SearchResults {
+        ref ranges,
+        current_range,
+        ..
+    } = editor_buffer.search_results;
+    for (i, &(p1, p2)) in ranges.iter().enumerate() {
+        let kind = if i == current_range {
+            HighlightKind::CurrentResult
+        } else {
+            HighlightKind::Result
+        };
+        push_highlights(highlights, p1, p2, kind);
+    }
+    perf_viz::end_record!("push all highlights");
+
+    buffer_view_data
+}
+

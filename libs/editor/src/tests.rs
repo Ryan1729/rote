@@ -97,7 +97,8 @@ mod arb {
     pub use pub_arb_abs::{abs_pos, abs_length};
     pub use pub_arb_g_i::{
         index as g_i_index,
-        state_with_default_invalidation as g_i_state_with_default_invalidation
+        state_with_default_invalidation as g_i_state_with_default_invalidation,
+        index_from_parts as g_i_index_from_parts
     };
     pub use pub_arb_pos_f32::{pos_f32};
     pub use pub_arb_pos_f32_trunc::{pos_f32_trunc};
@@ -1059,6 +1060,34 @@ proptest!{
             d!(),
             vec![NextLanguage, SavedAs(state.new_index(d!()), ".fakefile".into())]
         )
+    }
+}
+
+proptest!{
+    #[test]
+    fn saving_with_a_default_invalidation_after_switching_the_language_does_not_panic(
+        state in arb::g_i_state_with_default_invalidation(),
+    ) {
+        u!{Input}
+        let mut s = d!();
+        for input in vec![
+            NextLanguage,
+            SavedAs(state.new_index(d!()), ".fakefile".into())
+        ] {
+            update_and_render(&mut s, input);
+        }
+    }
+}
+
+#[test]
+fn saving_with_this_index_after_switching_the_language_does_not_panic() {
+    u!{Input}
+    let mut s = d!();
+    for input in vec![
+        NextLanguage,
+        SavedAs(arb::g_i_index_from_parts(2, d!()), ".fakefile".into())
+    ] {
+        update_and_render(&mut s, input);
     }
 }
 

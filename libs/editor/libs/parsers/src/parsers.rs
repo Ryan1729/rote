@@ -412,9 +412,11 @@ impl InitializedParsers {
                     kind,
                     self.rust_lang,
                 );
+                std::dbg!();
                 perf_viz::start_record!("state.parser.parse");
                 state.tree = state.parser.parse(to_parse.as_ref(), state.tree.as_ref());
                 perf_viz::end_record!("state.parser.parse");
+                std::dbg!();
 
                 if let Some(tree) = state.tree.as_ref() {
                     // TODO stop requiring these query functions to handle None.

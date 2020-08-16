@@ -1130,6 +1130,10 @@ pub mod tests {
         use proptest::collection::vec;
         use std::convert::TryInto;
 
+        pub fn index_from_parts(generation: Generation, index: IndexPart) -> Index {
+            Index::new_from_parts(generation, index)
+        }
+
         pub fn selectable_vec1<'strat, A: std::fmt::Debug + Clone, S: Strategy<Value = A>>(
             strat: S, max_len: LengthSize,
         ) -> impl Strategy<Value = SelectableVec1<A>> {
