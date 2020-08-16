@@ -480,7 +480,7 @@ arb_enum!{
         None => Just(None),
         Quit => Just(Quit),
         CloseMenuIfAny => Just(CloseMenuIfAny),
-        Insert(_) => any::<char>().prop_map(Insert),
+        Insert(_) => insert(),
         Delete => Just(Delete),
         DeleteLines => Just(DeleteLines),
         ResetScroll => Just(ResetScroll),
@@ -514,9 +514,23 @@ arb_enum!{
         NextLanguage => Just(NextLanguage),
         SelectBuffer(_) => buffer_id().prop_map(SelectBuffer),
         OpenOrSelectBuffer(_) => path_buf().prop_map(OpenOrSelectBuffer),
-        CloseBuffer(_) => pub_arb_g_i::index(16).prop_map(CloseBuffer),
+        CloseBuffer(_) => close_buffer(),
         SetMenuMode(_) => menu_mode().prop_map(SetMenuMode),
         SubmitForm => Just(SubmitForm),
+    }
+}
+
+prop_compose!{
+    pub fn close_buffer()
+    (input in pub_arb_g_i::index(16).prop_map(Input::CloseBuffer)) -> Input {
+        input
+    }
+}
+
+prop_compose!{
+    pub fn insert()
+    (input in any::<char>().prop_map(Input::Insert)) -> Input {
+        input
     }
 }
 

@@ -95,15 +95,22 @@ mod arb {
         editor_buffers_blank_hash,
     };
     pub use pub_arb_abs::{abs_pos, abs_length};
+    pub use pub_arb_g_i::{
+        index as g_i_index,
+        state_with_default_invalidation as g_i_state_with_default_invalidation
+    };
     pub use pub_arb_pos_f32::{pos_f32};
     pub use pub_arb_pos_f32_trunc::{pos_f32_trunc};
     pub use pub_arb_non_neg_f32::{non_neg_f32};
     pub use pub_arb_platform_types::{
         menu_mode,
         view,
+        close_buffer,
+        insert,
         input,
         saved_as
     };
+    pub use pub_arb_std::{path_buf};
 }
 
 const CURSOR_SHOW_TEXT: &'static str = "            abcdefghijklmnopqrstuvwxyz::abcdefghijk::abcdefghijklmnopqrstuvwxyz";
@@ -1012,6 +1019,51 @@ proptest!{
 
 proptest!{
     #[test]
+    fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_with_full_saving_from_a_default_state(
+        inputs in proptest::collection::vec(
+            arb::saved_as(),
+            0..=16
+        ),
+    ) {
+        tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+            d!(),
+            inputs
+        )
+    }
+}
+
+// This test was written and subsequently edited down in order to debug a assert
+// failing inside tree-sitter, which caused an abort.
+proptest!{
+    #[test]
+    fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_given_this_set_of_possible_inputs(
+        input1 in arb::input(),
+        state in arb::g_i_state_with_default_invalidation(),
+    ) {
+        u!{Input}
+        tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+            d!(),
+            vec![input1, SavedAs(state.new_index(d!()), ".fakefile".into())]
+        )
+    }
+}
+
+// This test was also written in order to debug that assert failing.
+proptest!{
+    #[test]
+    fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_given_this_smaller_set_of_possible_inputs(
+        state in arb::g_i_state_with_default_invalidation(),
+    ) {
+        u!{Input}
+        tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+            d!(),
+            vec![NextLanguage, SavedAs(state.new_index(d!()), ".fakefile".into())]
+        )
+    }
+}
+
+proptest!{
+    #[test]
     fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_after_this_paste(
         buffers in arb::editor_buffers_with_one_path_one_scratch(),
     ) {
@@ -1027,6 +1079,17 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
     tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
         d!(),
         d!()
+    )
+}
+
+#[test]
+fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_after_inserting_the_letter_a() {
+    u!{Input}
+    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+        d!(),
+        vec![
+            Insert('a'),
+        ]
     )
 }
 
@@ -1093,6 +1156,20 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
         vec![
             InsertNumbersAtCursors,
             SavedAs(state.new_index(g_i::IndexPart::or_max(1)), ".fakefile".into())
+        ]
+    )
+}
+
+#[test]
+fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_in_this_generated_heavy_saving_case() {
+    u!{Input}
+    let state: g_i::State = d!();
+    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+        d!(),
+        vec![
+            SavedAs(state.new_index(g_i::IndexPart::or_max(0)), "&¥:&q\"N\u{baccd}.fakefile".into()),
+            SavedAs(state.new_index(g_i::IndexPart::or_max(7)), "\u{202e}𪫩\u{feff}Ѩ\u{4ac61}*\t3\u{e30e1}.{0.fakefile".into()),
+            SavedAs(state.new_index(g_i::IndexPart::or_max(3)), "齂🕴!ヵ..fakefile".into()),
         ]
     )
 }
@@ -1416,7 +1493,7 @@ fn inserting_after_a_re_save_marks_the_buffer_as_edited_in_this_case() {
     );
 
     assert_eq!(Some(ToUnedited), view.edited_transitions.into_iter().next().map(|(_, t)| t), "precondition failure");
-    std::dbg!();
+    
     let (view, _) = update_and_render(
         &mut state,
         Insert('b')

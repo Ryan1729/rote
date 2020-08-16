@@ -247,6 +247,7 @@ impl Parsers {
         rope: &Rope
     ) {
         use Parsers::*;
+        self.attempt_init();
 
         match self {
             Initialized(initialized) => {

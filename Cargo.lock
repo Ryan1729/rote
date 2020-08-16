@@ -627,6 +627,7 @@ dependencies = [
  "platform_types",
  "proptest",
  "pub_arb_abs",
+ "pub_arb_g_i",
  "pub_arb_non_neg_f32",
  "pub_arb_platform_types",
  "pub_arb_pos_f32",
@@ -1959,7 +1960,7 @@ dependencies = [
 
 [[package]]
 name = "rote"
-version = "0.2.135"
+version = "0.2.136"
 dependencies = [
  "editor",
  "lazy_static 1.4.0",

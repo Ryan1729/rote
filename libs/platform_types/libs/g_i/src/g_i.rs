@@ -1185,6 +1185,14 @@ pub mod tests {
                 })
         }
 
+        pub fn state_with_default_invalidation() -> impl Strategy<Value = State> {
+            any::<Generation>()
+                .prop_map(move |current| State {
+                    current,
+                    invalidation: d!(),
+                })
+        }
+
         prop_compose!{
             pub fn state_with_index(max_index: LengthSize)
                (s in {state(max_index)}, i_p in index_part(max_index))
