@@ -322,7 +322,7 @@ impl Parsers {
 
                         debug_assert_eq!(old_min, new_min);
 
-                        tree.edit(&InputEdit{
+                        tree.edit(&std::dbg!(InputEdit{
                             start_byte,
                             old_end_byte,
                             new_end_byte,
@@ -338,7 +338,7 @@ impl Parsers {
                                 row: new_max.line,
                                 column: new_max.offset.0
                             },
-                        });
+                        }));
                     }
                 }
             },
@@ -412,11 +412,29 @@ impl InitializedParsers {
                     kind,
                     self.rust_lang,
                 );
-                std::dbg!();
+                
                 perf_viz::start_record!("state.parser.parse");
-                state.tree = state.parser.parse(to_parse.as_ref(), state.tree.as_ref());
+
+                // This edit call that should do nothing, is here as a workaround
+                // for the `asking_to_parse_the_empty_string_twice_does_not_panic`
+                // test failing.
+                if let Some(t) = state.tree.as_mut() {
+                    t.edit(&InputEdit{
+                        start_byte: d!(),
+                        old_end_byte: d!(),
+                        new_end_byte: d!(),
+                        start_position: d!(),
+                        old_end_position: d!(),
+                        new_end_position: d!(),
+                    });
+                }
+
+                state.tree = state.parser.parse(
+                    to_parse.as_ref(),
+                    state.tree.as_ref()
+                );
+
                 perf_viz::end_record!("state.parser.parse");
-                std::dbg!();
 
                 if let Some(tree) = state.tree.as_ref() {
                     // TODO stop requiring these query functions to handle None.
@@ -948,3 +966,5 @@ mod query {
 }
 use query::{Spans};
 
+#[cfg(test)]
+mod tests;
