@@ -495,6 +495,11 @@ proptest! {
     ) {
         undo_redo_works_on_these_edits_and_index_regarding_ropes_with_this_buffer(edits, index, buffer);
     }
+
+    #[test]
+    fn undo_redo_works_with_heavy_delete_lines((edits, index) in arb::test_edits_and_index(SOME_AMOUNT, TestEditSpec::DeleteLinesHeavy)) {
+        undo_redo_works_on_these_edits_and_index(edits, index);
+    }
 }
 
 #[test]
@@ -799,6 +804,31 @@ fn undo_redo_works_in_this_familiar_scenario() {
     buffer.undo(None);
 
     assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
+}
+
+#[test]
+fn undo_redo_works_on_this_backslash_example() {
+    /* we want the text buffer to be like this just before the delete lines:
+    t_b!("\n\\\n\n\\a", vec1![
+        cur!{l 3 o 2},
+        cur!{l 3 o 1}
+    ]);
+    */
+
+    undo_redo_works_on_these_edits_and_index(
+        vec![
+            TestEdit::Insert('\n'),
+            TestEdit::Insert('\\'),
+            TestEdit::Insert('\n'),
+            TestEdit::Insert('\n'),
+            TestEdit::Insert('\\'),
+            TestEdit::Insert('a'),
+            TestEdit::SetCursor(pos!{l 3 o 2}, ReplaceOrAdd::Replace),
+            TestEdit::SetCursor(pos!{l 3 o 1}, ReplaceOrAdd::Add),
+            TestEdit::DeleteLines
+        ],
+        0
+    );
 }
 
 #[test]

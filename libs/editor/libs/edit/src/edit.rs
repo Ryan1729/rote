@@ -591,7 +591,13 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
     )
 }
 
-/// `range_edits` and the two `Vec1`s in `cursors` must all be the same length.
+/// Historical Note: there used to be a comment here that said:
+/// "`range_edits` and the two `Vec1`s in `cursors` must all be the same length."
+/// but, that comment doesn't say why, and looking at the git blame 14 months later
+/// doesn't easily reveal why either. Secondly, if the the two `Vec1`s in `cursors`
+/// have to be the same length, how do we expect to represent edits that change the
+/// number of cursors? As far I can presently tell, that old comment doesn't make
+/// sense anymore. And in fact, we have tests that rely on cursor amounts changing.
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Edit {
     range_edits: Vec1<RangeEdits>,

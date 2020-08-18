@@ -316,12 +316,17 @@ fn keeps_the_state_buffers_index_state_the_same_as_the_view_buffers_index_state_
         "Precondition failure!"
     );
 
-    for input in inputs {
+    for (i, input) in inputs.into_iter().enumerate() {
+        let input_clone = input.clone();
+
         let _ = update_and_render(&mut state, input);
 
         assert_eq!(
             state.buffers.buffers().index_state(),
-            state.view.buffers.index_state()
+            state.view.buffers.index_state(),
+            "the index state didn't match on input {}, ({:?})",
+            i,
+            input_clone,
         );
     }
 }

@@ -522,6 +522,15 @@ pub fn test_edit_delete_and_tab_in_out_heavy() -> impl Strategy<Value = TestEdit
     ]
 }
 
+pub fn test_edit_delete_lines_heavy() -> impl Strategy<Value = TestEdit> {
+    use TestEdit::*;
+    prop_oneof![
+        9 => Just(DeleteLines),
+        5 => test_edit_selection_changes(), // Make sure there can be selections
+        1 => test_edit()
+    ]
+}
+
 // Generates only cursor movement and selection edits. Intended for use as a part of larger
 pub fn test_edit_selection_changes() -> impl Strategy<Value = TestEdit> {
     use TestEdit::*;
@@ -556,6 +565,7 @@ pub enum TestEditSpec {
     TabInOutHeavy,
     DeleteAndTabInOutHeavy,
     SelectionChanges,
+    DeleteLinesHeavy,
 }
 
 pub fn test_edits(max_len: usize, spec: TestEditSpec) -> impl Strategy<Value = Vec<TestEdit>> {
@@ -569,6 +579,7 @@ pub fn test_edits(max_len: usize, spec: TestEditSpec) -> impl Strategy<Value = V
             TabInOutHeavy => test_edit_tab_in_out_heavy().boxed(),
             DeleteAndTabInOutHeavy => test_edit_delete_and_tab_in_out_heavy().boxed(),
             SelectionChanges => test_edit_selection_changes().boxed(),
+            DeleteLinesHeavy => test_edit_delete_lines_heavy().boxed(),
         },
         0..max_len,
     )

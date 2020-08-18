@@ -111,7 +111,7 @@ fn get_tab_in_edit_produces_the_expected_edit_from_this_buffer_with_different_le
                 new: Cursors::new(&new_rope, Vec1::new(cursor)),
                 old: cursors.clone(),
             },
-        ).unwrap()
+        )
     };
 
     assert_eq!(edit, expected);
@@ -232,7 +232,7 @@ fn get_tab_in_edit_produces_the_expected_edit_with_multiple_cursors_in_this_buff
                 new: new_cursors,
                 old: cursors.clone(),
             },
-        ).unwrap()
+        )
     };
 
     assert_eq!(edit, expected);
@@ -644,7 +644,7 @@ fn get_expected_tab_out_edit() -> Edit {
                 cur!{l 1 o 0 h l 0 o 0},
             },
         },
-    ).unwrap()
+    )
 }
 
 #[test]
@@ -920,7 +920,7 @@ fn get_insert_edit_produces_the_expected_edit_on_this_cr_lf_edit_example() {
                 new: new_cursors,
                 old: cursors.clone(),
             },
-        ).unwrap()
+        )
     };
 
     assert_eq!(edit, expected);
@@ -969,7 +969,7 @@ fn get_delete_edit_produces_the_expected_edit_on_this_cr_lf_edit_example() {
                 new: new_cursors,
                 old: cursors.clone(),
             },
-        ).unwrap()
+        )
     };
 
     assert_eq!(edit, expected);
@@ -1017,7 +1017,7 @@ fn get_delete_lines_edit_produces_the_expected_edit_on_this_backslash_example() 
                 new: new_cursors,
                 old: cursors.clone(),
             },
-        ).unwrap()
+        )
     };
 
     assert_eq!(edit, expected);
@@ -1078,7 +1078,7 @@ fn get_insert_edit_produces_the_expected_edit_on_this_multi_byte_char_example() 
                 new: new_cursors,
                 old: cursors.clone(),
             },
-        ).unwrap()
+        )
     };
 
     assert_eq!(edit, expected);
@@ -1148,7 +1148,7 @@ fn get_insert_edit_produces_the_expected_edit_on_this_multi_cursor_cr_lf_example
                 new: new_cursors,
                 old: cursors.clone(),
             },
-        ).unwrap()
+        )
     };
 
     assert_eq!(edit, expected);
@@ -1568,7 +1568,7 @@ fn get_expected_tab_in_edit() -> Edit {
                 cur!{l 0 o 5 h l 0 o 4},
             },
         },
-    ).unwrap()
+    )
 }
 
 #[test]

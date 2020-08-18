@@ -76,15 +76,10 @@ pub fn edit_with_cursors<'rope, R: 'rope + Borrow<Rope>>(rope: R, cursors: Curso
 pub fn edit_from_pieces(
     range_edits: Vec1<RangeEdits>,
     cursors: Change<Cursors>,
-) -> Result<Edit, &'static str> {
-    if range_edits.len() == cursors.old.len()
-    && range_edits.len() == cursors.new.len() {
-        Ok(Edit {
-            range_edits,
-            cursors,
-        })
-    } else {
-        Err("from_pieces: len mismatch!")
+) -> Edit {
+    Edit {
+        range_edits,
+        cursors,
     }
 }
 
