@@ -320,15 +320,15 @@ impl Parsers {
                         let new_min = min(new_pos, new_h_pos);
                         let new_max = max(new_pos, new_h_pos);
 
-                        debug_assert_eq!(old_min, new_min);
+                        let start_pos = min(old_min, new_min);
 
                         tree.edit(&std::dbg!(InputEdit{
                             start_byte,
                             old_end_byte,
                             new_end_byte,
                             start_position: Point{ 
-                                row: old_min.line,
-                                column: old_min.offset.0
+                                row: start_pos.line,
+                                column: start_pos.offset.0
                             },
                             old_end_position: Point{ 
                                 row: old_max.line,
