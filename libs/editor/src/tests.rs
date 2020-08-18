@@ -631,6 +631,15 @@ fn update_and_render_keeps_the_state_buffers_index_state_the_same_as_the_view_bu
 }
 
 #[test]
+fn update_and_render_keeps_the_state_buffers_index_state_the_same_as_the_view_buffers_index_state_if_you_insert_numbers_at_cursors_then_delete_on_a_default_state() {
+    u!{Input}
+    update_and_render_keeps_the_state_buffers_index_state_the_same_as_the_view_buffers_index_state_on(
+        d!(),
+        vec![NextLanguage, InsertNumbersAtCursors, Delete]
+    );
+}
+
+#[test]
 fn update_and_render_keeps_the_state_buffers_index_state_the_same_as_the_view_buffers_index_state_if_you_add_then_remove_a_buffer_on_this_state() {
     u!{Input}
     let inputs = vec![NewScratchBuffer(Option::None), CloseBuffer(d!())];
