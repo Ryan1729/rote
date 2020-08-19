@@ -591,13 +591,9 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
     )
 }
 
-/// Historical Note: there used to be a comment here that said:
-/// "`range_edits` and the two `Vec1`s in `cursors` must all be the same length."
-/// but, that comment doesn't say why, and looking at the git blame 14 months later
-/// doesn't easily reveal why either. Secondly, if the the two `Vec1`s in `cursors`
-/// have to be the same length, how do we expect to represent edits that change the
-/// number of cursors? As far I can presently tell, that old comment doesn't make
-/// sense anymore. And in fact, we have tests that rely on cursor amounts changing.
+
+/// The length of `range_edits` must be greater than or equal to the length of the
+/// two `Vec1`s in `cursors`. This is because we assume this is the case in `read_at`
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Edit {
     range_edits: Vec1<RangeEdits>,
@@ -633,17 +629,20 @@ impl Edit {
         self.len() == 0
     }
 
-    pub fn read_at(&self, i: usize) -> Option<(Change<&Cursor>, &RangeEdits)> {
+    pub fn read_at(&self, i: usize) -> Option<(Change<Option<&Cursor>>, &RangeEdits)> {
         let old_cursors = self.cursors.old.borrow_cursors();
         let new_cursors = self.cursors.new.borrow_cursors();
+
         let len = self.range_edits.len();
+        debug_assert!(len >= old_cursors.len());
+        debug_assert!(len >= new_cursors.len());
+        
         if i >= len {
             return None;
         }
-        debug_assert_eq!(len, old_cursors.len());
-        debug_assert_eq!(len, new_cursors.len());
-        let old = old_cursors.get(i).unwrap();
-        let new = new_cursors.get(i).unwrap();
+        
+        let old = old_cursors.get(i);
+        let new = new_cursors.get(i);
         
         Some(
             (Change {old, new}, &self.range_edits[i])

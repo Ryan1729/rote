@@ -29,7 +29,6 @@ pub fn render(
     if buffers.should_render_buffer_views()
     {
         let bufs = buffers.buffers();
-        dbg!(&bufs);
 
         view.buffers.replace_with_mapped(
             bufs,
@@ -43,8 +42,6 @@ pub fn render(
                 }
             }
         );
-        
-        dbg!(&view.buffers);
     }
     
     let editor_buffer = buffers.get_current_buffer();
@@ -143,6 +140,7 @@ pub fn render(
             })
         },
         MenuMode::GoToPosition => {
+            dbg!(&go_to_position);
             const GO_TO_POSITION_SELECTION_LINES_ESTIMATE: usize = 1;
             MenuView::GoToPosition(GoToPositionView {
                 go_to_position: text_buffer_to_buffer_view_data(

@@ -1,6 +1,6 @@
 use super::*;
-
 use macros::{u, dbg};
+use search::{SearchResults};
 
 fn shows_the_cursor_when_pressing_ctrl_home_on(text: &str, buffer_xywh: TextBoxXYWH, char_dim: CharDim) {
     let mut state: State = text.into();
@@ -586,8 +586,8 @@ fn the_edited_transitions_sent_down_with_the_view_all_use_the_same_generation_as
     inputs: Vec<Input>,
 ) {
     for input in inputs {
+        dbg!(&input);
         let (view, _) = update_and_render(&mut state, input.clone());
-        dbg!(&view.edited_transitions);
         
         let index_state = state.buffers.buffers().index_state();
 
@@ -628,6 +628,65 @@ fn the_edited_transitions_sent_down_with_the_view_all_use_the_same_generation_as
         vec![
             AddOrSelectBuffer(Path(".fakefile".into()), "".to_owned()),
             AdjustBufferSelection(Move(Left)),
+        ]
+    )
+}
+
+#[test]
+fn the_edited_transitions_sent_down_with_the_view_all_use_the_same_generation_as_the_buffers_during_this_generated_set_of_inputs() {
+    u!{BufferName, Input, SelectionAdjustment, SelectionMove, MenuMode, ReplaceOrAdd}
+
+    let mut state: State = "🌀".into();
+    let buffer = &mut state
+        .buffers
+        .get_current_buffer_mut();
+    
+    buffer.text_buffer.set_cursor(cur!{l 0 o 1 s_o 0}, Replace);
+    buffer.search_results = SearchResults {
+        ranges: vec![(pos!{l 0 o 0}, pos!{l 0 o 80894094724419})],
+        ..d!()
+    };
+
+    the_edited_transitions_sent_down_with_the_view_all_use_the_same_generation_as_the_buffers_on(
+        state,
+        vec![
+            NextLanguage,
+            SetCursor(tbsxy!(1145868901.08979127858765423, 812184193.07755859731696546), Add),
+            Cut,
+            CloseBuffer(
+                arb::g_i_index_from_parts(
+                    542558679,
+                    g_i::IndexPart::or_max(7)
+                )
+            ),
+            TabIn,
+            SetMenuMode(Hidden),
+            Undo,
+            Delete,
+            Redo,
+            DeleteLines,
+            Cut,
+            SelectCharTypeGrouping(
+                tbsxy!(-135667381.5168384555727243, 908634525.6051329053007066),
+                Replace
+            ),
+            DeleteLines, 
+            SetMenuMode(GoToPosition)
+        ]
+    )
+}
+
+#[test]
+fn the_edited_transitions_sent_down_with_the_view_all_use_the_same_generation_as_the_buffers_during_this_generated_set_of_inputs_reduction() {
+    u!{BufferName, Input, SelectionAdjustment, SelectionMove, MenuMode, ReplaceOrAdd}
+
+    the_edited_transitions_sent_down_with_the_view_all_use_the_same_generation_as_the_buffers_on(
+        "🌀".into(),
+        vec![
+            NextLanguage,
+            MoveAllCursors(super::Move::Right),
+            SetCursor(d!(), Add),
+            Delete,
         ]
     )
 }

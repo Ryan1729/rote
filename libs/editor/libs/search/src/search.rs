@@ -1,15 +1,21 @@
 #![deny(unused_must_use)]
-use macros::{d, SaturatingAdd, SaturatingSub};
+use macros::{d, fmt_debug, SaturatingAdd, SaturatingSub};
 use panic_safe_rope::{Rope, RopeSlice, RopeSliceTrait};
 use editor_types::{Position, CharOffset, AbsoluteCharOffset};
 use rope_pos::{char_offset_to_pos, AbsoluteCharOffsetRange};
 
-#[derive(Clone, Debug, Default, Hash, PartialEq, Eq)]
+#[derive(Clone, Default, Hash, PartialEq, Eq)]
 pub struct SearchResults {
     pub needle: String,
     pub ranges: Vec<(Position, Position)>,
     pub current_range: usize,
 }
+
+fmt_debug!(collapse default for SearchResults : me {
+    blank_if_default!(needle);
+    blank_if_default!(ranges);
+    blank_if_default!(current_range);
+});
 
 impl SearchResults {
     #[perf_viz::record]

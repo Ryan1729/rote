@@ -306,21 +306,49 @@ impl Parsers {
                             }
                             (None, None) => continue,
                         };
+
                         let start_byte = some_or!(start_byte, continue).0;
                         let old_end_byte = some_or!(old_end_byte, continue).0;
                         let new_end_byte = some_or!(new_end_byte, continue).0;
 
-                        let old_pos = old.get_position();
-                        let old_h_pos = old.get_highlight_position_or_position();
-                        let old_min = min(old_pos, old_h_pos);
-                        let old_max = max(old_pos, old_h_pos);
+                        let (start_pos, old_end_pos, new_end_pos) = match (old, new) {
+                            (Some(old), Some(new)) => {
+                                let old_pos = old.get_position();
+                                let old_h_pos = old.get_highlight_position_or_position();
+                                let old_min = min(old_pos, old_h_pos);
+                                let old_end_pos = max(old_pos, old_h_pos);
+        
+                                let new_pos = new.get_position();
+                                let new_h_pos = new.get_highlight_position_or_position();
+                                let new_min = min(new_pos, new_h_pos);
+                                let new_end_pos = max(new_pos, new_h_pos);
+        
+                                let start_pos = min(old_min, new_min);
 
-                        let new_pos = new.get_position();
-                        let new_h_pos = new.get_highlight_position_or_position();
-                        let new_min = min(new_pos, new_h_pos);
-                        let new_max = max(new_pos, new_h_pos);
+                                (start_pos, old_end_pos, new_end_pos)
+                            },
+                            (Some(old), None) => {
+                                let old_pos = old.get_position();
+                                let old_h_pos = old.get_highlight_position_or_position();
+                                let old_min = min(old_pos, old_h_pos);
+                                let old_end_pos = max(old_pos, old_h_pos);
 
-                        let start_pos = min(old_min, new_min);
+                                let start_pos = old_min;
+
+                                (start_pos, old_end_pos, start_pos)
+                            },
+                            (None, Some(new)) => {
+                                let new_pos = new.get_position();
+                                let new_h_pos = new.get_highlight_position_or_position();
+                                let new_min = min(new_pos, new_h_pos);
+                                let new_end_pos = max(new_pos, new_h_pos);
+        
+                                let start_pos = new_min;
+
+                                (start_pos, start_pos, new_end_pos)
+                            },
+                            (None, None) => continue,
+                        };
 
                         tree.edit(&std::dbg!(InputEdit{
                             start_byte,
@@ -331,12 +359,12 @@ impl Parsers {
                                 column: start_pos.offset.0
                             },
                             old_end_position: Point{ 
-                                row: old_max.line,
-                                column: old_max.offset.0
+                                row: old_end_pos.line,
+                                column: old_end_pos.offset.0
                             },
                             new_end_position: Point{ 
-                                row: new_max.line,
-                                column: new_max.offset.0
+                                row: new_end_pos.line,
+                                column: new_end_pos.offset.0
                             },
                         }));
                     }

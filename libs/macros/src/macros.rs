@@ -93,6 +93,7 @@ macro_rules! hash {
     }
 }
 
+// TODO: Do we need the `and friends` feature anymore?
 #[macro_export]
 macro_rules! ord {
     (and friends for $name:ty : ($instance:ident) $code:block) => {
@@ -569,10 +570,17 @@ macro_rules! fmt_debug {
                     }
                 }
         
+                fn is_default_value<D: Default + PartialEq<D>>(value: &D) -> bool {
+                    value == &D::default()
+                }
+
                 let mut any_defaulted = false;
                 macro_rules! blank_if_default {
                     ($field: ident) => {
-                        blank_if_default!($field, $self.$field == d!())
+                        blank_if_default!(
+                            $field,
+                            is_default_value(&$self.$field)
+                        )
                     };
                     ($field: ident, $is_default: expr) => {
                         if $is_default {

@@ -54,6 +54,10 @@ impl Cursors {
         self.cursors.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.cursors.is_empty()
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = &Cursor> {
         self.cursors.iter()
     }

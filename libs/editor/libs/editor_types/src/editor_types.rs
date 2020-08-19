@@ -90,6 +90,8 @@ impl Cursor {
     }
 }
 
+// TODO generate all match arms that fit the pattern in a proc macro or something.
+// For now we can just add ones as neede.
 #[macro_export]
 macro_rules! cur {
     ($pos: expr) => {
@@ -101,6 +103,11 @@ macro_rules! cur {
     (l $line:literal o $offset:literal) => {
         Cursor::new(pos! {l $line o $offset})
     };
+    (l $line:literal o $offset:literal s_o $sticky_offset:literal) => {{
+        let mut c = Cursor::new(pos! {l $line o $offset});
+        c.sticky_offset = CharOffset($sticky_offset);
+        c
+    }};
     (l $line:literal o $offset:literal ->|($move: expr)) => {
         cur!(->|($move) cursor: Cursor::new(pos! {l $line o $offset}))
     };
@@ -168,7 +175,7 @@ fmt_debug!(for Cursor : Cursor {
         ),
         format_if!(
             sticky_offset != &Cursor::new(*position).sticky_offset,
-            " sticky_offset: {:?},",
+            " s_o {}",
             sticky_offset
         ),
         format_if!(

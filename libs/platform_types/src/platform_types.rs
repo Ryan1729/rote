@@ -88,12 +88,12 @@ pub enum Input {
 d!(for Input : Input::None);
 
 
-#[derive(Clone, Copy, Default, Debug, Hash)]
+#[derive(Clone, Copy, Default, Debug, Hash, PartialEq, Eq)]
 pub struct BufferId {
     pub kind: BufferIdKind,
     pub index: g_i::Index,
 }
-ord!(and friends for BufferId: id, other in {
+ord!(for BufferId: id, other in {
     id.kind.cmp(&other.kind).then_with(|| id.index.cmp(&other.index))
 });
 
@@ -116,7 +116,7 @@ macro_rules! b_id {
     };
 }
 
-#[derive(Clone, Copy, Debug, Hash)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub enum BufferIdKind {
     /// Used to indicate that the keyboard is focused on a non-buffer.
     None,
@@ -144,7 +144,7 @@ impl From<&BufferIdKind> for u8 {
     }
 }
 
-ord!(and friends for BufferIdKind: kind, other in {
+ord!(for BufferIdKind: kind, other in {
     let k: u8 = kind.into();
     let o: u8 = other.into();
     k.cmp(&o)

@@ -659,25 +659,13 @@ pub fn attempt_to_make_line_space_pos_visible(
     // therefore setting scroll to the value of tmv places the point
     // at the top left corner of the text box. We make further adjustments as needed.
 
-    dbg!(
-        to_make_visible,
-        to_make_visible_screen_space,
-        min,
-        max,
-        &scroll,
-    );
-
     if to_make_visible_screen_space < min {
-        dbg!();
         *scroll = to_make_visible - left_w;
     } else if to_make_visible_screen_space >= max {
-        dbg!();
         *scroll = to_make_visible - (w - right_w);
     } else {
         // leave it alone
     }
-
-    dbg!(scroll);
 
     Succeeded
 }
