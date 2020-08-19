@@ -258,11 +258,11 @@ impl Parsers {
                     initialized.rust_lang,
                 );
                 if let Some(tree) = buffer_state.tree.as_mut() {
-                    for i in 0..edit.len() {
+                    for i in 0..edit.range_edits().len() {
                         let (
                             Change{ old, new },
                             RangeEdits{ delete_range, insert_range }
-                        ) = edit.read_at(i).unwrap();
+                        ) = some_or!(edit.read_at(i), continue);
                     
                         let (start_byte, old_end_byte, new_end_byte) = 
                         match (delete_range, insert_range) {

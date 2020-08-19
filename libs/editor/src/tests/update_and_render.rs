@@ -633,7 +633,7 @@ fn the_edited_transitions_sent_down_with_the_view_all_use_the_same_generation_as
 }
 
 #[test]
-fn the_edited_transitions_sent_down_with_the_view_all_use_the_same_generation_as_the_buffers_during_this_generated_set_of_inputs() {
+fn the_edited_transitions_sent_down_with_the_view_all_use_the_same_generation_as_the_buffers_during_this_generated_delete_containing_set_of_inputs() {
     u!{BufferName, Input, SelectionAdjustment, SelectionMove, MenuMode, ReplaceOrAdd}
 
     let mut state: State = "🌀".into();
@@ -677,7 +677,7 @@ fn the_edited_transitions_sent_down_with_the_view_all_use_the_same_generation_as
 }
 
 #[test]
-fn the_edited_transitions_sent_down_with_the_view_all_use_the_same_generation_as_the_buffers_during_this_generated_set_of_inputs_reduction() {
+fn the_edited_transitions_sent_down_with_the_view_all_use_the_same_generation_as_the_buffers_during_this_generated_delete_containing_set_of_inputs_reduction() {
     u!{BufferName, Input, SelectionAdjustment, SelectionMove, MenuMode, ReplaceOrAdd}
 
     the_edited_transitions_sent_down_with_the_view_all_use_the_same_generation_as_the_buffers_on(
@@ -687,6 +687,39 @@ fn the_edited_transitions_sent_down_with_the_view_all_use_the_same_generation_as
             MoveAllCursors(super::Move::Right),
             SetCursor(d!(), Add),
             Delete,
+        ]
+    )
+}
+
+#[test]
+fn the_edited_transitions_sent_down_with_the_view_all_use_the_same_generation_as_the_buffers_during_this_generated_set_of_inputs() {
+    u!{BufferName, Input, SelectionAdjustment, SelectionMove, MenuMode, ReplaceOrAdd}
+
+    let mut state: State = "0🌀".into();
+    state
+        .buffers
+        .get_current_buffer_mut()
+        .text_buffer
+        .set_cursor(cur!{l 0 o 2 s_o 0}, Replace);
+
+    the_edited_transitions_sent_down_with_the_view_all_use_the_same_generation_as_the_buffers_on(
+        state,
+        vec![NextLanguage, SetCursor(tbsxy!(0.0, 0.0), Add), DeleteLines]
+    )
+}
+
+#[test]
+fn the_edited_transitions_sent_down_with_the_view_all_use_the_same_generation_as_the_buffers_during_this_generated_set_of_inputs_reduction() {
+    u!{BufferName, Input, SelectionAdjustment, SelectionMove, MenuMode, ReplaceOrAdd}
+
+    the_edited_transitions_sent_down_with_the_view_all_use_the_same_generation_as_the_buffers_on(
+        "0🌀".into(),
+        vec![
+            NextLanguage,
+            MoveAllCursors(super::Move::Right),
+            MoveAllCursors(super::Move::Right),
+            SetCursor(tbsxy!(0.0, 0.0), Add),
+            DeleteLines,
         ]
     )
 }

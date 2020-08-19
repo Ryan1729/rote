@@ -621,21 +621,11 @@ impl Edit {
         strings
     }
 
-    pub fn len(&self) -> usize {
-        self.range_edits.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
     pub fn read_at(&self, i: usize) -> Option<(Change<Option<&Cursor>>, &RangeEdits)> {
         let old_cursors = self.cursors.old.borrow_cursors();
         let new_cursors = self.cursors.new.borrow_cursors();
 
         let len = self.range_edits.len();
-        debug_assert!(len >= old_cursors.len());
-        debug_assert!(len >= new_cursors.len());
         
         if i >= len {
             return None;

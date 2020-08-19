@@ -1840,7 +1840,7 @@ fn get_tab_out_edit_returns_the_right_chars_in_this_unicode_case() {
 
     let edit = edit::get_tab_out_edit(&buffer.rope, &buffer.cursors);
 
-    assert_eq!(edit.len(), 1);
+    assert_eq!(edit.range_edits().len(), 1);
 
     let range_edit = edit.range_edits().first().clone();
 
@@ -1860,7 +1860,7 @@ fn get_tab_out_edit_returns_the_right_chars_in_this_ascii_case() {
 
     let edit = edit::get_tab_out_edit(&buffer.rope, &buffer.cursors);
 
-    assert_eq!(edit.len(), 1);
+    assert_eq!(edit.range_edits().len(), 1);
 
     let range_edit = edit.range_edits().first().clone();
 
