@@ -1191,7 +1191,11 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                     if cfg!(feature="no-spinning-sleep") {
                         loop_helper.loop_sleep_no_spin();
                     } else {
-                        loop_helper.loop_sleep();
+                        if r_s.ui.window_is_focused {
+                            loop_helper.loop_sleep();
+                        } else {
+                            loop_helper.loop_sleep_no_spin();
+                        }
                     }
                     perf_viz::end_record!("sleepin'");
 
