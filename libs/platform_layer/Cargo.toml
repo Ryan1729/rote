@@ -14,6 +14,8 @@ macros = { path = "../macros" }
 [features]
 default = []
 disable-fade-alpha = ["wimp/disable-fade-alpha"]
+no-spinning-sleep = ["wimp/no-spinning-sleep"]
+skip-updating-editor-thread = ["wimp/skip-updating-editor-thread"]
 invariant-checking = ["wimp/invariant-checking"]
 time-render = ["wimp/time-render"]
 extra-prints = ["wimp/extra-prints"]

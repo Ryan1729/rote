@@ -376,8 +376,15 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                 call_u_and_r!(&mut $vars.ui, &$vars.editor_in_sink, $input)
             };
             ($ui: expr, $editor_in_sink: expr, $input: expr) => {{
-                $ui.note_interaction();
-                let _hope_it_gets_there = $editor_in_sink.send($input);
+                if cfg!(feature = "skip-updating-editor-thread") {
+                    let input = $input;
+                    if let &Input::Quit = &input {
+                        let _hope_it_gets_there = $editor_in_sink.send(input);
+                    }
+                } else {
+                    $ui.note_interaction();
+                    let _hope_it_gets_there = $editor_in_sink.send($input);
+                }
             }};
         }
 
@@ -1181,7 +1188,11 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                     r_s.ui.frame_end();
                     perf_viz::end_record!("frame");
                     perf_viz::start_record!("sleepin'");
-                    loop_helper.loop_sleep();
+                    if cfg!(feature="no-spinning-sleep") {
+                        loop_helper.loop_sleep_no_spin();
+                    } else {
+                        loop_helper.loop_sleep();
+                    }
                     perf_viz::end_record!("sleepin'");
 
                     perf_viz::end_record!("main loop");
