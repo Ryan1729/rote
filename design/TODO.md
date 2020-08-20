@@ -1,20 +1,35 @@
 ## TODO
 
-* It seems like the editor thread slows down sometimes. Possibly when there are many
-files open, or just when the editor has been open a long time
-    * We've started measuring and displaying how long it took the last call to 
-    `editor::update_and_render` to run. Do we need more visualization than that?
-        * If we do, the next obvious step would be a bar chart of the last N view
-        renders, where the x axis is the Input variant, and the y axis is duration
-        statisics like maximum, mean, median and mode.
+* When several error messages occur, for instance when the disk space runs out, 
+then we get a new tab for each of them. If we get tab switching working, then 
+this could be very annoying.
+    * check if a tab is an errror tab and then append the new error message?
+        * Would you still be able to edit the error tabs?
+    * Should we just prevent multiple errors from happening in quick succession 
+    like this, instead?
 
-* as part of making the state of the editor more observable, when holding down 
-modifier keys, indicate what pressing non-modifiers will do.
+* make auto-tab-scroll happen when a new tab is created
+    * fix auto-scroll drifting as the amount of tabs increases.
+        * a specific undesirable case:
+            * If you mash Ctrl-t, then eventually the new tab is invisible
+
+* make auto-tab-scroll happen when a tab is switched to with the keyboard
+
+* when a tab is switched to, any fullscreen menus should be hidden
+    * currently this is not true if keyboard shortcuts are used. We should make sure
+    the menus will be hidden when we do the numeric tab jumping, as well.
 
 * make some way to jump to tab a given tab, say by making numbers appear on tabs when 
 holding down modifiers
     * We'll probably want to make "making the current tab visible when changing to it"
      work, before doing this.
+
+* as part of making the state of the editor more observable, when holding down 
+modifier keys, indicate what pressing non-modifiers will do.
+    * Where should this go on the screen? Are we realy going to want a bunch of text
+    to appear over top of everything when we tap the ctrl key?
+        * we could make it fade in, after say an entire second of holding it.
+    * Maybe do the numeric tab jumping one first, and see how we feel about this afterwards.
 
 * if multiple things are copied with multiple cursors then if they are pasted with the same number of cursors then 
     they should be pasted separately
@@ -24,6 +39,14 @@ holding down modifiers
         3|                            33     3123
 
 * Make Esc pick only one of the mulitple cursors to keep and remove that one's selection if there is one.
+
+* It seems like the editor thread slows down sometimes. Possibly when there are many
+files open, or just when the editor has been open a long time
+    * We've started measuring and displaying how long it took the last call to 
+    `editor::update_and_render` to run. Do we need more visualization than that?
+        * If we do, the next obvious step would be a bar chart of the last N view
+        renders, where the x axis is the Input variant, and the y axis is duration
+        statistics like maximum, mean, median and mode.
 
 * I find myself doubting whether putting the keyboard menu selection in the ui::Id was a good idea.
     * if nothing else, it seems like it would be nice to have the scroll state of the command menu stick around,
@@ -122,8 +145,6 @@ holding down modifiers
         * macro snippet
     * we'll add fleshed out requirements above this in the file
 
-* when a tab is switched to, any fullscreen menus should be hidden
-
 * prevent "No buffer selected" when re-opening already opened file
     * seems fixed?
     * this still happens but only after extended usage apparently.
@@ -219,9 +240,6 @@ holding down modifiers
             * having our own program to do that would be preferable to having to go find a font editor
                 if we end up wanting more changes later.
 
-* make auto-tab-scroll happen when a new tab is created
-  * fix auto-scroll drifting as the amount of tabs increases.
-
 * make it such that buffers are not considered edited if their contents matches what is on disk
     * do we want a hash here?
         * we would only want that as an optimization. 
@@ -248,14 +266,14 @@ holding down modifiers
       * this is sort of cheating the colour restriction thing, but if we imagine someone being colour-blind then stuff that is out of focus becoming unintelligible doesn't seem like an enormous issue?
       * But, we'd still want to be able to read the text for find and replace.
   * If we really want to do this completely, we could write the following test:
-    * test steps
+    * test steps:
       * generate an editor state
       * run update and render on the state with an effective no-op and keep the view
       * transform the view _back into_ an editor state
       * check that we all of the differences between the old state and new state
         are acceptable omissions of the state. For instance, not all of the text
         needs to be there.
-      * for bonus points ensure the view that is renedered again is identical.
+      * for bonus points ensure the view that is rendered again is identical.
     * the above steps ensure that all the required info from the state is present
     in the view.
 
