@@ -428,12 +428,27 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
         // to display it to the user.
         macro_rules! handle_platform_error {
             ($r_s: ident, $err: expr) => {
-                handle_platform_error!(&mut $r_s.ui, &$r_s.editor_in_sink, $err)
+                handle_platform_error!(&mut $r_s.ui, &$r_s.editor_in_sink, &$r_s.view, $err)
             };
-            ($ui: expr, $editor_in_sink: expr, $err: expr) => {
+            ($ui: expr, $editor_in_sink: expr, $view: expr, $err: expr) => {
                 let error = format!("{},{}: {}", file!(), line!(), $err);
                 eprintln!("{}", error);
-                call_u_and_r!($ui, $editor_in_sink, Input::NewScratchBuffer(Some(error)));
+
+                let mut saw_same_error = false;
+
+                let view = $view;
+                for (_, buffer) in view.buffer_iter() {
+                    if let &BufferName::Scratch(_) = &buffer.name {
+                        if buffer.data.chars == error {
+                            saw_same_error = true;
+                            break;
+                        }
+                    }
+                }
+
+                if !saw_same_error {
+                    call_u_and_r!($ui, $editor_in_sink, Input::NewScratchBuffer(Some(error)));
+                }
             };
         }
 
@@ -465,7 +480,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         call_u_and_r!($ui, $editor_in_sink, Input::SavedAs(index, $path.to_path_buf()));
                     }
                     Err(err) => {
-                        handle_platform_error!($ui, $editor_in_sink, err);
+                        handle_platform_error!($ui, $editor_in_sink, $view, err);
                     }
                 }
             };

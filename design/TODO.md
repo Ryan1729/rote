@@ -1,13 +1,5 @@
 ## TODO
 
-* When several error messages occur, for instance when the disk space runs out, 
-then we get a new tab for each of them. If we get tab switching working, then 
-this could be very annoying.
-    * check if a tab is an errror tab and then append the new error message?
-        * Would you still be able to edit the error tabs?
-    * Should we just prevent multiple errors from happening in quick succession 
-    like this, instead?
-
 * make auto-tab-scroll happen when a new tab is created
     * fix auto-scroll drifting as the amount of tabs increases.
         * a specific undesirable case:
