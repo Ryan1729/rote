@@ -24,14 +24,12 @@ mod text_layouts {
         ssr,
     };
     use glyph_brush::{
-        rusttype::{Font, Scale, Rect, point, vector},
-        CalculatedGlyph, 
-        GlyphChange,
+        rusttype::{Font, Scale, Rect, point},
+        CalculatedGlyph,
         GlyphPositioner,
         SectionGeometry,
         SectionText,
     };
-    use std::borrow::Cow;
 
     pub fn ssr_to_rusttype_i32(ssr!(min_x, min_y, max_x, max_y): ScreenSpaceRect) -> Rect<i32> {
         let mut rect: Rect<i32> = d!();
@@ -42,104 +40,6 @@ mod text_layouts {
         rect
     }
 
-    fn calculate_glyphs<'font>(
-        font: &Font<'font>,
-        scale: Scale,
-        mut caret: (f32, f32),
-        sections: &[SectionText<'_>],
-    ) -> Vec<CalculatedGlyph<'font>> {
-        let mut out = vec![];
-
-        let lines = unbounded::get_lines_iter(font, scale, sections);
-        
-        let v_metrics = font.v_metrics(scale);
-        let line_height: f32 = v_metrics.ascent - v_metrics.descent + v_metrics.line_gap;
-
-        for line in lines {
-            if !line.glyphs.is_empty() {
-                let screen_pos = point(caret.0, caret.1);
-    
-                out.extend(
-                    line.glyphs
-                        .into_iter()
-                        .map(|(glyph, color)| 
-                            (glyph.screen_positioned(screen_pos), color)
-                        )
-                );
-            }
-            caret.1 += line_height;
-        }
-
-        out
-    }
-
-    /// This is a macro since traits with generics can't be made into objects.
-    macro_rules! recalculate_glyphs_body {
-        (
-            $positioner: expr, $previous: expr, $change: expr, $fonts: expr, $scale: expr, $geometry: expr, $sections: expr
-        ) => {{
-            let positioner = $positioner;
-            let previous = $previous;
-            let change = $change;
-            let fonts = $fonts;
-            let scale = $scale;
-            let geometry = $geometry;
-            let sections = $sections;
-            match change {
-                GlyphChange::Geometry(old) if old.bounds == geometry.bounds => {
-                    // position change
-                    let adjustment = vector(
-                        geometry.screen_position.0 - old.screen_position.0,
-                        geometry.screen_position.1 - old.screen_position.1,
-                    );
-
-                    let mut glyphs = previous.into_owned();
-                    for (glyph, ..) in &mut glyphs {
-                        let new_pos = glyph.position() + adjustment;
-                        glyph.set_position(new_pos);
-                    }
-
-                    glyphs
-                }
-                GlyphChange::Color if !sections.is_empty() && !previous.is_empty() => {
-                    let new_color = sections[0].color;
-                    // even if the colour changed only slightly, we still want to do a fresh calculation
-                    #[allow(clippy::float_cmp)]
-                    if sections.iter().all(|s| s.color == new_color) {
-                        // if only the color changed, but the new section only use a single color
-                        // we can simply set all the olds to the new color
-                        let mut glyphs = previous.into_owned();
-                        for (_, color, ..) in &mut glyphs {
-                            *color = new_color;
-                        }
-                        glyphs
-                    } else {
-                        positioner.calculate_glyphs(fonts, scale, geometry, sections)
-                    }
-                }
-                GlyphChange::Alpha if !sections.is_empty() && !previous.is_empty() => {
-                    let new_alpha = sections[0].color[3];
-                    // even if the alpha changed only slightly, we still want to do a fresh calculation
-                    #[allow(clippy::float_cmp)]
-                    if sections.iter().all(|s| s.color[3] == new_alpha) {
-                        // if only the alpha changed, but the new section only uses a single alpha
-                        // we can simply set all the olds to the new alpha
-                        let mut glyphs = previous.into_owned();
-                        for (_, color, ..) in &mut glyphs {
-                            color[3] = new_alpha;
-                        }
-                        glyphs
-                    } else {
-                        positioner.calculate_glyphs(fonts, scale, geometry, sections)
-                    }
-                }
-                _ => positioner.calculate_glyphs(fonts, scale, geometry, sections),
-            }
-        }};
-    }
-    //
-    //
-    //
     #[derive(Hash)]
     pub(crate) struct Unbounded {}
 
@@ -152,19 +52,30 @@ mod text_layouts {
             sections: &[SectionText],
         ) -> Vec<CalculatedGlyph<'font>>
         {
-            calculate_glyphs(font, scale, geometry.screen_position, sections)
-        }
-        fn recalculate_glyphs<'font>(
-            &self,
-            previous: Cow<Vec<CalculatedGlyph<'font>>>,
-            change: GlyphChange,
-            fonts: &Font<'font>,
-            scale: Scale,
-            geometry: &SectionGeometry,
-            sections: &[SectionText],
-        ) -> Vec<CalculatedGlyph<'font>>
-        {
-            recalculate_glyphs_body!(self, previous, change, fonts, scale, geometry, sections)
+            let mut out = vec![];
+            let mut caret = geometry.screen_position;
+
+            let lines = unbounded::get_lines_iter(font, scale, sections);
+            
+            let v_metrics = font.v_metrics(scale);
+            let line_height: f32 = v_metrics.ascent - v_metrics.descent + v_metrics.line_gap;
+    
+            for line in lines {
+                if !line.glyphs.is_empty() {
+                    let screen_pos = point(caret.0, caret.1);
+        
+                    out.extend(
+                        line.glyphs
+                            .into_iter()
+                            .map(|(glyph, color)| 
+                                (glyph.screen_positioned(screen_pos), color)
+                            )
+                    );
+                }
+                caret.1 += line_height;
+            }
+    
+            out
         }
     }
 
@@ -325,18 +236,6 @@ mod text_layouts {
                 geometry,
                 sections,
             )
-        }
-        fn recalculate_glyphs<'font>(
-            &self,
-            previous: Cow<Vec<CalculatedGlyph<'font>>>,
-            change: GlyphChange,
-            font: &Font<'font>,
-            scale: Scale,
-            geometry: &SectionGeometry,
-            sections: &[SectionText],
-        ) -> Vec<CalculatedGlyph<'font>>
-        {
-            recalculate_glyphs_body!(self, previous, change, font, scale, geometry, sections)
         }
     }
 }

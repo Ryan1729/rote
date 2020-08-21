@@ -226,6 +226,70 @@ pub struct AdditionalRects<V: Clone + 'static> {
     pub rect_specs: Vec<RectSpec>,
 }
 
+fn recalculate_glyphs<'font, G>(
+    positioner: &G,
+    previous: Cow<Vec<CalculatedGlyph<'font>>>,
+    change: GlyphChange,
+    font: &Font<'font>,
+    scale: Scale,
+    geometry: &SectionGeometry,
+    sections: &[SectionText],
+) -> Vec<CalculatedGlyph<'font>>
+where
+        G: GlyphPositioner,
+{
+    match change {
+        GlyphChange::Geometry(old) if old.bounds == geometry.bounds => {
+            // position change
+            let adjustment = vector(
+                geometry.screen_position.0 - old.screen_position.0,
+                geometry.screen_position.1 - old.screen_position.1,
+            );
+
+            let mut glyphs = previous.into_owned();
+            for (glyph, ..) in &mut glyphs {
+                let new_pos = glyph.position() + adjustment;
+                glyph.set_position(new_pos);
+            }
+
+            glyphs
+        }
+        GlyphChange::Color if !sections.is_empty() && !previous.is_empty() => {
+            let new_color = sections[0].color;
+            // even if the colour changed only slightly, we still want to do a fresh calculation
+            #[allow(clippy::float_cmp)]
+            if sections.iter().all(|s| s.color == new_color) {
+                // if only the color changed, but the new section only use a single color
+                // we can simply set all the olds to the new color
+                let mut glyphs = previous.into_owned();
+                for (_, color, ..) in &mut glyphs {
+                    *color = new_color;
+                }
+                glyphs
+            } else {
+                positioner.calculate_glyphs(font, scale, geometry, sections)
+            }
+        }
+        GlyphChange::Alpha if !sections.is_empty() && !previous.is_empty() => {
+            let new_alpha = sections[0].color[3];
+            // even if the alpha changed only slightly, we still want to do a fresh calculation
+            #[allow(clippy::float_cmp)]
+            if sections.iter().all(|s| s.color[3] == new_alpha) {
+                // if only the alpha changed, but the new section only uses a single alpha
+                // we can simply set all the olds to the new alpha
+                let mut glyphs = previous.into_owned();
+                for (_, color, ..) in &mut glyphs {
+                    color[3] = new_alpha;
+                }
+                glyphs
+            } else {
+                positioner.calculate_glyphs(font, scale, geometry, sections)
+            }
+        }
+        _ => positioner.calculate_glyphs(font, scale, geometry, sections),
+    }
+}
+
 impl<'font, V, H> GlyphBrush<'font, V, H>
 where
     V: Clone + 'static,
@@ -290,7 +354,8 @@ where
                             Cow::Owned(old.positioned.glyphs)
                         };
 
-                        Some(layout.recalculate_glyphs(
+                        Some(recalculate_glyphs(
+                            layout,
                             old_glyphs,
                             change,
                             font,

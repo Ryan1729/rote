@@ -12,7 +12,6 @@ pub use crate::{
     section::*,
 };
 
-use std::borrow::Cow;
 use std::hash::Hash;
 
 /// A scaled glyph that's relatively positioned.
@@ -55,7 +54,7 @@ pub type CalculatedGlyph<'font> = (PositionedGlyph<'font>, Color);
 /// [`SectionGeometry`](struct.SectionGeometry.html) and
 /// [`SectionText`](struct.SectionText.html).
 pub trait GlyphPositioner: Hash {
-    /// Calculate a sequence of positioned glyphs to render. Custom implementations should
+    /// Calculate a sequence of positioned glyphs to render. Implementations should
     /// return the same result when called with the same arguments to allow layout caching.
     fn calculate_glyphs<'font>(
         &self,
@@ -64,28 +63,10 @@ pub trait GlyphPositioner: Hash {
         geometry: &SectionGeometry,
         sections: &[SectionText<'_>],
     ) -> Vec<CalculatedGlyph<'font>>;
-
-    /// Recalculate a glyph sequence after a change.
-    ///
-    /// The default implementation simply calls `calculate_glyphs` so must be implemented
-    /// to provide benefits as such benefits are spefic to the internal layout logic.
-    fn recalculate_glyphs<'font>(
-        &self,
-        previous: Cow<'_, Vec<CalculatedGlyph<'font>>>,
-        change: GlyphChange,
-        font: &Font<'font>,
-        scale: Scale,
-        geometry: &SectionGeometry,
-        sections: &[SectionText<'_>],
-    ) -> Vec<CalculatedGlyph<'font>>
-    {
-        let _ = (previous, change);
-        self.calculate_glyphs(font, scale, geometry, sections)
-    }
 }
 
 #[derive(Debug)]
-pub enum GlyphChange {
+enum GlyphChange {
     /// Only the geometry has changed, contains the old geometry
     Geometry(SectionGeometry),
     /// Only the colors have changed (including alpha)
