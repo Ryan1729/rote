@@ -69,15 +69,12 @@ pub struct GlyphBrush<'font, V> {
     last_frame_seq_id_sections: Vec<SectionHashDetail>,
     frame_seq_id_sections: Vec<SectionHashDetail>,
 
-    // buffer of section-layout hashs (that must exist in the calculate_glyph_cache)
+    // buffer of section-layout hashes (that must exist in the calculate_glyph_cache)
     // to be used on the next `process_queued` call
     section_buffer: Vec<SectionHash>,
 
-    // Set of section hashs to keep in the glyph cache this frame even if they haven't been drawn
+    // Set of section hashes to keep in the glyph cache this frame even if they haven't been drawn
     keep_in_cache: FxHashSet<SectionHash>,
-
-    // config
-    cache_glyph_drawing: bool,
 
     last_pre_positioned: Vec<Glyphed<'font, V>>,
     pre_positioned: Vec<Glyphed<'font, V>>,
@@ -114,8 +111,6 @@ where
             frame_seq_id_sections: <_>::default(),
 
             keep_in_cache: <_>::default(),
-
-            cache_glyph_drawing: true,
 
             last_pre_positioned: <_>::default(),
             pre_positioned: <_>::default(),
@@ -418,8 +413,7 @@ where
             },
         };
 
-        let result = if !self.cache_glyph_drawing
-            || self.last_draw != draw_info
+        let result = if self.last_draw != draw_info
             || self.last_pre_positioned != self.pre_positioned
         {
             perf_viz::record_guard!("prepare BrushAction::Draw");
