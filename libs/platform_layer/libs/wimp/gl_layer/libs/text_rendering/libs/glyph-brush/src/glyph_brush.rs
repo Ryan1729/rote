@@ -77,7 +77,6 @@ pub struct GlyphBrush<'font, V> {
     keep_in_cache: FxHashSet<SectionHash>,
 
     // config
-    cache_glyph_positioning: bool,
     cache_glyph_drawing: bool,
 
     last_pre_positioned: Vec<Glyphed<'font, V>>,
@@ -116,7 +115,6 @@ where
 
             keep_in_cache: <_>::default(),
 
-            cache_glyph_positioning: true,
             cache_glyph_drawing: true,
 
             last_pre_positioned: <_>::default(),
@@ -325,71 +323,53 @@ where
 
         let scale = section.scale;
         let font_id = section.font_id;
-
-        if self.cache_glyph_positioning {
-            if !self.calculate_glyph_cache.contains_key(&section_hash.full) {
-                let geometry = SectionGeometry::from(section);
-
-                let recalculated_glyphs = self
-                    .last_frame_seq_id_sections
-                    .get(frame_seq_id)
-                    .cloned()
-                    .and_then(|hash| {
-                        let font = &self.fonts.font(font_id);
-                        let change = hash.diff(section_hash);
-                        if let GlyphChange::Unknown = change {
-                            return None;
-                        }
-
-                        let old_glyphs = if self.keep_in_cache.contains(&hash.full) {
-                            let cached = self.calculate_glyph_cache.get(&hash.full)?;
-                            Cow::Borrowed(&cached.positioned.glyphs)
-                        } else {
-                            let old = self.calculate_glyph_cache.remove(&hash.full)?;
-                            Cow::Owned(old.positioned.glyphs)
-                        };
-
-                        Some(recalculate_glyphs(
-                            layout,
-                            old_glyphs,
-                            change,
-                            font,
-                            scale,
-                            &geometry,
-                            &section.text,
-                        ))
-                    });
-
-                
-                self.calculate_glyph_cache.insert(
-                    section_hash.full,
-                    Glyphed::new(GlyphedSection {
-                        glyphs: recalculated_glyphs.unwrap_or_else(|| {
-                            let font = &self.fonts.font(font_id);
-                            layout.calculate_glyphs(
-                                font,
-                                scale,
-                                &geometry,
-                                &section.text
-                            )
-                        }),
-                        z: section.z,
-                        font_id,
-                    }),
-                );
-            }
-        } else {
+        
+        if !self.calculate_glyph_cache.contains_key(&section_hash.full) {
             let geometry = SectionGeometry::from(section);
-            let font = &self.fonts.font(font_id);
-            self.calculate_glyph_cache.insert(
-                section_hash.full,
-                Glyphed::new(GlyphedSection {
-                    glyphs: layout.calculate_glyphs(
+
+            let recalculated_glyphs = self
+                .last_frame_seq_id_sections
+                .get(frame_seq_id)
+                .cloned()
+                .and_then(|hash| {
+                    let font = &self.fonts.font(font_id);
+                    let change = hash.diff(section_hash);
+                    if let GlyphChange::Unknown = change {
+                        return None;
+                    }
+
+                    let old_glyphs = if self.keep_in_cache.contains(&hash.full) {
+                        let cached = self.calculate_glyph_cache.get(&hash.full)?;
+                        Cow::Borrowed(&cached.positioned.glyphs)
+                    } else {
+                        let old = self.calculate_glyph_cache.remove(&hash.full)?;
+                        Cow::Owned(old.positioned.glyphs)
+                    };
+
+                    Some(recalculate_glyphs(
+                        layout,
+                        old_glyphs,
+                        change,
                         font,
                         scale,
                         &geometry,
-                        &section.text
-                    ),
+                        &section.text,
+                    ))
+                });
+
+            
+            self.calculate_glyph_cache.insert(
+                section_hash.full,
+                Glyphed::new(GlyphedSection {
+                    glyphs: recalculated_glyphs.unwrap_or_else(|| {
+                        let font = &self.fonts.font(font_id);
+                        layout.calculate_glyphs(
+                            font,
+                            scale,
+                            &geometry,
+                            &section.text
+                        )
+                    }),
                     z: section.z,
                     font_id,
                 }),
@@ -582,21 +562,15 @@ where
     }
 
     fn cleanup_frame(&mut self) {
-        if self.cache_glyph_positioning {
-            // clear section_buffer & trim calculate_glyph_cache to active sections
-            let active = mem::take(&mut self.keep_in_cache);
-            self.calculate_glyph_cache
-                .retain(|key, _| active.contains(key));
-            self.keep_in_cache = active;
+        // clear section_buffer & trim calculate_glyph_cache to active sections
+        let active = mem::take(&mut self.keep_in_cache);
+        self.calculate_glyph_cache
+            .retain(|key, _| active.contains(key));
+        self.keep_in_cache = active;
 
-            self.keep_in_cache.clear();
+        self.keep_in_cache.clear();
 
-            self.section_buffer.clear();
-        } else {
-            self.section_buffer.clear();
-            self.calculate_glyph_cache.clear();
-            self.keep_in_cache.clear();
-        }
+        self.section_buffer.clear();
 
         mem::swap(
             &mut self.last_frame_seq_id_sections,
