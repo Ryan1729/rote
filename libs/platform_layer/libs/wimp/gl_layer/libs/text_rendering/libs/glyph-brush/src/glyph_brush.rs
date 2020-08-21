@@ -1,15 +1,15 @@
 use super::*;
 use full_rusttype::gpu_cache::{Cache, CachedBy};
 use log::error;
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::{FxHasher, FxHashMap, FxHashSet};
 use std::{
     borrow::Cow,
     fmt,
-    hash::{BuildHasher, Hash, Hasher},
+    hash::{Hash, Hasher},
     i32, mem,
 };
 
-use crate::{DefaultSectionHasher, Font};
+use crate::{Font};
 
 use std::f32::INFINITY;
 //const INFINITY: f32 = 65536.0; // 64k pixels ought to be enough for anybody!
@@ -57,7 +57,7 @@ type SectionHash = u64;
 /// This behaviour can be adjusted with
 /// [`GlyphBrushBuilder::gpu_cache_position_tolerance`]
 /// (struct.GlyphBrushBuilder.html#method.gpu_cache_position_tolerance).
-pub struct GlyphBrush<'font, V, H = DefaultSectionHasher> {
+pub struct GlyphBrush<'font, V> {
     fonts: Vec<Font<'font>>,
     texture_cache: Cache<'font>,
     last_draw: LastDrawInfo,
@@ -80,19 +80,17 @@ pub struct GlyphBrush<'font, V, H = DefaultSectionHasher> {
     cache_glyph_positioning: bool,
     cache_glyph_drawing: bool,
 
-    section_hasher: H,
-
     last_pre_positioned: Vec<Glyphed<'font, V>>,
     pre_positioned: Vec<Glyphed<'font, V>>,
 }
 
-impl<V, H> fmt::Debug for GlyphBrush<'_, V, H> {
+impl<V> fmt::Debug for GlyphBrush<'_, V> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "GlyphBrush")
     }
 }
 
-impl <'font, V> GlyphBrush<'font, V, DefaultSectionHasher>
+impl <'font, V> GlyphBrush<'font, V>
 where
     V: Clone + 'static,
 {
@@ -120,8 +118,6 @@ where
 
             cache_glyph_positioning: true,
             cache_glyph_drawing: true,
-
-            section_hasher: DefaultSectionHasher::default(),
 
             last_pre_positioned: <_>::default(),
             pre_positioned: <_>::default(),
@@ -290,10 +286,9 @@ where
     }
 }
 
-impl<'font, V, H> GlyphBrush<'font, V, H>
+impl<'font, V> GlyphBrush<'font, V>
 where
     V: Clone + 'static,
-    H: BuildHasher,
 {
     /// Queues a section/layout to be processed by the next call of
     /// [`process_queued`](struct.GlyphBrush.html#method.process_queued). Can be called multiple
@@ -319,11 +314,11 @@ where
 
     /// Returns the calculate_glyph_cache key for this sections glyphs
     #[allow(clippy::map_entry)] // further borrows are required after the contains_key check
-    fn cache_glyphs<L>(&mut self, section: &VariedSection<'_>, layout: &L) -> SectionHash
+    fn cache_glyphs<G>(&mut self, section: &VariedSection<'_>, layout: &G) -> SectionHash
     where
-        L: GlyphPositioner,
+        G: GlyphPositioner,
     {
-        let section_hash = SectionHashDetail::new(&self.section_hasher, section, layout);
+        let section_hash = SectionHashDetail::new(section, layout);
         // section id used to find a similar calculated layout from last frame
         let frame_seq_id = self.frame_seq_id_sections.len();
         self.frame_seq_id_sections.push(section_hash);
@@ -432,7 +427,7 @@ where
         let draw_info = LastDrawInfo {
             text_state: {
                 perf_viz::record_guard!("text_state");
-                let mut s = self.section_hasher.build_hasher();
+                let mut s = FxHasher::default();
                 let s_ref = &mut s;
                 self.section_buffer.hash(s_ref);
                 if let Some(a_r) = additional_rects.as_ref() {
@@ -681,14 +676,13 @@ struct SectionHashDetail {
 
 impl SectionHashDetail {
     #[inline]
-    fn new<H, L>(build_hasher: &H, section: &VariedSection<'_>, layout: &L) -> Self
+    fn new<G>(section: &VariedSection<'_>, layout: &G) -> Self
     where
-        H: BuildHasher,
-        L: GlyphPositioner,
+        G: GlyphPositioner,
     {
         let parts = section.to_hashable_parts();
 
-        let mut s = build_hasher.build_hasher();
+        let mut s = FxHasher::default();
         layout.hash(&mut s);
         parts.hash_text_no_color(&mut s);
         let text_hash = s.finish();

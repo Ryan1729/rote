@@ -931,7 +931,6 @@ dependencies = [
  "rustc-hash",
  "rusttype 0.8.3",
  "spin_sleep",
- "twox-hash",
 ]
 
 [[package]]
@@ -2330,15 +2329,6 @@ checksum = "1df33680edb07e4fb76edcbdd9c7b849b96709fb878afcf0ada678d6bda167af"
 dependencies = [
  "cc",
  "regex",
-]
-
-[[package]]
-name = "twox-hash"
-version = "1.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3bfd5b7557925ce778ff9b9ef90e3ade34c524b5ff10e239c69a42d546d2af56"
-dependencies = [
- "rand",
 ]
 
 [[package]]
