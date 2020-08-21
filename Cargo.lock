@@ -1960,7 +1960,7 @@ dependencies = [
 
 [[package]]
 name = "rote"
-version = "0.2.142"
+version = "0.2.143"
 dependencies = [
  "editor",
  "lazy_static 1.4.0",
@@ -2264,9 +2264,9 @@ version = "0.1.0"
 dependencies = [
  "gl_layer_types",
  "glyph_brush",
+ "is_linebreak_char",
  "linebreak",
  "macros",
- "panic_safe_rope",
  "perf_viz",
  "proptest",
  "pub_arb_std",

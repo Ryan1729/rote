@@ -507,8 +507,8 @@ pub(crate) type CharDims = Vec<CharDim>;
 const FONT_BYTES: &[u8] = include_bytes!("./fonts/FiraCode-Retina.ttf");
 
 pub fn new(hidpi_factor: f32, text_sizes: &[f32]) -> Res<(State, CharDims)> {
-
     let font = Font::from_bytes(FONT_BYTES)?;
+
     macro_rules! get_char_dim {
         ($scale:expr) => {{
             let scale = $scale;
@@ -657,12 +657,14 @@ mod unbounded {
     where
         'font: 'a + 'b,
     {
-        Characters::new(
-            font,
-            scale,
-            sections.iter(),
-        )
-        .lines()
+        UnboundedLines {
+            characters: Characters {
+                font,
+                scale,
+                section_text: sections.iter(),
+                part_info: None,
+            },
+        }
     }
     
     pub(crate) struct UnboundedLine<'font> {
@@ -769,29 +771,6 @@ mod unbounded {
         next_break: Option<Linebreak>,
     }
     
-    impl<'a, 'b, 'font> Characters<'a, 'b, 'font>
-    {
-        /// Returns a new `Characters` iterator.
-        fn new(
-            font: &'b Font<'font>,
-            scale: Scale,
-            section_text: slice::Iter<'a, SectionText<'a>>,
-        ) -> Self {
-            Self {
-                font,
-                scale,
-                section_text,
-                part_info: None,
-            }
-        }
-    
-        fn lines(self) -> UnboundedLines<'a, 'b, 'font> {
-            UnboundedLines {
-                characters: self,
-            }
-        }
-    }
-    
     impl<'font> Iterator for Characters<'_, '_, 'font>
     {
         type Item = Character<'font>;
@@ -838,22 +817,16 @@ mod unbounded {
                     if linebreak.is_some() && byte_index + c_len == text.len() {
                         // handle inherent end-of-str hard breaks
 
-                        // to check if the previous end char (say '$') should hard break construct
-                        // a str "$ " an check if the line break logic flags a hard break at index 1
-                        let mut last_end_bytes: [u8; 5] = [b' '; 5];
-                        c.encode_utf8(&mut last_end_bytes);
-                        linebreak = if let Ok(last_end_padded) = std::str::from_utf8(&last_end_bytes[0..=c_len]) {
-                            linebreak::iter(last_end_padded).next()
+                        // The code after this doesn't care about the index, so we 
+                        // just use 0
+                        linebreak = Some(if is_linebreak_char::is_linebreak_char(c) {
+                            Linebreak::Hard(0)
                         } else {
-                            None
-                        };
+                            Linebreak::Soft(0)
+                        });
                     }
 
-                    let is_linebreak = if let Some(Linebreak::Hard(..)) = linebreak {
-                        true
-                    } else {
-                        false
-                    };
+                    let is_linebreak = matches!(linebreak, Some(Linebreak::Hard(..)));
     
                     return Some(Character {
                         glyph,

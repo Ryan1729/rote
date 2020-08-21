@@ -15,7 +15,7 @@ glyph_brush = {path = "./libs/glyph-brush"}
 linebreak = {path = "./libs/linebreak"}
 rusttype = "0.8"
 macros = { path = "../../../../../../macros" }
-panic_safe_rope = { path = "../../../../../../panic_safe_rope" }
+is_linebreak_char = { path = "../../../../../../is_linebreak_char" }
 perf_viz = { path = "../../../../../../perf_viz" }
 screen_space = { path = "../../../../../../screen_space" }
 
