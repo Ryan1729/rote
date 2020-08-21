@@ -378,7 +378,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
             ($ui: expr, $editor_in_sink: expr, $input: expr) => {{
                 if cfg!(feature = "skip-updating-editor-thread") {
                     let input = $input;
-                    if let &Input::Quit = &input {
+                    if let Input::Quit = &input {
                         let _hope_it_gets_there = $editor_in_sink.send(input);
                     }
                 } else {
@@ -445,7 +445,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
 
                 let view = $view;
                 for (_, buffer) in view.buffer_iter() {
-                    if let &BufferName::Scratch(_) = &buffer.name {
+                    if let BufferName::Scratch(_) = &buffer.name {
                         if buffer.data.chars == error {
                             saw_same_error = true;
                             break;
@@ -1190,12 +1190,10 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                     perf_viz::start_record!("sleepin'");
                     if cfg!(feature="no-spinning-sleep") {
                         loop_helper.loop_sleep_no_spin();
+                    } else if r_s.ui.window_is_focused {
+                        loop_helper.loop_sleep();
                     } else {
-                        if r_s.ui.window_is_focused {
-                            loop_helper.loop_sleep();
-                        } else {
-                            loop_helper.loop_sleep_no_spin();
-                        }
+                        loop_helper.loop_sleep_no_spin();
                     }
                     perf_viz::end_record!("sleepin'");
 
