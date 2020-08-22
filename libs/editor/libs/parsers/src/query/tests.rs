@@ -69,7 +69,7 @@ macro_rules! get_rust_tree {
     ($code: expr) => {{
         let mut rust = get_rust_parser!();
 
-        rust.parse($code, None)
+        parse_expect!(rust.parse($code, None))
     }}
 }
 
@@ -158,15 +158,28 @@ fn arbitary_span_kind_from_match(Match {
     sk!(pattern_index.to_le_bytes()[0])
 }
 
+macro_rules! parse_expect {
+    ($lang: ident . parse ($to_parse: expr, $prev_tree: expr)) => {
+        $lang.parse($to_parse, $prev_tree).expect(concat!(
+            "No tree was returned ",
+            file!(),
+            ":",
+            line!(),
+            ":",
+            column!(),
+        ))
+    }
+}
+
 fn query_spans_for_produces_valid_rust_spans_on(
     code: &str,
     query_source: &str,
 ) {
     let (mut rust, query) = get_rust_parser_and_query(query_source);
 
-    let tree = rust.parse(&code, None);
+    let tree = parse_expect!(rust.parse(&code, None));
     
-    let spans = query::spans_for_inner(tree.as_ref(), &query, code, arbitary_span_kind_from_match);
+    let spans = query::spans_for_inner(&tree, &query, code, arbitary_span_kind_from_match);
 
     spans_assert!(spans);
 }
@@ -236,9 +249,9 @@ fn query_spans_for_produces_the_right_result_on_this_multiple_match_case() {
 
     let (mut rust, query) = get_rust_parser_and_query(query_source);
 
-    let tree = rust.parse(foo, None);
+    let tree = parse_expect!(rust.parse(foo, None));
     
-    let spans = query::spans_for_inner(tree.as_ref(), &query, foo, span_kind_from_match_example);
+    let spans = query::spans_for_inner(&tree, &query, foo, span_kind_from_match_example);
 
     assert_eq!(
         spans,
@@ -279,9 +292,9 @@ let hi = \"hi\";
 
     let (mut rust, query) = get_rust_parser_and_query(query_source);
 
-    let tree = rust.parse(foo, None);
+    let tree = parse_expect!(rust.parse(foo, None));
     
-    let spans = query::spans_for_inner(tree.as_ref(), &query, foo, span_kind_from_match_example);
+    let spans = query::spans_for_inner(&tree, &query, foo, span_kind_from_match_example);
 
     assert_eq!(
         spans,
@@ -323,9 +336,9 @@ let yo = \"yo\";
 
     let (mut rust, query) = get_rust_parser_and_query(query_source);
 
-    let tree = rust.parse(foo, None);
+    let tree = parse_expect!(rust.parse(foo, None));
     
-    let spans = query::spans_for_inner(tree.as_ref(), &query, foo, span_kind_from_match_example);
+    let spans = query::spans_for_inner(&tree, &query, foo, span_kind_from_match_example);
 
     assert_eq!(
         spans,
@@ -349,7 +362,7 @@ fn totally_classified_spans_for_produces_valid_rust_spans_on(code: &str) {
     let tree = get_rust_tree!(code);
 
     let spans = query::totally_classified_spans_for_inner(
-        tree.as_ref(),
+        &tree,
         code,
         arbitary_span_kind_from_node,
     );
@@ -676,7 +689,7 @@ fn tree_depth_spans_for_terminates_on(code: &'static str) {
     let (send, recv) = std::sync::mpsc::channel();
 
     std::thread::spawn(move || {
-        tree_depth_spans_for(tree.as_ref(), code);
+        tree_depth_spans_for(&tree, code);
         send.send(()).unwrap();
     });
     
@@ -730,7 +743,7 @@ fn tree_depth_spans_for_gets_the_right_answer_for(code: &str, expected_spans: Ve
 
     let tree = get_rust_tree!(code);
 
-    let spans = tree_depth_spans_for(tree.as_ref(), code);
+    let spans = tree_depth_spans_for(&tree, code);
 
     spans_assert!(&spans, "tree_depth_spans_for produced invalid spans!");
 
@@ -806,7 +819,7 @@ fn tree_depth_spans_for_gets_the_right_answer_for_the_nested_comment_tree() {
 fn tree_depth_spans_for_produces_valid_rust_spans_on(code: &str) {
     let tree = get_rust_tree!(code);
 
-    let spans = tree_depth_spans_for(tree.as_ref(), &code);
+    let spans = tree_depth_spans_for(&tree, &code);
 
     spans_assert!(spans);
 }
@@ -900,7 +913,7 @@ fn collecting_depth_first_produces_the_expected_answer_on(
 ) {
     let tree = get_rust_tree!(code);
 
-    let collected: Vec<_> = DepthFirst::new(tree.as_ref())
+    let collected: Vec<_> = DepthFirst::new(&tree)
         .map(|(depth, node)| (depth, node.end_byte(), node.kind()))
         .collect();
 
@@ -957,7 +970,7 @@ fn depth_first_terminates_on_the_nested_comment_tree() {
     std::thread::spawn(move || {
         // Do something so we are sure this isn't optimized out.
         let mut dummy_count = 0;
-        for e in DepthFirst::new(tree.as_ref()) {
+        for e in DepthFirst::new(&tree) {
             dummy_count += e.0;
         }
         dbg!(dummy_count);
@@ -975,7 +988,7 @@ fn tree_depth_extract_sorted_produces_sorted_rust_spans_on(code: &str) {
 
     let mut spans = Vec::with_capacity(1024);
 
-    tree_depth_extract_sorted(tree.as_ref(), &mut spans);
+    tree_depth_extract_sorted(&tree, &mut spans);
 
     spans_assert!(
         spans,

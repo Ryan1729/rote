@@ -986,12 +986,7 @@ mod query {
     #[allow(unused_macros)]
     macro_rules! recursive_dbg_code {
         (rust $code: expr) => {
-            let tree = get_rust_tree!($code);
-            if let Some(t) = tree {
-                recursive_dbg(Some(t.root_node()));
-            } else {
-                dbg!(tree);
-            }
+            recursive_dbg(Some(get_rust_tree!($code).root_node()));
         }
     }
 
