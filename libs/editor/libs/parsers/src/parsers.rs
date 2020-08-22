@@ -470,8 +470,6 @@ impl InitializedParsers {
                 perf_viz::end_record!("state.parser.parse");
 
                 if let Some(tree) = state.tree.as_ref() {
-                    // TODO stop requiring these query functions to handle None.
-                    let tree = Some(tree);
                     Ok(match style {
                         Basic => {
                             query::spans_for(
@@ -629,7 +627,7 @@ mod query {
 
     #[perf_viz::record]
     pub fn spans_for<'to_parse>(
-        tree: Option<&Tree>,
+        tree: &Tree,
         query: &Query,
         to_parse: &'to_parse str,
     ) -> Spans {
@@ -643,7 +641,7 @@ mod query {
     }
     
     fn spans_for_inner<'to_parse>(
-        tree: Option<&Tree>,
+        tree: &Tree,
         query: &Query,
         to_parse: &'to_parse str,
         span_kind_from_match: fn(Match) -> SpanKind,
@@ -685,26 +683,24 @@ mod query {
         };
     
         let mut query_cursor = QueryCursor::new();
-    
-        if let Some(r_t) = tree {
-            let text_callback = |n: Node| {
-                let r = n.range();
-                &to_parse[r.start_byte..r.end_byte]
-            };
-    
-            for q_match in query_cursor.matches(
-                query,
-                r_t.root_node(),
-                text_callback,
-            ) {
-                let pattern_index: usize = q_match.pattern_index;
-    
-                for q_capture in q_match.captures.iter() {
-                    receive_match(Match {
-                        pattern_index,
-                        capture: *q_capture
-                    });
-                }
+
+        let text_callback = |n: Node| {
+            let r = n.range();
+            &to_parse[r.start_byte..r.end_byte]
+        };
+
+        for q_match in query_cursor.matches(
+            query,
+            tree.root_node(),
+            text_callback,
+        ) {
+            let pattern_index: usize = q_match.pattern_index;
+
+            for q_capture in q_match.captures.iter() {
+                receive_match(Match {
+                    pattern_index,
+                    capture: *q_capture
+                });
             }
         }
     
@@ -733,7 +729,7 @@ mod query {
     
     #[perf_viz::record]
     pub fn totally_classified_spans_for<'to_parse>(
-        tree: Option<&Tree>,
+        tree: &Tree,
         to_parse: &'to_parse str,
     ) -> Spans {
         totally_classified_spans_for_inner(
@@ -744,7 +740,7 @@ mod query {
     }
 
     fn totally_classified_spans_for_inner<'to_parse>(
-        tree: Option<&Tree>,
+        tree: &Tree,
         to_parse: &'to_parse str,
         span_kind_from_node: fn(Node) -> SpanKindSpec,
     ) -> Spans {
@@ -756,15 +752,15 @@ mod query {
     
         perf_viz::start_record!("DepthFirst::new(tree)");
         for (_, node) in DepthFirst::new(tree) {
-            perf_viz::record_guard!("for (_, node) in DepthFirst::new(tree) body");
+            //perf_viz::record_guard!("for (_, node) in DepthFirst::new(tree) body");
             use SpanKindSpec::*;
     
-            perf_viz::start_record!("node.end_byte()");
+            //perf_viz::start_record!("node.end_byte()");
             let end_byte_index = node.end_byte();
-            perf_viz::end_record!("node.end_byte()");
+            //perf_viz::end_record!("node.end_byte()");
     
             {
-                perf_viz::record_guard!("set drop_until_end_byte or continue");
+                //perf_viz::record_guard!("set drop_until_end_byte or continue");
                 if let Some(end_byte) = drop_until_end_byte {
                     if end_byte_index > end_byte {
                         drop_until_end_byte = None;
@@ -774,7 +770,7 @@ mod query {
                 }
             }
     
-            perf_viz::start_record!("spans.push match");
+            //perf_viz::start_record!("spans.push match");
             match span_kind_from_node(node) {
                 DropNode => {}
                 Kind(kind) => {
@@ -792,7 +788,7 @@ mod query {
                     });
                 }
             }
-            perf_viz::end_record!("spans.push match");
+            //perf_viz::end_record!("spans.push match");
         }
         perf_viz::end_record!("DepthFirst::new(tree)");
     
@@ -812,7 +808,7 @@ mod query {
     
     #[perf_viz::record]
     pub fn tree_depth_spans_for<'to_parse>(
-        tree: Option<&Tree>,
+        tree: &Tree,
         to_parse: &'to_parse str,
     ) -> Spans {
         let mut spans = Vec::with_capacity(get_spans_capacity(
@@ -850,7 +846,7 @@ mod query {
     }
     
     fn tree_depth_extract_sorted(
-        tree: Option<&Tree>,
+        tree: &Tree,
         spans: &mut Spans,
     ) {
         for (depth, node) in DepthFirst::new(tree) {
@@ -884,14 +880,18 @@ mod query {
     
     struct DepthFirst<'tree> {
         depth: Depth,
-        cursor: Option<TreeCursor<'tree>>,
+        cursor: TreeCursor<'tree>,
+        done: bool,
     }
     
     impl <'tree> DepthFirst<'tree> {
-        fn new(tree: Option<&'tree Tree>) -> Self {
+        fn new(tree: &'tree Tree) -> Self {
             DepthFirst {
                 depth: 0,
-                cursor: tree.map(|t| t.walk()),
+                // TODO reuse old cursors, to save allocations as suggested at
+                // https://docs.rs/tree-sitter/0.16.1/tree_sitter/struct.Node.html#method.children
+                cursor: tree.walk(),
+                done: false,
             }
         }
     }
@@ -901,26 +901,27 @@ mod query {
     
         fn next(&mut self) -> Option<Self::Item> {
             perf_viz::record_guard!("DepthFirst::next");
-            let mut done = false;
+            if self.done {
+                return None;
+            }
             let depth = &mut self.depth;
-            let output = self.cursor.as_mut().and_then(|cursor| {
-                let output = Some((*depth, cursor.node()));
-                if cursor.goto_first_child() {
-                    *depth = depth.wrapping_add(1);
-                } else {                    while !cursor.goto_next_sibling() {
-                        if cursor.goto_parent() {
-                            *depth = depth.wrapping_sub(1);
-                        } else {
-                            done = true;
-                            break;
-                        }
+            let output = Some((*depth, self.cursor.node()));
+
+            if {
+                perf_viz::record_guard!("cursor.goto_first_child");
+                self.cursor.goto_first_child()
+            } {
+                *depth = depth.wrapping_add(1);
+            } else {
+                perf_viz::record_guard!("while !goto_next_sibling");
+                while !self.cursor.goto_next_sibling() {
+                    if self.cursor.goto_parent() {
+                        *depth = depth.wrapping_sub(1);
+                    } else {
+                        self.done = true;
+                        break;
                     }
                 }
-                output
-            });
-    
-            if done {
-                self.cursor = None;
             }
     
             output
