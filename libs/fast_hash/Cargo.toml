@@ -1,0 +1,12 @@
+[package]
+name = "fast_hash"
+version = "0.1.0"
+authors = ["Ryan1729 <Ryan1729@gmail.com>"]
+edition = "2018"
+
+[lib]
+path = "./src/fast_hash.rs"
+
+[dependencies]
+# we want a fast hash, and the first platform layer used this already so, sure why not.
+rustc-hash = "1"

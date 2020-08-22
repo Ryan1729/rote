@@ -152,8 +152,8 @@ impl EditorBuffers {
         if cfg!(feature = "no-cache") {
             return true;
         }
-        use std::hash::{Hasher};
-        let mut hasher: rustc_hash::FxHasher = d!();
+        use core::hash::{Hasher};
+        let mut hasher: fast_hash::Hasher = d!();
         self.non_rope_hash(&mut hasher);
         let new_non_rope_hash = hasher.finish();
 

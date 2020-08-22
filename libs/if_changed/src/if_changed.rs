@@ -52,11 +52,15 @@ macro_rules! key {
     };
 }
 
+#[cfg(not(feature = "fast_hash"))]
 use std::collections::HashMap;
+
+#[cfg(feature = "fast_hash")]
+use fast_hash::Map as HashMap;
 
 lazy_static::lazy_static! {
     static ref PREVIOUSLY_PRINTED: std::sync::Mutex<HashMap<&'static str, String>> =
-        std::sync::Mutex::new(HashMap::new());
+        std::sync::Mutex::new(HashMap::default());
 }
 
 macro_rules! p_if_changed {

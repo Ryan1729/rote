@@ -16,7 +16,6 @@ use tree_sitter::{
 
 use std::{
     borrow::Cow,
-    collections::HashMap,
     cmp::{max, min}
 };
 
@@ -146,6 +145,12 @@ d!{for BufferState: BufferState{
     parser: Parser::new(),
     tree: None,
 }}
+
+#[cfg(not(feature = "fast_hash"))]
+use std::collections::HashMap;
+
+#[cfg(feature = "fast_hash")]
+use fast_hash::Map as HashMap;
 
 type ParserMap = HashMap<BufferName, BufferState>;
 
@@ -527,7 +532,7 @@ impl InitializedParsers {
             rust_lang
         )?;
 
-        let mut parser_map = HashMap::new();
+        let mut parser_map: ParserMap = d!();
         parser_map.insert(d!(), first);
 
         let rust_basic_query = Query::new(

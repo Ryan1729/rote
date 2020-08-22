@@ -8,11 +8,12 @@ edition = "2018"
 path = "./src/editor.rs"
 
 [dependencies]
-# we want a fast hash, and the first platform layer used this already so, sure why not.
-rustc-hash = "1"
 
 [dependencies.editor_types]
 path = "libs/editor_types"
+
+[dependencies.fast_hash]
+path = "../fast_hash"
 
 [dependencies.if_changed]
 path = "../if_changed"

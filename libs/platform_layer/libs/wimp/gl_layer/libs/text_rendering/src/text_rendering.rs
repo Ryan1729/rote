@@ -168,7 +168,6 @@ mod text_layouts {
                 let new_caret_height = caret.1 + line_height;
                 
                 // we assume that the lines are sorted from top to bottom
-                // TODO simplify additions/subtractions
                 if caret.1 < min_y {
                     // just run the part after the if elses.
                 } else if new_caret_height >= max_y {

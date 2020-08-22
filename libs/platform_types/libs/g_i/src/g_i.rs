@@ -3,7 +3,7 @@ use macros::{d, u, fmt_debug, fmt_display, ord, some_or, SaturatingAdd, Saturati
 pub use vec1::{Vec1, vec1};
 pub use move_mod::Move;
 
-use std::hash::{Hash, Hasher};
+use core::hash::{Hash, Hasher};
 
 pub type Generation = u32;
 pub type LengthSize = u32;
@@ -852,7 +852,11 @@ mod selectable_vec1 {
 } 
 pub use selectable_vec1::{SelectableVec1, IterWithIndexes};
 
+#[cfg(not(feature = "fast_hash"))]
 use std::collections::HashMap;
+
+#[cfg(feature = "fast_hash")]
+use fast_hash::Map as HashMap;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Map<A> {
@@ -863,7 +867,7 @@ pub struct Map<A> {
 impl <A> Map<A> {
     pub fn with_capacity(capacity: Length) -> Self {
         Map {
-            map: HashMap::with_capacity(capacity.into()),
+            map: HashMap::with_capacity_and_hasher(capacity.into(), d!()),
             last_state: d!(),
         }
     }
@@ -940,13 +944,13 @@ impl <A> IntoIterator for Map<A> {
     type IntoIter = std::collections::hash_map::IntoIter<Index, A>;
 
     fn into_iter(self) -> Self::IntoIter {
-        let map = if let Some(state) = self.last_state {
+        let map: HashMap<_, _> = if let Some(state) = self.last_state {
             self.map.into_iter().map(|(part, a)| {
                 (state.new_index(part), a)
             }).collect()
         } else {
             // if the last_state is none, that implies that no inserts were done.
-            HashMap::with_capacity(0)
+            d!()
         };
 
         map.into_iter()

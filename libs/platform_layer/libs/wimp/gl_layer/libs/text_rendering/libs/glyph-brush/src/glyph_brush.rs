@@ -1,7 +1,6 @@
 use super::*;
 use full_rusttype::gpu_cache::{Cache, CachedBy};
 use log::error;
-use rustc_hash::{FxHasher, FxHashMap, FxHashSet};
 use std::{
     borrow::Cow,
     fmt,
@@ -64,7 +63,7 @@ pub struct GlyphBrush<'font, V> {
 
     // cache of section-layout hash -> computed glyphs, this avoid repeated glyph computation
     // for identical layout/sections common to repeated frame rendering
-    calculate_glyph_cache: FxHashMap<SectionHash, Glyphed<'font, V>>,
+    calculate_glyph_cache: fast_hash::Map<SectionHash, Glyphed<'font, V>>,
 
     last_frame_seq_id_sections: Vec<SectionHashDetail>,
     frame_seq_id_sections: Vec<SectionHashDetail>,
@@ -74,7 +73,7 @@ pub struct GlyphBrush<'font, V> {
     section_buffer: Vec<SectionHash>,
 
     // Set of section hashes to keep in the glyph cache this frame even if they haven't been drawn
-    keep_in_cache: FxHashSet<SectionHash>,
+    keep_in_cache: fast_hash::Set<SectionHash>,
 
     last_pre_positioned: Vec<Glyphed<'font, V>>,
     pre_positioned: Vec<Glyphed<'font, V>>,
@@ -402,7 +401,7 @@ where
         let draw_info = LastDrawInfo {
             text_state: {
                 perf_viz::record_guard!("text_state");
-                let mut s = FxHasher::default();
+                let mut s = fast_hash::Hasher::default();
                 let s_ref = &mut s;
                 self.section_buffer.hash(s_ref);
                 if let Some(a_r) = additional_rects.as_ref() {
@@ -493,6 +492,7 @@ where
                 // This stuff was hacked in here to fix a perf issue arising from
                 // the previous method of drawing rects through glyph_brush's API
                 // that used multiple instances of "█"
+                // (What would make these feel less hacked in?)
                 if let Some(AdditionalRects {
                      set_alpha,
                      rect_specs,
@@ -650,7 +650,7 @@ impl SectionHashDetail {
     {
         let parts = section.to_hashable_parts();
 
-        let mut s = FxHasher::default();
+        let mut s = fast_hash::Hasher::default();
         layout.hash(&mut s);
         parts.hash_text_no_color(&mut s);
         let text_hash = s.finish();

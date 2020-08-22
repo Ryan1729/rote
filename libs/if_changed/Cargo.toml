@@ -9,7 +9,8 @@ path = "./src/if_changed.rs"
 
 [dependencies]
 lazy_static = "1.3.0"
+fast_hash = { path = "../fast_hash", optional = true }
 
 [features]
-default = []
+default = ["fast_hash"]
 invariant-checking = []

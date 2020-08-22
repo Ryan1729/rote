@@ -617,6 +617,7 @@ dependencies = [
  "arb_macros",
  "criterion 0.2.11",
  "editor_types",
+ "fast_hash",
  "if_changed",
  "macros",
  "panic_safe_rope",
@@ -634,7 +635,6 @@ dependencies = [
  "pub_arb_pos_f32_trunc",
  "pub_arb_std",
  "pub_arb_text_buffer",
- "rustc-hash",
  "search",
  "text_buffer",
 ]
@@ -671,6 +671,13 @@ dependencies = [
  "non_neg_f32",
  "pos_f32",
  "proptest",
+]
+
+[[package]]
+name = "fast_hash"
+version = "0.1.0"
+dependencies = [
+ "rustc-hash",
 ]
 
 [[package]]
@@ -762,6 +769,7 @@ name = "g_i"
 version = "0.1.0"
 dependencies = [
  "arb_macros",
+ "fast_hash",
  "macros",
  "move_mod",
  "mut_methods",
@@ -920,6 +928,7 @@ dependencies = [
  "approx",
  "criterion 0.3.2",
  "env_logger",
+ "fast_hash",
  "gl",
  "glutin",
  "if_changed",
@@ -928,7 +937,6 @@ dependencies = [
  "once_cell",
  "ordered-float",
  "perf_viz",
- "rustc-hash",
  "rusttype 0.8.3",
  "spin_sleep",
 ]
@@ -946,6 +954,7 @@ dependencies = [
 name = "if_changed"
 version = "0.1.0"
 dependencies = [
+ "fast_hash",
  "lazy_static 1.4.0",
 ]
 
@@ -1453,6 +1462,7 @@ version = "0.1.0"
 dependencies = [
  "cc",
  "edit",
+ "fast_hash",
  "macros",
  "perf_viz",
  "platform_types",
@@ -1959,7 +1969,7 @@ dependencies = [
 
 [[package]]
 name = "rote"
-version = "0.2.143"
+version = "0.2.144"
 dependencies = [
  "editor",
  "lazy_static 1.4.0",

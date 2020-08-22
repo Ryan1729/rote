@@ -16,6 +16,10 @@ tree-sitter = "0.16.1"
 [dependencies.edit]
 path = "../edit"
 
+[dependencies.fast_hash]
+path = "../../../fast_hash"
+optional = true
+
 [dependencies.macros]
 path = "../../../macros"
 
@@ -30,3 +34,6 @@ proptest = "0.10"
 
 [dev-dependencies.pub_arb_rust_code]
 path = "../../../pub_arb/rust_code"
+
+[features]
+default = ["fast_hash"]
