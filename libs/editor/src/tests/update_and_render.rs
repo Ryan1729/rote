@@ -1504,3 +1504,50 @@ fn sets_the_views_buffer_selected_index_correctly_after_moving_selection_right_o
     );
     }
 }
+
+#[test]
+fn the_view_contains_the_right_spans_after_typing_fn_below_this_fn_def() {
+    u!{BufferName, Input}
+    let mut state = arb::state_from_editor_buffers(
+        EditorBuffers::new((Path("fakefile.rs".into()), "fn foo() {}\n"))
+    );
+    
+    update_and_render(&mut state, Insert('\n'));
+
+    assert_eq!(
+        state.view.buffers.get_current_element().data.spans,
+        vec![
+            SpanView { end_byte_index: 3, kind: sk!(PLAIN) },
+            SpanView { end_byte_index: 7, kind: sk!(3) },
+            SpanView { end_byte_index: 12, kind: sk!(PLAIN) },
+            SpanView { end_byte_index: 13, kind: sk!(3) }
+        ],
+        "added \\n"
+    );
+
+    update_and_render(&mut state, Insert('f'));
+
+    assert_eq!(
+        state.view.buffers.get_current_element().data.spans,
+        vec![
+            SpanView { end_byte_index: 3, kind: sk!(PLAIN) },
+            SpanView { end_byte_index: 7, kind: sk!(3) },
+            SpanView { end_byte_index: 12, kind: sk!(PLAIN) },
+            SpanView { end_byte_index: 14, kind: sk!(3) }
+        ],
+        "added f"
+    );
+
+    update_and_render(&mut state, Insert('n'));
+
+    assert_eq!(
+        state.view.buffers.get_current_element().data.spans,
+        vec![
+            SpanView { end_byte_index: 3, kind: sk!(PLAIN) },
+            SpanView { end_byte_index: 7, kind: sk!(3) },
+            SpanView { end_byte_index: 12, kind: sk!(PLAIN) },
+            SpanView { end_byte_index: 15, kind: sk!(3) }
+        ],
+        "added n"
+    );
+}

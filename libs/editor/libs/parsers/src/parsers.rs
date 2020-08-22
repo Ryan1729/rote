@@ -355,7 +355,7 @@ impl Parsers {
                             (None, None) => continue,
                         };
 
-                        tree.edit(&std::dbg!(InputEdit{
+                        tree.edit(&InputEdit{
                             start_byte,
                             old_end_byte,
                             new_end_byte,
@@ -371,7 +371,7 @@ impl Parsers {
                                 row: new_end_pos.line,
                                 column: new_end_pos.offset.0
                             },
-                        }));
+                        });
                     }
                 }
             },

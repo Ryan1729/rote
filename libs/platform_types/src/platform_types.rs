@@ -665,7 +665,7 @@ impl SpanKind {
     /// conform with them, but also allow new conventions
     /// to be created. This value represents the smallest 
     /// value that does not have a conventional meaning.
-    /// all the valued of a SpanKindRaw will not have a
+    /// all the values of a SpanKindRaw will not have a
     /// conventional meaning, so different span 
     /// classifiers can assign those values whatever 
     /// meaning they wish.
