@@ -714,12 +714,12 @@ macro_rules! bvd {
 /// rendering the view.
 #[derive(Debug, Clone)]
 pub enum Cmd {
-    NoCmd,
+    None,
     SetClipboard(String),
     LoadFile(PathBuf),
 }
 
-d!(for Cmd : Cmd::NoCmd);
+d!(for Cmd : Cmd::None);
 
 pub type UpdateAndRenderOutput = (View, Cmd);
 pub type UpdateAndRender = fn(Input) -> UpdateAndRenderOutput;

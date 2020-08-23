@@ -135,10 +135,7 @@ impl ViewAction {
     }
 
     pub fn is_none(&self) -> bool {
-        match self {
-            ViewAction::None => true,
-            _ => false,
-        }
+        matches!(self, ViewAction::None)
     } 
 }
 
@@ -234,9 +231,9 @@ pub fn view<'view>(
     perf_viz::start_record!("render Tabs");
     let selected_index = view.current_text_index();
 
-    let mut i = 0;
     let tab_count = buffer_count;
-    for (index, BufferView { name_string, .. }) in view.buffer_iter() {
+    for (i , (index, BufferView { name_string, .. })) 
+    in view.buffer_iter().enumerate() {
         let SpacedRect {
             padding,
             margin,

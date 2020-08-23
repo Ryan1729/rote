@@ -43,15 +43,21 @@ macro_rules! end_record {
 /// These `z_.*_record` functions need to be public for the similarly named macros to work,
 /// but they should not be directly called, and they should show up last in IDE autocomplete lists.
 /// That is why they start with the numerically largest character allowed in identifiers.
-pub fn z_start_record<S: Into<std::borrow::Cow<'static, str>>>(_s: S) {
-    #[cfg(any(feature = "flame-chart", feature = "flame-graph"))]
-    flame::start(_s);
+#[cfg(any(feature = "flame-chart", feature = "flame-graph"))]
+pub fn z_start_record<S: Into<std::borrow::Cow<'static, str>>>(s: S) {
+    flame::start(s);
 }
 
-pub fn z_end_record<S: Into<std::borrow::Cow<'static, str>>>(_s: S) {
-    #[cfg(any(feature = "flame-chart", feature = "flame-graph"))]
-    flame::end(_s);
+#[cfg(not(any(feature = "flame-chart", feature = "flame-graph")))]
+pub fn z_start_record<S: Into<std::borrow::Cow<'static, str>>>(_: S) {}
+
+#[cfg(any(feature = "flame-chart", feature = "flame-graph"))]
+pub fn z_end_record<S: Into<std::borrow::Cow<'static, str>>>(s: S) {
+    flame::end(s);
 }
+
+#[cfg(not(any(feature = "flame-chart", feature = "flame-graph")))]
+pub fn z_end_record<S: Into<std::borrow::Cow<'static, str>>>(_: S) {}
 
 #[cfg(any(feature = "flame-chart", feature = "flame-graph"))]
 #[macro_export]

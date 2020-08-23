@@ -687,10 +687,7 @@ impl From<HistoryNavOutcome> for Option<EditedTransition> {
 impl HistoryNavOutcome {
     pub fn ran_out_of_history(&self) -> bool {
         u!{HistoryNavOutcome}
-        match self {
-            RanOutOfHistory => true,
-            _ => false
-        }
+        matches!(self,RanOutOfHistory)
     }
 }
 

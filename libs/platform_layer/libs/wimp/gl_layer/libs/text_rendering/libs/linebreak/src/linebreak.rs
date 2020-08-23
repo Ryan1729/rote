@@ -17,6 +17,7 @@ pub enum Linebreak {
 
 impl Linebreak {
     /// Returns the offset of the linebreak, the index after the breaking character.
+    #[must_use]
     #[inline]
     pub fn offset(&self) -> usize {
         match *self {
@@ -25,6 +26,7 @@ impl Linebreak {
     }
 }
 
+#[must_use]
 #[inline]
 pub fn iter(text: &'_ str) -> LinebreakIter {
     LinebreakIter {
@@ -44,7 +46,7 @@ impl Iterator for LinebreakIter<'_> {
     type Item = Linebreak;
 
     #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
+    fn next(&mut self) -> Option<Self::Item> {        
         use Linebreak::*;
         match self.chars.next() {
             None => if self.already_emitted_end {
@@ -56,8 +58,7 @@ impl Iterator for LinebreakIter<'_> {
             Some((index, ch)) => if ch == '\r' {
                 let next_char = self.chars
                     .peek()
-                    .map(|(_, c)| *c)
-                    .unwrap_or('\0');
+                    .map_or('\0', |(_, c)| *c);
                 if next_char == '\n' {
                     let nl_i = self.chars.next().unwrap().0;
                     Some(Hard(nl_i + 1))

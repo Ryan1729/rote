@@ -65,14 +65,14 @@ pub fn find_in<'path, I: Iterator<Item = &'path Path>>(
 
         let i = if output.is_empty() {
             // base case for when we don't havea second path to compare to.
-            contains_needle = match path.to_str() {
-                // Fast(er) path for valid unicde paths
-                Some(s) => s.match_indices(needle).count() > 0,
-                None => {
-                    let s = path.to_string_lossy();
-                    s.match_indices(needle).count() > 0
-                }
+            contains_needle = if let Some(s) = path.to_str() {
+                // Fast(er) path for valid unicode paths
+                s.match_indices(needle).count() > 0
+            } else {
+                let s = path.to_string_lossy();
+                s.match_indices(needle).count() > 0
             };
+
             0
         } else {
             output

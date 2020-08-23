@@ -16,7 +16,7 @@ pub enum Move {
 use Move::*;
 
 fmt_display!(for Move: r#move in "{}", match r#move {
-    Up => ">",
+    Up => "^",
     Down => "v",
     Left => "<",
     Right => ">",

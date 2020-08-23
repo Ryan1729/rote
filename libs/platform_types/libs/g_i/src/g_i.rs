@@ -1,9 +1,9 @@
 /// A module containg a Generational Index implementation
-use macros::{d, u, fmt_debug, fmt_display, ord, some_or, SaturatingAdd, SaturatingSub};
+use macros::{d, fmt_debug, fmt_display, ord, SaturatingAdd, SaturatingSub};
 pub use vec1::{Vec1, vec1};
 pub use move_mod::Move;
 
-use core::hash::{Hash, Hasher};
+use core::hash::{Hash};
 
 pub type Generation = u32;
 pub type LengthSize = u32;
@@ -16,13 +16,17 @@ fmt_display!(for Length: Length(l) in "{}", l);
 
 impl Length {
     /// This returns a `usize` to make comparing to usize lengths conveinient.
+    #[must_use]
     pub const fn max_value() -> usize {
         LengthSize::max_value() as usize
     }
 
     /// This takes a `usize` to make creation from usize lengths, where we don't care about
     /// the maximum case, conveinient.
+    #[must_use]
     pub fn or_max(len: usize) -> Self {
+        #[allow(clippy::cast_possible_truncation)]
+        // We explicitly saturate instead of truncate
         Self({
             let max = Self::max_value();
             if len > max {
@@ -49,13 +53,17 @@ fmt_display!(for IndexPart: IndexPart(l) in "{}", l);
 
 impl IndexPart {
     /// This returns a `usize` to make comparing to usize lengths conveinient.
+    #[must_use]
     pub const fn max_value() -> usize {
         (LengthSize::max_value() - 1) as usize
     }
 
     /// This takes a `usize` to make creation from usize lengths, where we don't care about
     /// the maximum case, conveinient.
+    #[must_use]
     pub fn or_max(i: usize) -> Self {
+        #[allow(clippy::cast_possible_truncation)]
+        // We explicitly saturate instead of truncate
         Self({
             let max = Self::max_value();
             if i > max {
@@ -81,7 +89,10 @@ impl macros::SaturatingSub<usize> for IndexPart {
     type Output = Self;
 
     fn saturating_sub(self, rhs: usize) -> Self::Output {
-        // assumes `LengthSize` is an unsigned type.
+        #[allow(clippy::cast_possible_truncation)]
+        // This is fine since self.0 was a LengthSize already. Even if `rhs` 
+        // exceeds `LengthSize::max_value()` we just get 0.
+        // Assumes `LengthSize` is an unsigned type.
         Self((self.0 as usize).saturating_sub(rhs) as LengthSize)
     }
 }
@@ -129,8 +140,7 @@ impl std::cmp::PartialOrd<Length> for IndexPart {
 impl std::cmp::PartialEq<Length> for IndexPart {
     fn eq(&self, other: &Length) -> bool {
         self.partial_cmp(other)
-            .map(|o| o == std::cmp::Ordering::Equal)
-            .unwrap_or(false)
+            .map_or(false, |o| o == std::cmp::Ordering::Equal)
     }
 }
 
@@ -182,16 +192,21 @@ impl State {
     }
 
     /// Attempt to convert an index from a given generation to the current generation.
+    #[must_use]
     pub fn migrate(self, index: Index) -> Option<Index> {
         index.get_index_part(self).map(|i| self.new_index(i))
     }
+
+    #[must_use]
     pub fn new_index(&self, index: IndexPart) -> Index {
         Index {
             generation: self.current,
             index,
         }
     }
+
     /// Equivalent to `new_index(IndexPart::or_max(i))`.
+    #[must_use]
     pub fn new_index_or_max(&self, i: usize) -> Index {
         self.new_index(IndexPart::or_max(i))
     }
@@ -217,16 +232,17 @@ impl std::cmp::PartialOrd<IndexPart> for Index {
 impl std::cmp::PartialEq<IndexPart> for Index {
     fn eq(&self, other: &IndexPart) -> bool {
         self.partial_cmp(other)
-            .map(|o| o == std::cmp::Ordering::Equal)
-            .unwrap_or(false)
+            .map_or(false, |o| o == std::cmp::Ordering::Equal)
     }
 }
 
 impl Index {
+    #[must_use]
     pub fn get(self, state: State) -> Option<usize> {
         self.get_index_part(state).map(|IndexPart(i)| i as usize)
     }
 
+    #[must_use]
     pub fn get_index_part(self, state: State) -> Option<IndexPart> {
         if self.generation == state.current {
             Some(self.index)
@@ -332,8 +348,7 @@ impl std::cmp::PartialOrd<Length> for Index {
 impl std::cmp::PartialEq<Length> for Index {
     fn eq(&self, other: &Length) -> bool {
         self.partial_cmp(other)
-            .map(|o| o == std::cmp::Ordering::Equal)
-            .unwrap_or(false)
+            .map_or(false, |o| o == std::cmp::Ordering::Equal)
     }
 }
 
@@ -390,7 +405,9 @@ macro_rules! svec1 {
 /// SelectableVec1 can change its fields.
 #[mut_methods::mut_methods]
 mod selectable_vec1 {
-    use super::*;
+    use macros::{d, u, some_or, SaturatingAdd, SaturatingSub};
+    use crate::{Vec1, Length, Index, IndexPart, State, SelectionAdjustment, SelectionMove};
+    use core::hash::{Hash, Hasher};
 
     /// A Vec1 that uses `Index`es and has a notion that one of the elements is
     /// "selected" or is "the current element". This "selected" element can be borrowed
@@ -454,6 +471,7 @@ mod selectable_vec1 {
     #[allow(clippy::len_without_is_empty)]
     // an is_empty method would always return false.
     impl<A> SelectableVec1<A> {
+        #[must_use]
         pub fn new(inital_element: A) -> Self {
             Self {
                 elements: Vec1::new(inital_element),
@@ -462,6 +480,7 @@ mod selectable_vec1 {
             }
         }
 
+        #[must_use]
         pub fn new_from_vec1(elements: Vec1<A>) -> Self {
             Self {
                 elements,
@@ -471,39 +490,46 @@ mod selectable_vec1 {
         }
         
         /// Since there is always at least one element, this always returns at least 1.
+        #[must_use]
         pub fn len(&self) -> Length {
             debug_assert!(self.elements.len() <= Length::max_value());
             Length::or_max(self.elements.len())
         }
     
         /// The index of the first element.
+        #[must_use]
         pub fn first_index(&self) -> Index {
             self.index_state.new_index(IndexPart::or_max(0))
         }
     
         /// The index of the last element.
+        #[must_use]
         pub fn last_index(&self) -> Index {
             let len: usize = self.len().into();
             self.index_state.new_index(IndexPart::or_max(len - 1))
         }
 
         /// The index of an element would have if one was immeadiately appended.
+        #[must_use]
         pub fn append_index(&self) -> Index {
             let len: usize = self.len().into();
             self.index_state.new_index(IndexPart::or_max(len))
         }
     
         /// The index of the currectly selected element.
+        #[must_use]
         pub fn current_index(&self) -> Index {
             self.current_index
         }
 
         /// The index of the currectly selected element. This is intended mainly for the purpose of displaying 
         /// the current index.
+        #[must_use]
         pub fn current_index_part(&self) -> IndexPart {
             self.current_index.index
         }
     
+        #[must_use]
         pub fn get_current_element(&self) -> &A {
             some_or!(
                 self.get_current_element_or_none(),
@@ -511,6 +537,7 @@ mod selectable_vec1 {
             )
         }
     
+        #[must_use]
         pub fn get_current_element_mut(&mut self) -> &mut A {
             // We can't use the same thing as we do in `get_current_element` because of the 
             // borrow checker. This may eventually be resolved by non-lexical lifetimes.
@@ -525,20 +552,24 @@ mod selectable_vec1 {
             }
         }
     
+        #[must_use]
         pub fn get_current_element_or_none(&self) -> Option<&A> {
             self.get(self.current_index())
         }
     
+        #[must_use]
         pub fn get_current_element_or_none_mut(&mut self) -> Option<&mut A> {
             self.get_mut(self.current_index())
         }
     
+        #[must_use]
         pub fn get_mut(&mut self, index: Index) -> Option<&mut A> {
             index
                 .get(self.index_state)
                 .and_then(move |i| self.elements.get_mut(i))
         }
     
+        #[must_use]
         pub fn get(&self, index: Index) -> Option<&A> {
             index
                 .get(self.index_state)
@@ -606,32 +637,34 @@ mod selectable_vec1 {
             );
         }
     
+        #[must_use]
         pub fn next_index(&self) -> Index {
             self.next_index_from(self.current_index)
         }
     
+        #[must_use]
         pub fn next_index_from(&self, index: Index) -> Index {
             (index.saturating_add(1)) % self.len()
         }
     
+        #[must_use]
         pub fn previous_index(&self) -> Index {
             self.previous_index_from(self.current_index)
         }
 
+        #[must_use]
         pub fn previous_index_no_wrap(&self) -> Option<Index> {
-            self.previous_index_from_no_wrap(self.current_index)
+            Self::previous_index_from_no_wrap(self.current_index)
         }
     
+        #[must_use]
         pub fn previous_index_from(&self, index: Index) -> Index {
-            let i: usize = index.into();
-            if i == 0 {
-                self.last_index()
-            } else {
-                index.saturating_sub(1)
-            }
+            Self::previous_index_from_no_wrap(index)
+                .unwrap_or_else(|| self.last_index())
         }
 
-        pub fn previous_index_from_no_wrap(&self, index: Index) -> Option<Index> {
+        #[must_use]
+        fn previous_index_from_no_wrap(index: Index) -> Option<Index> {
             let i: usize = index.into();
             if i == 0 {
                 None
@@ -743,7 +776,8 @@ mod selectable_vec1 {
     
             output
         }
-    
+
+        #[must_use]
         pub fn index_state(&self) -> State {
             self.index_state
         }
@@ -774,6 +808,7 @@ mod selectable_vec1 {
             self.current_index = other.current_index;
         }
 
+        #[must_use]
         pub fn elements(&self) -> &Vec1<A> {
             &self.elements
         }
@@ -799,10 +834,12 @@ mod selectable_vec1 {
     }
     
     impl<A> SelectableVec1<A> {
+        #[must_use]
         pub fn iter(&self) -> std::slice::Iter<A> {
             self.elements.iter()
         }
     
+        #[must_use]
         pub fn iter_with_indexes(&self) -> IterWithIndexes<A> {
             IterWithIndexes {
                 index: self.first_index(),
@@ -832,6 +869,7 @@ mod selectable_vec1 {
 
     #[cfg(any(test, feature = "pub_arb"))]
     impl<A> SelectableVec1<A> {
+        #[must_use]
         pub fn from_parts(
             elements: Vec1<A>,
             index_state: State,
@@ -865,6 +903,7 @@ pub struct Map<A> {
 }
 
 impl <A> Map<A> {
+    #[must_use]
     pub fn with_capacity(capacity: Length) -> Self {
         Map {
             map: HashMap::with_capacity_and_hasher(capacity.into(), d!()),
@@ -872,15 +911,18 @@ impl <A> Map<A> {
         }
     }
 
+    #[must_use]
     pub fn len(&self) -> Length {
         debug_assert!(self.map.len() <= Length::max_value());
         Length::or_max(self.map.len())
     }
 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.map.is_empty()
     }
 
+    #[must_use]
     pub fn get(&mut self, state: State, index: Index) -> Option<&A> {
         if let Some(i) = index.get_index_part(state) {
             // This is why we need a &mut self, and this is needed
@@ -892,6 +934,7 @@ impl <A> Map<A> {
         }
     }
 
+    #[must_use]
     pub fn get_mut(&mut self, state: State, index: Index) -> Option<&mut A> {
         if let Some(i) = index.get_index_part(state) {
             self.migrate_all(state);

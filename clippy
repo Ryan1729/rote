@@ -1,0 +1,8 @@
+
+# enum-glob-use used tastefully, inside small scopes doesn't cause a problem, 
+#    besides sometimes needing to disambiguate.
+# default-trait-access enables the wonderfully terse `d` macro. I think the amount
+#    of places that macros is used is the best argument for saving those characters.
+cargo clippy --color=always -- -D clippy::pedantic \
+    -A clippy::enum-glob-use \
+    -A clippy::default-trait-access \

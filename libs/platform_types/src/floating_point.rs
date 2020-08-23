@@ -32,8 +32,9 @@ pub fn usual_f32_minimal_decrease<F32: Into<f32>>(x: F32) -> f32 {
 }
 
 pub fn is_normal_or_0<F32: Into<f32>>(x: F32) -> bool {
-    let x = x.into();
     use std::num::FpCategory::{Normal, Zero};
+
+    let x = x.into();
     let category = x.classify();
     category == Zero || category == Normal
 }

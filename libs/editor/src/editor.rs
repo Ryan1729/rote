@@ -144,7 +144,7 @@ fmt_debug!(
         blank_if_default!(clipboard_history);
         blank_if_default!(
             parsers,
-            if let Parsers::NotInitializedYet = me.parsers { true } else { false }
+            matches!(me.parsers, Parsers::NotInitializedYet)
         );
         blank_if_default!(view);
     }

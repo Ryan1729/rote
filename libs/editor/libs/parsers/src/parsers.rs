@@ -907,10 +907,7 @@ mod query {
             let depth = &mut self.depth;
             let output = Some((*depth, self.cursor.node()));
 
-            if {
-                perf_viz::record_guard!("cursor.goto_first_child");
-                self.cursor.goto_first_child()
-            } {
+            if self.cursor.goto_first_child() {
                 *depth = depth.wrapping_add(1);
             } else {
                 perf_viz::record_guard!("while !goto_next_sibling");
