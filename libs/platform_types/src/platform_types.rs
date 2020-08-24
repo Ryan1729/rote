@@ -665,7 +665,7 @@ impl SpanKind {
     /// conform with them, but also allow new conventions
     /// to be created. This value represents the smallest 
     /// value that does not have a conventional meaning.
-    /// all the values of a SpanKindRaw will not have a
+    /// all the values of a `SpanKindRaw` will not have a
     /// conventional meaning, so different span 
     /// classifiers can assign those values whatever 
     /// meaning they wish.
@@ -679,7 +679,14 @@ d!(for SpanKind: SpanKind::PLAIN);
 
 #[derive(Copy, Clone, Default, Debug, PartialEq)]
 pub struct SpanView {
-    pub end_byte_index: usize,
+    /// The index of the byte one past the last byte that belongs to this span.
+    /// We store only this index because in a list of `Spanview`s the start index
+    /// for the first span is zero, and start of the each other span is simply the 
+    /// value of the previous span's `one_past_end_byte_index` field.
+    /// See EWD831 for a further argument as to why we use this instead of the 
+    /// last byte of the span.
+    pub one_past_end_byte_index: usize,
+    /// Which kind of span this is, available here for highlighting purposes.
     pub kind: SpanKind,
 }
 

@@ -699,7 +699,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
             [CTRL, X, "Cut.", state {
                 call_u_and_r!(state, Input::Cut);
             }]
-            [CTRL, Y, "Cut.", state {
+            [CTRL, Y, "Redo.", state {
                 call_u_and_r!(state, Input::Redo);
             }]
             [CTRL, Z, "Undo.", state {
@@ -1142,7 +1142,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                                     }
                                 }
                                 Cmd::LoadFile(path) => load_file!(path),
-                                Cmd::NoCmd => {}
+                                Cmd::None => {}
                             }
                         } else {
                             break;

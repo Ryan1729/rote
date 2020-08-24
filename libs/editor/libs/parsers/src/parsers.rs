@@ -622,7 +622,7 @@ mod query {
     }
     
     fn plaintext_end_span_for(s: ToParse<'_>) -> SpanView {
-        SpanView { kind: SpanKind::PLAIN, end_byte_index: s.len()}
+        SpanView { kind: SpanKind::PLAIN, one_past_end_byte_index: s.len()}
     }
 
     #[perf_viz::record]
@@ -652,6 +652,7 @@ mod query {
     
         let mut span_stack = Vec::with_capacity(16);
     
+        // TODO maybe test this in isolation from the tree-sitter query stuff.
         let mut receive_match = |m: Match| {
             let node = m.capture.node;
             let kind = span_kind_from_match(m);
@@ -660,24 +661,24 @@ mod query {
                 () => {
                     span_stack.last().cloned().unwrap_or_else(|| SpanView {
                         kind: SpanKind::PLAIN,
-                        end_byte_index: 0xFFFF_FFFF_FFFF_FFFF
+                        one_past_end_byte_index: 0xFFFF_FFFF_FFFF_FFFF
                     })
                 }
             }
         
-            if get_prev!().end_byte_index <= node.start_byte() {
+            if get_prev!().one_past_end_byte_index <= node.start_byte() {
                 if let Some(s) = span_stack.pop() {
                     spans.push(s);
                 }
             }
         
             spans.push(SpanView {
-                end_byte_index: node.start_byte(),
+                one_past_end_byte_index: node.start_byte(),
                 kind: get_prev!().kind,
             });
         
             span_stack.push(SpanView {
-                end_byte_index: node.end_byte(),
+                one_past_end_byte_index: node.end_byte(),
                 kind,
             });
         };
@@ -708,23 +709,31 @@ mod query {
             spans.push(s);
         }
     
-        let len = to_parse.len();
-        if spans.last().map(|s| s.end_byte_index < len).unwrap_or(true) {
-            spans.push(SpanView {
-                end_byte_index: len,
-                kind: SpanKind::PLAIN,
-            });
-        }
+        cap_off_spans(&mut spans, to_parse.len());
     
         // TODO there is probably a clever way to change the above code so this line,
         // and the associted O(n log n) running time, is unnecessary.
         spans.sort_by(|s1, s2|{
-            s1.end_byte_index.cmp(&s2.end_byte_index)
+            s1.one_past_end_byte_index.cmp(&s2.one_past_end_byte_index)
         });
     
         filter_spans(&mut spans);
     
         spans
+    }
+
+    fn cap_off_spans(spans: &mut Vec<SpanView>, to_parse_byte_len: usize) {
+        // If there's no span covering the end, we should add a span. But if one
+        // that already covers the end is there then we shouldn't bother.
+        if spans.last()
+            .map(|s| s.one_past_end_byte_index < to_parse_byte_len)
+            .unwrap_or(true) 
+        {
+            spans.push(SpanView {
+                one_past_end_byte_index: to_parse_byte_len,
+                kind: SpanKind::PLAIN,
+            });
+        }
     }
     
     #[perf_viz::record]
@@ -756,13 +765,13 @@ mod query {
             use SpanKindSpec::*;
     
             //perf_viz::start_record!("node.end_byte()");
-            let end_byte_index = node.end_byte();
+            let one_past_end_byte_index = node.end_byte();
             //perf_viz::end_record!("node.end_byte()");
     
             {
                 //perf_viz::record_guard!("set drop_until_end_byte or continue");
                 if let Some(end_byte) = drop_until_end_byte {
-                    if end_byte_index > end_byte {
+                    if one_past_end_byte_index > end_byte {
                         drop_until_end_byte = None;
                     } else {
                         continue;
@@ -775,15 +784,15 @@ mod query {
                 DropNode => {}
                 Kind(kind) => {
                     spans.push(SpanView {
-                        end_byte_index,
+                        one_past_end_byte_index,
                         kind,
                     });
                 }
                 KindAndDropBelow(kind) => {
-                    drop_until_end_byte = Some(end_byte_index);
+                    drop_until_end_byte = Some(one_past_end_byte_index);
     
                     spans.push(SpanView {
-                        end_byte_index,
+                        one_past_end_byte_index,
                         kind,
                     });
                 }
@@ -792,10 +801,12 @@ mod query {
         }
         perf_viz::end_record!("DepthFirst::new(tree)");
     
+        cap_off_spans(&mut spans, to_parse.len());
+
         perf_viz::start_record!("spans.sort_by");
         // TODO maybe there's a way to do this without an O(n log n) sort?
         spans.sort_by(|s1, s2|{
-            s1.end_byte_index.cmp(&s2.end_byte_index)
+            s1.one_past_end_byte_index.cmp(&s2.one_past_end_byte_index)
         });
         perf_viz::end_record!("spans.sort_by");
     
@@ -817,6 +828,8 @@ mod query {
     
         tree_depth_extract_sorted(tree, &mut spans);
     
+        cap_off_spans(&mut spans, to_parse.len());
+
         let len = spans.len();
         if len <= 1 {
             filter_spans(&mut spans);
@@ -827,16 +840,16 @@ mod query {
         let mut prev_max = 0;
     
         for i in (0..(spans.len() - 1)).rev() {
-            if spans[i].end_byte_index > prev_max {
-                prev_max = spans[i].end_byte_index;
+            if spans[i].one_past_end_byte_index > prev_max {
+                prev_max = spans[i].one_past_end_byte_index;
             }
             if spans[i + 1].kind != spans[i].kind {
-                if spans[i + 1].end_byte_index <= spans[i].end_byte_index
-                && spans[i].end_byte_index >= prev_max {
+                if spans[i + 1].one_past_end_byte_index <= spans[i].one_past_end_byte_index
+                && spans[i].one_past_end_byte_index >= prev_max {
                     spans.remove(i);
                 }
     
-                prev_max = spans[i].end_byte_index;
+                prev_max = spans[i].one_past_end_byte_index;
             }
         }
         
@@ -853,13 +866,13 @@ mod query {
             let new_end_byte_index = node.end_byte();
             let new = SpanView {
                 kind: sk!(depth),
-                end_byte_index: new_end_byte_index
+                one_past_end_byte_index: new_end_byte_index
             };
     
             if let Some(previous) = spans.pop() {
-                if previous.end_byte_index >= new_end_byte_index {
+                if previous.one_past_end_byte_index >= new_end_byte_index {
                     spans.push(new);
-                    if previous.end_byte_index != new_end_byte_index {
+                    if previous.one_past_end_byte_index != new_end_byte_index {
                         spans.push(previous);
                     }
                 } else {
@@ -874,7 +887,7 @@ mod query {
         // TODO there is probably a clever way to change the above loop so this line,
         // and the associted O(n log n) running time, is unnecessary.
         spans.sort_by(|s1, s2|{
-            s1.end_byte_index.cmp(&s2.end_byte_index)
+            s1.one_past_end_byte_index.cmp(&s2.one_past_end_byte_index)
         });
     }
     
@@ -931,7 +944,7 @@ mod query {
         dedup_by_kind_keeping_last(spans);
         
         for i in (0..spans.len()).rev() {
-            if spans[i].end_byte_index == 0 {
+            if spans[i].one_past_end_byte_index == 0 {
                 spans.remove(i);
             }
         }
@@ -953,8 +966,8 @@ mod query {
     fn dedup_by_end_byte_keeping_last(spans: &mut Spans) {
         let mut write = 0;
         for i in 0..spans.len() {
-            let prev_end_byte_index = spans[write].end_byte_index;
-            if prev_end_byte_index != spans[i].end_byte_index {
+            let prev_end_byte_index = spans[write].one_past_end_byte_index;
+            if prev_end_byte_index != spans[i].one_past_end_byte_index {
                 write += 1;
             }
             spans[write] = spans[i];

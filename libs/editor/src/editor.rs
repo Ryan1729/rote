@@ -521,7 +521,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
         if_changed::dbg!(&input);
     }
 
-    let mut cmd = Cmd::NoCmd;
+    let mut cmd = Cmd::None;
     
     macro_rules! close_menu_if_any {
         () => {

@@ -963,7 +963,7 @@ fn colourize<'text>(text: Cow<'text, str>, spans: &[SpanView]) -> Vec<ColouredTe
     let mut prev_byte_index = 0;
     spans.iter().map(move |s| {
         
-        let text = &text[prev_byte_index..s.end_byte_index];
+        let text = &text[prev_byte_index..s.one_past_end_byte_index];
         let text = text.trim_end();
         let output = ColouredText {
             text: {
@@ -982,7 +982,7 @@ fn colourize<'text>(text: Cow<'text, str>, spans: &[SpanView]) -> Vec<ColouredTe
                 _ => palette![blue]
             },
         };
-        prev_byte_index = s.end_byte_index;
+        prev_byte_index = s.one_past_end_byte_index;
         output
     }).collect()
 }
