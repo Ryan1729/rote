@@ -232,7 +232,7 @@ pub fn view<'view>(
     let selected_index = view.current_text_index();
 
     let tab_count = buffer_count;
-    for (i , (index, BufferView { name_string, .. })) 
+    for (i, (index, BufferView { name_string, .. }))
     in view.buffer_iter().enumerate() {
         let SpacedRect {
             padding,
@@ -288,8 +288,6 @@ pub fn view<'view>(
                 index
             )))
         }
-
-        i += 1;
     }
     perf_viz::end_record!("render Tabs");
 
