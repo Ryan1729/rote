@@ -273,26 +273,75 @@ proptest!{
     }
 }
 
+#[test]
+fn the_right_spans_are_set_after_typing_fn_below_this_fn_def() {
+    u!{BufferName, Input, ParserKind, parsers::Style}
+    let buffer_name = Path("fakefile.rs".into());
 
-proptest!{
-    #[test]
-    fn passing_add_or_select_buffer_to_update_and_render_updates_and_selects_the_default_buffer(
-        s in  ".*",
-    ) {
-        let mut state: State = d!();
-    
-        let name = d!();
+    let mut parsers = Parsers::default();
 
-        update_and_render(&mut state, Input::AddOrSelectBuffer(name, s.clone()));
-    
-        assert_eq!(
-            usize::from(state.buffers.len()),
-            1
-        );
-        assert_eq!(
-            String::from(state.buffers.get_current_buffer()),
-            s
-        );
-    }
+    let parser_kind = Rust(Extra);
+
+    let mut text_buffer = TextBuffer::from("fn foo() {}\n");
+
+    text_buffer.move_all_cursors(Move::ToBufferEnd);
+
+    text_buffer.insert('\n', Some(text_buffer::ParserEditListener {
+        buffer_name: &buffer_name,
+        parser_kind,
+        parsers: & mut parsers,
+    }));
+
+    assert_eq!(String::from(&text_buffer), "fn foo() {}\n\n", "precondition failure");
+
+    assert_eq!(
+        parsers.get_spans(text_buffer.borrow_rope().into(), &buffer_name, parser_kind),
+        vec![
+            SpanView { one_past_end_byte_index: 2, kind: sk!(PLAIN) },
+            SpanView { one_past_end_byte_index: 6, kind: sk!(3) },
+            SpanView { one_past_end_byte_index: 13, kind: sk!(PLAIN) },
+        ],
+        "added \\n"
+    );
+
+    text_buffer.insert('f', Some(text_buffer::ParserEditListener {
+        buffer_name: &buffer_name,
+        parser_kind,
+        parsers: & mut parsers,
+    }));
+
+    assert_eq!(String::from(&text_buffer), "fn foo() {}\n\nf", "precondition failure");
+
+    // We really only care that the spans show all the characters, and that the
+    // first line has the same spans the whole way through. This is just the 
+    // simplest way to check both of those properties, but it does slightly 
+    // over-assert.
+    assert_eq!(
+        parsers.get_spans(text_buffer.borrow_rope().into(), &buffer_name, parser_kind),
+        vec![
+            SpanView { one_past_end_byte_index: 2, kind: sk!(PLAIN) },
+            SpanView { one_past_end_byte_index: 6, kind: sk!(3) },
+            SpanView { one_past_end_byte_index: 14, kind: sk!(PLAIN) },
+        ],
+        "added f"
+    );
+
+    text_buffer.insert('n', Some(text_buffer::ParserEditListener {
+        buffer_name: &buffer_name,
+        parser_kind,
+        parsers: & mut parsers,
+    }));
+
+    assert_eq!(String::from(&text_buffer), "fn foo() {}\n\nfn", "precondition failure");
+
+    assert_eq!(
+        parsers.get_spans(text_buffer.borrow_rope().into(), &buffer_name, parser_kind),
+        vec![
+            SpanView { one_past_end_byte_index: 2, kind: sk!(PLAIN) },
+            SpanView { one_past_end_byte_index: 6, kind: sk!(3) },
+            SpanView { one_past_end_byte_index: 15, kind: sk!(PLAIN) }
+        ],
+        "added n"
+    );
 }
 

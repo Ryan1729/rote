@@ -1511,14 +1511,22 @@ fn the_view_contains_the_right_spans_after_typing_fn_below_this_fn_def() {
     let mut state = arb::state_from_editor_buffers(
         EditorBuffers::new((Path("fakefile.rs".into()), "fn foo() {}\n"))
     );
+
+    update_and_render(&mut state, MoveAllCursors(Move::ToBufferEnd));
     
     update_and_render(&mut state, Insert('\n'));
 
     assert_eq!(
+        state.view.buffers.get_current_element().data.chars,
+        "fn foo() {}\n\n",
+        "precondition failure"
+    );
+
+    assert_eq!(
         state.view.buffers.get_current_element().data.spans,
         vec![
-            SpanView { one_past_end_byte_index: 3, kind: sk!(PLAIN) },
-            SpanView { one_past_end_byte_index: 7, kind: sk!(3) },
+            SpanView { one_past_end_byte_index: 2, kind: sk!(PLAIN) },
+            SpanView { one_past_end_byte_index: 6, kind: sk!(3) },
             SpanView { one_past_end_byte_index: 13, kind: sk!(PLAIN) },
         ],
         "added \\n"
@@ -1527,12 +1535,21 @@ fn the_view_contains_the_right_spans_after_typing_fn_below_this_fn_def() {
     update_and_render(&mut state, Insert('f'));
 
     assert_eq!(
+        state.view.buffers.get_current_element().data.chars,
+        "fn foo() {}\n\nf",
+        "precondition failure"
+    );
+
+    // We really only care that the spans show all the characters, and that the
+    // first line has the same spans the whole way through. This is just the 
+    // simplest way to check both of those properties, but it does slightly 
+    // over-assert.
+    assert_eq!(
         state.view.buffers.get_current_element().data.spans,
         vec![
-            SpanView { one_past_end_byte_index: 3, kind: sk!(PLAIN) },
-            SpanView { one_past_end_byte_index: 7, kind: sk!(3) },
-            SpanView { one_past_end_byte_index: 13, kind: sk!(PLAIN) },
-            SpanView { one_past_end_byte_index: 14, kind: sk!(3) }
+            SpanView { one_past_end_byte_index: 2, kind: sk!(PLAIN) },
+            SpanView { one_past_end_byte_index: 6, kind: sk!(3) },
+            SpanView { one_past_end_byte_index: 14, kind: sk!(PLAIN) },
         ],
         "added f"
     );
@@ -1540,12 +1557,17 @@ fn the_view_contains_the_right_spans_after_typing_fn_below_this_fn_def() {
     update_and_render(&mut state, Insert('n'));
 
     assert_eq!(
+        state.view.buffers.get_current_element().data.chars,
+        "fn foo() {}\n\nfn",
+        "precondition failure"
+    );
+
+    assert_eq!(
         state.view.buffers.get_current_element().data.spans,
         vec![
-            SpanView { one_past_end_byte_index: 3, kind: sk!(PLAIN) },
-            SpanView { one_past_end_byte_index: 7, kind: sk!(3) },
-            SpanView { one_past_end_byte_index: 13, kind: sk!(PLAIN) },
-            SpanView { one_past_end_byte_index: 15, kind: sk!(3) }
+            SpanView { one_past_end_byte_index: 2, kind: sk!(PLAIN) },
+            SpanView { one_past_end_byte_index: 6, kind: sk!(3) },
+            SpanView { one_past_end_byte_index: 15, kind: sk!(PLAIN) }
         ],
         "added n"
     );

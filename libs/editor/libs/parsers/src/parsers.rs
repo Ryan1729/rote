@@ -722,7 +722,7 @@ mod query {
         spans
     }
 
-    fn cap_off_spans(spans: &mut Vec<SpanView>, to_parse_byte_len: usize) {
+    fn cap_off_spans(spans: &mut Spans, to_parse_byte_len: usize) {
         // If there's no span covering the end, we should add a span. But if one
         // that already covers the end is there then we shouldn't bother.
         if spans.last()

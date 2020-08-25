@@ -78,22 +78,27 @@ pub enum ScrollAdjustSpec {
 }
 
 impl TextBuffer {
+    #[must_use]
     pub fn len(&self) -> usize {
         self.borrow_rope().chars().count()
     }
 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.rope.len_bytes() == 0
     }
 
+    #[must_use]
     pub fn borrow_rope(&self) -> &Rope {
         &self.rope
     }
 
+    #[must_use]
     pub fn clone_rope(&self) -> Rope {
         self.rope.clone()
     }
 
+    #[must_use]
     pub fn borrow_cursors(&self) -> &Cursors {
         &self.cursors
     }
