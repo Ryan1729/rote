@@ -298,11 +298,11 @@ prop_compose!{
 
 prop_compose!{
     pub fn span_view()(
-        end_byte_index in any::<usize>(),
+        one_past_end_byte_index in any::<usize>(),
         kind in span_kind(),
     ) -> SpanView {
         SpanView {
-            end_byte_index,
+            one_past_end_byte_index,
             kind,
         }
     }

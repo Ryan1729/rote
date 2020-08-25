@@ -1517,10 +1517,9 @@ fn the_view_contains_the_right_spans_after_typing_fn_below_this_fn_def() {
     assert_eq!(
         state.view.buffers.get_current_element().data.spans,
         vec![
-            SpanView { end_byte_index: 3, kind: sk!(PLAIN) },
-            SpanView { end_byte_index: 7, kind: sk!(3) },
-            SpanView { end_byte_index: 12, kind: sk!(PLAIN) },
-            SpanView { end_byte_index: 13, kind: sk!(3) }
+            SpanView { one_past_end_byte_index: 3, kind: sk!(PLAIN) },
+            SpanView { one_past_end_byte_index: 7, kind: sk!(3) },
+            SpanView { one_past_end_byte_index: 13, kind: sk!(PLAIN) },
         ],
         "added \\n"
     );
@@ -1530,10 +1529,10 @@ fn the_view_contains_the_right_spans_after_typing_fn_below_this_fn_def() {
     assert_eq!(
         state.view.buffers.get_current_element().data.spans,
         vec![
-            SpanView { end_byte_index: 3, kind: sk!(PLAIN) },
-            SpanView { end_byte_index: 7, kind: sk!(3) },
-            SpanView { end_byte_index: 12, kind: sk!(PLAIN) },
-            SpanView { end_byte_index: 14, kind: sk!(3) }
+            SpanView { one_past_end_byte_index: 3, kind: sk!(PLAIN) },
+            SpanView { one_past_end_byte_index: 7, kind: sk!(3) },
+            SpanView { one_past_end_byte_index: 13, kind: sk!(PLAIN) },
+            SpanView { one_past_end_byte_index: 14, kind: sk!(3) }
         ],
         "added f"
     );
@@ -1543,10 +1542,10 @@ fn the_view_contains_the_right_spans_after_typing_fn_below_this_fn_def() {
     assert_eq!(
         state.view.buffers.get_current_element().data.spans,
         vec![
-            SpanView { end_byte_index: 3, kind: sk!(PLAIN) },
-            SpanView { end_byte_index: 7, kind: sk!(3) },
-            SpanView { end_byte_index: 12, kind: sk!(PLAIN) },
-            SpanView { end_byte_index: 15, kind: sk!(3) }
+            SpanView { one_past_end_byte_index: 3, kind: sk!(PLAIN) },
+            SpanView { one_past_end_byte_index: 7, kind: sk!(3) },
+            SpanView { one_past_end_byte_index: 13, kind: sk!(PLAIN) },
+            SpanView { one_past_end_byte_index: 15, kind: sk!(3) }
         ],
         "added n"
     );

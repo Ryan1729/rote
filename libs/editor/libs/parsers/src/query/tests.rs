@@ -89,12 +89,12 @@ macro_rules! spans_assert {
         let mode = $mode;
 
         let mut previous_kind = None;
-        let mut previous_end_byte_index = 0;
+        let mut previous_one_past_end_byte_index = 0;
         for (i, s) in spans.clone().into_iter().enumerate() {
             assert_ne!(
-                s.end_byte_index,
+                s.one_past_end_byte_index,
                 0,
-                "the span at index {}, {:?} has an end_byte_index of 0. This indicates a useless 0 length span, and so it should be removed.",
+                "the span at index {}, {:?} has an one_past_end_byte_index of 0. This indicates a useless 0 length span, and so it should be removed.",
                 i,
                 s
             );
@@ -115,9 +115,9 @@ macro_rules! spans_assert {
                     previous_kind = Some(s.kind);
 
                     assert_ne!(
-                        s.end_byte_index,
-                        previous_end_byte_index,
-                        "at index {} in spans was {:?} which has the same end_byte_index as the previous span: {:?}", 
+                        s.one_past_end_byte_index,
+                        previous_one_past_end_byte_index,
+                        "at index {} in spans was {:?} which has the same one_past_end_byte_index as the previous span: {:?}", 
                         i,
                         s,
                         spans,
@@ -126,14 +126,14 @@ macro_rules! spans_assert {
             }
             
             assert!(
-                previous_end_byte_index <= s.end_byte_index,
+                previous_one_past_end_byte_index <= s.one_past_end_byte_index,
                 "{} > {} {}\n\n{:?}",
-                previous_end_byte_index,
-                s.end_byte_index,
+                previous_one_past_end_byte_index,
+                s.one_past_end_byte_index,
                 $suffix,
                 spans
             );
-            previous_end_byte_index = s.end_byte_index;
+            previous_one_past_end_byte_index = s.one_past_end_byte_index;
         }
     }
 }
@@ -256,11 +256,11 @@ fn query_spans_for_produces_the_right_result_on_this_multiple_match_case() {
     assert_eq!(
         spans,
         vec![
-            SpanView { kind: OTHER, end_byte_index: 4 },
-            SpanView { kind: OUTER, end_byte_index: 8 },
-            SpanView { kind: INNER, end_byte_index: 11 },
-            SpanView { kind: OUTER, end_byte_index: 12 },
-            SpanView { kind: OTHER, end_byte_index: foo.len()},
+            SpanView { kind: OTHER, one_past_end_byte_index: 4 },
+            SpanView { kind: OUTER, one_past_end_byte_index: 8 },
+            SpanView { kind: INNER, one_past_end_byte_index: 11 },
+            SpanView { kind: OUTER, one_past_end_byte_index: 12 },
+            SpanView { kind: OTHER, one_past_end_byte_index: foo.len()},
         ]
     )
 }
@@ -299,11 +299,11 @@ let hi = \"hi\";
     assert_eq!(
         spans,
         vec![
-            SpanView { kind: PLAIN, end_byte_index: 21 },
-            SpanView { kind: STRING, end_byte_index: 21 + 4 },
-            SpanView { kind: PLAIN, end_byte_index: 27 },
-            SpanView { kind: COMMENT, end_byte_index: 34 },
-            SpanView { kind: PLAIN, end_byte_index: foo.len()},
+            SpanView { kind: PLAIN, one_past_end_byte_index: 21 },
+            SpanView { kind: STRING, one_past_end_byte_index: 21 + 4 },
+            SpanView { kind: PLAIN, one_past_end_byte_index: 27 },
+            SpanView { kind: COMMENT, one_past_end_byte_index: 34 },
+            SpanView { kind: PLAIN, one_past_end_byte_index: foo.len()},
         ]
     )
 }
@@ -343,13 +343,13 @@ let yo = \"yo\";
     assert_eq!(
         spans,
         vec![
-            SpanView { kind: PLAIN, end_byte_index: 21 },
-            SpanView { kind: STRING, end_byte_index: 21 + 4 },
-            SpanView { kind: PLAIN, end_byte_index: 27 },
-            SpanView { kind: COMMENT, end_byte_index: 34 },
-            SpanView { kind: PLAIN, end_byte_index: 44 },
-            SpanView { kind: STRING, end_byte_index: 44 + 4 },
-            SpanView { kind: PLAIN, end_byte_index: foo.len()},
+            SpanView { kind: PLAIN, one_past_end_byte_index: 21 },
+            SpanView { kind: STRING, one_past_end_byte_index: 21 + 4 },
+            SpanView { kind: PLAIN, one_past_end_byte_index: 27 },
+            SpanView { kind: COMMENT, one_past_end_byte_index: 34 },
+            SpanView { kind: PLAIN, one_past_end_byte_index: 44 },
+            SpanView { kind: STRING, one_past_end_byte_index: 44 + 4 },
+            SpanView { kind: PLAIN, one_past_end_byte_index: foo.len()},
         ]
     )
 }
@@ -558,7 +558,7 @@ fn rust_extra_spans_should_not_give_paired_tokens_different_kinds_on(
 
 fn span_for_byte_index(spans: &Spans, byte_index: usize) -> Option<SpanView> {
     for span in spans.iter() {
-        if span.end_byte_index > byte_index {
+        if span.one_past_end_byte_index > byte_index {
             return Some(*span);
         }
     }
@@ -800,18 +800,18 @@ fn tree_depth_spans_for_gets_the_right_answer_for_the_nested_comment_tree() {
     tree_depth_spans_for_gets_the_right_answer_for(
         NESTED_COMMENT_EXAMPLE,
         vec![
-            SpanView { kind: sk!(2), end_byte_index: 7 },
-            SpanView { kind: sk!(3), end_byte_index: 9 },
-            SpanView { kind: sk!(2), end_byte_index: 10 },
-            SpanView { kind: sk!(3), end_byte_index: 11 + 4 },
-            SpanView { kind: sk!(4), end_byte_index: 11 + 12 },
-            SpanView { kind: sk!(5), end_byte_index: 11 + 23 },
-            SpanView { kind: sk!(4), end_byte_index: 11 + 24 },
-            SpanView { kind: sk!(2), end_byte_index: 36 + 4 },
-            SpanView { kind: sk!(3), end_byte_index: 36 + 11 },
-            SpanView { kind: sk!(2), end_byte_index: 47 },
-            SpanView { kind: sk!(3), end_byte_index: 47 + 1 },
-            SpanView { kind: sk!(1), end_byte_index: NESTED_COMMENT_EXAMPLE.len() },
+            SpanView { kind: sk!(2), one_past_end_byte_index: 7 },
+            SpanView { kind: sk!(3), one_past_end_byte_index: 9 },
+            SpanView { kind: sk!(2), one_past_end_byte_index: 10 },
+            SpanView { kind: sk!(3), one_past_end_byte_index: 11 + 4 },
+            SpanView { kind: sk!(4), one_past_end_byte_index: 11 + 12 },
+            SpanView { kind: sk!(5), one_past_end_byte_index: 11 + 23 },
+            SpanView { kind: sk!(4), one_past_end_byte_index: 11 + 24 },
+            SpanView { kind: sk!(2), one_past_end_byte_index: 36 + 4 },
+            SpanView { kind: sk!(3), one_past_end_byte_index: 36 + 11 },
+            SpanView { kind: sk!(2), one_past_end_byte_index: 47 },
+            SpanView { kind: sk!(3), one_past_end_byte_index: 47 + 1 },
+            SpanView { kind: sk!(1), one_past_end_byte_index: NESTED_COMMENT_EXAMPLE.len() },
         ]
     );
 }
@@ -883,7 +883,7 @@ fn tree_depth_spans_for_gets_the_right_answer_for_this_minimal_case() {
     tree_depth_spans_for_gets_the_right_answer_for(
         MINIMAL_ITEM_CASE,
         vec![
-            SpanView { kind: sk!(2), end_byte_index: 9 },
+            SpanView { kind: sk!(2), one_past_end_byte_index: 9 },
         ]
     );
 }
@@ -895,12 +895,12 @@ fn tree_depth_spans_for_gets_the_right_answer_for_this_predicate_case() {
     tree_depth_spans_for_gets_the_right_answer_for(
         PREDICATE_EXAMPLE,
         vec![
-            SpanView { kind: sk!(2), end_byte_index: 5 },
-            SpanView { kind: sk!(3), end_byte_index: 7 },
-            SpanView { kind: sk!(2), end_byte_index: 15 },
-            SpanView { kind: sk!(3), end_byte_index: 16 },
-            SpanView { kind: sk!(4), end_byte_index: 21 },
-            SpanView { kind: sk!(3), end_byte_index: 22 },
+            SpanView { kind: sk!(2), one_past_end_byte_index: 5 },
+            SpanView { kind: sk!(3), one_past_end_byte_index: 7 },
+            SpanView { kind: sk!(2), one_past_end_byte_index: 15 },
+            SpanView { kind: sk!(3), one_past_end_byte_index: 16 },
+            SpanView { kind: sk!(4), one_past_end_byte_index: 21 },
+            SpanView { kind: sk!(3), one_past_end_byte_index: 22 },
         ]
     );
 }
@@ -1016,15 +1016,15 @@ fn tree_depth_extract_sorted_produces_sorted_rust_spans_on_the_nested_comment_ex
 fn dedup_by_kind_keeping_last_in_this_case_with_three_in_a_row() {
     let mut spans = vec![
         SpanView {
-            end_byte_index: 5,
+            one_past_end_byte_index: 5,
             kind: d!()
         },
         SpanView {
-            end_byte_index: 6,
+            one_past_end_byte_index: 6,
             kind: d!()
         },
         SpanView {
-            end_byte_index: 7,
+            one_past_end_byte_index: 7,
             kind: d!()
         },
     ];
@@ -1035,7 +1035,7 @@ fn dedup_by_kind_keeping_last_in_this_case_with_three_in_a_row() {
         spans,
         vec![
             SpanView {
-                end_byte_index: 7,
+                one_past_end_byte_index: 7,
                 kind: d!()
             }
         ]
@@ -1046,15 +1046,15 @@ fn dedup_by_kind_keeping_last_in_this_case_with_three_in_a_row() {
 fn filter_spans_produces_valid_spans_in_this_three_in_a_row_case() {
     let mut spans = vec![
         SpanView {
-            end_byte_index: 5,
+            one_past_end_byte_index: 5,
             kind: sk!(5)
         },
         SpanView {
-            end_byte_index: 5,
+            one_past_end_byte_index: 5,
             kind: sk!(6)
         },
         SpanView {
-            end_byte_index: 5,
+            one_past_end_byte_index: 5,
             kind: sk!(7)
         },
     ];
