@@ -690,6 +690,10 @@ pub struct SpanView {
     pub kind: SpanKind,
 }
 
+pub fn span_slice<'s>(s: &'s str, start_byte_index: usize, span_view: &SpanView) -> &'s str {
+    &s[start_byte_index..span_view.one_past_end_byte_index]
+}
+
 #[derive(Clone, Default, PartialEq)]
 pub struct BufferViewData {
     pub chars: Rope,

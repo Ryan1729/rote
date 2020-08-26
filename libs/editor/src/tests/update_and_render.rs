@@ -1,6 +1,7 @@
 use super::*;
 use macros::{u, dbg};
 use search::{SearchResults};
+use platform_types::{span_slice};
 
 fn shows_the_cursor_when_pressing_ctrl_home_on(text: &str, buffer_xywh: TextBoxXYWH, char_dim: CharDim) {
     let mut state: State = text.into();
@@ -1516,59 +1517,110 @@ fn the_view_contains_the_right_spans_after_typing_fn_below_this_fn_def() {
     
     update_and_render(&mut state, Insert('\n'));
 
-    assert_eq!(
-        state.view.buffers.get_current_element().data.chars,
-        "fn foo() {}\n\n",
-        "precondition failure"
-    );
-
-    assert_eq!(
-        state.view.buffers.get_current_element().data.spans,
-        vec![
+    {
+       let chars = String::from(
+            state.view.buffers.get_current_element().data.chars.clone()
+        );
+        assert_eq!(
+            chars,
+            "fn foo() {}\n\n",
+            "\\n precondition failure"
+        );
+    
+        let expected_spans = vec![
             SpanView { one_past_end_byte_index: 2, kind: sk!(PLAIN) },
             SpanView { one_past_end_byte_index: 6, kind: sk!(3) },
             SpanView { one_past_end_byte_index: 13, kind: sk!(PLAIN) },
-        ],
-        "added \\n"
-    );
+        ];
+    
+        assert_eq!(
+            span_slice(
+                &chars,
+                expected_spans[1].one_past_end_byte_index,
+                &expected_spans[2]
+            ),
+            "() {}\n\n",
+            "\\n precondition failure"
+        );
+    
+        assert_eq!(
+            state.view.buffers.get_current_element().data.spans,
+            expected_spans,
+            "added \\n"
+        );
+    }
 
     update_and_render(&mut state, Insert('f'));
 
-    assert_eq!(
-        state.view.buffers.get_current_element().data.chars,
-        "fn foo() {}\n\nf",
-        "precondition failure"
-    );
-
-    // We really only care that the spans show all the characters, and that the
-    // first line has the same spans the whole way through. This is just the 
-    // simplest way to check both of those properties, but it does slightly 
-    // over-assert.
-    assert_eq!(
-        state.view.buffers.get_current_element().data.spans,
-        vec![
+    {
+        let chars = String::from(
+            state.view.buffers.get_current_element().data.chars.clone()
+        );
+        assert_eq!(
+            chars,
+            "fn foo() {}\n\nf",
+            "f precondition failure"
+        );
+    
+        let expected_spans = vec![
             SpanView { one_past_end_byte_index: 2, kind: sk!(PLAIN) },
             SpanView { one_past_end_byte_index: 6, kind: sk!(3) },
             SpanView { one_past_end_byte_index: 14, kind: sk!(PLAIN) },
-        ],
-        "added f"
-    );
+        ];
+    
+        assert_eq!(
+            span_slice(
+                &chars,
+                expected_spans[1].one_past_end_byte_index,
+                &expected_spans[2]
+            ),
+            "() {}\n\nf",
+            "f precondition failure"
+        );
+    
+        // We really only care that the spans show all the characters, and that the
+        // first line has the same spans the whole way through. This is just the 
+        // simplest way to check both of those properties, but it does slightly 
+        // over-assert.
+        assert_eq!(
+            state.view.buffers.get_current_element().data.spans,
+            expected_spans,
+            "added f"
+        );
+    }
 
     update_and_render(&mut state, Insert('n'));
 
-    assert_eq!(
-        state.view.buffers.get_current_element().data.chars,
-        "fn foo() {}\n\nfn",
-        "precondition failure"
-    );
-
-    assert_eq!(
-        state.view.buffers.get_current_element().data.spans,
-        vec![
+    {
+        let chars = String::from(
+            state.view.buffers.get_current_element().data.chars.clone()
+        );
+        assert_eq!(
+            chars,
+            "fn foo() {}\n\nfn",
+            "n precondition failure"
+        );
+    
+        let expected_spans = vec![
             SpanView { one_past_end_byte_index: 2, kind: sk!(PLAIN) },
             SpanView { one_past_end_byte_index: 6, kind: sk!(3) },
             SpanView { one_past_end_byte_index: 15, kind: sk!(PLAIN) }
-        ],
-        "added n"
-    );
+        ];
+    
+        assert_eq!(
+            span_slice(
+                &chars,
+                expected_spans[1].one_past_end_byte_index,
+                &expected_spans[2]
+            ),
+            "() {}\n\nfn",
+            "n precondition failure"
+        );
+
+        assert_eq!(
+            state.view.buffers.get_current_element().data.spans,
+            expected_spans,
+            "added n"
+        );
+    }
 }

@@ -962,8 +962,7 @@ d!(for TextBoxColour: TextBoxColour::FromSpans);
 fn colourize<'text>(text: Cow<'text, str>, spans: &[SpanView]) -> Vec<ColouredText<'text>> {
     let mut prev_byte_index = 0;
     spans.iter().map(move |s| {
-        
-        let text = &text[prev_byte_index..s.one_past_end_byte_index];
+        let text = span_slice(&text, prev_byte_index, s);
         let text = text.trim_end();
         let output = ColouredText {
             text: {
