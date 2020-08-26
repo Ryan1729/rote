@@ -3,7 +3,10 @@ use crate::{
     ByteIndex, ByteLength, CharOffset, Chunk, LineIndex, LineLength, Lines,
 };
 pub use ropey::iter::{Bytes, Chars, Chunks};
-use std::ops::RangeBounds;
+use std::{
+    ops::RangeBounds,
+    borrow::Cow,
+};
 
 /// A wrapper around `ropey::RopeSlice` that checks the panic conditions at runtime and
 /// changes the return type of some methods with the aim of preventing panics.
@@ -93,10 +96,13 @@ pub trait RopeSliceTrait<'rope> {
 
     fn chunks(&self) -> Chunks<'rope>;
 
-    // Returns the sliced chars as a contiguous string if possible. This allows optimizations in those cases.
-    // Note that a valid implemention of this method can always return `None`, so it should not be relied upon
-    // to ever return a `&str`
+    // Returns the sliced chars as a contiguous string if possible. This allows 
+    // optimizations in those cases. Note that a valid implemention of this method
+    // can always return `None`, so it should not be relied upon to ever return a 
+    // `&str`
     fn as_str_if_no_allocation_needed(&self) -> Option<&'rope str>;
+
+    fn as_cow_str(&self) -> Cow<'rope, str>;
 }
 
 // End of public facing portion of this file.
@@ -264,6 +270,10 @@ impl<'rope> RopeSliceTrait<'rope> for RopeSlice<'rope> {
     // Returns a Some only if the str can be safely sliced without a memory allocation.
     fn as_str_if_no_allocation_needed(&self) -> Option<&'rope str> {
         self.rope_slice.as_str()
+    }
+
+    fn as_cow_str(&self) -> Cow<'rope, str> {
+        self.rope_slice.into()
     }
 }
 
@@ -509,6 +519,10 @@ impl<'rope> RopeSliceTrait<'rope> for RopeLine<'rope> {
     // Returns a Some only if the str can be safely sliced without a memory allocation.
     fn as_str_if_no_allocation_needed(&self) -> Option<&'rope str> {
         self.0.rope_slice.as_str()
+    }
+
+    fn as_cow_str(&self) -> Cow<'rope, str> {
+        self.0.rope_slice.into()
     }
 }
 

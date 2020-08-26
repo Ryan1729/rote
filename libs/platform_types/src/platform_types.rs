@@ -8,7 +8,7 @@ use std::{
 };
 
 pub use vec1::{vec1, Vec1};
-pub use panic_safe_rope::Rope;
+pub use panic_safe_rope::{Rope, RopeSlice, RopeSliceTrait};
 pub use text_pos::*;
 
 pub mod floating_point;
@@ -690,8 +690,8 @@ pub struct SpanView {
     pub kind: SpanKind,
 }
 
-pub fn span_slice<'s>(s: &'s str, start_byte_index: usize, span_view: &SpanView) -> &'s str {
-    &s[start_byte_index..span_view.one_past_end_byte_index]
+pub fn span_slice<'slice>(s: RopeSlice<'slice>, start_byte_index: usize, span_view: &SpanView) -> Option<RopeSlice<'slice>> {
+    s.slice(CharOffset(start_byte_index)..CharOffset(span_view.one_past_end_byte_index))
 }
 
 #[derive(Clone, Default, PartialEq)]

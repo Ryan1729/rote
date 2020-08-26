@@ -1,11 +1,8 @@
 #![deny(bindings_with_variant_name, dead_code, unused_variables)]
 use gl_layer::{ColouredText, MulticolourTextSpec, TextLayout, TextOrRect, TextSpec, VisualSpec};
 use wimp_types::{CommandsMap, LocalMenuView, View, WimpMenuMode, MenuView, WimpMenuView, FindReplaceMode, ui_id, ui, ui::{ButtonState}, BufferStatus, CommandKey, Dimensions, RunConsts, RunState, command_keys};
-use macros::{c, d, dbg, invariant_assert, u};
+use macros::{c, d, dbg, invariant_assert, u, SaturatingSub};
 use platform_types::{*, g_i, BufferView, GoToPositionView, FindReplaceView, FileSwitcherView, BufferViewData, BufferIdKind, BufferId, b_id, CursorState, Highlight, HighlightKind, tbxy, tbxywh, Input, sswh, ssr, screen_positioning::*, SpanView};
-use std::{
-    borrow::Cow
-};
 
 
 type Colour = [f32; 4];
@@ -959,20 +956,30 @@ enum TextBoxColour {
 d!(for TextBoxColour: TextBoxColour::FromSpans);
 
 #[perf_viz::record]
-fn colourize<'text>(text: Cow<'text, str>, spans: &[SpanView]) -> Vec<ColouredText<'text>> {
+fn colourize<'text>(text: RopeSlice<'text>, spans: &[SpanView]) -> Vec<ColouredText<'text>> {
     let mut prev_byte_index = 0;
     spans.iter().map(move |s| {
-        let text = span_slice(&text, prev_byte_index, s);
-        let text = text.trim_end();
+        let slice = span_slice(text, prev_byte_index, s)
+            .expect("span_slice had incorrect index!");
+
+        let last_non_whitespace_index = {
+            let len = slice.len_chars();
+            // TODO make this a method on the slice? "`chars_at_end`"?
+            let mut chars = slice.chars_at(len).expect("chars_at returned None!");
+
+            let mut i = len;
+            while let Some(true) = chars.prev().map(|c| c.is_whitespace()) {
+                i = i.saturating_sub(1);
+            }
+
+            i
+        };
+
+        let slice = slice.slice(CharOffset(prev_byte_index)..last_non_whitespace_index)
+            .expect("trimming slice had incorrect index!");
+
         let output = ColouredText {
-            text: {
-                // PERF we used to borrow this here but then we tried moving the
-                // conversion from a rope off the editor thread. This means many
-                // more heap allocations. Can we do something about this to 
-                // switch it back to one big allocation?
-                perf_viz::record_guard!("tiny span allocations");
-                Cow::Owned(text.to_owned())
-            },
+            text: slice.as_cow_str(),
             colour: match s.kind.get_byte() & 0b111 {
                 1 => palette![cyan],
                 2 => palette![green],
@@ -1081,10 +1088,7 @@ fn text_box_view<'view>(
             perf_viz::record_guard!("de-roping for colourization");
             match text_color {
                 TextBoxColour::FromSpans => colourize(
-                    {
-                        perf_viz::record_guard!("FromSpans chars.into()");
-                        chars.into()
-                    }, 
+                    chars.full_slice(),
                     spans
                 ),
                 TextBoxColour::Single(colour) => {
