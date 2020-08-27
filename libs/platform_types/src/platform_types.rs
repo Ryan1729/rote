@@ -629,6 +629,9 @@ pub struct SpanKind(SpanKindRaw);
 
 #[macro_export]
 macro_rules! sk {
+    () => {
+        sk!(0)
+    };
     (PLAIN) => {
         sk!(0)
     };
@@ -682,16 +685,41 @@ pub struct SpanView {
     /// The index of the byte one past the last byte that belongs to this span.
     /// We store only this index because in a list of `Spanview`s the start index
     /// for the first span is zero, and start of the each other span is simply the 
-    /// value of the previous span's `one_past_end_byte_index` field.
+    /// value of the previous span's `one_past_end` field.
     /// See EWD831 for a further argument as to why we use this instead of the 
     /// last byte of the span.
-    pub one_past_end_byte_index: usize,
+    pub one_past_end: ByteIndex,
     /// Which kind of span this is, available here for highlighting purposes.
     pub kind: SpanKind,
 }
 
-pub fn span_slice<'slice>(s: RopeSlice<'slice>, start_byte_index: usize, span_view: &SpanView) -> Option<RopeSlice<'slice>> {
-    s.slice(CharOffset(start_byte_index)..CharOffset(span_view.one_past_end_byte_index))
+#[macro_export]
+macro_rules! sv {
+    (i $index: literal $(,)? k $($tokens: tt)+) => {
+        SpanView { 
+            one_past_end: ByteIndex($index),
+            kind: sk!($($tokens)+)
+        }
+    };
+    (i $index: literal) => {
+        SpanView { 
+            one_past_end: ByteIndex($index),
+            kind: sk!()
+        }
+    };
+    (i $index: expr, k $($tokens: tt)+) => {
+        SpanView { 
+            one_past_end: ByteIndex($index),
+            kind: sk!($($tokens)+)
+        }
+    }
+}
+
+pub fn span_slice<'slice>(s: RopeSlice<'slice>, start_byte_index: ByteIndex, span_view: &SpanView) -> Option<RopeSlice<'slice>> {
+    s.slice(
+        s.byte_to_char(start_byte_index).expect("span_slice byte_to_char failed for start")
+        .. s.byte_to_char(span_view.one_past_end).expect("span_slice byte_to_char failed for end")
+    )
 }
 
 #[derive(Clone, Default, PartialEq)]

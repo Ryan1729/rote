@@ -297,9 +297,9 @@ fn the_right_spans_are_set_after_typing_fn_below_this_fn_def() {
     assert_eq!(
         parsers.get_spans(text_buffer.borrow_rope().into(), &buffer_name, parser_kind),
         vec![
-            SpanView { one_past_end_byte_index: 2, kind: sk!(PLAIN) },
-            SpanView { one_past_end_byte_index: 6, kind: sk!(3) },
-            SpanView { one_past_end_byte_index: 13, kind: sk!(PLAIN) },
+            sv!(i 2 k PLAIN),
+            sv!(i 6 k 3),
+            sv!(i 13 k PLAIN),
         ],
         "added \\n"
     );
@@ -319,9 +319,9 @@ fn the_right_spans_are_set_after_typing_fn_below_this_fn_def() {
     assert_eq!(
         parsers.get_spans(text_buffer.borrow_rope().into(), &buffer_name, parser_kind),
         vec![
-            SpanView { one_past_end_byte_index: 2, kind: sk!(PLAIN) },
-            SpanView { one_past_end_byte_index: 6, kind: sk!(3) },
-            SpanView { one_past_end_byte_index: 14, kind: sk!(PLAIN) },
+            sv!(i 2 k PLAIN),
+            sv!(i 6 k 3),
+            sv!(i 14 k PLAIN),
         ],
         "added f"
     );
@@ -337,9 +337,9 @@ fn the_right_spans_are_set_after_typing_fn_below_this_fn_def() {
     assert_eq!(
         parsers.get_spans(text_buffer.borrow_rope().into(), &buffer_name, parser_kind),
         vec![
-            SpanView { one_past_end_byte_index: 2, kind: sk!(PLAIN) },
-            SpanView { one_past_end_byte_index: 6, kind: sk!(3) },
-            SpanView { one_past_end_byte_index: 15, kind: sk!(PLAIN) }
+            sv!(i 2 k PLAIN),
+            sv!(i 6 k 3),
+            sv!(i 15 k PLAIN),
         ],
         "added n"
     );

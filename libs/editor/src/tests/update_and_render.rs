@@ -1518,27 +1518,25 @@ fn the_view_contains_the_right_spans_after_typing_fn_below_this_fn_def() {
     update_and_render(&mut state, Insert('\n'));
 
     {
-       let chars = String::from(
-            state.view.buffers.get_current_element().data.chars.clone()
-        );
+        let chars = state.view.buffers.get_current_element().data.chars.clone();
         assert_eq!(
-            chars,
+            String::from(chars.clone()),
             "fn foo() {}\n\n",
             "\\n precondition failure"
         );
     
         let expected_spans = vec![
-            SpanView { one_past_end_byte_index: 2, kind: sk!(PLAIN) },
-            SpanView { one_past_end_byte_index: 6, kind: sk!(3) },
-            SpanView { one_past_end_byte_index: 13, kind: sk!(PLAIN) },
+            sv!(i 2 k PLAIN),
+            sv!(i 6 k 3),
+            sv!(i 13 k PLAIN),
         ];
     
         assert_eq!(
             span_slice(
-                &chars,
-                expected_spans[1].one_past_end_byte_index,
+                chars.full_slice(),
+                expected_spans[1].one_past_end,
                 &expected_spans[2]
-            ),
+            ).unwrap(),
             "() {}\n\n",
             "\\n precondition failure"
         );
@@ -1553,27 +1551,25 @@ fn the_view_contains_the_right_spans_after_typing_fn_below_this_fn_def() {
     update_and_render(&mut state, Insert('f'));
 
     {
-        let chars = String::from(
-            state.view.buffers.get_current_element().data.chars.clone()
-        );
+        let chars = state.view.buffers.get_current_element().data.chars.clone();
         assert_eq!(
-            chars,
+            String::from(chars.clone()),
             "fn foo() {}\n\nf",
             "f precondition failure"
         );
     
         let expected_spans = vec![
-            SpanView { one_past_end_byte_index: 2, kind: sk!(PLAIN) },
-            SpanView { one_past_end_byte_index: 6, kind: sk!(3) },
-            SpanView { one_past_end_byte_index: 14, kind: sk!(PLAIN) },
+            sv!(i 2 k PLAIN),
+            sv!(i 6 k 3),
+            sv!(i 14 k PLAIN),
         ];
     
         assert_eq!(
             span_slice(
-                &chars,
-                expected_spans[1].one_past_end_byte_index,
+                chars.full_slice(),
+                expected_spans[1].one_past_end,
                 &expected_spans[2]
-            ),
+            ).unwrap(),
             "() {}\n\nf",
             "f precondition failure"
         );
@@ -1592,27 +1588,25 @@ fn the_view_contains_the_right_spans_after_typing_fn_below_this_fn_def() {
     update_and_render(&mut state, Insert('n'));
 
     {
-        let chars = String::from(
-            state.view.buffers.get_current_element().data.chars.clone()
-        );
+        let chars = state.view.buffers.get_current_element().data.chars.clone();
         assert_eq!(
-            chars,
+            String::from(chars.clone()),
             "fn foo() {}\n\nfn",
             "n precondition failure"
         );
     
         let expected_spans = vec![
-            SpanView { one_past_end_byte_index: 2, kind: sk!(PLAIN) },
-            SpanView { one_past_end_byte_index: 6, kind: sk!(3) },
-            SpanView { one_past_end_byte_index: 15, kind: sk!(PLAIN) }
+            sv!(i 2 k PLAIN),
+            sv!(i 6 k 3),
+            sv!(i 15 k PLAIN),
         ];
     
         assert_eq!(
             span_slice(
-                &chars,
-                expected_spans[1].one_past_end_byte_index,
+                chars.full_slice(),
+                expected_spans[1].one_past_end,
                 &expected_spans[2]
-            ),
+            ).unwrap(),
             "() {}\n\nfn",
             "n precondition failure"
         );

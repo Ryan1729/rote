@@ -962,8 +962,7 @@ fn colourize<'text>(to_colourize: RopeSlice<'text>, spans: &[SpanView]) -> Vec<C
         let start_index = to_colourize.byte_to_char(prev_byte_index)
             .expect("byte_to_char failed on prev");
 
-        // TODO store this as a `ByteIndex` on the `SpanView`.
-        let end_byte_index = ByteIndex(s.one_past_end_byte_index);
+        let end_byte_index = s.one_past_end;
 
         let slice = to_colourize.slice(
             start_index
