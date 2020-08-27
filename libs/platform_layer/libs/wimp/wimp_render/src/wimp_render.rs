@@ -972,11 +972,9 @@ fn colourize<'text>(to_colourize: RopeSlice<'text>, spans: &[SpanView]) -> Vec<C
             .expect("span_slice had incorrect index!");
 
         let last_non_whitespace_index = {
-            let len = slice.len_chars();
-            // TODO make this a method on the slice? "`chars_at_end`"?
-            let mut chars = slice.chars_at(len).expect("chars_at returned None!");
+            let mut chars = slice.chars_at_end();
 
-            let mut char_offset = len;
+            let mut char_offset = slice.len_chars();
             while let Some(true) = chars.prev().map(|c| c.is_whitespace()) {
                 char_offset = char_offset.saturating_sub(1);
             }

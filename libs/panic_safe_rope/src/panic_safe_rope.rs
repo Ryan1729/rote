@@ -295,8 +295,30 @@ impl Rope {
     }
 
     #[inline]
+    /// Returns `None` if `char_idx` is out of bounds (i.e. `char_idx > len_chars()`).
+    pub fn chars_at(&self, char_idx: AbsoluteCharOffset) -> Option<ropey::iter::Chars> {
+        macros::some_if!(
+            char_idx <= self.len_chars() => self.rope.chars_at(char_idx.0)
+        )
+    }
+
+    /// Equivalent to `r.chars_at(r.len_chars()).unwrap()`
+    #[inline]
+    pub fn chars_at_end(&self) -> ropey::iter::Chars {
+        self.rope.chars_at(self.rope.len_chars())
+    }
+
+    #[inline]
     pub fn lines(&self) -> Lines {
         self.rope.lines().map(to_rope_line)
+    }
+
+    /// Returns `None` if `line_break_idx` is out of bounds (i.e. `line_break_idx > len_lines()`).
+    #[inline]
+    pub fn lines_at(&self, line_break_idx: usize) -> Option<Lines> {
+        macros::some_if!(
+            line_break_idx <= self.len_lines() => self.rope.lines_at(line_break_idx).map(to_rope_line)
+        )
     }
 
     #[inline]
