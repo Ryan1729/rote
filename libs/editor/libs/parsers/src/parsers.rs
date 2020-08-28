@@ -1,6 +1,6 @@
 #![deny(unused)]
 use macros::{d, fmt_debug, fmt_display, some_or, u};
-use platform_types::{BufferName, Rope};
+use platform_types::{BufferName, Rope, Spans};
 use edit::{Change, Edit, RangeEdits};
 
 use tree_sitter::{
@@ -565,8 +565,7 @@ mod query {
         Tree,
         TreeCursor
     };
-    pub use platform_types::{ByteIndex, SpanView, SpanKind, sk, sv};
-    pub type Spans = Vec<SpanView>;
+    pub use platform_types::{ByteIndex, Spans, SpanView, SpanKind, sk, sv};
 
     enum SpanKindSpec {
         DropNode,
@@ -618,7 +617,7 @@ mod query {
 
     #[perf_viz::record]
     pub fn plaintext_spans_for(s: ToParse<'_>) -> Spans {
-        vec![plaintext_end_span_for(s)]
+        Spans::from(vec![plaintext_end_span_for(s)])
     }
     
     fn plaintext_end_span_for(s: ToParse<'_>) -> SpanView {
@@ -727,10 +726,10 @@ mod query {
     
         filter_spans(&mut spans);
     
-        spans
+        Spans::from(spans)
     }
 
-    fn cap_off_spans(spans: &mut Spans, to_parse_byte_len: ByteIndex) {
+    fn cap_off_spans(spans: &mut Vec<SpanView>, to_parse_byte_len: ByteIndex) {
         // If there's no span covering the end, we should add a span. But if one
         // that already covers the end is there then we shouldn't bother.
         if spans.last()
@@ -820,7 +819,7 @@ mod query {
     
         filter_spans(&mut spans);
     
-        spans
+        spans.into()
     }
     
     type Depth = u8;
@@ -841,7 +840,7 @@ mod query {
         let len = spans.len();
         if len <= 1 {
             filter_spans(&mut spans);
-            return spans;
+            return spans.into();
         }
     
         // scan backwards getting rid of the ones that are overlapped.
@@ -863,12 +862,12 @@ mod query {
         
         filter_spans(&mut spans);
         
-        spans
+        spans.into()
     }
     
     fn tree_depth_extract_sorted(
         tree: &Tree,
-        spans: &mut Spans,
+        spans: &mut Vec<SpanView>,
     ) {
         for (depth, node) in DepthFirst::new(tree) {
             let new_end_byte_index = ByteIndex(node.end_byte());
@@ -947,7 +946,7 @@ mod query {
     }
     
     #[perf_viz::record]
-    fn filter_spans(spans: &mut Spans) {
+    fn filter_spans(spans: &mut Vec<SpanView>) {
         dedup_by_end_byte_keeping_last(spans);
         dedup_by_kind_keeping_last(spans);
         
@@ -958,7 +957,7 @@ mod query {
         }
     }
     
-    fn dedup_by_kind_keeping_last(spans: &mut Spans) {
+    fn dedup_by_kind_keeping_last(spans: &mut Vec<SpanView>) {
         let mut write = 0;
         for i in 0..spans.len() {
             let prev_kind = spans[write].kind;
@@ -971,7 +970,7 @@ mod query {
         spans.truncate(write + 1);
     }
     
-    fn dedup_by_end_byte_keeping_last(spans: &mut Spans) {
+    fn dedup_by_end_byte_keeping_last(spans: &mut Vec<SpanView>) {
         let mut write = 0;
         for i in 0..spans.len() {
             let prev_end_byte_index = spans[write].one_past_end;
@@ -1011,7 +1010,6 @@ mod query {
     #[cfg(test)]
     mod tests;
 }
-use query::{Spans};
 
 #[cfg(test)]
 mod tests;

@@ -1,8 +1,29 @@
 #![deny(bindings_with_variant_name, unused)]
 use gl_layer::{ColouredText, MulticolourTextSpec, TextLayout, TextOrRect, TextSpec, VisualSpec};
 use wimp_types::{CommandsMap, LocalMenuView, View, WimpMenuMode, MenuView, WimpMenuView, FindReplaceMode, ui_id, ui, ui::{ButtonState}, BufferStatus, CommandKey, Dimensions, RunConsts, RunState, command_keys};
-use macros::{c, d, dbg, invariant_assert, u, SaturatingSub};
-use platform_types::{*, g_i, BufferView, GoToPositionView, FindReplaceView, FileSwitcherView, BufferViewData, BufferIdKind, BufferId, b_id, CursorState, Highlight, HighlightKind, tbxy, tbxywh, Input, sswh, ssr, screen_positioning::*, SpanView};
+use macros::{c, d, dbg, invariant_assert, u};
+use platform_types::{
+    *,
+    screen_positioning::*,
+    g_i,
+    BufferView,
+    GoToPositionView,
+    FindReplaceView,
+    FileSwitcherView,
+    BufferViewData,
+    BufferIdKind,
+    BufferId,
+    b_id,
+    CursorState,
+    Highlight,
+    HighlightKind,
+    tbxy,
+    tbxywh,
+    Input,
+    sswh,
+    ssr,
+    Spans,
+};
 
 
 type Colour = [f32; 4];
@@ -956,47 +977,19 @@ enum TextBoxColour {
 d!(for TextBoxColour: TextBoxColour::FromSpans);
 
 #[perf_viz::record]
-fn colourize<'text>(to_colourize: RopeSlice<'text>, spans: &[SpanView]) -> Vec<ColouredText<'text>> {
-    let mut prev_byte_index: ByteIndex = d!();
-    spans.iter().map(move |s| {
-        let start_index = to_colourize.byte_to_char(prev_byte_index)
-            .expect("byte_to_char failed on prev");
-
-        let end_byte_index = s.one_past_end;
-
-        let slice = to_colourize.slice(
-            start_index
-            .. to_colourize.byte_to_char(end_byte_index).expect("byte_to_char failed on end")
-        )
-            .expect("span_slice had incorrect index!");
-
-        let last_non_whitespace_index = {
-            let mut chars = slice.chars_at_end();
-
-            let mut char_offset = slice.len_chars();
-            while let Some(true) = chars.prev().map(|c| c.is_whitespace()) {
-                char_offset = char_offset.saturating_sub(1);
-            }
-
-            start_index + char_offset
-        };
-
-        let slice = to_colourize.slice(start_index..last_non_whitespace_index)
-            .expect("trimming slice had incorrect index!");
-
-        let output = ColouredText {
-            text: slice.as_cow_str(),
-            colour: match s.kind.get_byte() & 0b111 {
+fn colourize<'text>(to_colourize: RopeSlice<'text>, spans: &Spans) -> Vec<ColouredText<'text>> {
+    spans
+        .labelled_slices(to_colourize)
+        .map(move |l_s| ColouredText {
+            text: l_s.slice.as_cow_str(),
+            colour: match l_s.kind.get_byte() & 0b111 {
                 1 => palette![cyan],
                 2 => palette![green],
                 3 => palette![yellow],
                 4 => palette![magenta],
                 _ => palette![blue]
             },
-        };
-        prev_byte_index = end_byte_index;
-        output
-    }).collect()
+        }).collect()
 }
 
 // These are private functions so having a slightly awkward API is tolerable

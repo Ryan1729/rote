@@ -1,6 +1,6 @@
 #![deny(unused)]
 use macros::{
-    d, fmt_debug, fmt_display, ord, u,
+    d, fmt_debug, fmt_display, ord, u, SaturatingSub,
 };
 use std::{
     time::Duration,
@@ -715,11 +715,107 @@ macro_rules! sv {
     }
 }
 
+// TODO replace usages with `LabelledSlices`
 pub fn span_slice<'slice>(s: RopeSlice<'slice>, start_byte_index: ByteIndex, span_view: &SpanView) -> Option<RopeSlice<'slice>> {
     s.slice(
         s.byte_to_char(start_byte_index).expect("span_slice byte_to_char failed for start")
         .. s.byte_to_char(span_view.one_past_end).expect("span_slice byte_to_char failed for end")
     )
+}
+
+#[derive(Clone, Default, Debug, PartialEq)]
+pub struct Spans {
+    spans: Vec<SpanView>,
+}
+
+impl From<Vec<SpanView>> for Spans {
+    fn from(spans: Vec<SpanView>) -> Self {
+        Spans { spans }
+    }
+}
+
+impl Spans {
+    pub fn len(&self) -> usize {
+        self.spans.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.spans.is_empty()
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct LabelledSlice<'text> {
+    pub slice: RopeSlice<'text>,
+    pub kind: SpanKind,
+}
+
+impl <'text, 'spans> Spans {
+    pub fn labelled_slices(
+        &'spans self,
+        slice: RopeSlice<'text>
+    ) -> LabelledSlices<'text, 'spans> {
+        LabelledSlices {
+            prev: d!(),
+            slice,
+            spans_iter: self.spans.iter(),
+        }
+    }
+}
+
+pub struct LabelledSlices<'text, 'spans> {
+    prev: ByteIndex,
+    slice: RopeSlice<'text>,
+    spans_iter: core::slice::Iter<'spans, SpanView>,
+}
+
+impl <'text, 'spans> Iterator for LabelledSlices<'text, 'spans> {
+    type Item = LabelledSlice<'text>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.spans_iter
+            .next()
+            .map(move |s| {
+                let start_index = self.slice.byte_to_char(self.prev)
+                    .expect("byte_to_char failed on prev");
+
+                let end_byte_index = s.one_past_end;
+
+                let current_slice = self.slice.slice(
+                    start_index
+                    .. self
+                        .slice
+                        .byte_to_char(end_byte_index)
+                        .expect("byte_to_char failed on end")
+                )
+                    .expect("span_slice had incorrect index!");
+
+                let last_non_whitespace_index = {
+                    let mut chars = current_slice.chars_at_end();
+        
+                    let mut char_offset = current_slice.len_chars();
+                    while let Some(true) = chars.prev().map(|c| c.is_whitespace()) {
+                        char_offset = char_offset.saturating_sub(1);
+                    }
+        
+                    start_index + char_offset
+                };
+
+                let trimmed_slice = self
+                    .slice
+                    .slice(start_index..last_non_whitespace_index)
+                    .expect("trimming slice had incorrect index!");
+
+                let output = LabelledSlice {
+                    slice: trimmed_slice,
+                    kind: s.kind,
+                };
+
+                self.prev = end_byte_index;
+
+                output
+            })
+    }
 }
 
 #[derive(Clone, Default, PartialEq)]
@@ -728,7 +824,7 @@ pub struct BufferViewData {
     pub scroll: ScrollXY,
     pub cursors: Vec<CursorView>,
     pub highlights: Vec<Highlight>,
-    pub spans: Vec<SpanView>
+    pub spans: Spans,
 }
 
 fmt_debug!(collapse default for BufferViewData: me {
