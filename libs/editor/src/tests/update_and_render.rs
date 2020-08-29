@@ -1,7 +1,6 @@
 use super::*;
 use macros::{u, dbg};
 use search::{SearchResults};
-use platform_types::{span_slice};
 
 fn shows_the_cursor_when_pressing_ctrl_home_on(text: &str, buffer_xywh: TextBoxXYWH, char_dim: CharDim) {
     let mut state: State = text.into();
@@ -1525,19 +1524,23 @@ fn the_view_contains_the_right_spans_after_typing_fn_below_this_fn_def() {
             "\\n precondition failure"
         );
     
-        let expected_spans = vec![
+        let expected_spans = Spans::from(vec![
             sv!(i 2 k PLAIN),
             sv!(i 6 k 3),
             sv!(i 13 k PLAIN),
-        ];
+        ]);
     
         assert_eq!(
-            span_slice(
-                chars.full_slice(),
-                expected_spans[1].one_past_end,
-                &expected_spans[2]
-            ).unwrap(),
-            "() {}\n\n",
+            expected_spans
+                .labelled_slices(chars.full_slice())
+                .map(|l_s| {
+                    String::from(l_s.slice)
+                }).collect::<Vec<_>>(),
+            vec![
+                "fn ",
+                "foo",
+                "() {}\n\n",
+            ],
             "\\n precondition failure"
         );
     
@@ -1558,19 +1561,23 @@ fn the_view_contains_the_right_spans_after_typing_fn_below_this_fn_def() {
             "f precondition failure"
         );
     
-        let expected_spans = vec![
+        let expected_spans = Spans::from(vec![
             sv!(i 2 k PLAIN),
             sv!(i 6 k 3),
             sv!(i 14 k PLAIN),
-        ];
+        ]);
     
         assert_eq!(
-            span_slice(
-                chars.full_slice(),
-                expected_spans[1].one_past_end,
-                &expected_spans[2]
-            ).unwrap(),
-            "() {}\n\nf",
+            expected_spans
+                .labelled_slices(chars.full_slice())
+                .map(|l_s| {
+                    String::from(l_s.slice)
+                }).collect::<Vec<_>>(),
+            vec![
+                "fn ",
+                "foo",
+                "() {}\n\nf",
+            ],
             "f precondition failure"
         );
     
@@ -1595,19 +1602,23 @@ fn the_view_contains_the_right_spans_after_typing_fn_below_this_fn_def() {
             "n precondition failure"
         );
     
-        let expected_spans = vec![
+        let expected_spans = Spans::from(vec![
             sv!(i 2 k PLAIN),
             sv!(i 6 k 3),
             sv!(i 15 k PLAIN),
-        ];
+        ]);
     
         assert_eq!(
-            span_slice(
-                chars.full_slice(),
-                expected_spans[1].one_past_end,
-                &expected_spans[2]
-            ).unwrap(),
-            "() {}\n\nfn",
+            expected_spans
+                .labelled_slices(chars.full_slice())
+                .map(|l_s| {
+                    String::from(l_s.slice)
+                }).collect::<Vec<_>>(),
+            vec![
+                "fn ",
+                "foo",
+                "() {}\n\nfn",
+            ],
             "n precondition failure"
         );
 

@@ -7,6 +7,7 @@ use crate::{
     query::{self, *, sk},
 };
 use macros::d;
+use platform_types::{spans_assert};
 use proptest::proptest;
 
 const SOME_AMOUNT: usize = 16;
@@ -71,71 +72,6 @@ macro_rules! get_rust_tree {
 
         parse_expect!(rust.parse($code, None))
     }}
-}
-
-macro_rules! spans_assert {
-    ($spans: expr) => {
-        spans_assert!($spans, "");
-    };
-    ($spans: expr, $suffix: expr) => {
-        spans_assert!($spans, $suffix, 0);
-    };
-    ($spans: expr, $suffix: expr, skip kind) => {
-        spans_assert!($spans, $suffix, 1);
-    };
-    // internal
-    ($spans: expr, $suffix: expr, $mode: expr) => {
-        let spans = $spans;
-        let mode = $mode;
-
-        let mut previous_kind = None;
-        let mut previous_one_past_end = ByteIndex::default();
-        for (i, s) in spans.clone().into_iter().enumerate() {
-            assert_ne!(
-                s.one_past_end,
-                ByteIndex::default(),
-                "the span at index {}, {:?} has an one_past_end of 0. This indicates a useless 0 length span, and so it should be removed.",
-                i,
-                s
-            );
-
-            match mode {
-                1 => {}
-                _ => {
-                    if let Some(prev) = previous_kind {
-                        assert_ne!(
-                            s.kind,
-                            prev,
-                            "at index {} in spans was {:?} which has the same kind as the previous span: {:?}", 
-                            i,
-                            s,
-                            spans,
-                        );
-                    }
-                    previous_kind = Some(s.kind);
-
-                    assert_ne!(
-                        s.one_past_end,
-                        previous_one_past_end,
-                        "at index {} in spans was {:?} which has the same one_past_end as the previous span: {:?}", 
-                        i,
-                        s,
-                        spans,
-                    );
-                }
-            }
-            
-            assert!(
-                previous_one_past_end <= s.one_past_end,
-                "{} > {} {}\n\n{:?}",
-                previous_one_past_end,
-                s.one_past_end,
-                $suffix,
-                spans
-            );
-            previous_one_past_end = s.one_past_end;
-        }
-    }
 }
 
 fn get_rust_parser_and_query(query_source: &str) -> (Parser, Query) {
@@ -557,9 +493,9 @@ fn rust_extra_spans_should_not_give_paired_tokens_different_kinds_on(
 }
 
 fn span_for_byte_index(spans: &Spans, byte_index: usize) -> Option<SpanView> {
-    for span in spans.iter() {
+    for span in spans.clone() {
         if span.one_past_end > byte_index {
-            return Some(*span);
+            return Some(span);
         }
     }
 

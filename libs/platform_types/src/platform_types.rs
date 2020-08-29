@@ -715,22 +715,103 @@ macro_rules! sv {
     }
 }
 
-// TODO replace usages with `LabelledSlices`
-pub fn span_slice<'slice>(s: RopeSlice<'slice>, start_byte_index: ByteIndex, span_view: &SpanView) -> Option<RopeSlice<'slice>> {
-    s.slice(
-        s.byte_to_char(start_byte_index).expect("span_slice byte_to_char failed for start")
-        .. s.byte_to_char(span_view.one_past_end).expect("span_slice byte_to_char failed for end")
-    )
-}
-
+/// This struct keeps a private ordered collection of `SpanView`s so we can ensure
+/// that the spans are in ascending order.
 #[derive(Clone, Default, Debug, PartialEq)]
 pub struct Spans {
     spans: Vec<SpanView>,
 }
 
+/// This macro asserts that the passes `$spans`, (either a `Spans` or a 
+/// `Vec<SpanView>`) satisifies the invaraints that the Spans type ensures.
+#[macro_export]
+macro_rules! spans_assert {
+    ($spans: expr) => {
+        spans_assert!($spans, "");
+    };
+    ($spans: expr, $suffix: expr) => {
+        spans_assert!($spans, $suffix, 0);
+    };
+    ($spans: expr, $suffix: expr, skip kind) => {
+        spans_assert!($spans, $suffix, 1);
+    };
+    // internal
+    ($spans: expr, $suffix: expr, $mode: expr) => {
+        let spans = $spans;
+        let mode = $mode;
+
+        let mut previous_kind = None;
+        let mut previous_one_past_end = ByteIndex::default();
+        for (i, s) in spans.clone().into_iter().enumerate() {
+            assert_ne!(
+                s.one_past_end,
+                ByteIndex::default(),
+                "the span at index {}, {:?} has an one_past_end of 0. This indicates a useless 0 length span, and so it should be removed.",
+                i,
+                s
+            );
+
+            match mode {
+                1 => {}
+                _ => {
+                    if let Some(prev) = previous_kind {
+                        assert_ne!(
+                            s.kind,
+                            prev,
+                            "at index {} in spans was {:?} which has the same kind as the previous span: {:?}", 
+                            i,
+                            s,
+                            spans,
+                        );
+                    }
+                    previous_kind = Some(s.kind);
+
+                    assert_ne!(
+                        s.one_past_end,
+                        previous_one_past_end,
+                        "at index {} in spans was {:?} which has the same one_past_end as the previous span: {:?}", 
+                        i,
+                        s,
+                        spans,
+                    );
+                }
+            }
+            
+            assert!(
+                previous_one_past_end <= s.one_past_end,
+                "{} > {} {}\n\n{:?}",
+                previous_one_past_end,
+                s.one_past_end,
+                $suffix,
+                spans
+            );
+            previous_one_past_end = s.one_past_end;
+        }
+    }
+}
+
 impl From<Vec<SpanView>> for Spans {
     fn from(spans: Vec<SpanView>) -> Self {
-        Spans { spans }
+        if cfg!(feature = "debug_assertions") 
+        || cfg!(feature = "invariant-checking") {
+            spans_assert!(&spans);
+        }
+        Spans { spans } 
+    }
+}
+
+impl IntoIterator for Spans {
+    type Item = SpanView;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.spans.into_iter()
+    }
+}
+
+impl PartialEq<Vec<SpanView>> for Spans {
+    fn eq(&self, other: &Vec<SpanView>) -> bool {
+        self.spans == *other
     }
 }
 

@@ -263,7 +263,7 @@ prop_compose!{
         scroll in scroll_xy(),
         cursors in vec(cursor_view(), 0..=16),
         highlights in vec(highlight(), 0..=16),
-        spans in vec(span_view(), 0..=16),
+        spans in spans(16),
     ) -> BufferViewData {
         BufferViewData {
             chars: Rope::from(chars),
@@ -285,6 +285,14 @@ prop_compose!{
             name,            name_string,
             data,
         }
+    }
+}
+
+prop_compose!{
+    pub fn spans(max_len: usize)(
+        spans in vec(span_view(), 0..=max_len)
+    ) -> Spans {
+        Spans::from(spans)
     }
 }
 
