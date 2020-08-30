@@ -446,7 +446,9 @@ pub fn view<'view>(
                     );
             
                     if action.is_none() {
-                        print!(".");
+                        if cfg!(feature="extra-prints") {
+                            print!(".");
+                        }
                     } else {
                         dbg!(&action);
                     }
@@ -852,7 +854,7 @@ fn render_file_switcher_menu<'view>(
 
     if action.is_none() {
         u!{ui::Navigation}
-        match if_changed::dbg!(ui.navigation) {
+        match ui.navigation {
             None => {
                 if let ui::Id::TaggedUsize(
                     ui::Tag::FileSwitcherResults,
@@ -876,14 +878,13 @@ fn render_file_switcher_menu<'view>(
                 }
             }
             Down => {
-                std::dbg!("Down");
                 if let ui::Id::TaggedUsize(
                     ui::Tag::FileSwitcherResults,
                     result_index,
                 ) = ui.keyboard.hot
                 {
                     navigated_result = Some((result_index + 1) % results.len());
-                } else if results.is_empty() {
+                } else if !results.is_empty() {
                     navigated_result = Some(0);
                     *action = ViewAction::Input(
                         Input::SelectBuffer(b_id!(BufferIdKind::None, buffer_index))
