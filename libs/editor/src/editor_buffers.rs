@@ -6,7 +6,7 @@ use g_i::{SelectableVec1};
 use macros::{d, dbg, fmt_debug, u};
 use platform_types::*;
 use parsers::{ParserKind, Parsers};
-use text_buffer::{TextBuffer};
+use text_buffer::{Editedness, TextBuffer};
 use search::{SearchResults};
 use panic_safe_rope::{RopeSlice, RopeSliceTrait};
 
@@ -191,7 +191,6 @@ impl EditorBuffers {
     }
 }
 
-
 impl EditorBuffers {
     /// Since there is always at least one buffer, this always returns at least 1.
     pub fn len(&self) -> g_i::Length {
@@ -234,19 +233,43 @@ impl EditorBuffers {
         index
     }
 
-    pub fn add_or_select_buffer(&mut self, name: BufferName, str: String) {
+    pub fn add_or_select_buffer(&mut self, name: BufferName, str: String) -> Editedness {
+        u!{Editedness}
+        use core::hash::Hasher;
+
+        let mut editedness = Unedited;
         if let Some(index) = self.index_with_name(&name) {
             self.set_current_index(index);
 
             if name == d!() && usize::from(self.buffers.len()) <= 1 {
                 let buffer = &mut self.get_current_buffer_mut().text_buffer;
+                
+                let old_rope_hash = {
+                    let mut hasher = fast_hash::Hasher::default();
+                    buffer.rope_hash(&mut hasher);
+                    hasher.finish()
+                };
+
                 if buffer.has_no_edits() {
                     *buffer = str.into();
+                }
+
+                let new_rope_hash = {
+                    let mut hasher = fast_hash::Hasher::default();
+                    buffer.rope_hash(&mut hasher);
+                    hasher.finish()
+                };
+                
+                if new_rope_hash != old_rope_hash {
+                    editedness = Edited;
                 }
             }
         } else {
             self.buffers.push_and_select_new(EditorBuffer::new(name, str));
+            editedness = Edited;
         };
+
+        editedness
     }
 
     /// Sets the path and marks the buffer as unedited iff such a buffer exists.

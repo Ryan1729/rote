@@ -1124,12 +1124,25 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
 }
 
 #[test]
-fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_larger_chars_are_pasted() {
+fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_in_this_case_where_larger_chars_are_pasted() {
     u!{BufferName, Input}
     tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
-        arb::state_from_editor_buffers(EditorBuffers::new((d!(), "𐫀"))),
+        arb::state_from_editor_buffers(EditorBuffers::new((d!(), ""))),
         vec![
             Paste(Some("¡".to_string())),
+        ]
+    )
+}
+
+#[test]
+fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_in_this_insert_numbers_at_cursors_case() {
+    u!{BufferName, Input}
+    let name = Path(".fakefile".into());
+    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+        arb::state_from_editor_buffers(EditorBuffers::new((name.clone(), String::new()))),
+        vec![
+            InsertNumbersAtCursors, 
+            AddOrSelectBuffer(name, String::new())
         ]
     )
 }

@@ -640,13 +640,13 @@ impl TextBuffer {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum Editedness {
+pub enum Editedness {
     Edited,
     Unedited
 }
 
 impl TextBuffer {
-    fn editedness(&mut self) -> Editedness {
+    fn editedness(&self) -> Editedness {
         u!{Editedness}
 
         if self.unedited == self.rope {
@@ -731,6 +731,7 @@ impl TextBuffer {
     }
 
     pub fn has_no_edits(&self) -> bool {
+        debug_assert_eq!(self.editedness(), Editedness::Unedited);
         self.history.is_empty()
     }
 }

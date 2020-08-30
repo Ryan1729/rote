@@ -8,6 +8,7 @@ use std::{
     time::Instant,
 };
 use text_buffer::{
+    Editedness,
     PossibleEditedTransition,
     ScrollAdjustSpec,
     TextBuffer,
@@ -720,13 +721,15 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
         }
         AddOrSelectBuffer(name, str) => {
             perf_viz::record_guard!("AddOrSelectBuffer");
-            state.buffers.add_or_select_buffer(name, str);
+            let editedness = state.buffers.add_or_select_buffer(name, str);
             state.current_buffer_kind = BufferIdKind::Text;
 
             buffer_view_sync!();
-            // We need to announce this so that the user can just track the 
-            // transitions and have an accurate notion of which buffers exist.
-            mark_edited_transition!(current, ToUnedited);
+            if Editedness::Edited == editedness {
+                // We need to announce this so that the user can just track the 
+                // transitions and have an accurate notion of which buffers exist.
+                mark_edited_transition!(current, ToUnedited);
+            }
         }
         AdjustBufferSelection(adjustment) => {
             dbg!(&state.buffers);
