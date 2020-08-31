@@ -1,6 +1,6 @@
 #![deny(unused)]
 use macros::{d, fmt_debug, fmt_display, some_or, u};
-use platform_types::{BufferName, Rope, Spans};
+use platform_types::{BufferName, Rope, Spans, ByteIndex};
 use edit::{Change, Edit, RangeEdits};
 
 use tree_sitter::{
@@ -314,7 +314,10 @@ impl Parsers {
 
                         let start_byte = some_or!(start_byte, continue).0;
                         let old_end_byte = some_or!(old_end_byte, continue).0;
-                        let new_end_byte = some_or!(new_end_byte, continue).0;
+                        let new_end_byte = some_or!(
+                            new_end_byte,
+                            ByteIndex(rope.len_bytes().0)
+                        ).0;
 
                         let (start_pos, old_end_pos, new_end_pos) = match (old, new) {
                             (Some(old), Some(new)) => {
