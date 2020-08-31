@@ -251,6 +251,7 @@ impl Parsers {
         edit: &Edit,
         rope: &Rope
     ) {
+        dbg!("acknowledge_edit");
         use Parsers::*;
         self.attempt_init();
 
@@ -262,15 +263,23 @@ impl Parsers {
                     kind,
                     initialized.rust_lang,
                 );
+                dbg!(buffer_state.tree.is_some());
+                macro_rules! cont {
+                    () => {{
+                        dbg!();
+                        debug_assert!(false, "bailed via cont");
+                        continue
+                    }}
+                }
                 if let Some(tree) = buffer_state.tree.as_mut() {
                     for i in 0..edit.range_edits().len() {
                         let (
                             Change{ old, new },
                             RangeEdits{ delete_range, insert_range }
-                        ) = some_or!(edit.read_at(i), continue);
+                        ) = some_or!(edit.read_at(i), cont!());
                     
                         let (start_byte, old_end_byte, new_end_byte) = 
-                        match (delete_range, insert_range) {
+                        match dbg!(delete_range, insert_range) {
                             (Some(del_range), Some(ins_range)) => {
                                 let del_start_byte = rope.char_to_byte(
                                     del_range.range.min()
@@ -307,13 +316,16 @@ impl Parsers {
                                 let end_byte = rope.char_to_byte(
                                     ins_range.range.max()
                                 );
+                                dbg!(rope, ins_range.range.max(), end_byte);
                                 (start_byte, start_byte, end_byte)
                             }
-                            (None, None) => continue,
+                            (None, None) => cont!(),
                         };
 
-                        let start_byte = some_or!(start_byte, continue).0;
-                        let old_end_byte = some_or!(old_end_byte, continue).0;
+                        let start_byte = some_or!(start_byte, cont!()).0;
+                        let old_end_byte = some_or!(old_end_byte, cont!()).0;
+                        // TODO Are there actually only two cases here? That is,
+                        // should we `continue` here sometimes?
                         let new_end_byte = some_or!(
                             new_end_byte,
                             ByteIndex(rope.len_bytes().0)
@@ -355,10 +367,10 @@ impl Parsers {
 
                                 (start_pos, start_pos, new_end_pos)
                             },
-                            (None, None) => continue,
+                            (None, None) => cont!(),
                         };
 
-                        tree.edit(&InputEdit{
+                        tree.edit(dbg!(&InputEdit{
                             start_byte,
                             old_end_byte,
                             new_end_byte,
@@ -374,7 +386,7 @@ impl Parsers {
                                 row: new_end_pos.line,
                                 column: new_end_pos.offset.0
                             },
-                        });
+                        }));
                     }
                 }
             },
@@ -435,6 +447,7 @@ impl InitializedParsers {
         buffer_name: &BufferName,
         kind: ParserKind,
     ) -> SpansResult<'to_parse> {
+        dbg!("get_spans");
         use ParserKind::*;
         use Style::*;
         match kind {
@@ -469,7 +482,7 @@ impl InitializedParsers {
                     to_parse.as_ref(),
                     state.tree.as_ref()
                 );
-
+                debug_assert!(state.tree.is_some(), "parse failed");
                 perf_viz::end_record!("state.parser.parse");
 
                 if let Some(tree) = state.tree.as_ref() {

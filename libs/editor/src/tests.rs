@@ -430,10 +430,10 @@ fn the_right_spans_are_set_after_typing_fn_below_this_fn_def_reduction() {
         assert_eq!(chars, "fn foo() {}\n\n", "precondition failure");
 
         let expected_spans = Spans::from(vec![
-                sv!(i 2 k PLAIN),
-                sv!(i 6 k 3),
-                sv!(i 13 k PLAIN),
-            ]);
+            sv!(i 2 k PLAIN),
+            sv!(i 6 k 3),
+            sv!(i 13 k PLAIN),
+        ]);
         
         assert_eq!(
             expected_spans
