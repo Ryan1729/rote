@@ -1,6 +1,6 @@
 #![deny(unused)]
 use macros::{
-    d, fmt_debug, fmt_display, ord, u, SaturatingSub,
+    d, fmt_debug, fmt_display, ord, u, SaturatingAdd, SaturatingSub,
 };
 use std::{
     time::Duration,
@@ -871,6 +871,17 @@ impl <'text, 'spans> Iterator for LabelledSlices<'text, 'spans> {
                 )
                     .expect("span_slice had incorrect index!");
 
+                let first_non_whitespace_index = {
+                    let mut chars = current_slice.chars();
+        
+                    let mut char_offset = CharOffset(0);
+                    while let Some(true) = chars.next().map(|c| c.is_whitespace()) {
+                        char_offset = char_offset.saturating_add(1);
+                    }
+        
+                    start_index + char_offset
+                };
+
                 let last_non_whitespace_index = {
                     let mut chars = current_slice.chars_at_end();
         
@@ -884,7 +895,7 @@ impl <'text, 'spans> Iterator for LabelledSlices<'text, 'spans> {
 
                 let trimmed_slice = self
                     .slice
-                    .slice(start_index..last_non_whitespace_index)
+                    .slice(first_non_whitespace_index..last_non_whitespace_index)
                     .expect("trimming slice had incorrect index!");
 
                 let output = LabelledSlice {

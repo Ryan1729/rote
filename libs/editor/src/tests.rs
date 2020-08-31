@@ -292,17 +292,36 @@ fn the_right_spans_are_set_after_typing_fn_below_this_fn_def() {
         parsers: & mut parsers,
     }));
 
-    assert_eq!(String::from(&text_buffer), "fn foo() {}\n\n", "precondition failure");
+    {
+        let chars = text_buffer.borrow_rope();
+        assert_eq!(chars, "fn foo() {}\n\n", "precondition failure");
 
-    assert_eq!(
-        parsers.get_spans(text_buffer.borrow_rope().into(), &buffer_name, parser_kind),
-        vec![
-            sv!(i 2 k PLAIN),
-            sv!(i 6 k 3),
-            sv!(i 13 k PLAIN),
-        ],
-        "added \\n"
-    );
+        let expected_spans = Spans::from(vec![
+                sv!(i 2 k PLAIN),
+                sv!(i 6 k 3),
+                sv!(i 13 k PLAIN),
+            ]);
+        
+        assert_eq!(
+            expected_spans
+                .labelled_slices(chars.full_slice())
+                .map(|l_s| {
+                    String::from(l_s.slice)
+                }).collect::<Vec<_>>(),
+            vec![
+                "fn",
+                "foo",
+                "() {}",
+            ],
+            "\\n precondition failure"
+        );
+    
+        assert_eq!(
+            parsers.get_spans(text_buffer.borrow_rope().into(), &buffer_name, parser_kind),
+            expected_spans,
+            "added \\n"
+        );
+    }
 
     text_buffer.insert('f', Some(text_buffer::ParserEditListener {
         buffer_name: &buffer_name,
@@ -310,21 +329,40 @@ fn the_right_spans_are_set_after_typing_fn_below_this_fn_def() {
         parsers: & mut parsers,
     }));
 
-    assert_eq!(String::from(&text_buffer), "fn foo() {}\n\nf", "precondition failure");
-
-    // We really only care that the spans show all the characters, and that the
-    // first line has the same spans the whole way through. This is just the 
-    // simplest way to check both of those properties, but it does slightly 
-    // over-assert.
-    assert_eq!(
-        parsers.get_spans(text_buffer.borrow_rope().into(), &buffer_name, parser_kind),
-        vec![
+    {
+        let chars = text_buffer.borrow_rope();
+        assert_eq!(chars, "fn foo() {}\n\nf", "precondition failure");
+    
+        let expected_spans = Spans::from(vec![
             sv!(i 2 k PLAIN),
             sv!(i 6 k 3),
             sv!(i 14 k PLAIN),
-        ],
-        "added f"
-    );
+        ]);
+    
+        assert_eq!(
+            expected_spans
+                .labelled_slices(chars.full_slice())
+                .map(|l_s| {
+                    String::from(l_s.slice)
+                }).collect::<Vec<_>>(),
+            vec![
+                "fn",
+                "foo",
+                "() {}\n\nf",
+            ],
+            "f precondition failure"
+        );
+
+        // We really only care that the spans show all the characters, and that the
+        // first line has the same spans the whole way through. This is just the 
+        // simplest way to check both of those properties, but it does slightly 
+        // over-assert.
+        assert_eq!(
+            parsers.get_spans(text_buffer.borrow_rope().into(), &buffer_name, parser_kind),
+            expected_spans,
+            "added f"
+        );
+    }
 
     text_buffer.insert('n', Some(text_buffer::ParserEditListener {
         buffer_name: &buffer_name,
@@ -332,16 +370,131 @@ fn the_right_spans_are_set_after_typing_fn_below_this_fn_def() {
         parsers: & mut parsers,
     }));
 
-    assert_eq!(String::from(&text_buffer), "fn foo() {}\n\nfn", "precondition failure");
-
-    assert_eq!(
-        parsers.get_spans(text_buffer.borrow_rope().into(), &buffer_name, parser_kind),
-        vec![
+    {
+        let chars = text_buffer.borrow_rope();
+        assert_eq!(chars, "fn foo() {}\n\nfn", "precondition failure");
+    
+        let expected_spans = Spans::from(vec![
             sv!(i 2 k PLAIN),
             sv!(i 6 k 3),
             sv!(i 15 k PLAIN),
-        ],
-        "added n"
-    );
+        ]);
+    
+        assert_eq!(
+            expected_spans
+                .labelled_slices(chars.full_slice())
+                .map(|l_s| {
+                    String::from(l_s.slice)
+                }).collect::<Vec<_>>(),
+            vec![
+                "fn",
+                "foo",
+                "() {}\n\nfn",
+            ],
+            "n precondition failure"
+        );
+
+        assert_eq!(
+            parsers.get_spans(text_buffer.borrow_rope().into(), &buffer_name, parser_kind),
+            vec![
+                sv!(i 2 k PLAIN),
+                sv!(i 6 k 3),
+                sv!(i 15 k PLAIN),
+            ],
+            "added n"
+        );
+    }
+}
+
+#[test]
+fn the_right_spans_are_set_after_typing_fn_below_this_fn_def_reduction() {
+    u!{BufferName, Input, ParserKind, parsers::Style}
+    let buffer_name = Path("fakefile.rs".into());
+
+    let mut parsers = Parsers::default();
+
+    let parser_kind = Rust(Extra);
+
+    let mut text_buffer = TextBuffer::from("fn foo() {}\n");
+
+    text_buffer.move_all_cursors(Move::ToBufferEnd);
+
+    text_buffer.insert('\n', Some(text_buffer::ParserEditListener {
+        buffer_name: &buffer_name,
+        parser_kind,
+        parsers: & mut parsers,
+    }));
+
+    {
+        let chars = text_buffer.borrow_rope();
+        assert_eq!(chars, "fn foo() {}\n\n", "precondition failure");
+
+        let expected_spans = Spans::from(vec![
+                sv!(i 2 k PLAIN),
+                sv!(i 6 k 3),
+                sv!(i 13 k PLAIN),
+            ]);
+        
+        assert_eq!(
+            expected_spans
+                .labelled_slices(chars.full_slice())
+                .map(|l_s| {
+                    String::from(l_s.slice)
+                }).collect::<Vec<_>>(),
+            vec![
+                "fn",
+                "foo",
+                "() {}",
+            ],
+            "\\n precondition failure"
+        );
+    
+        assert_eq!(
+            parsers.get_spans(text_buffer.borrow_rope().into(), &buffer_name, parser_kind),
+            expected_spans,
+            "added \\n"
+        );
+    }
+
+    text_buffer.insert('f', Some(text_buffer::ParserEditListener {
+        buffer_name: &buffer_name,
+        parser_kind,
+        parsers: & mut parsers,
+    }));
+
+    {
+        let chars = text_buffer.borrow_rope();
+        assert_eq!(chars, "fn foo() {}\n\nf", "precondition failure");
+    
+        let expected_spans = Spans::from(vec![
+            sv!(i 2 k PLAIN),
+            sv!(i 6 k 3),
+            sv!(i 14 k PLAIN),
+        ]);
+    
+        assert_eq!(
+            expected_spans
+                .labelled_slices(chars.full_slice())
+                .map(|l_s| {
+                    String::from(l_s.slice)
+                }).collect::<Vec<_>>(),
+            vec![
+                "fn",
+                "foo",
+                "() {}\n\nf",
+            ],
+            "f precondition failure"
+        );
+
+        // We really only care that the spans show all the characters, and that the
+        // first line has the same spans the whole way through. This is just the 
+        // simplest way to check both of those properties, but it does slightly 
+        // over-assert.
+        assert_eq!(
+            parsers.get_spans(text_buffer.borrow_rope().into(), &buffer_name, parser_kind),
+            expected_spans,
+            "added f"
+        );
+    }
 }
 

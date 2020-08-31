@@ -1550,9 +1550,9 @@ fn the_view_contains_the_right_spans_after_typing_fn_below_this_fn_def() {
                     String::from(l_s.slice)
                 }).collect::<Vec<_>>(),
             vec![
-                "fn ",
+                "fn",
                 "foo",
-                "() {}\n\n",
+                "() {}",
             ],
             "\\n precondition failure"
         );
@@ -1587,7 +1587,7 @@ fn the_view_contains_the_right_spans_after_typing_fn_below_this_fn_def() {
                     String::from(l_s.slice)
                 }).collect::<Vec<_>>(),
             vec![
-                "fn ",
+                "fn",
                 "foo",
                 "() {}\n\nf",
             ],
@@ -1628,7 +1628,7 @@ fn the_view_contains_the_right_spans_after_typing_fn_below_this_fn_def() {
                     String::from(l_s.slice)
                 }).collect::<Vec<_>>(),
             vec![
-                "fn ",
+                "fn",
                 "foo",
                 "() {}\n\nfn",
             ],
