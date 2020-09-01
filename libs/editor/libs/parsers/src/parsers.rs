@@ -1,6 +1,6 @@
 #![deny(unused)]
 use macros::{d, fmt_debug, fmt_display, some_or, u};
-use platform_types::{BufferName, Rope, Spans, ByteIndex};
+use platform_types::{BufferName, Rope, Spans};
 use edit::{Change, Edit, RangeEdits};
 
 use tree_sitter::{
@@ -290,9 +290,8 @@ impl Parsers {
                                 let ins_start_byte = rope.char_to_byte(
                                     ins_range.range.min()
                                 );
-                                let ins_end_byte = rope.char_to_byte(
-                                    ins_range.range.max()
-                                );
+                                let ins_end_byte = ins_start_byte
+                                    .map(|b| b + ins_range.chars.len());
 
                                 debug_assert_eq!(
                                     del_start_byte,
@@ -313,9 +312,10 @@ impl Parsers {
                                 let start_byte = rope.char_to_byte(
                                     ins_range.range.min()
                                 );
-                                let end_byte = rope.char_to_byte(
-                                    ins_range.range.max()
-                                );
+
+                                let end_byte = start_byte
+                                    .map(|b| b + ins_range.chars.len());
+
                                 dbg!(rope, ins_range.range.max(), end_byte);
                                 (start_byte, start_byte, end_byte)
                             }
@@ -324,12 +324,7 @@ impl Parsers {
 
                         let start_byte = some_or!(start_byte, cont!()).0;
                         let old_end_byte = some_or!(old_end_byte, cont!()).0;
-                        // TODO Are there actually only two cases here? That is,
-                        // should we `continue` here sometimes?
-                        let new_end_byte = some_or!(
-                            new_end_byte,
-                            ByteIndex(rope.len_bytes().0)
-                        ).0;
+                        let new_end_byte = some_or!(new_end_byte, cont!()).0;
 
                         let (start_pos, old_end_pos, new_end_pos) = match (old, new) {
                             (Some(old), Some(new)) => {
@@ -482,7 +477,19 @@ impl InitializedParsers {
                     to_parse.as_ref(),
                     state.tree.as_ref()
                 );
+
+                // Quoting the `parse` method docs:
+                // Returns a Tree if parsing succeeded, or None if:
+                //
+                // * The parser has not yet had a language assigned with Parser::set_language
+                // * The timeout set with Parser::set_timeout_micros expired
+                // * The cancellation flag set with Parser::set_cancellation_flag was flipped
+
+                // Given that if we got here the language should be set, we don't 
+                // currently set a timeout, and, we don't currenlty cancel parses,
+                // this assert should not ever fail.
                 debug_assert!(state.tree.is_some(), "parse failed");
+
                 perf_viz::end_record!("state.parser.parse");
 
                 if let Some(tree) = state.tree.as_ref() {

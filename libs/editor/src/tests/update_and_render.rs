@@ -739,6 +739,18 @@ proptest!{
 
 proptest!{
     #[test]
+    fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_from_a_default_state(
+        inputs in proptest::collection::vec(arb::input(), 0..=16),
+    ) {
+        tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+            d!(),
+            inputs
+        )
+    }
+}
+
+proptest!{
+    #[test]
     fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_with_heavy_saving(
         state in arb::state(),
         inputs in proptest::collection::vec(
