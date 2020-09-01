@@ -1136,6 +1136,65 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
 }
 
 #[test]
+fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_the_default_scratch_file_is_added_then_the_content_is_deleted() {
+    u!{BufferName, Input}
+    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+        d!(),
+        vec![
+            AddOrSelectBuffer(Scratch(d!()), "0".into()),
+            Delete
+        ]
+    )
+}
+
+#[test]
+fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_the_default_scratch_file_is_just_added() {
+    u!{BufferName, Input}
+    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+        d!(),
+        vec![
+            AddOrSelectBuffer(Scratch(d!()), "0".into())
+        ]
+    )
+}
+
+#[test]
+fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_a_new_scratch_file_is_added_then_the_content_is_deleted() {
+    u!{BufferName, Input}
+    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+        d!(),
+        vec![
+            AddOrSelectBuffer(Scratch(1), "0".into()),
+            Delete
+        ]
+    )
+}
+
+#[test]
+fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_the_default_scratch_file_is_added_blank_then_0_is_inserted() {
+    u!{BufferName, Input}
+    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+        d!(),
+        vec![
+            AddOrSelectBuffer(Scratch(d!()), "".into()),
+            Insert('0'),
+        ]
+    )
+}
+
+#[test]
+fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_a_path_file_is_added_then_the_content_is_deleted() {
+    u!{BufferName, Input}
+    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+        d!(),
+        vec![
+            AddOrSelectBuffer(Path(".fakefile".into()), "0".into()),
+            Delete
+        ]
+    )
+}
+
+#[test]
 fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_in_this_case_where_larger_chars_are_pasted() {
     u!{BufferName, Input}
     tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
@@ -1216,7 +1275,7 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
 
     {
         let buffers = state.buffers.buffers();
-        let index_state= buffers.index_state();
+        let index_state = buffers.index_state();
         for (i, _) in buffers.iter_with_indexes() {
             expected_edited_states.insert(index_state, i, false);
         }
@@ -1245,13 +1304,7 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
                         data.clone().unwrap_or_default()
                     )
                 )
-            },
-            /*OpenOrSelectBuffer(ref path) => {
-                if !state.buffers.index_with_name(&BufferName::Path(path.clone())).is_some() {
-                    expected_edited_states.insert(state.buffers.append_index(), true);
-                }
-            },
-*/        
+            }, 
             SavedAs(index, _) => {
                 dbg!("SavedAs()", index, expected_edited_states.get(index_state, index).is_some());
                 // We need to trust the platform layer to only call
