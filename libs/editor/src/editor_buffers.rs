@@ -233,43 +233,34 @@ impl EditorBuffers {
         index
     }
 
-    pub fn add_or_select_buffer(&mut self, name: BufferName, str: String) -> Editedness {
-        u!{Editedness}
+    pub fn add_or_select_buffer(&mut self, name: BufferName, str: String) -> Option<EditedTransition> {
+        u!{Editedness, EditedTransition}
         use core::hash::Hasher;
 
-        let mut editedness = Unedited;
+        let mut edited_transition = None;
+        dbg!();
         if let Some(index) = self.index_with_name(&name) {
             self.set_current_index(index);
-
-            if name == d!() && usize::from(self.buffers.len()) <= 1 {
+            dbg!();
+            // Without a special case here for the first scratch buffer, 
+            // if we type something into it, it does not get retained.
+            if name == d!() && usize::from(self.buffers.len()) <= 1 
+            {
+                dbg!();
                 let buffer = &mut self.get_current_buffer_mut().text_buffer;
-                
-                let old_rope_hash = {
-                    let mut hasher = fast_hash::Hasher::default();
-                    buffer.rope_hash(&mut hasher);
-                    hasher.finish()
-                };
-
-                if buffer.has_no_edits() {
+                if buffer.has_no_edits() && str.len() > 0 {
+                    dbg!();
                     *buffer = str.into();
-                }
-
-                let new_rope_hash = {
-                    let mut hasher = fast_hash::Hasher::default();
-                    buffer.rope_hash(&mut hasher);
-                    hasher.finish()
-                };
-                
-                if new_rope_hash != old_rope_hash {
-                    editedness = Edited;
+                    edited_transition = Some(ToEdited);
                 }
             }
         } else {
+            dbg!();
             self.buffers.push_and_select_new(EditorBuffer::new(name, str));
-            editedness = Edited;
+            edited_transition = Some(ToEdited);
         };
 
-        editedness
+        edited_transition
     }
 
     /// Sets the path and marks the buffer as unedited iff such a buffer exists.

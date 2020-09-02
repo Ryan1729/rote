@@ -721,14 +721,14 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
         }
         AddOrSelectBuffer(name, str) => {
             perf_viz::record_guard!("AddOrSelectBuffer");
-            let editedness = state.buffers.add_or_select_buffer(name, str);
+            let edited_transition_opt = state.buffers.add_or_select_buffer(name, str);
             state.current_buffer_kind = BufferIdKind::Text;
 
             buffer_view_sync!();
-            if Editedness::Edited == editedness {
+            if let Some(edited_transition) = edited_transition_opt {
                 // We need to announce this so that the user can just track the 
                 // transitions and have an accurate notion of which buffers exist.
-                mark_edited_transition!(current, ToUnedited);
+                mark_edited_transition!(current, edited_transition);
             }
         }
         AdjustBufferSelection(adjustment) => {

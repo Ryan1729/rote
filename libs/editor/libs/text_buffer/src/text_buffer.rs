@@ -646,7 +646,7 @@ pub enum Editedness {
 }
 
 impl TextBuffer {
-    fn editedness(&self) -> Editedness {
+    pub fn editedness(&self) -> Editedness {
         u!{Editedness}
 
         if self.unedited == self.rope {
