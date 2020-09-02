@@ -255,9 +255,11 @@ impl EditorBuffers {
                 }
             }
         } else {
-            dbg!();
+            dbg!(&name, "did not exist previously");
+            edited_transition = Some(
+                if str.len() > 0 { ToEdited } else { ToUnedited }
+            );
             self.buffers.push_and_select_new(EditorBuffer::new(name, str));
-            edited_transition = Some(ToEdited);
         };
 
         edited_transition
