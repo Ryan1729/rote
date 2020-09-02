@@ -386,13 +386,26 @@ fn if_a_non_blank_file_is_added_then_edited() {
 }
 
 #[test]
+fn if_the_default_scratch_file_is_added_then_delete_is_inputted() {
+    u!{BufferName, Input}
+    on(
+        d!(),
+        vec![
+            AddOrSelectBuffer(Scratch(d!()), "0".into()),
+            Delete,
+        ]
+    )
+}
+
+#[test]
 fn if_the_default_scratch_file_is_added_then_the_content_is_deleted() {
     u!{BufferName, Input}
     on(
         d!(),
         vec![
             AddOrSelectBuffer(Scratch(d!()), "0".into()),
-            Delete
+            MoveAllCursors(Move::ToBufferEnd),
+            Delete,
         ]
     )
 }
@@ -409,13 +422,26 @@ fn if_the_default_scratch_file_is_just_added() {
 }
 
 #[test]
+fn if_a_new_scratch_file_is_added_then_delete_is_inputted() {
+    u!{BufferName, Input}
+    on(
+        d!(),
+        vec![
+            AddOrSelectBuffer(Scratch(1), "0".into()),
+            Delete,
+        ]
+    )
+}
+
+#[test]
 fn if_a_new_scratch_file_is_added_then_the_content_is_deleted() {
     u!{BufferName, Input}
     on(
         d!(),
         vec![
             AddOrSelectBuffer(Scratch(1), "0".into()),
-            Delete
+            MoveAllCursors(Move::ToBufferEnd),
+            Delete,
         ]
     )
 }
@@ -433,12 +459,25 @@ fn if_the_default_scratch_file_is_added_blank_then_0_is_inserted() {
 }
 
 #[test]
+fn if_a_path_file_is_added_then_delete_is_inputted() {
+    u!{BufferName, Input}
+    on(
+        d!(),
+        vec![
+            AddOrSelectBuffer(Path(".fakefile".into()), "0".into()),
+            Delete
+        ]
+    )
+}
+
+#[test]
 fn if_a_path_file_is_added_then_the_content_is_deleted() {
     u!{BufferName, Input}
     on(
         d!(),
         vec![
             AddOrSelectBuffer(Path(".fakefile".into()), "0".into()),
+            MoveAllCursors(Move::ToBufferEnd),
             Delete
         ]
     )

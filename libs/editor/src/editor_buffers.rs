@@ -242,15 +242,19 @@ impl EditorBuffers {
         if let Some(index) = self.index_with_name(&name) {
             self.set_current_index(index);
             dbg!();
-            // Without a special case here for the first scratch buffer, 
-            // if we type something into it, it does not get retained.
+            // Without a special case here for the first scratch buffer, if we type 
+            // something into it, it does not get retained across editor restarts.
             if name == d!() && usize::from(self.buffers.len()) <= 1 
             {
                 dbg!();
                 let buffer = &mut self.get_current_buffer_mut().text_buffer;
                 if buffer.has_no_edits() && str.len() > 0 {
                     dbg!();
-                    *buffer = str.into();
+                    // We want the buffer to consider the empty string to be the
+                    // unedited state.
+                    *buffer = d!();
+                    // TODO should we actually be using a listener here?
+                    buffer.insert_string(str, None);
                     edited_transition = Some(ToEdited);
                 }
             }
