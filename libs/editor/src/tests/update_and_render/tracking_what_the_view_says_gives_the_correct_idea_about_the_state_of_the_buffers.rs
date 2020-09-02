@@ -4,11 +4,11 @@ use macros::{dbg};
 
 proptest!{
     #[test]
-    fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_from_an_arb_state(
+    fn from_an_arb_state(
         state in arb::state(),
         inputs in proptest::collection::vec(arb::input(), 0..=16),
     ) {
-        tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+        on(
             state,
             inputs
         )
@@ -17,10 +17,10 @@ proptest!{
 
 proptest!{
     #[test]
-    fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_from_a_default_state(
+    fn from_a_default_state(
         inputs in proptest::collection::vec(arb::input(), 0..=16),
     ) {
-        tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+        on(
             d!(),
             inputs
         )
@@ -29,14 +29,14 @@ proptest!{
 
 proptest!{
     #[test]
-    fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_with_heavy_saving(
+    fn with_heavy_saving(
         state in arb::state(),
         inputs in proptest::collection::vec(
             prop_oneof![1 => arb::input(), 3 => arb::saved_as()],
             0..=16
         ),
     ) {
-        tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+        on(
             state,
             inputs
         )
@@ -45,14 +45,14 @@ proptest!{
 
 proptest!{
     #[test]
-    fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_with_heavy_saving_from_editor_buffers(
+    fn with_heavy_saving_from_editor_buffers(
         buffers in arb::editor_buffers(),
         inputs in proptest::collection::vec(
             prop_oneof![1 => arb::input(), 3 => arb::saved_as()],
             0..=16
         ),
     ) {
-        tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+        on(
             arb::state_from_editor_buffers(buffers),
             inputs
         )
@@ -66,42 +66,42 @@ proptest!{
         .. ProptestConfig::default()
     })]
     #[test]
-    fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_with_heavy_saving_when_there_is_one_path_buffer_and_one_scratch_buffer(
+    fn with_heavy_saving_when_there_is_one_path_buffer_and_one_scratch_buffer(
         buffers in arb::editor_buffers_with_one_path_one_scratch(),
         inputs in proptest::collection::vec(
             prop_oneof![1 => arb::input(), 3 => arb::saved_as()],
             0..=16
         ),
     ) {
-        tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+        on(
             arb::state_from_editor_buffers(buffers),
             inputs
         )
     }
 
     #[test]
-    fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_with_heavy_saving_when_there_is_one_default_path_buffer_and_one_scratch_buffer(
+    fn with_heavy_saving_when_there_is_one_default_path_buffer_and_one_scratch_buffer(
         buffers in arb::editor_buffers_with_one_default_path_one_scratch(),
         inputs in proptest::collection::vec(
             prop_oneof![1 => arb::input(), 3 => arb::saved_as()],
             0..=16
         ),
     ) {
-        tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+        on(
             arb::state_from_editor_buffers(buffers),
             inputs
         )
     }
 
     #[test]
-    fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_with_heavy_saving_when_the_hash_starts_blank(
+    fn with_heavy_saving_when_the_hash_starts_blank(
         buffers in arb::editor_buffers_blank_hash(),
         inputs in proptest::collection::vec(
             prop_oneof![1 => arb::input(), 3 => arb::saved_as()],
             0..=16
         ),
     ) {
-        tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+        on(
             arb::state_from_editor_buffers(buffers),
             inputs
         )
@@ -110,13 +110,13 @@ proptest!{
 
 proptest!{
     #[test]
-    fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_with_heavy_saving_from_a_default_state(
+    fn with_heavy_saving_from_a_default_state(
         inputs in proptest::collection::vec(
             prop_oneof![1 => arb::input(), 3 => arb::saved_as()],
             0..=16
         ),
     ) {
-        tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+        on(
             d!(),
             inputs
         )
@@ -125,13 +125,13 @@ proptest!{
 
 proptest!{
     #[test]
-    fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_with_full_saving_from_a_default_state(
+    fn with_full_saving_from_a_default_state(
         inputs in proptest::collection::vec(
             arb::saved_as(),
             0..=16
         ),
     ) {
-        tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+        on(
             d!(),
             inputs
         )
@@ -142,12 +142,12 @@ proptest!{
 // failing inside tree-sitter, which caused an abort.
 proptest!{
     #[test]
-    fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_given_this_set_of_possible_inputs(
+    fn given_this_set_of_possible_inputs(
         input1 in arb::input(),
         state in arb::g_i_state_with_default_invalidation(),
     ) {
         u!{Input}
-        tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+        on(
             d!(),
             vec![input1, SavedAs(state.new_index(d!()), ".fakefile".into())]
         )
@@ -157,11 +157,11 @@ proptest!{
 // This test was also written in order to debug that assert failing.
 proptest!{
     #[test]
-    fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_given_this_smaller_set_of_possible_inputs(
+    fn given_this_smaller_set_of_possible_inputs(
         state in arb::g_i_state_with_default_invalidation(),
     ) {
         u!{Input}
-        tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+        on(
             d!(),
             vec![NextLanguage, SavedAs(state.new_index(d!()), ".fakefile".into())]
         )
@@ -170,10 +170,10 @@ proptest!{
 
 proptest!{
     #[test]
-    fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_after_this_paste(
+    fn after_this_paste(
         buffers in arb::editor_buffers_with_one_path_one_scratch(),
     ) {
-        tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+        on(
             arb::state_from_editor_buffers(buffers),
             vec![Input::Paste(Some("¡".to_string()))]
         )
@@ -181,17 +181,17 @@ proptest!{
 }
 
 #[test]
-fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_in_the_zero_case() {
-    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+fn in_the_zero_case() {
+    on(
         d!(),
         d!()
     )
 }
 
 #[test]
-fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_after_inserting_the_letter_a() {
+fn after_inserting_the_letter_a() {
     u!{Input}
-    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+    on(
         d!(),
         vec![
             Insert('a'),
@@ -200,9 +200,9 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
 }
 
 #[test]
-fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_we_select_then_tab_in() {
+fn if_we_select_then_tab_in() {
     u!{BufferIdKind, BufferName, Input}
-    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+    on(
         d!(),
         vec![
             SelectBuffer(BufferId { kind: Find, index: d!() }),
@@ -212,10 +212,10 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
 }
 
 #[test]
-fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_we_save_a_new_file() {
+fn if_we_save_a_new_file() {
     u!{BufferIdKind, BufferName, Input}
     let state: g_i::State = d!();
-    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+    on(
         d!(),
         vec![
             SavedAs(state.new_index(g_i::IndexPart::or_max(1)), ".fakefile".into()),
@@ -224,27 +224,27 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
 }
 
 #[test]
-fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_we_insert_numbers_delete_then_redo() {
+fn if_we_insert_numbers_delete_then_redo() {
     u!{Input}
-    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+    on(
         d!(),
         vec![InsertNumbersAtCursors, Delete, Redo]
     )
 }
 
 #[test]
-fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_we_open_or_select_a_buffer() {
+fn if_we_open_or_select_a_buffer() {
     u!{Input}
-    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+    on(
         d!(),
         vec![OpenOrSelectBuffer(".fakefile".into())]
     )
 }
 
 #[test]
-fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_we_insert_then_report_a_file_was_saved_at_the_first_index() {
+fn if_we_insert_then_report_a_file_was_saved_at_the_first_index() {
     u!{Input}
-    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+    on(
         d!(),
         vec![
             InsertNumbersAtCursors,
@@ -254,10 +254,10 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
 }
 
 #[test]
-fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_we_insert_then_report_a_file_was_saved_at_index_1() {
+fn if_we_insert_then_report_a_file_was_saved_at_index_1() {
     u!{Input}
     let state: g_i::State = d!();
-    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+    on(
         d!(),
         vec![
             InsertNumbersAtCursors,
@@ -267,10 +267,10 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
 }
 
 #[test]
-fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_in_this_generated_heavy_saving_case() {
+fn in_this_generated_heavy_saving_case() {
     u!{Input}
     let state: g_i::State = d!();
-    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+    on(
         d!(),
         vec![
             SavedAs(state.new_index(g_i::IndexPart::or_max(0)), "&¥:&q\"N\u{baccd}.fakefile".into()),
@@ -281,9 +281,9 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
 }
 
 #[test]
-fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_we_search_for_the_empty_string() {
+fn if_we_search_for_the_empty_string() {
     u!{BufferIdKind, Input}
-    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+    on(
         d!(),
         vec![
             SelectBuffer(BufferId { kind: Find, index: d!() }),
@@ -293,18 +293,18 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
 }
 
 #[test]
-fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_a_file_is_added_to_a_blank_state() {
+fn if_a_file_is_added_to_a_blank_state() {
     u!{BufferName, Input}
-    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+    on(
         d!(),
         vec![AddOrSelectBuffer(Path(".fakefile".into()), "".to_owned())]
     )
 }
 
 #[test]
-fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_a_file_is_added_to_a_blank_state_then_becomes_unedited_later() {
+fn if_a_file_is_added_to_a_blank_state_then_becomes_unedited_later() {
     u!{BufferName, Input}
-    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+    on(
         d!(),
         vec![
             AddOrSelectBuffer(Path(".fakefile".into()), "".to_owned()),
@@ -315,9 +315,9 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
 }
 
 #[test]
-fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_a_scratch_file_is_added_then_a_path_file_is_added() {
+fn if_a_scratch_file_is_added_then_a_path_file_is_added() {
     u!{BufferName, Input}
-    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+    on(
         d!(),
         vec![
             NewScratchBuffer(Option::None),
@@ -327,9 +327,9 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
 }
 
 #[test]
-fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_a_path_file_is_added_then_the_selection_is_changed() {
+fn if_a_path_file_is_added_then_the_selection_is_changed() {
     u!{BufferName, Input, SelectionAdjustment, SelectionMove}
-    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+    on(
         d!(),
         vec![
             AddOrSelectBuffer(Path(".fakefile".into()), "¡".to_owned()),
@@ -340,9 +340,9 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
 }
 
 #[test]
-fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_a_path_file_is_added_then_the_selection_is_changed_twice() {
+fn if_a_path_file_is_added_then_the_selection_is_changed_twice() {
     u!{BufferName, Input, SelectionAdjustment, SelectionMove}
-    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+    on(
         d!(),
         vec![
             AddOrSelectBuffer(Path(".fakefile".into()), "".to_owned()),
@@ -353,12 +353,12 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
 }
 
 #[test]
-fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_a_file_is_edited_then_saved_then_edited() {
+fn if_a_file_is_edited_then_saved_then_edited() {
     u!{BufferName, Input, SelectionAdjustment, SelectionMove}
 
     let state: g_i::State = d!();
     let path: PathBuf = ".fakefile".into();
-    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+    on(
         d!(),
         vec![
             AddOrSelectBuffer(Path(path.clone()), "".to_owned()),
@@ -373,9 +373,9 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
 }
 
 #[test]
-fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_a_non_blank_file_is_added_then_edited() {
+fn if_a_non_blank_file_is_added_then_edited() {
     u!{BufferName, Input}
-    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+    on(
         d!(),
         vec![
             AddOrSelectBuffer(Path(".fakefile".into()), "A".to_owned()),
@@ -386,9 +386,9 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
 }
 
 #[test]
-fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_the_default_scratch_file_is_added_then_the_content_is_deleted() {
+fn if_the_default_scratch_file_is_added_then_the_content_is_deleted() {
     u!{BufferName, Input}
-    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+    on(
         d!(),
         vec![
             AddOrSelectBuffer(Scratch(d!()), "0".into()),
@@ -398,9 +398,9 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
 }
 
 #[test]
-fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_the_default_scratch_file_is_just_added() {
+fn if_the_default_scratch_file_is_just_added() {
     u!{BufferName, Input}
-    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+    on(
         d!(),
         vec![
             AddOrSelectBuffer(Scratch(d!()), "0".into())
@@ -409,9 +409,9 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
 }
 
 #[test]
-fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_a_new_scratch_file_is_added_then_the_content_is_deleted() {
+fn if_a_new_scratch_file_is_added_then_the_content_is_deleted() {
     u!{BufferName, Input}
-    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+    on(
         d!(),
         vec![
             AddOrSelectBuffer(Scratch(1), "0".into()),
@@ -421,9 +421,9 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
 }
 
 #[test]
-fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_the_default_scratch_file_is_added_blank_then_0_is_inserted() {
+fn if_the_default_scratch_file_is_added_blank_then_0_is_inserted() {
     u!{BufferName, Input}
-    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+    on(
         d!(),
         vec![
             AddOrSelectBuffer(Scratch(d!()), "".into()),
@@ -433,9 +433,9 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
 }
 
 #[test]
-fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_a_path_file_is_added_then_the_content_is_deleted() {
+fn if_a_path_file_is_added_then_the_content_is_deleted() {
     u!{BufferName, Input}
-    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+    on(
         d!(),
         vec![
             AddOrSelectBuffer(Path(".fakefile".into()), "0".into()),
@@ -445,9 +445,9 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
 }
 
 #[test]
-fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_in_this_case_where_larger_chars_are_pasted() {
+fn in_this_case_where_larger_chars_are_pasted() {
     u!{BufferName, Input}
-    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+    on(
         arb::state_from_editor_buffers(EditorBuffers::new((d!(), ""))),
         vec![
             Paste(Some("¡".to_string())),
@@ -456,10 +456,10 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
 }
 
 #[test]
-fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_in_this_insert_numbers_at_cursors_case() {
+fn in_this_insert_numbers_at_cursors_case() {
     u!{BufferName, Input}
     let name = Path(".fakefile".into());
-    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+    on(
         arb::state_from_editor_buffers(EditorBuffers::new((name.clone(), String::new()))),
         vec![
             InsertNumbersAtCursors, 
@@ -469,14 +469,14 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
 }
 
 #[test]
-fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_if_we_do_this_cut() {
+fn if_we_do_this_cut() {
     u!{BufferName, Input}
     let mut state = arb::state_from_editor_buffers(EditorBuffers::new((d!(), "")));
     
     update_and_render(&mut state, Insert('a'));
     update_and_render(&mut state, SelectAll);
 
-    tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+    on(
         state,
         vec![
             Cut
@@ -489,7 +489,7 @@ fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buf
 /// complicated because the editor is the one who knows about the undo history, and the 
 /// client is the one who knows about when things are saved to disk or not.
 // We put this below the tests that use it so I don't need to scroll so damn much.
-fn tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers_on(
+fn on(
     mut state: State,
     inputs: Vec<Input>,
 ) { 
