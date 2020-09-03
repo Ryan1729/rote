@@ -422,6 +422,18 @@ fn keeps_the_state_buffers_index_state_the_same_as_the_view_buffers_index_state_
     );
 }
 
+#[test]
+fn keeps_the_state_buffers_index_state_the_same_as_the_view_buffers_index_state_if_next_language_then_delete_is_inputted() {
+    u!{Input, BufferName}
+    keeps_the_state_buffers_index_state_the_same_as_the_view_buffers_index_state_on(
+        d!(),
+        vec![
+            NextLanguage,
+            Delete
+        ]
+    );
+}
+
 
 /* I think tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers supercedes this
 fn reports_a_change_at_the_correct_edited_index_on(

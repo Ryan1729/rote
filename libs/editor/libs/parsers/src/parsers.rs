@@ -319,7 +319,12 @@ impl Parsers {
                                 dbg!(rope, ins_range.range.max(), end_byte);
                                 (start_byte, start_byte, end_byte)
                             }
-                            (None, None) => cont!(),
+                            (None, None) => {
+                                // The edit apparently changed no characters,
+                                // so it seems there is nothing to tell the parser
+                                // about.
+                                continue
+                            },
                         };
 
                         let start_byte = some_or!(start_byte, cont!()).0;
@@ -412,26 +417,26 @@ fn get_or_init_buffer_state<'map>(
     // TODO pass a reference to all the langs, if/when we support more than one.
     rust_lang: Language, 
 ) -> &'map mut BufferState {
-    parser_map
+    u!{ParserKind}
+    let buffer_state = parser_map
         .entry(buffer_name.clone())
-        .or_insert_with(|| {
-            u!{ParserKind}
-            let mut s: BufferState = d!();
-            // We can assume that `set_language` will return `Ok` because we should
-            // have already tried it once in `InitializedParsers::new`
-            match kind {
-                Rust(_) => {
-                    let _res = s.parser.set_language(rust_lang);
-                    debug_assert!(
-                        _res.is_ok(),
-                        "Failed to set language for {}",
-                        kind
-                    );
-                },
-                Plaintext => {},
-            }
-            s
-        })
+        .or_insert_with(|| BufferState::default());
+
+    // We can assume that `set_language` will return `Ok` because we should
+    // have already tried it once in `InitializedParsers::new`
+    match kind {
+        Rust(_) => {
+            let _res = buffer_state.parser.set_language(rust_lang);
+            debug_assert!(
+                _res.is_ok(),
+                "Failed to set language for {}",
+                kind
+            );
+        },
+        Plaintext => {},
+    }
+
+    buffer_state
 }
 
 impl InitializedParsers {

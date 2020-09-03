@@ -9,3 +9,4 @@ cc 4d85f8ff99d5e4bb4f0e68a03b033889cb17b3cda5c3bbc93c97125c7389388d # shrinks to
 cc ab09a5e4a5b7c60f3de00aa4bd5ab43715b41961e362dee808b2821be9ae1b99 # shrinks to buffers = EditorBuffers { buffers: SelectableVec1 { elements: Vec1([EditorBuffer { name: Scratch(1), search_results: SearchResults { ranges: [(pos!{l 0 o 0}, pos!{l 0 o 0})], .. d!: () }, .. d!: () }]), index_state: State { current: 0, invalidation: RemovedAt(0) }, current_index: Index { generation: 0, index: 0 } }, .. d!: () }, inputs = [Paste(Some("")), NextLanguage]
 cc a206ad9a3a17fdaa678da5989c6fc69b132b1a96d1c435a746c4fefb4025e329 # shrinks to inputs = [AddOrSelectBuffer(Scratch(0), "0"), Delete, TabOut]
 cc 9db146d4d8e4768da84ef99e505b97945eeda4b2d1d2f66a3daa5b4122229c59 # shrinks to input1 = AddOrSelectBuffer(Scratch(1), ""), state = State { current: 0, invalidation: RemovedAt(0) }
+cc ea8a8b391f81130b49b8f918a6a746e4b36e2f74f8f429222d680fb2e08efcfb # shrinks to inputs = [NextLanguage, Delete]
