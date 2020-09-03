@@ -1,5 +1,7 @@
 ## TODO
 
+* Write a test that ensures that undo/redo produces the expected spans
+
 * make auto-tab-scroll happen when a new tab is created
     * fix auto-scroll drifting as the amount of tabs increases.
         * a specific undesirable case:
