@@ -55,16 +55,18 @@ impl From<&mut EditorBuffer> for String {
     }
 }
 
-impl <I: Into<TextBuffer>> From<(BufferName, I)> for EditorBuffer {
+impl <I: Into<TextBuffer> + Into<String>> From<(BufferName, I)> for EditorBuffer {
     fn from((n, i): (BufferName, I)) -> Self {
         Self::new(n, i)
     }
 }
 
 impl EditorBuffer {
-    pub fn new<I: Into<TextBuffer>>(name: BufferName, s: I) -> Self {
+    pub fn new<I: Into<TextBuffer> + Into<String>>(name: BufferName, s: I) -> Self {
+        let text_buffer = create_text_buffer(&name, s);
         Self {
-            name,            text_buffer: s.into(),
+            name,
+            text_buffer,
             ..d!()
         }
     }
@@ -250,11 +252,7 @@ impl EditorBuffers {
                 let buffer = &mut self.get_current_buffer_mut().text_buffer;
                 if buffer.has_no_edits() && str.len() > 0 {
                     dbg!();
-                    // We want the buffer to consider the empty string to be the
-                    // unedited state.
-                    *buffer = d!();
-                    // TODO should we actually be using a listener here?
-                    buffer.insert_string(str, None);
+                    *buffer = create_text_buffer(&name, str);
                     edited_transition = Some(ToEdited);
                 }
             }
@@ -303,6 +301,30 @@ impl EditorBuffers {
 
     pub fn iter_with_indexes(&self) -> g_i::IterWithIndexes<EditorBuffer> {
         self.buffers.iter_with_indexes()
+    }
+}
+
+fn create_text_buffer<I: Into<TextBuffer> + Into<String>>(name: &BufferName, s: I) -> TextBuffer {
+    u!{BufferName}
+    match name {
+        // If this gets any more complicated, consider making BufferName, (or at 
+        // least an enum indicating the variant,) a required parameter to make a 
+        // `TextBuffer` and let that crate handle this.
+        Scratch(_) => {
+            // We want the buffer to consider the empty string to be the
+            // unedited state.
+            let mut buffer: TextBuffer = d!();
+            // TODO should we actually be using a listener here?
+            buffer.insert_string(s.into(), None);
+            // After creating a new buffer we expect the cursors to be at the 
+            // beginning.
+            buffer.move_all_cursors(Move::ToBufferStart);
+
+            buffer
+        }
+        Path(_) => {
+            s.into()
+        }
     }
 }
 
