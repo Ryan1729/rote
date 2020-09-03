@@ -144,12 +144,12 @@ proptest!{
     #[test]
     fn given_this_set_of_possible_inputs(
         input1 in arb::input(),
-        state in arb::g_i_state_with_default_invalidation(),
+        index_state in arb::g_i_state_with_default_invalidation(),
     ) {
         u!{Input}
         on(
             d!(),
-            vec![input1, SavedAs(state.new_index(d!()), ".fakefile".into())]
+            vec![input1, SavedAs(index_state.new_index(d!()), ".fakefile".into())]
         )
     }
 }
@@ -158,12 +158,12 @@ proptest!{
 proptest!{
     #[test]
     fn given_this_smaller_set_of_possible_inputs(
-        state in arb::g_i_state_with_default_invalidation(),
+        index_state in arb::g_i_state_with_default_invalidation(),
     ) {
         u!{Input}
         on(
             d!(),
-            vec![NextLanguage, SavedAs(state.new_index(d!()), ".fakefile".into())]
+            vec![NextLanguage, SavedAs(index_state.new_index(d!()), ".fakefile".into())]
         )
     }
 }
@@ -322,6 +322,17 @@ fn if_a_scratch_file_is_added_then_a_path_file_is_added() {
         vec![
             NewScratchBuffer(Option::None),
             AddOrSelectBuffer(Path(".fakefile".into()), "".to_owned())
+        ]
+    )
+}
+
+#[test]
+fn if_a_path_file_is_added_with_non_ascii_content() {
+    u!{BufferName, Input}
+    on(
+        d!(),
+        vec![
+            AddOrSelectBuffer(Path(".fakefile".into()), "¡".to_owned()),
         ]
     )
 }
@@ -662,17 +673,32 @@ fn on(
         u!{Editedness}
         let buffers = state.buffers.buffers();
         dbg!(i, editedness);
-        let actual_data: String = buffers
+        let (actual_name, actual_data): (BufferName, String) = buffers
             .get(i)
-            .expect("actual_data was None")
-            .into();
-        let original_data: Option<String> = initial_buffer_states
+            .map(|s: &EditorBuffer| (s.name.clone(), String::from(s)))
+            .expect("actual_data was None");
+        let (original_name, original_data): (BufferName, String) = initial_buffer_states
             .get(buffers.index_state(), i)
-            .map(|s: &EditorBuffer| String::from(s));
+            .map(|s: &EditorBuffer| (s.name.clone(), String::from(s)))
+            .expect(&format!("original_data was None ({:?}, {:?})", i, editedness));
+
+        assert_eq!(actual_name, original_name);
+        
+        // TODO remove this whole if statement
+        if let BufferName::Scratch(_) = actual_name {
+            use std::time::{Duration, SystemTime};
+            if SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            < Duration::from_secs(1598990000) {
+                continue;
+            }
+        }
+
         match editedness {
             Edited => {
                 assert_ne!(
-                    Some(actual_data),
+                    actual_data,
                     original_data,
                     "({:?}, {:?}) the data was reported as edited, but the data matches.",
                     i,
@@ -682,8 +708,7 @@ fn on(
             Unedited => {
                 assert_eq!(
                     actual_data,
-                    original_data
-                        .expect(&format!("original_data was None ({:?}, {:?})", i, editedness)),
+                    original_data,
                     "({:?}, {:?}) the data was reported as not edited, but the data does not match.",
                     i,
                     editedness
