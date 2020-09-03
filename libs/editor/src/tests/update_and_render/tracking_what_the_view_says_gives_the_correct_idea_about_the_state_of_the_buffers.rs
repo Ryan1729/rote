@@ -532,60 +532,47 @@ fn on(
     mut state: State,
     inputs: Vec<Input>,
 ) { 
-    // we ensure that every buffer starts off unedited since that makes the 
-    // expected editedness easier to track.
-    let selected_index = state.buffers.current_index();
-
-    let indexes: Vec<_> = state.buffers.iter_with_indexes()
-        .map(|(i, _)| i)
-        .collect();
-
-    for i in indexes {
-        state.buffers.set_current_index(i);
-
-        let buffer = state.buffers.get_current_buffer_mut();
-        buffer.text_buffer.set_unedited();
-    }
-
-    state.buffers.set_current_index(selected_index);
-
     let original_buffers = state.buffers.buffers();
-    let mut unedited_buffer_states: g_i::Map<EditorBuffer> = g_i::Map::with_capacity(original_buffers.len());
+    let mut initial_buffer_states: g_i::Map<EditorBuffer> = g_i::Map::with_capacity(original_buffers.len());
     {
         let state = original_buffers.index_state ();
         for (i, buffer) in original_buffers.iter_with_indexes() {
-            unedited_buffer_states.insert(state, i, buffer.clone());
+            initial_buffer_states.insert(state, i, buffer.clone());
         }
     }
 
-    let buffer_count = state.buffers.len();
-    dbg!(&unedited_buffer_states, buffer_count);
-    let mut expected_edited_states: g_i::Map<bool> = g_i::Map::with_capacity(buffer_count);
-
+    // If a map tracks only the transitions from the view, it should be able 
+    // to tell which buffers are edited and which are not, given the inital state
+    // of the map corresponded to the edited state of the buffers in the first place.
+    let mut expected_editedness_map: g_i::Map<Editedness> = 
+        g_i::Map::with_capacity(original_buffers.len());
     {
-        let buffers = state.buffers.buffers();
-        let index_state = buffers.index_state();
-        for (i, _) in buffers.iter_with_indexes() {
-            expected_edited_states.insert(index_state, i, false);
+        let index_state = original_buffers.index_state ();
+        for (i, buffer) in original_buffers.iter_with_indexes() {
+            expected_editedness_map.insert(
+                index_state,
+                i,
+                buffer.text_buffer.editedness()
+            );
         }
     }
 
     for input in inputs {
-        let index_state = state.buffers.buffers().index_state();
         u!{Input}
+        let index_state = state.buffers.buffers().index_state();
         match input {
             AddOrSelectBuffer(ref name, ref data) => {
                 if state.buffers.index_with_name(name).is_none() {
-                    unedited_buffer_states.insert(
+                    initial_buffer_states.insert(
                         index_state,
                         state.buffers.buffers().append_index(),
                         EditorBuffer::new(name.clone(), data.clone()),
                     );
-                    dbg!(&unedited_buffer_states);
+                    dbg!(&initial_buffer_states);
                 }
             },
             NewScratchBuffer(ref data) => {
-                unedited_buffer_states.insert(
+                initial_buffer_states.insert(
                     index_state,
                     state.buffers.buffers().append_index(),
                     EditorBuffer::new(
@@ -595,14 +582,14 @@ fn on(
                 )
             }, 
             SavedAs(index, _) => {
-                dbg!("SavedAs()", index, expected_edited_states.get(index_state, index).is_some());
+                dbg!("SavedAs()", index, expected_editedness_map.get(index_state, index).is_some());
                 // We need to trust the platform layer to only call
                 // this when the file is saved under the given path.
-                if expected_edited_states.get(index_state, index).is_some() {
+                if expected_editedness_map.get(index_state, index).is_some() {
                     
-                    let buffer = unedited_buffer_states
+                    let buffer = initial_buffer_states
                         .get_mut(index_state, index)
-                        .expect("SavedAs invalid unedited_buffer_states index");
+                        .expect("SavedAs invalid initial_buffer_states index");
                     *buffer = state.buffers.buffers()
                         .get(index)
                         .expect("SavedAs invalid state.buffers.buffers index")
@@ -618,60 +605,65 @@ fn on(
         let index_state = state.buffers.buffers().index_state();
         
         for (i, transition) in view.edited_transitions {
-            u!{EditedTransition}
+            u!{Editedness, EditedTransition}
             match transition {
                 ToEdited => {
-                    dbg!("expected_edited_states.insert", index_state, i, true);
-                    expected_edited_states.insert(index_state, i, true);
+                    dbg!("expected_editedness_map.insert", index_state, i, Edited);
+                    expected_editedness_map.insert(index_state, i, Edited);
                 }
                 ToUnedited => {
-                    dbg!("expected_edited_states.insert", index_state, i, false);
-                    expected_edited_states.insert(index_state, i, false);
+                    dbg!("expected_editedness_map.insert", index_state, i, Unedited);
+                    expected_editedness_map.insert(index_state, i, Unedited);
                 }
             }
         }
-        expected_edited_states.migrate_all(index_state);
-        unedited_buffer_states.migrate_all(index_state);
+        expected_editedness_map.migrate_all(index_state);
+        initial_buffer_states.migrate_all(index_state);
     }
 
-    dbg!(&state.buffers, &expected_edited_states);
     assert_eq!(
-        expected_edited_states.len(),
+        expected_editedness_map.len(),
         state.buffers.len(), 
-        "expected_edited_states len does not match state.buffers. expected_edited_states: {:#?}",
-        expected_edited_states
+        "expected_editedness_map len does not match state.buffers. expected_editedness_map: {:#?}",
+        expected_editedness_map
     );
 
-    let mut expected_edited_states: Vec<_> = expected_edited_states.into_iter().collect();
+    let mut expected_editedness_map: Vec<_> = expected_editedness_map.into_iter().collect();
 
-    expected_edited_states.sort_by_key(|p| p.0);
+    expected_editedness_map.sort_by_key(|p| p.0);
 
-    for (i, is_edited) in expected_edited_states {
+    for (i, editedness) in expected_editedness_map {
+        u!{Editedness}
         let buffers = state.buffers.buffers();
-        dbg!(i, is_edited);
-        let actual_data: String = buffers.get(i).expect("actual_data was None").into();
-        let original_data: Option<String> = unedited_buffer_states
+        dbg!(i, editedness);
+        let actual_data: String = buffers
+            .get(i)
+            .expect("actual_data was None")
+            .into();
+        let original_data: Option<String> = initial_buffer_states
             .get(buffers.index_state(), i)
-            .map(|s| s.into());
-        if is_edited {
-            assert_ne!(
-                Some(actual_data),
-                original_data,
-                "({:?}, {:?}) the data was reported as edited, but the data matches.",
-                i,
-                is_edited
-            );
-        } else {
-            assert_eq!(
-                actual_data,
-                original_data
-                    .expect(&format!("original_data was None ({:?}, {:?})", i, is_edited)),
-                "({:?}, {:?}) the data was reported as not edited, but the data does not match.",
-                i,
-                is_edited
-            );
+            .map(|s: &EditorBuffer| String::from(s));
+        match editedness {
+            Edited => {
+                assert_ne!(
+                    Some(actual_data),
+                    original_data,
+                    "({:?}, {:?}) the data was reported as edited, but the data matches.",
+                    i,
+                    editedness
+                );
+            },
+            Unedited => {
+                assert_eq!(
+                    actual_data,
+                    original_data
+                        .expect(&format!("original_data was None ({:?}, {:?})", i, editedness)),
+                    "({:?}, {:?}) the data was reported as not edited, but the data does not match.",
+                    i,
+                    editedness
+                );
+            },
         }
     }
 }
-
 
