@@ -532,6 +532,17 @@ fn on(
     mut state: State,
     inputs: Vec<Input>,
 ) { 
+    // After finding I need to come and fix failures of this test over and over 
+    // again, I find myself wonderingif it would not be better to just move the
+    // responsibility for tracking whether a buffer is saved into the editor thread.
+    // That way seems way simpler, although potentially at the cost of an extra 
+    // `Input` vairiant or two. Making that change would remove the need for this 
+    // particular test predicate altogther, but we could change the tests into ones
+    // that simulate a filesystem responding with the fact that the file is saved,
+    // after some time, then checks whether the simulated state of the 
+    // filesystem matches the state of the buffers.
+
+
     let original_buffers = state.buffers.buffers();
     let mut initial_buffer_states: g_i::Map<EditorBuffer> = g_i::Map::with_capacity(original_buffers.len());
     {
@@ -563,11 +574,26 @@ fn on(
         match input {
             AddOrSelectBuffer(ref name, ref data) => {
                 if state.buffers.index_with_name(name).is_none() {
-                    initial_buffer_states.insert(
-                        index_state,
-                        state.buffers.buffers().append_index(),
-                        EditorBuffer::new(name.clone(), data.clone()),
-                    );
+                    u!{BufferName}
+                    // I'm not certain, but I think that checking what type of 
+                    // buffer name we have here is fine, since for the purposes
+                    // of this test we only care whether the editedness is correct
+                    match name {
+                        Scratch(_) => {
+                            initial_buffer_states.insert(
+                                index_state,
+                                state.buffers.buffers().append_index(),
+                                EditorBuffer::new(name.clone(), ""),
+                            );
+                        }
+                        Path(_) => {
+                            initial_buffer_states.insert(
+                                index_state,
+                                state.buffers.buffers().append_index(),
+                                EditorBuffer::new(name.clone(), data.clone()),
+                            );
+                        }
+                    }
                     dbg!(&initial_buffer_states);
                 }
             },

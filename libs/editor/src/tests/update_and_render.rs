@@ -333,12 +333,24 @@ fn keeps_the_state_buffers_index_state_the_same_as_the_view_buffers_index_state_
 
 proptest!{
     #[test]
-    fn keeps_the_state_buffers_index_state_the_same_as_the_view_buffers_index_state(
+    fn keeps_the_state_buffers_index_state_the_same_as_the_view_buffers_index_state_from_an_arb_state(
         state in arb::state(),
         inputs in proptest::collection::vec(arb::input(), 0..=16),
     ) {
         keeps_the_state_buffers_index_state_the_same_as_the_view_buffers_index_state_on(
             state,
+            inputs
+        )
+    }
+}
+
+proptest!{
+    #[test]
+    fn keeps_the_state_buffers_index_state_the_same_as_the_view_buffers_index_state_from_a_default_state(
+        inputs in proptest::collection::vec(arb::input(), 0..=16),
+    ) {
+        keeps_the_state_buffers_index_state_the_same_as_the_view_buffers_index_state_on(
+            d!(),
             inputs
         )
     }
@@ -396,6 +408,20 @@ fn keeps_the_state_buffers_index_state_the_same_as_the_view_buffers_index_state_
         inputs
     );
 }
+
+#[test]
+fn keeps_the_state_buffers_index_state_the_same_as_the_view_buffers_index_state_if_you_add_new_scratch_buffer_then_insert_this_character_then_switch_languages() {
+    u!{Input, BufferName}
+    keeps_the_state_buffers_index_state_the_same_as_the_view_buffers_index_state_on(
+        d!(),
+        vec![
+            AddOrSelectBuffer(Scratch(1), d!()), 
+            Insert('a'),
+            NextLanguage
+        ]
+    );
+}
+
 
 /* I think tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers supercedes this
 fn reports_a_change_at_the_correct_edited_index_on(
