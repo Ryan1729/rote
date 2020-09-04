@@ -734,6 +734,11 @@ impl TextBuffer {
         debug_assert_eq!(self.editedness(), Editedness::Unedited);
         self.history.is_empty()
     }
+
+    pub fn clear_history(&mut self) {
+        self.history.clear();
+        self.history_index = d!();
+    }
 }
 
 //

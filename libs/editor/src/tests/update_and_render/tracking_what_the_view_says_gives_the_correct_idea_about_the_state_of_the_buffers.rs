@@ -327,7 +327,29 @@ fn if_a_scratch_file_is_added_then_a_path_file_is_added() {
 }
 
 #[test]
-fn if_a_path_file_is_added_with_non_ascii_content() {
+fn if_an_empty_path_file_is_added() {
+    u!{BufferName, Input}
+    on(
+        d!(),
+        vec![
+            AddOrSelectBuffer(Path(".fakefile".into()), "".to_owned()),
+        ]
+    )
+}
+
+#[test]
+fn if_a_path_file_is_added_with_an_a() {
+    u!{BufferName, Input}
+    on(
+        d!(),
+        vec![
+            AddOrSelectBuffer(Path(".fakefile".into()), "a".to_owned()),
+        ]
+    )
+}
+
+#[test]
+fn if_a_path_file_is_added_with_this_non_ascii_content() {
     u!{BufferName, Input}
     on(
         d!(),
@@ -495,6 +517,31 @@ fn if_a_path_file_is_added_then_the_content_is_deleted() {
 }
 
 #[test]
+fn if_a_new_scratch_file_with_an_a_is_added() {
+    u!{BufferName, Input}
+    on(
+        d!(),
+        vec![
+            NewScratchBuffer(Some("a".into())),
+        ]
+    )
+}
+
+
+#[test]
+fn if_a_new_scratch_file_with_an_a_is_followed_by_an_undo() {
+    u!{BufferName, Input}
+    on(
+        d!(),
+        vec![
+            NewScratchBuffer(Some("a".into())),
+            Undo
+        ]
+    )
+}
+
+
+#[test]
 fn in_this_case_where_larger_chars_are_pasted() {
     u!{BufferName, Input}
     on(
@@ -660,7 +707,7 @@ fn on(
 
     assert_eq!(
         expected_editedness_map.len(),
-        state.buffers.len(), 
+        state.buffers.len(),
         "expected_editedness_map len does not match state.buffers. expected_editedness_map: {:#?}",
         expected_editedness_map
     );
@@ -669,21 +716,34 @@ fn on(
 
     expected_editedness_map.sort_by_key(|p| p.0);
 
-    for (i, editedness) in expected_editedness_map {
+    for (i, expected_editedness) in expected_editedness_map {
         u!{Editedness}
         let buffers = state.buffers.buffers();
-        dbg!(i, editedness);
-        let (actual_name, actual_data): (BufferName, String) = buffers
+        dbg!(i, expected_editedness);
+        let (actual_name, actual_editedness, actual_data): (BufferName, Editedness, String) = 
+            buffers
             .get(i)
-            .map(|s: &EditorBuffer| (s.name.clone(), String::from(s)))
+            .map(|s: &EditorBuffer| (
+                s.name.clone(),
+                s.text_buffer.editedness(),
+                String::from(s)
+            ))
             .expect("actual_data was None");
-        let (original_name, original_data): (BufferName, String) = initial_buffer_states
+        let (_original_name, original_editedness, original_data): (BufferName, Editedness, String) = 
+            initial_buffer_states
             .get(buffers.index_state(), i)
-            .map(|s: &EditorBuffer| (s.name.clone(), String::from(s)))
-            .expect(&format!("original_data was None ({:?}, {:?})", i, editedness));
-
-        assert_eq!(actual_name, original_name);
+            .map(|s: &EditorBuffer| (
+                s.name.clone(),
+                s.text_buffer.editedness(),
+                String::from(s)
+            ))
+            .expect(&format!("original_data was None ({:?}, {:?})", i, expected_editedness));
         
+        assert_eq!(actual_editedness, expected_editedness);
+
+        // Note that `actual_name` may not equal `_original name`, via a `SavedAs`
+        // input.
+
         // TODO remove this whole if statement
         if let BufferName::Scratch(_) = actual_name {
             use std::time::{Duration, SystemTime};
@@ -695,23 +755,36 @@ fn on(
             }
         }
 
-        match editedness {
-            Edited => {
+        match (original_editedness, expected_editedness) {
+            (Edited, Edited) => {
+                // In this case the buffer may or may not be the same as it was, so 
+                // we cannot assert anything.
+            },
+            (Edited, Unedited) => {
                 assert_ne!(
                     actual_data,
                     original_data,
-                    "({:?}, {:?}) the data was reported as edited, but the data matches.",
+                    "({:?}, {:?}) the data was reported going from edited to unedited, but the data matches.",
                     i,
-                    editedness
+                    expected_editedness
                 );
             },
-            Unedited => {
+            (Unedited, Edited) => {
+                assert_ne!(
+                    actual_data,
+                    original_data,
+                    "({:?}, {:?}) the data was reported going from unedited to edited, but the data matches.",
+                    i,
+                    expected_editedness
+                );
+            },
+            (Unedited, Unedited) => {
                 assert_eq!(
                     actual_data,
                     original_data,
                     "({:?}, {:?}) the data was reported as not edited, but the data does not match.",
                     i,
-                    editedness
+                    expected_editedness
                 );
             },
         }

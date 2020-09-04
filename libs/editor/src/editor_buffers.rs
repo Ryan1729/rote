@@ -258,10 +258,16 @@ impl EditorBuffers {
             }
         } else {
             dbg!(&name, "did not exist previously");
+            let buffer = EditorBuffer::new(name, str);
+
             edited_transition = Some(
-                if str.len() > 0 { ToEdited } else { ToUnedited }
+                match buffer.text_buffer.editedness() {
+                    Edited => ToEdited,
+                    Unedited => ToUnedited,
+                }
             );
-            self.buffers.push_and_select_new(EditorBuffer::new(name, str));
+
+            self.buffers.push_and_select_new(buffer);
         };
 
         edited_transition
@@ -316,6 +322,8 @@ fn create_text_buffer<I: Into<TextBuffer> + Into<String>>(name: &BufferName, s: 
             let mut buffer: TextBuffer = d!();
             // TODO should we actually be using a listener here?
             buffer.insert_string(s.into(), None);
+            // We do not want to be able to undo to a blank state though.
+            buffer.clear_history();
             // After creating a new buffer we expect the cursors to be at the 
             // beginning.
             buffer.move_all_cursors(Move::ToBufferStart);
