@@ -37,8 +37,10 @@ impl EditorBuffer {
     }
 
     fn non_rope_hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.text_buffer.non_rope_hash(state);
         use std::hash::Hash;
+        
+        self.text_buffer.non_rope_hash(state);
+        
         self.parser_kind.hash(state);
     }
 }
@@ -151,10 +153,12 @@ impl EditorBuffers {
 impl EditorBuffers {
     #[perf_viz::record]
     pub fn should_render_buffer_views(&mut self) -> bool {
+        use core::hash::{Hasher};
+    
         if cfg!(feature = "no-cache") {
             return true;
         }
-        use core::hash::{Hasher};
+        
         let mut hasher: fast_hash::Hasher = d!();
         self.non_rope_hash(&mut hasher);
         let new_non_rope_hash = hasher.finish();
@@ -237,7 +241,6 @@ impl EditorBuffers {
 
     pub fn add_or_select_buffer(&mut self, name: BufferName, str: String) -> Option<EditedTransition> {
         u!{Editedness, EditedTransition}
-        use core::hash::Hasher;
 
         let mut edited_transition = None;
         dbg!();

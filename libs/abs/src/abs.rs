@@ -35,7 +35,7 @@ fmt_display!(
 
 impl Pos {
     const SCALE_BIT_COUNT: u64 = 32;
-    const SCALE: i64 = 1i64 << Self::SCALE_BIT_COUNT;
+    const SCALE: i64 = 1_i64 << Self::SCALE_BIT_COUNT;
     const SCALE_F32: f32 = Self::SCALE as f32;
     const FRAC_BIT_MASK: i64 = Self::SCALE - 1;
     const TRUNC_BIT_MASK: i64 = !Self::FRAC_BIT_MASK;
@@ -45,7 +45,7 @@ impl Pos {
     pub const MAX_NEGATIVE: Pos = Pos(-1);
     pub const ZERO: Pos = Pos(0);
     pub const MIN_POSITIVE: Pos = Pos(1);
-    pub const ONE_HALF: Pos = Pos(1i64 << (Self::SCALE_BIT_COUNT - 1));
+    pub const ONE_HALF: Pos = Pos(1_i64 << (Self::SCALE_BIT_COUNT - 1));
     pub const ONE: Pos = Pos(Self::SCALE);
     pub const TWO: Pos = Pos(Self::SCALE << 1);
     pub const FOUR: Pos = Pos(Self::SCALE << 2);

@@ -8,7 +8,6 @@ use std::{
     time::Instant,
 };
 use text_buffer::{
-    Editedness,
     PossibleEditedTransition,
     ScrollAdjustSpec,
     TextBuffer,

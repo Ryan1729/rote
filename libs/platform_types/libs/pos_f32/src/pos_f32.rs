@@ -47,6 +47,7 @@ macro_rules! pos_f32 {
 }
 
 impl PosF32 {
+    #[must_use]
     pub fn new_saturating(f: f32) -> Self {
         Self(if is_pos!(f) {
             f
@@ -56,13 +57,15 @@ impl PosF32 {
         })
     }
 
+    #[must_use]
     #[inline]
-    pub fn get(&self) -> f32 {
+    pub fn get(self) -> f32 {
         self.0
     }
 
+    #[must_use]
     #[inline]
-    pub fn to_bits(&self) -> u32 {
+    pub fn to_bits(self) -> u32 {
         self.0.to_bits()
     }
 }

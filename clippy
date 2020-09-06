@@ -3,6 +3,12 @@
 #    besides sometimes needing to disambiguate.
 # default-trait-access enables the wonderfully terse `d` macro. I think the amount
 #    of places that macros is used is the best argument for saving those characters.
+# wildcard-imports can be used carefully to prevent them from making it hard to find
+#    where things are imported from, if when creating them we ensure that in each 
+#    module there is at most one module import that uses them. It would be nice to
+#    have a lint for that though.
+
 cargo clippy --color=always -- -D clippy::pedantic \
     -A clippy::enum-glob-use \
     -A clippy::default-trait-access \
+    -A clippy::wildcard-imports \

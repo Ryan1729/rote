@@ -55,102 +55,107 @@ pub fn render(
     let buffer = &editor_buffer.text_buffer;
     let scroll = buffer.scroll;
     
-    fn display_option_compactly<A: ToString>(op: Option<A>) -> String {
-        match op {
-            None => "N".to_string(),
-            Some(a) => a.to_string(),
+    {
+        fn display_option_compactly<A: ToString>(op: Option<A>) -> String {
+            match op {
+                None => "N".to_string(),
+                Some(a) => a.to_string(),
+            }
         }
-    }
-
-    use std::fmt::Write;
-    let chars = &mut view.status_line.chars;
-
-    let _cannot_actually_fail = write!(
-        chars,
-        "{}/{}",
-        buffers.current_index_part().saturating_add(1).to_string(),
-        usize::from(buffers.len())
-    );
-
-    let _cannot_actually_fail = write!(chars, " {}{}", 
-        display_option_compactly(editor_buffer.parser_kind),
-        format_if!(
-            editor_buffer.parser_kind.is_none(),
-            "({})",
-            editor_buffer.get_parser_kind()
-        )
-    );
-
-    // debugging
-    let _cannot_actually_fail = write!(chars, "  ? t{} s{}", text_char_dim, scroll);
-
-    let cursors = buffer.borrow_cursors();
-    let cursors_len = cursors.len();
-    let _cannot_actually_fail = write!(
-        chars,
-        " {}",
-        if cursors.len() == 1 {
-            "c".to_string()
-        } else {
-            format!("cs({})", cursors_len)
-        }
-    );
-    for c in cursors.iter() {
+    
+        use std::fmt::Write;
+        let chars = &mut view.status_line.chars;
+    
         let _cannot_actually_fail = write!(
             chars,
-            " {} {} ({}|{}),",
-            c,
-            position_to_screen_space(c.get_position(), text_char_dim, scroll, text_box_pos),
-            display_option_compactly(buffer.find_index(c).and_then(|o| if o == 0 {
-                None
-            } else {
-                Some(o - 1)
-            })),
-            display_option_compactly(buffer.find_index(c)),
+            "{}/{}",
+            buffers.current_index_part().saturating_add(1).to_string(),
+            usize::from(buffers.len())
         );
+    
+        let _cannot_actually_fail = write!(chars, " {}{}", 
+            display_option_compactly(editor_buffer.parser_kind),
+            format_if!(
+                editor_buffer.parser_kind.is_none(),
+                "({})",
+                editor_buffer.get_parser_kind()
+            )
+        );
+    
+        // debugging
+        let _cannot_actually_fail = write!(chars, "  ? t{} s{}", text_char_dim, scroll);
+    
+        let cursors = buffer.borrow_cursors();
+        let cursors_len = cursors.len();
+        let _cannot_actually_fail = write!(
+            chars,
+            " {}",
+            if cursors.len() == 1 {
+                "c".to_string()
+            } else {
+                format!("cs({})", cursors_len)
+            }
+        );
+        for c in cursors.iter() {
+            let _cannot_actually_fail = write!(
+                chars,
+                " {} {} ({}|{}),",
+                c,
+                position_to_screen_space(c.get_position(), text_char_dim, scroll, text_box_pos),
+                display_option_compactly(buffer.find_index(c).and_then(|o| if o == 0 {
+                    None
+                } else {
+                    Some(o - 1)
+                })),
+                display_option_compactly(buffer.find_index(c)),
+            );
+        }
     }
 
     perf_viz::end_record!("write view.status_line");
     perf_viz::start_record!("set view.menu");
 
-    const FIND_REPLACE_AVERAGE_SELECTION_LINES_ESTIMATE: usize = 1;
-    
-    view.menu = match menu_mode {
-        MenuMode::Hidden => MenuView::None,
-        MenuMode::FindReplace(mode) => MenuView::FindReplace(FindReplaceView {
-            mode,
-            find: text_buffer_to_buffer_view_data(
-                &find,
-                FIND_REPLACE_AVERAGE_SELECTION_LINES_ESTIMATE,
-            ),
-            replace: text_buffer_to_buffer_view_data(
-                &replace,
-                FIND_REPLACE_AVERAGE_SELECTION_LINES_ESTIMATE,
-            ),
-            result_count: search_results.ranges.len(),
-        }),
-        MenuMode::FileSwitcher => {
-            const FILE_SEARCH_SELECTION_LINES_ESTIMATE: usize = 1;
-            MenuView::FileSwitcher(FileSwitcherView {
-                search: text_buffer_to_buffer_view_data(
-                    &file_switcher,
-                    FILE_SEARCH_SELECTION_LINES_ESTIMATE,
+    {
+        const FIND_REPLACE_AVERAGE_SELECTION_LINES_ESTIMATE: usize = 1;
+        
+        view.menu = match menu_mode {
+            MenuMode::Hidden => MenuView::None,
+            MenuMode::FindReplace(mode) => MenuView::FindReplace(FindReplaceView {
+                mode,
+                find: text_buffer_to_buffer_view_data(
+                    &find,
+                    FIND_REPLACE_AVERAGE_SELECTION_LINES_ESTIMATE,
                 ),
-                results: file_switcher_results.clone(),
-            })
-        },
-        MenuMode::GoToPosition => {
-            dbg!(&go_to_position);
-            const GO_TO_POSITION_SELECTION_LINES_ESTIMATE: usize = 1;
-            MenuView::GoToPosition(GoToPositionView {
-                go_to_position: text_buffer_to_buffer_view_data(
-                    &go_to_position,
-                    GO_TO_POSITION_SELECTION_LINES_ESTIMATE,
+                replace: text_buffer_to_buffer_view_data(
+                    &replace,
+                    FIND_REPLACE_AVERAGE_SELECTION_LINES_ESTIMATE,
                 ),
-            })
-        },
-    };
-    perf_viz::end_record!("set view.menu");
+                result_count: search_results.ranges.len(),
+            }),
+            MenuMode::FileSwitcher => {
+                const FILE_SEARCH_SELECTION_LINES_ESTIMATE: usize = 1;
+                MenuView::FileSwitcher(FileSwitcherView {
+                    search: text_buffer_to_buffer_view_data(
+                        &file_switcher,
+                        FILE_SEARCH_SELECTION_LINES_ESTIMATE,
+                    ),
+                    results: file_switcher_results.clone(),
+                })
+            },
+            MenuMode::GoToPosition => {
+                const GO_TO_POSITION_SELECTION_LINES_ESTIMATE: usize = 1;
+                dbg!(&go_to_position);
+                
+                MenuView::GoToPosition(GoToPositionView {
+                    go_to_position: text_buffer_to_buffer_view_data(
+                        &go_to_position,
+                        GO_TO_POSITION_SELECTION_LINES_ESTIMATE,
+                    ),
+                })
+            },
+        };
+        perf_viz::end_record!("set view.menu");
+    }
     
     view.current_buffer_kind = state.current_buffer_kind;
 }
