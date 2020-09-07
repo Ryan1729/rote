@@ -8,6 +8,7 @@ use std::{
     time::Instant,
 };
 use text_buffer::{
+    Editedness,
     PossibleEditedTransition,
     ScrollAdjustSpec,
     TextBuffer,
@@ -531,7 +532,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
 
     state.view.edited_transitions.clear();
 
-    u!{EditedTransition};
+    u!{EditedTransition, Editedness};
 
     macro_rules! mark_edited_transition {
         (current, $transition: expr) => {
@@ -700,13 +701,20 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             );
         }),
         NewScratchBuffer(data_op) => {
-            state.buffers.push_and_select_new(EditorBuffer::new(
+            let e_b = EditorBuffer::new(
                 BufferName::Scratch(state.next_scratch_buffer_number()),
                 data_op.unwrap_or_default(),
-            ));
+            );
+
+            let editedness = e_b.text_buffer.editedness();
+
+            state.buffers.push_and_select_new(e_b);
             state.current_buffer_kind = BufferIdKind::Text;
 
-            mark_edited_transition!(current, ToUnedited);
+            mark_edited_transition!(current, match editedness {
+                Edited => ToEdited,
+                Unedited => ToUnedited,
+            });
         }
         TabIn => {
             text_buffer_call!(sync b, l { 

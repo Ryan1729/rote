@@ -696,11 +696,11 @@ fn on(
             u!{Editedness, EditedTransition}
             match transition {
                 ToEdited => {
-                    dbg!("expected_editedness_map.insert", index_state, i, Edited);
+                    dbg!(format!("expected_editedness_map.insert Edited"));
                     expected_editedness_map.insert(index_state, i, Edited);
                 }
                 ToUnedited => {
-                    dbg!("expected_editedness_map.insert", index_state, i, Unedited);
+                    dbg!(format!("expected_editedness_map.insert Unedited"));
                     expected_editedness_map.insert(index_state, i, Unedited);
                 }
             }
@@ -723,7 +723,7 @@ fn on(
     for (i, expected_editedness) in expected_editedness_map {
         u!{Editedness}
         let buffers = state.buffers.buffers();
-        dbg!(i, expected_editedness);
+        
         let (actual_name, actual_editedness, actual_data): (BufferName, Editedness, String) = 
             buffers
             .get(i)
@@ -743,7 +743,7 @@ fn on(
             ))
             .expect(&format!("original_data was None ({:?}, {:?})", i, expected_editedness));
         
-        assert_eq!(actual_editedness, expected_editedness);
+        assert_eq!(actual_editedness, expected_editedness, "actual_editedness did not match expected_editedness");
 
         // TODO remove this whole if statement
         if let BufferName::Scratch(_) = actual_name {
