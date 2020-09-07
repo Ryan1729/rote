@@ -1,6 +1,6 @@
 use super::*;
 use macros::{dbg};
-
+use text_buffer::Editedness;
 
 proptest!{
     #[test]
@@ -242,7 +242,7 @@ fn if_we_open_or_select_a_buffer() {
 }
 
 #[test]
-fn if_we_insert_then_report_a_file_was_saved_at_the_first_index() {
+fn if_we_insert_then_report_a_file_was_saved_at_the_default_index() {
     u!{Input}
     on(
         d!(),
@@ -590,6 +590,7 @@ fn on(
     mut state: State,
     inputs: Vec<Input>,
 ) { 
+    u!{BufferName}
     // After finding I need to come and fix failures of this test over and over 
     // again, I find myself wonderingif it would not be better to just move the
     // responsibility for tracking whether a buffer is saved into the editor thread.
@@ -626,13 +627,14 @@ fn on(
         }
     }
 
+    let mut saved_as_names = Vec::with_capacity(inputs.len() / 2);
+
     for input in inputs {
         u!{Input}
         let index_state = state.buffers.buffers().index_state();
         match input {
             AddOrSelectBuffer(ref name, ref data) => {
                 if state.buffers.index_with_name(name).is_none() {
-                    u!{BufferName}
                     // I'm not certain, but I think that checking what type of 
                     // buffer name we have here is fine, since for the purposes
                     // of this test we only care whether the editedness is correct
@@ -665,19 +667,21 @@ fn on(
                     )
                 )
             }, 
-            SavedAs(index, _) => {
+            SavedAs(index, ref p) => {
                 dbg!("SavedAs()", index, expected_editedness_map.get(index_state, index).is_some());
                 // We need to trust the platform layer to only call
                 // this when the file is saved under the given path.
                 if expected_editedness_map.get(index_state, index).is_some() {
-                    
                     let buffer = initial_buffer_states
                         .get_mut(index_state, index)
                         .expect("SavedAs invalid initial_buffer_states index");
+
                     *buffer = state.buffers.buffers()
                         .get(index)
                         .expect("SavedAs invalid state.buffers.buffers index")
                         .clone();
+
+                    saved_as_names.push(Path(p.clone()));
                 }
             }
 
@@ -729,7 +733,7 @@ fn on(
                 String::from(s)
             ))
             .expect("actual_data was None");
-        let (_original_name, original_editedness, original_data): (BufferName, Editedness, String) = 
+        let (original_name, original_editedness, original_data): (BufferName, Editedness, String) = 
             initial_buffer_states
             .get(buffers.index_state(), i)
             .map(|s: &EditorBuffer| (
@@ -740,9 +744,6 @@ fn on(
             .expect(&format!("original_data was None ({:?}, {:?})", i, expected_editedness));
         
         assert_eq!(actual_editedness, expected_editedness);
-
-        // Note that `actual_name` may not equal `_original name`, via a `SavedAs`
-        // input.
 
         // TODO remove this whole if statement
         if let BufferName::Scratch(_) = actual_name {
@@ -761,13 +762,36 @@ fn on(
                 // we cannot assert anything.
             },
             (Edited, Unedited) => {
-                assert_ne!(
-                    actual_data,
-                    original_data,
-                    "({:?}, {:?}) the data was reported going from edited to unedited, but the data matches.",
-                    i,
-                    expected_editedness
-                );
+                if original_name == actual_name {
+                    assert_ne!(
+                        actual_data,
+                        original_data,
+                        "({:?}, {:?}) the data was reported going from edited to unedited, but the data matches.",
+                        i,
+                        expected_editedness
+                    );
+                } else {
+                    // As of this writing, the only way that `actual_name` may not
+                    // equal `original_name`, is if there was a `SavedAs` input.
+                    let ended_as_path = matches!(actual_name, Path(_));
+                    let was_saved_as = saved_as_names.contains(&actual_name);
+                    assert!(
+                        ended_as_path && was_saved_as,
+                        "original_name ({:?}) does not match actual_name ({:?}) for an unexpected reason! {}{}",
+                        original_name,
+                        actual_name,
+                        if ended_as_path {
+                            ""
+                        } else {
+                            "buffer name was a Path variant"
+                        },
+                        if was_saved_as {
+                            ""
+                        } else {
+                            "buffer name was not recorded in SavedAs case"
+                        },
+                    )
+                }
             },
             (Unedited, Edited) => {
                 assert_ne!(
