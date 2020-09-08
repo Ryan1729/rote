@@ -241,9 +241,9 @@ let hi = \"hi\";
         Vec::<SpanView>::from(spans),
         vec![
             sv!(i 21 k PLAIN),
-            sv!(i 21 + 4, k COMMENT),
+            sv!(i 21 + 4, k STRING),
             sv!(i 27 k PLAIN),
-            sv!(i 34 k STRING),
+            sv!(i 34 k COMMENT),
             sv!(i foo.len(), k PLAIN),
         ]
     )
@@ -836,12 +836,12 @@ fn tree_depth_spans_for_gets_the_right_answer_for_this_predicate_case() {
     tree_depth_spans_for_gets_the_right_answer_for(
         PREDICATE_EXAMPLE,
         vec![
-            sv!(i 5 k 3),
-            sv!(i 7 k 4),
-            sv!(i 15 k 3),
-            sv!(i 16 k 2),
-            sv!(i 21 k 3),
-            sv!(i 22 k 2),
+            sv!(i 5 k STRING),
+            sv!(i 7 k 3),
+            sv!(i 15 k STRING),
+            sv!(i 16 k 3),
+            sv!(i 21 k 4),
+            sv!(i 22 k 3),
         ]
     );
 }
