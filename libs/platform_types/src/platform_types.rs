@@ -651,6 +651,8 @@ macro_rules! sk {
     }
 }
 
+fmt_display!(for SpanKind: k in "{}", k.0);
+
 impl SpanKind {
     pub const fn new(byte: u8) -> Self { 
         SpanKind(byte)
@@ -680,7 +682,7 @@ impl SpanKind {
 }
 d!(for SpanKind: SpanKind::PLAIN);
 
-#[derive(Copy, Clone, Default, Debug, PartialEq)]
+#[derive(Copy, Clone, Default, PartialEq)]
 pub struct SpanView {
     /// The index of the byte one past the last byte that belongs to this span.
     /// We store only this index because in a list of `Spanview`s the start index
@@ -714,6 +716,8 @@ macro_rules! sv {
         }
     }
 }
+
+fmt_debug!(for SpanView: s in "sv!(i {} k {})", s.one_past_end, s.kind);
 
 /// This struct keeps a private ordered collection of `SpanView`s so we can ensure
 /// that the spans are in ascending order.
@@ -797,6 +801,12 @@ impl From<Vec<SpanView>> for Spans {
             spans_assert!(&spans);
         }
         Spans { spans } 
+    }
+}
+
+impl From<Spans> for Vec<SpanView> {
+    fn from(spans: Spans) -> Self {
+        spans.spans
     }
 }
 

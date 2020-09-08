@@ -233,7 +233,7 @@ let hi = \"hi\";
     let spans = query::spans_for_inner(&tree, &query, foo, span_kind_from_match_example);
 
     assert_eq!(
-        spans,
+        Vec::<SpanView>::from(spans),
         vec![
             sv!(i 21 k PLAIN),
             sv!(i 21 + 4, k COMMENT),
