@@ -651,7 +651,12 @@ macro_rules! sk {
     }
 }
 
-fmt_display!(for SpanKind: k in "{}", k.0);
+fmt_display!(for SpanKind: k in "{}", match k {
+    &SpanKind::PLAIN   => "  PLAIN".to_owned(),
+    &SpanKind::COMMENT => "COMMENT".to_owned(),
+    &SpanKind::STRING  => " STRING".to_owned(),
+    _ => format!("{}", k.0),
+});
 
 impl SpanKind {
     pub const fn new(byte: u8) -> Self { 

@@ -230,7 +230,12 @@ let hi = \"hi\";
 
     let tree = parse_expect!(rust.parse(foo, None));
     
-    let spans = query::spans_for_inner(&tree, &query, foo, span_kind_from_match_example);
+    let spans = query::spans_for_inner(
+        &tree,
+        &query,
+        foo,
+        span_kind_from_match_example
+    );
 
     assert_eq!(
         Vec::<SpanView>::from(spans),
