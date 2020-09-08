@@ -8,7 +8,6 @@ use pub_arb_edit::edit_with_cursors;
 
 use std::borrow::Borrow;
 
-#[allow(dead_code)]
 fn arb_edit_from_buffer(text_buffer: TextBuffer) -> impl Strategy<Value = Edit> {
     edit_with_cursors(
         text_buffer.rope,
@@ -755,6 +754,15 @@ fn undo_redo_works_on_this_previously_panicking_case() {
             TestEdit::Delete,
         ],
         2,
+    );
+}
+
+#[test]
+fn undo_redo_works_on_this_insert_then_select_case() {
+    u!{TestEdit}
+    undo_redo_works_on_these_edits_and_index(
+        vec![Insert(' '), SelectAll],
+        0
     );
 }
 

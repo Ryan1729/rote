@@ -19,3 +19,4 @@ cc 9f8b5201dcbeb9277a42b7e6443324f5c732b2b43ac1ce3599fc3669689337bd # shrinks to
 cc d5a5ff3c79e58fab18047fd13a23faedd3d962a75b2fd0b3cc3950d3a1736512 # shrinks to (edits, index) = ([Insert('A'), Cut, Insert('¡'), TabOut], 0)
 cc 209364cf501f1a3f3c441ab7db84a64787a7c6d68537bb2bf10435037b765dd7 # shrinks to (edits, index) = ([TabIn, TabIn, ExtendSelectionForAllCursors(Left), TabIn], 0)
 cc 3babe59a9b4a8e93c573f0adaee4de120c706f5bf3affd1947556415d19655f8 # shrinks to (edits, index) = ([TabIn, TabIn, TabIn, ExtendSelectionForAllCursors(ToPreviousLikelyEditLocation), TabIn], 0)
+cc 6a92a00f050347c672d3a0143dab75da0fa19102e08f86208374ec1b0d5c5743 # shrinks to (edits, index) = ([Insert(' '), SelectAll], 0)
