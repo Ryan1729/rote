@@ -18,6 +18,7 @@ pub struct EditorBuffer {
     pub name: BufferName,
     //TODO: Set `current_range` to something as close as possible to being on screen of haystack
     // whenever this changes
+
     pub search_results: SearchResults,
     // If this is none, then it was not set by the user, and
     // we will use the default.
@@ -118,7 +119,7 @@ impl EditorBuffer {
         }
     }
 
-    pub fn refresh_search_results(&mut self, needle: RopeSlice) {        
+    pub fn refresh_search_results(&mut self, needle: RopeSlice) {
         self.search_results.refresh(
             needle,
             self.text_buffer.borrow_rope()
@@ -129,7 +130,7 @@ impl EditorBuffer {
 /// The collection of files opened for editing, and/or in-memory scratch buffers.
 /// Guaranteed to have at least one buffer in it at all times.
 #[derive(Clone, Default, PartialEq)]
-pub struct EditorBuffers {
+pub struct EditorBuffers {    
     buffers: SelectableVec1<EditorBuffer>,
     last_non_rope_hash: u64,
     last_full_hash: Option<u64>,
