@@ -886,36 +886,43 @@ impl <'text, 'spans> Iterator for LabelledSlices<'text, 'spans> {
                 )
                     .expect("span_slice had incorrect index!");
 
-                let first_non_whitespace_index = {
-                    let mut chars = current_slice.chars();
-        
-                    let mut char_offset = CharOffset(0);
-                    while let Some(true) = chars.next().map(|c| c.is_whitespace()) {
-                        char_offset = char_offset.saturating_add(1);
+                let output = if cfg!(feature = "labelled-slice-trimming") {
+                    let first_non_whitespace_index = {
+                        let mut chars = current_slice.chars();
+            
+                        let mut char_offset = CharOffset(0);
+                        while let Some(true) = chars.next().map(|c| c.is_whitespace()) {
+                            char_offset = char_offset.saturating_add(1);
+                        }
+            
+                        start_index + char_offset
+                    };
+    
+                    let last_non_whitespace_index = {
+                        let mut chars = current_slice.chars_at_end();
+            
+                        let mut char_offset = current_slice.len_chars();
+                        while let Some(true) = chars.prev().map(|c| c.is_whitespace()) {
+                            char_offset = char_offset.saturating_sub(1);
+                        }
+            
+                        start_index + char_offset
+                    };
+    
+                    let trimmed_slice = self
+                        .slice
+                        .slice(first_non_whitespace_index..last_non_whitespace_index)
+                        .expect("trimming slice had incorrect index!");
+
+                    LabelledSlice {
+                        slice: trimmed_slice,
+                        kind: s.kind,
                     }
-        
-                    start_index + char_offset
-                };
-
-                let last_non_whitespace_index = {
-                    let mut chars = current_slice.chars_at_end();
-        
-                    let mut char_offset = current_slice.len_chars();
-                    while let Some(true) = chars.prev().map(|c| c.is_whitespace()) {
-                        char_offset = char_offset.saturating_sub(1);
+                } else {
+                    LabelledSlice {
+                        slice: current_slice,
+                        kind: s.kind,
                     }
-        
-                    start_index + char_offset
-                };
-
-                let trimmed_slice = self
-                    .slice
-                    .slice(first_non_whitespace_index..last_non_whitespace_index)
-                    .expect("trimming slice had incorrect index!");
-
-                let output = LabelledSlice {
-                    slice: trimmed_slice,
-                    kind: s.kind,
                 };
 
                 self.prev = end_byte_index;
