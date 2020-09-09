@@ -496,8 +496,8 @@ proptest! {
     }
 
     #[test]
-    fn undo_redo_works_with_heavy_delete_lines((edits, index) in arb::test_edits_and_index(SOME_AMOUNT, TestEditSpec::DeleteLinesHeavy)) {
-        undo_redo_works_on_these_edits_and_index(edits, index);
+    fn undo_redo_works_with_heavy_delete_lines_regarding_ropes((edits, index) in arb::test_edits_and_index(SOME_AMOUNT, TestEditSpec::DeleteLinesHeavy)) {
+        undo_redo_works_on_these_edits_and_index_regarding_ropes(edits, index);
     }
 }
 
@@ -758,9 +758,9 @@ fn undo_redo_works_on_this_previously_panicking_case() {
 }
 
 #[test]
-fn undo_redo_works_on_this_insert_then_select_case() {
+fn undo_redo_works_on_this_insert_then_select_case_regarding_ropes() {
     u!{TestEdit}
-    undo_redo_works_on_these_edits_and_index(
+    undo_redo_works_on_these_edits_and_index_regarding_ropes(
         vec![Insert(' '), SelectAll],
         0
     );
