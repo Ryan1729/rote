@@ -792,7 +792,7 @@ mod query {
         spans.sort_by(|s1, s2|{
             s1.one_past_end.cmp(&s2.one_past_end)
         });
-    
+
         filter_spans(&mut spans);
     
         Spans::from(spans)
@@ -801,6 +801,7 @@ mod query {
     fn cap_off_spans(spans: &mut Vec<SpanView>, to_parse_byte_len: ByteIndex) {
         // If there's no span covering the end, we should add a span. But if one
         // that already covers the end is there then we shouldn't bother.
+
         if spans.last()
             .map(|s| s.one_past_end < to_parse_byte_len)
             .unwrap_or(true) 
@@ -994,14 +995,29 @@ mod query {
                 return None;
             }
             let depth = &mut self.depth;
-            let output = Some((*depth, self.cursor.node()));
+            let output = Some((
+                *depth,
+                {
+                    perf_viz::record_guard!("self.cursor.node()");
+                    self.cursor.node()
+                }
+            ));
 
-            if self.cursor.goto_first_child() {
+            if {
+                perf_viz::record_guard!("self.cursor.goto_first_child()");
+                self.cursor.goto_first_child()
+            } {
                 *depth = depth.wrapping_add(1);
             } else {
                 perf_viz::record_guard!("while !goto_next_sibling");
-                while !self.cursor.goto_next_sibling() {
-                    if self.cursor.goto_parent() {
+                while {
+                    perf_viz::record_guard!("!self.cursor.goto_next_sibling()");
+                    !self.cursor.goto_next_sibling()
+                } {
+                    if {
+                        perf_viz::record_guard!("self.cursor.goto_parent()");
+                        self.cursor.goto_parent()
+                    } {
                         *depth = depth.wrapping_sub(1);
                     } else {
                         self.done = true;
