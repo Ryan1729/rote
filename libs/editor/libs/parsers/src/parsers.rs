@@ -139,12 +139,19 @@ impl From<QueryError> for InitializationError {
 struct BufferState {
     parser: Parser,
     tree: Option<Tree>,
+    spans: Option<CachedSpans>,
 }
 
 d!{for BufferState: BufferState{
     parser: Parser::new(),
     tree: None,
+    spans: None,
 }}
+
+struct CachedSpans {
+    spans: Spans,
+    hash: u64,
+}
 
 #[cfg(not(feature = "fast_hash"))]
 use std::collections::HashMap;
@@ -273,120 +280,127 @@ impl Parsers {
                 }
                 if let Some(tree) = buffer_state.tree.as_mut() {
                     for i in 0..edit.range_edits().len() {
-                        let (
-                            Change{ old, new },
-                            RangeEdits{ delete_range, insert_range }
-                        ) = some_or!(edit.read_at(i), cont!());
-                    
-                        let (start_byte, old_end_byte, new_end_byte) = 
-                        match dbg!(delete_range, insert_range) {
-                            (Some(del_range), Some(ins_range)) => {
-                                let del_start_byte = rope.char_to_byte(
-                                    del_range.range.min()
-                                );
-                                let del_end_byte = rope.char_to_byte(
-                                    del_range.range.max()
-                                );
-                                let ins_start_byte = rope.char_to_byte(
-                                    ins_range.range.min()
-                                );
-                                let ins_end_byte = ins_start_byte
-                                    .map(|b| b + ins_range.chars.len());
+                        let input_edit = {
+                            perf_viz::record_guard!("convert edit");
+                            let (
+                                Change{ old, new },
+                                RangeEdits{ delete_range, insert_range }
+                            ) = some_or!(edit.read_at(i), cont!());
+                        
+                            let (start_byte, old_end_byte, new_end_byte) = 
+                            match dbg!(delete_range, insert_range) {
+                                (Some(del_range), Some(ins_range)) => {
+                                    let del_start_byte = rope.char_to_byte(
+                                        del_range.range.min()
+                                    );
+                                    let del_end_byte = rope.char_to_byte(
+                                        del_range.range.max()
+                                    );
+                                    let ins_start_byte = rope.char_to_byte(
+                                        ins_range.range.min()
+                                    );
+                                    let ins_end_byte = ins_start_byte
+                                        .map(|b| b + ins_range.chars.len());
+    
+                                    debug_assert_eq!(
+                                        del_start_byte,
+                                        ins_start_byte
+                                    );
+                                    (del_start_byte, del_end_byte, ins_end_byte)
+                                }
+                                (Some(del_range), None) => {
+                                    let start_byte = rope.char_to_byte(
+                                        del_range.range.min()
+                                    );
+                                    let end_byte = rope.char_to_byte(
+                                        del_range.range.max()
+                                    );
+                                    (start_byte, end_byte, start_byte)
+                                },
+                                (None, Some(ins_range)) => {
+                                    let start_byte = rope.char_to_byte(
+                                        ins_range.range.min()
+                                    );
+    
+                                    let end_byte = start_byte
+                                        .map(|b| b + ins_range.chars.len());
+    
+                                    dbg!(rope, ins_range.range.max(), end_byte);
+                                    (start_byte, start_byte, end_byte)
+                                }
+                                (None, None) => {
+                                    // The edit apparently changed no characters,
+                                    // so it seems there is nothing to tell the parser
+                                    // about.
+                                    continue
+                                },
+                            };
+    
+                            let start_byte = some_or!(start_byte, cont!()).0;
+                            let old_end_byte = some_or!(old_end_byte, cont!()).0;
+                            let new_end_byte = some_or!(new_end_byte, cont!()).0;
+    
+                            let (start_pos, old_end_pos, new_end_pos) = match (old, new) {
+                                (Some(old), Some(new)) => {
+                                    let old_pos = old.get_position();
+                                    let old_h_pos = old.get_highlight_position_or_position();
+                                    let old_min = min(old_pos, old_h_pos);
+                                    let old_end_pos = max(old_pos, old_h_pos);
+            
+                                    let new_pos = new.get_position();
+                                    let new_h_pos = new.get_highlight_position_or_position();
+                                    let new_min = min(new_pos, new_h_pos);
+                                    let new_end_pos = max(new_pos, new_h_pos);
+            
+                                    let start_pos = min(old_min, new_min);
+    
+                                    (start_pos, old_end_pos, new_end_pos)
+                                },
+                                (Some(old), None) => {
+                                    let old_pos = old.get_position();
+                                    let old_h_pos = old.get_highlight_position_or_position();
+                                    let old_min = min(old_pos, old_h_pos);
+                                    let old_end_pos = max(old_pos, old_h_pos);
+    
+                                    let start_pos = old_min;
+    
+                                    (start_pos, old_end_pos, start_pos)
+                                },
+                                (None, Some(new)) => {
+                                    let new_pos = new.get_position();
+                                    let new_h_pos = new.get_highlight_position_or_position();
+                                    let new_min = min(new_pos, new_h_pos);
+                                    let new_end_pos = max(new_pos, new_h_pos);
+            
+                                    let start_pos = new_min;
+    
+                                    (start_pos, start_pos, new_end_pos)
+                                },
+                                (None, None) => cont!(),
+                            };
 
-                                debug_assert_eq!(
-                                    del_start_byte,
-                                    ins_start_byte
-                                );
-                                (del_start_byte, del_end_byte, ins_end_byte)
-                            }
-                            (Some(del_range), None) => {
-                                let start_byte = rope.char_to_byte(
-                                    del_range.range.min()
-                                );
-                                let end_byte = rope.char_to_byte(
-                                    del_range.range.max()
-                                );
-                                (start_byte, end_byte, start_byte)
-                            },
-                            (None, Some(ins_range)) => {
-                                let start_byte = rope.char_to_byte(
-                                    ins_range.range.min()
-                                );
-
-                                let end_byte = start_byte
-                                    .map(|b| b + ins_range.chars.len());
-
-                                dbg!(rope, ins_range.range.max(), end_byte);
-                                (start_byte, start_byte, end_byte)
-                            }
-                            (None, None) => {
-                                // The edit apparently changed no characters,
-                                // so it seems there is nothing to tell the parser
-                                // about.
-                                continue
-                            },
+                            dbg!(InputEdit{
+                                start_byte,
+                                old_end_byte,
+                                new_end_byte,
+                                start_position: Point{ 
+                                    row: start_pos.line,
+                                    column: start_pos.offset.0
+                                },
+                                old_end_position: Point{ 
+                                    row: old_end_pos.line,
+                                    column: old_end_pos.offset.0
+                                },
+                                new_end_position: Point{ 
+                                    row: new_end_pos.line,
+                                    column: new_end_pos.offset.0
+                                },
+                            })
                         };
 
-                        let start_byte = some_or!(start_byte, cont!()).0;
-                        let old_end_byte = some_or!(old_end_byte, cont!()).0;
-                        let new_end_byte = some_or!(new_end_byte, cont!()).0;
-
-                        let (start_pos, old_end_pos, new_end_pos) = match (old, new) {
-                            (Some(old), Some(new)) => {
-                                let old_pos = old.get_position();
-                                let old_h_pos = old.get_highlight_position_or_position();
-                                let old_min = min(old_pos, old_h_pos);
-                                let old_end_pos = max(old_pos, old_h_pos);
-        
-                                let new_pos = new.get_position();
-                                let new_h_pos = new.get_highlight_position_or_position();
-                                let new_min = min(new_pos, new_h_pos);
-                                let new_end_pos = max(new_pos, new_h_pos);
-        
-                                let start_pos = min(old_min, new_min);
-
-                                (start_pos, old_end_pos, new_end_pos)
-                            },
-                            (Some(old), None) => {
-                                let old_pos = old.get_position();
-                                let old_h_pos = old.get_highlight_position_or_position();
-                                let old_min = min(old_pos, old_h_pos);
-                                let old_end_pos = max(old_pos, old_h_pos);
-
-                                let start_pos = old_min;
-
-                                (start_pos, old_end_pos, start_pos)
-                            },
-                            (None, Some(new)) => {
-                                let new_pos = new.get_position();
-                                let new_h_pos = new.get_highlight_position_or_position();
-                                let new_min = min(new_pos, new_h_pos);
-                                let new_end_pos = max(new_pos, new_h_pos);
-        
-                                let start_pos = new_min;
-
-                                (start_pos, start_pos, new_end_pos)
-                            },
-                            (None, None) => cont!(),
-                        };
-
-                        tree.edit(dbg!(&InputEdit{
-                            start_byte,
-                            old_end_byte,
-                            new_end_byte,
-                            start_position: Point{ 
-                                row: start_pos.line,
-                                column: start_pos.offset.0
-                            },
-                            old_end_position: Point{ 
-                                row: old_end_pos.line,
-                                column: old_end_pos.offset.0
-                            },
-                            new_end_position: Point{ 
-                                row: new_end_pos.line,
-                                column: new_end_pos.offset.0
-                            },
-                        }));
+                        perf_viz::start_record!("tree.edit");
+                        tree.edit(&input_edit);
+                        perf_viz::end_record!("tree.edit");
                     }
                 }
             },
@@ -462,6 +476,16 @@ impl InitializedParsers {
                     self.rust_lang,
                 );
                 
+                perf_viz::start_record!("hash for caching");
+                let fresh_hash = hash_to_parse(&to_parse);
+                perf_viz::end_record!("hash for caching");
+
+                if let Some(CachedSpans{ spans, hash }) = state.spans.as_ref() {
+                    if *hash == fresh_hash {
+                        return Ok(spans.clone());
+                    }
+                }
+
                 perf_viz::start_record!("state.parser.parse");
 
                 // This edit call that should do nothing, is here as a workaround
@@ -498,7 +522,7 @@ impl InitializedParsers {
                 perf_viz::end_record!("state.parser.parse");
 
                 if let Some(tree) = state.tree.as_ref() {
-                    Ok(match style {
+                    let spans = match style {
                         Basic => {
                             query::spans_for(
                                 tree,
@@ -518,8 +542,16 @@ impl InitializedParsers {
                                 &to_parse
                             )
                         }
-                    })
+                    };
+
+                    state.spans = Some(CachedSpans{
+                        spans: spans.clone(),
+                        hash: fresh_hash,
+                    });
+
+                    Ok(spans)
                 } else {
+                    state.spans = None;
                     Err((
                         to_parse,
                         SpanError::ParseReturnedNone(buffer_name.clone())
@@ -528,6 +560,14 @@ impl InitializedParsers {
             }
         }
     }
+}
+
+fn hash_to_parse<'to_parse>(to_parse: &ToParse<'to_parse>) -> u64 {
+    use core::hash::{Hash, Hasher};
+    
+    let mut hasher: fast_hash::Hasher = d!();
+    to_parse.hash(&mut hasher);
+    return hasher.finish();
 }
 
 extern "C" { fn tree_sitter_rust() -> Language; }
@@ -554,6 +594,7 @@ impl InitializedParsers {
         let mut first: BufferState = d!();
         // We make sure that each supported language works at the start
         // so we can assume `set_language` always returns `Ok` afterwards.
+
         first.parser.set_language(
             rust_lang
         )?;

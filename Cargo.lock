@@ -1427,6 +1427,7 @@ version = "0.1.0"
 dependencies = [
  "is_linebreak_char",
  "macros",
+ "perf_viz",
  "proptest",
  "ropey",
  "text_pos",
@@ -1969,7 +1970,7 @@ dependencies = [
 
 [[package]]
 name = "rote"
-version = "0.2.162"
+version = "0.2.163"
 dependencies = [
  "editor",
  "lazy_static 1.4.0",

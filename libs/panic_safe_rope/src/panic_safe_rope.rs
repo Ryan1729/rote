@@ -116,6 +116,7 @@ impl From<LineIndex> for LineLength {
 impl Rope {
     //#[check_or_no_panic]
     #[inline]
+    #[perf_viz::record]
     pub fn new() -> Self {
         Rope {
             rope: ropey::Rope::new(),
@@ -185,40 +186,47 @@ impl Rope {
 
     // Begin methods in common with `RopeSlice`
     #[inline]
+    #[perf_viz::record]
     pub fn len_bytes(&self) -> ByteLength {
         ByteLength(self.rope.len_bytes())
     }
 
     #[inline]
+    #[perf_viz::record]
     pub fn len_chars(&self) -> AbsoluteCharOffset {
         AbsoluteCharOffset(self.rope.len_chars())
     }
 
     #[inline]
+    #[perf_viz::record]
     pub fn len_lines(&self) -> LineLength {
         LineLength(self.rope.len_lines())
     }
 
     /// Returns `None`  if `byte_idx` is out of bounds (i.e. `byte_idx > len_bytes()`).
     #[inline]
+    #[perf_viz::record]
     pub fn byte_to_char(&self, byte_idx: ByteIndex) -> Option<AbsoluteCharOffset> {
         macros::some_if!(byte_idx <= self.len_bytes().0 => AbsoluteCharOffset(self.rope.byte_to_char(byte_idx.0)))
     }
 
     /// Returns `None`  if `byte_idx` is out of bounds (i.e. `byte_idx > len_bytes()`).
     #[inline]
+    #[perf_viz::record]
     pub fn byte_to_line(&self, byte_idx: ByteIndex) -> Option<LineIndex> {
         macros::some_if!(byte_idx <= self.len_bytes().0 => LineIndex(self.rope.byte_to_line(byte_idx.0)))
     }
 
     /// Returns `None`  if `char_idx` is out of bounds (i.e. `char_idx > len_chars()`).
     #[inline]
+    #[perf_viz::record]
     pub fn char_to_byte(&self, char_idx: AbsoluteCharOffset) -> Option<ByteIndex> {
         macros::some_if!(char_idx <= self.len_chars() => ByteIndex(self.rope.char_to_byte(char_idx.0)))
     }
 
     /// Returns `None`  if `char_idx` is out of bounds (i.e. `char_idx > len_chars()`).
     #[inline]
+    #[perf_viz::record]
     pub fn char_to_line(&self, char_idx: AbsoluteCharOffset) -> Option<LineIndex> {
         macros::some_if!(
             char_idx <= self.len_chars().0 => LineIndex(self.rope.char_to_line(char_idx.0))
@@ -227,6 +235,7 @@ impl Rope {
 
     /// Returns `None`  if `line_idx` is out of bounds (i.e. `line_idx > len_lines()`).
     #[inline]
+    #[perf_viz::record]
     pub fn line_to_byte(&self, line_idx: LineIndex) -> Option<ByteIndex> {
         macros::some_if!(
             line_idx <= self.len_lines().0 => ByteIndex(self.rope.line_to_byte(line_idx.0))
@@ -235,6 +244,7 @@ impl Rope {
 
     /// Returns `None`  if `line_idx` is out of bounds (i.e. `line_idx > len_lines()`).
     #[inline]
+    #[perf_viz::record]
     pub fn line_to_char(&self, line_idx: LineIndex) -> Option<AbsoluteCharOffset> {
         macros::some_if!(
             line_idx <= self.len_lines().0 => AbsoluteCharOffset(self.rope.line_to_char(line_idx.0))
@@ -243,6 +253,7 @@ impl Rope {
 
     /// Returns `None`  if `byte_idx` is out of bounds (i.e. `byte_idx >= len_bytes()`).
     #[inline]
+    #[perf_viz::record]
     pub fn byte(&self, byte_idx: ByteIndex) -> Option<u8> {
         macros::some_if!(
             byte_idx < self.len_bytes().0 => self.rope.byte(byte_idx.0)
@@ -251,6 +262,7 @@ impl Rope {
 
     /// Returns `None`  if `char_idx` is out of bounds (i.e. `char_idx >= len_chars()`).
     #[inline]
+    #[perf_viz::record]
     pub fn char(&self, char_idx: AbsoluteCharOffset) -> Option<char> {
         macros::some_if!(
             char_idx < self.len_chars().0 => self.rope.char(char_idx.0)
@@ -259,6 +271,7 @@ impl Rope {
 
     /// Returns `None` if `byte_idx` is out of bounds (i.e. `byte_idx > len_bytes()`).
     #[inline]
+    #[perf_viz::record]
     pub fn chunk_at_byte(&self, byte_idx: ByteIndex) -> Option<Chunk> {
         macros::some_if!(
             byte_idx <= self.len_bytes().0 => self.rope.chunk_at_byte(byte_idx.0)
@@ -268,6 +281,7 @@ impl Rope {
 
     /// Returns `None` if `char_idx` is out of bounds (i.e. `char_idx > len_chars()`).
     #[inline]
+    #[perf_viz::record]
     pub fn chunk_at_char(&self, char_idx: AbsoluteCharOffset) -> Option<Chunk> {
         macros::some_if!(
             char_idx <= self.len_chars().0 => self.rope.chunk_at_char(char_idx.0)
@@ -277,6 +291,7 @@ impl Rope {
 
     /// Returns `None` if `line_break_idx` is out of bounds (i.e. `line_break_idx > len_lines()`).
     #[inline]
+    #[perf_viz::record]
     pub fn chunk_at_line_break(&self, line_break_idx: usize) -> Option<Chunk> {
         macros::some_if!(
             line_break_idx <= self.len_lines().0 => self.rope.chunk_at_line_break(line_break_idx)
@@ -285,16 +300,19 @@ impl Rope {
     }
 
     #[inline]
+    #[perf_viz::record]
     pub fn bytes(&self) -> ropey::iter::Bytes {
         self.rope.bytes()
     }
 
     #[inline]
+    #[perf_viz::record]
     pub fn chars(&self) -> ropey::iter::Chars {
         self.rope.chars()
     }
 
     #[inline]
+    #[perf_viz::record]
     /// Returns `None` if `char_idx` is out of bounds (i.e. `char_idx > len_chars()`).
     pub fn chars_at(&self, char_idx: AbsoluteCharOffset) -> Option<ropey::iter::Chars> {
         macros::some_if!(
@@ -304,17 +322,20 @@ impl Rope {
 
     /// Equivalent to `r.chars_at(r.len_chars()).unwrap()`
     #[inline]
+    #[perf_viz::record]
     pub fn chars_at_end(&self) -> ropey::iter::Chars {
         self.rope.chars_at(self.rope.len_chars())
     }
 
     #[inline]
+    #[perf_viz::record]
     pub fn lines(&self) -> Lines {
         self.rope.lines().map(to_rope_line)
     }
 
     /// Returns `None` if `line_break_idx` is out of bounds (i.e. `line_break_idx > len_lines()`).
     #[inline]
+    #[perf_viz::record]
     pub fn lines_at(&self, line_break_idx: usize) -> Option<Lines> {
         macros::some_if!(
             line_break_idx <= self.len_lines() => self.rope.lines_at(line_break_idx).map(to_rope_line)
@@ -322,12 +343,14 @@ impl Rope {
     }
 
     #[inline]
+    #[perf_viz::record]
     pub fn chunks(&self) -> ropey::iter::Chunks {
         self.rope.chunks()
     }
 
     /// Returns `None`  if `line_idx` is out of bounds (i.e. `line_idx >= len_lines()`).
     #[inline]
+    #[perf_viz::record]
     pub fn line(&self, line_idx: LineIndex) -> Option<RopeLine> {
         macros::some_if!(
             line_idx < self.len_lines().0 => to_rope_line(self.rope.line(line_idx.0))
@@ -337,6 +360,7 @@ impl Rope {
     /// Returns `None` if the start of the range is greater than the end, or if the
     /// end is out of bounds (i.e. `end > len_chars()`).
     #[inline]
+    #[perf_viz::record]
     pub fn slice<R>(&self, char_range: R) -> Option<RopeSlice>
     where
         R: RangeBounds<AbsoluteCharOffset>,
@@ -348,6 +372,7 @@ impl Rope {
 
     /// Equivalent to `slice(..0)` except it always returns a `RopeSlice`
     #[inline]
+    #[perf_viz::record]
     pub fn empty_slice(&self) -> RopeSlice {
         RopeSlice {
             rope_slice: self.rope.slice(..0),
@@ -356,6 +381,7 @@ impl Rope {
 
     /// Equivalent to `slice(..)` except it always returns a `RopeSlice`
     #[inline]
+    #[perf_viz::record]
     pub fn full_slice(&self) -> RopeSlice {
         RopeSlice {
             rope_slice: self.rope.slice(0..self.len_chars().0),
@@ -368,6 +394,7 @@ fmt_display!(for Rope : Rope {rope, ..} in "{}", rope);
 
 impl<'a> From<&'a str> for Rope {
     #[inline]
+    #[perf_viz::record]
     fn from(text: &'a str) -> Self {
         Rope::from_str(text)
     }
@@ -375,6 +402,7 @@ impl<'a> From<&'a str> for Rope {
 
 impl<'a> From<std::borrow::Cow<'a, str>> for Rope {
     #[inline]
+    #[perf_viz::record]
     fn from(text: std::borrow::Cow<'a, str>) -> Self {
         Rope::from_str(&text)
     }
@@ -382,6 +410,7 @@ impl<'a> From<std::borrow::Cow<'a, str>> for Rope {
 
 impl From<String> for Rope {
     #[inline]
+    #[perf_viz::record]
     fn from(text: String) -> Self {
         Rope::from_str(&text)
     }
@@ -389,6 +418,7 @@ impl From<String> for Rope {
 
 impl From<Rope> for ropey::Rope {
     #[inline]
+    #[perf_viz::record]
     fn from(r: Rope) -> Self {
         r.rope
     }
@@ -396,6 +426,7 @@ impl From<Rope> for ropey::Rope {
 
 impl From<ropey::Rope> for Rope {
     #[inline]
+    #[perf_viz::record]
     fn from(rope: ropey::Rope) -> Self {
         Rope { rope }
     }
@@ -403,6 +434,7 @@ impl From<ropey::Rope> for Rope {
 
 impl From<Rope> for String {
     #[inline]
+    #[perf_viz::record]
     fn from(r: Rope) -> Self {
         From::from(r.rope)
     }
@@ -410,6 +442,7 @@ impl From<Rope> for String {
 
 impl<'a> From<&'a Rope> for String {
     #[inline]
+    #[perf_viz::record]
     fn from(r: &'a Rope) -> Self {
         From::from(&r.rope)
     }
@@ -417,6 +450,7 @@ impl<'a> From<&'a Rope> for String {
 
 impl<'a> From<Rope> for std::borrow::Cow<'a, str> {
     #[inline]
+    #[perf_viz::record]
     fn from(r: Rope) -> Self {
         From::from(r.rope)
     }
@@ -424,6 +458,7 @@ impl<'a> From<Rope> for std::borrow::Cow<'a, str> {
 
 impl<'a> From<&'a Rope> for std::borrow::Cow<'a, str> {
     #[inline]
+    #[perf_viz::record]
     fn from(r: &'a Rope) -> Self {
         From::from(&r.rope)
     }
@@ -460,6 +495,7 @@ impl std::cmp::Eq for Rope {}
 
 impl std::cmp::PartialEq<Rope> for Rope {
     #[inline]
+    #[perf_viz::record]
     fn eq(&self, other: &Rope) -> bool {
         self.rope.eq(&other.rope)
     }
@@ -467,6 +503,7 @@ impl std::cmp::PartialEq<Rope> for Rope {
 
 impl<'a> std::cmp::PartialEq<&'a str> for Rope {
     #[inline]
+    #[perf_viz::record]
     fn eq(&self, other: &&'a str) -> bool {
         self.rope.eq(other)
     }
@@ -474,6 +511,7 @@ impl<'a> std::cmp::PartialEq<&'a str> for Rope {
 
 impl<'a> std::cmp::PartialEq<Rope> for &'a str {
     #[inline]
+    #[perf_viz::record]
     fn eq(&self, other: &Rope) -> bool {
         self.eq(&other.rope)
     }
@@ -481,6 +519,7 @@ impl<'a> std::cmp::PartialEq<Rope> for &'a str {
 
 impl std::cmp::PartialEq<str> for Rope {
     #[inline]
+    #[perf_viz::record]
     fn eq(&self, other: &str) -> bool {
         self.rope.eq(other)
     }
@@ -488,6 +527,7 @@ impl std::cmp::PartialEq<str> for Rope {
 
 impl std::cmp::PartialEq<Rope> for str {
     #[inline]
+    #[perf_viz::record]
     fn eq(&self, other: &Rope) -> bool {
         self.eq(&other.rope)
     }
@@ -495,6 +535,7 @@ impl std::cmp::PartialEq<Rope> for str {
 
 impl<'a> std::cmp::PartialEq<String> for Rope {
     #[inline]
+    #[perf_viz::record]
     fn eq(&self, other: &String) -> bool {
         self.rope.eq(other)
     }
@@ -502,6 +543,7 @@ impl<'a> std::cmp::PartialEq<String> for Rope {
 
 impl<'a> std::cmp::PartialEq<Rope> for String {
     #[inline]
+    #[perf_viz::record]
     fn eq(&self, other: &Rope) -> bool {
         self.eq(&other.rope)
     }
@@ -509,6 +551,7 @@ impl<'a> std::cmp::PartialEq<Rope> for String {
 
 impl<'a> std::cmp::PartialEq<std::borrow::Cow<'a, str>> for Rope {
     #[inline]
+    #[perf_viz::record]
     fn eq(&self, other: &std::borrow::Cow<'a, str>) -> bool {
         self.rope.eq(other)
     }
@@ -516,6 +559,7 @@ impl<'a> std::cmp::PartialEq<std::borrow::Cow<'a, str>> for Rope {
 
 impl<'a> std::cmp::PartialEq<Rope> for std::borrow::Cow<'a, str> {
     #[inline]
+    #[perf_viz::record]
     fn eq(&self, other: &Rope) -> bool {
         self.eq(&other.rope)
     }
@@ -523,6 +567,7 @@ impl<'a> std::cmp::PartialEq<Rope> for std::borrow::Cow<'a, str> {
 
 impl std::cmp::Ord for Rope {
     #[inline]
+    #[perf_viz::record]
     fn cmp(&self, other: &Rope) -> std::cmp::Ordering {
         self.rope.cmp(&other.rope)
     }
@@ -530,6 +575,7 @@ impl std::cmp::Ord for Rope {
 
 impl std::cmp::PartialOrd<Rope> for Rope {
     #[inline]
+    #[perf_viz::record]
     fn partial_cmp(&self, other: &Rope) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }

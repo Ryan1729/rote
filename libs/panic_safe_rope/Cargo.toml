@@ -19,6 +19,9 @@ path = "../text_pos"
 [dependencies.macros]
 path = "../macros"
 
+[dependencies.perf_viz]
+path = "../perf_viz"
+
 [dev-dependencies]
 proptest = "0.10"
 
