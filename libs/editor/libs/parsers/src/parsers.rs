@@ -480,6 +480,21 @@ impl InitializedParsers {
                 let fresh_hash = hash_to_parse(&to_parse);
                 perf_viz::end_record!("hash for caching");
 
+                // This was wriiten right after this caching was introduced.
+                //
+                // If this still seems too slow, one thing we could try is iterating
+                // through with the tree cursor in whatever way is fastest, and 
+                // sorting at the end, since we're still sorting as it is. This 
+                // assumes that de don't actually need depth first traversal, which
+                // is somewhat uncertain.
+                //
+                // Alternately, we could collect spans for around N ms and return
+                // the partially complete spans. This prevents the thread stalling
+                // for too long, and should just appear as a few frames where the
+                // portions without known spans are just coloured plainly. However,
+                // we'd also have to figure out how to signal to the client that
+                // `update_and_render` should be called again.
+                //
                 if let Some(CachedSpans{ spans, hash }) = state.spans.as_ref() {
                     if *hash == fresh_hash {
                         return Ok(spans.clone());
@@ -978,8 +993,6 @@ mod query {
         fn new(tree: &'tree Tree) -> Self {
             DepthFirst {
                 depth: 0,
-                // TODO reuse old cursors, to save allocations as suggested at
-                // https://docs.rs/tree-sitter/0.16.1/tree_sitter/struct.Node.html#method.children
                 cursor: tree.walk(),
                 done: false,
             }

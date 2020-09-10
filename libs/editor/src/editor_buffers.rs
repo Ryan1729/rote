@@ -39,9 +39,9 @@ impl EditorBuffer {
 
     fn non_rope_hash<H: std::hash::Hasher>(&self, state: &mut H) {
         use std::hash::Hash;
-        
+
         self.text_buffer.non_rope_hash(state);
-        
+
         self.parser_kind.hash(state);
     }
 }
@@ -200,11 +200,13 @@ impl EditorBuffers {
 
 impl EditorBuffers {
     /// Since there is always at least one buffer, this always returns at least 1.
+
     pub fn len(&self) -> g_i::Length {
         self.buffers.len()
     }
 
     /// The index of the currectly selected buffer.
+
     pub fn current_index(&self) -> g_i::Index {
         self.buffers.current_index()
     }
