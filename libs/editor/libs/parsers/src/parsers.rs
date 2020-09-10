@@ -1,5 +1,5 @@
 #![deny(unused)]
-use macros::{d, fmt_debug, fmt_display, some_or, u};
+use macros::{d, dbg, fmt_debug, fmt_display, some_or, u};
 use platform_types::{BufferName, Rope, Spans};
 use edit::{Change, Edit, RangeEdits};
 
