@@ -96,6 +96,14 @@ where
             pre_positioned: <_>::default(),
         }
     }
+
+    /// Mark previous texture positions as no longer valid 
+    /// (vertices require re-generation)
+    fn invalidate_texture_positions(&mut self) {
+        for glyphed in self.calculate_glyph_cache.values_mut() {
+            glyphed.vertices.clear();
+        }
+    }
 }
 
 pub type CalculatedGlyphIter<'a, 'font> = std::iter::Map<
@@ -365,9 +373,7 @@ where
                 match self.texture_cache.cache_queued(update_texture) {
                     Ok(CachedBy::Adding) => {}
                     Ok(CachedBy::Reordering) => {
-                        for glyphed in self.calculate_glyph_cache.values_mut() {
-                            glyphed.invalidate_texture_positions();
-                        }
+                        self.invalidate_texture_positions();
                     }
                     Err(_) => {
                         let (width, height) = self.texture_cache.dimensions();
@@ -458,10 +464,7 @@ where
 
         self.text_hash = <_>::default();
 
-        // invalidate any previous cache position data
-        for glyphed in self.calculate_glyph_cache.values_mut() {
-            glyphed.invalidate_texture_positions();
-        }
+        self.invalidate_texture_positions();
     }
 
     /// Returns the logical texture cache pixel dimensions `(width, height)`.
@@ -624,11 +627,6 @@ impl<V> PartialEq for Glyphed<'_, V> {
 }
 
 impl<'font, V> Glyphed<'font, V> {
-    /// Mark previous texture positions as no longer valid (vertices require re-generation)
-    fn invalidate_texture_positions(&mut self) {
-        self.vertices.clear();
-    }
-
     /// Calculate vertices if not already done
     fn ensure_vertices<F>(&mut self, texture_cache: &Cache<'font>, to_vertex: F)
     where
