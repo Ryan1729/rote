@@ -1,6 +1,5 @@
 use super::*;
 use full_rusttype::gpu_cache::{Cache, CachedBy};
-use log::error;
 use std::{
     borrow::Cow,
     fmt,
@@ -688,7 +687,7 @@ impl<'font, V> Glyphed<'font, V> {
             .extend(glyphs.iter().filter_map(|(glyph, color)| {
                 match texture_cache.rect_for(font_id.0, glyph) {
                     Err(err) => {
-                        error!("Cache miss?: {:?}, {:?}: {}", font_id, glyph, err);
+                        eprintln!("Cache miss?: {:?}, {:?}: {}", font_id, glyph, err);
                         None
                     }
                     Ok(None) => {

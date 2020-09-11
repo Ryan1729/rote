@@ -932,7 +932,6 @@ dependencies = [
  "gl",
  "glutin",
  "if_changed",
- "log",
  "matches",
  "once_cell",
  "perf_viz",
