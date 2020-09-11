@@ -235,10 +235,12 @@ where
     {
         // further borrows are required after the contains_key check
         #![allow(clippy::map_entry)]
+
         let section = section.into();
+        let section_ref: &VariedSection<'a> = &section;
         debug_assert!(self.fonts.len() > section.font_id.0, "Invalid font id");
         
-        let section_hash = SectionHashDetail::new(&section, layout);
+        let section_hash = SectionHashDetail::new(section_ref, layout);
         // section id used to find a similar calculated layout from last frame
         let frame_seq_id = self.frame_seq_id_sections.len();
         self.frame_seq_id_sections.push(section_hash);
@@ -247,7 +249,7 @@ where
         let font_id = section.font_id;
         
         if !self.calculate_glyph_cache.contains_key(&section_hash.full) {
-            let geometry = SectionGeometry::from(section);
+            let geometry = SectionGeometry::from(section_ref);
 
             let glyphs = self
                 .last_frame_seq_id_sections
@@ -552,7 +554,7 @@ struct SectionHashDetail {
     // hash of text + color (- alpha - geo - z)
     text_color: SectionHash,
     /// hash of text + color + alpha (- geo - z)
-    test_alpha_color: SectionHash,
+    text_alpha_color: SectionHash,
     /// hash of text  + color + alpha + geo + z
     full: SectionHash,
 
@@ -566,35 +568,67 @@ impl SectionHashDetail {
     where
         G: GlyphPositioner,
     {
-        let parts = section.to_hashable_parts();
+        let VariedSection {
+            screen_position: (screen_x, screen_y),
+            bounds: (bound_w, bound_h),
+            z,
+            text: section_texts,
+            ..
+        } = section;
 
-        let mut s = fast_hash::Hasher::default();
-        layout.hash(&mut s);
-        parts.hash_text_no_color(&mut s);
-        let text_hash = s.finish();
+        let mut hasher = fast_hash::Hasher::default();
 
-        parts.hash_color(&mut s);
-        let text_color_hash = s.finish();
+        layout.hash(&mut hasher);
 
-        parts.hash_alpha(&mut s);
-        let test_alpha_color_hash = s.finish();
+        for t in section_texts {
+            let SectionText {
+                text,
+                ..
+            } = *t;
 
-        parts.hash_geometry(&mut s);
-        parts.hash_z(&mut s);
-        let full_hash = s.finish();
+            text.hash(&mut hasher);
+        }
+
+        let text = hasher.finish();
+
+        for t in section_texts {
+            let color = t.color;
+
+            [
+                color[0].to_bits(),
+                color[1].to_bits(),
+                color[2].to_bits()
+            ].hash(&mut hasher);
+        }
+        let text_color = hasher.finish();
+
+        for t in section_texts {
+            t.color[3].to_bits().hash(&mut hasher);
+        }
+        let text_alpha_color = hasher.finish();
+
+        [
+            screen_x.to_bits(),
+            screen_y.to_bits(),
+            bound_w.to_bits(),
+            bound_h.to_bits(),
+        ].hash(&mut hasher);
+        
+        z.to_bits().hash(&mut hasher);
+        let full = hasher.finish();
 
         Self {
-            text: text_hash,
-            text_color: text_color_hash,
-            test_alpha_color: test_alpha_color_hash,
-            full: full_hash,
+            text,
+            text_color,
+            text_alpha_color,
+            full,
             geometry: SectionGeometry::from(section),
         }
     }
 
     /// They're different, but how?
     fn diff(self, other: SectionHashDetail) -> GlyphChange {
-        if self.test_alpha_color == other.test_alpha_color {
+        if self.text_alpha_color == other.text_alpha_color {
             return GlyphChange::Geometry(self.geometry);
         } else if self.geometry == other.geometry {
             if self.text_color == other.text_color {
