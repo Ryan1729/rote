@@ -64,14 +64,3 @@ pub trait GlyphPositioner: Hash {
         sections: &[SectionText<'_>],
     ) -> Vec<CalculatedGlyph<'font>>;
 }
-
-#[derive(Debug)]
-enum GlyphChange {
-    /// Only the geometry has changed, contains the old geometry
-    Geometry(SectionGeometry),
-    /// Only the colors have changed (including alpha)
-    Color,
-    /// Only the alpha has changed
-    Alpha,
-    Unknown,
-}

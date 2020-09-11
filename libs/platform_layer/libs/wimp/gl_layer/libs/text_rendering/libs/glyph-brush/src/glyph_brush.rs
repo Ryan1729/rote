@@ -141,6 +141,17 @@ pub struct AdditionalRects<V: Clone + 'static> {
     pub rect_specs: Vec<RectSpec>,
 }
 
+#[derive(Debug)]
+enum GlyphChange {
+    /// Only the geometry has changed, contains the old geometry
+    Geometry(SectionGeometry),
+    /// Only the colors have changed (including alpha)
+    Color,
+    /// Only the alpha has changed
+    Alpha,
+    Unknown,
+}
+
 fn recalculate_glyphs<'font, G>(
     positioner: &G,
     previous: Cow<Vec<CalculatedGlyph<'font>>>,
@@ -217,25 +228,17 @@ where
     /// [`Layout`](enum.Layout.html) simply use [`queue`](struct.GlyphBrush.html#method.queue)
     ///
     /// Benefits from caching, see [caching behaviour](#caching-behaviour).
-    pub fn queue_custom_layout<'a, S, G>(&mut self, section: S, custom_layout: &G)
+    pub fn queue_layout<'a, S, G>(&mut self, section: S, layout: &G)
     where
         G: GlyphPositioner,
         S: Into<Cow<'a, VariedSection<'a>>>,
     {
+        // further borrows are required after the contains_key check
+        #![allow(clippy::map_entry)]
         let section = section.into();
         debug_assert!(self.fonts.len() > section.font_id.0, "Invalid font id");
-        let section_hash = self.cache_glyphs(&section, custom_layout);
-        self.section_buffer.push(section_hash);
-        self.keep_in_cache.insert(section_hash);
-    }
-
-    /// Returns the calculate_glyph_cache key for this sections glyphs
-    #[allow(clippy::map_entry)] // further borrows are required after the contains_key check
-    fn cache_glyphs<G>(&mut self, section: &VariedSection<'_>, layout: &G) -> SectionHash
-    where
-        G: GlyphPositioner,
-    {
-        let section_hash = SectionHashDetail::new(section, layout);
+        
+        let section_hash = SectionHashDetail::new(&section, layout);
         // section id used to find a similar calculated layout from last frame
         let frame_seq_id = self.frame_seq_id_sections.len();
         self.frame_seq_id_sections.push(section_hash);
@@ -296,7 +299,9 @@ where
                 },
             );
         }
-        section_hash.full
+
+        self.section_buffer.push(section_hash.full);
+        self.keep_in_cache.insert(section_hash.full);
     }
 
     /// Processes all queued sections, calling texture update logic when necessary &

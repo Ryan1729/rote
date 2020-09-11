@@ -291,10 +291,10 @@ impl <'font> State<'font> {
                     perf_viz::start_record!("queue!");
                     match $layout {
                         TextLayout::Unbounded => {
-                            glyph_brush.queue_custom_layout($section, &Unbounded {})
+                            glyph_brush.queue_layout($section, &Unbounded {})
                         }
                         TextLayout::UnboundedLayoutClipped(ssr, scroll) => {
-                            glyph_brush.queue_custom_layout(
+                            glyph_brush.queue_layout(
                                 $section,
                                 &UnboundedLayoutClipped::new(ssr, scroll)
                             )
