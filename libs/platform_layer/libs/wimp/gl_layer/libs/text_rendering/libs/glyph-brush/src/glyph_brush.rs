@@ -10,19 +10,6 @@ use std::{
 
 use crate::{Font};
 
-use std::f32::INFINITY;
-//const INFINITY: f32 = 65536.0; // 64k pixels ought to be enough for anybody!
-pub(crate) const INFINITY_RECT: Rect<f32> = Rect {
-    min: Point {
-        x: -INFINITY,
-        y: -INFINITY,
-    },
-    max: Point {
-        x: INFINITY,
-        y: INFINITY,
-    },
-};
-
 /// A hash of `Section` data
 type SectionHash = u64;
 
@@ -93,7 +80,7 @@ where
         Self::using_fonts(vec![font_0])
     }
 
-    pub(crate) fn using_fonts<Fonts: Into<Vec<Font<'font>>>>(fonts: Fonts) -> Self {
+    fn using_fonts<Fonts: Into<Vec<Font<'font>>>>(fonts: Fonts) -> Self {
         GlyphBrush {
             fonts: fonts.into(),
             texture_cache: Cache::builder()
@@ -114,68 +101,6 @@ where
             last_pre_positioned: <_>::default(),
             pre_positioned: <_>::default(),
         }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct GlyphedSection<'font> {
-    pub glyphs: Vec<CalculatedGlyph<'font>>,
-    pub font_id: FontId,
-    pub z: f32,
-}
-
-impl<'a> PartialEq<GlyphedSection<'a>> for GlyphedSection<'a> {
-    fn eq(&self, other: &Self) -> bool {
-        self.z == other.z
-        && self.font_id == other.font_id
-            && self.glyphs.len() == other.glyphs.len()
-            && self.glyphs.iter().zip(other.glyphs.iter()).all(|(l, r)| {
-                    l.1 == r.1
-                    && l.0.id() == r.0.id()
-                    && l.0.position() == r.0.position()
-                    && l.0.scale() == r.0.scale()
-            })
-    }
-}
-
-impl<'font> GlyphedSection<'font> {
-    pub fn pixel_bounds(&self) -> Option<Rect<i32>> {
-        let Self {
-            ref glyphs, ..
-        } = *self;
-
-        let mut no_match = true;
-
-        let mut pixel_bounds = Rect {
-            min: point(0, 0),
-            max: point(0, 0),
-        };
-
-        for Rect { min, max } in glyphs
-            .iter()
-            .filter_map(|&(ref g, ..)| g.pixel_bounding_box())
-        {
-            if no_match || min.x < pixel_bounds.min.x {
-                pixel_bounds.min.x = min.x;
-            }
-            if no_match || min.y < pixel_bounds.min.y {
-                pixel_bounds.min.y = min.y;
-            }
-            if no_match || max.x > pixel_bounds.max.x {
-                pixel_bounds.max.x = max.x;
-            }
-            if no_match || max.y > pixel_bounds.max.y {
-                pixel_bounds.max.y = max.y;
-            }
-            no_match = false;
-        }
-
-        Some(pixel_bounds).filter(|_| !no_match)
-    }
-
-    #[inline]
-    pub fn glyphs(&self) -> CalculatedGlyphIter<'_, 'font> {
-        self.glyphs.iter().map(|(g, ..)| g)
     }
 }
 
@@ -296,9 +221,7 @@ where
         S: Into<Cow<'a, VariedSection<'a>>>,
     {
         let section = section.into();
-        if cfg!(debug_assertions) {
-            assert!(self.fonts.len() > section.font_id.0, "Invalid font id");
-        }
+        debug_assert!(self.fonts.len() > section.font_id.0, "Invalid font id");
         let section_hash = self.cache_glyphs(&section, custom_layout);
         self.section_buffer.push(section_hash);
         self.keep_in_cache.insert(section_hash);
@@ -334,10 +257,10 @@ where
 
                     let old_glyphs = if self.keep_in_cache.contains(&hash.full) {
                         let cached = self.calculate_glyph_cache.get(&hash.full)?;
-                        Cow::Borrowed(&cached.positioned.glyphs)
+                        Cow::Borrowed(&cached.glyphs)
                     } else {
                         let old = self.calculate_glyph_cache.remove(&hash.full)?;
-                        Cow::Owned(old.positioned.glyphs)
+                        Cow::Owned(old.glyphs)
                     };
 
                     Some(recalculate_glyphs(
@@ -354,7 +277,7 @@ where
             
             self.calculate_glyph_cache.insert(
                 section_hash.full,
-                Glyphed::new(GlyphedSection {
+                Glyphed {
                     glyphs: recalculated_glyphs.unwrap_or_else(|| {
                         let font = &self.fonts.font(font_id);
                         layout.calculate_glyphs(
@@ -366,7 +289,8 @@ where
                     }),
                     z: section.z,
                     font_id,
-                }),
+                    vertices: Vec::new(),
+                },
             );
         }
         section_hash.full
@@ -425,7 +349,6 @@ where
                     .calculate_glyph_cache
                     .get(section_hash)
                     .iter()
-                    .map(|gs| &gs.positioned)
                 {
                     let font_id = positioned.font_id;
                     for &(ref glyph, _) in positioned.glyphs.iter() {
@@ -438,7 +361,6 @@ where
             for positioned in self
                 .pre_positioned
                 .iter()
-                .map(|p| &p.positioned)
             {
                 let font_id = positioned.font_id;
                 for &(ref glyph, _) in positioned.glyphs.iter() {
@@ -690,28 +612,30 @@ impl SectionHashDetail {
     }
 }
 
-/// Container for positioned glyphs which can generate and cache vertices
 struct Glyphed<'font, V> {
-    positioned: GlyphedSection<'font>,
+    glyphs: Vec<CalculatedGlyph<'font>>,
+    font_id: FontId,
+    z: f32,
     vertices: Vec<V>,
 }
 
 impl<V> PartialEq for Glyphed<'_, V> {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
-        self.positioned == other.positioned
+        // We ignore the vertices on purpose since those are just a cache.
+        self.z == other.z
+        && self.font_id == other.font_id
+            && self.glyphs.len() == other.glyphs.len()
+            && self.glyphs.iter().zip(other.glyphs.iter()).all(|(l, r)| {
+                    l.1 == r.1
+                    && l.0.id() == r.0.id()
+                    && l.0.position() == r.0.position()
+                    && l.0.scale() == r.0.scale()
+            })
     }
 }
 
 impl<'font, V> Glyphed<'font, V> {
-    #[inline]
-    fn new(gs: GlyphedSection<'font>) -> Self {
-        Self {
-            positioned: gs,
-            vertices: Vec::new(),
-        }
-    }
-
     /// Mark previous texture positions as no longer valid (vertices require re-generation)
     fn invalidate_texture_positions(&mut self) {
         self.vertices.clear();
@@ -726,11 +650,12 @@ impl<'font, V> Glyphed<'font, V> {
             return;
         }
 
-        let GlyphedSection {
+        let Self {
             z,
             font_id,
             ref glyphs,
-        } = self.positioned;
+            ..
+        } = self;
 
         self.vertices.reserve(glyphs.len());
         perf_viz::record_guard!("ensure_vertices extend");
@@ -745,12 +670,24 @@ impl<'font, V> Glyphed<'font, V> {
                         None
                     },
                     Ok(Some((tex_coords, pixel_coords))) => {
+                        use std::f32::INFINITY;
+                        const INFINITY_RECT: Rect<f32> = Rect {
+                            min: Point {
+                                x: -INFINITY,
+                                y: -INFINITY,
+                            },
+                            max: Point {
+                                x: INFINITY,
+                                y: INFINITY,
+                            },
+                        };
+
                         Some(to_vertex(GlyphVertex {
                             tex_coords,
                             pixel_coords,
                             bounds: INFINITY_RECT,
                             color: *color,
-                            z,
+                            z: *z,
                         }))
                     }
                 }
