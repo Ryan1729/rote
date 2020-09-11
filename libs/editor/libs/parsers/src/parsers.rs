@@ -434,7 +434,7 @@ fn get_or_init_buffer_state<'map>(
     u!{ParserKind}
     let buffer_state = parser_map
         .entry(buffer_name.clone())
-        .or_insert_with(|| BufferState::default());
+        .or_insert_with(BufferState::default);
 
     // We can assume that `set_language` will return `Ok` because we should
     // have already tried it once in `InitializedParsers::new`
@@ -582,7 +582,7 @@ fn hash_to_parse<'to_parse>(to_parse: &ToParse<'to_parse>) -> u64 {
     
     let mut hasher: fast_hash::Hasher = d!();
     to_parse.hash(&mut hasher);
-    return hasher.finish();
+    hasher.finish()
 }
 
 extern "C" { fn tree_sitter_rust() -> Language; }
@@ -1017,8 +1017,12 @@ mod query {
     
     impl <'tree> Iterator for DepthFirst<'tree> {
         type Item = (Depth, Node<'tree>);
-    
+
         fn next(&mut self) -> Option<Self::Item> {
+            // I want to be able to leave the perf_viz annotations here, even if they
+            // expand to nothing sometimes
+            #![allow(clippy::blocks_in_if_conditions)]
+
             perf_viz::record_guard!("DepthFirst::next");
             if self.done {
                 return None;

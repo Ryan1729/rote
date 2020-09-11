@@ -256,7 +256,7 @@ impl EditorBuffers {
             {
                 dbg!();
                 let buffer = &mut self.get_current_buffer_mut().text_buffer;
-                if buffer.has_no_edits() && str.len() > 0 {
+                if buffer.has_no_edits() && !str.is_empty() {
                     dbg!();
                     *buffer = create_text_buffer(&name, str);
                     edited_transition = Some(ToEdited);

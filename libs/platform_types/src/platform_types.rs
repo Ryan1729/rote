@@ -102,6 +102,7 @@ macro_rules! b_id {
     //
     // Creation
     //
+
     ($kind: expr) => {
         BufferId {
             kind: $kind,
@@ -122,6 +123,7 @@ pub enum BufferIdKind {
     None,
     /// Indicates a buffer repesenting an open file or an in memory scratch file.
     /// Almost all buffers are `Text` buffers.
+
     Text,
     Find,
     Replace,
@@ -221,11 +223,14 @@ pub fn push_highlights<O: Into<Option<Position>>>(
             // This early return is merely an optimization from three rectangles to two.
             // TODO Is this optimization actually worth it? The sticky cursor offset does make this
             // more likely than it would otherwise be.
+
             if min.offset != 0 && min.offset == max.offset {
                 // [|_______________________|]
                 //  ^min_middle   max_middle^
+
                 let min_middle = min.line + if min.offset == 0 { 0 } else { 1 };
                 // Since We know the lines must be different, we know `max.line > 0`
+
                 let max_middle = max.line - 1;
 
                 let offset = min.offset;
@@ -275,6 +280,7 @@ pub fn push_highlights<O: Into<Option<Position>>>(
 
             let min_middle = min.line + if min.offset == 0 { 0 } else { 1 };
             // Since We know the lines must be different, we know `max.line > 0`
+
             let max_middle = max.line - 1;
             if min_middle <= max_middle {
                 highlights.push(Highlight::new(
@@ -437,6 +443,7 @@ pub fn kind_editable_during_mode(kind: BufferIdKind, menu_mode: MenuMode) -> boo
         (BufferIdKind::None, _) => false,
         // We want this to be true always since it would be completely reasonable 
         // behaviour for a different client to always show the text buffers.
+
         (BufferIdKind::Text, _) => true, 
         (BufferIdKind::Find, FindReplace(_)) => {
             true
@@ -624,6 +631,7 @@ pub type SpanKindRaw = u8;
 /// time that client was written. All that leads us to allowing all
 /// values of the structs size as possible values, rather than an
 /// enum where only certain values are allowed.
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct SpanKind(SpanKindRaw);
 
@@ -651,10 +659,10 @@ macro_rules! sk {
     }
 }
 
-fmt_display!(for SpanKind: k in "{}", match k {
-    &SpanKind::PLAIN   => "  PLAIN".to_owned(),
-    &SpanKind::COMMENT => "COMMENT".to_owned(),
-    &SpanKind::STRING  => " STRING".to_owned(),
+fmt_display!(for SpanKind: k in "{}", match *k {
+    SpanKind::PLAIN   => "  PLAIN".to_owned(),
+    SpanKind::COMMENT => "COMMENT".to_owned(),
+    SpanKind::STRING  => " STRING".to_owned(),
     _ => format!("{}", k.0),
 });
 
