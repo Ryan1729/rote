@@ -66,12 +66,6 @@ pub struct GlyphBrush<'font, V> {
     pre_positioned: Vec<Glyphed<'font, V>>,
 }
 
-impl<V> fmt::Debug for GlyphBrush<'_, V> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "GlyphBrush")
-    }
-}
-
 impl <'font, V> GlyphBrush<'font, V>
 where
     V: Clone + 'static,
@@ -244,7 +238,7 @@ where
         if !self.calculate_glyph_cache.contains_key(&section_hash.full) {
             let geometry = SectionGeometry::from(section);
 
-            let recalculated_glyphs = self
+            let glyphs = self
                 .last_frame_seq_id_sections
                 .get(frame_seq_id)
                 .cloned()
@@ -272,21 +266,22 @@ where
                         &geometry,
                         &section.text,
                     ))
+                })
+                .unwrap_or_else(|| {
+                    let font = &self.fonts.font(font_id);
+                    layout.calculate_glyphs(
+                        font,
+                        scale,
+                        &geometry,
+                        &section.text
+                    )
                 });
 
             
             self.calculate_glyph_cache.insert(
                 section_hash.full,
                 Glyphed {
-                    glyphs: recalculated_glyphs.unwrap_or_else(|| {
-                        let font = &self.fonts.font(font_id);
-                        layout.calculate_glyphs(
-                            font,
-                            scale,
-                            &geometry,
-                            &section.text
-                        )
-                    }),
+                    glyphs,
                     z: section.z,
                     font_id,
                     vertices: Vec::new(),
@@ -476,10 +471,11 @@ where
 
     fn cleanup_frame(&mut self) {
         // clear section_buffer & trim calculate_glyph_cache to active sections
-        let active = mem::take(&mut self.keep_in_cache);
-        self.calculate_glyph_cache
-            .retain(|key, _| active.contains(key));
-        self.keep_in_cache = active;
+        {
+            let keep_in_cache = &self.keep_in_cache;
+            self.calculate_glyph_cache
+                .retain(|key, _| keep_in_cache.contains(key));
+        }
 
         self.keep_in_cache.clear();
 
