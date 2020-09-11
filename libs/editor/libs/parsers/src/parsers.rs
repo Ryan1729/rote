@@ -852,16 +852,16 @@ mod query {
         let mut drop_until_end_byte = None;
     
         perf_viz::start_record!("DepthFirst::new(tree)");
-        for (_, node) in DepthFirst::new(tree) {
-            //perf_viz::record_guard!("for (_, node) in DepthFirst::new(tree) body");
+        for node in nodes_from_tree(tree) {
+            perf_viz::record_guard!("for (_, node) in DepthFirst::new(tree) body");
             use SpanKindSpec::*;
     
-            //perf_viz::start_record!("node.end_byte()");
+            perf_viz::start_record!("node.end_byte()");
             let one_past_end = ByteIndex(node.end_byte());
-            //perf_viz::end_record!("node.end_byte()");
+            perf_viz::end_record!("node.end_byte()");
     
             {
-                //perf_viz::record_guard!("set drop_until_end_byte or continue");
+                perf_viz::record_guard!("set drop_until_end_byte or continue");
                 if let Some(end_byte) = drop_until_end_byte {
                     if one_past_end > end_byte {
                         drop_until_end_byte = None;
@@ -871,7 +871,7 @@ mod query {
                 }
             }
     
-            //perf_viz::start_record!("spans.push match");
+            perf_viz::start_record!("spans.push match");
             match span_kind_from_node(node) {
                 DropNode => {}
                 Kind(kind) => {
@@ -889,7 +889,7 @@ mod query {
                     });
                 }
             }
-            //perf_viz::end_record!("spans.push match");
+            perf_viz::end_record!("spans.push match");
         }
         perf_viz::end_record!("DepthFirst::new(tree)");
     
@@ -905,6 +905,22 @@ mod query {
         filter_spans(&mut spans);
     
         spans.into()
+    }
+
+    #[cfg(feature = "tree-traversal")]
+    fn nodes_from_tree(tree: &Tree) -> impl Iterator<Item = Node> {
+        DepthFirst::new(tree).map(|(_, node)| node)
+    }
+
+    // TODO: I suspect, (with little justification) that this way is faster for large
+    // amounts of nodes, when lots of branching happens during each iteration, due to
+    // better cache coherence. I should really confirm this for sure, since the
+    // difference, if there is one, is not dramatic enough to show up on the
+    // flamegraphs. And if this is indeed faster, I should avoid allocating
+    // this Vec every time.
+    #[cfg(not(feature = "tree-traversal"))]
+    fn nodes_from_tree(tree: &Tree) -> Vec<Node> {
+        DepthFirst::new(tree).map(|(_, node)| node).collect::<Vec<_>>()
     }
     
     type Depth = u8;
