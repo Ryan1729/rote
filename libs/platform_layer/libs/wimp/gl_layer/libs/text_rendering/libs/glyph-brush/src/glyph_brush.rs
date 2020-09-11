@@ -46,7 +46,7 @@ type SectionHash = u64;
 pub struct GlyphBrush<'font, V> {
     fonts: Vec<Font<'font>>,
     texture_cache: Cache<'font>,
-    last_draw: LastDrawInfo,
+    text_hash: u64,
 
     // cache of section-layout hash -> computed glyphs, this avoid repeated glyph computation
     // for identical layout/sections common to repeated frame rendering
@@ -89,7 +89,7 @@ where
                 .position_tolerance(0.25)
                 .align_4x4(false)
                 .build(),
-            last_draw: <_>::default(),
+            text_hash: <_>::default(),
             section_buffer: <_>::default(),
             calculate_glyph_cache: <_>::default(),
 
@@ -322,21 +322,18 @@ where
         F1: FnMut(Rect<u32>, &[u8]),
         F2: Fn(GlyphVertex) -> V + Copy,
     {
-        let draw_info = LastDrawInfo {
-            text_state: {
-                perf_viz::record_guard!("text_state");
-                let mut s = fast_hash::Hasher::default();
-                let s_ref = &mut s;
-                self.section_buffer.hash(s_ref);
-                if let Some(a_r) = additional_rects.as_ref() {
-                    a_r.rect_specs.hash(s_ref);
-                }
+        let text_hash = {
+            perf_viz::record_guard!("text_hash");
+            let mut hasher = fast_hash::Hasher::default();
+            self.section_buffer.hash(&mut hasher);
+            if let Some(a_r) = additional_rects.as_ref() {
+                a_r.rect_specs.hash(&mut hasher);
+            }
 
-                s.finish()
-            },
+            hasher.finish()
         };
 
-        let result = if self.last_draw != draw_info
+        let result = if self.text_hash != text_hash
             || self.last_pre_positioned != self.pre_positioned
         {
             perf_viz::record_guard!("prepare BrushAction::Draw");
@@ -386,7 +383,7 @@ where
                 }
             }
 
-            self.last_draw = draw_info;
+            self.text_hash = text_hash;
 
             BrushAction::Draw({
                 perf_viz::record_guard!("verts BrushAction::Draw");
@@ -464,7 +461,7 @@ where
             .dimensions(new_width, new_height)
             .rebuild(&mut self.texture_cache);
 
-        self.last_draw = LastDrawInfo::default();
+        self.text_hash = <_>::default();
 
         // invalidate any previous cache position data
         for glyphed in self.calculate_glyph_cache.values_mut() {
@@ -497,11 +494,6 @@ where
         mem::swap(&mut self.last_pre_positioned, &mut self.pre_positioned);
         self.pre_positioned.clear();
     }
-}
-
-#[derive(Debug, Default, PartialEq)]
-struct LastDrawInfo {
-    text_state: u64,
 }
 
 pub(crate) type TexCoords = Rect<f32>;
