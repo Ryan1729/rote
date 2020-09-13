@@ -8,6 +8,8 @@ pub struct State<'font> {
     text_rendering: text_rendering::State<'font>,
 }
 
+pub use text_rendering::FONT_LICENSE;
+
 pub fn init<F>(
     hidpi_factor: f32,
     text_sizes: &'static [f32],

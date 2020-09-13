@@ -403,6 +403,7 @@ impl <'font> State<'font> {
 pub(crate) type CharDims = Vec<CharDim>;
 
 const FONT_BYTES: &[u8] = include_bytes!("./fonts/FiraCode-Retina.ttf");
+pub const FONT_LICENSE: &str = include_str!("./fonts/LICENSE");
 
 pub fn new(hidpi_factor: f32, text_sizes: &[f32]) -> Res<(State, CharDims)> {
     let font = Font::from_bytes(FONT_BYTES)?;

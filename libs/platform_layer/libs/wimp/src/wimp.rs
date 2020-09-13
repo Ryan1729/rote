@@ -44,12 +44,13 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
     const HELP: &str = "--help";
     const DATA_DIR_OVERRIDE: &str = "--data-dir-override";
     const HIDPI_OVERRIDE: &str = "--hidpi-override";
+    const LICENSE: &str = "--license";
 
     while let Some(s) = args.next() {
         let s: &str = &s;
         match s {
             HELP => {
-                let accepted_args = [VERSION, HELP, DATA_DIR_OVERRIDE, HIDPI_OVERRIDE];
+                let accepted_args = [VERSION, HELP, DATA_DIR_OVERRIDE, HIDPI_OVERRIDE, LICENSE];
                 println!("accepted args: ");
                 for arg in accepted_args.iter() {
                     print!("    {}", arg);
@@ -64,7 +65,9 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                 std::process::exit(0)
             }
             VERSION => {
-                println!("{} version {}", title, env!("CARGO_PKG_VERSION"));
+                // We expect the main crate to unconditionally print the version.
+                // This is becasue the main crate has access to the correct 
+                // version value through the "CARGO_PKG_VERSION" env var.
                 std::process::exit(0)
             }
             DATA_DIR_OVERRIDE => {
@@ -87,6 +90,15 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                     use std::str::FromStr;
                     f64::from_str(&s).ok()
                 });
+            }
+            LICENSE => {
+                println!("{} program by Ryan Wiedemann.", title);
+                println!("Source and license available at:");
+                println!("    https://github.com/Ryan1729/{}", title);
+                println!("");
+                println!("License for the font:");
+                println!("{}", gl_layer::FONT_LICENSE);
+                std::process::exit(0)
             }
             _ => {
                 eprintln!("unknown arg {:?}", s);
