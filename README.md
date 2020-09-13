@@ -1,14 +1,14 @@
 # rote - Ryan's Own Text Editor
 
-# NOT EVEN CLOSE TO FUNCTIONAL (... yet?)
+# JUST BARELY FUNCTIONAL (... as of yet?)
 
-I'm starting this project over, this time as a graphical editor from the start instead of a terminal based one.
+This is a text editor, designed for my own use. It's at the point that I can and do use it to edit its own source code, but there's loads more to do yet.
 
-![demo gif](/rote-0.2.10.gif?raw=true "Demo gif of a text editor performing a simple editing task")
+![demo gif](/rote-0.2.165.png?raw=true "image of a text editor with syntax highlighting of some weird rust code")
 
 ## Plan
-* implement everything in [MVP-FEATURES.md](./design/MVP-FEATURES.md).
-* Think of more useful features and/or add support for external code scanning programs like [`rls`](https://github.com/rust-lang/rls)
+* implement everything in [TODO.md](./design/TODO.md) and [MVP-FEATURES.md](./design/MVP-FEATURES.md).
+* Think of more useful features?
 
 ____
 
