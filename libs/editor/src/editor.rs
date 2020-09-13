@@ -1,4 +1,3 @@
-
 use macros::{d, dbg, fmt_debug, u, SaturatingSub};
 use platform_types::{screen_positioning::*, *};
 use parsers::{Parsers, ParserKind};
@@ -150,7 +149,6 @@ fmt_debug!(
         blank_if_default!(view);
     }
 );
-
 
 // this macro helps the borrow checker figure out that borrows are valid.
 macro_rules! get_text_buffer_mut {
@@ -417,7 +415,6 @@ macro_rules! set_if_present {
     };
 }
 
-//#[check_or_no_panic::check_or_no_panic]
 pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutput {
     perf_viz::record_guard!("update_and_render");
     let start_time = Instant::now();
@@ -762,7 +759,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                 state.set_id(id);
                 close_menu_if_any!();
             } else {
-                cmd = Cmd::LoadFile(path);            
+                cmd = Cmd::LoadFile(path);
                 // No need to mark the edited transition here since we will do
                 // that in the `AddOrSelectBuffer` case when the file actualy arrives.
             }

@@ -66,7 +66,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
             }
             VERSION => {
                 // We expect the main crate to unconditionally print the version.
-                // This is becasue the main crate has access to the correct 
+                // This is becasue the main crate has access to the correct
                 // version value through the "CARGO_PKG_VERSION" env var.
                 std::process::exit(0)
             }
