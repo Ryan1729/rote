@@ -13,7 +13,7 @@ readme="README.md"
 path = "./src/glyph_brush.rs"
 
 [dependencies]
-rasterizer = { path = "./libs/rasterizer" }
+rasterizer = { path = "./libs/rasterizer", features = ["rusttype"] }
 fast_hash = { path = "../../../../../../../../fast_hash" }
 perf_viz = { path = "../../../../../../../../perf_viz" }
 if_changed = { path = "../../../../../../../../if_changed" }
