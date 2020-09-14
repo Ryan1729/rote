@@ -9,8 +9,11 @@ keywords = ["font", "ttf", "truetype", "text"]
 license = "Apache-2.0"
 readme="README.md"
 
+[lib]
+path = "./src/glyph_brush.rs"
+
 [dependencies]
-full_rusttype = { version = "0.8.3", features = ["gpu_cache"], package = "rusttype" }
+rasterizer = { path = "./libs/rasterizer" }
 fast_hash = { path = "../../../../../../../../fast_hash" }
 perf_viz = { path = "../../../../../../../../perf_viz" }
 if_changed = { path = "../../../../../../../../if_changed" }

@@ -9,7 +9,7 @@ use gl_layer_types::{Vertex, VertexStruct, set_alpha, TextOrRect, Res};
 use macros::{d, dbg};
 
 use glyph_brush::{
-    rusttype::{Font, Scale},
+    Font, Scale,
     Bounds, BrushAction, BrushError, GlyphBrush,
     RectSpec, PixelCoords, Section, SectionText, VariedSection,
     AdditionalRects, GlyphVertex,
@@ -24,7 +24,7 @@ mod text_layouts {
         ssr,
     };
     use glyph_brush::{
-        rusttype::{Font, Scale, Rect, point},
+        Font, Scale, Rect, point,
         CalculatedGlyph,
         GlyphPositioner,
         SectionGeometry,
@@ -240,7 +240,7 @@ mod text_layouts {
 }
 use text_layouts::{Unbounded, UnboundedLayoutClipped};
 
-pub type TextureRect = glyph_brush::rusttype::Rect<u32>;
+pub type TextureRect = glyph_brush::Rect<u32>;
 
 pub struct State<'font> {
     pub(crate) glyph_brush: GlyphBrush<'font, Vertex>,
@@ -525,13 +525,11 @@ fn to_vertex_maker((screen_w, screen_h): (f32, f32)) -> impl Fn(GlyphVertex) -> 
 
 mod unbounded {
     use glyph_brush::{
-        rusttype::{
-            ScaledGlyph,
-            point,
-            vector,
-            Scale,
-            Font,
-        },
+        ScaledGlyph,
+        point,
+        vector,
+        Scale,
+        Font,
         RelativePositionedGlyph,
         SectionText,
         Color,

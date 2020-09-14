@@ -1,0 +1,11 @@
+[package]
+name = "rasterizer"
+version = "0.1.0"
+authors = ["Ryan1729 <Ryan1729@gmail.com>"]
+edition = "2018"
+
+[lib]
+path = "./src/rasterizer.rs"
+
+[dependencies]
+rusttype = { version = "0.8.3", features = ["gpu_cache"] }

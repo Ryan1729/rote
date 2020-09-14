@@ -1,4 +1,5 @@
-use super::*;
+use crate::{FontId};
+use rasterizer::Scale;
 use std::{borrow::Cow, f32, hash::*};
 
 /// RGBA `[0, 1]` color data.

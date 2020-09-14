@@ -1,5 +1,5 @@
-use super::*;
-use full_rusttype::gpu_cache::{Cache, CachedBy};
+#![deny(unused)]
+use rasterizer::{Cache, CachedBy};
 use std::{
     borrow::Cow,
     fmt,
@@ -7,7 +7,66 @@ use std::{
     i32, mem,
 };
 
-use crate::{Font};
+mod owned_section;
+mod section;
+
+pub use rasterizer::{
+    point, vector, Error, Font, Glyph, GlyphId, HMetrics, Point, PositionedGlyph,
+    Rect, Scale, ScaledGlyph, Vector, VMetrics,
+};
+
+pub use crate::{
+    owned_section::*,
+    section::*,
+};
+
+/// Id for a font
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
+pub struct FontId(pub(crate) usize);
+
+/// A scaled glyph that's relatively positioned.
+pub struct RelativePositionedGlyph<'font> {
+    pub relative: Point<f32>,
+    pub glyph: ScaledGlyph<'font>,
+}
+
+impl<'font> RelativePositionedGlyph<'font> {
+    #[inline]
+    pub fn bounds(&self) -> Option<Rect<f32>> {
+        self.glyph.exact_bounding_box().map(|mut bb| {
+            bb.min.x += self.relative.x;
+            bb.min.y += self.relative.y;
+            bb.max.x += self.relative.x;
+            bb.max.y += self.relative.y;
+            bb
+        })
+    }
+
+    #[inline]
+    pub fn screen_positioned(self, mut pos: Point<f32>) -> PositionedGlyph<'font> {
+        pos.x += self.relative.x;
+        pos.y += self.relative.y;
+        self.glyph.positioned(pos)
+    }
+}
+
+pub type CalculatedGlyph<'font> = (PositionedGlyph<'font>, Color);
+
+/// Logic to calculate glyph positioning using [`Font`](struct.Font.html),
+/// [`SectionGeometry`](struct.SectionGeometry.html) and
+/// [`SectionText`](struct.SectionText.html).
+pub trait GlyphPositioner: Hash {
+    /// Calculate a sequence of positioned glyphs to render. Implementations should
+    /// return the same result when called with the same arguments to allow layout caching.
+    fn calculate_glyphs<'font>(
+        &self,
+        font: &Font<'font>,
+        scale: Scale,
+        geometry: &SectionGeometry,
+        sections: &[SectionText<'_>],
+    ) -> Vec<CalculatedGlyph<'font>>;
+}
+
 
 /// A hash of `Section` data
 type SectionHash = u64;
@@ -109,7 +168,7 @@ pub type CalculatedGlyphIter<'a, 'font> = std::iter::Map<
     std::slice::Iter<'a, CalculatedGlyph<'font>>,
     fn(
         &'a CalculatedGlyph<'font>,
-    ) -> &'a rusttype::PositionedGlyph<'font>,
+    ) -> &'a rasterizer::PositionedGlyph<'font>,
 >;
 
 #[derive(Clone, Default, Debug)]
@@ -255,7 +314,7 @@ where
                 .get(frame_seq_id)
                 .cloned()
                 .and_then(|hash| {
-                    let font = &self.fonts.font(font_id);
+                    let font = &self.fonts[font_id.0];
                     let change = hash.diff(section_hash);
                     if let GlyphChange::Unknown = change {
                         return None;
@@ -280,7 +339,7 @@ where
                     ))
                 })
                 .unwrap_or_else(|| {
-                    let font = &self.fonts.font(font_id);
+                    let font = &self.fonts[font_id.0];
                     layout.calculate_glyphs(
                         font,
                         scale,
