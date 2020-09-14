@@ -95,7 +95,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                 println!("{} program by Ryan Wiedemann.", title);
                 println!("Source and license available at:");
                 println!("    https://github.com/Ryan1729/{}", title);
-                println!("");
+                println!();
                 println!("License for the font:");
                 println!("{}", gl_layer::FONT_LICENSE);
                 std::process::exit(0)
