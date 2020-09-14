@@ -527,7 +527,6 @@ mod unbounded {
     use glyph_brush::{
         ScaledGlyph,
         point,
-        vector,
         Scale,
         Font,
         RelativePositionedGlyph,
@@ -580,7 +579,7 @@ mod unbounded {
     
         fn next(&mut self) -> Option<Self::Item> {
             let characters = &self.characters;
-            let mut caret = vector(
+            let mut caret = point(
                 0.0,
                 characters.font.v_metrics(characters.scale).ascent
             );
@@ -624,7 +623,10 @@ mod unbounded {
                         layout_width += advance_width;
         
                         if positioned.bounds().is_some() {
-                            positioned.relative = positioned.relative + caret;
+                            positioned.relative = point(
+                                positioned.relative.x + caret.x,
+                                positioned.relative.y + caret.y,
+                            );
                             line.glyphs.push((positioned, color));
                         }
                     }

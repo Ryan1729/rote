@@ -11,8 +11,8 @@ mod owned_section;
 mod section;
 
 pub use rasterizer::{
-    point, vector, Error, Font, Glyph, GlyphId, HMetrics, Point, PositionedGlyph,
-    Rect, Scale, ScaledGlyph, Vector, VMetrics,
+    point, Font, Glyph, GlyphId, HMetrics, Point, PositionedGlyph,
+    Rect, Scale, ScaledGlyph, VMetrics,
 };
 
 pub use crate::{
@@ -225,15 +225,18 @@ where
     match change {
         GlyphChange::Geometry(old) if old.bounds == geometry.bounds => {
             // position change
-            let adjustment = vector(
+            let adjustment = point(
                 geometry.screen_position.0 - old.screen_position.0,
                 geometry.screen_position.1 - old.screen_position.1,
             );
 
             let mut glyphs = previous.into_owned();
             for (glyph, ..) in &mut glyphs {
-                let new_pos = glyph.position() + adjustment;
-                glyph.set_position(new_pos);
+                let pos = glyph.position();
+                glyph.set_position(point(
+                    pos.x + adjustment.x,
+                    pos.y + adjustment.y,
+                ));
             }
 
             glyphs
