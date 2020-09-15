@@ -626,17 +626,12 @@ mod unbounded {
                         let mut positioned = glyph.clone();
                         add_position(
                             &mut positioned,
-                            point(layout_width, 0.0)
-                        );
-
-                        layout_width += advance_width;
-
-                        add_position(
-                            &mut positioned,
-                            caret
+                            point(caret.x + layout_width, caret.y)
                         );
 
                         line.glyphs.push((positioned, color));
+
+                        layout_width += advance_width;
                     }
         
                     if is_linebreak {
