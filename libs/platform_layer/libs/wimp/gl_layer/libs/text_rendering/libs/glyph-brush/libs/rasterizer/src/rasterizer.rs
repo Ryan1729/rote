@@ -5,12 +5,13 @@ compile_error!("Either feature \"rusttype\" or \"glyph_brush_draw_cache\" must b
 
 #[cfg(feature = "rusttype")]
 pub use rusttype::{
-    Font, PositionedGlyph as Glyph, GlyphId, HMetrics,
-    Rect, Scale, ScaledGlyph, VMetrics,
+    Font, PositionedGlyph as Glyph, GlyphId,
+    Rect, Scale, ScaledGlyph,
     point,
     gpu_cache::{Cache, CachedBy},
 };
 
+#[cfg(feature = "rusttype")]
 pub type Point = rusttype::Point<f32>;
 
 #[cfg(feature = "rusttype")]
@@ -41,11 +42,17 @@ pub fn get_advance_width(glyph: &Glyph) -> f32 {
 #[cfg(feature = "glyph_brush_draw_cache")]
 pub use glyph_brush_draw_cache::{
     ab_glyph::{
-        Font, Glyph, GlyphId, HMetrics, Point,
-        Rect, PxScale as Scale, VMetrics,
+        FontVec as Font, Glyph, GlyphId, Point,
+        Rect, PxScale as Scale,
         point,
     },
     DrawCache as Cache, CachedBy
+};
+
+#[cfg(feature = "glyph_brush_draw_cache")]
+use glyph_brush_draw_cache::ab_glyph::{
+    Font as _,
+    ScaleFont as _,
 };
 
 #[cfg(feature = "glyph_brush_draw_cache")]
@@ -64,6 +71,6 @@ pub fn add_position(glyph: &mut Glyph, position: Point) {
 }
 
 #[cfg(feature = "glyph_brush_draw_cache")]
-pub fn get_advance_width(glyph: &Glyph) -> f32 {
-    glyph.advance_width()
+pub fn get_advance_width(font: &Font, glyph: &Glyph) -> f32 {
+    font.as_scaled(glyph.scale).h_advance(glyph.id)
 }

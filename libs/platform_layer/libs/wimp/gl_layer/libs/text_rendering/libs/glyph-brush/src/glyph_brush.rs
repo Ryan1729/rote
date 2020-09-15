@@ -11,8 +11,8 @@ mod owned_section;
 mod section;
 
 pub use rasterizer::{
-    Font, GlyphId, HMetrics, Point, Glyph,
-    Rect, Scale, VMetrics,
+    Font, GlyphId, Point, Glyph,
+    Rect, Scale,
     point,
     new_glyph,
     get_advance_width, add_position,
