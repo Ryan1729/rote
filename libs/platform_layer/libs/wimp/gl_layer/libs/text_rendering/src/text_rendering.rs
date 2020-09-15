@@ -14,6 +14,9 @@ use glyph_brush::{
     Bounds, BrushAction, BrushError, GlyphBrush,
     RectSpec, PixelCoords, Section, SectionText, VariedSection,
     AdditionalRects, GlyphVertex,
+    new_glyph,
+    get_advance_width,
+    get_line_height,
     point,
 };
 
@@ -32,6 +35,7 @@ mod text_layouts {
         SectionGeometry,
         SectionText,
         add_position,
+        get_line_height,
     };
 
     pub fn ssr_to_rusttype_i32(ssr!(min_x, min_y, max_x, max_y): ScreenSpaceRect) -> Rect<i32> {
@@ -60,8 +64,7 @@ mod text_layouts {
 
             let lines = unbounded::get_lines_iter(font, scale, sections);
             
-            let v_metrics = font.v_metrics(scale);
-            let line_height: f32 = v_metrics.ascent - v_metrics.descent + v_metrics.line_gap;
+            let line_height: f32 = get_line_height(font, scale);
     
             for line in lines {
                 if !line.glyphs.is_empty() {
@@ -127,8 +130,7 @@ mod text_layouts {
         if let Some(mut line) = lines.next() {
             perf_viz::start_record!("UnboundedLayoutClipped loop prep");
 
-            let v_metrics = font.v_metrics(scale);
-            let line_height: f32 = v_metrics.ascent - v_metrics.descent + v_metrics.line_gap;
+            let line_height: f32 = get_line_height(font, scale);
             
             let min_y: f32 = clip.min.y as f32 - line_height - line_height;
             let max_y: f32 = clip.max.y as f32 + line_height + line_height;
@@ -413,21 +415,17 @@ pub const FONT_LICENSE: &str = include_str!("./fonts/LICENSE");
 pub fn new(hidpi_factor: f32, text_sizes: &[f32]) -> Res<(State, CharDims)> {
     let font = Font::from_bytes(FONT_BYTES)?;
 
+    // We currently assume the font is monospaced.
+    let em_space_char = '\u{2003}';
+
     macro_rules! get_char_dim {
         ($scale:expr) => {{
             let scale = $scale;
             char_dim!({
-                    // We currently assume the font is monospaced.
-                    let em_space_char = '\u{2003}';
-                    let h_metrics = font.glyph(em_space_char).scaled(scale).h_metrics();
-
-                    h_metrics.advance_width
+                    let em_space_glyph = new_glyph(&font, em_space_char, scale, d!());
+                    get_advance_width(&font, &em_space_glyph)
                 },
-                {
-                    let v_metrics = font.v_metrics(scale);
-
-                    v_metrics.ascent + -v_metrics.descent + v_metrics.line_gap
-                },
+                get_line_height(&font, scale),
             )
         }};
     }
@@ -621,7 +619,7 @@ mod unbounded {
                     }
         
                     if !control {
-                        let advance_width = get_advance_width(&glyph);
+                        let advance_width = get_advance_width(font, &glyph);
 
                         let mut positioned = glyph.clone();
                         add_position(

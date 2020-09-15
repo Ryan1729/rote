@@ -15,6 +15,7 @@ pub use rasterizer::{
     Rect, Scale,
     point,
     new_glyph,
+    get_line_height,
     get_advance_width, add_position,
 };
 
