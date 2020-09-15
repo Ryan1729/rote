@@ -11,8 +11,12 @@ mod owned_section;
 mod section;
 
 pub use rasterizer::{
-    point, Font, Glyph, GlyphId, HMetrics, Point, PositionedGlyph,
-    Rect, Scale, ScaledGlyph, VMetrics,
+    Font, GlyphId, HMetrics, Point, Glyph,
+    Rect, Scale, VMetrics,
+    point,
+    has_bounding_box,
+    new_glyph,
+    get_advance_width, add_position, get_position, set_position,
 };
 
 pub use crate::{
@@ -24,33 +28,7 @@ pub use crate::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
 pub struct FontId(pub(crate) usize);
 
-/// A scaled glyph that's relatively positioned.
-pub struct RelativePositionedGlyph<'font> {
-    pub relative: Point<f32>,
-    pub glyph: ScaledGlyph<'font>,
-}
-
-impl<'font> RelativePositionedGlyph<'font> {
-    #[inline]
-    pub fn bounds(&self) -> Option<Rect<f32>> {
-        self.glyph.exact_bounding_box().map(|mut bb| {
-            bb.min.x += self.relative.x;
-            bb.min.y += self.relative.y;
-            bb.max.x += self.relative.x;
-            bb.max.y += self.relative.y;
-            bb
-        })
-    }
-
-    #[inline]
-    pub fn screen_positioned(self, mut pos: Point<f32>) -> PositionedGlyph<'font> {
-        pos.x += self.relative.x;
-        pos.y += self.relative.y;
-        self.glyph.positioned(pos)
-    }
-}
-
-pub type CalculatedGlyph<'font> = (PositionedGlyph<'font>, Color);
+pub type CalculatedGlyph<'font> = (Glyph<'font>, Color);
 
 /// Logic to calculate glyph positioning using [`Font`](struct.Font.html),
 /// [`SectionGeometry`](struct.SectionGeometry.html) and
@@ -168,7 +146,7 @@ pub type CalculatedGlyphIter<'a, 'font> = std::iter::Map<
     std::slice::Iter<'a, CalculatedGlyph<'font>>,
     fn(
         &'a CalculatedGlyph<'font>,
-    ) -> &'a rasterizer::PositionedGlyph<'font>,
+    ) -> &'a rasterizer::Glyph<'font>,
 >;
 
 #[derive(Clone, Default, Debug)]

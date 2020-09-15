@@ -13,7 +13,6 @@ path = "./src/text_rendering.rs"
 gl_layer_types = {path = "../gl_layer_types"}
 glyph_brush = {path = "./libs/glyph-brush"}
 linebreak = {path = "./libs/linebreak"}
-rusttype = "0.8"
 macros = { path = "../../../../../../macros" }
 is_linebreak_char = { path = "../../../../../../is_linebreak_char" }
 perf_viz = { path = "../../../../../../perf_viz" }

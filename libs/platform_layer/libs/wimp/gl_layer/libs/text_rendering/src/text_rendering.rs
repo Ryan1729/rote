@@ -9,10 +9,12 @@ use gl_layer_types::{Vertex, VertexStruct, set_alpha, TextOrRect, Res};
 use macros::{d, dbg};
 
 use glyph_brush::{
+    Rect,
     Font, Scale,
     Bounds, BrushAction, BrushError, GlyphBrush,
     RectSpec, PixelCoords, Section, SectionText, VariedSection,
     AdditionalRects, GlyphVertex,
+    point,
 };
 
 mod text_layouts {
@@ -29,6 +31,7 @@ mod text_layouts {
         GlyphPositioner,
         SectionGeometry,
         SectionText,
+        add_position,
     };
 
     pub fn ssr_to_rusttype_i32(ssr!(min_x, min_y, max_x, max_y): ScreenSpaceRect) -> Rect<i32> {
@@ -67,9 +70,10 @@ mod text_layouts {
                     out.extend(
                         line.glyphs
                             .into_iter()
-                            .map(|(glyph, color)| 
-                                (glyph.screen_positioned(screen_pos), color)
-                            )
+                            .map(|(mut glyph, color)| {
+                                add_position(&mut glyph, screen_pos);
+                                (glyph, color)
+                            })
                     );
                 }
                 caret.1 += line_height;
@@ -179,9 +183,10 @@ mod text_layouts {
                     let tuples = line
                         .glyphs
                         .into_iter()
-                        .map(|(glyph, color)| 
-                            (glyph.screen_positioned(screen_pos), color)
-                        );
+                        .map(|(mut glyph, color)| {
+                            add_position(&mut glyph, screen_pos);
+                            (glyph, color)
+                        });
                     perf_viz::end_record!("glyph.screen_positioned");
         
                     perf_viz::start_record!("out.extend");
@@ -457,23 +462,23 @@ fn to_vertex_maker((screen_w, screen_h): (f32, f32)) -> impl Fn(GlyphVertex) -> 
         z,
     }: GlyphVertex| {
         perf_viz::record_guard!("to_vertex");
-        let gl_bounds = rusttype::Rect {
-            min: rusttype::point(
+        let gl_bounds = Rect {
+            min: point(
                 2.0 * (bounds.min.x / screen_w - 0.5),
                 2.0 * (0.5 - bounds.min.y / screen_h),
             ),
-            max: rusttype::point(
+            max: point(
                 2.0 * (bounds.max.x / screen_w - 0.5),
                 2.0 * (0.5 - bounds.max.y / screen_h),
             ),
         };
     
-        let mut gl_rect = rusttype::Rect {
-            min: rusttype::point(
+        let mut gl_rect = Rect {
+            min: point(
                 2.0 * (pixel_coords.min.x as f32 / screen_w - 0.5),
                 2.0 * (0.5 - pixel_coords.min.y as f32 / screen_h),
             ),
-            max: rusttype::point(
+            max: point(
                 2.0 * (pixel_coords.max.x as f32 / screen_w - 0.5),
                 2.0 * (0.5 - pixel_coords.max.y as f32 / screen_h),
             ),
@@ -525,14 +530,19 @@ fn to_vertex_maker((screen_w, screen_h): (f32, f32)) -> impl Fn(GlyphVertex) -> 
 
 mod unbounded {
     use glyph_brush::{
-        ScaledGlyph,
+        Glyph,
         point,
         Scale,
         Font,
-        RelativePositionedGlyph,
         SectionText,
         Color,
+        has_bounding_box,
+        add_position,
+        set_position,
+        new_glyph,
+        get_advance_width,
     };
+    use macros::{d};
     use linebreak::{
         Linebreak,
         LinebreakIter,
@@ -564,7 +574,7 @@ mod unbounded {
     }
     
     pub(crate) struct UnboundedLine<'font> {
-        pub(crate) glyphs: Vec<(RelativePositionedGlyph<'font>, [f32; 4])>,
+        pub(crate) glyphs: Vec<(Glyph<'font>, [f32; 4])>,
     }
     
     pub(crate) struct UnboundedLines<'a, 'b, 'font>
@@ -613,19 +623,17 @@ mod unbounded {
                     }
         
                     if !control {
-                        let advance_width = glyph.h_metrics().advance_width;
+                        let advance_width = get_advance_width(&glyph);
 
-                        let mut positioned = RelativePositionedGlyph {
-                            relative: point(layout_width, 0.0),
-                            glyph,
-                        };
+                        let mut positioned = glyph.clone();
+                        set_position(&mut positioned, point(layout_width, 0.0));
         
                         layout_width += advance_width;
         
-                        if positioned.bounds().is_some() {
-                            positioned.relative = point(
-                                positioned.relative.x + caret.x,
-                                positioned.relative.y + caret.y,
+                        if has_bounding_box(&positioned) {
+                            add_position(
+                                &mut positioned,
+                                caret
                             );
                             line.glyphs.push((positioned, color));
                         }
@@ -709,7 +717,7 @@ mod unbounded {
                         }
                     }
     
-                    let glyph = self.font.glyph(c).scaled(self.scale);
+                    let glyph = new_glyph(&self.font, c, self.scale, d!());
     
                     let c_len = c.len_utf8();
                     let mut linebreak = next_break.filter(|b| b.offset() == byte_index + c_len);
@@ -743,7 +751,7 @@ mod unbounded {
     
     /// Single character info
     struct Character<'font> {
-        glyph: ScaledGlyph<'font>,
+        glyph: Glyph<'font>,
         color: Color,
         is_linebreak: bool,
         /// Equivalent to `char::is_control()`.
