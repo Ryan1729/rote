@@ -536,9 +536,7 @@ mod unbounded {
         Font,
         SectionText,
         Color,
-        has_bounding_box,
         add_position,
-        set_position,
         new_glyph,
         get_advance_width,
     };
@@ -626,17 +624,19 @@ mod unbounded {
                         let advance_width = get_advance_width(&glyph);
 
                         let mut positioned = glyph.clone();
-                        set_position(&mut positioned, point(layout_width, 0.0));
-        
+                        add_position(
+                            &mut positioned,
+                            point(layout_width, 0.0)
+                        );
+
                         layout_width += advance_width;
-        
-                        if has_bounding_box(&positioned) {
-                            add_position(
-                                &mut positioned,
-                                caret
-                            );
-                            line.glyphs.push((positioned, color));
-                        }
+
+                        add_position(
+                            &mut positioned,
+                            caret
+                        );
+
+                        line.glyphs.push((positioned, color));
                     }
         
                     if is_linebreak {

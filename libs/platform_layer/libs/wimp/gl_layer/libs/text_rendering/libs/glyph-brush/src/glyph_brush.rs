@@ -14,9 +14,8 @@ pub use rasterizer::{
     Font, GlyphId, HMetrics, Point, Glyph,
     Rect, Scale, VMetrics,
     point,
-    has_bounding_box,
     new_glyph,
-    get_advance_width, add_position, get_position, set_position,
+    get_advance_width, add_position,
 };
 
 pub use crate::{

@@ -24,21 +24,6 @@ pub fn new_glyph<'font>(
 }
 
 #[cfg(feature = "rusttype")]
-pub fn has_bounding_box(glyph: &Glyph) -> bool {
-    glyph.pixel_bounding_box().is_some()
-}
-
-#[cfg(feature = "rusttype")]
-pub fn get_position(glyph: &Glyph) -> Point {
-    glyph.position()
-}
-
-#[cfg(feature = "rusttype")]
-pub fn set_position(glyph: &mut Glyph, pos: Point) {
-    glyph.set_position(pos);
-}
-
-#[cfg(feature = "rusttype")]
 pub fn add_position(glyph: &mut Glyph, position: Point) {
     let mut pos = glyph.position();
 
@@ -70,21 +55,6 @@ pub fn new_glyph(font: &Font, c: char, scale: Scale, position: Point) -> Glyph {
         scale,
         position,
     }
-}
-
-#[cfg(feature = "glyph_brush_draw_cache")]
-pub fn has_bounding_box(glyph: &Glyph) -> bool {
-    glyph.pixel_bounding_box().is_some()
-}
-
-#[cfg(feature = "glyph_brush_draw_cache")]
-pub fn get_position(glyph: &Glyph) -> Point {
-    glyph.position
-}
-
-#[cfg(feature = "glyph_brush_draw_cache")]
-pub fn set_position(glyph: &mut Glyph, pos: Point) {
-    glyph.position = pos;
 }
 
 #[cfg(feature = "glyph_brush_draw_cache")]
