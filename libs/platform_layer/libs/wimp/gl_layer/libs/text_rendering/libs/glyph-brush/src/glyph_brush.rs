@@ -4,7 +4,7 @@ use std::{
     borrow::Cow,
     fmt,
     hash::{Hash, Hasher},
-    i32, mem,
+    mem,
 };
 
 mod owned_section;
@@ -14,9 +14,18 @@ pub use rasterizer::{
     Font, GlyphId, Point, Glyph,
     Rect, Scale,
     point,
+    new_cache,
     new_glyph,
     get_line_height,
-    get_advance_width, add_position,
+    get_advance_width,
+    add_position,
+    dimensions,
+    intersects,
+};
+
+use rasterizer::{
+    queue_glyph,
+    rect_for,
 };
 
 pub use crate::{
@@ -113,12 +122,7 @@ where
     fn using_fonts<Fonts: Into<Vec<Font<'font>>>>(fonts: Fonts) -> Self {
         GlyphBrush {
             fonts: fonts.into(),
-            texture_cache: Cache::builder()
-                .dimensions(256, 256)
-                .scale_tolerance(0.5)
-                .position_tolerance(0.25)
-                .align_4x4(false)
-                .build(),
+            texture_cache: new_cache::<'font>(),
             text_hash: <_>::default(),
             section_buffer: <_>::default(),
             calculate_glyph_cache: <_>::default(),
@@ -159,7 +163,10 @@ pub struct RectSpec {
 
 impl Hash for RectSpec {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.pixel_coords.hash(state);
+        self.pixel_coords.min.x.to_bits().hash(state);
+        self.pixel_coords.min.y.to_bits().hash(state);
+        self.pixel_coords.max.x.to_bits().hash(state);
+        self.pixel_coords.max.y.to_bits().hash(state);
         self.bounds.min.x.to_bits().hash(state);
         self.bounds.min.y.to_bits().hash(state);
         self.bounds.max.x.to_bits().hash(state);
@@ -368,7 +375,7 @@ where
         additional_rects: Option<AdditionalRects<V>>,
     ) -> Result<BrushAction<V>, BrushError>
     where
-        F1: FnMut(Rect<u32>, &[u8]),
+        F1: FnMut(TextureRect, &[u8]),
         F2: Fn(GlyphVertex) -> V + Copy,
     {
         let text_hash = {
@@ -398,7 +405,11 @@ where
                 {
                     let font_id = positioned.font_id;
                     for &(ref glyph, _) in positioned.glyphs.iter() {
-                        self.texture_cache.queue_glyph(font_id.0, glyph.clone());
+                        queue_glyph(
+                            &mut self.texture_cache,
+                            font_id.0,
+                            glyph.clone(),
+                        );
                         some_text = true;
                     }
                 }
@@ -410,19 +421,22 @@ where
             {
                 let font_id = positioned.font_id;
                 for &(ref glyph, _) in positioned.glyphs.iter() {
-                    self.texture_cache.queue_glyph(font_id.0, glyph.clone());
+                    queue_glyph(&mut self.texture_cache, font_id.0, glyph.clone());
                     some_text = true;
                 }
             }
 
             if some_text {
-                match self.texture_cache.cache_queued(update_texture) {
+                match rasterizer::cache_queued(
+                    &mut self.texture_cache,
+                    update_texture,
+                ) {
                     Ok(CachedBy::Adding) => {}
                     Ok(CachedBy::Reordering) => {
                         self.invalidate_texture_positions();
                     }
                     Err(_) => {
-                        let (width, height) = self.texture_cache.dimensions();
+                        let (width, height) = dimensions(&self.texture_cache);
                         return Err(BrushError::TextureTooSmall {
                             suggested: (width * 2, height * 2),
                         });
@@ -503,10 +517,11 @@ where
     /// # Example
     ///
     pub fn resize_texture(&mut self, new_width: u32, new_height: u32) {
-        self.texture_cache
-            .to_builder()
-            .dimensions(new_width, new_height)
-            .rebuild(&mut self.texture_cache);
+        rasterizer::resize_texture(
+            &mut self.texture_cache,
+            new_width,
+            new_height,
+        );
 
         self.text_hash = <_>::default();
 
@@ -515,7 +530,7 @@ where
 
     /// Returns the logical texture cache pixel dimensions `(width, height)`.
     pub fn texture_dimensions(&self) -> (u32, u32) {
-        self.texture_cache.dimensions()
+        dimensions(&self.texture_cache)
     }
 
     fn cleanup_frame(&mut self) {
@@ -541,14 +556,19 @@ where
     }
 }
 
-pub(crate) type TexCoords = Rect<f32>;
-pub type PixelCoords = Rect<i32>;
-pub type Bounds = Rect<f32>;
+pub type TextureCoords = rasterizer::TextureCoords;
+pub type PixelCoords = rasterizer::PixelCoords;
+pub type TextureRect = rasterizer::TextureRect;
+
+/// A Bounds struct specifies floating point coordinates on the screen, inside
+/// of which the text should be rendered, and outside of which the text
+/// should not be.
+pub type Bounds = Rect;
 
 /// Data used to generate vertex information for a single glyph
 #[derive(Debug, Default)]
 pub struct GlyphVertex {
-    pub tex_coords: TexCoords,
+    pub tex_coords: TextureCoords,
     pub pixel_coords: PixelCoords,
     pub bounds: Bounds,
     pub color: Color,
@@ -725,7 +745,7 @@ impl<'font, V> Glyphed<'font, V> {
         perf_viz::record_guard!("ensure_vertices extend");
         self.vertices
             .extend(glyphs.iter().filter_map(|(glyph, color)| {
-                match texture_cache.rect_for(font_id.0, glyph) {
+                match rect_for(texture_cache, font_id.0, glyph) {
                     Err(err) => {
                         eprintln!("Cache miss?: {:?}, {:?}: {}", font_id, glyph, err);
                         None
@@ -733,9 +753,9 @@ impl<'font, V> Glyphed<'font, V> {
                     Ok(None) => {
                         None
                     },
-                    Ok(Some((tex_coords, pixel_coords))) => {
+                    Ok(Some(rasterizer::Coords{ texture, pixel })) => {
                         use std::f32::INFINITY;
-                        const INFINITY_RECT: Rect<f32> = Rect {
+                        const INFINITY_RECT: Rect = Rect {
                             min: Point {
                                 x: -INFINITY,
                                 y: -INFINITY,
@@ -747,8 +767,8 @@ impl<'font, V> Glyphed<'font, V> {
                         };
 
                         Some(to_vertex(GlyphVertex {
-                            tex_coords,
-                            pixel_coords,
+                            tex_coords: texture,
+                            pixel_coords: pixel,
                             bounds: INFINITY_RECT,
                             color: *color,
                             z: *z,

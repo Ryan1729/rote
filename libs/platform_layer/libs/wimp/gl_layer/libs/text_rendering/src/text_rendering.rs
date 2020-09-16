@@ -36,14 +36,15 @@ mod text_layouts {
         SectionText,
         add_position,
         get_line_height,
+        intersects,
     };
 
-    pub fn ssr_to_rusttype_i32(ssr!(min_x, min_y, max_x, max_y): ScreenSpaceRect) -> Rect<i32> {
-        let mut rect: Rect<i32> = d!();
-        rect.min.x = min_x.trunc_to_i32();
-        rect.min.y = min_y.trunc_to_i32();
-        rect.max.x = max_x.trunc_to_i32();
-        rect.max.y = max_y.trunc_to_i32();
+    pub fn ssr_to_glyph_brush_rect(ssr!(min_x, min_y, max_x, max_y): ScreenSpaceRect) -> Rect {
+        let mut rect: Rect = d!();
+        rect.min.x = min_x.into();
+        rect.min.y = min_y.into();
+        rect.max.x = max_x.into();
+        rect.max.y = max_y.into();
         rect
     }
 
@@ -86,22 +87,32 @@ mod text_layouts {
         }
     }
 
-    #[derive(Hash)]
     pub(crate) struct UnboundedLayoutClipped {
-        clip: Rect<i32>,
+        clip: Rect,
         // Needed for when this struct is hashed, so that the characters are 
         // adjusted properly when the scroll changes.
         scroll_hash: u64
     }
 
+    impl core::hash::Hash for UnboundedLayoutClipped {
+        fn hash<H: core::hash::Hasher>(&self, hasher: &mut H) {
+            self.clip.min.x.to_bits().hash(hasher);
+            self.clip.min.y.to_bits().hash(hasher);
+            self.clip.max.x.to_bits().hash(hasher);
+            self.clip.max.y.to_bits().hash(hasher);
+
+            self.scroll_hash.hash(hasher);
+        }
+    }
+
     impl UnboundedLayoutClipped {
-        pub(crate) fn new<H: std::hash::Hash>(clip_ssr: ScreenSpaceRect, scroll: H) -> Self {
+        pub(crate) fn new<H: core::hash::Hash>(clip_ssr: ScreenSpaceRect, scroll: H) -> Self {
             // TODO use rustc hash after moving into glyph_brush
-            use std::hash::{Hasher};
+            use core::hash::{Hasher};
             let mut hasher = std::collections::hash_map::DefaultHasher::new();
             scroll.hash(&mut hasher);
             Self { 
-                clip: ssr_to_rusttype_i32(clip_ssr),
+                clip: ssr_to_glyph_brush_rect(clip_ssr),
                 scroll_hash: hasher.finish(),
             }
         }
@@ -109,7 +120,7 @@ mod text_layouts {
 
     // This is a separate function to aid in testing
     pub(crate) fn calculate_glyphs_unbounded_layout_clipped<'font>(
-        clip: Rect<i32>,
+        clip: Rect,
         font: &Font<'font>,
         scale: Scale,
         geometry: &SectionGeometry,
@@ -195,16 +206,7 @@ mod text_layouts {
                     out.extend(
                         tuples
                             .filter(|(glyph, _): &CalculatedGlyph<'_>| {
-                                // TODO when is this None?
-                                glyph.pixel_bounding_box()
-                                    .map(move |pixel_coords| {
-                                        // true if pixel_coords intersects clip
-                                        pixel_coords.min.x <= clip.max.x
-                                        && pixel_coords.min.y <= clip.max.y
-                                        && clip.min.x <= pixel_coords.max.x
-                                        && clip.min.y <= pixel_coords.max.y
-                                    })
-                                    .unwrap_or(true)
+                                intersects(&glyph, &clip)
                             })
                     );
                     perf_viz::end_record!("out.extend");
@@ -247,7 +249,7 @@ mod text_layouts {
 }
 use text_layouts::{Unbounded, UnboundedLayoutClipped};
 
-pub type TextureRect = glyph_brush::Rect<u32>;
+pub type TextureRect = glyph_brush::TextureRect;
 
 pub struct State<'font> {
     pub(crate) glyph_brush: GlyphBrush<'font, Vertex>,
@@ -319,7 +321,7 @@ impl <'font> State<'font> {
                 }) => {
                     perf_viz::start_record!("Rect");
                     let pixel_coords: PixelCoords = 
-                        text_layouts::ssr_to_rusttype_i32(rect);
+                        text_layouts::ssr_to_glyph_brush_rect(rect);
 
                     let ssr!(_, _, max_x, max_y) = rect;    
 
