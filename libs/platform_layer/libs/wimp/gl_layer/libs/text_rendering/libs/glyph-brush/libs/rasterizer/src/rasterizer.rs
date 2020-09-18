@@ -60,6 +60,7 @@ mod per_backend {
     
     pub fn cache_queued<'font, UpdateTexture>(
         cache: &mut Cache<'font>,
+        _: &[Font],
         update_texture: UpdateTexture
     ) -> Result<CachedBy, CacheWriteErr>
     where for <'r> UpdateTexture: FnMut(TextureRect, &'r [u8]) {
@@ -160,6 +161,7 @@ mod per_backend {
             point,
         },
         CachedBy,
+        CacheWriteErr,
     };
     
     use glyph_brush_draw_cache::{
@@ -183,6 +185,39 @@ mod per_backend {
         allow_lifetime_param: PhantomData<&'font ()>,
     }
 
+    pub fn new_cache<'font>() -> Cache<'font> {
+        Cache {
+            cache: DrawCache::builder()
+                .dimensions(256, 256)
+                .scale_tolerance(0.5)
+                .position_tolerance(0.25)
+                .align_4x4(false)
+                .build(),
+            allow_lifetime_param: PhantomData,
+        }
+    }
+    
+    pub fn queue_glyph<'font>(
+        cache: &mut Cache<'font>,
+        font_index: usize,
+        glyph: Glyph<'font>
+    ) {
+        cache.cache.queue_glyph(font_index, glyph.glyph);
+    }
+
+    pub fn cache_queued<'font, UpdateTexture>(
+        cache: &mut Cache<'font>,
+        fonts: &[Font],
+        update_texture: UpdateTexture
+    ) -> Result<CachedBy, CacheWriteErr>
+    where for <'r> UpdateTexture: FnMut(TextureRect, &'r [u8]) {
+        cache.cache.cache_queued(fonts, update_texture)
+    }
+    
+    pub fn dimensions<'font>(cache: &Cache<'font>) -> (u32, u32) {
+        cache.cache.dimensions()
+    }
+
     pub type CacheReadErr = ();
     
     pub fn rect_for(cache: &Cache<'_>, font_index: usize, glyph: &Glyph) -> Result<Option<Coords>, CacheReadErr> {
@@ -195,12 +230,24 @@ mod per_backend {
                 })
         )
     }
+
+    pub fn resize_texture<'font>(
+        cache: &mut Cache<'font>,
+        new_width: u32,
+        new_height: u32,
+    ) {
+        cache.cache
+            .to_builder()
+            .dimensions(new_width, new_height)
+            .rebuild(&mut cache.cache);
+    }
     
     pub struct Font<'font>{
         font: ab_glyph::FontVec,
         allow_lifetime_param: PhantomData<&'font ()>,
     }
     
+    #[derive(Clone)]
     pub struct Glyph<'font>{
         glyph: ab_glyph::Glyph,
         allow_lifetime_param: PhantomData<&'font ()>,
@@ -238,5 +285,54 @@ mod per_backend {
     pub fn get_line_height(font: &Font, scale: Scale) -> f32 {
         let scale_font = font.font.as_scaled(scale);
         scale_font.height() + scale_font.line_gap()
+    }
+
+    pub fn intersects(font: &Font, glyph: &Glyph, clip: &Rect) -> bool {
+        let pixel_coords = font.glyph_bounds(&glyph.glyph);
+        
+        // true if pixel_coords intersects clip
+        pixel_coords.min.x as f32 <= clip.max.x
+        && pixel_coords.min.y as f32 <= clip.max.y
+        && clip.min.x <= pixel_coords.max.x as f32
+        && clip.min.y <= pixel_coords.max.y as f32
+    }
+
+    impl ab_glyph::Font for Font<'_> {
+        fn units_per_em(&self) -> std::option::Option<f32> { 
+            self.font.units_per_em()
+        }
+        fn ascent_unscaled(&self) -> f32 { 
+            self.font.ascent_unscaled()
+        }
+        fn descent_unscaled(&self) -> f32 { 
+            self.font.descent_unscaled()
+        }
+        fn line_gap_unscaled(&self) -> f32 { 
+            self.font.line_gap_unscaled()
+        }
+        fn glyph_id(&self, c: char) -> glyph_brush_draw_cache::ab_glyph::GlyphId { 
+            self.font.glyph_id(c)
+        }
+        fn h_advance_unscaled(&self, id: glyph_brush_draw_cache::ab_glyph::GlyphId) -> f32 { 
+            self.font.h_advance_unscaled(id)
+        }
+        fn h_side_bearing_unscaled(&self, id: glyph_brush_draw_cache::ab_glyph::GlyphId) -> f32 { 
+            self.font.h_side_bearing_unscaled(id)
+        }
+        fn v_advance_unscaled(&self, id: glyph_brush_draw_cache::ab_glyph::GlyphId) -> f32 { 
+            self.font.v_advance_unscaled(id)
+        }
+        fn v_side_bearing_unscaled(&self, id: glyph_brush_draw_cache::ab_glyph::GlyphId) -> f32 { 
+            self.font.v_side_bearing_unscaled(id)
+        }
+        fn kern_unscaled(&self, id_a: glyph_brush_draw_cache::ab_glyph::GlyphId, id_b: glyph_brush_draw_cache::ab_glyph::GlyphId) -> f32 { 
+            self.font.kern_unscaled(id_a, id_b)
+        }
+        fn outline(&self, id: glyph_brush_draw_cache::ab_glyph::GlyphId) -> std::option::Option<glyph_brush_draw_cache::ab_glyph::Outline> { 
+            self.font.outline(id)
+        }
+        fn glyph_count(&self) -> usize { 
+            self.font.glyph_count()
+        }
     }
 }

@@ -429,6 +429,7 @@ where
             if some_text {
                 match rasterizer::cache_queued(
                     &mut self.texture_cache,
+                    &self.fonts,
                     update_texture,
                 ) {
                     Ok(CachedBy::Adding) => {}
