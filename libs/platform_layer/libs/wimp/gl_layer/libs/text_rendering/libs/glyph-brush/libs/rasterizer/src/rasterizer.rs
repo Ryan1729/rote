@@ -149,7 +149,7 @@ mod per_backend {
         v_metrics.ascent - v_metrics.descent + v_metrics.line_gap
     }
     
-    pub fn intersects(glyph: &Glyph, clip: &Rect) -> bool {
+    pub fn intersects(_: &Font, glyph: &Glyph, clip: &Rect) -> bool {
         glyph
             // TODO when is this None?
             .pixel_bounding_box()
@@ -170,7 +170,7 @@ mod per_backend {
 
 #[cfg(feature = "glyph_brush_draw_cache")]
 mod per_backend {
-    use crate::Coords;
+    use crate::{Colour, Coords};
 
     pub use glyph_brush_draw_cache::{
         ab_glyph::{
@@ -236,7 +236,16 @@ mod per_backend {
         cache.cache.dimensions()
     }
 
-    pub type CacheReadErr = ();
+    /// This has no variants because we're just trying to match the signature for 
+    /// `rect_for`
+    pub enum CacheReadErr {}
+
+    impl core::fmt::Display for CacheReadErr {
+        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            // This shouldn't be possible, but, famous last words...
+            write!(f, "CacheReadErr")
+        }
+    }
     
     pub fn rect_for(cache: &Cache<'_>, font_index: usize, glyph: &Glyph) -> Result<Option<Coords>, CacheReadErr> {
         Ok(
@@ -266,6 +275,19 @@ mod per_backend {
     }
     
     #[derive(Clone)]
+    pub struct CalculatedGlyph<'font> {
+        pub glyph: Glyph<'font>,
+        pub colour: Colour,
+    }
+
+    impl PartialEq for CalculatedGlyph<'_> {
+        fn eq(&self, other: &Self) -> bool {
+            self.colour == other.colour
+            && self.glyph.glyph == other.glyph.glyph
+        }
+    }
+
+    #[derive(Clone, Debug)]
     pub struct Glyph<'font>{
         glyph: ab_glyph::Glyph,
         allow_lifetime_param: PhantomData<&'font ()>,

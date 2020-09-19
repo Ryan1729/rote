@@ -206,7 +206,7 @@ mod text_layouts {
                     out.extend(
                         cgs
                             .filter(|cg: &CalculatedGlyph<'_>| {
-                                intersects(&cg.glyph, &clip)
+                                intersects(font, &cg.glyph, &clip)
                             })
                     );
                     perf_viz::end_record!("out.extend");

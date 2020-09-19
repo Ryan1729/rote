@@ -61,7 +61,10 @@ impl Default for VariedSection<'static> {
             bounds: (f32::INFINITY, f32::INFINITY),
             z: 0.0,
             font_id: FontId::default(),
-            scale: Scale::uniform(16.0),
+            scale: Scale{
+                x: 16.0,
+                y: 16.0,
+            },
             text: vec![],
         }
     }
@@ -179,7 +182,10 @@ impl Default for Section<'static> {
             text: "",
             screen_position: (0.0, 0.0),
             bounds: (f32::INFINITY, f32::INFINITY),
-            scale: Scale::uniform(16.0),
+            scale: Scale{
+                x: 16.0,
+                y: 16.0,
+            },
             colour: [0.0, 0.0, 0.0, 1.0],
             z: 0.0,
             font_id: FontId::default(),

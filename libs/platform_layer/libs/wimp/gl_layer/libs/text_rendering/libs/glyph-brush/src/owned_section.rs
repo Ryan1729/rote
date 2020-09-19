@@ -22,7 +22,10 @@ impl Default for OwnedVariedSection {
             bounds: (f32::INFINITY, f32::INFINITY),
             z: 0.0,
             font_id: FontId::default(),
-            scale: Scale::uniform(16.0),
+            scale: Scale{
+                x: 16.0,
+                y: 16.0,
+            },
             text: vec![],
         }
     }
