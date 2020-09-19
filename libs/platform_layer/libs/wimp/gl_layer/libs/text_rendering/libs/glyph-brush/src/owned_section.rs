@@ -58,14 +58,14 @@ pub struct OwnedSectionText {
     /// Text to render
     pub text: String,
     /// Rgba color of rendered text. Defaults to black.
-    pub color: [f32; 4],
+    pub colour: Colour,
 }
 
 impl Default for OwnedSectionText {
     fn default() -> Self {
         Self {
             text: String::new(),
-            color: [0.0, 0.0, 0.0, 1.0],
+            colour: [0.0, 0.0, 0.0, 1.0],
         }
     }
 }
@@ -74,7 +74,7 @@ impl<'a> From<&'a OwnedSectionText> for SectionText<'a> {
     fn from(owned: &'a OwnedSectionText) -> Self {
         Self {
             text: owned.text.as_str(),
-            color: owned.color,
+            colour: owned.colour,
         }
     }
 }
@@ -83,7 +83,7 @@ impl From<&SectionText<'_>> for OwnedSectionText {
     fn from(st: &SectionText<'_>) -> Self {
         Self {
             text: st.text.into(),
-            color: st.color,
+            colour: st.colour,
         }
     }
 }

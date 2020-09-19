@@ -53,6 +53,7 @@ macro_rules! darken {
         ]
     }};
 }
+
 /// All I claim about this is that it favours dimmer colours sometimes.
 macro_rules! grey_scale_dim {
     ($colour: expr) => {{
@@ -72,6 +73,7 @@ macro_rules! grey_scale_dim {
         ]
     }};
 }
+
 /// All I claim about this is that it favours brighter colours sometimes.
 macro_rules! grey_scale_bright {
     ($colour: expr) => {{
@@ -226,8 +228,6 @@ pub fn view<'view>(
 
     let mut text_or_rects = Vec::with_capacity(buffer_count * PER_BUFFER_TEXT_OR_RECT_ESTIMATE);
 
-    
-
     let mut action = ViewAction::None;
 
     let UpperPositionInfo {
@@ -239,7 +239,7 @@ pub fn view<'view>(
 
     text_or_rects.push(TextOrRect::Rect(VisualSpec {
         rect: ssr!(_, ssxy!(width, edit_y)),
-        color: TAB_BAR_BACKGROUND_COLOUR,
+        colour: TAB_BAR_BACKGROUND_COLOUR,
         z: TAB_BACKGROUND_Z,
     }));
 
@@ -327,7 +327,6 @@ pub fn view<'view>(
     //     //     .collect::<String>();
     //     // s
     // };
-
     let edit_buffer_text_rect = get_edit_buffer_xywh(view.menu_mode(), dimensions);
 
     let edit_buffer_text_rect: ScreenSpaceRect = edit_buffer_text_rect.into();
@@ -377,7 +376,7 @@ pub fn view<'view>(
                             let outer_rect = get_full_width_ssr(top_y, width, bottom_y);
                             text_or_rects.push(TextOrRect::Rect(VisualSpec {
                                 rect: outer_rect,
-                                color: CHROME_BACKGROUND_COLOUR,
+                                colour: CHROME_BACKGROUND_COLOUR,
                                 z: FIND_REPLACE_BACKGROUND_Z,
                             }));
                             text_or_rects.push(TextOrRect::Text(TextSpec {
@@ -385,8 +384,7 @@ pub fn view<'view>(
                                     "In current file"
                                 } else {
                                     // cheap hack to avoid lifetime issues
-                                    match result_count {
-                                        0 => "In current file (0 results)",
+                                    match result_count {                                        0 => "In current file (0 results)",
                                         1 => "In current file (1 result)",
                                         2 => "In current file (2 results)",
                                         3 => "In current file (3 results)",
@@ -402,7 +400,7 @@ pub fn view<'view>(
                                 layout: TextLayout::Unbounded,
                                 spec: VisualSpec {
                                     rect: label_rect,
-                                    color: CHROME_TEXT_COLOUR,
+                                    colour: CHROME_TEXT_COLOUR,
                                     z: FIND_REPLACE_Z,
                                 },
                             }));
@@ -467,7 +465,7 @@ pub fn view<'view>(
                     let outer_rect = get_full_width_ssr(top_y, width, bottom_y);
                     text_or_rects.push(TextOrRect::Rect(VisualSpec {
                         rect: outer_rect,
-                        color: CHROME_BACKGROUND_COLOUR,
+                        colour: CHROME_BACKGROUND_COLOUR,
                         z: FIND_REPLACE_BACKGROUND_Z,
                     }));
                     
@@ -477,7 +475,7 @@ pub fn view<'view>(
                         layout: TextLayout::Unbounded,
                         spec: VisualSpec {
                             rect: label_rect,
-                            color: CHROME_TEXT_COLOUR,
+                            colour: CHROME_TEXT_COLOUR,
                             z: FIND_REPLACE_Z,
                         },
                     }));
@@ -509,7 +507,7 @@ pub fn view<'view>(
                     } = get_command_menu_info(dimensions);
                     text_or_rects.push(TextOrRect::Rect(VisualSpec {
                         rect: outer_rect,
-                        color: CHROME_BACKGROUND_COLOUR,
+                        colour: CHROME_BACKGROUND_COLOUR,
                         z: FIND_REPLACE_BACKGROUND_Z,
                     }));
             
@@ -581,7 +579,7 @@ pub fn view<'view>(
                     } = get_debug_menu_info(dimensions);
                     text_or_rects.push(TextOrRect::Rect(VisualSpec {
                         rect: outer_rect,
-                        color: CHROME_BACKGROUND_COLOUR,
+                        colour: CHROME_BACKGROUND_COLOUR,
                         z: FIND_REPLACE_BACKGROUND_Z,
                     }));
 
@@ -614,7 +612,7 @@ pub fn view<'view>(
             width,
             status_line_y + SEPARATOR_LINE_THICKNESS
         ),
-        color: TAB_BAR_BACKGROUND_COLOUR,
+        colour: TAB_BAR_BACKGROUND_COLOUR,
         z: STATUS_BACKGROUND_Z,
     }));
 
@@ -626,7 +624,7 @@ pub fn view<'view>(
 
     text_or_rects.push(TextOrRect::Rect(VisualSpec {
         rect,
-        color: CHROME_BACKGROUND_COLOUR,
+        colour: CHROME_BACKGROUND_COLOUR,
         z: STATUS_BACKGROUND_Z,
     }));
 
@@ -636,7 +634,7 @@ pub fn view<'view>(
         layout: TextLayout::Unbounded,
         spec: VisualSpec {
             rect: rect.with_min_y(status_line_y + abs::Ratio::TWO * SEPARATOR_LINE_THICKNESS),
-            color: CHROME_TEXT_COLOUR,
+            colour: CHROME_TEXT_COLOUR,
             z: STATUS_Z,
         },
     }));
@@ -704,19 +702,17 @@ pub fn view<'view>(
     perf_viz::end_record!("Status line");
 
     //
-    //    Recolouring
-    //    
-
+    //    Recolouring    //
     perf_viz::start_record!("Recolouring");
     if !ui.window_is_focused {
         for t_or_r in text_or_rects.iter_mut() {
             u!{TextOrRect}
             match t_or_r {
                 Rect(ref mut spec) => {
-                    spec.color = grey_scale_dim!(spec.color);
+                    spec.colour = grey_scale_dim!(spec.colour);
                 },
                 Text(ref mut spec) => {
-                    spec.spec.color = grey_scale_bright!(spec.spec.color);
+                    spec.spec.colour = grey_scale_bright!(spec.spec.colour);
                 },
                 MulticolourText(ref mut spec) => {
                     for ColouredText { ref mut colour, .. } in spec.text.iter_mut() {
@@ -808,7 +804,7 @@ fn render_file_switcher_menu<'view>(
     let outer_rect = get_full_width_ssr(top_y, dimensions.window.w, bottom_y);
     text_or_rects.push(TextOrRect::Rect(VisualSpec {
         rect: outer_rect,
-        color: CHROME_BACKGROUND_COLOUR,
+        colour: CHROME_BACKGROUND_COLOUR,
         z: FIND_REPLACE_BACKGROUND_Z,
     }));
 
@@ -834,7 +830,7 @@ fn render_file_switcher_menu<'view>(
         layout: TextLayout::Unbounded,
         spec: VisualSpec {
             rect: label_rect,
-            color: CHROME_TEXT_COLOUR,
+            colour: CHROME_TEXT_COLOUR,
             z: FIND_REPLACE_Z,
         },
     }));
@@ -1002,7 +998,7 @@ fn text_box<'view>(
     padding: Spacing,
     char_dim: CharDim,
     size: f32,
-    text_color: TextBoxColour,
+    text_colour: TextBoxColour,
     buffer_view_data: &'view BufferViewData,
     buffer_id: BufferId,
     z: u16,
@@ -1015,7 +1011,7 @@ fn text_box<'view>(
         input = Some(Input::SelectBuffer(buffer_id));
     }
 
-    let (background_color, cursor_alpha) = if current_buffer_id == buffer_id {
+    let (background_colour, cursor_alpha) = if current_buffer_id == buffer_id {
         (TEXT_BACKGROUND_COLOUR, ui.get_fade_alpha())
     } else {
         (
@@ -1034,9 +1030,9 @@ fn text_box<'view>(
         padding,
         char_dim,
         size,
-        text_color,
+        text_colour,
         buffer_view_data,
-        background_color,
+        background_colour,
         cursor_alpha,
         z,
     );
@@ -1051,7 +1047,7 @@ fn text_box_view<'view>(
     padding: Spacing,
     char_dim: CharDim,
     size: f32,
-    text_color: TextBoxColour,
+    text_colour: TextBoxColour,
     BufferViewData {
         highlights,
         cursors,
@@ -1060,13 +1056,13 @@ fn text_box_view<'view>(
         spans,
         ..
     }: &'view BufferViewData,
-    background_color: Colour,
+    background_colour: Colour,
     cursor_alpha: f32,
     z: u16,
 ) {
     text_or_rects.push(TextOrRect::Rect(VisualSpec {
         rect: outer_rect,
-        color: background_color,
+        colour: background_colour,
         z: z.saturating_sub(2),
     }));
 
@@ -1086,7 +1082,7 @@ fn text_box_view<'view>(
     text_or_rects.push(TextOrRect::MulticolourText(MulticolourTextSpec {
         text: {
             perf_viz::record_guard!("de-roping for colourization");
-            match text_color {
+            match text_colour {
                 TextBoxColour::FromSpans => colourize(
                     chars.full_slice(),
                     spans
@@ -1120,7 +1116,7 @@ fn text_box_view<'view>(
             layout: TextLayout::Unbounded{},
             spec: VisualSpec {
                 rect: cursor_rect,
-                color: match c.state {
+                colour: match c.state {
                     CursorState::None => palette![red, cursor_alpha],
                     CursorState::PressedAgainstWall(_) => palette![yellow, cursor_alpha],
                 },
@@ -1147,7 +1143,7 @@ fn text_box_view<'view>(
                 if rect.has_any_area() {
                     Some(TextOrRect::Rect(VisualSpec {
                         rect,
-                        color: highlight_kind_colour(*kind),
+                        colour: highlight_kind_colour(*kind),
                         z: z.saturating_add(4),
                     }))
                 } else {
@@ -1284,8 +1280,7 @@ fn render_outline_button<'view>(
             u!{ui::InputType}
             match $input_type {
                 Mouse => palette![yellow, fade_alpha],
-                Keyboard => palette![blue, fade_alpha],
-                Both => palette![green, fade_alpha],
+                Keyboard => palette![blue, fade_alpha],                Both => palette![green, fade_alpha],
             }
         }};
     }
@@ -1298,7 +1293,7 @@ fn render_outline_button<'view>(
                 layout,
                 spec: VisualSpec {
                     rect: get_inner_text_rect(text, char_dim, rect),
-                    color: TEXT_COLOUR,
+                    colour: TEXT_COLOUR,
                     z: text_z,
                 },
             }));
@@ -1309,7 +1304,7 @@ fn render_outline_button<'view>(
         Pressed(input_type) => {
             text_or_rects.push(TextOrRect::Rect(VisualSpec {
                 rect,
-                color: highlight_colour!(input_type),
+                colour: highlight_colour!(input_type),
                 z,
             }));
             push_text!();
@@ -1318,13 +1313,13 @@ fn render_outline_button<'view>(
             // outline
             text_or_rects.push(TextOrRect::Rect(VisualSpec {
                 rect: enlarge_by(rect, margin),
-                color: highlight_colour!(input_type),
+                colour: highlight_colour!(input_type),
                 z: outline_z,
             }));
 
             text_or_rects.push(TextOrRect::Rect(VisualSpec {
                 rect,
-                color: BACKGROUND_COLOUR,
+                colour: BACKGROUND_COLOUR,
                 z,
             }));
             push_text!();
@@ -1332,7 +1327,7 @@ fn render_outline_button<'view>(
         Usual => {
             text_or_rects.push(TextOrRect::Rect(VisualSpec {
                 rect,
-                color: BACKGROUND_COLOUR,
+                colour: BACKGROUND_COLOUR,
                 z,
             }));
             push_text!();
@@ -1342,7 +1337,7 @@ fn render_outline_button<'view>(
     if let Some(LineSpec { colour, thickness }) = overline {
         text_or_rects.push(TextOrRect::Rect(VisualSpec {
             rect: rect.with_max_y(rect.min.y + thickness),
-            color: colour,
+            colour,
             z: overline_z,
         }));
     }
@@ -1350,7 +1345,7 @@ fn render_outline_button<'view>(
     if let Some(LineSpec { colour, thickness }) = underline {
         text_or_rects.push(TextOrRect::Rect(VisualSpec {
             rect: rect.with_min_y(rect.max.y - thickness),
-            color: colour,
+            colour,
             z: underline_z,
         }));
     }

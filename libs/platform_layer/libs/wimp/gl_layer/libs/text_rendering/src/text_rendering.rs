@@ -74,9 +74,9 @@ mod text_layouts {
                     out.extend(
                         line.glyphs
                             .into_iter()
-                            .map(|(mut glyph, color)| {
+                            .map(|(mut glyph, colour)| {
                                 add_position(&mut glyph, screen_pos);
-                                (glyph, color)
+                                CalculatedGlyph{glyph, colour}
                             })
                     );
                 }
@@ -193,20 +193,20 @@ mod text_layouts {
                     perf_viz::start_record!("glyph.screen_positioned");
                     let screen_pos = point(caret.0, caret.1);
 
-                    let tuples = line
+                    let cgs = line
                         .glyphs
                         .into_iter()
-                        .map(|(mut glyph, color)| {
+                        .map(|(mut glyph, colour)| {
                             add_position(&mut glyph, screen_pos);
-                            (glyph, color)
+                            CalculatedGlyph{glyph, colour}
                         });
                     perf_viz::end_record!("glyph.screen_positioned");
         
                     perf_viz::start_record!("out.extend");
                     out.extend(
-                        tuples
-                            .filter(|(glyph, _): &CalculatedGlyph<'_>| {
-                                intersects(&glyph, &clip)
+                        cgs
+                            .filter(|cg: &CalculatedGlyph<'_>| {
+                                intersects(&cg.glyph, &clip)
                             })
                     );
                     perf_viz::end_record!("out.extend");
@@ -316,7 +316,7 @@ impl <'font> State<'font> {
             match t_or_r {
                 Rect(VisualSpec {
                     rect,
-                    color,
+                    colour,
                     z,
                 }) => {
                     perf_viz::start_record!("Rect");
@@ -331,7 +331,7 @@ impl <'font> State<'font> {
                     rect_specs.push(RectSpec {
                         pixel_coords,
                         bounds,
-                        color,
+                        colour,
                         z: z_to_f32(z),
                     });
                     perf_viz::end_record!("Rect");
@@ -340,7 +340,7 @@ impl <'font> State<'font> {
                     text,
                     size,
                     layout,
-                    spec: VisualSpec { rect, color, z },
+                    spec: VisualSpec { rect, colour, z },
                 }) => {
                     perf_viz::start_record!("Text");
                     let section = Section {
@@ -348,7 +348,7 @@ impl <'font> State<'font> {
                         scale: get_scale(size, self.hidpi_factor),
                         screen_position: rect.min.into(),
                         bounds: rect.max.into(),
-                        color,
+                        colour,
                         z: z_to_f32(z),
                         ..d!()
                     };
@@ -373,7 +373,7 @@ impl <'font> State<'font> {
                         text: text.iter().map(|ColouredText { text, colour }| {
                             SectionText {
                                 text: &text,
-                                color: *colour,
+                                colour: *colour,
                             }
                         }).collect(),
                         font_id: d!(),
@@ -458,7 +458,7 @@ fn to_vertex_maker((screen_w, screen_h): (f32, f32)) -> impl Fn(GlyphVertex) -> 
         mut tex_coords,
         pixel_coords,
         bounds,
-        color,
+        colour,
         z,
     }: GlyphVertex| {
         perf_viz::record_guard!("to_vertex");
@@ -520,10 +520,10 @@ fn to_vertex_maker((screen_w, screen_h): (f32, f32)) -> impl Fn(GlyphVertex) -> 
             tex_left_top_y: tex_coords.max.y,
             tex_right_bottom_x: tex_coords.max.x,
             tex_right_bottom_y: tex_coords.min.y,
-            color_r: color[0],
-            color_g: color[1],
-            color_b: color[2],
-            color_a: color[3],
+            colour_r: colour[0],
+            colour_g: colour[1],
+            colour_b: colour[2],
+            colour_a: colour[3],
         }.into_vertex()
     }
 }
@@ -535,7 +535,7 @@ mod unbounded {
         Scale,
         Font,
         SectionText,
-        Color,
+        Colour,
         add_position,
         new_glyph,
         get_advance_width,
@@ -607,7 +607,7 @@ mod unbounded {
                 let scale = self.characters.scale;
                 for Character {
                     glyph,
-                    color,
+                    colour,
                     is_linebreak,
                     control,
                 } in &mut self.characters
@@ -629,7 +629,7 @@ mod unbounded {
                             point(caret.x + layout_width, caret.y)
                         );
 
-                        line.glyphs.push((positioned, color));
+                        line.glyphs.push((positioned, colour));
 
                         layout_width += advance_width;
                     }
@@ -693,7 +693,7 @@ mod unbounded {
                 let PartInfo {
                     section:
                         SectionText {
-                            color,
+                            colour,
                             text,
                         },
                     info_chars,
@@ -732,7 +732,7 @@ mod unbounded {
     
                     return Some(Character {
                         glyph,
-                        color: *color,
+                        colour: *colour,
                         is_linebreak,
                         control: c.is_control(),
                     });
@@ -747,7 +747,7 @@ mod unbounded {
     /// Single character info
     struct Character<'font> {
         glyph: Glyph<'font>,
-        color: Color,
+        colour: Colour,
         is_linebreak: bool,
         /// Equivalent to `char::is_control()`.
         control: bool,

@@ -11,6 +11,8 @@ mod owned_section;
 mod section;
 
 pub use rasterizer::{
+    Colour,
+    CalculatedGlyph,
     Font, GlyphId, Point, Glyph,
     Rect, Scale,
     point,
@@ -36,8 +38,6 @@ pub use crate::{
 /// Id for a font
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
 pub struct FontId(pub(crate) usize);
-
-pub type CalculatedGlyph<'font> = (Glyph<'font>, Color);
 
 /// Logic to calculate glyph positioning using [`Font`](struct.Font.html),
 /// [`SectionGeometry`](struct.SectionGeometry.html) and
@@ -157,7 +157,7 @@ pub type CalculatedGlyphIter<'a, 'font> = std::iter::Map<
 pub struct RectSpec {
     pub pixel_coords: PixelCoords,
     pub bounds: Bounds,
-    pub color: Color,
+    pub colour: Colour,
     pub z: f32,
 }
 
@@ -171,10 +171,10 @@ impl Hash for RectSpec {
         self.bounds.min.y.to_bits().hash(state);
         self.bounds.max.x.to_bits().hash(state);
         self.bounds.max.y.to_bits().hash(state);
-        self.color[0].to_bits().hash(state);
-        self.color[0].to_bits().hash(state);
-        self.color[1].to_bits().hash(state);
-        self.color[2].to_bits().hash(state);
+        self.colour[0].to_bits().hash(state);
+        self.colour[0].to_bits().hash(state);
+        self.colour[1].to_bits().hash(state);
+        self.colour[2].to_bits().hash(state);
         self.z.to_bits().hash(state);
     }
 }
@@ -188,8 +188,8 @@ pub struct AdditionalRects<V: Clone + 'static> {
 enum GlyphChange {
     /// Only the geometry has changed, contains the old geometry
     Geometry(SectionGeometry),
-    /// Only the colors have changed (including alpha)
-    Color,
+    /// Only the colours have changed (including alpha)
+    Colour,
     /// Only the alpha has changed
     Alpha,
     Unknown,
@@ -216,26 +216,22 @@ where
             );
 
             let mut glyphs = previous.into_owned();
-            for (glyph, ..) in &mut glyphs {
-                let pos = glyph.position();
-                glyph.set_position(point(
-                    pos.x + adjustment.x,
-                    pos.y + adjustment.y,
-                ));
+            for cg in &mut glyphs {
+                add_position(&mut cg.glyph, adjustment);
             }
 
             glyphs
         }
-        GlyphChange::Color if !sections.is_empty() && !previous.is_empty() => {
-            let new_color = sections[0].color;
+        GlyphChange::Colour if !sections.is_empty() && !previous.is_empty() => {
+            let new_colour = sections[0].colour;
             // even if the colour changed only slightly, we still want to do a fresh calculation
             #[allow(clippy::float_cmp)]
-            if sections.iter().all(|s| s.color == new_color) {
-                // if only the color changed, but the new section only use a single color
-                // we can simply set all the olds to the new color
+            if sections.iter().all(|s| s.colour == new_colour) {
+                // if only the colour changed, but the new section only use a single colour
+                // we can simply set all the olds to the new colour
                 let mut glyphs = previous.into_owned();
-                for (_, color, ..) in &mut glyphs {
-                    *color = new_color;
+                for cg in &mut glyphs {
+                    cg.colour = new_colour;
                 }
                 glyphs
             } else {
@@ -243,15 +239,15 @@ where
             }
         }
         GlyphChange::Alpha if !sections.is_empty() && !previous.is_empty() => {
-            let new_alpha = sections[0].color[3];
+            let new_alpha = sections[0].colour[3];
             // even if the alpha changed only slightly, we still want to do a fresh calculation
             #[allow(clippy::float_cmp)]
-            if sections.iter().all(|s| s.color[3] == new_alpha) {
+            if sections.iter().all(|s| s.colour[3] == new_alpha) {
                 // if only the alpha changed, but the new section only uses a single alpha
                 // we can simply set all the olds to the new alpha
                 let mut glyphs = previous.into_owned();
-                for (_, color, ..) in &mut glyphs {
-                    color[3] = new_alpha;
+                for cg in &mut glyphs {
+                    cg.colour[3] = new_alpha;
                 }
                 glyphs
             } else {
@@ -404,11 +400,11 @@ where
                     .iter()
                 {
                     let font_id = positioned.font_id;
-                    for &(ref glyph, _) in positioned.glyphs.iter() {
+                    for cg in positioned.glyphs.iter() {
                         queue_glyph(
                             &mut self.texture_cache,
                             font_id.0,
-                            glyph.clone(),
+                            cg.glyph.clone(),
                         );
                         some_text = true;
                     }
@@ -420,8 +416,8 @@ where
                 .iter()
             {
                 let font_id = positioned.font_id;
-                for &(ref glyph, _) in positioned.glyphs.iter() {
-                    queue_glyph(&mut self.texture_cache, font_id.0, glyph.clone());
+                for cg in positioned.glyphs.iter() {
+                    queue_glyph(&mut self.texture_cache, font_id.0, cg.glyph.clone());
                     some_text = true;
                 }
             }
@@ -484,19 +480,19 @@ where
                         let RectSpec {
                             pixel_coords,
                             bounds,
-                            color,
+                            colour,
                             z,
                         } = range;
 
                         let mut v = to_vertex(GlyphVertex {
                             pixel_coords,
                             bounds,
-                            color,
+                            colour,
                             z,
                             ..Default::default()
                         });
 
-                        set_alpha(&mut v, color[3]);
+                        set_alpha(&mut v, colour[3]);
 
                         verts.push(v);
                     }
@@ -572,7 +568,7 @@ pub struct GlyphVertex {
     pub tex_coords: TextureCoords,
     pub pixel_coords: PixelCoords,
     pub bounds: Bounds,
-    pub color: Color,
+    pub colour: Colour,
     pub z: f32,
 }
 
@@ -609,13 +605,13 @@ impl std::error::Error for BrushError {
 
 #[derive(Debug, Clone, Copy)]
 struct SectionHashDetail {
-    /// hash of text (- color - alpha - geo - z)
+    /// hash of text (- colour - alpha - geo - z)
     text: SectionHash,
-    // hash of text + color (- alpha - geo - z)
-    text_color: SectionHash,
-    /// hash of text + color + alpha (- geo - z)
-    text_alpha_color: SectionHash,
-    /// hash of text  + color + alpha + geo + z
+    // hash of text + colour (- alpha - geo - z)
+    text_colour: SectionHash,
+    /// hash of text + colour + alpha (- geo - z)
+    text_alpha_colour: SectionHash,
+    /// hash of text  + colour + alpha + geo + z
     full: SectionHash,
 
     /// copy of geometry for later comparison
@@ -652,20 +648,20 @@ impl SectionHashDetail {
         let text = hasher.finish();
 
         for t in section_texts {
-            let color = t.color;
+            let colour = t.colour;
 
             [
-                color[0].to_bits(),
-                color[1].to_bits(),
-                color[2].to_bits()
+                colour[0].to_bits(),
+                colour[1].to_bits(),
+                colour[2].to_bits()
             ].hash(&mut hasher);
         }
-        let text_color = hasher.finish();
+        let text_colour = hasher.finish();
 
         for t in section_texts {
-            t.color[3].to_bits().hash(&mut hasher);
+            t.colour[3].to_bits().hash(&mut hasher);
         }
-        let text_alpha_color = hasher.finish();
+        let text_alpha_colour = hasher.finish();
 
         [
             screen_x.to_bits(),
@@ -679,8 +675,8 @@ impl SectionHashDetail {
 
         Self {
             text,
-            text_color,
-            text_alpha_color,
+            text_colour,
+            text_alpha_colour,
             full,
             geometry: SectionGeometry::from(section),
         }
@@ -688,14 +684,14 @@ impl SectionHashDetail {
 
     /// They're different, but how?
     fn diff(self, other: SectionHashDetail) -> GlyphChange {
-        if self.text_alpha_color == other.text_alpha_color {
+        if self.text_alpha_colour == other.text_alpha_colour {
             return GlyphChange::Geometry(self.geometry);
         } else if self.geometry == other.geometry {
-            if self.text_color == other.text_color {
+            if self.text_colour == other.text_colour {
                 return GlyphChange::Alpha;
             } else if self.text == other.text {
-                // color and alpha may have changed
-                return GlyphChange::Color;
+                // colour and alpha may have changed
+                return GlyphChange::Colour;
             }
         }
         GlyphChange::Unknown
@@ -717,10 +713,7 @@ impl<V> PartialEq for Glyphed<'_, V> {
         && self.font_id == other.font_id
             && self.glyphs.len() == other.glyphs.len()
             && self.glyphs.iter().zip(other.glyphs.iter()).all(|(l, r)| {
-                    l.1 == r.1
-                    && l.0.id() == r.0.id()
-                    && l.0.position() == r.0.position()
-                    && l.0.scale() == r.0.scale()
+                l == r
             })
     }
 }
@@ -745,7 +738,7 @@ impl<'font, V> Glyphed<'font, V> {
         self.vertices.reserve(glyphs.len());
         perf_viz::record_guard!("ensure_vertices extend");
         self.vertices
-            .extend(glyphs.iter().filter_map(|(glyph, color)| {
+            .extend(glyphs.iter().filter_map(|rasterizer::CalculatedGlyph{glyph, colour}| {
                 match rect_for(texture_cache, font_id.0, glyph) {
                     Err(err) => {
                         eprintln!("Cache miss?: {:?}, {:?}: {}", font_id, glyph, err);
@@ -771,7 +764,7 @@ impl<'font, V> Glyphed<'font, V> {
                             tex_coords: texture,
                             pixel_coords: pixel,
                             bounds: INFINITY_RECT,
-                            color: *color,
+                            colour: *colour,
                             z: *z,
                         }))
                     }

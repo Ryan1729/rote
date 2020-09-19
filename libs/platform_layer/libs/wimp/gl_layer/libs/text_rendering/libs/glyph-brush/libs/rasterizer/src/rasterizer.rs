@@ -3,6 +3,9 @@
 #[cfg(not(any(feature = "rusttype", feature = "glyph_brush_draw_cache")))]
 compile_error!("Either feature \"rusttype\" or \"glyph_brush_draw_cache\" must be enabled for this crate.");
 
+/// RGBA `[0, 1]` colour data.
+pub type Colour = [f32; 4];
+
 /// A TextureCoords struct specifies floating point coordinates on the given
 /// texture.
 pub type TextureCoords = per_backend::Rect;
@@ -26,7 +29,7 @@ pub use per_backend::*;
 //
 #[cfg(feature = "rusttype")]
 mod per_backend {
-    use crate::Coords;
+    use crate::{Colour, Coords};
 
     pub use rusttype::{
         Font, PositionedGlyph as Glyph, GlyphId,
@@ -34,7 +37,7 @@ mod per_backend {
         point,
         gpu_cache::{CachedBy, CacheReadErr, CacheWriteErr},
     };
-    
+
     use rusttype::gpu_cache;
 
     pub type TextureRect = U32Rect;
@@ -100,6 +103,21 @@ mod per_backend {
     pub type Rect = rusttype::Rect<f32>;
     type U32Rect = rusttype::Rect<u32>;
     
+    #[derive(Clone)]
+    pub struct CalculatedGlyph<'font> {
+        pub glyph: Glyph<'font>,
+        pub colour: Colour,
+    }
+
+    impl PartialEq for CalculatedGlyph<'_> {
+        fn eq(&self, other: &Self) -> bool {
+            self.colour == other.colour
+            && self.glyph.id() == other.glyph.id()
+            && self.glyph.position() == other.glyph.position()
+            && self.glyph.scale() == other.glyph.scale()
+        }
+    }
+
     pub fn new_glyph<'font>(
         font: &Font<'font>,
         c: char,
@@ -108,7 +126,7 @@ mod per_backend {
     ) -> Glyph<'font> {
         font.glyph(c).scaled(scale).positioned(position)
     }
-    
+
     pub fn add_position(glyph: &mut Glyph, position: Point) {
         let mut pos = glyph.position();
     

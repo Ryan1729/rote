@@ -1,9 +1,6 @@
 use crate::{FontId};
-use rasterizer::Scale;
+use rasterizer::{Colour, Scale};
 use std::{borrow::Cow, f32, hash::*};
-
-/// RGBA `[0, 1]` color data.
-pub type Color = [f32; 4];
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SectionGeometry {
@@ -27,8 +24,8 @@ impl Default for SectionGeometry {
 pub struct SectionText<'a> {
     /// Text to render
     pub text: &'a str,
-    /// Rgba color of rendered text. Defaults to black.
-    pub color: Color,
+    /// Rgba colour of rendered text. Defaults to black.
+    pub colour: Colour,
 }
 
 impl Default for SectionText<'static> {
@@ -36,7 +33,7 @@ impl Default for SectionText<'static> {
     fn default() -> Self {
         Self {
             text: "",
-            color: [0.0, 0.0, 0.0, 1.0],
+            colour: [0.0, 0.0, 0.0, 1.0],
         }
     }
 }
@@ -116,14 +113,14 @@ fn hash_section_text<H: Hasher>(state: &mut H, text: &[SectionText]) {
     for t in text {
         let SectionText {
             text,
-            color,
+            colour,
         } = *t;
 
         let float_bits: &[u32] = &[
-            color[0].to_bits(),
-            color[1].to_bits(),
-            color[2].to_bits(),
-            color[3].to_bits(),
+            colour[0].to_bits(),
+            colour[1].to_bits(),
+            colour[2].to_bits(),
+            colour[3].to_bits(),
         ];
 
         (text, float_bits).hash(state);
@@ -141,7 +138,7 @@ impl From<&VariedSection<'_>> for SectionGeometry {
 
 /// An object that contains all the info to render a section of text.
 ///
-/// For varied font/scale/color sections see [`VariedSection`](struct.VariedSection.html).
+/// For varied font/scale/colour sections see [`VariedSection`](struct.VariedSection.html).
 ///
 /// # Example
 ///
@@ -163,8 +160,8 @@ pub struct Section<'a> {
     pub bounds: (f32, f32),
     /// Font scale. Defaults to 16
     pub scale: Scale,
-    /// Rgba color of rendered text. Defaults to black.
-    pub color: [f32; 4],
+    /// Rgba colour of rendered text. Defaults to black.
+    pub colour: [f32; 4],
     /// Z values for use in depth testing. Defaults to 0.0
     pub z: f32,
     /// Font id to use for this section.
@@ -183,7 +180,7 @@ impl Default for Section<'static> {
             screen_position: (0.0, 0.0),
             bounds: (f32::INFINITY, f32::INFINITY),
             scale: Scale::uniform(16.0),
-            color: [0.0, 0.0, 0.0, 1.0],
+            colour: [0.0, 0.0, 0.0, 1.0],
             z: 0.0,
             font_id: FontId::default(),
         }
@@ -195,7 +192,7 @@ impl<'a> From<&Section<'a>> for VariedSection<'a> {
         let Section {
             text,
             scale,
-            color,
+            colour,
             screen_position,
             bounds,
             z,
@@ -205,7 +202,7 @@ impl<'a> From<&Section<'a>> for VariedSection<'a> {
         VariedSection {
             text: vec![SectionText {
                 text,
-                color,
+                colour,
             }],
             screen_position,
             bounds,

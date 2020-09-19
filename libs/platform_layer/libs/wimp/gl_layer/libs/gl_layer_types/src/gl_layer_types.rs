@@ -24,7 +24,7 @@ pub struct TexCoords {
 ///     right_bottom * 2,
 ///     tex_left_top * 2,
 ///     tex_right_bottom * 2,
-///     color * 4, 
+///     colour * 4, 
 /// ]
 /// ```
 pub const VERTEX_SPEC: [(&str, i32); 6] = [
@@ -33,7 +33,7 @@ pub const VERTEX_SPEC: [(&str, i32); 6] = [
     ("right_bottom", 2),
     ("tex_left_top", 2),
     ("tex_right_bottom", 2),
-    ("color", 4),
+    ("colour", 4),
 ];
 
 pub type Vertex = [f32; 14];
@@ -63,10 +63,10 @@ pub struct VertexStruct {
     pub tex_left_top_y: f32,
     pub tex_right_bottom_x: f32,
     pub tex_right_bottom_y: f32,
-    pub color_r: f32,
-    pub color_g: f32,
-    pub color_b: f32,
-    pub color_a: f32,
+    pub colour_r: f32,
+    pub colour_g: f32,
+    pub colour_b: f32,
+    pub colour_a: f32,
 }
 
 impl VertexStruct {
@@ -82,10 +82,10 @@ impl VertexStruct {
             self.tex_left_top_y,
             self.tex_right_bottom_x,
             self.tex_right_bottom_y,
-            self.color_r,
-            self.color_g,
-            self.color_b,
-            self.color_a,
+            self.colour_r,
+            self.colour_g,
+            self.colour_b,
+            self.colour_a,
         ]
     }
 }
@@ -134,8 +134,8 @@ mod z_depth_tests {
 #[derive(Clone, Debug)]
 pub struct VisualSpec {
     pub rect: ScreenSpaceRect,
-    /// Rgba color of rendered item. Defaults to black.
-    pub color: [f32; 4],
+    /// Rgba colour of rendered item. Defaults to black.
+    pub colour: [f32; 4],
     /// Z values for use in depth testing. Defaults to 32768
     pub z: u16,
 }
@@ -144,7 +144,7 @@ pub const DEFAULT_Z: u16 = 32768;
 
 d!(for VisualSpec: VisualSpec{
     rect: d!(),
-    color: [0.0, 0.0, 0.0, 1.0],
+    colour: [0.0, 0.0, 0.0, 1.0],
     z: DEFAULT_Z,
 });
 
