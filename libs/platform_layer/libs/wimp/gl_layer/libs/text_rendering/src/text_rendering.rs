@@ -549,7 +549,7 @@ mod unbounded {
     use std::{
         iter::{Iterator},
         slice,
-        str::CharIndices,
+        str::CharIndices, 
     };
 
     #[perf_viz::record]
@@ -614,6 +614,33 @@ mod unbounded {
                 {
                     character_progressed = true;
                     {
+                        /* option one '='
+                        let mut kern_state = d!();
+                        // ...
+                        layout_width = kern_state.next_width(layout_width, &glyph);
+                        option two '+='
+                        let mut kern_state = d!();
+                        // ...
+                        (return 0 on the first one)
+                        layout_width += kern_state.next_kerning(&glyph);
+                        option three Option<kerning>,'+='
+                        let mut kern_state = d!();
+                        // ...
+                        if let Some(kerning) = kern_state.next_kerning(&glyph) {
+                            layout_width += kerning;
+                        }
+                        option four Option<kern_state>,'+='
+                        let mut kern_state_op = None;
+                        // ...
+                        if let Some(kern_state) = kern_state_op {
+                            layout_width += kern_state.next_kerning(&glyph);
+                        } else {
+                            kern_state_op = Some(new_kern_state(&glyph));
+                        }
+                        I'm leaning towards three, since it requires less babysitting.
+                        Then again, four is more explicit, and keeps more code in the 
+                        shared part.
+                        */
                         if let Some(id) = last_glyph_id.take() {
                             layout_width += font.pair_kerning(scale, id, glyph.id());
                         }
