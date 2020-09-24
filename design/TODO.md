@@ -1,5 +1,12 @@
 ## TODO
 
+* Make an unsaved change to a file survive multiple restarts without needing to touch
+    it each time.
+    * maybe make accidentally closed tabs recoverable?
+        * or add confirmation dialog on closing them?
+            * maybe have a tab-saftey we can turn off temporairly for when we want to
+            close multiple tabs?
+
 * Write a test that ensures that undo/redo produces the expected spans
 
 * make auto-tab-scroll happen when a new tab is created
@@ -17,6 +24,9 @@
 holding down modifiers
     * We'll probably want to make "making the current tab visible when changing to it"
      work, before doing this.
+
+* on windows, consider closing the console after flags are handled, unless a debug flag
+    is passed to keep it open.
 
 * as part of making the state of the editor more observable, when holding down 
 modifier keys, indicate what pressing non-modifiers will do.
