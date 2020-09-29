@@ -6,6 +6,14 @@
         * or add confirmation dialog on closing them?
             * maybe have a tab-saftey we can turn off temporairly for when we want to
             close multiple tabs?
+    * an intial testing procedure:
+        * type into a new scratch buffer
+        * close the program
+        * open the program (check if typed stuff is stil there)
+        * close the program again
+        * open the program again (check if typed stuff is stil there)
+    * a second testing procedure
+        the previous procedure in a non-scratch buffer. Say "text/not_checked_in.txt"
 
 * Write a test that ensures that undo/redo produces the expected spans
 
