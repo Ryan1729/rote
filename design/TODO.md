@@ -410,6 +410,9 @@ files open, or just when the editor has been open a long time
       * hold alt so both ctrl and shift are free to use?
       * a "current cursor mode"?
 
+* As of this writing there is a bug that seems to only occur after the app is open for a long time, where
+the cursor position is way off of where it should be.
+
 * figure out why `#[check_or_no_panic]` seems to always report a panic in `panic_safe_rope`
   * current suspicion: Allocating memory can always panic.  
 
