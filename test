@@ -1,0 +1,1 @@
+cargo test --color=always --all -- 2>&1

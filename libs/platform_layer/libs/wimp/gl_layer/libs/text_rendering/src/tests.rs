@@ -5,7 +5,8 @@ use glyph_brush::{
     SectionGeometry,
     OwnedSectionText,
     point,
-    rusttype::{Point, Rect},
+    Point,
+    Rect,
 };
 
 use proptest::prelude::{proptest};
@@ -19,9 +20,9 @@ mod arb {
     prop_compose!{
         pub fn positive_rect_i32()
         ((a, b, c, d) in (2..0x7FFF_FFFE, 2..0x7FFF_FFFE, 2..0x7FFF_FFFE, 2..0x7FFF_FFFE))
-        -> Rect<i32> {
+        -> Rect {
             use std::cmp::{max, min};
-            let mut rect: Rect<i32> = d!();
+            let mut rect: Rect = d!();
             
             rect.min.x = min(a, c);
             if a == c { rect.min.x -= 1; }
@@ -159,7 +160,7 @@ mod arb {
 // This version is meant to be clearly correct, but willing to be slow in order to
 // meet that goal.
 fn calculate_glyphs_unbounded_layout_clipped_slow<'font>(
-    clip: Rect<i32>,
+    clip: Rect,
     font: &Font<'font>,
     scale: Scale,
     geometry: &SectionGeometry,
@@ -210,7 +211,7 @@ fn single_font() -> Font<'static> {
 }
 
 fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_on(
-    clip: Rect<i32>,
+    clip: Rect,
     scale: Scale,
     owned_sections: Vec<OwnedSectionText>
 ) {

@@ -117,7 +117,7 @@ fn main() -> Res<()> {
                             min: ssxy!(x0, y0),
                             max: ssxy!(x3, y3),
                         },
-                        color: first_colour,
+                        colour: first_colour,
                         z: first_z,
                     }));
                     let first_z_sub_1 = first_z.saturating_sub(1);
@@ -129,7 +129,7 @@ fn main() -> Res<()> {
                                 min: ssxy!(x0, y1),
                                 max: ssxy!(x3, y3),
                             },
-                            color: text_colour,
+                            colour: text_colour,
                             z: first_z_sub_1,
                         },
                         layout: TextLayout::Unbounded,
@@ -143,7 +143,7 @@ fn main() -> Res<()> {
                                 min: ssxy!(x1, y2),
                                 max: ssxy!(x3, y3),
                             },
-                            color: text_colour,
+                            colour: text_colour,
                             z: first_z_sub_2,
                         },
                         layout: TextLayout::Unbounded,
@@ -154,7 +154,7 @@ fn main() -> Res<()> {
                             min: ssxy!(x1, y1),
                             max: ssxy!(x4, y4),
                         },
-                        color: second_colour,
+                        colour: second_colour,
                         z: second_z,
                     }));
                     let second_z_sub_1 = second_z.saturating_sub(1);
@@ -166,7 +166,7 @@ fn main() -> Res<()> {
                                 min: ssxy!(x1, y1),
                                 max: ssxy!(x4, y4),
                             },
-                            color: text_colour,
+                            colour: text_colour,
                             z: second_z_sub_1,
                         },
                         layout: TextLayout::Unbounded,
@@ -180,7 +180,7 @@ fn main() -> Res<()> {
                                 min: ssxy!(x1, y2),
                                 max: ssxy!(x4, y4),
                             },
-                            color: text_colour,
+                            colour: text_colour,
                             z: second_z_sub_2,
                         },
                         layout: TextLayout::Unbounded,
@@ -204,7 +204,7 @@ fn main() -> Res<()> {
                                 min: ssxy!(x3, y0),
                                 max: ssxy!(x4, y1),
                             },
-                            color: text_colour,
+                            colour: text_colour,
                             ..d!()
                         },
                         layout: TextLayout::Unbounded,
@@ -218,7 +218,7 @@ fn main() -> Res<()> {
                                 min: ssxy!(x0, y3),
                                 max: ssxy!(x1, y4),
                             },
-                            color: text_colour,
+                            colour: text_colour,
                             ..d!()
                         },
                         layout: TextLayout::Unbounded,

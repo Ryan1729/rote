@@ -1,4 +1,5 @@
 use crate::{*, screen_positioning::{FontInfo, TextBoxXY, TextBoxXYWH, TextSpaceXY}};
+use crate::spans::SpanKindRaw;
 use crate::screen_positioning::{
     Apron,
 };
