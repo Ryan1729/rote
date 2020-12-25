@@ -81,9 +81,7 @@ fn main() -> Res<()> {
             // of work it will be later to grow significantly. Time will tell.
             #[allow(deprecated)]
             match event {
-                Event::MainEventsCleared if running => {
-                    
-                    // Queue a RedrawRequested event so we draw the updated view quickly.
+                Event::MainEventsCleared if running => {                    // Queue a RedrawRequested event so we draw the updated view quickly.
                     glutin_context.window().request_redraw();
                 }
                 Event::RedrawRequested(_) => {
@@ -94,7 +92,7 @@ fn main() -> Res<()> {
 
                     text_and_rects.push(TextOrRect::Rect(VisualSpec {
                         rect: text_box_xywh.into(),
-                        color: first_colour,
+                        colour: first_colour,
                         z: first_z,
                     }));
                     let first_z_add_1 = first_z.saturating_add(1);
@@ -109,7 +107,7 @@ fn main() -> Res<()> {
 
                     text_and_rects.push(TextOrRect::Rect(VisualSpec {
                         rect: text_space_ssr,
-                        color: second_colour,
+                        colour: second_colour,
                         z: second_z,
                     }));
                     
@@ -132,7 +130,7 @@ fn main() -> Res<()> {
                                 cursor_screen_xy,
                                 text_box_xywh.wh
                             ).into(),
-                            color: if inside_rect(cursor_screen_xy, text_box_ssr) { 
+                            colour: if inside_rect(cursor_screen_xy, text_box_ssr) { 
                                 text_colour 
                             } else { 
                                 error_colour 
@@ -164,7 +162,7 @@ fn main() -> Res<()> {
                                 ),
                                 max: ssxy!(dimensions.width as f32, dimensions.height as f32),
                             },
-                            color: text_colour,
+                            colour: text_colour,
                             ..d!()
                         },
                         layout: TextLayout::Unbounded,

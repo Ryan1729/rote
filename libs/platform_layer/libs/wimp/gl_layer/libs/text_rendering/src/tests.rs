@@ -4,9 +4,9 @@ use glyph_brush::{
     CalculatedGlyph,
     SectionGeometry,
     OwnedSectionText,
-    point,
     Point,
     Rect,
+    intersects,
 };
 
 use proptest::prelude::{proptest};
@@ -23,16 +23,16 @@ mod arb {
         -> Rect {
             use std::cmp::{max, min};
             let mut rect: Rect = d!();
-            
-            rect.min.x = min(a, c);
-            if a == c { rect.min.x -= 1; }
-            rect.min.y = min(b, d);
-            if b == d { rect.min.y -= 1; }
 
-            rect.max.x = max(a, c);
-            if a == c { rect.max.x += 1; }
-            rect.max.y = max(b, d);
-            if b == d { rect.max.y += 1; }
+            rect.min.x = min(a, c) as f32;
+            if a == c { rect.min.x -= 1.; }
+            rect.min.y = min(b, d) as f32;
+            if b == d { rect.min.y -= 1.; }
+
+            rect.max.x = max(a, c) as f32;
+            if a == c { rect.max.x += 1.; }
+            rect.max.y = max(b, d) as f32;
+            if b == d { rect.max.y += 1.; }
 
             rect
         }
@@ -59,11 +59,11 @@ mod arb {
 
     prop_compose!{
         pub fn section_text()
-        (text in ".*", color in proptest::array::uniform4(within_0_to_1()))
+        (text in ".*", colour in proptest::array::uniform4(within_0_to_1()))
         -> OwnedSectionText {
             OwnedSectionText {
                 text,
-                color,
+                colour,
             }
         }
     }
@@ -113,22 +113,22 @@ mod arb {
 
     prop_compose!{
         pub fn section_text_with_many_newlines()
-        (text in string_with_many_newlines(), color in color())
+        (text in string_with_many_newlines(), colour in colour())
         -> OwnedSectionText {
             OwnedSectionText {
                 text,
-                color,
+                colour,
             }
         }
     }
 
     prop_compose!{
         pub fn section_text_with_only_periods_and_newlines()
-        (text in "[\\.\\n]+", color in color())
+        (text in "[\\.\\n]+", colour in colour())
         -> OwnedSectionText {
             OwnedSectionText {
                 text,
-                color,
+                colour,
             }
         }
     }
@@ -151,7 +151,7 @@ mod arb {
     }
 
     prop_compose!{
-        pub fn color()(c in proptest::array::uniform4(within_0_to_1())) -> [f32; 4] {
+        pub fn colour()(c in proptest::array::uniform4(within_0_to_1())) -> [f32; 4] {
             c
         }
     }
@@ -176,27 +176,19 @@ fn calculate_glyphs_unbounded_layout_clipped_slow<'font>(
     for line in lines {
         let v_metrics = font.v_metrics(scale);
         let line_height: f32 = v_metrics.ascent - v_metrics.descent + v_metrics.line_gap;
-        
-        let screen_pos = point(caret.0, caret.1);
 
         out.extend(
             line
                 .glyphs
                 .into_iter()
-                .map(|(glyph, color)| 
-                    (glyph.screen_positioned(screen_pos), color)
-                )
                 .filter(|(glyph, _)| {
-                    // TODO when is this None?
-                    glyph.pixel_bounding_box()
-                        .map(move |pixel_coords| {
-                            // true if pixel_coords intersects clip
-                            pixel_coords.min.x <= clip.max.x
-                            && pixel_coords.min.y <= clip.max.y
-                            && clip.min.x <= pixel_coords.max.x
-                            && clip.min.y <= pixel_coords.max.y
-                        })
-                        .unwrap_or(true)
+                    intersects(font, glyph, &clip)
+                })
+                .map(|(glyph, colour)| {
+                    CalculatedGlyph {
+                        glyph, 
+                        colour,
+                    }
                 })
         );
 
@@ -260,13 +252,13 @@ macro_rules! ost {
     ($text: expr) => {
         OwnedSectionText { 
             text: $text.to_string(),
-            color: [0.0, 0.0, 0.0, 1.0],
+            colour: [0.0, 0.0, 0.0, 1.0],
         }
     };
     ($text: expr) => {
         OwnedSectionText { 
             text: $text.to_string(),
-            color: [0.0, 0.0, 0.0, 1.0],
+            colour: [0.0, 0.0, 0.0, 1.0],
         }
     }
 }
@@ -302,9 +294,18 @@ proptest!{
     }
 }
 
+macro_rules! make_clip {
+    ($x1: expr, $y1: expr, max_value, max_value $(,)?) => {
+        make_clip!($x1, $y1, 1.0 / 0.0, 1.0 / 0.0)
+    };
+    ($x1: expr, $y1: expr, $x2: expr, $y2: expr $(,)?) => {
+        Rect { min: Point { x: $x1 as f32, y: $y1 as f32 }, max: Point { x: $x2 as f32, y: $y2 as f32 } }
+    }
+}
+
 #[test]
 fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_in_this_generated_case() {
-    let clip = Rect { min: Point { x: 11897398, y: 2 }, max: Point { x: 11897399, y: 25882408 } };
+    let clip = make_clip!(11897398, 2, 11897399, 25882408);
     let scale = scale!(12639997.0, 128678.0);
     let owned_sections = vec![
         ost!("¡¡A"),
@@ -323,7 +324,7 @@ fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_in_this_ge
 // copied below.
 #[test]
 fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_in_this_generated_case_reduction() {
-    let clip = Rect { min: Point { x: 2, y: 2 }, max: Point { x: 3, y: 4 } };
+    let clip = make_clip!(2, 2, 3, 4);
     let scale = scale!(1.0, 2.0);
     let owned_sections = vec![
         ost!("  .\n."),
@@ -342,7 +343,7 @@ fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_in_this_ge
 #[test]
 #[ignore]
 fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_in_this_add_with_overflow_generated_case() {
-    let clip = Rect { min: Point { x: 1, y: 1 }, max: Point { x: 3, y: 3 } };
+    let clip = make_clip!(1, 1, 3, 3);
     let scale = scale!(1.0, 16520385.0);
     let owned_sections = vec![
         ost!("¡a\u{0}A   a"),
@@ -369,7 +370,7 @@ fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_in_this_ad
 #[test]
 #[ignore]
 fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_in_this_add_with_overflow_reduced_case() {
-    let clip = Rect { min: Point { x: 1, y: 1 }, max: Point { x: 3, y: 3 } };
+    let clip = make_clip!(1, 1, 3, 3);
     let scale = scale!(1.0, 2_140_000_000.0);
     let owned_sections = vec![
         ost!("_____"),
@@ -444,7 +445,7 @@ proptest!{
 
 #[test]
 fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_if_the_scales_match_in_this_generated_case() {
-    let clip = Rect { min: Point { x: 14730591, y: 2 }, max: Point { x: 16281178, y: 44250215 } };
+    let clip = make_clip!(14730591, 2, 16281178, 44250215);
     let scale = scale!(1292157.0, 15391379.0);
     let owned_sections = vec![
         ost!("¡¡0 \u{e000}0¡A¡0Ì\u{102e5c}`\u{b4f4e}%¥%*\'.\u{43106}/\u{35bb6}"),
@@ -462,7 +463,7 @@ fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_if_the_sca
 
 #[test]
 fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_if_the_scales_match_in_this_generated_case_reduction() {
-    let clip = Rect { min: Point { x: 14730591, y: 2 }, max: Point { x: 16281178, y: 44250215 } };
+    let clip = make_clip!(14730591, 2, 16281178, 44250215);
     let scale = Scale { x: 1289999.0, y: 2.0 };
     let owned_sections = vec![
         ost!("                      - \n-\n                      - "),
@@ -478,7 +479,7 @@ fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_if_the_sca
 /// This one was reduced after a change to the code made the above one start passing.
 #[test]
 fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_if_the_scales_match_in_this_generated_case_alternative_reduction() {
-    let clip = Rect { min: Point { x: 1, y: 2 }, max: Point { x: 16281178, y: 44250000 } };
+    let clip = make_clip!(1, 2, 16281178, 44250000);
     let scale = Scale { x: 1.0, y: 15391300.0 };
     let owned_sections = vec![
         ost!("\n\n        aaaaaaaaaaaaaaa"),
@@ -583,16 +584,7 @@ proptest!{
 
 #[test]
 fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_in_this_instructive_case() {
-    let clip = Rect {
-        min: Point {
-            x: 2,
-            y: 0,
-        },
-        max: Point {
-            x: i32::max_value(),
-            y: i32::max_value(),
-        },
-    };
+    let clip = make_clip!(2, 0, max_value, max_value);
 
     let section_text = ost!(
     // the "*" are within the clip rect, and the "." is not.
@@ -613,7 +605,7 @@ r"
 
 #[test]
 fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_in_this_generated_case_reduction_alternate() {
-    let clip = Rect { min: Point { x: 2, y: 2 }, max: Point { x: i32::max_value(), y: i32::max_value() } };
+    let clip = make_clip!(2, 2, max_value, max_value);
     let owned_sections = vec![
         ost!(
 r"
@@ -633,7 +625,7 @@ r"
 
 #[test]
 fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_in_this_generated_case_reduction_alternate2() {
-    let clip = Rect { min: Point { x: 9008, y: 1 }, max: Point { x: 9009, y: 25882408 } };
+    let clip = make_clip!(9008, 1, 9009, 25882408);
     let owned_sections = vec![
         ost!("aaa\n"),
         ost!("\naaa"),
@@ -648,7 +640,7 @@ fn calculate_glyphs_unbounded_layout_clipped_matches_the_slow_version_in_this_ge
 
 #[test]
 fn calculate_glyphs_unbounded_layout_clipped_slow_puts_5_a_characters_on_the_same_line() {
-    let clip = Rect { min: Point { x: 0, y: 1 }, max: Point { x: 99999, y: 99999 } };
+    let clip = make_clip!(0, 1, 99999, 99999);
     let scale = scale!(16.0);
     let font = &single_font();
 
@@ -677,8 +669,8 @@ fn calculate_glyphs_unbounded_layout_clipped_slow_puts_5_a_characters_on_the_sam
     );
 
     for w in glyphs.windows(2) {
-        let y1 = w[0].0.position().y;
-        let y2 = w[1].0.position().y;
+        let y1 = w[0].glyph.position().y;
+        let y2 = w[1].glyph.position().y;
         assert_eq!(y1, y2);
     }
 }

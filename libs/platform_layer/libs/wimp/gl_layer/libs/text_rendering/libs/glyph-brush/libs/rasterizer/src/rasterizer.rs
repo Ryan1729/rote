@@ -103,7 +103,7 @@ mod per_backend {
     pub type Rect = rusttype::Rect<f32>;
     type U32Rect = rusttype::Rect<u32>;
     
-    #[derive(Clone)]
+    #[derive(Clone, Debug)]
     pub struct CalculatedGlyph<'font> {
         pub glyph: Glyph<'font>,
         pub colour: Colour,
@@ -274,7 +274,7 @@ mod per_backend {
         allow_lifetime_param: PhantomData<&'font ()>,
     }
     
-    #[derive(Clone)]
+    #[derive(Clone, Debug)]
     pub struct CalculatedGlyph<'font> {
         pub glyph: Glyph<'font>,
         pub colour: Colour,

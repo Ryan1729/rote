@@ -269,10 +269,10 @@ fn main() -> Res<()> {
                             use TextOrRect::*;
                             match t_or_r {
                                 Rect(ref mut spec) => {
-                                    spec.color = grey_scale_dim!(spec.color);
+                                    spec.colour = grey_scale_dim!(spec.colour);
                                 },
                                 Text(ref mut spec) => {
-                                    spec.spec.color = grey_scale_bright!(spec.spec.color);
+                                    spec.spec.colour = grey_scale_bright!(spec.spec.colour);
                                 },
                                 MulticolourText(ref mut spec) => {
                                     for ColouredText { ref mut colour, .. } in spec.text.iter_mut() {
