@@ -22,6 +22,10 @@
         * a specific undesirable case:
             * If you mash Ctrl-t, then eventually the new tab is invisible
 
+* fix the CRLF/\r\n display issues, or at least figure out a performant way to display control pictures
+    * Specifically, the thing where comments ending in CRLF (or at least something weird at the ends) 
+    make the lines not line up
+
 * make auto-tab-scroll happen when a tab is switched to with the keyboard
 
 * when a tab is switched to, any fullscreen menus should be hidden
