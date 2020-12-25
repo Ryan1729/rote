@@ -332,6 +332,7 @@ fn keeps_the_state_buffers_index_state_the_same_as_the_view_buffers_index_state_
 }
 
 proptest!{
+    #[ignore] // took 10.877s
     #[test]
     fn keeps_the_state_buffers_index_state_the_same_as_the_view_buffers_index_state_from_an_arb_state(
         state in arb::state(),
@@ -357,6 +358,7 @@ proptest!{
 }
 
 proptest!{
+    #[ignore] //took 5.908s
     #[test]
     fn keeps_the_state_buffers_index_state_the_same_as_the_view_buffers_index_state_if_you_add_then_remove_a_buffer(
         state in arb::state(),
@@ -646,6 +648,7 @@ fn the_edited_transitions_sent_down_with_the_view_all_use_the_same_generation_as
 }
 
 proptest!{
+    #[ignore] // took 10.160s
     #[test]
     fn the_edited_transitions_sent_down_with_the_view_all_use_the_same_generation_as_the_buffers(
         state in arb::state(),
@@ -864,6 +867,7 @@ fn sets_the_views_buffer_selected_index_correctly_after_moving_selection_right_o
 }
 
 proptest!{
+    #[ignore] // took 6.681s
     #[test]
     fn sets_the_views_buffer_selected_index_correctly_after_moving_selection_right(
         mut state in arb::state(),

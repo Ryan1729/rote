@@ -3,6 +3,7 @@ use macros::{dbg};
 use text_buffer::Editedness;
 
 proptest!{
+    #[ignore] // took 9.313s
     #[test]
     fn from_an_arb_state(
         state in arb::state(),
@@ -28,6 +29,7 @@ proptest!{
 }
 
 proptest!{
+    #[ignore] // took 7.410s
     #[test]
     fn with_heavy_saving(
         state in arb::state(),
@@ -44,6 +46,7 @@ proptest!{
 }
 
 proptest!{
+    #[ignore] // took 7.226s
     #[test]
     fn with_heavy_saving_from_editor_buffers(
         buffers in arb::editor_buffers(),
@@ -93,6 +96,7 @@ proptest!{
         )
     }
 
+    #[ignore] // took 7.742s
     #[test]
     fn with_heavy_saving_when_the_hash_starts_blank(
         buffers in arb::editor_buffers_blank_hash(),

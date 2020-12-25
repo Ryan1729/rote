@@ -19,7 +19,7 @@ use pub_arb_std::non_line_break_char;
 
 /// This is expected to be used where the amount does not really matter, except that it must be
 /// enough that the behaviour we want to test has enough space.
-/// Ciode that assumes this is > 1 is known to exist as of this writing.
+/// Code that assumes this is > 1 is known to exist as of this writing.
 pub const SOME_AMOUNT: usize = 16;
 /// This is expected to be used where the amount does not really matter, except that it must be
 /// greater than `SOME_AMOUNT` so that out-of-bounds checks, etc. get tested.
@@ -28,6 +28,7 @@ pub const MORE_THAN_SOME_AMOUNT: usize = 24;
 /// This macro is meant to make it easier to copy-paste proptest failing proptest inputs into
 /// their oun test. With this macro, only the `!` character needs to be added after copying an
 /// `InsertString` input.
+
 #[allow(non_snake_case)]
 #[macro_export]
 macro_rules! InsertString {
@@ -559,7 +560,7 @@ proptest! {
     #[test]
     fn editing_the_buffer_preserves_the_cursors_invariants(
         buffer in arb::text_buffer_with_many_cursors(),
-        edits in arb::test_edits(99, arb::TestEditSpec::All)
+        edits in arb::test_edits(16, arb::TestEditSpec::All)
     ) {
         editing_this_buffer_preserves_the_cursors_invariants(buffer, edits);
     }
