@@ -1,3 +1,4 @@
+#![deny(clippy::float_arithmetic)]
 #![deny(unused)]
 use macros::{add_assign, fmt_debug, fmt_display, d};
 
@@ -177,8 +178,7 @@ pub fn clamp_within(
     } else {
         // NaN ends up here
     };
-    if rect.max.y > max_y {
-        rect.max.y = max_y
+    if rect.max.y > max_y {        rect.max.y = max_y
     } else {
         // NaN ends up here
     };

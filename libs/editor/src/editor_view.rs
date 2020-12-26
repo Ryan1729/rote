@@ -1,3 +1,4 @@
+#![deny(clippy::float_arithmetic)]
 use super::*;
 const AVERAGE_SELECTION_LINES_ESTIMATE: usize = 4;
 

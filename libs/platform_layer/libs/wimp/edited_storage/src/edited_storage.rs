@@ -1,3 +1,4 @@
+#![deny(clippy::float_arithmetic)]
 use platform_types::*;
 
 use rand::{thread_rng, Rng};

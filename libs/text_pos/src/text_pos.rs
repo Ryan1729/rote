@@ -1,3 +1,4 @@
+#![deny(clippy::float_arithmetic)]
 use macros::{
     add_assign, d, fmt_debug, fmt_display, integer_newtype, ord, sub_assign, usize_newtype,
 };

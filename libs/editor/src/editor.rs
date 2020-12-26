@@ -1,3 +1,5 @@
+#![deny(clippy::float_arithmetic)]
+
 use macros::{d, dbg, fmt_debug, u, SaturatingSub};
 use platform_types::{screen_positioning::*, *};
 use parsers::{Parsers, ParserKind};
