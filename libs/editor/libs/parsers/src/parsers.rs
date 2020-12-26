@@ -585,7 +585,11 @@ fn hash_to_parse<'to_parse>(to_parse: &ToParse<'to_parse>) -> u64 {
     hasher.finish()
 }
 
-extern "C" { fn tree_sitter_rust() -> Language; }
+extern "C" { 
+    fn tree_sitter_rust() -> Language;
+    #[allow(unused)]
+    fn tree_sitter_c() -> Language;
+}
 
 impl Parsers {
     fn attempt_init(&mut self) {
@@ -609,7 +613,6 @@ impl InitializedParsers {
         let mut first: BufferState = d!();
         // We make sure that each supported language works at the start
         // so we can assume `set_language` always returns `Ok` afterwards.
-
         first.parser.set_language(
             rust_lang
         )?;
