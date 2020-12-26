@@ -5,7 +5,7 @@
 #![deny(unconditional_recursion)]
 use macros::{
     fmt_debug, 
-    fmt_display, 
+    fmt_display,
     add_assign, 
     sub_assign, 
     mul_assign, 
