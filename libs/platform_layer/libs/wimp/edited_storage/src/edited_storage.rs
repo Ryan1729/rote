@@ -154,16 +154,11 @@ fn serialize(name: &BufferName, uuid: u128, append_target: &mut String) {
 }
 
 fn deserialize(s: &str) -> Option<(BufferName, u128)> {
-    if s.starts_with(PATH_PREFIX) {
-        // works becasue the prefix is ASCII
-        let s = &s[PATH_PREFIX.len()..];
-
+    if let Some(s) = s.strip_prefix(PATH_PREFIX) {
         if let Some((uuid, path)) = split_off_uuid_and_comma(s) {
             return Some((BufferName::Path(PathBuf::from(path)), uuid));
         }
-    } else if s.starts_with(SCRATCH_PREFIX) {
-        // works becasue the prefix is ASCII
-        let s = &s[SCRATCH_PREFIX.len()..];
+    } else if let Some(s) = s.strip_prefix(SCRATCH_PREFIX) {
         if let Some((uuid, rest)) = split_off_uuid_and_comma(s) {
             if let Ok(n) = rest.parse() {
                 return Some((BufferName::Scratch(n), uuid));

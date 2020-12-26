@@ -290,12 +290,10 @@ fn get_next_position(
                 line: line_index.0,
                 offset: std::cmp::min(offset + o, final_offset),
             })
-            .or_else(|| {
-                Some(Position {
-                    line: line_index.0,
-                    offset: final_offset,
-                })
-            })
+            .or(Some(Position {
+                line: line_index.0,
+                offset: final_offset,
+            }))
     })
 }
 
@@ -411,11 +409,9 @@ pub fn to_absolute_offset(
     move_to(rope, cursor, char_offset_to_pos(rope, offset), action);
     // Moving to an absolute offset should never cause a cursor to be pressed against a wall,
     // and if it was previously pushed, it should not be anymore.
-    cursor.state = d!();
-}
+    cursor.state = d!();}
 
 // utils
-
 fn nth_line_count(rope: &Rope, n: usize) -> Option<CharOffset> {
     rope.lines().nth(n).map(|l| l.len_chars())
 }

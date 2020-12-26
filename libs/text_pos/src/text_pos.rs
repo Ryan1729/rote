@@ -59,8 +59,7 @@ impl macros::SaturatingAdd<CharOffset> for AbsoluteCharOffset {
 }
 
 impl AbsoluteCharOffset {    /// Seems like 99% of the time we want to do a `checked_add` it's with one
-    pub fn checked_add_one(self) -> Option<Self> {
-        self.0.checked_add(1).map(AbsoluteCharOffset)
+    pub fn checked_add_one(self) -> Option<Self> {        self.0.checked_add(1).map(AbsoluteCharOffset)
     }
 }
 
@@ -182,7 +181,7 @@ impl std::str::FromStr for Position {
             .unwrap_or_default().parse::<usize>()?;
         let offset = chunks.get(1)
             .copied()
-            .unwrap_or_else(|| "0").parse::<usize>()
+            .unwrap_or("0").parse::<usize>()
             .map(CharOffset).unwrap_or_default();
 
         Ok(Position { line, offset })
