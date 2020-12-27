@@ -761,7 +761,6 @@ const BASIC_QUERY_SOURCES: ByTSName<&str> = map_to_by_ts_name!{name {
             (char_literal) @string
         ",
         C => "
-            (comment) @comment
             (string_literal) @string
             (char_literal) @string
         ",
