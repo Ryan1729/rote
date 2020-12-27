@@ -105,7 +105,7 @@ impl ParserKind {
         u!{ParserKind}
         match name.get_extension_or_empty() {
             "rs" => Rust(d!()),
-            "c"|"h" => Rust(d!()),
+            "c"|"h" => C(d!()),
             _ => Plaintext,
         }
     }
