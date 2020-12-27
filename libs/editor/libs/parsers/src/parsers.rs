@@ -83,9 +83,12 @@ impl Iterator for ParserKind {
                 Some(Rust(d!()))
             },
             Rust(style) => {
-                style.next()
-                    .map(Rust)
-            }, // TODO loop into C after Rust
+                Some(
+                    style.next()
+                        .map(Rust)
+                        .unwrap_or_else(|| C(d!()))
+                )
+            },
             C(style) => {
                 style.next()
                     .map(C)
