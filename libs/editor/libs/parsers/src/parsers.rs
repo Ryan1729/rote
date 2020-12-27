@@ -748,15 +748,21 @@ impl InitializedParsers {
     }
 }
 
-const BASIC_QUERY_SOURCE: &str = "
-(line_comment) @comment
-(block_comment) @comment
-(string_literal) @string
-(char_literal) @string
-";
-
-const BASIC_QUERY_SOURCES: ByTSName<&str> = map_to_by_ts_name!{_name {
-    BASIC_QUERY_SOURCE
+const BASIC_QUERY_SOURCES: ByTSName<&str> = map_to_by_ts_name!{name {
+    use TSName::*;
+    match name {
+        Rust => "
+            (line_comment) @comment
+            (block_comment) @comment
+            (string_literal) @string
+            (char_literal) @string
+        ",
+        C => "
+            (comment) @comment
+            (string_literal) @string
+            (char_literal) @string
+        ",
+    }
 }};
 
 mod query {

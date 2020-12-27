@@ -498,3 +498,44 @@ fn the_right_spans_are_set_after_typing_fn_below_this_fn_def_reduction() {
     }
 }
 
+// After some changes, the Parsers initialization started failing sometimes. So we
+// tried reducing an example test that failed down to see when it failed, in the
+// hopes that it could illuminate what the issue is.
+#[test]
+fn the_right_spans_are_set_after_typing_fn_below_this_fn_def_reduction_parsers_init_reduction() {
+    u!{BufferName, Input, ParserKind, parsers::Style}
+    let buffer_name = Path("fakefile.rs".into());
+
+    let mut parsers = Parsers::default();
+
+    let parser_kind = Rust(Extra);
+
+    let mut text_buffer = TextBuffer::from("");
+
+    text_buffer.insert('\n', Some(text_buffer::ParserEditListener {
+        buffer_name: &buffer_name,
+        parser_kind,
+        parsers: & mut parsers,
+    }));
+
+    // if we didn't panic yet, the test passed.
+}
+
+#[test]
+fn get_spans_on_an_empty_string_returns_ok() {
+    u!{BufferName, Input, ParserKind, parsers::Style}
+    let buffer_name = Path("fakefile.rs".into());
+
+    let mut parsers = Parsers::default();
+
+    let parser_kind = Rust(Extra);
+
+    let text_buffer = TextBuffer::from("");
+
+    parsers.get_spans_result(
+        text_buffer.borrow_rope().into(),
+        &buffer_name,
+        parser_kind
+    ).unwrap();
+    // if we didn't panic yet, the test passed.
+}
