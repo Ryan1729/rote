@@ -85,7 +85,7 @@ impl Iterator for ParserKind {
             Rust(style) => {
                 style.next()
                     .map(Rust)
-            },
+            }, // TODO loop into C after Rust
             C(style) => {
                 style.next()
                     .map(C)
@@ -102,6 +102,7 @@ impl ParserKind {
         u!{ParserKind}
         match name.get_extension_or_empty() {
             "rs" => Rust(d!()),
+            "c"|"h" => Rust(d!()),
             _ => Plaintext,
         }
     }
@@ -462,8 +463,11 @@ impl Parsers {
                     }
                 }
             },
-            NotInitializedYet | FailedToInitialize(_) => {
-                debug_assert!(false, "acknowledge_edit called on uninitalized Parsers");
+            NotInitializedYet => {
+                debug_assert!(false, "acknowledge_edit called on NotInitializedYet Parsers");
+            },
+            FailedToInitialize(_) => {
+                debug_assert!(false, "acknowledge_edit called on FailedToInitialize Parsers with this error: {}", self);
             }
         }
     }
