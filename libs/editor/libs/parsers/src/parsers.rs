@@ -60,7 +60,8 @@ impl Iterator for Style {
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub enum ParserKind {
     Plaintext,
-    Rust(Style)
+    Rust(Style),
+    C/*rane*/(Style)
 }
 d!(for ParserKind: ParserKind::Plaintext);
 
@@ -68,6 +69,7 @@ fmt_display!(
     for ParserKind: match p {
         Plaintext => "txt".to_string(),
         Rust(s) => format!("rs({})", s),
+        C(s) => format!("c({})", s),
     }
 );
 
@@ -83,6 +85,10 @@ impl Iterator for ParserKind {
             Rust(style) => {
                 style.next()
                     .map(Rust)
+            },
+            C(style) => {
+                style.next()
+                    .map(C)
             }
         }.map(|p| {
             *self = p;
@@ -101,10 +107,62 @@ impl ParserKind {
     }
 }
 
+/// Tree-Sitter Name
+#[derive(Clone, Copy)]
+enum TSName {
+    Rust,
+    C
+}
+
+const TS_NAME_COUNT: usize = 2;
+
+impl TSName {
+    const fn to_index(self) -> usize {
+        match self {
+            Self::Rust => 0,
+            Self::C => 1,
+        }
+    }
+}
+
+type ByTSName<A> = [A; TS_NAME_COUNT];
+
+macro_rules! map_to_by_ts_name {
+    ($name: ident $(,)? $code: block) => {
+        [
+            {
+                let $name = TSName::Rust;
+                $code
+            },
+            {
+                let $name = TSName::C;
+                $code
+            },
+        ]
+    }
+}
+
+/// Convenience macro for By TS Name indexing operation
+macro_rules! btsn {
+    ($variant: ident in $by_ts_name_in: expr) => {{
+        $by_ts_name_in[TSName::$variant.to_index()]
+    }}
+}
+
+#[cfg(test)]
+const TS_NAME_BY_TS_NAME: ByTSName<TSName> = map_to_by_ts_name!(name {name});
+
+#[test]
+fn to_index_assigns_the_correct_indexes() {
+    for i in 0..TS_NAME_BY_TS_NAME.len() {
+        assert_eq!(TS_NAME_BY_TS_NAME[i].to_index(), i);
+    }
+}
+
 #[derive(Debug)]
 pub enum Parsers {
     NotInitializedYet,
-    Initialized(InitializedParsers),
+    Initialized(Box<InitializedParsers>),
     FailedToInitialize(InitializationError)
 }
 d!(for Parsers: Parsers::NotInitializedYet);
@@ -163,16 +221,16 @@ type ParserMap = HashMap<BufferName, BufferState>;
 
 pub struct InitializedParsers {
     parser_map: ParserMap,
-    rust_basic_query: Query,
-    rust_lang: Language,
+    basic_queries: ByTSName<Query>,
+    languages: ByTSName<Language>
 }
 
 impl std::fmt::Debug for InitializedParsers {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
         fmt.debug_struct("InitializedParsers")
            .field("parser_map", &("TODO parser_map: Debug".to_string()))
-           .field("rust_basic_query", &self.rust_basic_query)
-           .field("rust_lang", &self.rust_lang)
+           .field("basic_queries", &self.basic_queries)
+           .field("languages", &self.languages)
            .finish()
     }
 }
@@ -268,7 +326,7 @@ impl Parsers {
                     &mut initialized.parser_map,
                     buffer_name,
                     kind,
-                    initialized.rust_lang,
+                    &initialized.languages,
                 );
                 dbg!(buffer_state.tree.is_some());
                 macro_rules! cont {
@@ -428,24 +486,34 @@ fn get_or_init_buffer_state<'map>(
     parser_map: &'map mut ParserMap,
     buffer_name: &BufferName,
     kind: ParserKind,
-    // TODO pass a reference to all the langs, if/when we support more than one.
-    rust_lang: Language, 
+    langs: &ByTSName<Language>, 
 ) -> &'map mut BufferState {
     u!{ParserKind}
     let buffer_state = parser_map
         .entry(buffer_name.clone())
         .or_insert_with(BufferState::default);
 
-    // We can assume that `set_language` will return `Ok` because we should
-    // have already tried it once in `InitializedParsers::new`
-    match kind {
-        Rust(_) => {
-            let _res = buffer_state.parser.set_language(rust_lang);
+    macro_rules! set_ts_lang {
+        ($variant: ident) => {
+            // We can assume that `set_language` will return `Ok` because we should
+            // have already tried it once in `InitializedParsers::new`
+            let _res = buffer_state.parser.set_language(
+                btsn!($variant in langs)
+            );
             debug_assert!(
                 _res.is_ok(),
                 "Failed to set language for {}",
                 kind
             );
+        }
+    }
+    
+    match kind {
+        Rust(_) => {
+            set_ts_lang!(Rust);
+        },
+        C(_) => {
+            set_ts_lang!(C);
         },
         Plaintext => {},
     }
@@ -463,116 +531,143 @@ impl InitializedParsers {
     ) -> SpansResult<'to_parse> {
         dbg!("get_spans");
         use ParserKind::*;
-        use Style::*;
         match kind {
             Plaintext => {
                 Ok(query::plaintext_spans_for(to_parse))
             }
             Rust(style) => {
-                let state = get_or_init_buffer_state(
-                    &mut self.parser_map,
+                self.get_spans_with_ts_name(
+                    to_parse,
                     buffer_name,
                     kind,
-                    self.rust_lang,
-                );
-                
-                perf_viz::start_record!("hash for caching");
-                let fresh_hash = hash_to_parse(&to_parse);
-                perf_viz::end_record!("hash for caching");
-
-                // This was wriiten right after this caching was introduced.
-                //
-                // If this still seems too slow, one thing we could try is iterating
-                // through with the tree cursor in whatever way is fastest, and 
-                // sorting at the end, since we're still sorting as it is. This 
-                // assumes that de don't actually need depth first traversal, which
-                // is somewhat uncertain.
-                //
-                // Alternately, we could collect spans for around N ms and return
-                // the partially complete spans. This prevents the thread stalling
-                // for too long, and should just appear as a few frames where the
-                // portions without known spans are just coloured plainly. However,
-                // we'd also have to figure out how to signal to the client that
-                // `update_and_render` should be called again.
-                //
-                if let Some(CachedSpans{ spans, hash }) = state.spans.as_ref() {
-                    if *hash == fresh_hash {
-                        return Ok(spans.clone());
-                    }
-                }
-
-                perf_viz::start_record!("state.parser.parse");
-
-                // This edit call that should do nothing, is here as a workaround
-                // for the `asking_to_parse_the_empty_string_twice_does_not_panic`
-                // test failing.
-                if let Some(t) = state.tree.as_mut() {
-                    t.edit(&InputEdit{
-                        start_byte: d!(),
-                        old_end_byte: d!(),
-                        new_end_byte: d!(),
-                        start_position: d!(),
-                        old_end_position: d!(),
-                        new_end_position: d!(),
-                    });
-                }
-
-                state.tree = state.parser.parse(
-                    to_parse.as_ref(),
-                    state.tree.as_ref()
-                );
-
-                // Quoting the `parse` method docs:
-                // Returns a Tree if parsing succeeded, or None if:
-                //
-                // * The parser has not yet had a language assigned with Parser::set_language
-                // * The timeout set with Parser::set_timeout_micros expired
-                // * The cancellation flag set with Parser::set_cancellation_flag was flipped
-
-                // Given that if we got here the language should be set, we don't 
-                // currently set a timeout, and, we don't currenlty cancel parses,
-                // this assert should not ever fail.
-                debug_assert!(state.tree.is_some(), "parse failed");
-
-                perf_viz::end_record!("state.parser.parse");
-
-                if let Some(tree) = state.tree.as_ref() {
-                    let spans = match style {
-                        Basic => {
-                            query::spans_for(
-                                tree,
-                                &self.rust_basic_query,
-                                &to_parse
-                            )
-                        },
-                        Extra => {
-                            query::totally_classified_spans_for(
-                                tree,
-                                &to_parse,
-                            )
-                        },
-                        TreeDepth => {
-                            query::tree_depth_spans_for(
-                                tree,
-                                &to_parse
-                            )
-                        }
-                    };
-
-                    state.spans = Some(CachedSpans{
-                        spans: spans.clone(),
-                        hash: fresh_hash,
-                    });
-
-                    Ok(spans)
-                } else {
-                    state.spans = None;
-                    Err((
-                        to_parse,
-                        SpanError::ParseReturnedNone(buffer_name.clone())
-                    ))
-                }
+                    style,
+                    TSName::Rust,
+                )
             }
+            C(style) => {
+                self.get_spans_with_ts_name(
+                    to_parse,
+                    buffer_name,
+                    kind,
+                    style,
+                    TSName::C,
+                )
+            }
+        }
+    }
+
+    fn get_spans_with_ts_name<'to_parse>(
+        &mut self,
+        to_parse: ToParse<'to_parse>,
+        buffer_name: &BufferName,
+        kind: ParserKind,
+        style: Style,
+        ts_name: TSName
+    ) -> SpansResult<'to_parse> {
+        use Style::*;
+
+        let state = get_or_init_buffer_state(
+            &mut self.parser_map,
+            buffer_name,
+            kind,
+            &self.languages,
+        );
+        
+        perf_viz::start_record!("hash for caching");
+        let fresh_hash = hash_to_parse(&to_parse);
+        perf_viz::end_record!("hash for caching");
+
+        // This was written right after this caching was introduced.
+        //
+        // If this still seems too slow, one thing we could try is iterating
+        // through with the tree cursor in whatever way is fastest, and 
+        // sorting at the end, since we're still sorting as it is. This 
+        // assumes that de don't actually need depth first traversal, which
+        // is somewhat uncertain.
+        //
+        // Alternately, we could collect spans for around N ms and return
+        // the partially complete spans. This prevents the thread stalling
+        // for too long, and should just appear as a few frames where the
+        // portions without known spans are just coloured plainly. However,
+        // we'd also have to figure out how to signal to the client that
+        // `update_and_render` should be called again.
+        //
+        if let Some(CachedSpans{ spans, hash }) = state.spans.as_ref() {
+            if *hash == fresh_hash {
+                return Ok(spans.clone());
+            }
+        }
+
+        perf_viz::start_record!("state.parser.parse");
+
+        // This edit call that should do nothing, is here as a workaround
+        // for the `asking_to_parse_the_empty_string_twice_does_not_panic`
+        // test failing.
+        if let Some(t) = state.tree.as_mut() {
+            t.edit(&InputEdit{
+                start_byte: d!(),
+                old_end_byte: d!(),
+                new_end_byte: d!(),
+                start_position: d!(),
+                old_end_position: d!(),
+                new_end_position: d!(),
+            });
+        }
+
+        state.tree = state.parser.parse(
+            to_parse.as_ref(),
+            state.tree.as_ref()
+        );
+
+        // Quoting the `parse` method docs:
+        // Returns a Tree if parsing succeeded, or None if:
+        //
+        // * The parser has not yet had a language assigned with Parser::set_language
+        // * The timeout set with Parser::set_timeout_micros expired
+        // * The cancellation flag set with Parser::set_cancellation_flag was flipped
+
+        // Given that if we got here the language should be set, we don't 
+        // currently set a timeout, and, we don't currenlty cancel parses,
+        // this assert should not ever fail.
+        debug_assert!(state.tree.is_some(), "parse failed");
+
+        perf_viz::end_record!("state.parser.parse");
+
+        if let Some(tree) = state.tree.as_ref() {
+            let spans = match style {
+                Basic => {
+                    query::spans_for(
+                        tree,
+                        &self.basic_queries[ts_name.to_index()],
+                        &to_parse
+                    )
+                },
+                Extra => {
+                    query::totally_classified_spans_for(
+                        tree,
+                        &to_parse,
+                    )
+                },
+                TreeDepth => {
+                    query::tree_depth_spans_for(
+                        tree,
+                        &to_parse
+                    )
+                }
+            };
+
+            state.spans = Some(CachedSpans{
+                spans: spans.clone(),
+                hash: fresh_hash,
+            });
+
+            Ok(spans)
+        } else {
+            state.spans = None;
+            Err((
+                to_parse,
+                SpanError::ParseReturnedNone(buffer_name.clone())
+            ))
         }
     }
 }
@@ -587,9 +682,15 @@ fn hash_to_parse<'to_parse>(to_parse: &ToParse<'to_parse>) -> u64 {
 
 extern "C" { 
     fn tree_sitter_rust() -> Language;
-    #[allow(unused)]
     fn tree_sitter_c() -> Language;
 }
+
+type LangFn = unsafe extern "C" fn() -> Language;
+
+const LANG_FNS: ByTSName<LangFn> = [
+    tree_sitter_rust,
+    tree_sitter_c
+];
 
 impl Parsers {
     fn attempt_init(&mut self) {
@@ -597,7 +698,7 @@ impl Parsers {
         match self {
             NotInitializedYet => {
                 match InitializedParsers::new() {
-                    Ok(p) => { *self = Initialized(p); }
+                    Ok(p) => { *self = Initialized(Box::new(p)); }
                     Err(e) => { *self = FailedToInitialize(e); }
                 }
             },
@@ -608,37 +709,51 @@ impl Parsers {
 
 impl InitializedParsers {
     fn new() -> Result<Self, InitializationError> {
-        let rust_lang = unsafe { tree_sitter_rust() };
-
-        let mut first: BufferState = d!();
-        // We make sure that each supported language works at the start
-        // so we can assume `set_language` always returns `Ok` afterwards.
-        first.parser.set_language(
-            rust_lang
-        )?;
-
         let mut parser_map: ParserMap = d!();
-        parser_map.insert(d!(), first);
 
-        let rust_basic_query = Query::new(
-            rust_lang,
-            RUST_BASIC_QUERY_SOURCE
-        )?;
+        let languages = map_to_by_ts_name!{name {
+            let index = name.to_index();
+            let lang_fn = LANG_FNS[index];
+            let lang = unsafe { lang_fn() };
+
+            let mut first: BufferState = d!();
+            // We make sure that each supported language works at the start
+            // so we can assume `set_language` always returns `Ok` afterwards.
+            first.parser.set_language(
+                lang
+            )?;
+    
+            parser_map.insert(d!(), first);
+
+            lang
+        }};
+
+        let basic_queries = map_to_by_ts_name!{name {
+            let index = name.to_index();
+            Query::new(
+                languages[index],
+                BASIC_QUERY_SOURCES[index]
+            )?
+        }};
 
         Ok(InitializedParsers {
             parser_map,
-            rust_lang,
-            rust_basic_query,
+            languages,
+            basic_queries,
         })
     }
 }
 
-const RUST_BASIC_QUERY_SOURCE: &str = "
+const BASIC_QUERY_SOURCE: &str = "
 (line_comment) @comment
 (block_comment) @comment
 (string_literal) @string
 (char_literal) @string
 ";
+
+const BASIC_QUERY_SOURCES: ByTSName<&str> = map_to_by_ts_name!{_name {
+    BASIC_QUERY_SOURCE
+}};
 
 mod query {
     use crate::{
