@@ -759,6 +759,7 @@ const BASIC_QUERY_SOURCES: ByTSName<&str> = map_to_by_ts_name!{name {
             (block_comment) @comment
             (string_literal) @string
             (char_literal) @string
+            (raw_string_literal) @string
         ",
         C => "
             (string_literal) @string
@@ -795,7 +796,9 @@ mod query {
                 KindAndDropBelow(sk!(SpanKind::FIRST_UNASSIGNED_RAW + 1))
             },
             s if s.ends_with("comment") => Kind(SpanKind::COMMENT),
-            s if s.starts_with("string") | s.starts_with("char") => {
+            s if s.starts_with("string")
+                | s.starts_with("raw_string")
+                | s.starts_with("char") => {
                 Kind(SpanKind::STRING)
             },
             _ => {
