@@ -1120,3 +1120,163 @@ fn the_view_contains_the_right_spans_after_typing_fn_below_this_fn_def() {
         );
     }
 }
+
+#[test]
+fn rust_to_c_abort_does_not_happen() {
+    u!{BufferName, Input, ParserKind, parsers::Style}
+    let mut state = arb::state_from_editor_buffers(
+        EditorBuffers::new(
+            (
+                // We intentionally start as Rust to get the language setting to 
+                // start there.
+                Path("fakefile.rs".into()),
+                r#"int main() {
+    return strlen('d'); "";
+}"#
+            )
+        )
+    );
+
+    macro_rules! get_parser_kind {
+        () => {
+            state.buffers.get_current_buffer_mut().get_parser_kind()
+        }
+    }
+
+    assert_eq!(get_parser_kind!(), Rust(Extra), "precondition failure");
+
+    while get_parser_kind!() != C(Extra) {
+        update_and_render(&mut state, NextLanguage);
+    }
+    
+    // As of this writing, basically any change to the text causes an abort.
+    update_and_render(&mut state, Insert('\n'));
+
+    // if we didn't panic/abort yet, the test passed.
+}
+
+#[test]
+fn rust_to_c_abort_does_not_happen_reduction() {
+    u!{BufferName, Input, ParserKind, parsers::Style}
+    let mut state = arb::state_from_editor_buffers(
+        EditorBuffers::new(
+            (
+                // We intentionally start as Rust to get the language setting to 
+                // start there.
+                Path("fakefile.rs".into()),
+                r#"int main() {
+    return strlen('d'); "";
+}"#
+            )
+        )
+    );
+
+    let mut buffer = state.buffers.get_current_buffer_mut();
+    assert_eq!(buffer.get_parser_kind(), Rust(Extra), "precondition failure");
+    
+    buffer.parser_kind = Some(C(Extra));
+
+    let state = &mut state;
+    
+    if let Some((b, l)) = get_text_buffer_mut!(state; listener) {
+        b.insert('\n', l);
+    }
+
+    // As of this writing, the abort happens in this call.
+    // uncomment this for a demonstation:
+    // assert!(false, "pre editor_view::render");
+    editor_view::render(state);
+
+    // if we didn't panic/abort yet, the test passed.
+}
+
+#[test]
+fn rust_to_c_abort_does_not_happen_reduction_editor_view_render_reduction() {
+    u!{BufferName, Input, ParserKind, parsers::Style}
+    let mut state = arb::state_from_editor_buffers(
+        EditorBuffers::new(
+            (
+                // We intentionally start as Rust to get the language setting to 
+                // start there.
+                Path("fakefile.rs".into()),
+                r#"int main() {
+    return strlen('d'); "";
+}"#
+            )
+        )
+    );
+
+    let mut buffer = state.buffers.get_current_buffer_mut();
+    assert_eq!(buffer.get_parser_kind(), Rust(Extra), "precondition failure");
+    
+    buffer.parser_kind = Some(C(Extra));
+
+    let state = &mut state;
+    
+    if let Some((b, l)) = get_text_buffer_mut!(state; listener) {
+        b.insert('\n', l);
+    }
+    
+    let &mut State {
+        ref mut buffers,
+        ref mut parsers,
+        ..
+    } = state;
+
+    let editor_buffer = buffers.get_current_buffer();
+    // As of this writing, the abort happens after this.
+    // uncomment this for a demonstation:
+    // assert!(false, "pre parsers.get_spans");
+    parsers.get_spans(
+        editor_buffer.text_buffer.borrow_rope().into(),
+        &editor_buffer.name,
+        editor_buffer.get_parser_kind()
+    );
+    
+    // if we didn't panic/abort yet, the test passed.
+}
+
+#[test]
+fn rust_to_c_abort_does_not_happen_reduction_get_text_buffer_mut_reduction() {
+    u!{BufferName, Input, ParserKind, parsers::Style}
+    let mut state = arb::state_from_editor_buffers(
+        EditorBuffers::new(
+            (
+                // We intentionally start as Rust to get the language setting to 
+                // start there.
+                Path("fakefile.rs".into()),
+                r#"int main() {
+    return strlen('d'); "";
+}"#
+            )
+        )
+    );
+
+    let &mut State {
+        ref mut buffers,
+        ref mut parsers,
+        ..
+    } = &mut state;
+
+    let buffer = buffers.get_current_buffer_mut();
+    assert_eq!(buffer.get_parser_kind(), Rust(Extra), "precondition failure");
+    
+    let parser_kind = C(Extra);
+
+    (&mut buffer.text_buffer).insert('\n', Some(text_buffer::ParserEditListener {
+        buffer_name: &buffer.name,
+        parser_kind,
+        parsers,
+    }));
+
+    // As of this writing, the abort happens after this.
+    // uncomment this for a demonstation:
+    // assert!(false, "pre parsers.get_spans");
+    parsers.get_spans(
+        buffer.text_buffer.borrow_rope().into(),
+        &buffer.name,
+        parser_kind
+    );
+    
+    // if we didn't panic/abort yet, the test passed.
+}

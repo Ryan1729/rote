@@ -539,3 +539,44 @@ fn get_spans_on_an_empty_string_returns_ok() {
     ).unwrap();
     // if we didn't panic yet, the test passed.
 }
+
+#[test]
+fn rust_to_c_abort_does_not_happen() {
+    u!{BufferName, Input, ParserKind, parsers::Style}
+    let buffer_name = Path("fakefile.rs".into());
+
+    let mut parsers = Parsers::default();
+
+    let mut text_buffer = TextBuffer::from(r#"int main() {
+    return strlen('d'); "";
+}"#);
+
+    let mut parser_kind = Rust(Extra);
+
+    parsers.get_spans(
+        text_buffer.borrow_rope().into(),
+        &buffer_name,
+        parser_kind
+    );
+
+    // Here we simulate the user switching languages
+    parser_kind = C(Extra);
+
+    text_buffer.insert('\n', Some(text_buffer::ParserEditListener {
+        buffer_name: &buffer_name,
+        parser_kind,
+        parsers: &mut parsers,
+    }));
+
+    // As of this writing, the abort happens after this.
+    // uncomment this for a demonstation:
+    //assert!(false, "pre parsers.get_spans");
+
+    parsers.get_spans(
+        text_buffer.borrow_rope().into(),
+        &buffer_name,
+        parser_kind
+    );
+
+    // if we didn't panic/abort yet, the test passed.
+}
