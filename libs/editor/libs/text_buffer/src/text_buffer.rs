@@ -131,7 +131,6 @@ impl TextBuffer {
                 //small_xywh.wh.w /= 2.0;
                 //small_xywh.xy.y += small_xywh.wh.h / 4.0;
                 //small_xywh.wh.h /= 2.0;
-            
                 let x_ratio = char_dim.w.get() / small_xywh.wh.w.get();
                 let y_ratio = 3.0 * char_dim.h.get() / small_xywh.wh.h.get();
                 let apron = apron!(

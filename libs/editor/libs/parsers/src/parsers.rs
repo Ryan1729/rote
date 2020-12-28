@@ -833,7 +833,7 @@ mod query {
     }
 
     #[perf_viz::record]
-    pub fn plaintext_spans_for(s: ToParse<'_>) -> Spans {
+    pub(crate) fn plaintext_spans_for(s: ToParse<'_>) -> Spans {
         Spans::from(vec![plaintext_end_span_for(s)])
     }
     
@@ -842,7 +842,7 @@ mod query {
     }
 
     #[perf_viz::record]
-    pub fn spans_for<'to_parse>(
+    pub(crate) fn spans_for<'to_parse>(
         tree: &Tree,
         query: &Query,
         to_parse: &'to_parse str,
@@ -962,7 +962,7 @@ mod query {
     }
     
     #[perf_viz::record]
-    pub fn totally_classified_spans_for<'to_parse>(
+    pub(crate) fn totally_classified_spans_for<'to_parse>(
         tree: &Tree,
         to_parse: &'to_parse str,
     ) -> Spans {
@@ -1059,7 +1059,7 @@ mod query {
     type Depth = u8;
     
     #[perf_viz::record]
-    pub fn tree_depth_spans_for<'to_parse>(
+    pub(crate) fn tree_depth_spans_for<'to_parse>(
         tree: &Tree,
         to_parse: &'to_parse str,
     ) -> Spans {
