@@ -109,10 +109,18 @@ impl ParserKind {
             _ => Plaintext,
         }
     }
+
+    fn to_ts_name(self) -> Option<TSName> {
+        match self {
+            Self::Rust(_) => Some(TSName::Rust),
+            Self::C(_) => Some(TSName::C),
+            Self::Plaintext => None,
+        }
+    }
 }
 
 /// Tree-Sitter Name
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 enum TSName {
     Rust,
     C
@@ -148,6 +156,10 @@ macro_rules! map_to_by_ts_name {
 
 /// Convenience macro for By TS Name indexing operation
 macro_rules! btsn {
+    ($variant: expr, $by_ts_name_in: expr) => {{
+        let name: TSName = $variant;
+        $by_ts_name_in[name.to_index()]
+    }};
     ($variant: ident in $by_ts_name_in: expr) => {{
         $by_ts_name_in[TSName::$variant.to_index()]
     }}
@@ -202,12 +214,14 @@ struct BufferState {
     parser: Parser,
     tree: Option<Tree>,
     spans: Option<CachedSpans>,
+    ts_name: Option<TSName>,
 }
 
 d!{for BufferState: BufferState{
     parser: Parser::new(),
     tree: None,
     spans: None,
+    ts_name: None,
 }}
 
 struct CachedSpans {
@@ -492,7 +506,7 @@ impl Parsers {
 fn get_or_init_buffer_state<'map>(
     parser_map: &'map mut ParserMap,
     buffer_name: &BufferName,
-    kind: ParserKind,
+    parser_kind: ParserKind,
     langs: &ByTSName<Language>, 
 ) -> &'map mut BufferState {
     u!{ParserKind}
@@ -500,29 +514,39 @@ fn get_or_init_buffer_state<'map>(
         .entry(buffer_name.clone())
         .or_insert_with(BufferState::default);
 
-    macro_rules! set_ts_lang {
-        ($variant: ident) => {
+    let parser_kind_ts_name = parser_kind.to_ts_name();
+
+    // We want to avoid using the old buffer_state.parser if we switch languages
+    // because we previously got whole program aborts due to tree-sitter assertions
+    // when we did that.
+    match (buffer_state.ts_name, parser_kind_ts_name) {
+        (Some(name1), Some(name2)) if name1 == name2 => {
+            // The language was apparently the same, so nothing to do.
+        },
+        (None, None) => {
+            // Neither is a tree-sitter parser so nothing to do.
+        },
+        _ => {
+            // We might be able to get away with not doing this when we switch
+            // to or from a non-tree-sitter language, but this way seems safest.
+            *buffer_state = d!();
+        }
+    }
+
+    match parser_kind_ts_name {
+        Some(name) => {
             // We can assume that `set_language` will return `Ok` because we should
             // have already tried it once in `InitializedParsers::new`
             let _res = buffer_state.parser.set_language(
-                btsn!($variant in langs)
+                btsn!(name, langs)
             );
             debug_assert!(
                 _res.is_ok(),
                 "Failed to set language for {}",
-                kind
+                parser_kind
             );
-        }
-    }
-    
-    match kind {
-        Rust(_) => {
-            set_ts_lang!(Rust);
         },
-        C(_) => {
-            set_ts_lang!(C);
-        },
-        Plaintext => {},
+        None => {},
     }
 
     buffer_state

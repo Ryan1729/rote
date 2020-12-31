@@ -448,8 +448,7 @@ impl TextBuffer {
     ///
     /// If it helps, you can think of it as "select_word" if the cursor is on a word, and other
     /// stuff otherwise
-    pub fn select_char_type_grouping(
-        &mut self,
+    pub fn select_char_type_grouping(        &mut self,
         position: Position,
         replace_or_add: ReplaceOrAdd,
     ) {
@@ -560,8 +559,7 @@ impl TextBuffer {
             ApplyKind::Playback,
             // Since we know that this edit only involves cursors, we know the
             // parsers won't care about it.
-            None,
-        );
+            None,        );
     }
 
     pub fn tab_in(&mut self, listener: PossibleParserEditListener) -> PossibleEditedTransition {

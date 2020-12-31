@@ -542,7 +542,7 @@ fn get_spans_on_an_empty_string_returns_ok() {
 
 #[test]
 fn rust_to_c_abort_does_not_happen() {
-    u!{BufferName, Input, ParserKind, parsers::Style}
+    u!{BufferName, ParserKind, parsers::Style}
     let buffer_name = Path("fakefile.rs".into());
 
     let mut parsers = Parsers::default();
@@ -580,3 +580,4 @@ fn rust_to_c_abort_does_not_happen() {
 
     // if we didn't panic/abort yet, the test passed.
 }
+
