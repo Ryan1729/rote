@@ -18,7 +18,7 @@ shared = { path = "../shared" }
 
 [dev-dependencies]
 # for the example(s)
-glutin = "0.24.0"
+glutin_wrapper = { path = "../glutin_wrapper" }
 spin_sleep = "0.3"
 
 [features]

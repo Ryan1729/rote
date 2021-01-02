@@ -807,7 +807,7 @@ name = "gl_layer"
 version = "0.1.0"
 dependencies = [
  "gl_layer_types",
- "glutin",
+ "glutin_wrapper",
  "macros",
  "open_gl",
  "perf_viz",
@@ -895,6 +895,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a93dba7ee3a0feeac0f437141ff25e71ce2066bcf1a706acab1559ffff94eb6a"
 dependencies = [
  "gl_generator 0.13.1",
+]
+
+[[package]]
+name = "glutin_wrapper"
+version = "0.1.0"
+dependencies = [
+ "glutin",
 ]
 
 [[package]]
@@ -2431,7 +2438,7 @@ dependencies = [
  "editor",
  "file_chooser",
  "gl_layer",
- "glutin",
+ "glutin_wrapper",
  "if_changed",
  "macros",
  "perf_viz",
@@ -2464,7 +2471,7 @@ name = "wimp_types"
 version = "0.1.0"
 dependencies = [
  "clipboard",
- "glutin",
+ "glutin_wrapper",
  "if_changed",
  "macros",
  "perf_viz",

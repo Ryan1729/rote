@@ -1,11 +1,11 @@
-use glutin::event::{ModifiersState, VirtualKeyCode};
+use glutin_wrapper::event::{ModifiersState, VirtualKeyCode};
 use macros::{d, dbg, ord, u};
 use platform_types::{screen_positioning::*, abs, g_i, Input, Cmd, EditedTransition};
 
 use std::collections::{VecDeque, BTreeMap};
 use std::path::PathBuf;
 
-pub use glutin::event_loop::EventLoopProxy;
+pub use glutin_wrapper::event_loop::EventLoopProxy;
 
 mod clipboard_layer {
     use super::dbg;

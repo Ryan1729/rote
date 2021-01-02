@@ -3,7 +3,7 @@
 // opengl folder, to the extent that the code remains as it was
 // (at commit 90e7c7c331e9f991e11de6404b2ca073c0a09e61)
 
-use glutin::{dpi::LogicalPosition, Api, GlProfile, GlRequest};
+use glutin_wrapper::{dpi::LogicalPosition, Api, GlProfile, GlRequest};
 use std::{
     collections::VecDeque,
     path::PathBuf,
@@ -146,20 +146,20 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
     let edited_files_dir_buf = data_dir.join("edited_files_v1/");
     let edited_files_index_path_buf = data_dir.join("edited_files_v1_index.txt");
 
-    use glutin::event_loop::EventLoop;
-    let events: EventLoop<CustomEvent> = glutin::event_loop::EventLoop::with_user_event();
+    use glutin_wrapper::event_loop::EventLoop;
+    let events: EventLoop<CustomEvent> = glutin_wrapper::event_loop::EventLoop::with_user_event();
     let event_proxy = events.create_proxy();
 
-    let glutin_context = glutin::ContextBuilder::new()
+    let glutin_context = glutin_wrapper::ContextBuilder::new()
         .with_gl_profile(GlProfile::Core)
         //As of now we only need 3.3 for GL_TIME_ELAPSED. Otherwise we could use 3.2.
         .with_gl(GlRequest::Specific(Api::OpenGl, (3, 3)))
         .with_srgb(true)
         .with_depth_buffer(24)
         .build_windowed(
-            glutin::window::WindowBuilder::new()
+            glutin_wrapper::window::WindowBuilder::new()
                 .with_inner_size(
-                    glutin::dpi::Size::Logical(glutin::dpi::LogicalSize::new(1024.0, 576.0))
+                    glutin_wrapper::dpi::Size::Logical(glutin_wrapper::dpi::LogicalSize::new(1024.0, 576.0))
                  )
                 .with_title(title),
             &events,
@@ -562,7 +562,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
             };
         }
 
-        use glutin::event::*;
+        use glutin_wrapper::event::*;
 
         let empty: ModifiersState = ModifiersState::empty();
         const LOGO: ModifiersState = ModifiersState::LOGO;
@@ -861,7 +861,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
 
                             let _ = gl_layer::cleanup(&gl_state);
 
-                            *control_flow = glutin::event_loop::ControlFlow::Exit;
+                            *control_flow = glutin_wrapper::event_loop::ControlFlow::Exit;
                         }};
                     }
 
@@ -1027,7 +1027,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                                         r_s.view.menu_mode(),
                                         r_s.dimensions
                                     ) {
-                                        glutin::window::CursorIcon::Text
+                                        glutin_wrapper::window::CursorIcon::Text
                                     } else {
                                         d!()
                                     };
