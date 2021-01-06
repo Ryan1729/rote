@@ -57,6 +57,30 @@ impl Iterator for Style {
     }
 }
 
+impl DoubleEndedIterator for Style {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        use Style::*;
+        match self {
+            Extra => {
+                None
+            },
+            Basic => {
+                Some(Extra)
+            },
+            TreeDepth => {
+                Some(Basic)
+            }
+        }.map(|s| {
+            *self = s;
+            s
+        })
+    }
+}
+
+impl Style {
+    pub const LAST: Self = Self::TreeDepth;
+}
+
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub enum ParserKind {
     Plaintext,
@@ -100,6 +124,33 @@ impl Iterator for ParserKind {
     }
 }
 
+impl DoubleEndedIterator for ParserKind {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        use ParserKind::*;
+        match self {
+            Plaintext => {
+                None
+            },
+            Rust(style) => {
+                Some(
+                    style.next_back()
+                        .map(Rust)
+                        .unwrap_or_else(|| Plaintext)
+                )
+            },
+            C(style) => {
+                Some(
+                    style.next_back()
+                        .map(C)
+                        .unwrap_or_else(|| Rust(Style::LAST))
+                )
+            }
+        }.map(|p| {
+            *self = p;
+            p
+        })
+    }
+}
 impl ParserKind {
     pub fn default_from_name(name: &BufferName) -> Self {
         u!{ParserKind}
@@ -117,6 +168,8 @@ impl ParserKind {
             Self::Plaintext => None,
         }
     }
+
+    pub const LAST: Self = Self::C(Style::LAST);
 }
 
 /// Tree-Sitter Name

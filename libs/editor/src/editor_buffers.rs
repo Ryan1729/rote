@@ -87,6 +87,12 @@ impl EditorBuffer {
         );
     }
 
+    pub fn previous_language(&mut self) {
+        self.parser_kind = Some(
+            self.get_parser_kind().next_back().unwrap_or(ParserKind::LAST)
+        );
+    }
+
     pub fn advance_or_refresh_search_results(&mut self, needle: RopeSlice) {
         if needle == self.search_results.needle {
             self.advance_to_next_search_result(needle);

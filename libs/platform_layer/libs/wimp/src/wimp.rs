@@ -743,6 +743,9 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
             [CTRL | ALT, L, "Switch document parsing to next language.", state {
                 call_u_and_r!(state, Input::NextLanguage);
             }]
+            [CTRL | ALT | SHIFT, L, "Switch document parsing to previous language.", state {
+                call_u_and_r!(state, Input::PreviousLanguage);
+            }]
             [CTRL | SHIFT, Home, "Move all cursors to buffer start.", state {
                 call_u_and_r!(state, Input::ExtendSelectionForAllCursors(
                     Move::ToBufferStart

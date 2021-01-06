@@ -2,7 +2,7 @@
 /// the colour of text, when changed from one colour to another and back again, would get stuck,
 /// and it would not change when it was expected to.
 use gl_layer::{ColouredText, TextLayout, TextOrRect, TextSpec, VisualSpec};
-use glutin::{Api, GlProfile, GlRequest};
+use glutin_wrapper::{Api, GlProfile, GlRequest};
 use platform_types::*;
 use shared::Res;
 
@@ -13,22 +13,22 @@ macro_rules! d {
 }
 
 fn main() -> Res<()> {
-    let events = glutin::event_loop::EventLoop::new();
-    let glutin_context = glutin::ContextBuilder::new()
+    let events = glutin_wrapper::event_loop::EventLoop::new();
+    let glutin_wrapper_context = glutin_wrapper::ContextBuilder::new()
         .with_gl_profile(GlProfile::Core)
         //As of now we only need 3.3 for GL_TIME_ELAPSED. Otherwise we could use 3.2.
         .with_gl(GlRequest::Specific(Api::OpenGl, (3, 3)))
         .with_srgb(true)
         .with_depth_buffer(24)
         .build_windowed(
-            glutin::window::WindowBuilder::new()
+            glutin_wrapper::window::WindowBuilder::new()
                 .with_inner_size(
-                    glutin::dpi::Size::Logical(glutin::dpi::LogicalSize::new(683.0, 393.0))
+                    glutin_wrapper::dpi::Size::Logical(glutin_wrapper::dpi::LogicalSize::new(683.0, 393.0))
                 )
                 .with_title("text-colour-changes example"),
             &events,
         )?;
-    let glutin_context = unsafe { glutin_context.make_current().map_err(|(_, e)| e)? };
+    let glutin_wrapper_context = unsafe { glutin_wrapper_context.make_current().map_err(|(_, e)| e)? };
 
     const TEXT_SIZE: f32 = 128.0;
     const HELP_SIZE: f32 = 16.0;
@@ -41,13 +41,13 @@ fn main() -> Res<()> {
         hidpi_factor as f32,
         &TEXT_SIZES,
         [0.3, 0.3, 0.3, 1.0],
-        |symbol| glutin_context.get_proc_address(symbol) as _,
+        |symbol| glutin_wrapper_context.get_proc_address(symbol) as _,
     )?;
 
     let mut loop_helper = spin_sleep::LoopHelper::builder().build_with_target_rate(250.0);
 
     let mut running = true;
-    let mut dimensions = glutin_context
+    let mut dimensions = glutin_wrapper_context
         .window()
         .inner_size();
 
@@ -102,7 +102,7 @@ fn main() -> Res<()> {
 
     {
         events.run(move |event, _, control_flow| {
-            use glutin::event::*;
+            use glutin_wrapper::event::*;
 
             macro_rules! advance {
                 () => {
@@ -122,7 +122,7 @@ fn main() -> Res<()> {
             match event {
                 Event::MainEventsCleared if running => {
                     // Queue a RedrawRequested event so we draw the updated view quickly.
-                    glutin_context.window().request_redraw();
+                    glutin_wrapper_context.window().request_redraw();
                 }
                 Event::RedrawRequested(_) => {
                     if auto_advance {
@@ -286,7 +286,7 @@ fn main() -> Res<()> {
                     gl_layer::render(&mut gl_state, text_and_rects, width as _, height as _)
                         .expect("gl_layer::render didn't work");
 
-                    glutin_context
+                    glutin_wrapper_context
                         .swap_buffers()
                         .expect("swap_buffers didn't work!");
 
@@ -306,7 +306,7 @@ fn main() -> Res<()> {
 
                             let _ = gl_layer::cleanup(&gl_state);
 
-                            *control_flow = glutin::event_loop::ControlFlow::Exit;
+                            *control_flow = glutin_wrapper::event_loop::ControlFlow::Exit;
                         }};
                     }
 
@@ -319,7 +319,7 @@ fn main() -> Res<()> {
                             hidpi_factor = scale_factor;
                         }
                         WindowEvent::Resized(size) => {
-                            glutin_context.resize(size);
+                            glutin_wrapper_context.resize(size);
                             dimensions = size;
                             gl_layer::set_dimensions(
                                 &mut gl_state,

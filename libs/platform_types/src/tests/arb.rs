@@ -521,6 +521,7 @@ arb_enum!{
         AdjustBufferSelection(_) => selection_adjustment()
             .prop_map(AdjustBufferSelection),
         NextLanguage => Just(NextLanguage),
+        PreviousLanguage => Just(PreviousLanguage),
         SelectBuffer(_) => buffer_id().prop_map(SelectBuffer),
         OpenOrSelectBuffer(_) => path_buf().prop_map(OpenOrSelectBuffer),
         CloseBuffer(_) => close_buffer(),

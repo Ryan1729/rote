@@ -832,6 +832,9 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
         NextLanguage => {
             editor_buffer_call!(b.next_language());
         }
+        PreviousLanguage => {
+            editor_buffer_call!(b.previous_language());
+        }
         SubmitForm => match state.current_buffer_kind {
             BufferIdKind::None | BufferIdKind::Text => {}
             BufferIdKind::Find => match state.find_replace_mode() {
