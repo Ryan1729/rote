@@ -39,12 +39,15 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
 
     let mut data_dir = None;
     let mut hidpi_factor_override = None;
+    // We expect the program to most often be opened with either 0 or 1 extra paths.
+    let mut extra_paths = Vec::with_capacity(1);
 
     const VERSION: &str = "--version";
     const HELP: &str = "--help";
     const DATA_DIR_OVERRIDE: &str = "--data-dir-override";
     const HIDPI_OVERRIDE: &str = "--hidpi-override";
     const LICENSE: &str = "--license";
+    const FILE: &str = "--file";
 
     while let Some(s) = args.next() {
         let s: &str = &s;
@@ -99,6 +102,23 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                 println!("License for the font:");
                 println!("{}", gl_layer::FONT_LICENSE);
                 std::process::exit(0)
+            }
+            FILE => {
+                let path = args.next().ok_or_else(|| {
+                    format!(
+                        "{0} needs an argument. For example: {0} ./file.txt",
+                        FILE
+                    )
+                })
+                // Would it be better to open the window and display a path error
+                // there instead of `?` here?
+                // If someone specified a file, they probably want to open that 
+                // particular file, or maybe they made a typo, either way, they 
+                // probably would rather have the feedback in their terminal or
+                // whatever, so they can correct the file name
+                .map(PathBuf::from)?;
+                
+                extra_paths.push(path);
             }
             _ => {
                 eprintln!("unknown arg {:?}", s);
@@ -279,8 +299,19 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
             .expect("Could not start editor thread!"),
     );
 
-    let previous_tabs =
-            edited_storage::load_previous_tabs(&edited_files_dir_buf, &edited_files_index_path_buf);
+    use edited_storage::{load_tab, load_previous_tabs, LoadedTab};
+
+    let loaded_tabs = {
+        let mut previous_tabs = load_previous_tabs(&edited_files_dir_buf, &edited_files_index_path_buf);
+
+        // We return early here for similar reasons to the reasons given in the
+        // comment by the FILE argument parsing code above.
+        for p in extra_paths {
+            previous_tabs.push(load_tab(p)?);
+        }
+
+        previous_tabs
+    };
 
     macro_rules! wh_from_size {
         ($size: expr) => {{
@@ -338,7 +369,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
         let mut ui: ui::State = d!();
         ui.window_is_focused = true;
 
-        let expected_capacity_needed = (previous_tabs.len() + 1) * 2;
+        let expected_capacity_needed = (loaded_tabs.len() + 1) * 2;
         let buffer_status_map = g_i::Map::with_capacity(g_i::Length::or_max(expected_capacity_needed));
 
         let clipboard = get_clipboard();
@@ -400,7 +431,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
             }};
         }
 
-        for (i, (name, data)) in previous_tabs.into_iter().enumerate() {
+        for (i, LoadedTab{name, data}) in loaded_tabs.into_iter().enumerate() {
             call_u_and_r!(Input::AddOrSelectBuffer(name, data));
 
             let index_state = r_s.view.index_state();

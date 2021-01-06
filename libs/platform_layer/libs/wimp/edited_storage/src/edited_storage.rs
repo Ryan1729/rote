@@ -88,10 +88,15 @@ pub fn store_buffers(
     Ok(result)
 }
 
+pub struct LoadedTab {
+    pub name: BufferName,
+    pub data: String,
+}
+
 pub fn load_previous_tabs(
     edited_files_dir: &Path,
     edited_files_index_path: &Path,
-) -> Vec<(BufferName, String)> {
+) -> Vec<LoadedTab> {
     let names_to_uuid: HashMap<BufferName, u128> = get_names_to_uuid(edited_files_index_path);
 
     let mut result = Vec::with_capacity(names_to_uuid.len());
@@ -103,11 +108,24 @@ pub fn load_previous_tabs(
     for (name, uuid) in pairs {
         let path = edited_files_dir.join(get_path(name.to_string(), &uuid));
 
-        if let Ok(data) = std::fs::read_to_string(path) {
-            result.push((name, data));
+        if let Ok(tab) = load_tab_with_name(path, name) {
+            result.push(tab);
         }
     }
     result
+}
+
+pub fn load_tab<P: AsRef<Path>>(path: P) -> std::io::Result<LoadedTab>{
+    let name = BufferName::Path(path.as_ref().into());
+    load_tab_with_name(path, name)
+}
+
+fn load_tab_with_name<P: AsRef<Path>>(path: P, name: BufferName) -> std::io::Result<LoadedTab>{
+    let path = path.as_ref();
+    std::fs::read_to_string(path).map(|data| LoadedTab {
+        name,
+        data,
+    })
 }
 
 fn get_path(buffer_name: String, uuid: &u128) -> PathBuf {
