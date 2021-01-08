@@ -53,7 +53,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
         let s: &str = &s;
         match s {
             HELP => {
-                let accepted_args = [VERSION, HELP, DATA_DIR_OVERRIDE, HIDPI_OVERRIDE, LICENSE];
+                let accepted_args = [VERSION, HELP, DATA_DIR_OVERRIDE, HIDPI_OVERRIDE, LICENSE, FILE];
                 println!("accepted args: ");
                 for arg in accepted_args.iter() {
                     print!("    {}", arg);
@@ -63,13 +63,16 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                     if *arg == HIDPI_OVERRIDE {
                         print!(" <hidpi factor (positive floating point number)>");
                     }
+                    if *arg == FILE {
+                        print!(" <path of file to open>");
+                    }
                     println!()
                 }
                 std::process::exit(0)
             }
             VERSION => {
                 // We expect the main crate to unconditionally print the version.
-                // This is becasue the main crate has access to the correct
+                // This is because the main crate has access to the correct
                 // version value through the "CARGO_PKG_VERSION" env var.
                 std::process::exit(0)
             }
