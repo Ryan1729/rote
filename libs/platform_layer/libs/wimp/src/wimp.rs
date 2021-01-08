@@ -166,6 +166,56 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
         }
     }?;
 
+    let running_lock_path = data_dir.join("running.lock");
+    use atomicwrites::{AtomicFile, OverwriteBehavior};
+    let previous_instance_is_running = {
+        let file = AtomicFile::new_with_tmpdir(
+            &running_lock_path,
+            OverwriteBehavior::DisallowOverwrite,
+            &data_dir
+        );
+
+
+        let res = file.write(|f| {
+            // In some sense it doesn't matter what we write here, but it seems like it
+            // would be nice for it to be different each time it is written.
+            use std::time::{SystemTime, UNIX_EPOCH};
+            let thing_to_write = match SystemTime::now().duration_since(UNIX_EPOCH) {
+                Ok(duration) => format!("{}\n", duration.as_nanos()),
+                Err(e) => format!("-{}\n", e.duration().as_nanos()),
+            };
+
+            use std::io::Write;
+            f.write_all(thing_to_write.as_bytes())?;
+
+            f.sync_all()
+        });
+
+        match res {
+            Ok(()) => false,
+            Err(
+                atomicwrites::Error::Internal(io_error)
+            ) | Err(
+                atomicwrites::Error::User(io_error)
+            ) if io_error.kind() == std::io::ErrorKind::AlreadyExists =>  {
+                true
+            },
+            Err(_) => { return res.map_err(From::from); }
+        }
+    };
+
+    if previous_instance_is_running {
+        println!(
+            "Previous instance of {} detected, or at least a file at:\n{}",
+            title,
+            running_lock_path.to_string_lossy()
+        );
+
+        std::process::exit(0)
+    }
+
+    // TODO: delete running_lock_path when the to-be-written mailbox thread exits.
+
     let edited_files_dir_buf = data_dir.join("edited_files_v1/");
     let edited_files_index_path_buf = data_dir.join("edited_files_v1_index.txt");
 

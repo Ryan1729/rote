@@ -24,8 +24,8 @@ shared = { path = "shared" }
 wimp_render = { path = "wimp_render" }
 wimp_types = { path = "wimp_types" }
 spin_sleep = "0.3"
-clipboard = "0.5.0"
 directories = "2.0"
+atomicwrites = "0.2.5"
 
 
 [features]

@@ -91,6 +91,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cff77d8686867eceff3105329d4698d96c2391c176d5d03adc90c7389162b5b8"
 
 [[package]]
+name = "atomicwrites"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a2baf2feb820299c53c7ad1cc4f5914a220a1cb76d7ce321d2522a94b54651f"
+dependencies = [
+ "nix 0.14.1",
+ "tempdir",
+ "winapi 0.3.8",
+]
+
+[[package]]
 name = "atty"
 version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -176,7 +187,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b036167e76041694579972c28cf4877b4f92da222560ddb49008937b6a6727c"
 dependencies = [
  "log",
- "nix",
+ "nix 0.18.0",
 ]
 
 [[package]]
@@ -654,7 +665,7 @@ version = "0.1.0"
 dependencies = [
  "platform_types",
  "proptest",
- "rand",
+ "rand 0.7.3",
  "wimp_types",
 ]
 
@@ -1327,6 +1338,19 @@ dependencies = [
 
 [[package]]
 name = "nix"
+version = "0.14.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c722bee1037d430d0f8e687bbdbf222f27cc6e4e68d5caf630857bb2b6dbdce"
+dependencies = [
+ "bitflags",
+ "cc",
+ "cfg-if 0.1.10",
+ "libc",
+ "void",
+]
+
+[[package]]
+name = "nix"
 version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "83450fe6a6142ddd95fb064b746083fc4ef1705fe81f64a64e1d4b39f54a1055"
@@ -1684,7 +1708,7 @@ dependencies = [
  "lazy_static 1.4.0",
  "num-traits",
  "quick-error",
- "rand",
+ "rand 0.7.3",
  "rand_chacha",
  "rand_xorshift",
  "regex-syntax",
@@ -1818,6 +1842,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "54a21852a652ad6f610c9510194f398ff6f8692e334fd1145fed931f7fbe44ea"
 dependencies = [
  "proc-macro2 1.0.24",
+]
+
+[[package]]
+name = "rand"
+version = "0.4.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "552840b97013b1a26992c11eac34bdd778e464601a4c2054b5f0bff7c6761293"
+dependencies = [
+ "fuchsia-cprng",
+ "libc",
+ "rand_core 0.3.1",
+ "rdrand",
+ "winapi 0.3.8",
 ]
 
 [[package]]
@@ -2034,7 +2071,7 @@ dependencies = [
 
 [[package]]
 name = "rote"
-version = "0.2.199"
+version = "0.2.200"
 dependencies = [
  "editor",
  "lazy_static 1.4.0",
@@ -2256,7 +2293,7 @@ dependencies = [
  "lazy_static 1.4.0",
  "log",
  "memmap2",
- "nix",
+ "nix 0.18.0",
  "wayland-client",
  "wayland-cursor",
  "wayland-protocols",
@@ -2310,6 +2347,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "tempdir"
+version = "0.3.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "15f2b5fb00ccdf689e0149d1b1b3c03fead81c2b37735d812fa8bddbbf41b6d8"
+dependencies = [
+ "rand 0.4.6",
+ "remove_dir_all",
+]
+
+[[package]]
 name = "tempfile"
 version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2317,7 +2364,7 @@ checksum = "7a6e24d9338a0a5be79593e2fa15a648add6138caa803e2d5bc782c371732ca9"
 dependencies = [
  "cfg-if 0.1.10",
  "libc",
- "rand",
+ "rand 0.7.3",
  "redox_syscall",
  "remove_dir_all",
  "winapi 0.3.8",
@@ -2501,6 +2548,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b5a972e5669d67ba988ce3dc826706fb0a8b01471c088cb0b6110b805cc36aed"
 
 [[package]]
+name = "void"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a02e4885ed3bc0f2de90ea6dd45ebcbb66dacffe03547fadbb0eeae2770887d"
+
+[[package]]
 name = "wait-timeout"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2535,7 +2588,7 @@ dependencies = [
  "bitflags",
  "downcast-rs",
  "libc",
- "nix",
+ "nix 0.18.0",
  "scoped-tls",
  "wayland-commons",
  "wayland-scanner",
@@ -2548,7 +2601,7 @@ version = "0.28.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "480450f76717edd64ad04a4426280d737fc3d10a236b982df7b1aee19f0e2d56"
 dependencies = [
- "nix",
+ "nix 0.18.0",
  "once_cell",
  "smallvec 1.4.0",
  "wayland-sys",
@@ -2560,7 +2613,7 @@ version = "0.28.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6eb122c160223a7660feeaf949d0100281d1279acaaed3720eb3c9894496e5f"
 dependencies = [
- "nix",
+ "nix 0.18.0",
  "wayland-client",
  "xcursor",
 ]
@@ -2613,7 +2666,7 @@ dependencies = [
 name = "wimp"
 version = "0.0.1"
 dependencies = [
- "clipboard",
+ "atomicwrites",
  "criterion",
  "directories",
  "edited_storage",
