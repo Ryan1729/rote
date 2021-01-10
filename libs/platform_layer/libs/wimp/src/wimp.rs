@@ -175,7 +175,6 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
             &data_dir
         );
 
-
         let res = file.write(|f| {
             // In some sense it doesn't matter what we write here, but it seems like it
             // would be nice for it to be different each time it is written.
@@ -210,6 +209,87 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
             title,
             running_lock_path.to_string_lossy()
         );
+
+        let path_count = extra_paths.len();
+        if path_count > 0 {
+            let path_mailbox_path = data_dir.join("path_mailbox_path.txt");
+
+            println!(
+                "Adding path{} to {} for the other instance to read.",
+                if path_count == 1 { "" } else { "s" },
+                path_mailbox_path.to_string_lossy(),
+            );
+
+            // This `inner` function lets us use `?` while also capturing the `Res`
+            // afterward.
+            let inner = |path_mailbox_path: PathBuf| -> Res<()> {
+                let path_list = {
+                    use std::fs::OpenOptions;
+
+                    let mut path_mailbox = OpenOptions::new()
+                        .read(true)
+                        .write(true)
+                        .create(true)
+                        .open(&path_mailbox_path)?;
+
+                    // This size calculation is copied from `initial_buffer_size`
+                    // function in rust's std::fs module, including the following
+                    // comment:
+                    // Allocate one extra byte so the buffer doesn't need to grow before the
+                    // final `read` call at the end of the file.  Don't worry about `usize`
+                    // overflow because reading will fail regardless in that case.
+                    let previous_size = path_mailbox.metadata()
+                        .map(|m| m.len() as usize + 1)
+                        .unwrap_or(0);
+                    let additional_size_estimate = path_count * 256;
+
+                    let mut path_list = String::with_capacity(
+                        previous_size + additional_size_estimate
+                    );
+
+                    use std::io::Read;
+                    path_mailbox.read_to_string(&mut path_list)?;
+
+                    for p in extra_paths {
+                        use std::fmt::Write;
+                        // Regarding `to_string_lossy`, in other places, e.g.
+                        // `edited_storage`, we already don't support non-Unicode
+                        // paths.
+                        // TODO: is there a reasonable way to avoid these extra
+                        // allocations?
+                        let _write_on_string_cannot_fail = 
+                            write!(&mut path_list, "{}\n", p.to_string_lossy());
+                    }
+
+                    path_list
+                };
+
+                let file = AtomicFile::new_with_tmpdir(
+                    &path_mailbox_path,
+                    OverwriteBehavior::AllowOverwrite,
+                    &data_dir
+                );
+
+                file.write(|f| {
+                    use std::io::Write;
+                    f.write_all(path_list.as_bytes())?;
+
+                    f.sync_all()
+                }).map_err(From::from)
+            };
+
+            let res = inner(path_mailbox_path);
+
+            match res {
+                Ok(()) => {
+                    println!("Seems like we were able to write to the mailbox.");
+                },
+                Err(_) => {
+                    println!("Mailbox write failed.");
+                    return res;
+                }
+            }
+        }
 
         std::process::exit(0)
     }
