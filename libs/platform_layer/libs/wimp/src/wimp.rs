@@ -185,9 +185,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
             };
 
             use std::io::Write;
-            f.write_all(thing_to_write.as_bytes())?;
-
-            f.sync_all()
+            f.write_all(thing_to_write.as_bytes())
         });
 
         match res {
@@ -203,6 +201,8 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
         }
     };
 
+    let path_mailbox_path = data_dir.join("path_mailbox_path.txt");
+
     if previous_instance_is_running {
         println!(
             "Previous instance of {} detected, or at least a file at:\n{}",
@@ -212,8 +212,6 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
 
         let path_count = extra_paths.len();
         if path_count > 0 {
-            let path_mailbox_path = data_dir.join("path_mailbox_path.txt");
-
             println!(
                 "Adding path{} to {} for the other instance to read.",
                 if path_count == 1 { "" } else { "s" },
@@ -272,9 +270,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
 
                 file.write(|f| {
                     use std::io::Write;
-                    f.write_all(path_list.as_bytes())?;
-
-                    f.sync_all()
+                    f.write_all(path_list.as_bytes())
                 }).map_err(From::from)
             };
 
@@ -293,8 +289,6 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
 
         std::process::exit(0)
     }
-
-    // TODO: delete running_lock_path when the to-be-written mailbox thread exits.
 
     let edited_files_dir_buf = data_dir.join("edited_files_v1/");
     let edited_files_index_path_buf = data_dir.join("edited_files_v1_index.txt");
@@ -340,6 +334,93 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
     let mut running = true;
 
     use std::sync::mpsc::{channel};
+
+    // into the path mailbox thread
+    let (path_mailbox_in_sink, path_mailbox_in_source) = channel();
+
+    #[derive(Debug)]
+    enum PathMailboxThread {
+        Quit,
+    }
+
+    let mut path_mailbox_join_handle = Some({
+        let running_lock_path = running_lock_path.clone();
+        let path_mailbox_path = path_mailbox_path.clone();
+        let proxy = event_proxy.clone();
+
+        std::thread::Builder::new()
+            .name("path_mailbox".to_string())
+            .spawn(move || {
+                // If we got an error we should still keep this thread going
+                // in case the error is temporary.
+                macro_rules! continue_if_err {
+                    ($result: expr) => {
+                        match $result {
+                            Ok(x) => {x},
+                            Err(_) => {
+                                continue;
+                            }
+                        }
+                    }
+                }
+
+                loop {
+                    std::thread::sleep(Duration::from_millis(50));
+
+                    if let Ok(message) = path_mailbox_in_source.try_recv() {
+                        use PathMailboxThread::*;
+                        match message {
+                            Quit => {
+                                let running_lock_path_string = 
+                                    running_lock_path.to_string_lossy().to_string();
+                                match std::fs::remove_file(
+                                    running_lock_path
+                                ) {
+                                    Ok(()) => {
+                                        println!(
+                                            "Deleted {} successfully",
+                                            running_lock_path_string
+                                        );
+                                    }
+                                    Err(err) => {
+                                        println!(
+                                            "Could not delete {}. You may need to do so manually later.",
+                                            running_lock_path_string
+                                        );
+                                        eprintln!("{}", err);
+                                    }
+                                };
+                                return
+                            },
+                        }
+                    }
+
+                    let path_mailbox_string = continue_if_err!(
+                        std::fs::read_to_string(
+                            &path_mailbox_path
+                        )
+                    );
+
+                    let file = AtomicFile::new_with_tmpdir(
+                        &path_mailbox_path,
+                        OverwriteBehavior::AllowOverwrite,
+                        &data_dir
+                    );
+
+                    // We want to replace the file with a blank one.
+                    // Not writing anything to the file achieves this.
+                    continue_if_err!(file.write::<(), (), _>(|_| Ok(())));
+
+                    for line in path_mailbox_string.lines() {
+                        let _hope_it_gets_there =
+                            proxy.send_event(CustomEvent::OpenFile(
+                                std::path::PathBuf::from(line),
+                            ));
+                    }
+                }
+            })
+            .expect("Could not start path_mailbox thread!")
+    });
 
     // into the edited files thread
     let (edited_files_in_sink, edited_files_in_source) = channel();
@@ -675,6 +756,9 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                 match std::fs::read_to_string(&p) {
                     Ok(s) => {
                         call_u_and_r!(Input::AddOrSelectBuffer(BufferName::Path(p), s));
+                        // TODO: request window focus from OS if we don't have it?
+                        // The main use case would be for after reading from the 
+                        // path mailbox.
                     }
                     Err(err) => {
                         handle_platform_error!(r_s, err);
@@ -1011,6 +1095,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                             perf_viz::end_record!("main loop");
                             call_u_and_r!(Input::Quit);
                             let _hope_it_gets_there = edited_files_in_sink.send(EditedFilesThread::Quit);
+                            let _hope_it_gets_there = path_mailbox_in_sink.send(PathMailboxThread::Quit);
                             running = false;
 
                             // If we got here, we assume that we've sent a Quit input to the editor thread so it will stop.
@@ -1021,6 +1106,11 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
 
                             match edited_files_join_handle.take() {
                                 Some(j_h) => j_h.join().expect("Could not join edited_files thread!"),
+                                None => {}
+                            };
+
+                            match path_mailbox_join_handle.take() {
+                                Some(j_h) => j_h.join().expect("Could not join path_mailbox thread!"),
                                 None => {}
                             };
 
