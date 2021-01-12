@@ -756,9 +756,17 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                 match std::fs::read_to_string(&p) {
                     Ok(s) => {
                         call_u_and_r!(Input::AddOrSelectBuffer(BufferName::Path(p), s));
-                        // TODO: request window focus from OS if we don't have it?
-                        // The main use case would be for after reading from the 
-                        // path mailbox.
+
+                        // The main reason for this window manipulation is for after
+                        // reading from the path mailbox.
+                        let window = glutin_context.window();
+
+                        // Notify the user that the file loaded, if we are not
+                        // already in focus.
+                        use glutin_wrapper::window::UserAttentionType;
+                        window.request_user_attention(
+                            Some(UserAttentionType::Informational)
+                        );
                     }
                     Err(err) => {
                         handle_platform_error!(r_s, err);
@@ -1183,6 +1191,13 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         WindowEvent::Focused(is_focused) => {
                             dbg!("set to ", is_focused);
                             r_s.ui.window_is_focused = is_focused;
+                            if is_focused {
+                                // X11 requires us to explicitly unset the window
+                                // attention.
+                                glutin_context.window().request_user_attention(
+                                    None
+                                );
+                            }
                         }
                         WindowEvent::ReceivedCharacter(mut c) => {
                             if c != '\u{1}'     // "start of heading" (sent with Ctrl-a)
