@@ -6,7 +6,7 @@
 use glutin_wrapper::{dpi::LogicalPosition, Api, GlProfile, GlRequest};
 use std::{
     collections::VecDeque,
-    path::PathBuf,
+    path::{Path, PathBuf},
     time::Duration,
 };
 use wimp_render::{get_find_replace_info, FindReplaceInfo, get_go_to_position_info, GoToPositionInfo, ViewOutput, ViewAction};
@@ -84,6 +84,8 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                     )
                 })?)
                 .map(PathBuf::from);
+
+                data_dir = data_dir.map(canonical_or_same);
             }
             HIDPI_OVERRIDE => {
                 hidpi_factor_override = Some(args.next().ok_or_else(|| {
@@ -120,8 +122,8 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                 // probably would rather have the feedback in their terminal or
                 // whatever, so they can correct the file name
                 .map(PathBuf::from)?;
-                
-                extra_paths.push(path);
+
+                extra_paths.push(canonical_or_same(path));
             }
             _ => {
                 eprintln!("unknown arg {:?}", s);
@@ -212,6 +214,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
 
         let path_count = extra_paths.len();
         if path_count > 0 {
+            std::dbg!(&extra_paths);
             println!(
                 "Adding path{} to {} for the other instance to read.",
                 if path_count == 1 { "" } else { "s" },
@@ -414,6 +417,10 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                     for line in path_mailbox_string.lines() {
                         let _hope_it_gets_there =
                             proxy.send_event(CustomEvent::OpenFile(
+                                // We don't know the CWD of the instance that put
+                                // this in the mailbox, so it does not make sense
+                                // to canonicalize this path ourselves. The code
+                                // putting the line in here must do that.
                                 std::path::PathBuf::from(line),
                             ));
                     }
@@ -769,7 +776,10 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         );
                     }
                     Err(err) => {
-                        handle_platform_error!(r_s, err);
+                        handle_platform_error!(
+                            r_s,
+                            format!("{}\npath: {}", err, p.to_string_lossy())
+                        );
                     }
                 }
             }};
@@ -1535,4 +1545,10 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
             }
         });
     }
+}
+
+fn canonical_or_same<P: AsRef<Path>>(p: P) -> PathBuf {
+    let path = p.as_ref();
+
+    path.canonicalize().unwrap_or_else(|_| path.into())
 }
