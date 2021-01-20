@@ -336,6 +336,10 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
 
     let mut running = true;
 
+    let startup_description = format!(
+        "data_dir: \n{}", data_dir.to_string_lossy()
+    );
+
     use std::sync::mpsc::{channel};
 
     // into the path mailbox thread
@@ -607,6 +611,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
             dimensions,
             clipboard,
             event_proxy,
+            startup_description,
         }
     };
 

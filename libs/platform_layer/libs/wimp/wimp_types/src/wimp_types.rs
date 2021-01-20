@@ -340,6 +340,7 @@ pub struct RunState {
     pub dimensions: Dimensions,
     pub event_proxy: EventLoopProxy<CustomEvent>, 
     pub clipboard: Clipboard,
+    pub startup_description: String,
 }
 
 pub type CommandKey = (ModifiersState, VirtualKeyCode);

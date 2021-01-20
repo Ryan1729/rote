@@ -196,6 +196,7 @@ pub fn view<'view>(
         ref mut view,
         ref mut buffer_status_map,
         dimensions,
+        ref startup_description,
         ..
     }: &'view mut RunState,
     RunConsts {
@@ -575,6 +576,7 @@ pub fn view<'view>(
                     let DebugMenuInfo {
                         outer_rect,
                         first_button_rect,
+                        list_margin,
                         ..
                     } = get_debug_menu_info(dimensions);
                     text_or_rects.push(TextOrRect::Rect(VisualSpec {
@@ -582,6 +584,12 @@ pub fn view<'view>(
                         colour: CHROME_BACKGROUND_COLOUR,
                         z: FIND_REPLACE_BACKGROUND_Z,
                     }));
+
+                    // TODO render a bar chart of the last N view renders,
+                    // where the x axis is  the Input variant, and the y axis is 
+                    // duration statisics like maximum, mean, median and mode.
+
+                    let mut y = first_button_rect.min.y;
 
                     command_button(
                         ui,
@@ -593,6 +601,25 @@ pub fn view<'view>(
                         &command_keys::add_run_state_snapshot(),
                         &mut action,
                     );
+
+                    let vertical_shift = first_button_rect.height()
+                        + list_margin.into_ltrb().b;
+
+                    y += vertical_shift;
+
+                    text_or_rects.push(TextOrRect::Text(TextSpec {
+                        text: startup_description,
+                        size: FIND_REPLACE_SIZE,
+                        layout: TextLayout::Unbounded,
+                        spec: VisualSpec {
+                            rect: ssr!(
+                                first_button_rect.min.x, y,
+                                first_button_rect.max.x, first_button_rect.max.y
+                            ),
+                            colour: CHROME_TEXT_COLOUR,
+                            z: FIND_REPLACE_BACKGROUND_Z,
+                        }
+                    }));
                 }
             }
         }
@@ -675,9 +702,6 @@ pub fn view<'view>(
             ..d!()
         },
     ) {
-        // TODO render a bar chart of the last N view renders, where the x axis is 
-        // the Input variant, and the y axis is duration statisics like maximum, 
-        // mean, median and mode.
         action = Some(command_keys::debug_menu()).into()
     }
 
