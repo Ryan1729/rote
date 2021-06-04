@@ -329,6 +329,14 @@ mod view {
 }
 pub use view::{View, LocalMenuView, MenuMode, WimpMenuMode, MenuView, WimpMenuView, FindReplaceMode};
 
+#[derive(Copy, Clone, Debug, Default)]
+/// Process Ids for the different threads. As of this writing, only used to display
+/// as a debugging aid.
+pub struct Pids {
+    pub window: u32,
+    pub editor: u32,
+}
+
 /// State owned by the `run` function, which can be uniquely borrowed by other functions called inside `run`.
 #[derive(Debug)]
 pub struct RunState {
@@ -341,6 +349,8 @@ pub struct RunState {
     pub event_proxy: EventLoopProxy<CustomEvent>, 
     pub clipboard: Clipboard,
     pub startup_description: String,
+    pub pids: Pids,
+    pub pid_string: String,
 }
 
 pub type CommandKey = (ModifiersState, VirtualKeyCode);

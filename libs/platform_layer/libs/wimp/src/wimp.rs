@@ -10,7 +10,7 @@ use std::{
     time::Duration,
 };
 use wimp_render::{get_find_replace_info, FindReplaceInfo, get_go_to_position_info, GoToPositionInfo, ViewOutput, ViewAction};
-use wimp_types::{ui, ui::{PhysicalButtonState, Navigation}, transform_at, BufferStatus, BufferStatusTransition, CustomEvent, get_clipboard, ClipboardProvider, Dimensions, LabelledCommand, RunConsts, RunState, MenuMode};
+use wimp_types::{ui, ui::{PhysicalButtonState, Navigation}, transform_at, BufferStatus, BufferStatusTransition, CustomEvent, get_clipboard, ClipboardProvider, Dimensions, LabelledCommand, RunConsts, RunState, MenuMode, Pids};
 use macros::{d, dbg};
 use platform_types::{screen_positioning::screen_to_text_box, *};
 use shared::{Res};
@@ -342,6 +342,9 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
 
     use std::sync::mpsc::{channel};
 
+    let mut pids = Pids::default();
+    pids.window = std::process::id();
+
     // into the path mailbox thread
     let (path_mailbox_in_sink, path_mailbox_in_source) = channel();
 
@@ -508,14 +511,29 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
     // out of the editor thread
     let (editor_out_sink, editor_out_source) = channel();
 
+    enum EditorThreadOutput {
+        Rendered(UpdateAndRenderOutput),
+        Pid(u32)
+    }
+
     let mut editor_join_handle = Some(
         std::thread::Builder::new()
             .name("editor".to_string())
             .spawn(move || {
+                {
+                    std::dbg!("pre send PID");
+                    let _hope_it_gets_there = editor_out_sink.send(
+                        EditorThreadOutput::Pid(std::process::id())
+                    );
+                    std::dbg!("post send PID");
+                }
+
                 while let Ok(input) = editor_in_source.recv() {
                     let was_quit = Input::Quit == input;
-                    let pair = update_and_render(input);
-                    let _hope_it_gets_there = editor_out_sink.send(pair);
+                    let rendered = update_and_render(input);
+                    let _hope_it_gets_there = editor_out_sink.send(
+                        EditorThreadOutput::Rendered(rendered)
+                    );
                     if was_quit {
                         return;
                     }
@@ -612,6 +630,8 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
             clipboard,
             event_proxy,
             startup_description,
+            pids,
+            pid_string: String::with_capacity(256),
         }
     };
 
@@ -1371,7 +1391,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
 
                     for _ in 0..EVENTS_PER_FRAME {
                         match editor_out_source.try_recv() {
-                            Ok((v, c)) => {
+                            Ok(EditorThreadOutput::Rendered((v, c))) => {
                                 r_s.view.update(v);
                                 for (i, e_t) in r_s.view.edited_transitions() {
                                     transform_at(
@@ -1384,6 +1404,10 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                                 
 
                                 r_s.cmds.push_back(c);
+                            }
+                            Ok(EditorThreadOutput::Pid(pid)) => {
+                                std::dbg!("receive PID {}", pid);
+                                r_s.pids.editor = pid;
                             }
                             _ => break,
                         };

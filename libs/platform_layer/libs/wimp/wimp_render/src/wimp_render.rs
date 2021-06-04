@@ -197,6 +197,8 @@ pub fn view<'view>(
         ref mut buffer_status_map,
         dimensions,
         ref startup_description,
+        ref pids,
+        ref mut pid_string,
         ..
     }: &'view mut RunState,
     RunConsts {
@@ -588,9 +590,11 @@ pub fn view<'view>(
                     // TODO render a bar chart of the last N view renders,
                     // where the x axis is  the Input variant, and the y axis is 
                     // duration statisics like maximum, mean, median and mode.
+                    
+                    let vertical_shift = first_button_rect.height()
+                            + list_margin.into_ltrb().b;
 
                     let mut y = first_button_rect.min.y;
-
                     command_button(
                         ui,
                         ui_id!(),
@@ -602,10 +606,45 @@ pub fn view<'view>(
                         &mut action,
                     );
 
-                    let vertical_shift = first_button_rect.height()
-                        + list_margin.into_ltrb().b;
-
                     y += vertical_shift;
+
+                    let line_shift: abs::Length = vertical_shift.halve();
+
+                    let mut pid_bottom_y = y;
+
+                    pid_string.clear();
+
+                    macro_rules! push_pid_line {
+                        ($field_name: ident) => {
+                            pid_bottom_y += line_shift;
+
+                            pid_string.push_str(stringify!($field_name));
+                            pid_string.push_str(" PID: ");
+                            pid_string.push_str(&format!("{}", pids.$field_name));
+                            pid_string.push('\n');
+                        }
+                    }
+
+                    push_pid_line!(window);
+                    push_pid_line!(editor);
+
+                    text_or_rects.push(TextOrRect::Text(
+                        TextSpec {
+                            text: pid_string,
+                            size: FIND_REPLACE_SIZE,
+                            layout: TextLayout::Unbounded,
+                            spec: VisualSpec {
+                                rect: ssr!(
+                                    first_button_rect.min.x, y,
+                                    first_button_rect.max.x, pid_bottom_y
+                                ),
+                                colour: CHROME_TEXT_COLOUR,
+                                z: FIND_REPLACE_BACKGROUND_Z,
+                            }
+                        }
+                    ));
+
+                    y = pid_bottom_y;
 
                     text_or_rects.push(TextOrRect::Text(TextSpec {
                         text: startup_description,
@@ -614,7 +653,7 @@ pub fn view<'view>(
                         spec: VisualSpec {
                             rect: ssr!(
                                 first_button_rect.min.x, y,
-                                first_button_rect.max.x, first_button_rect.max.y
+                                first_button_rect.max.x, y + vertical_shift,
                             ),
                             colour: CHROME_TEXT_COLOUR,
                             z: FIND_REPLACE_BACKGROUND_Z,
