@@ -84,12 +84,20 @@ pub struct Dimensions {
     pub font: FontInfo,
 }
 
+pub type PID = u32;
+
+#[derive(Clone, Debug)]
+pub enum PidKind {
+    PathMailbox,
+}
+
 #[derive(Clone, Debug)]
 pub enum CustomEvent {
     OpenFile(PathBuf),
     SaveNewFile(PathBuf, g_i::Index),
     SendBuffersToBeSaved,
     EditedBufferError(String),
+    Pid(PidKind, PID)
 }
 
 /// This module exists because when adding WIMP only UI elements we found that 
@@ -333,8 +341,9 @@ pub use view::{View, LocalMenuView, MenuMode, WimpMenuMode, MenuView, WimpMenuVi
 /// Process Ids for the different threads. As of this writing, only used to display
 /// as a debugging aid.
 pub struct Pids {
-    pub window: u32,
-    pub editor: u32,
+    pub window: PID,
+    pub editor: PID,
+    pub path_mailbox: PID,
 }
 
 /// State owned by the `run` function, which can be uniquely borrowed by other functions called inside `run`.

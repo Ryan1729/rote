@@ -615,18 +615,24 @@ pub fn view<'view>(
                     pid_string.clear();
 
                     macro_rules! push_pid_line {
-                        ($field_name: ident) => {
+                        ($field_name: ident) => {{
                             pid_bottom_y += line_shift;
 
-                            pid_string.push_str(stringify!($field_name));
+                            let field_name = stringify!($field_name);  
+                            for _ in 0..(16usize.saturating_sub(field_name.len())) {
+                                pid_string.push(' ');
+                            }
+
+                            pid_string.push_str(field_name);
                             pid_string.push_str(" PID: ");
                             pid_string.push_str(&format!("{}", pids.$field_name));
                             pid_string.push('\n');
-                        }
+                        }}
                     }
 
                     push_pid_line!(window);
                     push_pid_line!(editor);
+                    push_pid_line!(path_mailbox);
 
                     text_or_rects.push(TextOrRect::Text(
                         TextSpec {

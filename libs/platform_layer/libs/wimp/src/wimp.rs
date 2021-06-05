@@ -10,7 +10,7 @@ use std::{
     time::Duration,
 };
 use wimp_render::{get_find_replace_info, FindReplaceInfo, get_go_to_position_info, GoToPositionInfo, ViewOutput, ViewAction};
-use wimp_types::{ui, ui::{PhysicalButtonState, Navigation}, transform_at, BufferStatus, BufferStatusTransition, CustomEvent, get_clipboard, ClipboardProvider, Dimensions, LabelledCommand, RunConsts, RunState, MenuMode, Pids};
+use wimp_types::{ui, ui::{PhysicalButtonState, Navigation}, transform_at, BufferStatus, BufferStatusTransition, CustomEvent, get_clipboard, ClipboardProvider, Dimensions, LabelledCommand, RunConsts, RunState, MenuMode, Pids, PidKind};
 use macros::{d, dbg};
 use platform_types::{screen_positioning::screen_to_text_box, *};
 use shared::{Res};
@@ -352,7 +352,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
     enum PathMailboxThread {
         Quit,
     }
-
+    
     let mut path_mailbox_join_handle = Some({
         let running_lock_path = running_lock_path.clone();
         let path_mailbox_path = path_mailbox_path.clone();
@@ -361,6 +361,12 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
         std::thread::Builder::new()
             .name("path_mailbox".to_string())
             .spawn(move || {
+                {
+                    let _hope_it_gets_there = proxy.send_event(CustomEvent::Pid(
+                        PidKind::PathMailbox,
+                        std::process::id()
+                    ));
+                }
                 // If we got an error we should still keep this thread going
                 // in case the error is temporary.
                 macro_rules! continue_if_err {
@@ -1527,6 +1533,13 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                     dt = loop_helper.loop_start();
                 }
                 Event::UserEvent(e) => match e {
+                    CustomEvent::Pid(kind, pid) => {
+                        match kind {
+                            PidKind::PathMailbox => {
+                                r_s.pids.path_mailbox = pid;
+                            }
+                        }
+                    },
                     CustomEvent::OpenFile(p) => load_file!(p),
                     CustomEvent::SaveNewFile(ref p, index) => {
                         let r_s = &mut r_s;
