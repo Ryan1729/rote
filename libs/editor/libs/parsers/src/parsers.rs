@@ -337,17 +337,21 @@ impl Parsers {
         buffer_name: &BufferName,
         kind: ParserKind
     ) -> Spans {
-        match self.get_spans_result(
-            to_parse,
-            buffer_name,
-            kind,
-        ) {
-            Ok(spans) => spans,
-            Err((to_parse, err)) => {
-                // TODO: Propagate error to the editor view so it can be 
-                // displayed to the user.
-                eprintln!("{}", err);
-                query::plaintext_spans_for(to_parse)
+        if cfg!(feature = "skip_parsing") {
+            return query::plaintext_spans_for(to_parse);
+        } else {
+            match self.get_spans_result(
+                to_parse,
+                buffer_name,
+                kind,
+            ) {
+                Ok(spans) => spans,
+                Err((to_parse, err)) => {
+                    // TODO: Propagate error to the editor view so it can be 
+                    // displayed to the user.
+                    eprintln!("{}", err);
+                    query::plaintext_spans_for(to_parse)
+                }
             }
         }
     }
