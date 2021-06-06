@@ -1,5 +1,9 @@
 ## TODO
 
+* Prove the perf issues are not related to stray logs by making all logs go through an l! macro which also tracks how many bytes were logged in a way that we can show while the app is running.
+    * ln! for logging with a newline may make sense.
+
+
 * Make an unsaved change to a file survive multiple restarts without needing to touch
     it each time.
     * maybe make accidentally closed tabs recoverable?
