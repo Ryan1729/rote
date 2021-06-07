@@ -1495,11 +1495,31 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
 
                     perf_viz::start_record!("report_rate");
                     if let Some(render_rate) = loop_helper.report_rate() {
-                        // TODO move the string into editor_view, as a secondary
-                        // status line? Either this and the status line should
-                        // both be in editor_view, or neither of them should be.
+                        let view_stats = r_s.view.stats();
+                        // TODO move the final string into editor_view, as a 
+                        // secondary status line? Either this and the status
+                        // line should both be in editor_view, or neither of
+                        // them should be.
+                        
+                        let parse_total = format!(
+                            "{: >6.3} ms",
+                            {
+                                let mut total = 0.0;
+                                for span in view_stats.latest_parse_time_spans.iter() {
+                                    use TimeSpan::*;
+                                    match span {
+                                        NotStarted | Started(_) => {},
+                                        Ended(duration) => {
+                                            total += duration.as_micros() as f32 / 1000.;
+                                        },
+                                    }
+                                }
+                                total
+                            }
+                        );
+
                         glutin_context.window().set_title(&format!(
-                            "{}{} {:.0} FPS e{: >6.3} ms {:?} click {:?}",
+                            "{}{} {:.0} FPS e{: >6.3} ms p{} {:?} click {:?}",
                             title,
                             if cfg!(debug_assertions) {
                                 " DEBUG"
@@ -1507,7 +1527,10 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                                 ""
                             },
                             render_rate,
-                            r_s.view.stats().latest_render_duration.as_micros() as f32 / 1000.0,
+                            view_stats
+                                .latest_render_time_span
+                                .duration_or_default().as_micros() as f32 / 1000.0,
+                            parse_total,
                             (r_s.ui.mouse_pos.x, r_s.ui.mouse_pos.y),
                             (last_click_x, last_click_y),
                         ));

@@ -3,7 +3,7 @@ use macros::{
     d, fmt_debug, fmt_display, ord, u,
 };
 use std::{
-    time::Duration,
+    time::{Duration, Instant},
     path::PathBuf
 };
 
@@ -665,9 +665,71 @@ d!(for Cmd : Cmd::None);
 pub type UpdateAndRenderOutput = (View, Cmd);
 pub type UpdateAndRender = fn(Input) -> UpdateAndRenderOutput;
 
+pub const PARSE_TIME_SPAN_COUNT: usize = 15;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum TimeSpan {
+    NotStarted,
+    Started(Instant),
+    Ended(Duration),
+}
+
+impl TimeSpan {
+    pub fn duration_or_default(&self) -> Duration {
+        use TimeSpan::*;
+        match self {
+            Ended(duration) => *duration,
+            NotStarted | Started(_) => d!(),
+        }
+    }
+}
+
+d!(for TimeSpan: TimeSpan::NotStarted);
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ViewStats {
-    pub latest_render_duration: Duration
+    pub latest_render_time_span: TimeSpan,
+    pub latest_parse_time_spans: [TimeSpan; PARSE_TIME_SPAN_COUNT],
+    pub current_parse_length: u8,
+}
+
+impl ViewStats {
+    /// Since our current needs only require it, we currently expect only one layer
+    /// of start and ends.
+    // TODO track this and just skip the current one or set durations to 0 or 
+    // something?
+    pub fn start_parse_duration_saturating(&mut self) {
+        if (self.current_parse_length as usize) < PARSE_TIME_SPAN_COUNT {
+            self.current_parse_length = self.current_parse_length.saturating_add(1);
+            if let Some(index) = self.last_index() {
+                self.latest_parse_time_spans[index] = TimeSpan::Started(
+                    Instant::now()
+                );
+            }
+        }
+    }
+
+    pub fn end_parse_duration_saturating(&mut self) {
+        if let Some(index) = self.last_index() {
+            match self.latest_parse_time_spans[index] {
+                TimeSpan::Started(instant) => {
+                    self.latest_parse_time_spans[index] = TimeSpan::Ended(
+                        Instant::now() - instant
+                    );
+                },
+                _ => {},
+            }
+        }
+    }
+
+    fn last_index(&self) -> Option<usize> {
+        if self.current_parse_length > 0 
+        && (self.current_parse_length as usize) <= PARSE_TIME_SPAN_COUNT {
+            Some(self.current_parse_length as usize - 1)
+        } else {
+            None
+        }
+    }
 }
 
 #[cfg(any(test, feature = "pub_arb"))]

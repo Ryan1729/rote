@@ -30,6 +30,7 @@ pub fn render(
     if buffers.should_render_buffer_views()
     {
         let bufs = buffers.buffers();
+        let view_stats = &mut view.stats;
 
         view.buffers.replace_with_mapped(
             bufs,
@@ -39,7 +40,11 @@ pub fn render(
                 BufferView {
                     name: name.clone(),
                     name_string: name.to_string(),
-                    data: editor_to_buffer_view_data(parsers, &editor_buffer),
+                    data: editor_to_buffer_view_data(
+                        view_stats,
+                        parsers,
+                        &editor_buffer
+                    ),
                 }
             }
         );
@@ -193,6 +198,7 @@ fn text_buffer_to_buffer_view_data(
 
 #[perf_viz::record]
 fn editor_to_buffer_view_data(
+    view_stats: &mut ViewStats,
     parsers: &mut Parsers,
     editor_buffer: &EditorBuffer,
 ) -> BufferViewData {
@@ -200,11 +206,13 @@ fn editor_to_buffer_view_data(
         text_buffer_to_buffer_view_data(&editor_buffer.text_buffer, AVERAGE_SELECTION_LINES_ESTIMATE);
 
     perf_viz::start_record!("parsers.get_spans");
+    view_stats.start_parse_duration_saturating();
     buffer_view_data.spans = parsers.get_spans(
         buffer_view_data.chars.clone().into(),
         &editor_buffer.name,
         editor_buffer.get_parser_kind()
     );
+    view_stats.end_parse_duration_saturating();
     perf_viz::end_record!("parsers.get_spans");
 
     perf_viz::start_record!("push all highlights");

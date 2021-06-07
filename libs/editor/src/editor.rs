@@ -420,6 +420,7 @@ macro_rules! set_if_present {
 pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutput {
     perf_viz::record_guard!("update_and_render");
     let start_time = Instant::now();
+    state.view.stats = d!();
 
     macro_rules! try_to_show_cursors {
         () => {
@@ -876,7 +877,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
 
     let mut cloned_view = state.view.clone();
     // We want to measure the cloning time.
-    cloned_view.stats.latest_render_duration = Instant::now() - start_time;
+    cloned_view.stats.latest_render_time_span = TimeSpan::Ended(Instant::now() - start_time);
 
     (cloned_view, cmd)
 }
