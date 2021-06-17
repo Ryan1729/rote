@@ -665,7 +665,7 @@ d!(for Cmd : Cmd::None);
 pub type UpdateAndRenderOutput = (View, Cmd);
 pub type UpdateAndRender = fn(Input) -> UpdateAndRenderOutput;
 
-pub const PARSE_TIME_SPAN_COUNT: usize = 15;
+pub const PARSE_TIME_SPAN_COUNT: usize = 16 - 3;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TimeSpan {
@@ -688,6 +688,8 @@ d!(for TimeSpan: TimeSpan::NotStarted);
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ViewStats {
+    pub latest_overall_time_span: TimeSpan,
+    pub latest_update_time_span: TimeSpan,
     pub latest_render_time_span: TimeSpan,
     pub latest_parse_time_spans: [TimeSpan; PARSE_TIME_SPAN_COUNT],
     pub current_parse_length: u8,

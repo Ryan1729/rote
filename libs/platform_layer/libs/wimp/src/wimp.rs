@@ -1497,6 +1497,18 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         // line should both be in editor_view, or neither of
                         // them should be.
                         
+                        let editor_overall_ms = view_stats
+                                .latest_overall_time_span
+                                .duration_or_default().as_micros() as f32 / 1000.0;
+
+                        let editor_update_ms = view_stats
+                                .latest_update_time_span
+                                .duration_or_default().as_micros() as f32 / 1000.0;
+
+                        let editor_render_ms = view_stats
+                                .latest_render_time_span
+                                .duration_or_default().as_micros() as f32 / 1000.0;
+
                         let parse_total = format!(
                             "{: >6.3} ms",
                             {
@@ -1515,7 +1527,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         );
 
                         glutin_context.window().set_title(&format!(
-                            "{}{} {:.0} FPS e{: >6.3} ms p{} {:?} click {:?}",
+                            "{}{} {:.0} FPS e{: >6.3} ms(e-u{: >6.3} ms e-r{: >6.3} ms(p{})) {:?} click {:?}",
                             title,
                             if cfg!(debug_assertions) {
                                 " DEBUG"
@@ -1523,9 +1535,9 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                                 ""
                             },
                             render_rate,
-                            view_stats
-                                .latest_render_time_span
-                                .duration_or_default().as_micros() as f32 / 1000.0,
+                            editor_overall_ms,
+                            editor_update_ms,
+                            editor_render_ms,
                             parse_total,
                             (r_s.ui.mouse_pos.x, r_s.ui.mouse_pos.y),
                             (last_click_x, last_click_y),
