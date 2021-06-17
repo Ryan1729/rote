@@ -214,7 +214,6 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
 
         let path_count = extra_paths.len();
         if path_count > 0 {
-            std::dbg!(&extra_paths);
             println!(
                 "Adding path{} to {} for the other instance to read.",
                 if path_count == 1 { "" } else { "s" },
@@ -527,11 +526,9 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
             .name("editor".to_string())
             .spawn(move || {
                 {
-                    std::dbg!("pre send PID");
                     let _hope_it_gets_there = editor_out_sink.send(
                         EditorThreadOutput::Pid(std::process::id())
                     );
-                    std::dbg!("post send PID");
                 }
 
                 while let Ok(input) = editor_in_source.recv() {
@@ -1412,7 +1409,6 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                                 r_s.cmds.push_back(c);
                             }
                             Ok(EditorThreadOutput::Pid(pid)) => {
-                                std::dbg!("receive PID {}", pid);
                                 r_s.pids.editor = pid;
                             }
                             _ => break,
