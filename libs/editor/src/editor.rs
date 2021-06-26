@@ -565,7 +565,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
         }};
     }
 
-    state.view.stats.latest_update_time_span = TimeSpan::Started(Instant::now());
+    state.view.stats.latest_update_time_span = TimeSpan::start();
 
     u!{Input}
     match input {
@@ -875,19 +875,18 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
     }
 
     // We expect this to always be the case
-    if let TimeSpan::Started(started) = state.view.stats.latest_update_time_span {
-        state.view.stats.latest_update_time_span = TimeSpan::Ended(Instant::now() - started);
-    }
+    state.view.stats.latest_update_time_span = TimeSpan::end_if_started(
+        state.view.stats.latest_update_time_span
+    );
 
-    state.view.stats.latest_render_time_span = TimeSpan::Started(Instant::now());
+    state.view.stats.latest_render_time_span = TimeSpan::start();
 
     // updates the view
     editor_view::render(state);
 
-    // We expect this to always be the case
-    if let TimeSpan::Started(started) = state.view.stats.latest_render_time_span {
-        state.view.stats.latest_render_time_span = TimeSpan::Ended(Instant::now() - started);
-    }
+    state.view.stats.latest_render_time_span = TimeSpan::end_if_started(
+        state.view.stats.latest_render_time_span
+    );
 
     let mut cloned_view = state.view.clone();
     // We want to measure the cloning time.

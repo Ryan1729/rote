@@ -29,8 +29,10 @@ pub fn render(
     
     if buffers.should_render_buffer_views()
     {
-        let bufs = buffers.buffers();
         let view_stats = &mut view.stats;
+        view_stats.latest_buffer_render_time_span = TimeSpan::start();
+
+        let bufs = buffers.buffers();
 
         view.buffers.replace_with_mapped(
             bufs,
@@ -47,6 +49,10 @@ pub fn render(
                     ),
                 }
             }
+        );
+
+        view_stats.latest_buffer_render_time_span = TimeSpan::end_if_started(
+            view_stats.latest_buffer_render_time_span
         );
     }
     
