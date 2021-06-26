@@ -1,4 +1,5 @@
-#![deny(unused)]
+//#![deny(unused)]
+#![allow(unreachable_code)]
 use macros::{d, dbg, fmt_debug, fmt_display, some_or, u};
 use platform_types::{BufferName, Rope, Spans};
 use edit::{Change, Edit, RangeEdits};
@@ -660,9 +661,11 @@ impl InitializedParsers {
             kind,
             &self.languages,
         );
+        std::println!("state: {:p}", state);
         
         perf_viz::start_record!("hash for caching");
         let fresh_hash = hash_to_parse(&to_parse);
+        std::dbg!(fresh_hash);
         perf_viz::end_record!("hash for caching");
 
         // This was written right after this caching was introduced.
@@ -680,10 +683,14 @@ impl InitializedParsers {
         // we'd also have to figure out how to signal to the client that
         // `update_and_render` should be called again.
         //
+        
         if let Some(CachedSpans{ spans, hash }) = state.spans.as_ref() {
+            std::dbg!(*hash, fresh_hash);
             if *hash == fresh_hash {
                 return Ok(spans.clone());
             }
+        } else {
+            std::dbg!("no previous spans");
         }
 
         perf_viz::start_record!("state.parser.parse");
@@ -715,7 +722,7 @@ impl InitializedParsers {
         // * The cancellation flag set with Parser::set_cancellation_flag was flipped
 
         // Given that if we got here the language should be set, we don't 
-        // currently set a timeout, and, we don't currenlty cancel parses,
+        // currently set a timeout, and, we don't currently cancel parses,
         // this assert should not ever fail.
         debug_assert!(state.tree.is_some(), "parse failed");
 
@@ -744,10 +751,14 @@ impl InitializedParsers {
                 }
             };
 
+            std::dbg!("assigned spans");
             state.spans = Some(CachedSpans{
                 spans: spans.clone(),
                 hash: fresh_hash,
             });
+
+            // We ran into a weird caching issue here.
+            assert!(state.spans.is_some());
 
             Ok(spans)
         } else {
