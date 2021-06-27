@@ -813,6 +813,59 @@ fn after_calling_get_spans_with_ts_name_then_get_or_init_buffer_state_returns_a_
     }
 }
 
+#[test]
+fn after_calling_get_spans_with_ts_name_then_get_or_init_buffer_state_returns_a_buffer_state_with_spans_on_it_and_the_cache_use_case_gets_hit() {
+    let mut parsers: InitializedParsers = InitializedParsers::new().expect("InitializedParsers failed");
+    let to_parse: ToParse = "fn main() {}".into();
+    let buffer_name = d!();
+    let kind = d!();
+    let style = d!();
+    let ts_name = TSName::Rust;
+
+    {
+        let state = get_or_init_buffer_state(
+            &mut parsers.parser_map,
+            &buffer_name,
+            kind,
+            &parsers.languages,
+        );
+
+        assert!(state.spans.is_none());
+    }
+
+    for _ in 0..16 {
+        let _spans = parsers.get_spans_with_ts_name(
+            to_parse.clone(),
+            &buffer_name,
+            kind,
+            style,
+            ts_name
+        );
+    
+        {
+            let state = get_or_init_buffer_state(
+                &mut parsers.parser_map,
+                &buffer_name,
+                kind,
+                &parsers.languages,
+            );
+    
+            assert!(state.spans.is_some());
+
+            let fresh_hash = hash_to_parse(&to_parse);
+        
+            let mut hit_cache = false;
+            if let Some(CachedSpans{ spans: _, hash }) = state.spans.as_ref() {
+                if *hash == fresh_hash {
+                    hit_cache = true;
+                }
+            }
+
+            assert!(hit_cache);
+        }
+    }
+}
+
 fn hash_to_parse<'to_parse>(to_parse: &ToParse<'to_parse>) -> u64 {
     use core::hash::{Hash, Hasher};
     
