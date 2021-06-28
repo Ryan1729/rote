@@ -174,7 +174,7 @@ impl ParserKind {
 }
 
 /// Tree-Sitter Name
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 enum TSName {
     Rust,
     C
@@ -756,9 +756,7 @@ impl InitializedParsers {
                 spans: spans.clone(),
                 hash: fresh_hash,
             });
-
-            // We ran into a weird caching issue here.
-            assert!(state.spans.is_some());
+            state.ts_name = Some(ts_name);
 
             Ok(spans)
         } else {
@@ -864,6 +862,83 @@ fn after_calling_get_spans_with_ts_name_then_get_or_init_buffer_state_returns_a_
             assert!(hit_cache);
         }
     }
+}
+
+#[test]
+fn after_calling_get_spans_with_ts_name_then_get_or_init_buffer_state_returns_a_buffer_state_with_spans_on_it_and_the_cache_use_case_gets_hit_reduction() {
+    let mut parsers: InitializedParsers = InitializedParsers::new().expect("InitializedParsers failed");
+    let to_parse: ToParse = "fn main() {}".into();
+    let buffer_name = d!();
+    let style = d!();
+    let kind = ParserKind::Rust(style);
+    let ts_name = TSName::Rust;
+
+    {
+        let state = get_or_init_buffer_state(
+            &mut parsers.parser_map,
+            &buffer_name,
+            kind,
+            &parsers.languages,
+        );
+
+        assert!(state.spans.is_none());
+    }
+
+    let _spans = parsers.get_spans_with_ts_name(
+        to_parse.clone(),
+        &buffer_name,
+        kind,
+        style,
+        ts_name
+    );
+
+    let parser_map: &mut ParserMap = &mut parsers.parser_map;
+    let buffer_name: &BufferName = &buffer_name;
+    let parser_kind: ParserKind = kind;
+    let langs: &ByTSName<Language> = &parsers.languages;
+
+    u!{ParserKind}
+    let buffer_state = parser_map
+        .entry(buffer_name.clone())
+        .or_insert_with(BufferState::default);
+
+    let parser_kind_ts_name = parser_kind.to_ts_name();
+
+    // We want to avoid using the old buffer_state.parser if we switch languages
+    // because we previously got whole program aborts due to tree-sitter assertions
+    // when we did that.
+    match std::dbg!(buffer_state.ts_name, parser_kind_ts_name) {
+        (Some(name1), Some(name2)) if name1 == name2 => {
+            // The language was apparently the same, so nothing to do.
+        },
+        (None, None) => {
+            // Neither is a tree-sitter parser so nothing to do.
+        },
+        _ => {
+            assert!(false, "Defaulted!");
+            // We might be able to get away with not doing this when we switch
+            // to or from a non-tree-sitter language, but this way seems safest.
+            *buffer_state = d!();
+        }
+    }
+
+    match parser_kind_ts_name {
+        Some(name) => {
+            // We can assume that `set_language` will return `Ok` because we should
+            // have already tried it once in `InitializedParsers::new`
+            let _res = buffer_state.parser.set_language(
+                btsn!(name, langs)
+            );
+            debug_assert!(
+                _res.is_ok(),
+                "Failed to set language for {}",
+                parser_kind
+            );
+        },
+        None => {},
+    }
+
+    assert!(buffer_state.spans.is_some(), "reduction");
 }
 
 fn hash_to_parse<'to_parse>(to_parse: &ToParse<'to_parse>) -> u64 {
