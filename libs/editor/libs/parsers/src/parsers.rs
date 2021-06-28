@@ -776,8 +776,8 @@ fn after_calling_get_spans_with_ts_name_then_get_or_init_buffer_state_returns_a_
     let mut parsers: InitializedParsers = InitializedParsers::new().expect("InitializedParsers failed");
     let to_parse: ToParse = d!();
     let buffer_name = d!();
-    let kind = d!();
     let style = d!();
+    let kind = ParserKind::Rust(style);
     let ts_name = TSName::Rust;
 
     {
@@ -818,8 +818,8 @@ fn after_calling_get_spans_with_ts_name_then_get_or_init_buffer_state_returns_a_
     let mut parsers: InitializedParsers = InitializedParsers::new().expect("InitializedParsers failed");
     let to_parse: ToParse = "fn main() {}".into();
     let buffer_name = d!();
-    let kind = d!();
     let style = d!();
+    let kind = ParserKind::Rust(style);
     let ts_name = TSName::Rust;
 
     {
