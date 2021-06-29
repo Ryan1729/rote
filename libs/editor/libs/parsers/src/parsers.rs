@@ -268,19 +268,18 @@ struct BufferState {
     parser: Parser,
     tree: Option<Tree>,
     spans: Option<CachedSpans>,
-    ts_name: Option<TSName>,
 }
 
 d!{for BufferState: BufferState{
     parser: Parser::new(),
     tree: None,
     spans: None,
-    ts_name: None,
 }}
 
 struct CachedSpans {
     spans: Spans,
     hash: u64,
+    ts_name: TSName,
 }
 
 #[cfg(not(feature = "fast_hash"))]
@@ -577,7 +576,7 @@ fn get_or_init_buffer_state<'map>(
     // We want to avoid using the old buffer_state.parser if we switch languages
     // because we previously got whole program aborts due to tree-sitter assertions
     // when we did that.
-    match (buffer_state.ts_name, parser_kind_ts_name) {
+    match (buffer_state.spans.as_ref().map(|s| s.ts_name), parser_kind_ts_name) {
         (Some(name1), Some(name2)) if name1 == name2 => {
             // The language was apparently the same, so nothing to do.
         },
@@ -661,11 +660,9 @@ impl InitializedParsers {
             kind,
             &self.languages,
         );
-        std::println!("state: {:p}", state);
         
         perf_viz::start_record!("hash for caching");
         let fresh_hash = hash_to_parse(&to_parse);
-        std::dbg!(fresh_hash);
         perf_viz::end_record!("hash for caching");
 
         // This was written right after this caching was introduced.
@@ -684,13 +681,10 @@ impl InitializedParsers {
         // `update_and_render` should be called again.
         //
         
-        if let Some(CachedSpans{ spans, hash }) = state.spans.as_ref() {
-            std::dbg!(*hash, fresh_hash);
+        if let Some(CachedSpans{ spans, hash, .. }) = state.spans.as_ref() {
             if *hash == fresh_hash {
                 return Ok(spans.clone());
             }
-        } else {
-            std::dbg!("no previous spans");
         }
 
         perf_viz::start_record!("state.parser.parse");
@@ -751,12 +745,11 @@ impl InitializedParsers {
                 }
             };
 
-            std::dbg!("assigned spans");
             state.spans = Some(CachedSpans{
                 spans: spans.clone(),
                 hash: fresh_hash,
+                ts_name,
             });
-            state.ts_name = Some(ts_name);
 
             Ok(spans)
         } else {
@@ -853,7 +846,7 @@ fn after_calling_get_spans_with_ts_name_then_get_or_init_buffer_state_returns_a_
             let fresh_hash = hash_to_parse(&to_parse);
         
             let mut hit_cache = false;
-            if let Some(CachedSpans{ spans: _, hash }) = state.spans.as_ref() {
+            if let Some(CachedSpans{ hash, .. }) = state.spans.as_ref() {
                 if *hash == fresh_hash {
                     hit_cache = true;
                 }
@@ -907,7 +900,7 @@ fn after_calling_get_spans_with_ts_name_then_get_or_init_buffer_state_returns_a_
     // We want to avoid using the old buffer_state.parser if we switch languages
     // because we previously got whole program aborts due to tree-sitter assertions
     // when we did that.
-    match std::dbg!(buffer_state.ts_name, parser_kind_ts_name) {
+    match (buffer_state.spans.as_ref().map(|s| s.ts_name), parser_kind_ts_name) {
         (Some(name1), Some(name2)) if name1 == name2 => {
             // The language was apparently the same, so nothing to do.
         },
