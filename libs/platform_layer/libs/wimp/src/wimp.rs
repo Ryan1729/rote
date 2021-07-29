@@ -635,6 +635,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
             startup_description,
             pids,
             pid_string: String::with_capacity(256),
+            stats: d!(),
         }
     };
 
@@ -1437,6 +1438,8 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                 }
                 Event::RedrawRequested(_) => {
                     perf_viz::start_record!("frame");
+                    r_s.stats = d!();
+
                     r_s.ui.frame_init();
 
                     let sswh!(width, height) = r_s.dimensions.window;
@@ -1491,41 +1494,45 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
 
                     perf_viz::start_record!("report_rate");
                     if let Some(render_rate) = loop_helper.report_rate() {
-                        let view_stats = r_s.view.stats();
+                        macro_rules! ms_from_span {
+                            ($span: expr) => {
+                                $span
+                                .duration_or_default().as_micros() as f32 / 1000.0
+                            }
+                        }
+                        let wimp_stats = r_s.stats;
+
+                        let view_function_ms = ms_from_span!(
+                            wimp_stats.latest_view_function_time_span
+                        );
+
+                        let editor_stats = r_s.view.stats();
                         // TODO move the final string into editor_view, as a 
                         // secondary status line? Either this and the status
                         // line should both be in editor_view, or neither of
                         // them should be.
-                        
-                        macro_rules! ms_from_span {
-                            ($span: ident) => {
-                                view_stats
-                                .$span
-                                .duration_or_default().as_micros() as f32 / 1000.0
-                            }
-                        }
 
                         let editor_overall_ms = ms_from_span!(
-                            latest_overall_time_span
+                            editor_stats.latest_overall_time_span
                         );
 
                         let editor_update_ms = ms_from_span!(
-                            latest_update_time_span
+                            editor_stats.latest_update_time_span
                         );
 
                         let editor_render_ms = ms_from_span!(
-                            latest_render_time_span
+                            editor_stats.latest_render_time_span
                         );
 
                         let editor_buffer_render_ms = ms_from_span!(
-                            latest_buffer_render_time_span
+                            editor_stats.latest_buffer_render_time_span
                         );
 
                         let parse_total = format!(
                             "{: >6.3} ms",
                             {
                                 let mut total = 0.0;
-                                for span in view_stats.latest_parse_time_spans.iter() {
+                                for span in editor_stats.latest_parse_time_spans.iter() {
                                     use TimeSpan::*;
                                     match span {
                                         NotStarted | Started(_) => {},
@@ -1539,14 +1546,15 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         );
 
                         glutin_context.window().set_title(&format!(
-                            "{}{} {:.0} FPS e{: >6.3} ms(e-u{: >6.3} ms e-r{: >6.3} ms(e-br{: >6.3} ms p{})) {:?} click {:?}",
+                            "{}{} {:.0} FPS v{: >6.3} ms e{: >6.3} ms(e-u{: >6.3} ms e-r{: >6.3} ms(e-br{: >6.3} ms p{})) {:?} click {:?}",
                             title,
                             if cfg!(debug_assertions) {
                                 " DEBUG"
                             } else {
                                 ""
                             },
-                            render_rate,
+                            render_rate, // AKA FPS
+                            view_function_ms,
                             editor_overall_ms,
                             editor_update_ms,
                             editor_render_ms,

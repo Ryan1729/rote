@@ -199,6 +199,7 @@ pub fn view<'view>(
         ref startup_description,
         ref pids,
         ref mut pid_string,
+        ref mut stats,
         ..
     }: &'view mut RunState,
     RunConsts {
@@ -206,6 +207,7 @@ pub fn view<'view>(
     }: &RunConsts,
     dt: std::time::Duration,
 ) -> ViewOutput<'view> {
+    stats.latest_view_function_time_span = TimeSpan::start();
     if cfg!(feature = "extra-prints") {
         if_changed::dbg!(&view);
     }
@@ -795,6 +797,8 @@ pub fn view<'view>(
     perf_viz::end_record!("fill text_or_rects");
 
     ui::end_view(ui);
+
+    stats.latest_view_function_time_span = stats.latest_view_function_time_span.end_if_started();
 
     ViewOutput {
         text_or_rects,

@@ -1,6 +1,6 @@
 use glutin_wrapper::event::{ModifiersState, VirtualKeyCode};
 use macros::{d, dbg, ord, u};
-use platform_types::{screen_positioning::*, abs, g_i, Input, Cmd, EditedTransition};
+use platform_types::{screen_positioning::*, abs, g_i, Input, Cmd, EditedTransition, TimeSpan};
 
 use std::collections::{VecDeque, BTreeMap};
 use std::path::PathBuf;
@@ -185,7 +185,7 @@ mod view {
         // because we had a bug when LocalMenuView was introduced that hiding
         // the `platform_types::View` prevents.
         platform_view: platform_types::View,
-        local_menu: Option<LocalMenuView>
+        local_menu: Option<LocalMenuView>,
     }
 
     macro_rules! toggle_impl {
@@ -346,6 +346,11 @@ pub struct Pids {
     pub path_mailbox: PID,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Stats {
+    pub latest_view_function_time_span: TimeSpan
+}
+
 /// State owned by the `run` function, which can be uniquely borrowed by other functions called inside `run`.
 #[derive(Debug)]
 pub struct RunState {
@@ -360,6 +365,7 @@ pub struct RunState {
     pub startup_description: String,
     pub pids: Pids,
     pub pid_string: String,
+    pub stats: Stats,
 }
 
 pub type CommandKey = (ModifiersState, VirtualKeyCode);
