@@ -1,5 +1,12 @@
 ## TODO
 
+* Optimize `colourize` slowness
+    * The preliminary measurements point to `colourize` beeing slow. It seems very likely that the culprit is the ropey `byte_to_char` and `slice` methods since those are O(log n), where n is the length of the string. So we're doing m of those opertions, where m is the number of colour transitions, plus 1. So that's O(m log n), which becomes pretty bad as m goes up.
+    * Converting the rope to a contiguous `Cow<str>` might be a relatively expensive operation, at worst case O(n) where n is the lengt of the string, if the data is not already contiguous. But note that we only need to do it when the data had changed, so we can add a caching layer fairly easily. Although that would be possible for the crrent approach as well...
+    * Colour transitions are fairly frequent though. If we assume that the average length of a coloured section is 16 characters, then m in the O(m log n) mentioned above is n / 16. The graphs of n and (n / 16) * log2(n) intersect at 65536. The ~3600 line file where we strongly noticed the issue is 115657 characters accouring to `wc -m`. So an order of magnitiude larger. 
+        * Assuming my estimate of 16 is in the right order of magnitude, then that suggests the O(n) approach is better.
+    * Plan: Add `Cow<str>` caching to `TextBuffer`, and use that to avoid needing to call `byte_to_char` at all when colourizing. We can use the byte indexes from the parser library to slice the `Cow<str>` directly, and pass down those `&str`s to the text rendering code.
+
 * Prove the perf issues are not related to stray logs by making all logs go through an l! macro which also tracks how many bytes were logged in a way that we can show while the app is running.
     * ln! for logging with a newline may make sense.
 
