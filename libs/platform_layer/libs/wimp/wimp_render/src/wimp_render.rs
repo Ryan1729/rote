@@ -385,7 +385,7 @@ pub fn view<'view>(
                                 z: FIND_REPLACE_BACKGROUND_Z,
                             }));
                             text_or_rects.push(TextOrRect::Text(TextSpec {
-                                text: if find.chars.len_bytes() == 0 {
+                                text: if find.chars.is_empty() {
                                     "In current file"
                                 } else {
                                     // cheap hack to avoid lifetime issues
@@ -882,7 +882,7 @@ fn render_file_switcher_menu<'view>(
     }));
 
     text_or_rects.push(TextOrRect::Text(TextSpec {
-        text: if search.chars.len_bytes() == 0 {
+        text: if search.chars.is_empty() {
             "Find File"
         } else {
             // cheap hack to avoid lifetime issues
@@ -1047,11 +1047,11 @@ enum TextBoxColour {
 d!(for TextBoxColour: TextBoxColour::FromSpans);
 
 #[perf_viz::record]
-fn colourize<'text>(to_colourize: RopeSlice<'text>, spans: &Spans) -> Vec<ColouredText<'text>> {
+fn colourize<'text>(to_colourize: &'text str, spans: &Spans) -> Vec<ColouredText<'text>> {
     spans
         .labelled_slices(to_colourize)
         .map(move |l_s| ColouredText {
-            text: l_s.slice.as_cow_str(),
+            text: std::borrow::Cow::Borrowed(l_s.slice),
             colour: match l_s.kind.get_byte() & 0b111 {
                 1 => palette![cyan],
                 2 => palette![green],
@@ -1157,7 +1157,7 @@ fn text_box_view<'view>(
             perf_viz::record_guard!("de-roping for colourization");
             match text_colour {
                 TextBoxColour::FromSpans => colourize(
-                    chars.full_slice(),
+                    &chars,
                     spans
                 ),
                 TextBoxColour::Single(colour) => {

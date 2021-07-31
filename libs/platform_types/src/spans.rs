@@ -1,6 +1,5 @@
-use text_pos::{CharOffset};
 use macros::{
-    d, fmt_debug, fmt_display, SaturatingAdd, SaturatingSub,
+    d, fmt_debug, fmt_display,
 };
 
 pub use panic_safe_rope::{RopeSlice, RopeSliceTrait, ByteIndex};
@@ -235,16 +234,19 @@ impl Spans {
     }
 }
 
+// This was a RopeSlice once.
+pub type LSSlice<'a> = &'a str;
+
 #[derive(Debug, PartialEq)]
 pub struct LabelledSlice<'text> {
-    pub slice: RopeSlice<'text>,
+    pub slice: LSSlice<'text>,
     pub kind: SpanKind,
 }
 
 impl <'text, 'spans> Spans {
     pub fn labelled_slices(
         &'spans self,
-        slice: RopeSlice<'text>
+        slice: LSSlice<'text>
     ) -> LabelledSlices<'text, 'spans> {
         LabelledSlices {
             prev: d!(),
@@ -256,7 +258,7 @@ impl <'text, 'spans> Spans {
 
 pub struct LabelledSlices<'text, 'spans> {
     prev: ByteIndex,
-    slice: RopeSlice<'text>,
+    slice: LSSlice<'text>,
     spans_iter: core::slice::Iter<'spans, SpanView>,
 }
 
@@ -267,21 +269,22 @@ impl <'text, 'spans> Iterator for LabelledSlices<'text, 'spans> {
         self.spans_iter
             .next()
             .map(move |s| {
-                let start_index = self.slice.byte_to_char(self.prev)
-                    .expect("byte_to_char failed on prev");
+                let start_byte_index = self.prev;
 
                 let end_byte_index = s.one_past_end;
 
-                let current_slice = self.slice.slice(
-                    start_index
-                    .. self
-                        .slice
-                        .byte_to_char(end_byte_index)
-                        .expect("byte_to_char failed on end")
+                let current_slice = self.slice.get(
+                    start_byte_index.0
+                    .. end_byte_index.0
                 )
-                    .expect("span_slice had incorrect index!");
+                    .expect("slice had incorrect index!");
 
-                let output = if cfg!(feature = "labelled-slice-trimming") {
+                let output = /*if cfg!(feature = "labelled-slice-trimming") {
+                    // TODO: port to use str if ever needed
+                    use text_pos::CharOffset;
+                    use macros::{
+                        SaturatingAdd, SaturatingSub,
+                    };
                     let first_non_whitespace_index = {
                         let mut chars = current_slice.chars();
             
@@ -290,7 +293,7 @@ impl <'text, 'spans> Iterator for LabelledSlices<'text, 'spans> {
                             char_offset = char_offset.saturating_add(1);
                         }
             
-                        start_index + char_offset
+                        start_char_index + char_offset
                     };
     
                     let last_non_whitespace_index = {
@@ -301,7 +304,7 @@ impl <'text, 'spans> Iterator for LabelledSlices<'text, 'spans> {
                             char_offset = char_offset.saturating_sub(1);
                         }
             
-                        start_index + char_offset
+                        start_char_index + char_offset
                     };
     
                     let trimmed_slice = self
@@ -313,7 +316,7 @@ impl <'text, 'spans> Iterator for LabelledSlices<'text, 'spans> {
                         slice: trimmed_slice,
                         kind: s.kind,
                     }
-                } else {
+                } else */{
                     LabelledSlice {
                         slice: current_slice,
                         kind: s.kind,

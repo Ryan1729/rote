@@ -626,7 +626,7 @@ fmt_debug!(collapse default for BufferView: me {
 
 #[derive(Clone, Default, PartialEq)]
 pub struct BufferViewData {
-    pub chars: Rope,
+    pub chars: String,
     pub scroll: ScrollXY,
     pub cursors: Vec<CursorView>,
     pub highlights: Vec<Highlight>,

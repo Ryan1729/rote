@@ -195,7 +195,7 @@ fn text_buffer_to_buffer_view_data(
 
     BufferViewData {
         scroll: buffer.scroll,
-        chars: buffer.clone_rope(),
+        chars: buffer.clone_rope().to_string(),
         cursors,
         highlights,
         ..d!()
