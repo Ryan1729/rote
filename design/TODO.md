@@ -3,7 +3,6 @@
 * Prove the perf issues are not related to stray logs by making all logs go through an l! macro which also tracks how many bytes were logged in a way that we can show while the app is running.
     * ln! for logging with a newline may make sense.
 
-
 * Make an unsaved change to a file survive multiple restarts without needing to touch
     it each time.
     * maybe make accidentally closed tabs recoverable?
@@ -18,8 +17,6 @@
         * open the program again (check if typed stuff is stil there)
     * a second testing procedure
         the previous procedure in a non-scratch buffer. Say "text/not_checked_in.txt"
-
-* Write a test that ensures that undo/redo produces the expected spans
 
 * make auto-tab-scroll happen when a new tab is created
     * fix auto-scroll drifting as the amount of tabs increases.
@@ -60,6 +57,9 @@ modifier keys, indicate what pressing non-modifiers will do.
 
 * Make Esc pick only one of the mulitple cursors to keep and remove that one's selection if there is one.
 
+* Write a test that ensures that undo/redo produces the expected spans
+    * Has this been an issue? That is, have we observed any buggy undoing, lately?
+
 * It seems like the editor thread slows down sometimes. Possibly when there are many
 files open, or just when the editor has been open a long time
     * We've started measuring and displaying how long it took the last call to 
@@ -67,6 +67,7 @@ files open, or just when the editor has been open a long time
         * If we do, the next obvious step would be a bar chart of the last N view
         renders, where the x axis is the Input variant, and the y axis is duration
         statistics like maximum, mean, median and mode.
+    * This might have been the O(m log n) operations we used to be doing, but removed in 6bc726a1.
 
 * I find myself doubting whether putting the keyboard menu selection in the ui::Id was a good idea.
     * if nothing else, it seems like it would be nice to have the scroll state of the command menu stick around,
