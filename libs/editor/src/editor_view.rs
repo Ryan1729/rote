@@ -27,9 +27,10 @@ pub fn render(
         ..
     } = state;
     
+    let view_stats = &mut view.stats;
+
     if buffers.should_render_buffer_views()
     {
-        let view_stats = &mut view.stats;
         view_stats.latest_buffer_render_time_span = TimeSpan::start();
 
         let bufs = buffers.buffers();
@@ -59,6 +60,8 @@ pub fn render(
     let editor_buffer = buffers.get_current_buffer();
 
     let search_results = &editor_buffer.search_results;
+
+    view_stats.latest_status_line_time_span = TimeSpan::start();
 
     perf_viz::start_record!("write view.status_line");
 
@@ -125,6 +128,13 @@ pub fn render(
     }
 
     perf_viz::end_record!("write view.status_line");
+
+    view_stats.latest_status_line_time_span = TimeSpan::end_if_started(
+        view_stats.latest_status_line_time_span
+    );
+
+    view_stats.latest_menu_render_time_span = TimeSpan::start();
+
     perf_viz::start_record!("set view.menu");
 
     {
@@ -168,6 +178,10 @@ pub fn render(
         };
         perf_viz::end_record!("set view.menu");
     }
+
+    view_stats.latest_menu_render_time_span = TimeSpan::end_if_started(
+        view_stats.latest_menu_render_time_span
+    );
     
     view.current_buffer_kind = state.current_buffer_kind;
 }

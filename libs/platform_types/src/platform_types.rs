@@ -704,6 +704,8 @@ pub struct ViewStats {
     pub latest_update_time_span: TimeSpan,
     pub latest_render_time_span: TimeSpan,
     pub latest_buffer_render_time_span: TimeSpan,
+    pub latest_status_line_time_span: TimeSpan,
+    pub latest_menu_render_time_span: TimeSpan,
     pub latest_parse_time_spans: [TimeSpan; PARSE_TIME_SPAN_COUNT],
     pub current_parse_length: u8,
 }
