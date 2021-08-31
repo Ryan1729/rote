@@ -1554,7 +1554,7 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         );
 
                         glutin_context.window().set_title(&format!(
-                            "{}{} {:.0} FPS v{: >6.3} ms e{: >6.3} ms(e-u{: >6.3} ms e-r{: >6.3} ms(e-br{: >6.3} ms e-st{: >6.3} ms e-mr{: >6.3} ms p{})) {:?} click {:?}",
+                            "{}{} {:.0} FPS v{: >6.3} ms e{: >6.3} ms(e-u{: >6.3} ms e-r{: >6.3} ms(e-br{: >6.3} ms e-st{: >6.3} ms p{} e-mr{: >6.3} ms )) {:?} click {:?}",
                             title,
                             if cfg!(debug_assertions) {
                                 " DEBUG"
@@ -1568,8 +1568,8 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                             editor_render_ms,
                             editor_buffer_render_ms,
                             editor_status_line_ms,
-                            editor_menu_render_ms,
                             parse_total,
+                            editor_menu_render_ms,
                             (r_s.ui.mouse_pos.x, r_s.ui.mouse_pos.y),
                             (last_click_x, last_click_y),
                         ));
