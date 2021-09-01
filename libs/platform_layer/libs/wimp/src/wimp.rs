@@ -739,9 +739,11 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                 let view = $view;
                 for (_, buffer) in view.buffer_iter() {
                     if let BufferName::Scratch(_) = &buffer.name {
-                        if buffer.data.chars == error {
-                            saw_same_error = true;
-                            break;
+                        if let Some(data) = buffer.data.full_or_none() {
+                            if data.chars == error {
+                                saw_same_error = true;
+                                break;
+                            }
                         }
                     }
                 }
@@ -1610,7 +1612,29 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         // generational indices.
                         if let Some(b) = r_s.view.get_buffer(index)
                         {
-                            save_to_disk!(r_s, p, std::borrow::Cow::from(b.data.chars.clone()).as_ref(), index);
+                            match b.data {
+                                BufferViewDataResolution::Full(bvd) => {
+                                    save_to_disk!(
+                                        r_s,
+                                        p,
+                                        std::borrow::Cow::from(
+                                            bvd.chars.clone()
+                                        ).as_ref(),
+                                        index
+                                    );
+                                },
+                                BufferViewDataResolution::Name(name_string) => {
+                                    // We currently do not expect that we will ever
+                                    // even show a non-full buffer view to the user,
+                                    // much less allow them to save it.
+                                    // (not actually a platform error in this 
+                                    // case...)
+                                    handle_platform_error!(
+                                        r_s,
+                                        format!("Unexpectedly found non-full BufferViewData for {}", name_string)
+                                    );
+                                },
+                            }
                         }
                     }
                     CustomEvent::SendBuffersToBeSaved => {
@@ -1621,13 +1645,15 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                             EditedFilesThread::Buffers(
                                 index_state,
                                 view.buffer_iter().map(|(i, b)|
-                                    (
-                                        b.to_owned(), 
-                                        buffer_status_map
+                                    BufferInfo {
+                                        name: b.name.clone(),
+                                        name_string: b.name_string.clone(),
+                                        chars: String,
+                                        status: buffer_status_map
                                             .get(index_state, i)
                                             .cloned()
-                                            .unwrap_or_default()
-                                    )
+                                            .unwrap_or_default(),
+                                    }
                                 ).collect()
                             )
                         );

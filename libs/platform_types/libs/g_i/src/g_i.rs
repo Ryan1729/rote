@@ -229,9 +229,22 @@ impl std::cmp::PartialOrd<IndexPart> for Index {
     }
 }
 
+impl std::cmp::PartialOrd<Index> for IndexPart {
+    fn partial_cmp(&self, other: &Index) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(&other.index))
+    }
+}
+
 impl std::cmp::PartialEq<IndexPart> for Index {
     fn eq(&self, other: &IndexPart) -> bool {
         self.partial_cmp(other)
+            .map_or(false, |o| o == std::cmp::Ordering::Equal)
+    }
+}
+
+impl std::cmp::PartialEq<Index> for IndexPart {
+    fn eq(&self, other: &Index) -> bool {
+        self.partial_cmp(&other.index)
             .map_or(false, |o| o == std::cmp::Ordering::Equal)
     }
 }
@@ -802,6 +815,29 @@ mod selectable_vec1 {
 
             for e in iter {
                 self.elements.push(mapper(e));
+            }
+
+            self.index_state = other.index_state;
+            self.current_index = other.current_index;
+        }
+
+        #[perf_viz::record]
+        pub fn replace_with_mapped_with_index<B, F>(&mut self, other: &SelectableVec1<B>, mut mapper: F)
+        where
+            F: FnMut(&B, IndexPart) -> A {
+            
+            let _ = self.elements.try_truncate(1);
+
+            let mut index_part = IndexPart::default();
+
+            *self.elements.first_mut() = mapper(other.elements.first(), index_part);
+            
+            let mut iter = other.elements.iter();
+            iter.next(); // skip first
+
+            for e in iter {
+                index_part = index_part.saturating_add(1);
+                self.elements.push(mapper(e, index_part));
             }
 
             self.index_state = other.index_state;

@@ -580,7 +580,10 @@ impl View {
         match self.current_buffer_kind {
             None => Option::None,
             Text => {
-                Some(&self.buffers.get_current_element().data)            }
+                BufferViewDataResolution::full_or_none(
+                    &self.buffers.get_current_element().data
+                )
+            }
             Find => match &self.menu {
                 MenuView::FindReplace(ref fr) => Some(&fr.find),
                 _ => Option::None,
@@ -615,7 +618,7 @@ pub struct BufferView {
     pub name: BufferName,
     // TODO this could be truncated to a fixed length/on the stack
     pub name_string: String,
-    pub data: BufferViewData,
+    pub data: BufferViewDataResolution,
 }
 
 fmt_debug!(collapse default for BufferView: me {
@@ -623,6 +626,55 @@ fmt_debug!(collapse default for BufferView: me {
     blank_if_default!(name_string, me.name_string.is_empty());
     blank_if_default!(data);
 });
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum BufferViewDataResolution {
+    Name(String),
+    Full(BufferViewData)
+}
+
+impl Default for BufferViewDataResolution {
+    fn default() -> Self {
+        BufferViewDataResolution::Name(<_>::default())
+    }
+}
+
+impl From<BufferViewData> for BufferViewDataResolution {
+    fn from(bvd: BufferViewData) -> Self {
+        BufferViewDataResolution::Full(bvd)
+    }
+}
+
+impl BufferViewDataResolution {
+    pub fn full_or_none(&self) -> Option<&BufferViewData> {
+        use BufferViewDataResolution::*;
+        match self {
+            Name(_) => None,
+            Full(ref data) => Some(data),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum BufferViewDataResolutionRef<'a> {
+    Name(&'a str),
+    Full(&'a BufferViewData)
+}
+
+impl <'bvd> From<&'bvd BufferViewData> for BufferViewDataResolutionRef<'bvd> {
+    fn from(bvd: &'bvd BufferViewData) -> Self {
+        BufferViewDataResolutionRef::Full(bvd)
+    }
+}
+
+impl <'bvdr> From<&'bvdr BufferViewDataResolution> for BufferViewDataResolutionRef<'bvdr> {
+    fn from(bvdr: &'bvdr BufferViewDataResolution) -> Self {
+        match bvdr {
+            BufferViewDataResolution::Full(bvd) => BufferViewDataResolutionRef::Full(bvd),
+            BufferViewDataResolution::Name(name) => BufferViewDataResolutionRef::Name(name),
+        }
+    }
+}
 
 #[derive(Clone, Default, PartialEq)]
 pub struct BufferViewData {

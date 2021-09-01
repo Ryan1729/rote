@@ -6,7 +6,13 @@ use wimp_types::{BufferStatus, BufferStatusTransition};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-pub type BufferInfo = (BufferView, BufferStatus);
+#[derive(Debug)]
+pub struct BufferInfo {
+    pub name: BufferName, 
+    pub name_string: String,
+    pub chars: String,
+    pub status: BufferStatus,
+}
 
 fn get_names_to_uuid(edited_files_index_path: &Path) -> HashMap<BufferName, u128> {
     let index_string = std::fs::read_to_string(edited_files_index_path).unwrap_or_default();
@@ -38,18 +44,18 @@ pub fn store_buffers(
 
     let mut result = Vec::with_capacity(all_buffers.len());
 
-    for (i, (buffer, status)) in all_buffers.into_iter().enumerate() {
-        let filename = if let Some(uuid) = names_to_uuid.get(&buffer.name) {
-            get_path(buffer.name_string, uuid)
+    for (i, info) in all_buffers.into_iter().enumerate() {
+        let filename = if let Some(uuid) = names_to_uuid.get(&info.name) {
+            get_path(info.name_string, uuid)
         } else {
             let uuid: u128 = rng.gen();
 
-            let path = get_path(buffer.name_string, &uuid);
+            let path = get_path(info.name_string, &uuid);
 
             // we don't expect to read this again in the same
             // loop, but it should be saved back to disk for
             // next time.
-            names_to_uuid.insert(buffer.name, uuid);
+            names_to_uuid.insert(info.name, uuid);
 
             path
         };
@@ -57,7 +63,7 @@ pub fn store_buffers(
         let path = edited_files_dir.join(filename);
 
         // TODO replace all files in directory with these files atomically if possible
-        match status {
+        match info.status {
             BufferStatus::Unedited => {
                 match remove_file(path).map_err(|e| e.kind()) {
                     Err(std::io::ErrorKind::NotFound) => {}
@@ -65,8 +71,7 @@ pub fn store_buffers(
                 };
             }
             _ => {
-                let chars: String = buffer.data.chars.into();
-                write(path, chars)?;
+                write(path, info.chars)?;
             }
         }
 

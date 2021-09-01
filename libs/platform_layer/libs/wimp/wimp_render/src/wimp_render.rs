@@ -345,7 +345,7 @@ pub fn view<'view>(
         *text_char_dim,
         TEXT_SIZE,
         TextBoxColour::FromSpans,
-        &data,
+        data,
         b_id!(BufferIdKind::Text, index),
         EDIT_Z,
         view.current_buffer_id(),
@@ -419,7 +419,7 @@ pub fn view<'view>(
                                         *find_replace_char_dim,
                                         FIND_REPLACE_SIZE,
                                         TextBoxColour::Single(CHROME_TEXT_COLOUR),
-                                        &$data,
+                                        $data,
                                         $input,
                                         FIND_REPLACE_Z,
                                         view.current_buffer_id(),
@@ -986,7 +986,7 @@ fn render_file_switcher_menu<'view>(
                 *find_replace_char_dim,
                 FIND_REPLACE_SIZE,
                 TextBoxColour::Single(CHROME_TEXT_COLOUR),
-                &$data,
+                $data,
                 $input,
                 FIND_REPLACE_Z,
                 current_buffer_id,
@@ -1072,7 +1072,7 @@ fn text_box<'view>(
     char_dim: CharDim,
     size: f32,
     text_colour: TextBoxColour,
-    buffer_view_data: &'view BufferViewData,
+    buffer_view_data_resolution_ref: impl Into<BufferViewDataResolutionRef<'view >>,
     buffer_id: BufferId,
     z: u16,
     current_buffer_id: BufferId,
@@ -1097,18 +1097,32 @@ fn text_box<'view>(
         )
     };
 
-    text_box_view(
-        text_or_rects,
-        outer_rect,
-        padding,
-        char_dim,
-        size,
-        text_colour,
-        buffer_view_data,
-        background_colour,
-        cursor_alpha,
-        z,
-    );
+    match buffer_view_data_resolution_ref.into() {
+        BufferViewDataResolutionRef::Full(buffer_view_data) => text_box_view(
+            text_or_rects,
+            outer_rect,
+            padding,
+            char_dim,
+            size,
+            text_colour,
+            buffer_view_data,
+            background_colour,
+            cursor_alpha,
+            z,
+        ),
+        BufferViewDataResolutionRef::Name(text) => {
+            text_or_rects.push(TextOrRect::Text(TextSpec {
+            text,
+            size,
+            layout: TextLayout::Unbounded{},
+            spec: VisualSpec {
+                rect: outer_rect,
+                colour: palette![red, cursor_alpha],
+                z: z.saturating_add(3),
+            },
+        }));
+        }
+    }
 
     input
 }
