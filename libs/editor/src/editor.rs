@@ -417,6 +417,13 @@ macro_rules! set_if_present {
     };
 }
 
+pub fn load_buffer_view(
+    state: &mut State,
+    buffer_name: BufferName
+) -> BufferView {
+    //TODO
+}
+
 pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutput {
     perf_viz::record_guard!("update_and_render");
     let start_time = Instant::now();

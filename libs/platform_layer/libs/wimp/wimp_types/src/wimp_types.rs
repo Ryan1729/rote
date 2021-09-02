@@ -249,18 +249,16 @@ mod view {
             self.platform_view.buffers.iter_with_indexes()
         }
 
-        fn get_selected_buffer_view_data(&self) -> Option<&BufferViewData> {
+        fn get_selected_cursors(&self) -> Option<&[CursorView]> {
             if self.local_menu.is_none() {
-                return self.platform_view.get_selected_buffer_view_data();
+                return self.platform_view.get_selected_cursors();
             }
             None
         }
 
         pub fn get_navigation(&self) -> Option<ui::Navigation> {
-            self.get_selected_buffer_view_data()
-                .map(|bvd| {
-                    navigation_from_cursors(&bvd.cursors)
-                })
+            self.get_selected_cursors()
+                .map(navigation_from_cursors)
         }
 
         pub fn current_buffer_kind(&self) -> platform_types::BufferIdKind {

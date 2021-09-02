@@ -34,32 +34,12 @@ pub fn render(
         view_stats.latest_buffer_render_time_span = TimeSpan::start();
 
         let bufs = buffers.buffers();
-        let current_index = bufs.current_index();
+
         view.buffers.replace_with_mapped_with_index(
             bufs,
             |editor_buffer, index| {
-                perf_viz::record_guard!("render BufferView");
-                let name = &editor_buffer.name;
-
-                let data = if index == current_index {
-                    BufferViewDataResolution::Full(
-                        editor_to_buffer_view_data(
-                            view_stats,
-                            parsers,
-                            &editor_buffer
-                        )
-                    )
-                } else {
-                    BufferViewDataResolution::Name(
-                        name.to_string()
-                    )
-                };
-
-                BufferView {
-                    name: name.clone(),
-                    name_string: name.to_string(),
-                    data
-                }
+                perf_viz::record_guard!("clone BufferName");
+                editor_buffer.name.clone()
             }
         );
 

@@ -1072,7 +1072,7 @@ fn text_box<'view>(
     char_dim: CharDim,
     size: f32,
     text_colour: TextBoxColour,
-    buffer_view_data_resolution_ref: impl Into<BufferViewDataResolutionRef<'view >>,
+    buffer_view_data: impl Into<&'view BufferViewData>,
     buffer_id: BufferId,
     z: u16,
     current_buffer_id: BufferId,
@@ -1097,32 +1097,18 @@ fn text_box<'view>(
         )
     };
 
-    match buffer_view_data_resolution_ref.into() {
-        BufferViewDataResolutionRef::Full(buffer_view_data) => text_box_view(
-            text_or_rects,
-            outer_rect,
-            padding,
-            char_dim,
-            size,
-            text_colour,
-            buffer_view_data,
-            background_colour,
-            cursor_alpha,
-            z,
-        ),
-        BufferViewDataResolutionRef::Name(text) => {
-            text_or_rects.push(TextOrRect::Text(TextSpec {
-            text,
-            size,
-            layout: TextLayout::Unbounded{},
-            spec: VisualSpec {
-                rect: outer_rect,
-                colour: palette![red, cursor_alpha],
-                z: z.saturating_add(3),
-            },
-        }));
-        }
-    }
+    text_box_view(
+        text_or_rects,
+        outer_rect,
+        padding,
+        char_dim,
+        size,
+        text_colour,
+        buffer_view_data,
+        background_colour,
+        cursor_alpha,
+        z,
+    );
 
     input
 }

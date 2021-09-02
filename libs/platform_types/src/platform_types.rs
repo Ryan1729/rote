@@ -573,17 +573,13 @@ impl View {
         )
     }
 
-    /// returns the selected menu buffer view data if there is a menu containing a buffer
-    /// currently visible, or the current text buffer view data if not.
-    pub fn get_selected_buffer_view_data(&self) -> Option<&BufferViewData> {
+    /// returns the selected menu's cursors if there is a menu containing a buffer
+    /// currently visible, or the current text buffer's cursors if not.
+    pub fn get_selected_cursors(&self) -> Option<&[CursorView]> {
         use BufferIdKind::*;
         match self.current_buffer_kind {
             None => Option::None,
-            Text => {
-                BufferViewDataResolution::full_or_none(
-                    &self.buffers.get_current_element().data
-                )
-            }
+            Text => Some(&self.buffers.get_current_element().data),
             Find => match &self.menu {
                 MenuView::FindReplace(ref fr) => Some(&fr.find),
                 _ => Option::None,
@@ -600,7 +596,7 @@ impl View {
                 MenuView::GoToPosition(ref gtp) => Some(&gtp.go_to_position),
                 _ => Option::None,
             },
-        }
+        }.map(|d| &d.cursors[..])
     }
 
     /// returns the currently visible editor buffer path if it has one.
@@ -618,7 +614,7 @@ pub struct BufferView {
     pub name: BufferName,
     // TODO this could be truncated to a fixed length/on the stack
     pub name_string: String,
-    pub data: BufferViewDataResolution,
+    pub data: BufferViewData,
 }
 
 fmt_debug!(collapse default for BufferView: me {
@@ -627,55 +623,8 @@ fmt_debug!(collapse default for BufferView: me {
     blank_if_default!(data);
 });
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum BufferViewDataResolution {
-    Name(String),
-    Full(BufferViewData)
-}
-
-impl Default for BufferViewDataResolution {
-    fn default() -> Self {
-        BufferViewDataResolution::Name(<_>::default())
-    }
-}
-
-impl From<BufferViewData> for BufferViewDataResolution {
-    fn from(bvd: BufferViewData) -> Self {
-        BufferViewDataResolution::Full(bvd)
-    }
-}
-
-impl BufferViewDataResolution {
-    pub fn full_or_none(&self) -> Option<&BufferViewData> {
-        use BufferViewDataResolution::*;
-        match self {
-            Name(_) => None,
-            Full(ref data) => Some(data),
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum BufferViewDataResolutionRef<'a> {
-    Name(&'a str),
-    Full(&'a BufferViewData)
-}
-
-impl <'bvd> From<&'bvd BufferViewData> for BufferViewDataResolutionRef<'bvd> {
-    fn from(bvd: &'bvd BufferViewData) -> Self {
-        BufferViewDataResolutionRef::Full(bvd)
-    }
-}
-
-impl <'bvdr> From<&'bvdr BufferViewDataResolution> for BufferViewDataResolutionRef<'bvdr> {
-    fn from(bvdr: &'bvdr BufferViewDataResolution) -> Self {
-        match bvdr {
-            BufferViewDataResolution::Full(bvd) => BufferViewDataResolutionRef::Full(bvd),
-            BufferViewDataResolution::Name(name) => BufferViewDataResolutionRef::Name(name),
-        }
-    }
-}
-
+/// The reason we keep this as a separate struct from `BufferView` is to enable
+/// storage of buffers without a `BufferName`.
 #[derive(Clone, Default, PartialEq)]
 pub struct BufferViewData {
     pub chars: String,
@@ -684,13 +633,13 @@ pub struct BufferViewData {
     pub highlights: Vec<Highlight>,
     pub spans: Spans,
 }
-
+ 
 fmt_debug!(collapse default for BufferViewData: me {
-    blank_if_default!(chars, me.chars == Rope::default());
-    blank_if_default!(scroll);
-    blank_if_default!(cursors, me.cursors.is_empty());
-    blank_if_default!(highlights, me.highlights.is_empty());
-    blank_if_default!(spans, me.spans.is_empty());
+     blank_if_default!(chars, me.chars == Rope::default());
+     blank_if_default!(scroll);
+     blank_if_default!(cursors, me.cursors.is_empty());
+     blank_if_default!(highlights, me.highlights.is_empty());
+     blank_if_default!(spans, me.spans.is_empty());
 });
 
 #[macro_export]
@@ -716,6 +665,13 @@ d!(for Cmd : Cmd::None);
 
 pub type UpdateAndRenderOutput = (View, Cmd);
 pub type UpdateAndRender = fn(Input) -> UpdateAndRenderOutput;
+
+pub type LoadBufferView = fn(BufferName) -> BufferView;
+
+pub struct EditorAPI {
+    pub update_and_render: UpdateAndRender,
+    pub load_buffer_view: LoadBufferView,
+}
 
 pub const PARSE_TIME_SPAN_COUNT: usize = 16 - 3;
 

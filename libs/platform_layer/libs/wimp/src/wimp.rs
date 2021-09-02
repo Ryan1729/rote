@@ -16,7 +16,9 @@ use platform_types::{screen_positioning::screen_to_text_box, *};
 use shared::{Res};
 
 #[perf_viz::record]
-pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
+pub fn run(
+    EditorAPI {update_and_render, load_buffer_view}: EditorAPI
+) -> Res<()> {
     const EVENTS_PER_FRAME: usize = 16;
 
     if cfg!(target_os = "linux") {
@@ -1644,11 +1646,13 @@ pub fn run(update_and_render: UpdateAndRender) -> Res<()> {
                         let _hope_it_gets_there = edited_files_in_sink.send(
                             EditedFilesThread::Buffers(
                                 index_state,
-                                view.buffer_iter().map(|(i, b)|
+                                view.buffer_iter().map(|(i, b_id)|
+                                    let b = load_buffer_view(b_id);
+
                                     BufferInfo {
                                         name: b.name.clone(),
                                         name_string: b.name_string.clone(),
-                                        chars: String,
+                                        chars: b.chars,
                                         status: buffer_status_map
                                             .get(index_state, i)
                                             .cloned()
