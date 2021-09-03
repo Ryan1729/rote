@@ -6,7 +6,6 @@ use platform_types::{
     *,
     screen_positioning::*,
     g_i,
-    BufferView,
     GoToPositionView,
     FindReplaceView,
     FileSwitcherView,
@@ -205,6 +204,7 @@ pub fn view<'view>(
     RunConsts {
         commands
     }: &RunConsts,
+    load_buffer_view: platform_types::LoadBufferView,
     dt: std::time::Duration,
 ) -> ViewOutput<'view> {
     stats.latest_view_function_time_span = TimeSpan::start();
@@ -255,7 +255,7 @@ pub fn view<'view>(
     let selected_index = view.current_text_index();
 
     let tab_count = buffer_count;
-    for (i, (index, BufferView { name_string, .. }))
+    for (i, (index, label))
     in view.buffer_iter().enumerate() {
         let SpacedRect {
             padding,
@@ -271,7 +271,7 @@ pub fn view<'view>(
             ui_id!(i),
             &mut text_or_rects,
             OutlineButtonSpec {
-                text: &name_string,
+                text: &label.name_string,
                 size: TAB_SIZE,
                 char_dim: *tab_char_dim,
                 layout: TextLayout::Unbounded,
@@ -315,7 +315,8 @@ pub fn view<'view>(
     perf_viz::end_record!("render Tabs");
 
     perf_viz::start_record!("render BufferIdKind::Text");
-    let (index, BufferView { data, .. }) = view.current_text_index_and_buffer();
+    let (index, label) = view.current_text_index_and_buffer_label();
+    let name = &label.name;
     // let text = {
     //     chars
     //     // perf_viz::record_guard!("map unprinatbles to symbols for themselves");
@@ -336,7 +337,19 @@ pub fn view<'view>(
 
     let edit_buffer_text_rect: ScreenSpaceRect = edit_buffer_text_rect.into();
 
-    
+    let data: BufferViewData = load_buffer_view(name)
+        .map(|bv| bv.data)
+        .unwrap_or_else(|| BufferViewData {
+            chars: format!("Could not load {}", name),
+            ..d!()
+        });
+
+    // We can unwrap becasue we just set it to Some {
+    view.scratch.buffer_view_data = Some(data);
+    let buffer_view_data_ref: &'view BufferViewData =
+        view.scratch.buffer_view_data.as_ref().unwrap();
+    // }
+
     action = into_action(text_box(
         ui,
         &mut text_or_rects,
@@ -345,7 +358,7 @@ pub fn view<'view>(
         *text_char_dim,
         TEXT_SIZE,
         TextBoxColour::FromSpans,
-        data,
+        buffer_view_data_ref,
         b_id!(BufferIdKind::Text, index),
         EDIT_Z,
         view.current_buffer_id(),
@@ -1104,7 +1117,7 @@ fn text_box<'view>(
         char_dim,
         size,
         text_colour,
-        buffer_view_data,
+        buffer_view_data.into(),
         background_colour,
         cursor_alpha,
         z,

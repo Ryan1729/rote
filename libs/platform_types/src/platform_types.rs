@@ -539,8 +539,23 @@ impl IntoIterator for EditedTransitions {
     }
 }
 
+#[derive(Clone, Default, PartialEq)]
+pub struct BufferLabel {
+    pub name: BufferName,
+    /// Having an owned version of the result of `name.to_string()` simplifies
+    /// ownership in some cases.
+    // TODO this could be truncated to a fixed length/on the stack
+    pub name_string: String,
+}
+
+fmt_debug!(collapse default for BufferLabel: me {
+    blank_if_default!(name);
+    blank_if_default!(name_string, me.name_string.is_empty());
+});
+
 #[derive(Clone, Default, Debug, PartialEq)]
-pub struct View {    pub buffers: SelectableVec1<BufferView>,
+pub struct View {
+    pub buffers: SelectableVec1<BufferLabel>,
     pub menu: MenuView,
     pub status_line: StatusLineView,
     pub current_buffer_kind: BufferIdKind,
@@ -554,15 +569,15 @@ impl View {
         self.buffers.current_index()
     }
 
-    /// returns the currently visible editor buffer view and its index.
-    pub fn current_text_index_and_buffer(&self) -> (g_i::Index, &BufferView) {
+    /// returns the currently visible editor buffer view's index and label.
+    pub fn current_text_index_and_buffer_label(&self) -> (g_i::Index, &BufferLabel) {
         (
             self.buffers.current_index(),
             self.buffers.get_current_element()
         )
     }
 
-    pub fn get_buffer(&self, index: g_i::Index) -> Option<&BufferView> {
+    pub fn get_buffer_label(&self, index: g_i::Index) -> Option<&BufferLabel> {
         self.buffers.get(index)
     }
 
@@ -579,7 +594,9 @@ impl View {
         use BufferIdKind::*;
         match self.current_buffer_kind {
             None => Option::None,
-            Text => Some(&self.buffers.get_current_element().data),
+            // TODO Do we ever actually need to access the Text buffer cursors here?
+            // If we do, then some restructuring will be needed.
+            Text => Option::None,//Some(&self.buffers.get_current_element().data),
             Find => match &self.menu {
                 MenuView::FindReplace(ref fr) => Some(&fr.find),
                 _ => Option::None,
@@ -611,15 +628,12 @@ impl View {
 
 #[derive(Clone, Default, PartialEq)]
 pub struct BufferView {
-    pub name: BufferName,
-    // TODO this could be truncated to a fixed length/on the stack
-    pub name_string: String,
+    pub label: BufferLabel,
     pub data: BufferViewData,
 }
 
 fmt_debug!(collapse default for BufferView: me {
-    blank_if_default!(name);
-    blank_if_default!(name_string, me.name_string.is_empty());
+    blank_if_default!(label);
     blank_if_default!(data);
 });
 
@@ -666,7 +680,7 @@ d!(for Cmd : Cmd::None);
 pub type UpdateAndRenderOutput = (View, Cmd);
 pub type UpdateAndRender = fn(Input) -> UpdateAndRenderOutput;
 
-pub type LoadBufferView = fn(BufferName) -> BufferView;
+pub type LoadBufferView = fn(&BufferName) -> Option<BufferView>;
 
 pub struct EditorAPI {
     pub update_and_render: UpdateAndRender,

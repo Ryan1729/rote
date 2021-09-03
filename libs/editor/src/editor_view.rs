@@ -22,7 +22,6 @@ pub fn render(
         buffer_xywh: TextBoxXYWH {
             xy: text_box_pos, ..
         },
-        ref mut parsers,
         ref mut view,
         ..
     } = state;
@@ -35,11 +34,14 @@ pub fn render(
 
         let bufs = buffers.buffers();
 
-        view.buffers.replace_with_mapped_with_index(
+        view.buffers.replace_with_mapped(
             bufs,
-            |editor_buffer, index| {
+            |editor_buffer| {
                 perf_viz::record_guard!("clone BufferName");
-                editor_buffer.name.clone()
+                BufferLabel {
+                    name: editor_buffer.name.clone(),
+                    name_string: editor_buffer.name.to_string(),
+                }
             }
         );
 
@@ -208,7 +210,7 @@ fn text_buffer_to_buffer_view_data(
 }
 
 #[perf_viz::record]
-fn editor_to_buffer_view_data(
+pub(crate) fn editor_to_buffer_view_data(
     view_stats: &mut ViewStats,
     parsers: &mut Parsers,
     editor_buffer: &EditorBuffer,

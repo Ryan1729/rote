@@ -186,6 +186,14 @@ mod view {
         // the `platform_types::View` prevents.
         platform_view: platform_types::View,
         local_menu: Option<LocalMenuView>,
+        pub scratch: ViewScratch,
+    }
+
+    // TODO Maybe replace this with a bump allocated arena that is cleared each 
+    // render?
+    #[derive(Clone, Default, Debug, PartialEq)]
+    pub struct ViewScratch {
+        pub buffer_view_data: Option<BufferViewData>
     }
 
     macro_rules! toggle_impl {
@@ -245,7 +253,7 @@ mod view {
             self.platform_view.buffers.len()
         }
 
-        pub fn buffer_iter(&self) -> impl Iterator<Item = (g_i::Index, &platform_types::BufferView)> {
+        pub fn buffer_iter(&self) -> impl Iterator<Item = (g_i::Index, &platform_types::BufferLabel)> {
             self.platform_view.buffers.iter_with_indexes()
         }
 
@@ -273,12 +281,12 @@ mod view {
             self.platform_view.current_text_index()
         }
 
-        pub fn current_text_index_and_buffer(&self) -> (g_i::Index, &platform_types::BufferView) {
-            self.platform_view.current_text_index_and_buffer()
+        pub fn current_text_index_and_buffer_label(&self) -> (g_i::Index, &platform_types::BufferLabel) {
+            self.platform_view.current_text_index_and_buffer_label()
         }
 
-        pub fn get_buffer(&self, index: g_i::Index) -> Option<&platform_types::BufferView> {
-            self.platform_view.get_buffer(index)
+        pub fn get_buffer_label(&self, index: g_i::Index) -> Option<&platform_types::BufferLabel> {
+            self.platform_view.get_buffer_label(index)
         }
 
         pub fn current_path(&self) -> Option<std::path::PathBuf> {

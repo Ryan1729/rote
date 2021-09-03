@@ -418,10 +418,34 @@ macro_rules! set_if_present {
 }
 
 pub fn load_buffer_view(
-    state: &mut State,
+    State {
+        ref buffers,
+        ref mut view,
+        ref mut parsers,
+        ..
+    }: &mut State,
     buffer_name: BufferName
-) -> BufferView {
-    //TODO
+) -> Option<BufferView> {
+    buffers
+        .index_with_name(&buffer_name)
+        .and_then(|i| {
+            buffers.buffers().get(i)
+        })
+        .map(|buffer| {
+            let view_stats = &mut view.stats;
+
+            BufferView {
+                label: BufferLabel {
+                    name: buffer.name.clone(),
+                    name_string: buffer.name.to_string()
+                },
+                data: editor_view::editor_to_buffer_view_data(
+                    view_stats,
+                    parsers,
+                    buffer
+                )
+            }
+        })
 }
 
 pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutput {
