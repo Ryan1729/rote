@@ -678,6 +678,8 @@ pub enum Cmd {
 d!(for Cmd : Cmd::None);
 
 pub type UpdateAndRenderOutput = (View, Cmd);
+
+
 pub type UpdateAndRender = fn(Input) -> UpdateAndRenderOutput;
 
 pub type LoadBufferView = fn(&BufferName) -> Option<BufferView>;
@@ -686,6 +688,8 @@ pub struct EditorAPI {
     pub update_and_render: UpdateAndRender,
     pub load_buffer_view: LoadBufferView,
 }
+
+fmt_debug!(for EditorAPI: _ in "EditorAPI{{...}}");
 
 pub const PARSE_TIME_SPAN_COUNT: usize = 16 - 3;
 

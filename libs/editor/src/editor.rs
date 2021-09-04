@@ -424,7 +424,7 @@ pub fn load_buffer_view(
         ref mut parsers,
         ..
     }: &mut State,
-    buffer_name: BufferName
+    buffer_name: &BufferName
 ) -> Option<BufferView> {
     buffers
         .index_with_name(&buffer_name)

@@ -256,7 +256,7 @@ pub fn view<'view>(
 
     let tab_count = buffer_count;
     for (i, (index, label))
-    in view.buffer_iter().enumerate() {
+    in view.buffers.buffer_iter().enumerate() {
         let SpacedRect {
             padding,
             margin,

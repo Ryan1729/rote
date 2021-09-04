@@ -17,8 +17,10 @@ use shared::{Res};
 
 #[perf_viz::record]
 pub fn run(
-    EditorAPI {update_and_render, load_buffer_view}: EditorAPI
+    editor_api: EditorAPI
 ) -> Res<()> {
+    let EditorAPI {update_and_render, load_buffer_view} = editor_api;
+
     const EVENTS_PER_FRAME: usize = 16;
 
     if cfg!(target_os = "linux") {
@@ -638,6 +640,7 @@ pub fn run(
             pids,
             pid_string: String::with_capacity(256),
             stats: d!(),
+            editor_api,
         }
     };
 
@@ -730,19 +733,22 @@ pub fn run(
         // to display it to the user.
         macro_rules! handle_platform_error {
             ($r_s: ident, $err: expr) => {
-                handle_platform_error!(&mut $r_s.ui, &$r_s.editor_in_sink, &$r_s.view, $err)
+                handle_platform_error!(&mut $r_s.ui, &$r_s.editor_in_sink, &$r_s.view, $r_s.editor_api.load_buffer_view, $err)
             };
-            ($ui: expr, $editor_in_sink: expr, $view: expr, $err: expr) => {
+            ($ui: expr, $editor_in_sink: expr, $view: expr, $load_buffer_view: expr, $err: expr) => {
                 let error = format!("{},{}: {}", file!(), line!(), $err);
                 eprintln!("{}", error);
 
                 let mut saw_same_error = false;
 
                 let view = $view;
-                for (_, buffer) in view.buffer_iter() {
-                    if let BufferName::Scratch(_) = &buffer.name {
-                        if let Some(data) = buffer.data.full_or_none() {
-                            if data.chars == error {
+                for (_, label) in view.buffer_iter() {
+                    if let BufferName::Scratch(_) = &label.name {
+                        // If `load_buffer_view` ends up being slow here, we could 
+                        // potentially make a faster function that only produces
+                        // this boolean.
+                        if let Some(bv) = $load_buffer_view(&label.name) {
+                            if bv.data.chars == error {
                                 saw_same_error = true;
                                 break;
                             }
@@ -766,12 +772,13 @@ pub fn run(
                     &$r_s.editor_in_sink,
                     &mut $r_s.buffer_status_map,
                     &$r_s.view,
+                    $r_s.editor_api.load_buffer_view,
                     $path,
                     $str,
                     $buffer_index
                 )
             };
-            ($ui: expr, $editor_in_sink: expr, $buffer_status_map: expr, $view: expr, $path: expr, $str: expr, $buffer_index: expr) => {
+            ($ui: expr, $editor_in_sink: expr, $buffer_status_map: expr, $view: expr, $load_buffer_view: expr, $path: expr, $str: expr, $buffer_index: expr) => {
                 let index = $buffer_index;
                 match std::fs::write($path, $str) {
                     Ok(_) => {
@@ -784,7 +791,7 @@ pub fn run(
                         call_u_and_r!($ui, $editor_in_sink, Input::SavedAs(index, $path.to_path_buf()));
                     }
                     Err(err) => {
-                        handle_platform_error!($ui, $editor_in_sink, $view, err);
+                        handle_platform_error!($ui, $editor_in_sink, $view, $load_buffer_view, err);
                     }
                 }
             };
@@ -972,8 +979,8 @@ pub fn run(
                 switch_menu_mode!(r_s, MenuMode::FileSwitcher);
             }]
             [CTRL, S, "Save.", r_s {
-                let (i, buffer) = r_s.view.current_text_index_and_buffer();
-                match buffer.name {
+                let (i, label) = r_s.view.current_text_index_and_buffer_label();
+                match label.name {
                     BufferName::Scratch(_) => {
                         file_chooser_call!(
                             r_s.event_proxy,
@@ -983,7 +990,29 @@ pub fn run(
                         );
                     }
                     BufferName::Path(ref p) => {
-                        save_to_disk!(r_s, p, std::borrow::Cow::from(buffer.data.chars.clone()).as_ref(), i);
+                        match (r_s.editor_api.load_buffer_view)(&label.name) {
+                            Some(bv) => {
+                                save_to_disk!(
+                                    r_s,
+                                    p,
+                                    std::borrow::Cow::from(
+                                        bv.data.chars.clone()
+                                    ).as_ref(),
+                                    i
+                                );
+                            },
+                            None => {
+                                // We currently do not expect that we will ever
+                                // even show a non-accessible buffer view to the
+                                // user, much less allow them to save it.
+                                // (not actually a platform error in this 
+                                // case...)
+                                handle_platform_error!(
+                                    r_s,
+                                    format!("Unexpectedly found non-full BufferViewData for {}", label.name_string)
+                                );
+                            },
+                        }
                     }
                 }
             }]
@@ -1452,6 +1481,7 @@ pub fn run(
                         wimp_render::view(
                             &mut r_s,
                             &r_c,
+                            load_buffer_view,
                             dt,
                         );
 
@@ -1609,31 +1639,31 @@ pub fn run(
                     CustomEvent::OpenFile(p) => load_file!(p),
                     CustomEvent::SaveNewFile(ref p, index) => {
                         let r_s = &mut r_s;
-                        // The fact we need to store the index and retreive it later, potentially
-                        // across multiple updates, is why this thread needs to know about the
-                        // generational indices.
-                        if let Some(b) = r_s.view.get_buffer(index)
+                        // The fact we need to store the index and retreive it later,
+                        // potentially across multiple updates, is why this thread 
+                        // needs to know about the generational indices.
+                        if let Some(label) = r_s.view.get_buffer_label(index)
                         {
-                            match b.data {
-                                BufferViewDataResolution::Full(bvd) => {
+                            match load_buffer_view(&label.name) {
+                                Some(bv) => {
                                     save_to_disk!(
                                         r_s,
                                         p,
                                         std::borrow::Cow::from(
-                                            bvd.chars.clone()
+                                            bv.data.chars.clone()
                                         ).as_ref(),
                                         index
                                     );
                                 },
-                                BufferViewDataResolution::Name(name_string) => {
+                                None => {
                                     // We currently do not expect that we will ever
-                                    // even show a non-full buffer view to the user,
-                                    // much less allow them to save it.
+                                    // even show a non-accessible buffer view to the
+                                    // user, much less allow them to save it.
                                     // (not actually a platform error in this 
                                     // case...)
                                     handle_platform_error!(
                                         r_s,
-                                        format!("Unexpectedly found non-full BufferViewData for {}", name_string)
+                                        format!("Unexpectedly found non-full BufferViewData for {}", label.name_string)
                                     );
                                 },
                             }
@@ -1643,22 +1673,42 @@ pub fn run(
                         let view = &r_s.view;
                         let index_state = view.index_state();
                         let buffer_status_map = &mut r_s.buffer_status_map;
-                        let _hope_it_gets_there = edited_files_in_sink.send(
-                            EditedFilesThread::Buffers(
-                                index_state,
-                                view.buffer_iter().map(|(i, b_id)|
-                                    let b = load_buffer_view(b_id);
 
-                                    BufferInfo {
-                                        name: b.name.clone(),
-                                        name_string: b.name_string.clone(),
-                                        chars: b.chars,
+                        let load_buffer_view = r_s.editor_api.load_buffer_view;
+
+                        let mut infos = Vec::with_capacity(32);
+                        
+                        for (i, label) in view.buffers.buffer_iter() {
+                            match (load_buffer_view)(&label.name) {
+                                Some(bv) => {
+                                    infos.push(edited_storage::BufferInfo {
+                                        name: bv.label.name.clone(),
+                                        name_string: bv.label.name_string.clone(),
+                                        chars: bv.data.chars,
                                         status: buffer_status_map
                                             .get(index_state, i)
                                             .cloned()
                                             .unwrap_or_default(),
-                                    }
-                                ).collect()
+                                    });
+                                },
+                                None => {
+                                    // We currently do not expect that we will ever
+                                    // even show a non-accessible buffer view to the
+                                    // user, much less allow them to save it.
+                                    // (not actually a platform error in this 
+                                    // case...)
+                                    handle_platform_error!(
+                                        r_s,
+                                        format!("Unexpectedly found non-full BufferViewData for {}", label.name_string)
+                                    );
+                                },
+                            }
+                        }
+
+                        let _hope_it_gets_there = edited_files_in_sink.send(
+                            EditedFilesThread::Buffers(
+                                index_state,
+                                infos
                             )
                         );
                     }

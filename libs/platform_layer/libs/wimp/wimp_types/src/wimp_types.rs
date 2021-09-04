@@ -1,6 +1,6 @@
 use glutin_wrapper::event::{ModifiersState, VirtualKeyCode};
 use macros::{d, dbg, ord, u};
-use platform_types::{screen_positioning::*, abs, g_i, Input, Cmd, EditedTransition, TimeSpan};
+use platform_types::{screen_positioning::*, abs, g_i, Input, Cmd, EditedTransition, EditorAPI, TimeSpan};
 
 use std::collections::{VecDeque, BTreeMap};
 use std::path::PathBuf;
@@ -180,12 +180,25 @@ mod view {
     }
 
     #[derive(Default, Debug)]
-    pub struct View {
+    // This struct hides the platform::View, but allows borrowing the buffers 
+    // disjointly, which helps rustc figure out some ownership things.
+    pub struct BuffersView {
         // We want to hide the `platform_types::View` from the rest of the code
         // because we had a bug when LocalMenuView was introduced that hiding
         // the `platform_types::View` prevents.
-        platform_view: platform_types::View,
-        local_menu: Option<LocalMenuView>,
+        platform_view: platform_types::View
+    }
+
+    impl BuffersView {
+        pub fn buffer_iter(&self) -> impl Iterator<Item = (g_i::Index, &platform_types::BufferLabel)> {
+            self.platform_view.buffers.iter_with_indexes()
+        }
+    }
+
+    #[derive(Default, Debug)]
+    pub struct View {
+        pub buffers: BuffersView,
+        pub local_menu: Option<LocalMenuView>,
         pub scratch: ViewScratch,
     }
 
@@ -199,7 +212,7 @@ mod view {
     macro_rules! toggle_impl {
         ($view: expr,  $toggled: path $(,)?) => {
             match $view.local_menu {
-                None => match $view.platform_view.menu {
+                None => match $view.buffers.platform_view.menu {
                     platform_types::MenuView::None => {
                         $view.local_menu = Some($toggled)
                     },
@@ -221,7 +234,7 @@ mod view {
     impl View {
         pub fn close_menus(&mut self) {
             self.local_menu = None;
-            self.platform_view.menu = platform_types::MenuView::None;
+            self.buffers.platform_view.menu = platform_types::MenuView::None;
         }
 
         pub fn toggle_command_menu(&mut self) {
@@ -239,27 +252,27 @@ mod view {
         }
 
         pub fn update(&mut self, p_view: platform_types::View) {
-            self.platform_view = p_view;
+            self.buffers.platform_view = p_view;
         }
     }
 
     impl View {
         pub fn edited_transitions(&self) -> impl Iterator<Item = IndexedEditedTransition> {
-            self.platform_view.edited_transitions.clone().into_iter()
+            self.buffers.platform_view.edited_transitions.clone().into_iter()
         }
 
         #[perf_viz::record]
         pub fn buffers_count(&self) -> g_i::Length {
-            self.platform_view.buffers.len()
+            self.buffers.platform_view.buffers.len()
         }
 
         pub fn buffer_iter(&self) -> impl Iterator<Item = (g_i::Index, &platform_types::BufferLabel)> {
-            self.platform_view.buffers.iter_with_indexes()
+            self.buffers.buffer_iter()
         }
 
         fn get_selected_cursors(&self) -> Option<&[CursorView]> {
             if self.local_menu.is_none() {
-                return self.platform_view.get_selected_cursors();
+                return self.buffers.platform_view.get_selected_cursors();
             }
             None
         }
@@ -270,36 +283,36 @@ mod view {
         }
 
         pub fn current_buffer_kind(&self) -> platform_types::BufferIdKind {
-            self.platform_view.current_buffer_kind
+            self.buffers.platform_view.current_buffer_kind
         }
 
         pub fn current_buffer_id(&self) -> platform_types::BufferId {
-            self.platform_view.current_buffer_id()
+            self.buffers.platform_view.current_buffer_id()
         }
 
         pub fn current_text_index(&self) -> g_i::Index {
-            self.platform_view.current_text_index()
+            self.buffers.platform_view.current_text_index()
         }
 
         pub fn current_text_index_and_buffer_label(&self) -> (g_i::Index, &platform_types::BufferLabel) {
-            self.platform_view.current_text_index_and_buffer_label()
+            self.buffers.platform_view.current_text_index_and_buffer_label()
         }
 
         pub fn get_buffer_label(&self, index: g_i::Index) -> Option<&platform_types::BufferLabel> {
-            self.platform_view.get_buffer_label(index)
+            self.buffers.platform_view.get_buffer_label(index)
         }
 
         pub fn current_path(&self) -> Option<std::path::PathBuf> {
-            self.platform_view.current_path()
+            self.buffers.platform_view.current_path()
         }
 
         pub fn stats(&self) -> &platform_types::ViewStats {
-            &self.platform_view.stats
+            &self.buffers.platform_view.stats
         }
 
         pub fn menu(&self) -> WimpMenuView {
             WimpMenuView {
-                platform_menu: &self.platform_view.menu,
+                platform_menu: &self.buffers.platform_view.menu,
                 local_menu: &self.local_menu,
             }
         }
@@ -309,11 +322,11 @@ mod view {
         }
 
         pub fn status_line(&self) -> &platform_types::StatusLineView {
-            &self.platform_view.status_line
+            &self.buffers.platform_view.status_line
         }
 
         pub fn index_state(&self) -> g_i::State {
-            self.platform_view.buffers.index_state()
+            self.buffers.platform_view.buffers.index_state()
         }
     }
 
@@ -372,6 +385,7 @@ pub struct RunState {
     pub pids: Pids,
     pub pid_string: String,
     pub stats: Stats,
+    pub editor_api: EditorAPI,
 }
 
 pub type CommandKey = (ModifiersState, VirtualKeyCode);
