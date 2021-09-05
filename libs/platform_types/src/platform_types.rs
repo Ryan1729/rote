@@ -679,10 +679,11 @@ d!(for Cmd : Cmd::None);
 
 pub type UpdateAndRenderOutput = (View, Cmd);
 
-
 pub type UpdateAndRender = fn(Input) -> UpdateAndRenderOutput;
 
-pub type LoadBufferView = fn(&BufferName) -> Option<BufferView>;
+pub type LoadBufferViewError = String;
+
+pub type LoadBufferView = fn(&BufferName) -> Result<BufferView, LoadBufferViewError>;
 
 pub struct EditorAPI {
     pub update_and_render: UpdateAndRender,

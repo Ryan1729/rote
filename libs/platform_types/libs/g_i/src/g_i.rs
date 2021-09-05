@@ -223,6 +223,12 @@ ord!(for Index: index, other in {
     index.generation.cmp(&other.generation).then_with(|| index.index.cmp(&other.index))
 });
 
+fmt_display!(
+    for Index: Index{generation, index} in "({}, gen {})",
+    index,
+    generation
+);
+
 impl std::cmp::PartialOrd<IndexPart> for Index {
     fn partial_cmp(&self, other: &IndexPart) -> Option<std::cmp::Ordering> {
         Some(self.index.cmp(&other))

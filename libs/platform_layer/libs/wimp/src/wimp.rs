@@ -747,11 +747,13 @@ pub fn run(
                         // If `load_buffer_view` ends up being slow here, we could 
                         // potentially make a faster function that only produces
                         // this boolean.
-                        if let Some(bv) = $load_buffer_view(&label.name) {
+                        if let Ok(bv) = $load_buffer_view(&label.name) {
                             if bv.data.chars == error {
                                 saw_same_error = true;
                                 break;
                             }
+                        } else {
+                            debug_assert!(false, "View buffer iter is broken!?");
                         }
                     }
                 }
@@ -991,7 +993,7 @@ pub fn run(
                     }
                     BufferName::Path(ref p) => {
                         match (r_s.editor_api.load_buffer_view)(&label.name) {
-                            Some(bv) => {
+                            Ok(bv) => {
                                 save_to_disk!(
                                     r_s,
                                     p,
@@ -1001,7 +1003,7 @@ pub fn run(
                                     i
                                 );
                             },
-                            None => {
+                            Err(err) => {
                                 // We currently do not expect that we will ever
                                 // even show a non-accessible buffer view to the
                                 // user, much less allow them to save it.
@@ -1009,7 +1011,7 @@ pub fn run(
                                 // case...)
                                 handle_platform_error!(
                                     r_s,
-                                    format!("Unexpectedly found non-full BufferViewData for {}", label.name_string)
+                                    err
                                 );
                             },
                         }
@@ -1645,7 +1647,7 @@ pub fn run(
                         if let Some(label) = r_s.view.get_buffer_label(index)
                         {
                             match load_buffer_view(&label.name) {
-                                Some(bv) => {
+                                Ok(bv) => {
                                     save_to_disk!(
                                         r_s,
                                         p,
@@ -1655,7 +1657,7 @@ pub fn run(
                                         index
                                     );
                                 },
-                                None => {
+                                Err(err) => {
                                     // We currently do not expect that we will ever
                                     // even show a non-accessible buffer view to the
                                     // user, much less allow them to save it.
@@ -1663,7 +1665,7 @@ pub fn run(
                                     // case...)
                                     handle_platform_error!(
                                         r_s,
-                                        format!("Unexpectedly found non-full BufferViewData for {}", label.name_string)
+                                        err
                                     );
                                 },
                             }
@@ -1680,7 +1682,7 @@ pub fn run(
                         
                         for (i, label) in view.buffers.buffer_iter() {
                             match (load_buffer_view)(&label.name) {
-                                Some(bv) => {
+                                Ok(bv) => {
                                     infos.push(edited_storage::BufferInfo {
                                         name: bv.label.name.clone(),
                                         name_string: bv.label.name_string.clone(),
@@ -1691,7 +1693,7 @@ pub fn run(
                                             .unwrap_or_default(),
                                     });
                                 },
-                                None => {
+                                Err(err) => {
                                     // We currently do not expect that we will ever
                                     // even show a non-accessible buffer view to the
                                     // user, much less allow them to save it.
@@ -1699,7 +1701,7 @@ pub fn run(
                                     // case...)
                                     handle_platform_error!(
                                         r_s,
-                                        format!("Unexpectedly found non-full BufferViewData for {}", label.name_string)
+                                        err
                                     );
                                 },
                             }

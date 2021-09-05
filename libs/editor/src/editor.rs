@@ -425,11 +425,25 @@ pub fn load_buffer_view(
         ..
     }: &mut State,
     buffer_name: &BufferName
-) -> Option<BufferView> {
+) -> Result<BufferView, LoadBufferViewError> {
     buffers
         .index_with_name(&buffer_name)
-        .and_then(|i| {
-            buffers.buffers().get(i)
+        .ok_or_else(||
+            format!(
+                "Could not find index for buffer named \"{}\" in {} buffers",
+                buffer_name,
+                buffers.len()
+            )
+        )
+        .and_then(|index| {
+            buffers.buffers().get(index).ok_or_else(||
+                format!(
+                    "Got bad index {} for buffer named \"{}\" in {} buffers",
+                    index,
+                    buffer_name,
+                    buffers.len()
+                )
+            )
         })
         .map(|buffer| {
             let view_stats = &mut view.stats;

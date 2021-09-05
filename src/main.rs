@@ -1,11 +1,15 @@
 use macros::d;
-use platform_types::{BufferName, BufferView, EditorAPI, Input, UpdateAndRenderOutput};
+use platform_types::{BufferName, BufferView, EditorAPI, Input, UpdateAndRenderOutput, LoadBufferViewError};
 use editor::State;
 
 // We expect that the `EditorAPI` function pointers will never be called at the same
 // time, so the `Err` case of `try_lock` should never occur.
 
-fn state_call<In, Out: Default>(r#in: In, callback: fn(&mut State, In) -> Out) -> Out {
+fn state_call<In, Out>(
+    r#in: In,
+    callback: fn(&mut State, In) -> Out,
+    fallback: fn() -> Out,
+) -> Out {
     use lazy_static::lazy_static;
     lazy_static! {
         static ref STATE_MUTEX: std::sync::Mutex<State> =
@@ -17,17 +21,23 @@ fn state_call<In, Out: Default>(r#in: In, callback: fn(&mut State, In) -> Out) -
             if cfg!(feature = "invariant-checking") {
                 panic!("STATE_MUTEX already borrowed!? \n{}", e);
             }
-            d!()
+            fallback()
         }
     }
 }
 
 fn update_and_render(input: Input) -> UpdateAndRenderOutput {
-    state_call(input, editor::update_and_render)
+    fn fallback() -> UpdateAndRenderOutput {
+        d!()
+    }
+    state_call(input, editor::update_and_render, fallback)
 }
 
-fn load_buffer_view(buffer_name: &BufferName) -> Option<BufferView> {
-    state_call(buffer_name, editor::load_buffer_view)
+fn load_buffer_view(buffer_name: &BufferName) -> Result<BufferView, LoadBufferViewError> {
+    fn fallback() -> Result<BufferView, LoadBufferViewError> {
+        Err("load_buffer_view fallback".to_string())
+    }
+    state_call(buffer_name, editor::load_buffer_view, fallback)
 }
 
 fn main() {

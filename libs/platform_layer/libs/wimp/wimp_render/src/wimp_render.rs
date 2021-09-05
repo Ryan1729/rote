@@ -339,8 +339,8 @@ pub fn view<'view>(
 
     let data: BufferViewData = load_buffer_view(name)
         .map(|bv| bv.data)
-        .unwrap_or_else(|| BufferViewData {
-            chars: format!("Could not load {}", name),
+        .unwrap_or_else(|error| BufferViewData {
+            chars: format!("Could not load {}:\n    {}", name, error),
             ..d!()
         });
 
