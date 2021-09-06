@@ -19,8 +19,6 @@ use shared::{Res};
 pub fn run(
     editor_api: EditorAPI
 ) -> Res<()> {
-    let EditorAPI {update_and_render, load_buffer_view} = editor_api;
-
     const EVENTS_PER_FRAME: usize = 16;
 
     if cfg!(target_os = "linux") {
@@ -520,34 +518,101 @@ pub fn run(
     // out of the editor thread
     let (editor_out_sink, editor_out_source) = channel();
 
+    enum EditorThreadInput {
+        Render(Input),
+        LoadBuffers(&[BufferName]),
+        SaveBuffers((), ()),
+    }
+
     enum EditorThreadOutput {
-        Rendered(UpdateAndRenderOutput),
+        Rendered((View, Cmd, LoadBufferViewsResult)),
+        Buffers(Vec<Result<BufferView, LoadBufferViewError>>),
         Pid(u32)
     }
 
-    let mut editor_join_handle = Some(
+    let mut editor_join_handle = Some({
+        let proxy = event_proxy.clone();
+
         std::thread::Builder::new()
             .name("editor".to_string())
             .spawn(move || {
+                let EditorAPI {update_and_render, load_buffer_views} = editor_api;
                 {
                     let _hope_it_gets_there = editor_out_sink.send(
                         EditorThreadOutput::Pid(std::process::id())
                     );
                 }
 
-                while let Ok(input) = editor_in_source.recv() {
-                    let was_quit = Input::Quit == input;
-                    let rendered = update_and_render(input);
-                    let _hope_it_gets_there = editor_out_sink.send(
-                        EditorThreadOutput::Rendered(rendered)
-                    );
-                    if was_quit {
-                        return;
+                while let Ok(editor_input) = editor_in_source.recv() {
+                    match editor_input {
+                        EditorThreadInput::Render(input) => {
+                            let was_quit = Input::Quit == input;
+                            let (v, c) = (update_and_render)(input);
+
+                            let visible_buffer_name = f(v);
+
+                            let results = (load_buffer_views)(&[visible_buffer_name]);
+
+                            // TODO: could pass and return Vec1 to avoid this.
+                            debug_assert_eq!(results.len(), 1);
+
+                            let result = results[0];
+
+                            let _hope_it_gets_there = editor_out_sink.send(
+                                EditorThreadOutput::Rendered((v, c, result))
+                            );
+                            if was_quit {
+                                return;
+                            }
+                        },
+                        EditorThreadInput::LoadBuffers(names) => {
+                            let _hope_it_gets_there = editor_out_sink.send(
+                                EditorThreadOutput::Buffers(
+                                    (load_buffer_views)(names)
+                                )
+                            );
+                        }
+                        EditorThreadInput::SaveBuffers(index_state, names, statuses) => {
+                            debug_assert_eq!(names.len(), statuses.len());
+                            let mut infos = Vec::with_capacity(names.len());
+
+                            let buffers = (load_buffer_views)(names);
+
+                            debug_assert_eq!(statuses.len(), buffers.len());
+
+                            for i in 0..buffers.len() {
+                                let status = statuses[i];
+                                match buffers[i] {
+                                    Ok(bv) => {
+                                        infos.push(edited_storage::BufferInfo {
+                                            name: bv.label.name.clone(),
+                                            name_string: bv.label.name_string.clone(),
+                                            chars: bv.data.chars,
+                                            status,
+                                        });
+                                    },
+                                    Err(err) => {
+                                        let _hope_it_gets_there = proxy.send_event(
+                                            CustomEvent::EditedBufferError(
+                                                err
+                                            )
+                                        );
+                                    },
+                                }
+                            }
+
+                            let _hope_it_gets_there = edited_files_in_sink.send(
+                                EditedFilesThread::Buffers(
+                                    index_state,
+                                    infos
+                                )
+                            );
+                        }
                     }
                 }
             })
-            .expect("Could not start editor thread!"),
-    );
+            .expect("Could not start editor thread!")
+    });
 
     use edited_storage::{load_tab, load_previous_tabs, LoadedTab};
 
@@ -609,7 +674,7 @@ pub fn run(
             ),
         };
 
-        let (v, c) = update_and_render(
+        let (v, c) = (editor_api.update_and_render)(
             get_non_font_size_dependents_input!(d!(), dimensions)
         );
 
@@ -625,6 +690,7 @@ pub fn run(
         let clipboard = get_clipboard();
 
         let mut view: wimp_types::View = d!();
+        
         view.update(v);
 
         RunState {
@@ -1447,7 +1513,7 @@ pub fn run(
                             Ok(EditorThreadOutput::Pid(pid)) => {
                                 r_s.pids.editor = pid;
                             }
-                            _ => break,
+                            Err(_) => break,
                         };
                     }
 
@@ -1483,7 +1549,6 @@ pub fn run(
                         wimp_render::view(
                             &mut r_s,
                             &r_c,
-                            load_buffer_view,
                             dt,
                         );
 
@@ -1681,34 +1746,17 @@ pub fn run(
                         let mut infos = Vec::with_capacity(32);
                         
                         for (i, label) in view.buffers.buffer_iter() {
-                            match (load_buffer_view)(&label.name) {
-                                Ok(bv) => {
-                                    infos.push(edited_storage::BufferInfo {
-                                        name: bv.label.name.clone(),
-                                        name_string: bv.label.name_string.clone(),
-                                        chars: bv.data.chars,
-                                        status: buffer_status_map
+                            infos.push((
+                                label.name.clone(),
+                                buffer_status_map
                                             .get(index_state, i)
                                             .cloned()
-                                            .unwrap_or_default(),
-                                    });
-                                },
-                                Err(err) => {
-                                    // We currently do not expect that we will ever
-                                    // even show a non-accessible buffer view to the
-                                    // user, much less allow them to save it.
-                                    // (not actually a platform error in this 
-                                    // case...)
-                                    handle_platform_error!(
-                                        r_s,
-                                        err
-                                    );
-                                },
-                            }
+                                            .unwrap_or_default()
+                            ));
                         }
 
-                        let _hope_it_gets_there = edited_files_in_sink.send(
-                            EditedFilesThread::Buffers(
+                        let _hope_it_gets_there = editor_thread_in_sink.send(
+                            EditorThreadInput::SaveBuffers(
                                 index_state,
                                 infos
                             )

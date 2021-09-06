@@ -683,11 +683,13 @@ pub type UpdateAndRender = fn(Input) -> UpdateAndRenderOutput;
 
 pub type LoadBufferViewError = String;
 
-pub type LoadBufferView = fn(&BufferName) -> Result<BufferView, LoadBufferViewError>;
+pub type LoadBufferViewsResult = Result<BufferView, LoadBufferViewError>;
+
+pub type LoadBufferViews = fn(&[BufferName]) -> Vec<LoadBufferViewsResult>;
 
 pub struct EditorAPI {
     pub update_and_render: UpdateAndRender,
-    pub load_buffer_view: LoadBufferView,
+    pub load_buffer_views: LoadBufferViews,
 }
 
 fmt_debug!(for EditorAPI: _ in "EditorAPI{{...}}");

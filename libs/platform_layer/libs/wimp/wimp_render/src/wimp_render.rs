@@ -204,7 +204,6 @@ pub fn view<'view>(
     RunConsts {
         commands
     }: &RunConsts,
-    load_buffer_view: platform_types::LoadBufferView,
     dt: std::time::Duration,
 ) -> ViewOutput<'view> {
     stats.latest_view_function_time_span = TimeSpan::start();
@@ -315,8 +314,9 @@ pub fn view<'view>(
     perf_viz::end_record!("render Tabs");
 
     perf_viz::start_record!("render BufferIdKind::Text");
-    let (index, label) = view.current_text_index_and_buffer_label();
-    let name = &label.name;
+    let (index, _label) = view.current_text_index_and_buffer_label();
+    let data: &BufferViewData = &view.scratch.buffer_view_data;
+
     // let text = {
     //     chars
     //     // perf_viz::record_guard!("map unprinatbles to symbols for themselves");
@@ -337,19 +337,6 @@ pub fn view<'view>(
 
     let edit_buffer_text_rect: ScreenSpaceRect = edit_buffer_text_rect.into();
 
-    let data: BufferViewData = load_buffer_view(name)
-        .map(|bv| bv.data)
-        .unwrap_or_else(|error| BufferViewData {
-            chars: format!("Could not load {}:\n    {}", name, error),
-            ..d!()
-        });
-
-    // We can unwrap becasue we just set it to Some {
-    view.scratch.buffer_view_data = Some(data);
-    let buffer_view_data_ref: &'view BufferViewData =
-        view.scratch.buffer_view_data.as_ref().unwrap();
-    // }
-
     action = into_action(text_box(
         ui,
         &mut text_or_rects,
@@ -358,7 +345,7 @@ pub fn view<'view>(
         *text_char_dim,
         TEXT_SIZE,
         TextBoxColour::FromSpans,
-        buffer_view_data_ref,
+        data,
         b_id!(BufferIdKind::Text, index),
         EDIT_Z,
         view.current_buffer_id(),

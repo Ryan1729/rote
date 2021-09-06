@@ -206,7 +206,7 @@ mod view {
     // render?
     #[derive(Clone, Default, Debug, PartialEq)]
     pub struct ViewScratch {
-        pub buffer_view_data: Option<BufferViewData>
+        pub buffer_view_data: BufferViewData
     }
 
     macro_rules! toggle_impl {
@@ -251,8 +251,13 @@ mod view {
             }
         }
 
-        pub fn update(&mut self, p_view: platform_types::View) {
+        pub fn update(
+            &mut self,
+            p_view: platform_types::View,
+            buffer_view_data: BufferViewData,
+        ) {
             self.buffers.platform_view = p_view;
+            self.scratch.buffer_view_data = buffer_view_data;
         }
     }
 
