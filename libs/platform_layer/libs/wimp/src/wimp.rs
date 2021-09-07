@@ -520,8 +520,9 @@ pub fn run(
 
     enum EditorThreadInput {
         Render(Input),
-        LoadBuffers(&[BufferName]),
+        //LoadBuffers(&[BufferName]),
         SaveBuffers((), ()),
+        SaveToDisk(PathBuf),
     }
 
     enum EditorThreadOutput {
@@ -544,12 +545,13 @@ pub fn run(
                 }
 
                 while let Ok(editor_input) = editor_in_source.recv() {
+                    u!{EditorThreadInput}
                     match editor_input {
-                        EditorThreadInput::Render(input) => {
+                        Render(input) => {
                             let was_quit = Input::Quit == input;
                             let (v, c) = (update_and_render)(input);
-
-                            let visible_buffer_name = f(v);
+                            let (i, label) = v.current_text_index_and_buffer_label();
+                            let visible_buffer_name = label.name;
 
                             let results = (load_buffer_views)(&[visible_buffer_name]);
 
@@ -565,14 +567,14 @@ pub fn run(
                                 return;
                             }
                         },
-                        EditorThreadInput::LoadBuffers(names) => {
+                        /*LoadBuffers(names) => {
                             let _hope_it_gets_there = editor_out_sink.send(
                                 EditorThreadOutput::Buffers(
                                     (load_buffer_views)(names)
                                 )
                             );
-                        }
-                        EditorThreadInput::SaveBuffers(index_state, names, statuses) => {
+                        }*/
+                        SaveBuffers(index_state, names, statuses) => {
                             debug_assert_eq!(names.len(), statuses.len());
                             let mut infos = Vec::with_capacity(names.len());
 
@@ -608,6 +610,25 @@ pub fn run(
                                 )
                             );
                         }
+                        SaveToDisk(path) => {
+                            let view: View = ();
+                            let (index, label) = view.current_text_index_and_buffer_label();
+
+                match std::fs::write(path, str) {
+                    Ok(_) => {
+                        transform_at(
+                            buffer_status_map,
+                            view.index_state(), 
+                            index,
+                            BufferStatusTransition::Save
+                        );
+                        call_u_and_r!($ui, $editor_in_sink, Input::SavedAs(index, $path.to_path_buf()));
+                    }
+                    Err(err) => {
+                        handle_platform_error!($ui, $editor_in_sink, $view, $load_buffer_view, err);
+                    }
+                }
+                        },
                     }
                 }
             })
@@ -795,8 +816,6 @@ pub fn run(
             }
         }
 
-        // eventually we'll likely want to tell the editor, and have it decide whether/how
-        // to display it to the user.
         macro_rules! handle_platform_error {
             ($r_s: ident, $err: expr) => {
                 handle_platform_error!(&mut $r_s.ui, &$r_s.editor_in_sink, &$r_s.view, $r_s.editor_api.load_buffer_view, $err)
@@ -805,36 +824,14 @@ pub fn run(
                 let error = format!("{},{}: {}", file!(), line!(), $err);
                 eprintln!("{}", error);
 
-                let mut saw_same_error = false;
-
-                let view = $view;
-                for (_, label) in view.buffer_iter() {
-                    if let BufferName::Scratch(_) = &label.name {
-                        // If `load_buffer_view` ends up being slow here, we could 
-                        // potentially make a faster function that only produces
-                        // this boolean.
-                        if let Ok(bv) = $load_buffer_view(&label.name) {
-                            if bv.data.chars == error {
-                                saw_same_error = true;
-                                break;
-                            }
-                        } else {
-                            debug_assert!(false, "View buffer iter is broken!?");
-                        }
-                    }
-                }
-
-                if !saw_same_error {
-                    call_u_and_r!($ui, $editor_in_sink, Input::NewScratchBuffer(Some(error)));
-                }
+                $editor_in_sink.send(
+                    EditorThreadInput::Render(Input::ShowError(error))
+                );
             };
         }
 
         macro_rules! save_to_disk {
-            ($path: expr, $str: expr, $buffer_index: expr) => {
-                save_to_disk!(r_s, $path, $str, $buffer_index)
-            };
-            ($r_s: ident, $path: expr, $str: expr, $buffer_index: expr) => {
+            ($r_s: ident, $path: expr, $label: expr, $buffer_index: expr) => {
                 save_to_disk!(
                     &mut $r_s.ui,
                     &$r_s.editor_in_sink,
@@ -842,26 +839,14 @@ pub fn run(
                     &$r_s.view,
                     $r_s.editor_api.load_buffer_view,
                     $path,
-                    $str,
+                    $label,
                     $buffer_index
                 )
             };
-            ($ui: expr, $editor_in_sink: expr, $buffer_status_map: expr, $view: expr, $load_buffer_view: expr, $path: expr, $str: expr, $buffer_index: expr) => {
-                let index = $buffer_index;
-                match std::fs::write($path, $str) {
-                    Ok(_) => {
-                        transform_at(
-                            $buffer_status_map,
-                            $view.index_state(), 
-                            index,
-                            BufferStatusTransition::Save
-                        );
-                        call_u_and_r!($ui, $editor_in_sink, Input::SavedAs(index, $path.to_path_buf()));
-                    }
-                    Err(err) => {
-                        handle_platform_error!($ui, $editor_in_sink, $view, $load_buffer_view, err);
-                    }
-                }
+            ($ui: expr, $editor_in_sink: expr, $buffer_status_map: expr, $view: expr, $load_buffer_view: expr, $path: expr, $label: expr, $buffer_index: expr) => {
+                $editor_in_sink.send(
+                    EditorThreadInput::SaveToDisk(???)
+                )
             };
         }
 
@@ -1058,29 +1043,12 @@ pub fn run(
                         );
                     }
                     BufferName::Path(ref p) => {
-                        match (r_s.editor_api.load_buffer_view)(&label.name) {
-                            Ok(bv) => {
-                                save_to_disk!(
-                                    r_s,
-                                    p,
-                                    std::borrow::Cow::from(
-                                        bv.data.chars.clone()
-                                    ).as_ref(),
-                                    i
-                                );
-                            },
-                            Err(err) => {
-                                // We currently do not expect that we will ever
-                                // even show a non-accessible buffer view to the
-                                // user, much less allow them to save it.
-                                // (not actually a platform error in this 
-                                // case...)
-                                handle_platform_error!(
-                                    r_s,
-                                    err
-                                );
-                            },
-                        }
+                        save_to_disk!(
+                            r_s,
+                            p,
+                            label,
+                            i
+                        );
                     }
                 }
             }]
@@ -1705,35 +1673,20 @@ pub fn run(
                     },
                     CustomEvent::OpenFile(p) => load_file!(p),
                     CustomEvent::SaveNewFile(ref p, index) => {
+                        // TODO Stop receiving this here and forwarding to the next
+                        // thread, and instead send it there directly
                         let r_s = &mut r_s;
                         // The fact we need to store the index and retreive it later,
                         // potentially across multiple updates, is why this thread 
                         // needs to know about the generational indices.
                         if let Some(label) = r_s.view.get_buffer_label(index)
                         {
-                            match load_buffer_view(&label.name) {
-                                Ok(bv) => {
-                                    save_to_disk!(
-                                        r_s,
-                                        p,
-                                        std::borrow::Cow::from(
-                                            bv.data.chars.clone()
-                                        ).as_ref(),
-                                        index
-                                    );
-                                },
-                                Err(err) => {
-                                    // We currently do not expect that we will ever
-                                    // even show a non-accessible buffer view to the
-                                    // user, much less allow them to save it.
-                                    // (not actually a platform error in this 
-                                    // case...)
-                                    handle_platform_error!(
-                                        r_s,
-                                        err
-                                    );
-                                },
-                            }
+                            save_to_disk!(
+                                r_s,
+                                p,
+                                label,
+                                index
+                            );
                         }
                     }
                     CustomEvent::SendBuffersToBeSaved => {
@@ -1755,7 +1708,7 @@ pub fn run(
                             ));
                         }
 
-                        let _hope_it_gets_there = editor_thread_in_sink.send(
+                        let _hope_it_gets_there = editor_in_sink.send(
                             EditorThreadInput::SaveBuffers(
                                 index_state,
                                 infos

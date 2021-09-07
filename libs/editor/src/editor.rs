@@ -610,6 +610,25 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
         }};
     }
 
+    macro_rules! new_scratch_buffer {
+        ($data_option: expr) => {
+            let e_b = EditorBuffer::new(
+                BufferName::Scratch(state.next_scratch_buffer_number()),
+                $data_option.unwrap_or_default(),
+            );
+
+            let editedness = e_b.text_buffer.editedness();
+
+            state.buffers.push_and_select_new(e_b);
+            state.current_buffer_kind = BufferIdKind::Text;
+
+            mark_edited_transition!(current, match editedness {
+                Edited => ToEdited,
+                Unedited => ToUnedited,
+            });
+        }
+    }
+
     state.view.stats.latest_update_time_span = TimeSpan::start();
 
     u!{Input}
@@ -748,20 +767,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             );
         }),
         NewScratchBuffer(data_op) => {
-            let e_b = EditorBuffer::new(
-                BufferName::Scratch(state.next_scratch_buffer_number()),
-                data_op.unwrap_or_default(),
-            );
-
-            let editedness = e_b.text_buffer.editedness();
-
-            state.buffers.push_and_select_new(e_b);
-            state.current_buffer_kind = BufferIdKind::Text;
-
-            mark_edited_transition!(current, match editedness {
-                Edited => ToEdited,
-                Unedited => ToUnedited,
-            });
+            new_scratch_buffer!(data_op);
         }
         TabIn => {
             text_buffer_call!(sync b, l { 
@@ -917,6 +923,22 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                 post_edit_sync!();
             }
         },
+        ShowError(error) => {
+            let mut saw_same_error = false;
+            
+            for editor_buffer in state.buffers.iter() {
+                if let BufferName::Scratch(_) = &editor_buffer.name {                    
+                    if editor_buffer.text_buffer.borrow_rope() == &error {
+                        saw_same_error = true;
+                        break;
+                    }
+                }
+            }
+
+            if !saw_same_error {
+                new_scratch_buffer!(Some(error));
+            }
+        }
     }
 
     // We expect this to always be the case

@@ -92,6 +92,7 @@ pub enum Input {
     CloseBuffer(g_i::Index),
     SetMenuMode(MenuMode),
     SubmitForm,
+    ShowError(String),
 }
 d!(for Input : Input::None);
 
