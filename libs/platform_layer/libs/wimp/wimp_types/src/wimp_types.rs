@@ -1,6 +1,6 @@
 use glutin_wrapper::event::{ModifiersState, VirtualKeyCode};
 use macros::{d, dbg, ord, u};
-use platform_types::{screen_positioning::*, abs, g_i, Input, Cmd, EditedTransition, EditorAPI, TimeSpan};
+use platform_types::{screen_positioning::*, abs, g_i, Input, Cmd, EditedTransition, TimeSpan, BufferLabel, BufferName};
 
 use std::collections::{VecDeque, BTreeMap};
 use std::path::PathBuf;
@@ -97,7 +97,8 @@ pub enum CustomEvent {
     SaveNewFile(PathBuf, g_i::Index),
     SendBuffersToBeSaved,
     EditedBufferError(String),
-    Pid(PidKind, PID)
+    Pid(PidKind, PID),
+    MarkBufferStatusTransition(PathBuf, g_i::Index, BufferStatusTransition),
 }
 
 /// This module exists because when adding WIMP only UI elements we found that 
@@ -375,6 +376,14 @@ pub struct Stats {
     pub latest_view_function_time_span: TimeSpan
 }
 
+#[derive(Debug)]
+pub enum EditorThreadInput {
+    Render(Input),
+    //LoadBuffers(&[BufferName]),
+    SaveBuffers(g_i::State, Vec<BufferName>, Vec<BufferStatus>),
+    SaveToDisk(PathBuf, BufferLabel, g_i::Index),
+}
+
 /// State owned by the `run` function, which can be uniquely borrowed by other functions called inside `run`.
 #[derive(Debug)]
 pub struct RunState {
@@ -382,7 +391,7 @@ pub struct RunState {
     pub cmds: VecDeque<Cmd>,
     pub ui: ui::State,
     pub buffer_status_map: g_i::Map<BufferStatus>,
-    pub editor_in_sink: std::sync::mpsc::Sender<Input>,
+    pub editor_in_sink: std::sync::mpsc::Sender<EditorThreadInput>,
     pub dimensions: Dimensions,
     pub event_proxy: EventLoopProxy<CustomEvent>, 
     pub clipboard: Clipboard,
@@ -390,7 +399,6 @@ pub struct RunState {
     pub pids: Pids,
     pub pid_string: String,
     pub stats: Stats,
-    pub editor_api: EditorAPI,
 }
 
 pub type CommandKey = (ModifiersState, VirtualKeyCode);

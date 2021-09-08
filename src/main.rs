@@ -1,5 +1,5 @@
 use macros::d;
-use platform_types::{BufferName, BufferView, EditorAPI, Input, UpdateAndRenderOutput, LoadBufferViewError};
+use platform_types::{BufferName, EditorAPI, Input, UpdateAndRenderOutput, LoadBufferViewsResult};
 use editor::State;
 
 // We expect that the `EditorAPI` function pointers will never be called at the same
@@ -33,11 +33,18 @@ fn update_and_render(input: Input) -> UpdateAndRenderOutput {
     state_call(input, editor::update_and_render, fallback)
 }
 
-fn load_buffer_view(buffer_name: &BufferName) -> Result<BufferView, LoadBufferViewError> {
-    fn fallback() -> Result<BufferView, LoadBufferViewError> {
-        Err("load_buffer_view fallback".to_string())
+fn load_buffer_views(buffer_names: &[BufferName]) -> Vec<LoadBufferViewsResult> {
+    fn fallback() -> Vec<LoadBufferViewsResult> {
+        vec![Err("load_buffer_views fallback".to_string())]
     }
-    state_call(buffer_name, editor::load_buffer_view, fallback)
+    fn load_buffer_views_helper(
+        state: &mut State,
+        buffer_names: &[BufferName]
+    ) -> Vec<LoadBufferViewsResult> {
+        buffer_names.iter().map(|n| editor::load_buffer_view(state, n)).collect()
+    }
+
+    state_call(buffer_names, load_buffer_views_helper, fallback)
 }
 
 fn main() {
@@ -45,6 +52,6 @@ fn main() {
 
     platform_layer::run(EditorAPI {
         update_and_render,
-        load_buffer_view,
+        load_buffer_views,
     });
 }
