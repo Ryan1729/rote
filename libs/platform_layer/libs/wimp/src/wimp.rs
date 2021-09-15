@@ -965,6 +965,9 @@ pub fn run(
             [empty, F1, "Delete lines.", r_s {
                 call_u_and_r!(r_s, Input::DeleteLines);
             }]
+            [empty, F5, "Strip trailing whitepace", r_s {
+                call_u_and_r!(r_s, Input::StripTrailingWhitespace);
+            }]
             [empty, Back, "Backspace.", r_s {
                 call_u_and_r!(r_s, Input::Delete);
             }]

@@ -84,6 +84,7 @@ pub enum Input {
     NewScratchBuffer(Option<String>),
     TabIn,
     TabOut,
+    StripTrailingWhitespace,
     AdjustBufferSelection(SelectionAdjustment),
     NextLanguage,
     PreviousLanguage,

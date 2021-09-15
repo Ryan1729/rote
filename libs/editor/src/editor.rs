@@ -779,6 +779,11 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                 mark_edited_transition!(current, b.tab_out(l));
             });
         }
+        StripTrailingWhitespace => {
+            text_buffer_call!(sync b, l { 
+                mark_edited_transition!(current, b.strip_trailing_whitespace(l));
+            });
+        }
         AddOrSelectBuffer(name, str) => {
             perf_viz::record_guard!("AddOrSelectBuffer");
             let edited_transition_opt = state.buffers.add_or_select_buffer(name, str);

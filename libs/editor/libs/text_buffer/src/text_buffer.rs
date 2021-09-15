@@ -576,6 +576,14 @@ impl TextBuffer {
         )
     }
 
+    pub fn strip_trailing_whitespace(&mut self, _listener: PossibleParserEditListener) -> PossibleEditedTransition {
+        None
+        /*self.record_edit(
+            edit::get_strip_trailing_whitespace_edit(&self.rope, &self.cursors),
+            listener,
+        )*/
+    }
+
     #[perf_viz::record]
     fn record_edit(&mut self, edit: Edit, listener: PossibleParserEditListener) -> PossibleEditedTransition {
         u!{Editedness, EditedTransition}
