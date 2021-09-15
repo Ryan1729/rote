@@ -77,26 +77,44 @@ where
     F: FnMut(&Cursor, &mut Rope, usize) -> (RangeEdits, CursorPlacementSpec),
 {
     perf_viz::start_record!("init cloning");
-    // We need the cursors to be sorted in reverse order, so our `range_edits` 
-    // are in the right order, so we can go backwards when we apply them, so 
-    // our indexes don't get messed up by our own inserts and deletes. 
-    // The Cursors type is expected to maintain this ordering.
-    let mut cloned_cursors = original_cursors.get_cloned_cursors();
     let mut cloned_rope = original_rope.clone();
     perf_viz::end_record!("init cloning");
 
     // the index needs to account for the order being from the high positions
     // to the low positions.
     perf_viz::start_record!("range_edits");
-    let mut index = cloned_cursors.len();
+    let mut index = original_cursors.len();
     let mut specs = Vec::with_capacity(index);
-    let range_edits = cloned_cursors.mapped_ref(|c| {
+    let range_edits = original_cursors.mapped_ref(|c| {
         index -= 1;
         let (edits, spec) = mapper(c, &mut cloned_rope, index);
 
         specs.push(spec);
         edits
     });
+    perf_viz::end_record!("range_edits");
+
+    construct_edit(
+        cloned_rope,
+        original_cursors,
+        specs,
+        range_edits
+    )
+}
+
+fn construct_edit(
+    updated_rope: Rope,
+    original_cursors: &Cursors,
+    specs: Vec<CursorPlacementSpec>,
+    range_edits: Vec1<RangeEdits>
+) -> Edit {
+    perf_viz::record_guard!("construct result");
+
+    // We need the cursors to be sorted in reverse order, so our `range_edits` 
+    // are in the right order, so we can go backwards when we apply them, so 
+    // our indexes don't get messed up by our own inserts and deletes. 
+    // The Cursors type is expected to maintain this ordering.
+    let mut cloned_cursors = original_cursors.get_cloned_cursors();
 
     let mut total_delta: isize = 0;
     for (
@@ -131,34 +149,31 @@ where
         let action = SetPositionAction::ClearHighlight;
         match special_handling {
             SpecialHandling::None => {
-                move_cursor::to_absolute_offset(&cloned_rope, cursor, o, action);
+                move_cursor::to_absolute_offset(&updated_rope, cursor, o, action);
             }
             SpecialHandling::HighlightOnLeftShiftedLeftBy(len) => {
-                move_cursor::to_absolute_offset(&cloned_rope, cursor, o, action);
+                move_cursor::to_absolute_offset(&updated_rope, cursor, o, action);
                 if let Some(h) = o
                     .checked_sub(len)
-                    .and_then(|o| char_offset_to_pos(&cloned_rope, o))
+                    .and_then(|o| char_offset_to_pos(&updated_rope, o))
                 {
                     cursor.set_highlight_position(h);
                 }
             }
             SpecialHandling::HighlightOnRightPositionShiftedLeftBy(len) => {
                 let p = o.checked_sub(len).unwrap_or_default();
-                move_cursor::to_absolute_offset(&cloned_rope, cursor, p, action);
+                move_cursor::to_absolute_offset(&updated_rope, cursor, p, action);
                 let h =
-                    char_offset_to_pos(&cloned_rope, o).unwrap_or_else(|| cursor.get_position());
+                    char_offset_to_pos(&updated_rope, o).unwrap_or_else(|| cursor.get_position());
                 cursor.set_highlight_position(h);
             }
         }
     }
 
-    perf_viz::end_record!("range_edits");
-
-    perf_viz::record_guard!("construct result");
     Edit {
         range_edits,
         cursors: Change {
-            new: Cursors::new(&cloned_rope, cloned_cursors),
+            new: Cursors::new(&updated_rope, cloned_cursors),
             old: original_cursors.clone(),
         },
     }
@@ -590,6 +605,12 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
         },
     )
 }
+
+/// returns an edit that if applied will delete the non-line-ending whitespace at the 
+/// end of each line in the buffer, if there is any.
+/*pub fn get_strip_trailing_whitespace_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
+    
+}*/
 
 
 /// The length of `range_edits` must be greater than or equal to the length of the
