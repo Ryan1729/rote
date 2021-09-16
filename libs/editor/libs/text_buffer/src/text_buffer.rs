@@ -577,12 +577,10 @@ impl TextBuffer {
     }
 
     pub fn strip_trailing_whitespace(&mut self, _listener: PossibleParserEditListener) -> PossibleEditedTransition {
-        dbg!("strip_trailing_whitespace is unimplemented!");
-        None
-        /*self.record_edit(
+        self.record_edit(
             edit::get_strip_trailing_whitespace_edit(&self.rope, &self.cursors),
             listener,
-        )*/
+        )
     }
 
     #[perf_viz::record]

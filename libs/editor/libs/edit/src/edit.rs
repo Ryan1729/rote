@@ -608,9 +608,63 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
 
 /// returns an edit that if applied will delete the non-line-ending whitespace at the 
 /// end of each line in the buffer, if there is any.
-/*pub fn get_strip_trailing_whitespace_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
-    
-}*/
+pub fn get_strip_trailing_whitespace_edit(rope: &Rope, original_cursors: &Cursors) -> Edit {
+    let mut cloned_rope = rope.clone();
+
+    let specs = original_cursors.mapped_ref(|_c| { d!() });
+
+    let mut range_edits = Vec::with_capacity(32);
+
+    'outer:
+    for index in (0..rope.len_lines().0).rev() {
+        let index = LineIndex(index);
+        let line = some_or!(rope.line(index), continue);
+
+        let line_start = some_or!(rope.line_to_char(index), continue);
+
+        let relative_line_end = final_non_newline_offset_for_rope_line(line);
+
+        let mut relative_whitespace_start = relative_line_end.clone();
+        while 
+            relative_whitespace_start > 0 
+            && some_or!(line.char(relative_whitespace_start), continue 'outer).is_whitespace()
+        {
+             relative_whitespace_start -= 1;
+        }
+
+        if relative_whitespace_start >= relative_line_end {
+            continue;
+        }
+
+        let whitespace_range = AbsoluteCharOffsetRange::new(
+            line_start + relative_whitespace_start, 
+            line_start + relative_line_end
+        );
+
+        let (delete_edit, _delete_offset, _delete_delta) = delete_within_range(
+            &mut cloned_rope,
+            whitespace_range
+        );
+
+        range_edits.push(RangeEdits {
+            // TODO: does this actually just work? If not, can we write a function
+            // that produces the right thing given a single edit?
+            insert_range: Some(delete_edit),
+            delete_range: Some(delete_edit),
+        });
+    }
+
+    Vec1::try_from_vec(range_edits)
+        .ok()
+        .map(|range_edits|
+            construct_edit(
+                cloned_rope,
+                original_cursors,
+                specs.into_vec(),
+                range_edits
+            )
+        )
+}
 
 
 /// The length of `range_edits` must be greater than or equal to the length of the
