@@ -267,7 +267,7 @@ prop_compose!{
         spans in spans(16),
     ) -> BufferViewData {
         BufferViewData {
-            chars: Rope::from(chars),
+            chars,
             scroll,
             cursors,
             highlights,
@@ -277,13 +277,24 @@ prop_compose!{
 }
 
 prop_compose!{
-    pub fn buffer_view()(
+    pub fn buffer_label()(
         name in buffer_name(),
+    ) -> BufferLabel {
+        let name_string = name.to_string();
+        BufferLabel {
+            name,
+            name_string
+        }
+    }
+}
+
+prop_compose!{
+    pub fn buffer_view()(
+        label in buffer_label(),
         data in buffer_view_data(),
     ) -> BufferView {
-        let name_string = name.to_string();
         BufferView {
-            name,            name_string,
+            label,
             data,
         }
     }
@@ -433,18 +444,29 @@ prop_compose!{
 
 prop_compose!{
     pub fn stats()(
+        _: ()
+    ) -> ViewStats {
+        d!() // Do we care?
+        /*ViewStats {
+            latest_render_duration: Duration::new(secs, nanos)
+        }*/
+    }
+}
+
+/*prop_compose!{
+    pub fn stats()(
         (secs, nanos) in (any::<u64>(), any::<u32>()),
     ) -> ViewStats {
         ViewStats {
             latest_render_duration: Duration::new(secs, nanos)
         }
     }
-}
+}*/
 
 prop_compose!{
     pub fn view()(
         current_buffer_kind in buffer_id_kind(),
-        buffers in selectable_vec1(buffer_view(), 16),
+        buffers in selectable_vec1(buffer_label(), 16),
         menu in menu_view(),
         status_line in status_line_view(),
         e_t in edited_transitions(),
@@ -527,6 +549,8 @@ arb_enum!{
         CloseBuffer(_) => close_buffer(),
         SetMenuMode(_) => menu_mode().prop_map(SetMenuMode),
         SubmitForm => Just(SubmitForm),
+        StripTrailingWhitespace => Just(StripTrailingWhitespace),
+        ShowError(_) => Just(ShowError("test ShowError".to_string())),
     }
 }
 

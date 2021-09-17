@@ -68,7 +68,7 @@ struct CursorPlacementSpec {
     post_delta_shift: PostDeltaShift,
 }
 
-pub type EditSpec = (RangeEdits, CursorPlacementSpec);
+type EditSpec = (RangeEdits, CursorPlacementSpec);
 
 /// Calls the `FnMut` once with a copy of each cursor and a reference to the same clone of the
 /// `Rope`. Then the (potentially) modified cursors and another copy of the `original_cursors`

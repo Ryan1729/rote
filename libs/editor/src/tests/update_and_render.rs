@@ -237,8 +237,8 @@ fn places_the_cursor_correctly_after_inserting_after_a_find_between_two_other_ch
 
     update_and_render(&mut state, MoveAllCursors(Move::Left));
     let (view, _) = update_and_render(&mut state, ExtendSelectionForAllCursors(Move::Left));
-    let cursor = single_cursor_view(&view);
-    assert_eq!(cursor.position, pos!{l 0 o 1});
+    let cursor = single_cursor_from_state(&state);
+    assert_eq!(cursor.get_position(), pos!{l 0 o 1});
 
     update_and_render(&mut state, SetMenuMode(FindReplace(CurrentFile)));
     update_and_render(&mut state, SubmitForm);
@@ -248,15 +248,15 @@ fn places_the_cursor_correctly_after_inserting_after_a_find_between_two_other_ch
 
     update_and_render(&mut state, MoveAllCursors(Move::Right));
     let (view, _) = update_and_render(&mut state, MoveAllCursors(Move::Right));
-    let cursor = single_cursor_view(&view);
-    assert_eq!(cursor.position, pos!{l 0 o 3});
+    let cursor = single_cursor_from_state(&state);
+    assert_eq!(cursor.get_position(), pos!{l 0 o 3});
 
     // Act
     let (view, _) = update_and_render(&mut state, Insert(ch4));
 
     // Assert
-    let cursor = single_cursor_view(&view);
-    assert_eq!(cursor.position, pos!{l 0 o 4});
+    let cursor = single_cursor_from_state(&state);
+    assert_eq!(cursor.get_position(), pos!{l 0 o 4});
 }
 
 proptest!{
@@ -926,8 +926,7 @@ fn sets_the_views_buffer_selected_index_correctly_after_moving_selection_right_o
                 perf_viz::record_guard!("render BufferView");
                 let name = &editor_buffer.name;
                 BufferView {
-                    name: name.clone(),
-                    name_string: name.to_string(),
+                    label: name.into(),
                     ..d!()
                 }
             }

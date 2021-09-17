@@ -139,16 +139,16 @@ fn single_cursor(buffer: &TextBuffer) -> Cursor {
     cursors.first().clone()
 }
 
-fn single_cursor_view(view: &View) -> CursorView {
-    assert_eq!(usize::from(view.buffers.len()), 1);
+fn single_cursor_from_state(state: &State) -> Cursor {
+    assert_eq!(usize::from(state.buffers.len()), 1);
 
-    let cursors = &view.buffers
+    single_cursor(
+        &state
+        .buffers
+        .buffers()
         .get_current_element()
-        .data
-        .cursors;
-    assert_eq!(usize::from(cursors.len()), 1);
-
-    cursors.first().unwrap().clone()
+        .text_buffer
+    )
 }
 
 mod update_and_render;
@@ -293,7 +293,7 @@ fn the_right_spans_are_set_after_typing_fn_below_this_fn_def() {
     }));
 
     {
-        let chars = text_buffer.borrow_rope();
+        let chars: &Rope = text_buffer.borrow_rope();
         assert_eq!(chars, "fn foo() {}\n\n", "precondition failure");
 
         let expected_spans = Spans::from(vec![
@@ -304,7 +304,7 @@ fn the_right_spans_are_set_after_typing_fn_below_this_fn_def() {
         
         assert_eq!(
             expected_spans
-                .labelled_slices(chars.full_slice())
+                .labelled_slices(&String::from(chars))
                 .map(|l_s| {
                     String::from(l_s.slice)
                 }).collect::<Vec<_>>(),
@@ -341,7 +341,7 @@ fn the_right_spans_are_set_after_typing_fn_below_this_fn_def() {
     
         assert_eq!(
             expected_spans
-                .labelled_slices(chars.full_slice())
+                .labelled_slices(&String::from(chars))
                 .map(|l_s| {
                     String::from(l_s.slice)
                 }).collect::<Vec<_>>(),
@@ -382,7 +382,7 @@ fn the_right_spans_are_set_after_typing_fn_below_this_fn_def() {
     
         assert_eq!(
             expected_spans
-                .labelled_slices(chars.full_slice())
+                .labelled_slices(&String::from(chars))
                 .map(|l_s| {
                     String::from(l_s.slice)
                 }).collect::<Vec<_>>(),
@@ -437,7 +437,7 @@ fn the_right_spans_are_set_after_typing_fn_below_this_fn_def_reduction() {
         
         assert_eq!(
             expected_spans
-                .labelled_slices(chars.full_slice())
+                .labelled_slices(&String::from(chars))
                 .map(|l_s| {
                     String::from(l_s.slice)
                 }).collect::<Vec<_>>(),
@@ -474,7 +474,7 @@ fn the_right_spans_are_set_after_typing_fn_below_this_fn_def_reduction() {
     
         assert_eq!(
             expected_spans
-                .labelled_slices(chars.full_slice())
+                .labelled_slices(&String::from(chars))
                 .map(|l_s| {
                     String::from(l_s.slice)
                 }).collect::<Vec<_>>(),
