@@ -68,13 +68,15 @@ struct CursorPlacementSpec {
     post_delta_shift: PostDeltaShift,
 }
 
+pub type EditSpec = (RangeEdits, CursorPlacementSpec);
+
 /// Calls the `FnMut` once with a copy of each cursor and a reference to the same clone of the
 /// `Rope`. Then the (potentially) modified cursors and another copy of the `original_cursors`
 /// are wrapped up along with the returned `RangeEdit`s into the Edit.
 #[perf_viz::record]
 fn get_edit<F>(original_rope: &Rope, original_cursors: &Cursors, mut mapper: F) -> Edit
 where
-    F: FnMut(&Cursor, &mut Rope, usize) -> (RangeEdits, CursorPlacementSpec),
+    F: FnMut(&Cursor, &mut Rope, usize) -> EditSpec,
 {
     perf_viz::start_record!("init cloning");
     let mut cloned_rope = original_rope.clone();
@@ -574,31 +576,13 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
                     }
                 }
 
-                let (delete_edit, delete_offset, delete_delta) = dbg!(delete_within_range(rope, leading_line_edge_range));
-
-                let insert_edit_range = some_or!(
-                    delete_edit.range.checked_sub_from_max(char_delete_count),
-                    return d!()
-                );
-
-                dbg!(&delete_edit, &chars);
-
-                let char_count = chars.chars().count();
-                rope.insert(delete_edit.range.min(), &chars);
-
-                let special_handling = get_special_handling(&original_rope, cursor, char_count);
-
-                dbg!(
-                    RangeEdits {
-                        insert_range: Some(RangeEdit { chars, range: insert_edit_range }),
-                        delete_range: Some(delete_edit),
-                    },
-                    CursorPlacementSpec {
-                        offset: delete_offset,
-                        delta: char_count as isize + delete_delta,
-                        special_handling,
-                        ..d!()
-                    },
+                delete_in_range(
+                    cursor,
+                    original_rope,
+                    rope,
+                    leading_line_edge_range,
+                    chars,
+                    char_delete_count
                 )
             }
             _ => d!(),
@@ -606,9 +590,51 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
     )
 }
 
+// TODO: Can't some of these arguments be derived from other arguments?
+// chars and char_delete_count in particular
+fn delete_in_range(
+    cursor: &Cursor,
+    original_rope: &Rope,
+    rope: &mut Rope,
+    range: AbsoluteCharOffsetRange,
+    chars: String,
+    char_delete_count: usize,
+) -> EditSpec {
+    let (delete_edit, delete_offset, delete_delta) = dbg!(delete_within_range(rope, range));
+
+    let insert_edit_range = some_or!(
+        delete_edit.range.checked_sub_from_max(char_delete_count),
+        return d!()
+    );
+
+    dbg!(&delete_edit, &chars);
+
+    let char_count = chars.chars().count();
+    rope.insert(delete_edit.range.min(), &chars);
+
+    let special_handling = get_special_handling(&original_rope, cursor, char_count);
+
+    dbg!(
+        RangeEdits {
+            insert_range: Some(RangeEdit { chars, range: insert_edit_range }),
+            delete_range: Some(delete_edit),
+        },
+        CursorPlacementSpec {
+            offset: delete_offset,
+            delta: char_count as isize + delete_delta,
+            special_handling,
+            ..d!()
+        },
+    )
+}
+
+/*
 /// returns an edit that if applied will delete the non-line-ending whitespace at the 
 /// end of each line in the buffer, if there is any.
-pub fn get_strip_trailing_whitespace_edit(rope: &Rope, original_cursors: &Cursors) -> Edit {
+pub fn get_strip_trailing_whitespace_edit(
+    rope: &Rope,
+    original_cursors: &Cursors
+) -> Edit {
     let mut cloned_rope = rope.clone();
 
     let specs = original_cursors.mapped_ref(|_c| { d!() });
@@ -665,6 +691,7 @@ pub fn get_strip_trailing_whitespace_edit(rope: &Rope, original_cursors: &Cursor
             )
         )
 }
+*/
 
 
 /// The length of `range_edits` must be greater than or equal to the length of the
