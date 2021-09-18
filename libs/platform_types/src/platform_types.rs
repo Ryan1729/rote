@@ -555,6 +555,26 @@ fmt_debug!(collapse default for BufferLabel: me {
     blank_if_default!(name_string, me.name_string.is_empty());
 });
 
+// This could arguably be ToOwned.
+impl From<&BufferName> for BufferLabel {
+    fn from(name: &BufferName) -> Self {
+        Self {
+            name: name.clone(),
+            name_string: name.to_string(),
+        }
+    }
+}
+
+impl From<BufferName> for BufferLabel {
+    fn from(name: BufferName) -> Self {
+        let name_string = name.to_string();
+        Self {
+            name,
+            name_string,
+        }
+    }
+}
+
 #[derive(Clone, Default, Debug, PartialEq)]
 pub struct View {
     pub buffers: SelectableVec1<BufferLabel>,

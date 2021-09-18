@@ -236,7 +236,7 @@ fn places_the_cursor_correctly_after_inserting_after_a_find_between_two_other_ch
     update_and_render(&mut state, Insert(ch3));
 
     update_and_render(&mut state, MoveAllCursors(Move::Left));
-    let (view, _) = update_and_render(&mut state, ExtendSelectionForAllCursors(Move::Left));
+    let _ = update_and_render(&mut state, ExtendSelectionForAllCursors(Move::Left));
     let cursor = single_cursor_from_state(&state);
     assert_eq!(cursor.get_position(), pos!{l 0 o 1});
 
@@ -247,12 +247,12 @@ fn places_the_cursor_correctly_after_inserting_after_a_find_between_two_other_ch
     assert_eq!(state.menu_mode, MenuMode::Hidden);
 
     update_and_render(&mut state, MoveAllCursors(Move::Right));
-    let (view, _) = update_and_render(&mut state, MoveAllCursors(Move::Right));
+    let _ = update_and_render(&mut state, MoveAllCursors(Move::Right));
     let cursor = single_cursor_from_state(&state);
     assert_eq!(cursor.get_position(), pos!{l 0 o 3});
 
     // Act
-    let (view, _) = update_and_render(&mut state, Insert(ch4));
+    let _ = update_and_render(&mut state, Insert(ch4));
 
     // Assert
     let cursor = single_cursor_from_state(&state);
@@ -795,8 +795,6 @@ fn saving_with_this_index_after_switching_the_language_does_not_panic() {
 
 mod tracking_what_the_view_says_gives_the_correct_idea_about_the_state_of_the_buffers;
 
-
-
 #[test]
 fn inserting_after_a_re_save_marks_the_buffer_as_edited_in_this_case() {
     u!{BufferName, Input, SelectionAdjustment, SelectionMove, EditedTransition}
@@ -923,12 +921,8 @@ fn sets_the_views_buffer_selected_index_correctly_after_moving_selection_right_o
         view.buffers.replace_with_mapped(
             bufs,
             |editor_buffer| {
-                perf_viz::record_guard!("render BufferView");
-                let name = &editor_buffer.name;
-                BufferView {
-                    label: name.into(),
-                    ..d!()
-                }
+                perf_viz::record_guard!("render BufferLabel");
+                (&editor_buffer.name).into()
             }
         );
 
@@ -968,13 +962,7 @@ fn sets_the_views_buffer_selected_index_correctly_after_moving_selection_right_o
         view.buffers.replace_with_mapped(
             bufs,
             |editor_buffer| {
-                perf_viz::record_guard!("render BufferView");
-                let name = &editor_buffer.name;
-                BufferView {
-                    name: name.clone(),
-                    name_string: name.to_string(),
-                    ..d!()
-                }
+                (&editor_buffer.name).into()
             }
         );
 
@@ -1007,9 +995,9 @@ fn the_view_contains_the_right_spans_after_typing_fn_below_this_fn_def() {
     update_and_render(&mut state, Insert('\n'));
 
     {
-        let chars = state.view.buffers.get_current_element().data.chars.clone();
+        let chars = current_chars(&state);
         assert_eq!(
-            String::from(chars.clone()),
+            chars,
             "fn foo() {}\n\n",
             "\\n precondition failure"
         );
@@ -1022,7 +1010,7 @@ fn the_view_contains_the_right_spans_after_typing_fn_below_this_fn_def() {
     
         assert_eq!(
             expected_spans
-                .labelled_slices(chars.full_slice())
+                .labelled_slices(&chars)
                 .map(|l_s| {
                     String::from(l_s.slice)
                 }).collect::<Vec<_>>(),
@@ -1035,7 +1023,7 @@ fn the_view_contains_the_right_spans_after_typing_fn_below_this_fn_def() {
         );
     
         assert_eq!(
-            state.view.buffers.get_current_element().data.spans,
+            current_spans(&mut state),
             expected_spans,
             "added \\n"
         );
@@ -1044,9 +1032,9 @@ fn the_view_contains_the_right_spans_after_typing_fn_below_this_fn_def() {
     update_and_render(&mut state, Insert('f'));
 
     {
-        let chars = state.view.buffers.get_current_element().data.chars.clone();
+        let chars = current_chars(&state);
         assert_eq!(
-            String::from(chars.clone()),
+            chars,
             "fn foo() {}\n\nf",
             "f precondition failure"
         );
@@ -1059,7 +1047,7 @@ fn the_view_contains_the_right_spans_after_typing_fn_below_this_fn_def() {
     
         assert_eq!(
             expected_spans
-                .labelled_slices(chars.full_slice())
+                .labelled_slices(&chars)
                 .map(|l_s| {
                     String::from(l_s.slice)
                 }).collect::<Vec<_>>(),
@@ -1076,7 +1064,7 @@ fn the_view_contains_the_right_spans_after_typing_fn_below_this_fn_def() {
         // simplest way to check both of those properties, but it does slightly 
         // over-assert.
         assert_eq!(
-            state.view.buffers.get_current_element().data.spans,
+            current_spans(&mut state),
             expected_spans,
             "added f"
         );
@@ -1085,9 +1073,9 @@ fn the_view_contains_the_right_spans_after_typing_fn_below_this_fn_def() {
     update_and_render(&mut state, Insert('n'));
 
     {
-        let chars = state.view.buffers.get_current_element().data.chars.clone();
+        let chars = current_chars(&state);
         assert_eq!(
-            String::from(chars.clone()),
+            chars,
             "fn foo() {}\n\nfn",
             "n precondition failure"
         );
@@ -1100,7 +1088,7 @@ fn the_view_contains_the_right_spans_after_typing_fn_below_this_fn_def() {
     
         assert_eq!(
             expected_spans
-                .labelled_slices(chars.full_slice())
+                .labelled_slices(&chars)
                 .map(|l_s| {
                     String::from(l_s.slice)
                 }).collect::<Vec<_>>(),
@@ -1113,7 +1101,7 @@ fn the_view_contains_the_right_spans_after_typing_fn_below_this_fn_def() {
         );
 
         assert_eq!(
-            state.view.buffers.get_current_element().data.spans,
+            current_spans(&mut state),
             expected_spans,
             "added n"
         );

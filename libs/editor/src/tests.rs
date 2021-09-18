@@ -143,12 +143,49 @@ fn single_cursor_from_state(state: &State) -> Cursor {
     assert_eq!(usize::from(state.buffers.len()), 1);
 
     single_cursor(
-        &state
+        current_text_buffer(state)
+    )
+}
+
+fn current_editor_buffer(state: &State) -> &EditorBuffer {
+    &state
         .buffers
         .buffers()
         .get_current_element()
-        .text_buffer
+}
+
+fn current_text_buffer(state: &State) -> &TextBuffer {
+    &current_editor_buffer(state).text_buffer    
+}
+
+#[allow(unused)]
+fn current_rope(state: &State) -> Rope {
+    current_text_buffer(state)
+        .borrow_rope()
+        .clone()
+}
+
+fn current_chars(state: &State) -> String {
+    String::from(
+        current_text_buffer(state)
+        .borrow_rope()
     )
+}
+
+fn current_name(state: &State) -> &BufferName {
+    &current_editor_buffer(state).name
+}
+
+fn current_spans(state: &mut State) -> Spans {
+    let name = current_name(state).clone();
+
+    load_buffer_view(
+        state,
+        &name
+    )
+    .expect("got no buffer_view in current_spans!")
+    .data
+    .spans
 }
 
 mod update_and_render;
