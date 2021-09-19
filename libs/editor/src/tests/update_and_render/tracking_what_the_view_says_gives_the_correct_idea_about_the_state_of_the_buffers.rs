@@ -585,6 +585,19 @@ fn if_we_do_this_cut() {
     )
 }
 
+#[test]
+fn if_we_show_an_error_from_a_default_state() {
+    u!{BufferName, Input}
+    let state = d!();
+
+    on(
+        state,
+        vec![
+            ShowError("Test Error".to_owned())
+        ]
+    )
+}
+
 /// This test predicate simulates what we expected clients to do if they want to keep track 
 /// of which buffers are currently different from what is on disk. This is a little 
 /// complicated because the editor is the one who knows about the undo history, and the 
@@ -687,6 +700,16 @@ fn on(
 
                     saved_as_names.push(Path(p.clone()));
                 }
+            },
+            ShowError(ref error_string) => {
+                initial_buffer_states.insert(
+                    index_state,
+                    state.buffers.buffers().append_index(),
+                    EditorBuffer::new(
+                        BufferName::Scratch(state.next_scratch_buffer_number()),
+                        error_string.clone()
+                    )
+                )
             }
 
             _ => {}
