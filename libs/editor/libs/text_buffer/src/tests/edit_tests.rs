@@ -154,8 +154,7 @@ fn get_tab_in_edit_produces_the_expected_edit_with_multiple_cursors_in_this_buff
         // Many things here rely on the example text being ASCII.
         const EXPECTED_TEXT: &'static str =
             "    0\n     1\n      2\n       3\n        4\n    \n     \n     1\n      2\n    ";
-        const EXPECTED_CLEAVE_POINT: usize = RIGHT_COUNT + TAB_STR_CHAR_COUNT * 5;
-
+        const EXPECTED_CLEAVE_POINT: usize = RIGHT_COUNT + TAB_STR_CHAR_COUNT * 5;
         let new_cursors = {
             let expected_rope = r!(EXPECTED_TEXT.to_owned());
             let mut first_cursor = Cursor::new(pos! {l 0, o TAB_STR_CHAR_COUNT});
@@ -464,8 +463,7 @@ fn tab_in_preserves_line_count_on_the_empty_rope() {
 }
 
 fn tab_out_preserves_line_count_on(mut buffer: TextBuffer) {
-    let line_count = buffer.rope.len_lines();
-
+    let line_count = buffer.rope.len_lines();
     for i in 0..SOME_AMOUNT {
         TestEdit::apply(&mut buffer, TestEdit::TabOut);
 

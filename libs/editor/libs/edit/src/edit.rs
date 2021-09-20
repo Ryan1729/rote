@@ -602,12 +602,17 @@ fn delete_in_range(
 ) -> EditSpec {
     let (delete_edit, delete_offset, delete_delta) = dbg!(delete_within_range(rope, range));
 
+    // AKA `-delete_delta - chars.chars().count()`.
+    // Doing it like this avoids some overflow cases
+    let computed_char_delete_count = (-(delete_delta + chars.chars().count() as isize)) as usize;
+
+    std::dbg!(char_delete_count, chars.chars().count(), range, delete_delta);
+    assert_eq!(computed_char_delete_count, char_delete_count);
+
     let insert_edit_range = some_or!(
-        delete_edit.range.checked_sub_from_max(char_delete_count),
+        range.checked_sub_from_max(computed_char_delete_count),
         return d!()
     );
-
-    dbg!(&delete_edit, &chars);
 
     let char_count = chars.chars().count();
     rope.insert(delete_edit.range.min(), &chars);

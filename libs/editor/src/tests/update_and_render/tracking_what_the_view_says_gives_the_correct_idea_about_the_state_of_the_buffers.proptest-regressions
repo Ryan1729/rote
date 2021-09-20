@@ -16,3 +16,4 @@ cc c1e1cdfcbc3be6abd5bbcc3677826a588682d2433aa801d730204c1ecfd13e5e # shrinks to
 cc 0ee4ea8206d1086cb9957210944436cde7b53c9ae7c49b48c1c47ff046d965a8 # shrinks to buffers = EditorBuffers { buffers: SelectableVec1 { elements: Vec1([EditorBuffer { search_results: SearchResults { ranges: [(pos!{l 0 o 0}, pos!{l 0 o 0})], .. d!: () }, .. d!: () }]), index_state: State { current: 0, invalidation: RemovedAt(0) }, current_index: Index { generation: 0, index: 0 } }, .. d!: () }, inputs = [NewScratchBuffer(Some("¡"))]
 cc 187b9fc306ec69d253bb4e66b4fb4de7ea8a7efe643c1d0934ed5fd5fc0bd530 # shrinks to input1 = ShowError("test ShowError"), index_state = State { current: 0, invalidation: RemovedAt(0) }
 cc c465fed181a7580e6f8dd8a5994e9e7b9f1d58b2b3ec89d55519e18bc60274bd # shrinks to inputs = [ShowError("test ShowError")]
+cc 68e619f0f1190ac7b11ec8433b4a0f1cfd0e262e68877d2d97bbc64f668f8549 # shrinks to inputs = [Paste(Some("¡")), TabOut]

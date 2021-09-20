@@ -20,3 +20,6 @@ cc d5a5ff3c79e58fab18047fd13a23faedd3d962a75b2fd0b3cc3950d3a1736512 # shrinks to
 cc 209364cf501f1a3f3c441ab7db84a64787a7c6d68537bb2bf10435037b765dd7 # shrinks to (edits, index) = ([TabIn, TabIn, ExtendSelectionForAllCursors(Left), TabIn], 0)
 cc 3babe59a9b4a8e93c573f0adaee4de120c706f5bf3affd1947556415d19655f8 # shrinks to (edits, index) = ([TabIn, TabIn, TabIn, ExtendSelectionForAllCursors(ToPreviousLikelyEditLocation), TabIn], 0)
 cc 6a92a00f050347c672d3a0143dab75da0fa19102e08f86208374ec1b0d5c5743 # shrinks to (edits, index) = ([Insert(' '), SelectAll], 0)
+cc 7ff4476d223a8ccfab493335730b43f98b306a70083753dc93b44193023e34bd # shrinks to (edits, index) = ([TabIn, Insert('\r'), SelectAll, TabOut, ExtendSelection(1, Down)], 0)
+cc ab2cb21868979d84050767e18565b5178787a7e8dc4df6afcd99b9999d36eaeb # shrinks to (edits, index) = ([TabIn, Insert('\t'), TabOut], 0)
+cc b47690a37f151e3d5e63bacaabbf90b1fc910d4641c5ecf81c08a14314aecacd # shrinks to (edits, index) = ([TabIn, Insert('¥'), TabOut], 0)
