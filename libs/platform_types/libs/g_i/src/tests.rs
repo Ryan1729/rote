@@ -103,6 +103,7 @@ pub enum MutMethodSpec<A> {
     AdjustSelection(SelectionAdjustment),
     PushAndSelectNew(A),
     ReplaceWithMapped(Vec1<A>),
+    ReplaceWithMappedWithIndex(Vec1<A>),
 }
 d!(<A> for MutMethodSpec<A>: MutMethodSpec::GetCurrentElementMut);
 
@@ -148,6 +149,14 @@ impl <A: Clone> MutMethodSpec<A> {
                     |a| a.clone()
                 );
             }
+            ReplaceWithMappedWithIndex(vec1) => {
+                svec1.replace_with_mapped_with_index(
+                    &SelectableVec1::new_from_vec1(
+                        vec1
+                    ),
+                    |a, _i| a.clone()
+                );
+            }
         }
     }
 
@@ -164,6 +173,7 @@ impl <A: Clone> MutMethodSpec<A> {
             "move_or_ignore",
             "remove_if_present",
             "replace_with_mapped",
+            "replace_with_mapped_with_index"
         ]
     }
 }
@@ -353,10 +363,21 @@ pub mod arb {
             AdjustSelection(_) => selection_adjustment().prop_map(AdjustSelection),
             PushAndSelectNew(_) => any::<i32>().prop_map(PushAndSelectNew),
             ReplaceWithMapped(_) => replace_with_mapped(max_index),
+            ReplaceWithMappedWithIndex(_) => replace_with_mapped_with_index(max_index),
         }
     }
 
     pub fn replace_with_mapped(max_index: LengthSize) -> impl Strategy<Value = MutMethodSpec<i32>> {
+        replace_with_shared(max_index)
+        .prop_map(MutMethodSpec::ReplaceWithMapped)
+    }
+
+    pub fn replace_with_mapped_with_index(max_index: LengthSize) -> impl Strategy<Value = MutMethodSpec<i32>> {
+        replace_with_shared(max_index)
+        .prop_map(MutMethodSpec::ReplaceWithMappedWithIndex)
+    }
+
+    fn replace_with_shared(max_index: LengthSize) -> impl Strategy<Value = Vec1<i32>> {
         any::<bool>().prop_flat_map(move |is_full| {
             let m_i = max_index as usize;
 
@@ -375,7 +396,6 @@ pub mod arb {
         .prop_map(|v| {
             Vec1::try_from_vec(v).expect("should contain at least one element")
         })
-        .prop_map(MutMethodSpec::ReplaceWithMapped)
     }
 
     prop_compose!{
