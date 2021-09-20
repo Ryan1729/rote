@@ -591,14 +591,16 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
 // chars and char_delete_count in particular
 fn delete_in_range(
     cursor: &Cursor,
-    original_rope: &Rope,
+    _original_rope: &Rope,
     rope: &mut Rope,
     range: AbsoluteCharOffsetRange,
     chars: String
 ) -> EditSpec {
-    let (delete_edit, delete_offset, delete_delta) = dbg!(delete_within_range(rope, range));
-
     let char_count = chars.chars().count();
+
+    let special_handling = get_special_handling(&rope, cursor, char_count);
+
+    let (delete_edit, delete_offset, delete_delta) = dbg!(delete_within_range(rope, range));
 
     // AKA `-delete_delta - char_count`.
     // Doing it like this avoids some overflow cases
@@ -610,8 +612,6 @@ fn delete_in_range(
     );
 
     rope.insert(delete_edit.range.min(), &chars);
-
-    let special_handling = get_special_handling(&original_rope, cursor, char_count);
 
     dbg!(
         RangeEdits {
