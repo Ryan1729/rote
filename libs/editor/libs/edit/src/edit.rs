@@ -574,7 +574,7 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
                     }
                 }
 
-                delete_in_range(
+                replace_in_range(
                     cursor,
                     rope,
                     leading_line_edge_range,
@@ -586,9 +586,7 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
     )
 }
 
-// TODO: Can't some of these arguments be derived from other arguments?
-// chars and char_delete_count in particular
-fn delete_in_range(
+fn replace_in_range(
     cursor: &Cursor,
     rope: &mut Rope,
     range: AbsoluteCharOffsetRange,
