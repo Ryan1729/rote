@@ -532,7 +532,6 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
                 };
 
                 let mut chars = String::with_capacity(leading_line_edge_range.max().0 - leading_line_edge_range.min().0);
-                let mut char_delete_count = 0;
 
                 let last_line_indicies_index = line_indicies.len() - 1;
 
@@ -561,7 +560,6 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
                         first_non_white_space_offset.unwrap_or(relative_line_end),
                         CharOffset(TAB_STR_CHAR_COUNT),
                     );
-                    char_delete_count += delete_count.0;
 
                     dbg!(delete_count, slice_end);
 
@@ -581,8 +579,7 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
                     original_rope,
                     rope,
                     leading_line_edge_range,
-                    chars,
-                    char_delete_count
+                    chars
                 )
             }
             _ => d!(),
@@ -597,20 +594,16 @@ fn delete_in_range(
     original_rope: &Rope,
     rope: &mut Rope,
     range: AbsoluteCharOffsetRange,
-    chars: String,
-    char_delete_count: usize,
+    chars: String
 ) -> EditSpec {
     let (delete_edit, delete_offset, delete_delta) = dbg!(delete_within_range(rope, range));
 
     // AKA `-delete_delta - chars.chars().count()`.
     // Doing it like this avoids some overflow cases
-    let computed_char_delete_count = (-(delete_delta + chars.chars().count() as isize)) as usize;
-
-    std::dbg!(char_delete_count, chars.chars().count(), range, delete_delta);
-    assert_eq!(computed_char_delete_count, char_delete_count);
+    let char_delete_count = (-(delete_delta + chars.chars().count() as isize)) as usize;
 
     let insert_edit_range = some_or!(
-        range.checked_sub_from_max(computed_char_delete_count),
+        range.checked_sub_from_max(char_delete_count),
         return d!()
     );
 
