@@ -17,3 +17,4 @@ cc 0ee4ea8206d1086cb9957210944436cde7b53c9ae7c49b48c1c47ff046d965a8 # shrinks to
 cc 187b9fc306ec69d253bb4e66b4fb4de7ea8a7efe643c1d0934ed5fd5fc0bd530 # shrinks to input1 = ShowError("test ShowError"), index_state = State { current: 0, invalidation: RemovedAt(0) }
 cc c465fed181a7580e6f8dd8a5994e9e7b9f1d58b2b3ec89d55519e18bc60274bd # shrinks to inputs = [ShowError("test ShowError")]
 cc 68e619f0f1190ac7b11ec8433b4a0f1cfd0e262e68877d2d97bbc64f668f8549 # shrinks to inputs = [Paste(Some("¡")), TabOut]
+cc 4c57ab384248861cc54bf7876f4834b356c0da85091286596ef230f2712d7d47 # shrinks to inputs = [TabIn, TabOut]

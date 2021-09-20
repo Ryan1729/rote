@@ -11,3 +11,4 @@ cc a206ad9a3a17fdaa678da5989c6fc69b132b1a96d1c435a746c4fefb4025e329 # shrinks to
 cc 9db146d4d8e4768da84ef99e505b97945eeda4b2d1d2f66a3daa5b4122229c59 # shrinks to input1 = AddOrSelectBuffer(Scratch(1), ""), state = State { current: 0, invalidation: RemovedAt(0) }
 cc ea8a8b391f81130b49b8f918a6a746e4b36e2f74f8f429222d680fb2e08efcfb # shrinks to inputs = [NextLanguage, Delete]
 cc 559f42ca3b1cb408a01c1934b0a6f249d5aaa790b9b33b5a84aeab0fbd36bb64 # shrinks to inputs = [Insert('¡'), TabOut]
+cc f8bb62a9f95de160381b449409d86cdbed018e0e0a95b64c2fbf648bdd274ca6 # shrinks to inputs = [TabIn, TabOut]
