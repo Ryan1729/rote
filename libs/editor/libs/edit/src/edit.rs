@@ -598,16 +598,17 @@ fn delete_in_range(
 ) -> EditSpec {
     let (delete_edit, delete_offset, delete_delta) = dbg!(delete_within_range(rope, range));
 
-    // AKA `-delete_delta - chars.chars().count()`.
+    let char_count = chars.chars().count();
+
+    // AKA `-delete_delta - char_count`.
     // Doing it like this avoids some overflow cases
-    let char_delete_count = (-(delete_delta + chars.chars().count() as isize)) as usize;
+    let char_delete_count = (-(delete_delta + char_count as isize)) as usize;
 
     let insert_edit_range = some_or!(
         range.checked_sub_from_max(char_delete_count),
         return d!()
     );
 
-    let char_count = chars.chars().count();
     rope.insert(delete_edit.range.min(), &chars);
 
     let special_handling = get_special_handling(&original_rope, cursor, char_count);
