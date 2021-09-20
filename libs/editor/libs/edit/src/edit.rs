@@ -576,7 +576,6 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
 
                 delete_in_range(
                     cursor,
-                    original_rope,
                     rope,
                     leading_line_edge_range,
                     chars
@@ -591,7 +590,6 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
 // chars and char_delete_count in particular
 fn delete_in_range(
     cursor: &Cursor,
-    _original_rope: &Rope,
     rope: &mut Rope,
     range: AbsoluteCharOffsetRange,
     chars: String
