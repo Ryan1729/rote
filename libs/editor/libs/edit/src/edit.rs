@@ -508,6 +508,18 @@ pub fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit
 }
 
 pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
+    get_line_slicing_edit(
+        original_rope,
+        original_cursors,
+        tab_out_step,
+    )
+}
+
+fn get_line_slicing_edit(
+    original_rope: &Rope,
+    original_cursors: &Cursors,
+    step: fn(RopeLine, RelativeSelected) -> RopeLine,
+) -> Edit {
     get_edit(
         original_rope,
         original_cursors,
@@ -551,7 +563,7 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
                         dbg!(end_of_selection_on_line, end_of_selection_on_line)
                     };
 
-                    let sliced_line = tab_out_step(
+                    let sliced_line = step(
                         line,
                         RelativeSelected {
                             line_end,
