@@ -551,21 +551,18 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
                         dbg!(end_of_selection_on_line, end_of_selection_on_line)
                     };
 
-                    let line_minus_start = some_or!(
-                        tab_out_step(
-                            line,
-                            RelativeSelected {
-                                line_end,
-                                slice_end,
-                            }
-                        ),
-                        continue
+                    let sliced_line = tab_out_step(
+                        line,
+                        RelativeSelected {
+                            line_end,
+                            slice_end,
+                        }
                     );
 
-                    if let Some(s) = line_minus_start.as_str_if_no_allocation_needed() {
+                    if let Some(s) = sliced_line.as_str_if_no_allocation_needed() {
                         chars.push_str(s);
                     } else { 
-                        for c in line_minus_start.chars() {
+                        for c in sliced_line.chars() {
                             chars.push(c);
                         }
                     }
@@ -591,7 +588,7 @@ struct RelativeSelected {
 fn tab_out_step(
     line: RopeLine,
     RelativeSelected{ line_end, slice_end }: RelativeSelected,
-) -> Option<RopeLine> {
+) -> RopeLine {
     let first_non_white_space_offset: Option<CharOffset> =
         get_first_non_white_space_offset_in_range(line, d!()..=line_end);
 
@@ -600,7 +597,10 @@ fn tab_out_step(
         CharOffset(TAB_STR_CHAR_COUNT),
     );
 
-    line.slice(delete_count..slice_end)
+    some_or!(
+        line.slice(delete_count..slice_end),
+        line.slice(CharOffset(0)..CharOffset(0)).unwrap()
+    )
 }
 
 /*
