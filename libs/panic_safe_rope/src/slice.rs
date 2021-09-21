@@ -79,6 +79,11 @@ pub trait RopeSliceTrait<'rope> {
         R: RangeBounds<CharOffset>,
         Self: std::marker::Sized;
 
+    fn empty(&self) -> Self
+    where Self: std::marker::Sized {
+        self.slice(CharOffset(0)..CharOffset(0)).unwrap()
+    }
+
     fn bytes(&self) -> Bytes<'rope>;
 
     /// Returns `None` if `byte_idx` is out of bounds (i.e. `byte_idx > len_bytes()`).

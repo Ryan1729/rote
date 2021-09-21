@@ -599,7 +599,7 @@ fn tab_out_step(
 
     some_or!(
         line.slice(delete_count..slice_end),
-        line.slice(CharOffset(0)..CharOffset(0)).unwrap()
+        line.empty()
     )
 }
 
