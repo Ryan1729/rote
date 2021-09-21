@@ -2,7 +2,7 @@
 use cursors::{Cursors, set_cursors};
 use editor_types::{Cursor, SetPositionAction, cur};
 use macros::{CheckedSub, d, some_or};
-use panic_safe_rope::{LineIndex, Rope, RopeSliceTrait};
+use panic_safe_rope::{LineIndex, Rope, RopeSliceTrait, RopeLine};
 use platform_types::*;
 use rope_pos::{AbsoluteCharOffsetRange, char_offset_to_pos, final_non_newline_offset_for_rope_line, get_first_non_white_space_offset_in_range, offset_pair, pos_to_char_offset};
 
@@ -540,7 +540,7 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
 
                     let should_include_entire_end_of_line = dbg!(i != last_line_indicies_index);
 
-                    let (relative_line_end, slice_end) = if should_include_entire_end_of_line {
+                    let (line_end, slice_end) = if should_include_entire_end_of_line {
                         (final_non_newline_offset_for_rope_line(line), line.len_chars())
                     } else {
                         let first_char_of_line: AbsoluteCharOffset = some_or!(
@@ -551,19 +551,16 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
                         dbg!(end_of_selection_on_line, end_of_selection_on_line)
                     };
 
-                    let first_non_white_space_offset: Option<CharOffset> =
-                        get_first_non_white_space_offset_in_range(line, d!()..=relative_line_end);
-
-                    dbg!(&first_non_white_space_offset, relative_line_end);
-
-                    let delete_count = min(
-                        first_non_white_space_offset.unwrap_or(relative_line_end),
-                        CharOffset(TAB_STR_CHAR_COUNT),
+                    let line_minus_start = some_or!(
+                        tab_out_step(
+                            line,
+                            RelativeSelected {
+                                line_end,
+                                slice_end,
+                            }
+                        ),
+                        continue
                     );
-
-                    dbg!(delete_count, slice_end);
-
-                    let line_minus_start = some_or!(line.slice(delete_count..slice_end), continue);
 
                     if let Some(s) = line_minus_start.as_str_if_no_allocation_needed() {
                         chars.push_str(s);
@@ -586,41 +583,24 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
     )
 }
 
-fn replace_in_range(
-    cursor: &Cursor,
-    rope: &mut Rope,
-    range: AbsoluteCharOffsetRange,
-    chars: String
-) -> EditSpec {
-    let char_count = chars.chars().count();
+struct RelativeSelected {
+    line_end: CharOffset, // Before newline if any
+    slice_end: CharOffset, // Including newline if any
+}
 
-    let special_handling = get_special_handling(&rope, cursor, char_count);
+fn tab_out_step(
+    line: RopeLine,
+    RelativeSelected{ line_end, slice_end }: RelativeSelected,
+) -> Option<RopeLine> {
+    let first_non_white_space_offset: Option<CharOffset> =
+        get_first_non_white_space_offset_in_range(line, d!()..=line_end);
 
-    let (delete_edit, delete_offset, delete_delta) = dbg!(delete_within_range(rope, range));
-
-    // AKA `-delete_delta - char_count`.
-    // Doing it like this avoids some overflow cases
-    let char_delete_count = (-(delete_delta + char_count as isize)) as usize;
-
-    let insert_edit_range = some_or!(
-        range.checked_sub_from_max(char_delete_count),
-        return d!()
+    let delete_count = min(
+        first_non_white_space_offset.unwrap_or(line_end),
+        CharOffset(TAB_STR_CHAR_COUNT),
     );
 
-    rope.insert(delete_edit.range.min(), &chars);
-
-    dbg!(
-        RangeEdits {
-            insert_range: Some(RangeEdit { chars, range: insert_edit_range }),
-            delete_range: Some(delete_edit),
-        },
-        CursorPlacementSpec {
-            offset: delete_offset,
-            delta: char_count as isize + delete_delta,
-            special_handling,
-            ..d!()
-        },
-    )
+    line.slice(delete_count..slice_end)
 }
 
 /*
@@ -687,6 +667,43 @@ pub fn get_strip_trailing_whitespace_edit(
         )
 }
 */
+
+fn replace_in_range(
+    cursor: &Cursor,
+    rope: &mut Rope,
+    range: AbsoluteCharOffsetRange,
+    chars: String
+) -> EditSpec {
+    let char_count = chars.chars().count();
+
+    let special_handling = get_special_handling(&rope, cursor, char_count);
+
+    let (delete_edit, delete_offset, delete_delta) = dbg!(delete_within_range(rope, range));
+
+    // AKA `-delete_delta - char_count`.
+    // Doing it like this avoids some overflow cases
+    let char_delete_count = (-(delete_delta + char_count as isize)) as usize;
+
+    let insert_edit_range = some_or!(
+        range.checked_sub_from_max(char_delete_count),
+        return d!()
+    );
+
+    rope.insert(delete_edit.range.min(), &chars);
+
+    dbg!(
+        RangeEdits {
+            insert_range: Some(RangeEdit { chars, range: insert_edit_range }),
+            delete_range: Some(delete_edit),
+        },
+        CursorPlacementSpec {
+            offset: delete_offset,
+            delta: char_count as isize + delete_delta,
+            special_handling,
+            ..d!()
+        },
+    )
+}
 
 
 /// The length of `range_edits` must be greater than or equal to the length of the
