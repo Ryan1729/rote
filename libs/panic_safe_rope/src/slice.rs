@@ -74,14 +74,18 @@ pub trait RopeSliceTrait<'rope> {
 
     /// Returns `None` if the start of the range is greater than the end, or if the
     /// end is out of bounds (i.e. `end > len_chars()`).
-    fn slice<R>(&self, char_range: R) -> Option<Self>
+    fn slice<R>(&self, char_range: R) -> Option<RopeSlice<'rope>>
     where
-        R: RangeBounds<CharOffset>,
-        Self: std::marker::Sized;
+        R: RangeBounds<CharOffset>;
 
-    fn empty(&self) -> Self
-    where Self: std::marker::Sized {
-        self.slice(CharOffset(0)..CharOffset(0)).unwrap()
+    /// Equivalent to `slice(..0)` except it always returns a `RopeSlice`
+    fn empty_slice(&self) -> RopeSlice<'rope> {
+        self.slice(..CharOffset(0)).unwrap()
+    }
+
+    /// Equivalent to `slice(..)` except it always returns a `RopeSlice`
+    fn full_slice(&self) -> RopeSlice<'rope> {
+        self.slice(..).unwrap()
     }
 
     fn bytes(&self) -> Bytes<'rope>;
@@ -275,7 +279,7 @@ impl<'rope> RopeSliceTrait<'rope> for RopeSlice<'rope> {
     /// Returns `None` if the start of the range is greater than the end, or if the
     /// end is out of bounds (i.e. `end > len_chars()`).
     #[inline]
-    fn slice<R>(&self, char_range: R) -> Option<Self>
+    fn slice<R>(&self, char_range: R) -> Option<RopeSlice<'rope>>
     where
         R: RangeBounds<CharOffset>,
     {
@@ -532,11 +536,11 @@ impl<'rope> RopeSliceTrait<'rope> for RopeLine<'rope> {
     /// Returns `None` if the start of the range is greater than the end, or if the
     /// end is out of bounds (i.e. `end > len_chars()`).
     #[inline]
-    fn slice<R>(&self, char_range: R) -> Option<Self>
+    fn slice<R>(&self, char_range: R) -> Option<RopeSlice<'rope>>
     where
         R: RangeBounds<CharOffset>,
     {
-        self.0.slice(char_range).map(RopeLine)
+        self.0.slice(char_range)
     }
 
     // Returns a Some only if the str can be safely sliced without a memory allocation.
@@ -553,6 +557,13 @@ impl<'rope> From<&'rope str> for RopeLine<'rope> {
     #[inline]
     fn from(text: &'rope str) -> Self {
         to_rope_line(ropey::RopeSlice::from(text))
+    }
+}
+
+impl <'rope> From<RopeLine<'rope>> for RopeSlice<'rope> {
+    #[inline]
+    fn from(line: RopeLine<'rope>) -> Self {
+        line.0
     }
 }
 

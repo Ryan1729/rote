@@ -209,9 +209,11 @@ fn get_previous_position(
                 // We want to be able to move to the previous line if possible
                 line_index
                     .checked_sub_one()
-                    .and_then(|i| rope.line(i).map(|l| (i, l)))
+                    .and_then(|i| rope.line(i).map(|l| (i, l.into())))
             } else {
-                rope_line.slice(..offset).map(|l| (line_index, l))
+                rope_line.slice(..offset).map(
+                    |slice: RopeSlice| (line_index, slice)
+                )
             }
         })
     };
@@ -255,23 +257,25 @@ fn get_next_position(
     Position { line, offset }: Position,
     kind: OffsetKind,
 ) -> Option<Position> {
-    let line_index_and_section = {
+    let line_index_and_section: Option<
+        (LineIndex, CharOffset, RopeSlice, CharOffset)
+    > = {
         let line_index = LineIndex(line);
         rope.line(line_index).and_then(|rope_line| {
             Some(final_non_newline_offset_for_rope_line(rope_line))
                 // try to move to the next line if there is nothing left on this one
                 .filter(|&final_offset| offset < final_offset)
-                .and_then(|final_offset| {
+                .and_then(move |final_offset| {
                     rope_line
                         .slice(offset..)
-                        .map(|l| (line_index, offset, l, final_offset))
+                        .map(|slice: RopeSlice| (line_index, offset, slice, final_offset))
                 })
                 .or_else(|| {
                     line_index.checked_add_one().and_then(
                         // We rely on `d!()` being 0 here.
                         |i| {
                             rope.line(i).map(|l: RopeLine| {
-                                (i, d!(), l, final_non_newline_offset_for_rope_line(l))
+                                (i, d!(), l.into(), final_non_newline_offset_for_rope_line(l))
                             })
                         },
                     )
@@ -355,11 +359,11 @@ d!(for IncludeStringLength: IncludeStringLength::Yes);
 /// Depending upon the value of the `IncludeStringLength` parameter, the iterator will either
 /// include or omit what would be the last one which would always be the length of the string in
 /// chars if included.
-fn get_offsets<'line>(
-    rope_line: RopeLine<'line>,
+fn get_offsets<'slice>(
+    rope_line: RopeSlice<'slice>,
     kind: OffsetKind,
     include: IncludeStringLength,
-) -> Box<dyn Iterator<Item = CharOffset> + 'line> {
+) -> Box<dyn Iterator<Item = CharOffset> + 'slice> {
     use std::iter::once;
 
     let output = once(CharOffset(0));
@@ -551,7 +555,7 @@ mod tests {
         let rope = r!("{[(012), (345)]}");
         let line = rope.line(LineIndex(0)).unwrap();
         let offsets: Vec<_> = get_offsets(
-            line,
+            line.into(),
             OffsetKind::LikelyEditLocation,
             IncludeStringLength::Yes,
         )
@@ -576,7 +580,7 @@ mod tests {
         let rope = r!("{[(012), (345)]}");
         let line = rope.line(LineIndex(0)).unwrap();
         let offsets: Vec<_> =
-            get_offsets(line, OffsetKind::SelectionPoint, IncludeStringLength::Yes).collect();
+            get_offsets(line.into(), OffsetKind::SelectionPoint, IncludeStringLength::Yes).collect();
 
         assert_eq!(
             offsets,
@@ -596,12 +600,12 @@ mod tests {
     #[test]
     fn get_offsets_works_on_this_simple_example() {
         let rope = r!("(123)");
-        let line = rope.line(LineIndex(0)).unwrap();
+        let slice: RopeSlice = rope.line(LineIndex(0)).unwrap().into();
 
         let expected = vec![CharOffset(0), CharOffset(1), CharOffset(4), CharOffset(5)];
 
         let likely_edit_locations: Vec<_> = get_offsets(
-            line,
+            slice,
             OffsetKind::LikelyEditLocation,
             IncludeStringLength::Yes,
         )
@@ -610,7 +614,7 @@ mod tests {
         assert_eq!(likely_edit_locations, expected);
 
         let selection_points: Vec<_> =
-            get_offsets(line, OffsetKind::SelectionPoint, IncludeStringLength::Yes).collect();
+            get_offsets(slice, OffsetKind::SelectionPoint, IncludeStringLength::Yes).collect();
 
         assert_eq!(selection_points, expected);
     }
