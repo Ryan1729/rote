@@ -282,6 +282,23 @@ pub fn get_first_non_white_space_offset_in_range<R: std::ops::RangeBounds<CharOf
     None
 }
 
+pub fn get_last_non_white_space_offset_in_range<R: std::ops::RangeBounds<CharOffset>>(
+    line: RopeLine,
+    range: R,
+) -> Option<CharOffset> {
+    // TODO would it be worth it to make a reversed iterator? One that just pulls
+    // the chars into memory seems like it wouldn't be worth it.
+    let mut output = None;
+
+    for (i, c) in get_line_char_iterator(line, range) {
+        if !c.is_whitespace() {
+            output = Some(i);
+        }
+    }
+
+    output
+}
+
 pub type OffsetPair = (Option<AbsoluteCharOffset>, Option<AbsoluteCharOffset>);
 
 /// This will return `None` if the offset is one-past the last index.

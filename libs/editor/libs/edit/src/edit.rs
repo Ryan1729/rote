@@ -4,7 +4,7 @@ use editor_types::{Cursor, SetPositionAction, cur};
 use macros::{CheckedSub, d, some_or};
 use panic_safe_rope::{LineIndex, Rope, RopeSliceTrait, RopeLine};
 use platform_types::*;
-use rope_pos::{AbsoluteCharOffsetRange, char_offset_to_pos, final_non_newline_offset_for_rope_line, get_first_non_white_space_offset_in_range, offset_pair, pos_to_char_offset};
+use rope_pos::{AbsoluteCharOffsetRange, char_offset_to_pos, final_non_newline_offset_for_rope_line, get_first_non_white_space_offset_in_range, get_last_non_white_space_offset_in_range, offset_pair, pos_to_char_offset};
 
 use std::cmp::{min, max};
 
@@ -518,7 +518,8 @@ pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edi
 fn tab_out_step(
     line: RopeLine,
     RelativeSelected{ line_end, slice_end }: RelativeSelected,
-) -> RopeSlice {
+    chars: &mut String,
+) {
     let first_non_white_space_offset: Option<CharOffset> =
         get_first_non_white_space_offset_in_range(line, d!()..=line_end);
 
@@ -527,16 +528,21 @@ fn tab_out_step(
         CharOffset(TAB_STR_CHAR_COUNT),
     );
 
-    some_or!(
-        line.slice(delete_count..slice_end),
-        line.empty()
-    )
+    if let Some(sliced_line) = line.slice(delete_count..slice_end) {
+        if let Some(s) = sliced_line.as_str_if_no_allocation_needed() {
+            chars.push_str(s);
+        } else { 
+            for c in sliced_line.chars() {
+                chars.push(c);
+            }
+        }
+    }
 }
 
 /// returns an edit that if applied will delete the non-line-ending whitespace at the 
 /// end of each line in the buffer, if there is any.
 pub fn get_strip_trailing_whitespace_edit(
-    rope: &Rope,
+    original_rope: &Rope,
     original_cursors: &Cursors
 ) -> Edit {
     get_line_slicing_edit(
@@ -549,11 +555,8 @@ pub fn get_strip_trailing_whitespace_edit(
 fn strip_trailing_whitespace_step(
     line: RopeLine,
     RelativeSelected{ line_end, slice_end }: RelativeSelected,
-) -> RopeSlice {
-    line
-/* TODO: Return a slice that has a new line at the end if the input line does.
-Seems like we'll need to allocate a new rope sometimes. Maybe return an 
-`impl Iterator<Item = char>`? Or just take the buffer to append to as a param.
+    chars: &mut String,
+) {
     let last_non_white_space_offset: Option<CharOffset> =
         get_last_non_white_space_offset_in_range(line, d!()..=line_end);
 
@@ -562,11 +565,19 @@ Seems like we'll need to allocate a new rope sometimes. Maybe return an
         slice_end,
     );
 
-    some_or!(
-        line.slice(CharOffset(0)..strip_after),
-        line.empty()
-    )
-*/
+    if let Some(sliced_line) = line.slice(CharOffset(0)..strip_after) {
+        if let Some(s) = sliced_line.as_str_if_no_allocation_needed() {
+            chars.push_str(s);
+        } else { 
+            for c in sliced_line.chars() {
+                chars.push(c);
+            }
+        }
+    }
+
+    if let Some('\n') = line.chars_at_end().prev() {
+        chars.push('\n');
+    }
 }
 
 struct RelativeSelected {
@@ -574,10 +585,15 @@ struct RelativeSelected {
     slice_end: CharOffset, // Including newline if any
 }
 
+/// We expect the step to push the characters that are NOT deleted onto the string
+/// Yes this is a slightly awkward API, but I think it is the least awkward of the
+/// considered possibilities.
+type LineSlicingEditStep = fn(RopeLine, RelativeSelected, &mut String);
+
 fn get_line_slicing_edit(
     original_rope: &Rope,
     original_cursors: &Cursors,
-    step: fn(RopeLine, RelativeSelected) -> RopeLine,
+    step: LineSlicingEditStep,
 ) -> Edit {
     get_edit(
         original_rope,
@@ -622,21 +638,14 @@ fn get_line_slicing_edit(
                         dbg!(end_of_selection_on_line, end_of_selection_on_line)
                     };
 
-                    let sliced_line = step(
+                    step(
                         line,
                         RelativeSelected {
                             line_end,
                             slice_end,
-                        }
+                        },
+                        &mut chars
                     );
-
-                    if let Some(s) = sliced_line.as_str_if_no_allocation_needed() {
-                        chars.push_str(s);
-                    } else { 
-                        for c in sliced_line.chars() {
-                            chars.push(c);
-                        }
-                    }
                 }
 
                 replace_in_range(
