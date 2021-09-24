@@ -926,5 +926,51 @@ impl<'rope, 'cursors> Applier<'rope, 'cursors> {
 
 #[cfg(any(test, feature = "pub_arb"))]
 pub mod tests {
+    #[cfg(any(test, feature = "pub_arb"))]
     pub mod arb;
+
+    #[cfg(test)]
+    mod strip_trailing_whitespace_step_returns_the_expected_result {
+        use crate::*;
+
+        #[test]
+        fn on_the_empty_line() {
+            let rope = Rope::from("");
+
+            let line: RopeLine = rope.line(LineIndex::default()).unwrap();
+            let rel_sel = RelativeSelected {
+                line_end: final_non_newline_offset_for_rope_line(line),
+                slice_end: line.len_chars(),
+            };
+            let mut chars = String::new();
+
+            strip_trailing_whitespace_step(
+                line,
+                rel_sel,
+                &mut chars,
+            );
+            
+            assert_eq!(chars, "");
+        }
+
+        #[test]
+        fn on_the_empty_line_with_a_newline() {
+            let rope = Rope::from("\n");
+
+            let line: RopeLine = rope.line(LineIndex::default()).unwrap();
+            let rel_sel = RelativeSelected {
+                line_end: final_non_newline_offset_for_rope_line(line),
+                slice_end: line.len_chars(),
+            };
+            let mut chars = String::new();
+
+            strip_trailing_whitespace_step(
+                line,
+                rel_sel,
+                &mut chars,
+            );
+            
+            assert_eq!(chars, "\n");
+        }
+    }
 }
