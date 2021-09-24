@@ -557,6 +557,7 @@ fn strip_trailing_whitespace_step(
     RelativeSelected{ line_end, slice_end }: RelativeSelected,
     chars: &mut String,
 ) {
+    dbg!(line, line_end, slice_end);
     let last_non_white_space_offset: Option<CharOffset> =
         get_last_non_white_space_offset_in_range(line, d!()..=line_end);
 
@@ -564,6 +565,8 @@ fn strip_trailing_whitespace_step(
         last_non_white_space_offset.unwrap_or(line_end),
         slice_end,
     );
+
+    dbg!(last_non_white_space_offset, last_non_white_space_offset.unwrap_or(line_end), strip_after);
 
     if let Some(sliced_line) = line.slice(CharOffset(0)..strip_after) {
         if let Some(s) = sliced_line.as_str_if_no_allocation_needed() {
@@ -575,7 +578,7 @@ fn strip_trailing_whitespace_step(
         }
     }
 
-    if let Some('\n') = line.chars_at_end().prev() {
+    if let Some('\n') = dbg!(line.chars_at_end().prev()) {
         chars.push('\n');
     }
 }
@@ -933,44 +936,47 @@ pub mod tests {
     mod strip_trailing_whitespace_step_returns_the_expected_result {
         use crate::*;
 
+        // Short for assert. We can be this brief becasue this is specific to this 
+        // module
+        macro_rules! a {
+            ($from: literal $to: literal) => {
+                let rope = Rope::from($from);
+
+                let line: RopeLine = rope.line(LineIndex::default()).unwrap();
+                let rel_sel = RelativeSelected {
+                    line_end: final_non_newline_offset_for_rope_line(line),
+                    slice_end: line.len_chars(),
+                };
+                let mut chars = String::new();
+    
+                strip_trailing_whitespace_step(
+                    line,
+                    rel_sel,
+                    &mut chars,
+                );
+                
+                assert_eq!(chars, $to);
+            }
+        }
+
         #[test]
         fn on_the_empty_line() {
-            let rope = Rope::from("");
-
-            let line: RopeLine = rope.line(LineIndex::default()).unwrap();
-            let rel_sel = RelativeSelected {
-                line_end: final_non_newline_offset_for_rope_line(line),
-                slice_end: line.len_chars(),
-            };
-            let mut chars = String::new();
-
-            strip_trailing_whitespace_step(
-                line,
-                rel_sel,
-                &mut chars,
-            );
-            
-            assert_eq!(chars, "");
+            a!("" "");
         }
 
         #[test]
         fn on_the_empty_line_with_a_newline() {
-            let rope = Rope::from("\n");
+            a!("\n" "\n");
+        }
 
-            let line: RopeLine = rope.line(LineIndex::default()).unwrap();
-            let rel_sel = RelativeSelected {
-                line_end: final_non_newline_offset_for_rope_line(line),
-                slice_end: line.len_chars(),
-            };
-            let mut chars = String::new();
+        #[test]
+        fn on_a_line_with_a_trailing_space() {
+            a!(" \n" "\n");
+        }
 
-            strip_trailing_whitespace_step(
-                line,
-                rel_sel,
-                &mut chars,
-            );
-            
-            assert_eq!(chars, "\n");
+        #[test]
+        fn on_a_line_with_4_trailing_spaces() {
+            a!("    \n" "\n");
         }
     }
 }
