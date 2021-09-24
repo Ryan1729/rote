@@ -29,7 +29,10 @@ use macros::{some_or, dbg};
 use move_cursor::last_position;
 use platform_types::{CursorState, vec1};
 use pub_arb_edit::{edit_from_pieces, edit_range_edits_mut};
-use rope_pos::get_first_non_white_space_offset_in_range;
+use rope_pos::{
+    get_first_non_white_space_offset_in_range,
+    get_last_non_white_space_offset_in_range
+};
 
 use pretty_assertions::assert_eq;
 use proptest::prelude::*;
@@ -435,6 +438,100 @@ fn get_first_non_white_space_offset_in_range_works_on_these_examples() {
             CharOffset(1)..=CharOffset(usize::max_value())
         ),
         Some(CharOffset(2))
+    );
+}
+
+#[test]
+fn get_last_non_white_space_offset_in_range_works_on_these_examples() {
+    let rope = r!("\n \n 1\n  \n  2\n");
+
+    let mut lines = rope.lines();
+
+    let empty_line = lines.next().unwrap();
+    assert_eq!(
+        get_last_non_white_space_offset_in_range(
+            empty_line,
+            CharOffset(0)..=CharOffset(usize::max_value())
+        ),
+        None
+    );
+
+    let one_space_line = lines.next().unwrap();
+    assert_eq!(
+        get_last_non_white_space_offset_in_range(
+            one_space_line,
+            CharOffset(0)..=CharOffset(usize::max_value())
+        ),
+        Some(CharOffset(1))
+    );
+
+    let one_space_then_non_whitespace_line = lines.next().unwrap();
+    assert_eq!(
+        get_last_non_white_space_offset_in_range(
+            one_space_then_non_whitespace_line,
+            CharOffset(0)..CharOffset(1)
+        ),
+        Some(CharOffset(1))
+    );
+    assert_eq!(
+        get_last_non_white_space_offset_in_range(
+            one_space_then_non_whitespace_line,
+            CharOffset(0)..=CharOffset(usize::max_value())
+        ),
+        Some(CharOffset(1))
+    );
+
+    let two_spaces_line = lines.next().unwrap();
+    assert_eq!(
+        get_last_non_white_space_offset_in_range(
+            two_spaces_line,
+            CharOffset(0)..CharOffset(1)
+        ),
+        Some(CharOffset(1))
+    );
+    assert_eq!(
+        get_last_non_white_space_offset_in_range(
+            two_spaces_line,
+            CharOffset(0)..=CharOffset(usize::max_value())
+        ),
+        Some(CharOffset(2))
+    );
+
+    let two_spaces_then_non_whitespace_line = lines.next().unwrap();
+    assert_eq!(
+        get_last_non_white_space_offset_in_range(
+            two_spaces_then_non_whitespace_line,
+            CharOffset(0)..CharOffset(1)
+        ),
+        None
+    );
+    assert_eq!(
+        get_last_non_white_space_offset_in_range(
+            two_spaces_then_non_whitespace_line,
+            CharOffset(0)..CharOffset(2)
+        ),
+        None
+    );
+    assert_eq!(
+        get_last_non_white_space_offset_in_range(
+            two_spaces_then_non_whitespace_line,
+            CharOffset(1)..CharOffset(2)
+        ),
+        None
+    );
+    assert_eq!(
+        get_last_non_white_space_offset_in_range(
+            two_spaces_then_non_whitespace_line,
+            CharOffset(0)..=CharOffset(usize::max_value())
+        ),
+        Some(CharOffset(3))
+    );
+    assert_eq!(
+        get_last_non_white_space_offset_in_range(
+            two_spaces_then_non_whitespace_line,
+            CharOffset(1)..=CharOffset(usize::max_value())
+        ),
+        Some(CharOffset(3))
     );
 }
 
