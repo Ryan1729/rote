@@ -352,7 +352,7 @@ fn delete_lines_deletes_everything_in_this_reduced_two_line_case() {
 
 #[test]
 fn get_first_non_white_space_offset_in_range_works_on_these_examples() {
-    let rope = r!("\n \n 1\n  \n  2\n");
+    let rope = r!("\n \n 1\n  \n  2\n0\n1 \n2  \n");
 
     let mut lines = rope.lines();
 
@@ -439,11 +439,29 @@ fn get_first_non_white_space_offset_in_range_works_on_these_examples() {
         ),
         Some(CharOffset(2))
     );
+
+    let one_non_whitespace_line = lines.next().unwrap();
+    assert_eq!(
+        get_first_non_white_space_offset_in_range(
+            one_non_whitespace_line,
+            CharOffset(0)..CharOffset(1)
+        ),
+        Some(CharOffset(0))
+    );
+    assert_eq!(
+        get_first_non_white_space_offset_in_range(
+            two_spaces_then_non_whitespace_line,
+            CharOffset(1)..=CharOffset(usize::max_value())
+        ),
+        Some(CharOffset(0))
+    );
+
+    assert_eq!(lines.next(), None, "test all the cases!");
 }
 
 #[test]
 fn get_last_non_white_space_offset_in_range_works_on_these_examples() {
-    let rope = r!("\n \n 1\n  \n  2\n");
+    let rope = r!("\n \n 1\n  \n  2\n0\n1 \n2  \n");
 
     let mut lines = rope.lines();
 
@@ -462,7 +480,7 @@ fn get_last_non_white_space_offset_in_range_works_on_these_examples() {
             one_space_line,
             CharOffset(0)..=CharOffset(usize::max_value())
         ),
-        Some(CharOffset(1))
+        None
     );
 
     let one_space_then_non_whitespace_line = lines.next().unwrap();
@@ -471,7 +489,7 @@ fn get_last_non_white_space_offset_in_range_works_on_these_examples() {
             one_space_then_non_whitespace_line,
             CharOffset(0)..CharOffset(1)
         ),
-        Some(CharOffset(1))
+        None
     );
     assert_eq!(
         get_last_non_white_space_offset_in_range(
@@ -533,6 +551,8 @@ fn get_last_non_white_space_offset_in_range_works_on_these_examples() {
         ),
         Some(CharOffset(3))
     );
+
+    assert_eq!(lines.next(), None, "test all the cases!");
 }
 
 fn tab_in_preserves_line_count_on(mut buffer: TextBuffer) {
