@@ -356,112 +356,56 @@ fn get_first_non_white_space_offset_in_range_works_on_these_examples() {
 
     let mut lines = rope.lines();
 
+    // Short for assert. We can be this terse since this is lexically scoped.
+    macro_rules! a {
+        ($line: expr, $range: expr => $expected: expr) => {{
+            use std::ops::{RangeBounds, Bound::*};
+            let start = match $range.start_bound() {
+                Included(o) => Included(CharOffset(*o)),
+                Excluded(o) => Excluded(CharOffset(*o)),
+                Unbounded => Unbounded,
+            };
+            let end = match $range.end_bound() {
+                Included(o) => Included(CharOffset(*o)),
+                Excluded(o) => Excluded(CharOffset(*o)),
+                Unbounded => Unbounded,
+            };
+
+            assert_eq!(
+                get_first_non_white_space_offset_in_range(
+                    $line,
+                    (start, end)
+                ),
+                $expected
+            );
+        }}
+    }
+
     let empty_line = lines.next().unwrap();
-    assert_eq!(
-        get_first_non_white_space_offset_in_range(
-            empty_line,
-            CharOffset(0)..=CharOffset(usize::max_value())
-        ),
-        None
-    );
+    a!(empty_line, .. => None);
 
     let one_space_line = lines.next().unwrap();
-    assert_eq!(
-        get_first_non_white_space_offset_in_range(
-            one_space_line,
-            CharOffset(0)..=CharOffset(usize::max_value())
-        ),
-        None
-    );
+    a!(one_space_line, .. => None);
 
     let one_space_then_non_whitespace_line = lines.next().unwrap();
-    assert_eq!(
-        get_first_non_white_space_offset_in_range(
-            one_space_then_non_whitespace_line,
-            CharOffset(0)..CharOffset(1)
-        ),
-        None
-    );
-    assert_eq!(
-        get_first_non_white_space_offset_in_range(
-            one_space_then_non_whitespace_line,
-            CharOffset(0)..=CharOffset(usize::max_value())
-        ),
-        Some(CharOffset(1))
-    );
+    a!(one_space_then_non_whitespace_line, 0..1 => None);
+    a!(one_space_then_non_whitespace_line, .. => Some(CharOffset(1)));
 
     let two_spaces_line = lines.next().unwrap();
-    assert_eq!(
-        get_first_non_white_space_offset_in_range(two_spaces_line, CharOffset(0)..CharOffset(1)),
-        None
-    );
-    assert_eq!(
-        get_first_non_white_space_offset_in_range(
-            two_spaces_line,
-            CharOffset(0)..=CharOffset(usize::max_value())
-        ),
-        None
-    );
+    a!(two_spaces_line, 0..1 => None);
+    a!(two_spaces_line, .. => None);
 
-    let two_spaces_then_non_whitespace_line = dbg!(lines.next().unwrap());
-    assert_eq!(
-        get_first_non_white_space_offset_in_range(
-            two_spaces_then_non_whitespace_line,
-            CharOffset(0)..CharOffset(1)
-        ),
-        None
-    );
-    assert_eq!(
-        get_first_non_white_space_offset_in_range(
-            two_spaces_then_non_whitespace_line,
-            CharOffset(0)..CharOffset(2)
-        ),
-        None
-    );
-    assert_eq!(
-        get_first_non_white_space_offset_in_range(
-            two_spaces_then_non_whitespace_line,
-            CharOffset(1)..CharOffset(2)
-        ),
-        None
-    );
-    assert_eq!(
-        get_first_non_white_space_offset_in_range(
-            two_spaces_then_non_whitespace_line,
-            CharOffset(0)..=CharOffset(usize::max_value())
-        ),
-        Some(CharOffset(2))
-    );
-    assert_eq!(
-        get_first_non_white_space_offset_in_range(
-            two_spaces_then_non_whitespace_line,
-            CharOffset(1)..=CharOffset(usize::max_value())
-        ),
-        Some(CharOffset(2))
-    );
+    let two_spaces_then_non_whitespace_line = lines.next().unwrap();
+    a!(two_spaces_then_non_whitespace_line, 0..1 => None);
+    a!(two_spaces_then_non_whitespace_line, 0..2 => None);
+    a!(two_spaces_then_non_whitespace_line, 1..2 => None);
+    a!(two_spaces_then_non_whitespace_line, .. => Some(CharOffset(2)));
+    a!(two_spaces_then_non_whitespace_line, 1.. => Some(CharOffset(2)));
 
     let one_non_whitespace_line = lines.next().unwrap();
-    assert_eq!(
-        get_first_non_white_space_offset_in_range(
-            one_non_whitespace_line,
-            CharOffset(0)..CharOffset(1)
-        ),
-        None
-    );
-    assert_eq!(
-        get_first_non_white_space_offset_in_range(
-            one_non_whitespace_line,
-            CharOffset(0)..CharOffset(2)
-        ),
-        Some(CharOffset(0))
-    );
-    assert_eq!(
-        get_first_non_white_space_offset_in_range(
-            one_non_whitespace_line,
-            CharOffset(0)..=CharOffset(usize::max_value())
-        ),
-        Some(CharOffset(0))
-    );
+    a!(one_non_whitespace_line, 0..1 => None);
+    a!(one_non_whitespace_line, 0..2 => Some(CharOffset(0)));
+    a!(one_non_whitespace_line, .. => Some(CharOffset(0)));
 
     assert_eq!(lines.next(), None, "test all the cases!");
 }
