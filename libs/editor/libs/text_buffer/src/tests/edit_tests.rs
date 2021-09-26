@@ -403,7 +403,7 @@ fn get_first_non_white_space_offset_in_range_works_on_these_examples() {
         None
     );
 
-    let two_spaces_then_non_whitespace_line = lines.next().unwrap();
+    let two_spaces_then_non_whitespace_line = dbg!(lines.next().unwrap());
     assert_eq!(
         get_first_non_white_space_offset_in_range(
             two_spaces_then_non_whitespace_line,
@@ -446,12 +446,19 @@ fn get_first_non_white_space_offset_in_range_works_on_these_examples() {
             one_non_whitespace_line,
             CharOffset(0)..CharOffset(1)
         ),
+        None
+    );
+    assert_eq!(
+        get_first_non_white_space_offset_in_range(
+            one_non_whitespace_line,
+            CharOffset(0)..CharOffset(2)
+        ),
         Some(CharOffset(0))
     );
     assert_eq!(
         get_first_non_white_space_offset_in_range(
-            two_spaces_then_non_whitespace_line,
-            CharOffset(1)..=CharOffset(usize::max_value())
+            one_non_whitespace_line,
+            CharOffset(0)..=CharOffset(usize::max_value())
         ),
         Some(CharOffset(0))
     );

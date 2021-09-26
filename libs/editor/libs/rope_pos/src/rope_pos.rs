@@ -273,7 +273,9 @@ pub fn get_first_non_white_space_offset_in_range<R: std::ops::RangeBounds<CharOf
     line: RopeLine,
     range: R,
 ) -> Option<CharOffset> {
+    dbg!(line);
     for (i, c) in get_line_char_iterator(line, range) {
+        dbg!(i, c);
         if !c.is_whitespace() {
             return Some(i);
         }
