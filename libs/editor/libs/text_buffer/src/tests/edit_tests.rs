@@ -445,7 +445,7 @@ fn get_last_non_white_space_offset_in_range_works_on_these_examples() {
             };
 
             assert_eq!(
-                get_first_non_white_space_offset_in_range(
+                get_last_non_white_space_offset_in_range(
                     $line,
                     (start, end)
                 ),
