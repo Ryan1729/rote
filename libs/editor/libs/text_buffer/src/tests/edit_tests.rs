@@ -407,6 +407,19 @@ fn get_first_non_white_space_offset_in_range_works_on_these_examples() {
     a!(one_non_whitespace_line, 0..2 => Some(CharOffset(0)));
     a!(one_non_whitespace_line, .. => Some(CharOffset(0)));
 
+    let non_whitespace_then_one_space_line = lines.next().unwrap();
+    a!(non_whitespace_then_one_space_line, 0..1 => None);
+    a!(non_whitespace_then_one_space_line, 0..2 => Some(CharOffset(0)));
+    a!(non_whitespace_then_one_space_line, .. => Some(CharOffset(0)));
+
+    let non_whitespace_then_two_space_line = lines.next().unwrap();
+    a!(non_whitespace_then_two_space_line, 0..1 => None);
+    a!(non_whitespace_then_two_space_line, 0..2 => Some(CharOffset(0)));
+    a!(non_whitespace_then_two_space_line, .. => Some(CharOffset(0)));
+
+    let empty_line_no_newline = lines.next().unwrap();
+    a!(empty_line_no_newline, .. => None);
+
     assert_eq!(lines.next(), None, "test all the cases!");
 }
 
