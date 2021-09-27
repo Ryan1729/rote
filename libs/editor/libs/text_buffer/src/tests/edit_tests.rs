@@ -352,7 +352,7 @@ fn delete_lines_deletes_everything_in_this_reduced_two_line_case() {
 
 #[test]
 fn get_first_non_white_space_offset_in_range_works_on_these_examples() {
-    let rope = r!("\n \n 1\n  \n  2\n0\n1 \n2  \n");
+    let rope = r!("\n \n 1\n  \n  2\n0\n1 \n2  \n333   \n");
 
     let mut lines = rope.lines();
 
@@ -417,6 +417,11 @@ fn get_first_non_white_space_offset_in_range_works_on_these_examples() {
     a!(non_whitespace_then_two_space_line, 0..2 => Some(CharOffset(0)));
     a!(non_whitespace_then_two_space_line, .. => Some(CharOffset(0)));
 
+    let three_non_whitespace_then_three_space_line = lines.next().unwrap();
+    a!(three_non_whitespace_then_three_space_line, 0..1 => None);
+    a!(three_non_whitespace_then_three_space_line, 0..2 => Some(CharOffset(0)));
+    a!(three_non_whitespace_then_three_space_line, .. => Some(CharOffset(0)));
+
     let empty_line_no_newline = lines.next().unwrap();
     a!(empty_line_no_newline, .. => None);
 
@@ -425,7 +430,7 @@ fn get_first_non_white_space_offset_in_range_works_on_these_examples() {
 
 #[test]
 fn get_last_non_white_space_offset_in_range_works_on_these_examples() {
-    let rope = r!("\n \n 1\n  \n  2\n0\n1 \n2  \n");
+    let rope = r!("\n \n 1\n  \n  2\n0\n1 \n2  \n333   \n");
 
     let mut lines = rope.lines();
 
@@ -490,6 +495,13 @@ fn get_last_non_white_space_offset_in_range_works_on_these_examples() {
     a!(non_whitespace_then_two_space_line, 0..1 => None);
     a!(non_whitespace_then_two_space_line, 0..2 => Some(CharOffset(0)));
     a!(non_whitespace_then_two_space_line, .. => Some(CharOffset(0)));
+
+    let three_non_whitespace_then_three_space_line = lines.next().unwrap();
+    a!(three_non_whitespace_then_three_space_line, 0..1 => None);
+    a!(three_non_whitespace_then_three_space_line, 0..2 => Some(CharOffset(0)));
+    a!(three_non_whitespace_then_three_space_line, 0..3 => Some(CharOffset(1)));
+    a!(three_non_whitespace_then_three_space_line, 0..4 => Some(CharOffset(2)));
+    a!(three_non_whitespace_then_three_space_line, .. => Some(CharOffset(2)));
 
     let empty_line_no_newline = lines.next().unwrap();
     a!(empty_line_no_newline, .. => None);
