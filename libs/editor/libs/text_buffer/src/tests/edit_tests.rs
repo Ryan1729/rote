@@ -473,8 +473,26 @@ fn get_last_non_white_space_offset_in_range_works_on_these_examples() {
     a!(two_spaces_then_non_whitespace_line, 0..1 => None);
     a!(two_spaces_then_non_whitespace_line, 0..2 => None);
     a!(two_spaces_then_non_whitespace_line, 1..2 => None);
-    a!(two_spaces_then_non_whitespace_line, .. => Some(CharOffset(3)));
-    a!(two_spaces_then_non_whitespace_line, 1.. => Some(CharOffset(3)));
+    a!(two_spaces_then_non_whitespace_line, .. => Some(CharOffset(2)));
+    a!(two_spaces_then_non_whitespace_line, 1.. => Some(CharOffset(2)));
+
+    let one_non_whitespace_line = lines.next().unwrap();
+    a!(one_non_whitespace_line, 0..1 => None);
+    a!(one_non_whitespace_line, 0..2 => Some(CharOffset(0)));
+    a!(one_non_whitespace_line, .. => Some(CharOffset(0)));
+
+    let non_whitespace_then_one_space_line = lines.next().unwrap();
+    a!(non_whitespace_then_one_space_line, 0..1 => None);
+    a!(non_whitespace_then_one_space_line, 0..2 => Some(CharOffset(0)));
+    a!(non_whitespace_then_one_space_line, .. => Some(CharOffset(0)));
+
+    let non_whitespace_then_two_space_line = lines.next().unwrap();
+    a!(non_whitespace_then_two_space_line, 0..1 => None);
+    a!(non_whitespace_then_two_space_line, 0..2 => Some(CharOffset(0)));
+    a!(non_whitespace_then_two_space_line, .. => Some(CharOffset(0)));
+
+    let empty_line_no_newline = lines.next().unwrap();
+    a!(empty_line_no_newline, .. => None);
 
     assert_eq!(lines.next(), None, "test all the cases!");
 }
