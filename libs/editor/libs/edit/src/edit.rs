@@ -562,7 +562,7 @@ fn strip_trailing_whitespace_step(
         get_last_non_white_space_offset_in_range(line, d!()..=line_end);
 
     let strip_after = min(
-        last_non_white_space_offset.unwrap_or(line_end),
+        last_non_white_space_offset.unwrap_or(CharOffset(0)),
         slice_end,
     );
 
