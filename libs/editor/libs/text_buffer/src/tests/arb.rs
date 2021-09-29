@@ -53,6 +53,14 @@ pub fn text_buffer_with_many_cursors() -> impl Strategy<Value = TextBuffer> {
     })
 }
 
+pub fn unedited_text_buffer_with_many_cursors() -> impl Strategy<Value = TextBuffer> {
+    text_buffer_with_many_cursors()
+        .prop_map(|mut b| {
+            b.set_unedited();
+            b
+        })
+}
+
 pub fn text_buffer_with_many_non_highlight_cursors() -> impl Strategy<Value = TextBuffer> {
     rope().prop_flat_map(|rop| {
         (

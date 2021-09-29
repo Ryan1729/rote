@@ -830,10 +830,13 @@ fn inserting_then_deleting_preserves_editedness_on(
     );
 }
 
+// We need to use an unedited text buffer because if you consider blank to be 
+// unedited, then start with a highlighted char, then insert another char, then
+// delete, you end up at blank.
 proptest!{
     #[test]
     fn inserting_then_deleting_preserves_editedness(
-        buffer in arb::text_buffer_with_many_cursors(),
+        buffer in arb::unedited_text_buffer_with_many_cursors(),
         ch in any::<char>(),
     ) {
         inserting_then_deleting_preserves_editedness_on(
@@ -850,7 +853,7 @@ fn inserting_then_deleting_preserves_editedness_in_this_minimal_example() {
         'a'
     );
 }
-
+/*
 #[test]
 fn inserting_then_deleting_preserves_editedness_on_this_found_example() {
     const EXPECTED_DEGUG_STR: &str = r#"TextBuffer { rope: ["\u{2028}"], cursors: Cursors { cursors: Vec1([cur!{l 0 o 0 h l 1 o 0}]) }, history: [], history_index: 0, unedited: [], scroll: slxy!(0, 0) }"#;
@@ -908,7 +911,7 @@ fn inserting_then_deleting_preserves_editedness_on_this_found_asciified_example_
         new_editedness
     );
 }
-
+*/
 fn calling_set_unedited_acts_as_expected_after_a_second_insertion_on(
     mut buffer: TextBuffer,
     ch1: char,
