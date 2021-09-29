@@ -867,6 +867,48 @@ fn inserting_then_deleting_preserves_editedness_on_this_found_example() {
     );
 }
 
+#[test]
+fn inserting_then_deleting_preserves_editedness_on_this_found_asciified_example() {
+    let mut text_buffer: TextBuffer = d!();
+    text_buffer.rope = r!("a");
+    text_buffer.set_cursors(curs!(text_buffer.rope, cur!{l 0 o 0 h l 1 o 0}));
+
+    inserting_then_deleting_preserves_editedness_on(
+        text_buffer,
+        'b'
+    );
+}
+
+#[test]
+fn inserting_then_deleting_preserves_editedness_on_this_found_asciified_example_reduction() {
+    u!{Editedness}
+    u!{TestEdit}
+
+    let mut buffer: TextBuffer = d!();
+    buffer.rope = r!("a");
+    
+    buffer.set_cursors(curs!(buffer.rope, cur!{l 0 o 0 h l 1 o 0}));
+
+    let old_editedness = buffer.editedness();
+
+    TestEdit::apply(&mut buffer, Insert('b'));
+
+    assert_eq!(
+        buffer.editedness(),
+        Edited,
+        "Was not Edited after insert"
+    );
+
+    TestEdit::apply(&mut buffer, Delete);
+
+    let new_editedness = buffer.editedness();
+
+    assert_eq!(
+        old_editedness,
+        new_editedness
+    );
+}
+
 fn calling_set_unedited_acts_as_expected_after_a_second_insertion_on(
     mut buffer: TextBuffer,
     ch1: char,
