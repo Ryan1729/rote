@@ -853,14 +853,15 @@ fn inserting_then_deleting_preserves_editedness_in_this_minimal_example() {
         'a'
     );
 }
-/*
+
 #[test]
 fn inserting_then_deleting_preserves_editedness_on_this_found_example() {
-    const EXPECTED_DEGUG_STR: &str = r#"TextBuffer { rope: ["\u{2028}"], cursors: Cursors { cursors: Vec1([cur!{l 0 o 0 h l 1 o 0}]) }, history: [], history_index: 0, unedited: [], scroll: slxy!(0, 0) }"#;
+    const EXPECTED_DEGUG_STR: &str = r#"TextBuffer { rope: ["\u{2028}"], cursors: Cursors { cursors: Vec1([cur!{l 0 o 0 h l 1 o 0}]) }, history: [], history_index: 0, unedited: ["\u{2028}"], scroll: slxy!(0, 0) }"#;
 
     let mut text_buffer: TextBuffer = d!();
     text_buffer.rope = r!("\u{2028}");
     text_buffer.set_cursors(curs!(text_buffer.rope, cur!{l 0 o 0 h l 1 o 0}));
+    text_buffer.set_unedited();
 
     assert_eq!(format!("{:?}", text_buffer), EXPECTED_DEGUG_STR);
 
@@ -875,6 +876,7 @@ fn inserting_then_deleting_preserves_editedness_on_this_found_asciified_example(
     let mut text_buffer: TextBuffer = d!();
     text_buffer.rope = r!("a");
     text_buffer.set_cursors(curs!(text_buffer.rope, cur!{l 0 o 0 h l 1 o 0}));
+    text_buffer.set_unedited();
 
     inserting_then_deleting_preserves_editedness_on(
         text_buffer,
@@ -889,8 +891,8 @@ fn inserting_then_deleting_preserves_editedness_on_this_found_asciified_example_
 
     let mut buffer: TextBuffer = d!();
     buffer.rope = r!("a");
-    
     buffer.set_cursors(curs!(buffer.rope, cur!{l 0 o 0 h l 1 o 0}));
+    buffer.set_unedited();
 
     let old_editedness = buffer.editedness();
 
@@ -911,7 +913,7 @@ fn inserting_then_deleting_preserves_editedness_on_this_found_asciified_example_
         new_editedness
     );
 }
-*/
+
 fn calling_set_unedited_acts_as_expected_after_a_second_insertion_on(
     mut buffer: TextBuffer,
     ch1: char,
