@@ -6,6 +6,7 @@
 use super::{cursor_assert, r, *};
 
 use arb::TestEdit;
+use move_cursor::last_position;
 use editor_types::{cur};
 use cursors::curs;
 use rope_pos::{char_offset_to_pos, clamp_position, OffsetPair};
@@ -830,15 +831,30 @@ fn inserting_then_deleting_preserves_editedness_on(
     );
 }
 
-// We need to use an unedited text buffer because if you consider blank to be 
-// unedited, then start with a highlighted char, then insert another char, then
-// delete, you end up at blank.
+fn all_selected(buffer: &TextBuffer) -> bool {
+    if buffer.cursors.len() != 1 {
+        return false;
+    }
+
+    if let Some(last_pos) = last_position(&buffer.rope) {
+        buffer.cursors.first() == &cur!{pos! {}, last_pos}
+    } else {
+        // We expect this will only happen when there are no lines. 
+        // So all the characters would be selected, since there are none.
+        true
+    }
+}
+
 proptest!{
     #[test]
-    fn inserting_then_deleting_preserves_editedness(
-        buffer in arb::unedited_text_buffer_with_many_cursors(),
+    fn inserting_then_deleting_preserves_editedness_unless_all_is_selected(
+        mut buffer in arb::text_buffer_with_many_cursors(),
         ch in any::<char>(),
     ) {
+        if all_selected(&buffer) {
+            buffer.set_cursors(d!());
+        }
+
         inserting_then_deleting_preserves_editedness_on(
             buffer,
             ch
@@ -856,30 +872,35 @@ fn inserting_then_deleting_preserves_editedness_in_this_minimal_example() {
 
 #[test]
 fn inserting_then_deleting_preserves_editedness_on_this_found_example() {
-    const EXPECTED_DEGUG_STR: &str = r#"TextBuffer { rope: ["\u{2028}"], cursors: Cursors { cursors: Vec1([cur!{l 0 o 0 h l 1 o 0}]) }, history: [], history_index: 0, unedited: ["\u{2028}"], scroll: slxy!(0, 0) }"#;
+    const EXPECTED_DEGUG_STR: &str = r#"TextBuffer { rope: ["\u{2028}"], cursors: Cursors { cursors: Vec1([cur!{l 0 o 0}]) }, history: [], history_index: 0, unedited: ["\u{2028}"], scroll: slxy!(0, 0) }"#;
 
-    let mut text_buffer: TextBuffer = d!();
-    text_buffer.rope = r!("\u{2028}");
-    text_buffer.set_cursors(curs!(text_buffer.rope, cur!{l 0 o 0 h l 1 o 0}));
-    text_buffer.set_unedited();
+    let mut buffer: TextBuffer = d!();
+    buffer.rope = r!("\u{2028}");
+    buffer.set_unedited();
+    if all_selected(&buffer) {
+        buffer.set_cursors(d!());
+    }
 
-    assert_eq!(format!("{:?}", text_buffer), EXPECTED_DEGUG_STR);
+    assert_eq!(format!("{:?}", buffer), EXPECTED_DEGUG_STR);
 
     inserting_then_deleting_preserves_editedness_on(
-        text_buffer,
+        buffer,
         '\u{b}'
     );
 }
 
 #[test]
 fn inserting_then_deleting_preserves_editedness_on_this_found_asciified_example() {
-    let mut text_buffer: TextBuffer = d!();
-    text_buffer.rope = r!("a");
-    text_buffer.set_cursors(curs!(text_buffer.rope, cur!{l 0 o 0 h l 1 o 0}));
-    text_buffer.set_unedited();
+    let mut buffer: TextBuffer = d!();
+    buffer.rope = r!("a");
+    buffer.set_cursors(curs!(buffer.rope, cur!{l 0 o 0 h l 1 o 0}));
+    buffer.set_unedited();
+    if all_selected(&buffer) {
+        buffer.set_cursors(d!());
+    }
 
     inserting_then_deleting_preserves_editedness_on(
-        text_buffer,
+        buffer,
         'b'
     );
 }
@@ -893,6 +914,9 @@ fn inserting_then_deleting_preserves_editedness_on_this_found_asciified_example_
     buffer.rope = r!("a");
     buffer.set_cursors(curs!(buffer.rope, cur!{l 0 o 0 h l 1 o 0}));
     buffer.set_unedited();
+    if all_selected(&buffer) {
+        buffer.set_cursors(d!());
+    }
 
     let old_editedness = buffer.editedness();
 
