@@ -20,7 +20,6 @@ pub use pub_arb_text_pos::{pos};
 pub use pub_arb_vec1::{vec1};
 
 // TODO move all `arb` fns in here
-
 prop_compose! {
     pub fn rope()(s in any::<String>()) -> Rope {
         r!(s)

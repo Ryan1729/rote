@@ -7,6 +7,7 @@ use super::{cursor_assert, r, *};
 
 use arb::TestEdit;
 use editor_types::{cur};
+use cursors::curs;
 use rope_pos::{char_offset_to_pos, clamp_position, OffsetPair};
 use panic_safe_rope::{RopeSliceTrait};
 use platform_types::{pos, CursorState, vec1};
@@ -28,7 +29,6 @@ pub const MORE_THAN_SOME_AMOUNT: usize = 24;
 /// This macro is meant to make it easier to copy-paste proptest failing proptest inputs into
 /// their oun test. With this macro, only the `!` character needs to be added after copying an
 /// `InsertString` input.
-
 #[allow(non_snake_case)]
 #[macro_export]
 macro_rules! InsertString {
@@ -378,7 +378,6 @@ fn cursor_vec1_maintains_invariants(rope: &Rope, cursors: &Vec1<Cursor>) -> u8 {
             (std::cmp::min(p, h), std::cmp::max(p, h))
         })
         .into_vec();
-
     //
     // Ordering check
     //
@@ -849,6 +848,22 @@ fn inserting_then_deleting_preserves_editedness_in_this_minimal_example() {
     inserting_then_deleting_preserves_editedness_on(
         d!(),
         'a'
+    );
+}
+
+#[test]
+fn inserting_then_deleting_preserves_editedness_on_this_found_example() {
+    const EXPECTED_DEGUG_STR: &str = r#"TextBuffer { rope: ["\u{2028}"], cursors: Cursors { cursors: Vec1([cur!{l 0 o 0 h l 1 o 0}]) }, history: [], history_index: 0, unedited: [], scroll: slxy!(0, 0) }"#;
+
+    let mut text_buffer: TextBuffer = d!();
+    text_buffer.rope = r!("\u{2028}");
+    text_buffer.set_cursors(curs!(text_buffer.rope, cur!{l 0 o 0 h l 1 o 0}));
+
+    assert_eq!(format!("{:?}", text_buffer), EXPECTED_DEGUG_STR);
+
+    inserting_then_deleting_preserves_editedness_on(
+        text_buffer,
+        '\u{b}'
     );
 }
 
