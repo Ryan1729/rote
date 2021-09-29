@@ -653,6 +653,7 @@ impl TextBuffer {
     pub fn editedness(&self) -> Editedness {
         u!{Editedness}
 
+        dbg!(&self.unedited, &self.rope);
         if self.unedited == self.rope {
             Unedited
         } else {
