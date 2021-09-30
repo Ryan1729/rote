@@ -208,6 +208,7 @@ pub enum TestEdit {
     InsertNumbersAtCursors,
     TabIn,
     TabOut,
+    StripTrailingWhitespace,
 }
 
 pub type CountNumber = usize;
@@ -294,6 +295,7 @@ impl TestEdit {
             InsertNumbersAtCursors => { buffer.insert_at_each_cursor(|i| i.to_string(), None); },
             TabIn => { buffer.tab_in(None); },
             TabOut => { buffer.tab_out(None); },
+            StripTrailingWhitespace => { buffer.strip_trailing_whitespace(None); },
         };
     }
 
@@ -423,6 +425,9 @@ impl TestEdit {
 
                 *counts = clone_counts;
             },
+            StripTrailingWhitespace => {
+                todo!("Will I ever even care about this one?");
+            }
         }
         Self::apply_ref(buffer, edit);
     }
@@ -437,7 +442,7 @@ impl TestEdit {
                 false
             }
             Insert(_) | InsertString(_) | Delete | DeleteLines | Cut 
-            | InsertNumbersAtCursors | TabIn | TabOut => {
+            | InsertNumbersAtCursors | TabIn | TabOut | StripTrailingWhitespace => {
                 true
             }
         }

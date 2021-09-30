@@ -809,10 +809,10 @@ fn tab_out_results_in_2_spaces_then_a_single_newline_in_this_case() {
 
 #[test]
 fn tab_out_then_tab_in_is_as_expected_on_three_spaces() {
-    //                     three spaces    vvv
+    //                         three spaces    vvv
     let mut initial_buffer: TextBuffer = t_b!("   ");
     initial_buffer.set_cursors_from_vec1(vec1![cur!{l 0 o 3}]);
-    //                     four spaces      vvvv
+    //                         four spaces      vvvv
     let mut expected_buffer: TextBuffer = t_b!("    ");
     expected_buffer.set_cursors_from_vec1(vec1![cur!{l 0 o 4}]);
 
@@ -906,6 +906,25 @@ fn tab_out_preserves_non_white_space_on_this_reduced_in_a_different_way_example(
     )]);
 
     tab_out_preserves_non_white_space_on(buffer);
+}
+
+fn strip_trailing_whitespace_preserves_line_count_on(mut buffer: TextBuffer) {
+    let line_count = buffer.rope.len_lines();
+
+    for i in 0..SOME_AMOUNT {
+        TestEdit::apply(&mut buffer, TestEdit::StripTrailingWhitespace);
+
+        assert_eq!(line_count, buffer.rope.len_lines(), "iteration {}", i);
+    }
+}
+
+proptest! {
+    #[test]
+    fn strip_trailing_whitespace_preserves_line_count(
+        buffer in arb::text_buffer_with_many_cursors(),
+    ) {
+        strip_trailing_whitespace_preserves_line_count_on(buffer);
+    }
 }
 
 fn get_code_like_example() -> TextBuffer {
