@@ -559,7 +559,9 @@ fn strip_trailing_whitespace_step(
 ) {
     dbg!(line, line_end, slice_end);
     let last_non_white_space_offset: Option<CharOffset> =
-        get_last_non_white_space_offset_in_range(line, d!()..=line_end);
+        get_last_non_white_space_offset_in_range(line, d!()..=line_end)
+        // We add one so we keep the final whitespace
+        .map(|CharOffset(o)| CharOffset(o.saturating_add(1)));
 
     let strip_after = min(
         last_non_white_space_offset.unwrap_or(CharOffset(0)),
@@ -977,6 +979,16 @@ pub mod tests {
         #[test]
         fn on_a_line_with_4_trailing_spaces() {
             a!("    \n" "\n");
+        }
+
+        #[test]
+        fn on_a_line_with_a_non_white_space_then_4_trailing_spaces() {
+            a!("a    \n" "a\n");
+        }
+
+        #[test]
+        fn on_a_line_with_two_non_white_space_then_4_trailing_spaces() {
+            a!("ab    \n" "ab\n");
         }
     }
 }
