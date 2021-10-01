@@ -908,33 +908,43 @@ fn tab_out_preserves_non_white_space_on_this_reduced_in_a_different_way_example(
     tab_out_preserves_non_white_space_on(buffer);
 }
 
-fn strip_trailing_whitespace_preserves_line_count_on(mut buffer: TextBuffer) {
-    let line_count = buffer.rope.len_lines();
-
-    for i in 0..SOME_AMOUNT {
-        TestEdit::apply(&mut buffer, TestEdit::StripTrailingWhitespace);
-
-        assert_eq!(line_count, buffer.rope.len_lines(), "iteration {}", i);
+mod strip_trailing_whitespace_preserves_line_count {
+    use super::{assert_eq, *};
+    fn on(mut buffer: TextBuffer) {
+        let line_count = buffer.rope.len_lines();
+    
+        for i in 0..SOME_AMOUNT {
+            TestEdit::apply(&mut buffer, TestEdit::StripTrailingWhitespace);
+    
+            assert_eq!(line_count, buffer.rope.len_lines(), "iteration {}", i);
+        }
     }
-}
-
-proptest! {
+    
+    proptest! {
+        #[test]
+        fn arb_text_buffer_with_many_cursors(
+            buffer in arb::text_buffer_with_many_cursors(),
+        ) {
+            on(buffer);
+        }
+    }
+    
     #[test]
-    fn strip_trailing_whitespace_preserves_line_count(
-        buffer in arb::text_buffer_with_many_cursors(),
-    ) {
-        strip_trailing_whitespace_preserves_line_count_on(buffer);
+    fn on_this_found_example() {
+        let mut buffer = t_b!("\u{2029}");
+        buffer.set_cursors_from_vec1(vec1![cur!{l 1 o 0 h l 0 o 0}]);
+    
+        on(buffer);
+    }
+
+    #[test]
+    fn on_this_found_asciified_example() {
+        let mut buffer = t_b!("\r");
+        buffer.set_cursors_from_vec1(vec1![cur!{l 1 o 0 h l 0 o 0}]);
+    
+        on(buffer);
     }
 }
-
-#[test]
-fn strip_trailing_whitespace_preserves_line_count_on_this_found_example() {
-    let mut buffer = t_b!("\u{2029}");
-    buffer.set_cursors_from_vec1(vec1![cur!{l 1 o 0 h l 0 o 0}]);
-
-    strip_trailing_whitespace_preserves_line_count_on(buffer);
-}
-
 
 fn get_code_like_example() -> TextBuffer {
     // like this:
