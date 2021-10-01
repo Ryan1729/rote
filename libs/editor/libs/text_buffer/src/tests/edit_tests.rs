@@ -927,6 +927,15 @@ proptest! {
     }
 }
 
+#[test]
+fn strip_trailing_whitespace_preserves_line_count_on_this_found_example() {
+    let mut buffer = t_b!("\u{2029}");
+    buffer.set_cursors_from_vec1(vec1![cur!{l 1 o 0 h l 0 o 0}]);
+
+    strip_trailing_whitespace_preserves_line_count_on(buffer);
+}
+
+
 fn get_code_like_example() -> TextBuffer {
     // like this:
     /*
