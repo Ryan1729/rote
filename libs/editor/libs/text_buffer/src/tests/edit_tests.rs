@@ -24,6 +24,7 @@ use crate::{
     ApplyKind,
     TextBuffer,
 };
+use panic_safe_rope::is_linebreak_char;
 use editor_types::{cur, Cursor};
 use macros::{some_or, dbg};
 use move_cursor::last_position;
@@ -910,13 +911,33 @@ fn tab_out_preserves_non_white_space_on_this_reduced_in_a_different_way_example(
 
 mod strip_trailing_whitespace_preserves_line_count {
     use super::{assert_eq, *};
+    fn get_newline_count(rope: &Rope) -> usize {
+        rope.chars().filter(|&c| c == '\n').count()
+    }
+
+    fn get_linebreak_count(rope: &Rope) -> usize {
+        rope.chars().filter(|&c| is_linebreak_char(c)).count()
+    }
+
     fn on(mut buffer: TextBuffer) {
+        // The main thing is the line_count assert. If this is confusing, move the
+        // other asserts into their own test I guess?
         let line_count = buffer.rope.len_lines();
+
+        let newline_count = get_newline_count(&buffer.rope);
+
+        let has_non_nl_linebreaks = newline_count != get_linebreak_count(&buffer.rope);
     
         for i in 0..SOME_AMOUNT {
             TestEdit::apply(&mut buffer, TestEdit::StripTrailingWhitespace);
-    
-            assert_eq!(buffer.rope.len_lines(), line_count, "iteration {}", i);
+
+            assert_eq!(buffer.rope.len_lines(), line_count, "line_count on iteration {}", i);
+
+            if has_non_nl_linebreaks {
+                continue;
+            }
+
+            assert_eq!(get_newline_count(&buffer.rope), newline_count, "newline_count on iteration {}", i);
         }
     }
     
