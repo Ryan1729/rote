@@ -916,7 +916,7 @@ mod strip_trailing_whitespace_preserves_line_count {
         for i in 0..SOME_AMOUNT {
             TestEdit::apply(&mut buffer, TestEdit::StripTrailingWhitespace);
     
-            assert_eq!(line_count, buffer.rope.len_lines(), "iteration {}", i);
+            assert_eq!(buffer.rope.len_lines(), line_count, "iteration {}", i);
         }
     }
     
@@ -951,6 +951,18 @@ mod strip_trailing_whitespace_preserves_line_count {
         buffer.set_cursors_from_vec1(vec1![cur!{l 0 o 0 h l 2 o 5}]);
     
         on(buffer);
+    }
+
+    #[test]
+    fn on_this_blank_line_between_example_reduction() {
+        let mut buffer = t_b!("a    \n     \nb    ");
+        buffer.set_cursors_from_vec1(vec1![cur!{l 0 o 0 h l 2 o 5}]);
+    
+        let line_count = buffer.rope.len_lines();
+    
+        buffer.strip_trailing_whitespace(None);
+
+        assert_eq!(buffer.rope.len_lines(), line_count);
     }
 
     #[test]
