@@ -960,9 +960,12 @@ mod strip_trailing_whitespace_preserves_line_count {
     
         let line_count = buffer.rope.len_lines();
     
-        buffer.strip_trailing_whitespace(None);
+        let stw_edit = edit::get_strip_trailing_whitespace_edit(&buffer.rope, &buffer.cursors);
 
-        assert_eq!(buffer.rope.len_lines(), line_count);
+        let inserted_chars = &stw_edit.range_edits().first().insert_range.as_ref().unwrap().chars;
+
+        let actual = inserted_chars.lines().count();
+        assert_eq!(actual, line_count.0, "{:?} has the wrong number of lines", inserted_chars);
     }
 
     #[test]

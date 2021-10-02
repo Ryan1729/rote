@@ -580,7 +580,8 @@ fn strip_trailing_whitespace_step(
         }
     }
 
-    if chars.ends_with(is_linebreak_char) {
+    // TODO It strikes me that this condition can probably be less complicated
+    if chars.ends_with(is_linebreak_char) && strip_after != CharOffset(0) {
         return;
     }
 
@@ -648,6 +649,13 @@ fn get_line_slicing_edit(
                         let end_of_selection_on_line: CharOffset = selected_max - first_char_of_line;
                         dbg!(end_of_selection_on_line, end_of_selection_on_line)
                     };
+
+                    dbg!(
+                        &line,
+                        line_end,
+                        slice_end,
+                        &mut chars
+                    );
 
                     step(
                         line,
