@@ -1012,6 +1012,14 @@ mod strip_trailing_whitespace_preserves_line_count {
     
         on(buffer);
     }
+
+    #[test]
+    fn on_this_multiline_trailing_newline_partial_select_example() {
+        let mut buffer = t_b!("a    \n     \nb    \nnon-selected\n");
+        buffer.set_cursors_from_vec1(vec1![cur!{l 0 o 0 h l 3 o 0}]);
+    
+        on(buffer);
+    }
 }
 
 fn get_code_like_example() -> TextBuffer {
