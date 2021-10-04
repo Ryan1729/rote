@@ -557,6 +557,10 @@ fn strip_trailing_whitespace_step(
     RelativeSelected{ line_end, slice_end }: RelativeSelected,
     chars: &mut String,
 ) {
+    if slice_end == CharOffset(0) {
+        return
+    }
+
     dbg!(line, line_end, slice_end);
     let last_non_white_space_offset: Option<CharOffset> =
         get_last_non_white_space_offset_in_range(line, d!()..=line_end)
@@ -569,7 +573,6 @@ fn strip_trailing_whitespace_step(
     );
 
     dbg!(last_non_white_space_offset, last_non_white_space_offset.unwrap_or(line_end), strip_after);
-
     if let Some(sliced_line) = line.slice(CharOffset(0)..strip_after) {
         if let Some(s) = sliced_line.as_str_if_no_allocation_needed() {
             chars.push_str(s);
