@@ -1020,6 +1020,30 @@ mod strip_trailing_whitespace_preserves_line_count {
     
         on(buffer);
     }
+
+    #[test]
+    fn on_this_multiline_trailing_newline_partial_select_example_reduction() {
+        let mut buffer = t_b!("a    \n     \nb    \nnon-selected\n");
+        buffer.set_cursors_from_vec1(vec1![cur!{l 0 o 0 h l 3 o 0}]);
+    
+        let line_count = buffer.rope.len_lines();
+
+        let newline_count = get_newline_count(&buffer.rope);
+
+        let has_non_nl_linebreaks = newline_count != get_linebreak_count(&buffer.rope);
+    
+        for i in 0..SOME_AMOUNT {
+            TestEdit::apply(&mut buffer, TestEdit::StripTrailingWhitespace);
+
+            assert_eq!(buffer.rope.len_lines(), line_count, "line_count on iteration {}", i);
+
+            if has_non_nl_linebreaks {
+                continue;
+            }
+
+            assert_eq!(get_newline_count(&buffer.rope), newline_count, "newline_count on iteration {}", i);
+        }
+    }
 }
 
 fn get_code_like_example() -> TextBuffer {
