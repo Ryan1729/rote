@@ -1028,7 +1028,16 @@ mod strip_trailing_whitespace_preserves_line_count {
     
         let line_count = buffer.rope.len_lines();
 
-        TestEdit::apply(&mut buffer, TestEdit::StripTrailingWhitespace);
+        let stw_edit = edit::get_strip_trailing_whitespace_edit(&buffer.rope, &buffer.cursors);
+
+        let inserted_chars = &stw_edit.range_edits().first().insert_range.as_ref().unwrap().chars;
+        assert_eq!(inserted_chars, "a\n\nb\n");
+
+        let applier = Applier::new(
+            &mut buffer.rope,
+            &mut buffer.cursors
+        );
+        edit::apply(applier, &stw_edit);
 
         assert_eq!(buffer.rope.len_lines(), line_count, "line_count mismatch");
     }
