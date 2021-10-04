@@ -1028,21 +1028,9 @@ mod strip_trailing_whitespace_preserves_line_count {
     
         let line_count = buffer.rope.len_lines();
 
-        let newline_count = get_newline_count(&buffer.rope);
+        TestEdit::apply(&mut buffer, TestEdit::StripTrailingWhitespace);
 
-        let has_non_nl_linebreaks = newline_count != get_linebreak_count(&buffer.rope);
-    
-        for i in 0..SOME_AMOUNT {
-            TestEdit::apply(&mut buffer, TestEdit::StripTrailingWhitespace);
-
-            assert_eq!(buffer.rope.len_lines(), line_count, "line_count on iteration {}", i);
-
-            if has_non_nl_linebreaks {
-                continue;
-            }
-
-            assert_eq!(get_newline_count(&buffer.rope), newline_count, "newline_count on iteration {}", i);
-        }
+        assert_eq!(buffer.rope.len_lines(), line_count, "line_count mismatch");
     }
 }
 
