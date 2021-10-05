@@ -864,8 +864,11 @@ pub fn run(
         macro_rules! load_file {
             ($path: expr) => {{
                 let p = $path;
-                match read_path_to_string(&p) {
-                    Ok(s) => {
+                // TODO pass PathReadMode down from above
+                match read_path_to_string(&p, PathReadMode::ExactlyAsPassed) {
+                    Ok(StringWithPosition{string: s, position: _}) => {
+                        // TODO jump to the position after opening the file
+
                         call_u_and_r!(Input::AddOrSelectBuffer(BufferName::Path(p), s));
 
                         // The main reason for this window manipulation is for after
@@ -1775,6 +1778,75 @@ fn canonical_or_same<P: AsRef<Path>>(p: P) -> PathBuf {
     path.canonicalize().unwrap_or_else(|_| path.into())
 }
 
-fn read_path_to_string(p: &Path) -> Result<String, std::io::Error> {
-    std::fs::read_to_string(p)
+#[allow(dead_code)] // until we start using CheckForTrailingLocation
+enum PathReadMode {
+    ExactlyAsPassed,
+    CheckForTrailingLocation
+}
+
+#[allow(dead_code)] // until we start using CheckForTrailingLocation
+struct StringWithPosition {
+    string: String,
+    position: Position,
+}
+
+enum PathReadError {
+    IO(std::io::Error),
+    Str(&'static str)
+}
+
+macros::fmt_display!{
+    for PathReadError: match pre {
+        IO(e) => e.to_string(),
+        Str(s) => s.to_string(),
+    }
+}
+
+fn read_path_to_string(p: &Path, mode: PathReadMode) -> Result<StringWithPosition, PathReadError> {
+    match mode {
+        PathReadMode::ExactlyAsPassed => std::fs::read_to_string(p)
+                        .map(|string| {
+                            StringWithPosition {
+                                string,
+                                position: d!(),
+                            }
+                        })
+                        .map_err(PathReadError::IO),
+        PathReadMode::CheckForTrailingLocation => {
+            p.file_name()
+                .and_then(std::ffi::OsStr::to_str)
+                .ok_or_else(|| PathReadError::Str("Invalid unicode?"))
+                .and_then(|s| {
+                    let mut chunks = s.splitn(2, ':');
+                    let file_name = chunks.next().ok_or_else(|| PathReadError::Str("Bad filename"))?;
+
+                    let position = chunks.next()
+                        .and_then(|rest| {
+                            rest.parse::<Position>().ok()
+                        })
+                        .unwrap_or_default();
+
+                    std::fs::read_to_string(&p.with_file_name(file_name))
+                        .map(|string| {
+                            StringWithPosition {
+                                string,
+                                position,
+                            }
+                        })
+                        .map_err(PathReadError::IO)
+                })
+                // If the path is not valid unicode or whatever, then we just try 
+                // it as is.
+                .or_else(|_| {
+                    std::fs::read_to_string(p)
+                        .map(|string| {
+                            StringWithPosition {
+                                string,
+                                position: d!(),
+                            }
+                        })
+                        .map_err(PathReadError::IO)
+                })
+        }
+    }
 }
