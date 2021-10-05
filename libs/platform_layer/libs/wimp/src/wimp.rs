@@ -864,7 +864,7 @@ pub fn run(
         macro_rules! load_file {
             ($path: expr) => {{
                 let p = $path;
-                match std::fs::read_to_string(&p) {
+                match read_path_to_string(&p) {
                     Ok(s) => {
                         call_u_and_r!(Input::AddOrSelectBuffer(BufferName::Path(p), s));
 
@@ -1773,4 +1773,8 @@ fn canonical_or_same<P: AsRef<Path>>(p: P) -> PathBuf {
     let path = p.as_ref();
 
     path.canonicalize().unwrap_or_else(|_| path.into())
+}
+
+fn read_path_to_string(p: &Path) -> Result<String, std::io::Error> {
+    std::fs::read_to_string(p)
 }
