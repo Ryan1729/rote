@@ -12,7 +12,7 @@ use std::{
     time::Duration,
 };
 use wimp_render::{get_find_replace_info, FindReplaceInfo, get_go_to_position_info, GoToPositionInfo, ViewOutput, ViewAction};
-use wimp_types::{ui, ui::{PhysicalButtonState, Navigation}, transform_at, BufferStatus, BufferStatusTransition, CustomEvent, get_clipboard, ClipboardProvider, Dimensions, LabelledCommand, RunConsts, RunState, MenuMode, Pids, PidKind, EditorThreadInput};
+use wimp_types::{ui, ui::{PhysicalButtonState, Navigation}, transform_at, BufferStatus, BufferStatusTransition, CustomEvent, get_clipboard, ClipboardProvider, Dimensions, LabelledCommand, RunConsts, RunState, MenuMode, PathReadMode, Pids, PidKind, EditorThreadInput};
 use macros::{d, dbg, u};
 use platform_types::{screen_positioning::screen_to_text_box, *};
 use shared::{Res};
@@ -438,6 +438,7 @@ pub fn run(
                                 // to canonicalize this path ourselves. The code
                                 // putting the line in here must do that.
                                 std::path::PathBuf::from(line),
+                                PathReadMode::CheckForTrailingLocation,
                             ));
                     }
                 }
@@ -863,9 +864,11 @@ pub fn run(
 
         macro_rules! load_file {
             ($path: expr) => {{
+                load_file!($path, PathReadMode::ExactlyAsPassed)
+            }};
+            ($path: expr, $path_read_mode: expr) => {{
                 let p = $path;
-                // TODO pass PathReadMode down from above
-                match read_path_to_string(&p, PathReadMode::ExactlyAsPassed) {
+                match read_path_to_string(&p, $path_read_mode) {
                     Ok(StringWithPosition{string: s, position: _}) => {
                         // TODO jump to the position after opening the file
 
@@ -1042,7 +1045,7 @@ pub fn run(
                     r_s.event_proxy,
                     single,
                     r_s.view.current_path(),
-                    p in CustomEvent::OpenFile(p)
+                    p in CustomEvent::OpenFile(p, d!())
                 );
             }]
             [CTRL, P, "Switch files.", r_s {
@@ -1689,7 +1692,7 @@ pub fn run(
                             }
                         }
                     },
-                    CustomEvent::OpenFile(p) => load_file!(p),
+                    CustomEvent::OpenFile(p, path_read_mode) => load_file!(p, path_read_mode),
                     CustomEvent::SaveNewFile(p, index) => {
                         // TODO Stop receiving this here and forwarding to the next
                         // thread, and instead send it there directly
@@ -1776,12 +1779,6 @@ fn canonical_or_same<P: AsRef<Path>>(p: P) -> PathBuf {
     let path = p.as_ref();
 
     path.canonicalize().unwrap_or_else(|_| path.into())
-}
-
-#[allow(dead_code)] // until we start using CheckForTrailingLocation
-enum PathReadMode {
-    ExactlyAsPassed,
-    CheckForTrailingLocation
 }
 
 #[allow(dead_code)] // until we start using CheckForTrailingLocation
