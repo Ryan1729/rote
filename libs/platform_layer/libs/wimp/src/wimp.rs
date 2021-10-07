@@ -867,12 +867,16 @@ pub fn run(
                 load_file!($path, PathReadMode::ExactlyAsPassed)
             }};
             ($path: expr, $path_read_mode: expr) => {{
-                let p = $path;
-                match read_path_to_string(&p, $path_read_mode) {
-                    Ok(StringWithPosition{string: s, position: _}) => {
-                        // TODO jump to the position after opening the file
+                let unparsed_path = $path;
+                match read_path_to_string(&unparsed_path, $path_read_mode) {
+                    Ok(ReadPath{string: s, position, path}) => {
+                        let input = if let Some(position) = position {
+                            Input::AddOrSelectBufferThenGoTo(BufferName::Path(path), s, position)
+                        } else {
+                            Input::AddOrSelectBuffer(BufferName::Path(path), s)
+                        };
 
-                        call_u_and_r!(Input::AddOrSelectBuffer(BufferName::Path(p), s));
+                        call_u_and_r!(input);
 
                         // The main reason for this window manipulation is for after
                         // reading from the path mailbox.
@@ -888,7 +892,7 @@ pub fn run(
                     Err(err) => {
                         handle_platform_error!(
                             r_s,
-                            format!("{}\npath: {}", err, p.to_string_lossy())
+                            format!("{}\npath: {}", err, unparsed_path.to_string_lossy())
                         );
                     }
                 }
@@ -1781,10 +1785,10 @@ fn canonical_or_same<P: AsRef<Path>>(p: P) -> PathBuf {
     path.canonicalize().unwrap_or_else(|_| path.into())
 }
 
-#[allow(dead_code)] // until we start using CheckForTrailingLocation
-struct StringWithPosition {
+struct ReadPath {
     string: String,
-    position: Position,
+    position: Option<Position>,
+    path: PathBuf,
 }
 
 enum PathReadError {
@@ -1799,18 +1803,19 @@ macros::fmt_display!{
     }
 }
 
-fn read_path_to_string(p: &Path, mode: PathReadMode) -> Result<StringWithPosition, PathReadError> {
+fn read_path_to_string(path: &Path, mode: PathReadMode) -> Result<ReadPath, PathReadError> {
     match mode {
-        PathReadMode::ExactlyAsPassed => std::fs::read_to_string(p)
+        PathReadMode::ExactlyAsPassed => std::fs::read_to_string(path)
                         .map(|string| {
-                            StringWithPosition {
+                            ReadPath {
                                 string,
                                 position: d!(),
+                                path: path.to_owned()
                             }
                         })
                         .map_err(PathReadError::IO),
         PathReadMode::CheckForTrailingLocation => {
-            p.file_name()
+            path.file_name()
                 .and_then(std::ffi::OsStr::to_str)
                 .ok_or_else(|| PathReadError::Str("Invalid unicode?"))
                 .and_then(|s| {
@@ -1820,14 +1825,16 @@ fn read_path_to_string(p: &Path, mode: PathReadMode) -> Result<StringWithPositio
                     let position = chunks.next()
                         .and_then(|rest| {
                             rest.parse::<Position>().ok()
-                        })
-                        .unwrap_or_default();
+                        });
 
-                    std::fs::read_to_string(&p.with_file_name(file_name))
+                    let adjusted_path = path.with_file_name(file_name);
+
+                    std::fs::read_to_string(&adjusted_path)
                         .map(|string| {
-                            StringWithPosition {
+                            ReadPath {
                                 string,
                                 position,
+                                path: adjusted_path,
                             }
                         })
                         .map_err(PathReadError::IO)
@@ -1835,11 +1842,12 @@ fn read_path_to_string(p: &Path, mode: PathReadMode) -> Result<StringWithPositio
                 // If the path is not valid unicode or whatever, then we just try 
                 // it as is.
                 .or_else(|_| {
-                    std::fs::read_to_string(p)
+                    std::fs::read_to_string(path)
                         .map(|string| {
-                            StringWithPosition {
+                            ReadPath {
                                 string,
                                 position: d!(),
+                                path: path.to_owned()
                             }
                         })
                         .map_err(PathReadError::IO)

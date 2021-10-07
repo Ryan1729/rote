@@ -537,6 +537,7 @@ arb_enum!{
         Paste(_) => proptest::option::of(".*").prop_map(Paste),
         InsertNumbersAtCursors => Just(InsertNumbersAtCursors),
         AddOrSelectBuffer(_, _) => (buffer_name(), ".*").prop_map(|(bn, s)| AddOrSelectBuffer(bn, s)),
+        AddOrSelectBufferThenGoTo(_, _, _) => (buffer_name(), ".*", text_pos::tests::arb::pos(16, 16)).prop_map(|(bn, s, p)| AddOrSelectBufferThenGoTo(bn, s, p)),
         NewScratchBuffer(_) => proptest::option::of(".*").prop_map(NewScratchBuffer),
         TabIn => Just(TabIn),
         TabOut => Just(TabOut),

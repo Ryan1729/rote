@@ -19,7 +19,7 @@ use text_buffer::{
 mod editor_view;
 mod editor_buffers;
 use editor_buffers::{
-    EditorBuffers, 
+    EditorBuffers,
     EditorBuffer
 };
 
@@ -32,9 +32,9 @@ mod clipboard_history {
         entries: VecDeque<String>,
         index: usize,
     }
-    
+
     const AVERAGE_SELECTION_SIZE_ESTIMATE: usize = 32;
-    
+
     impl ClipboardHistory {
         pub fn cut(&mut self, buffer: &mut TextBuffer, listener: ppel!()) -> (Option<String>, PossibleEditedTransition) {
             let (selections, transition) = buffer.cut_selections(listener);
@@ -52,18 +52,18 @@ mod clipboard_history {
             listener: ppel!(),
         ) -> Option<EditedTransition> {
             let mut output = None;
-    
+
             if let Some(s) = possible_string {
                 self.push_if_does_not_match_top(s)
             }
-    
+
             if let Some(s) = self.entries.get(self.index) {
                 output = buffer.insert_string(s.to_owned(), listener);
             }
-    
+
             output
         }
-    
+
         fn push_and_join_into_option(
             &mut self,
             strings: Vec<String>
@@ -74,22 +74,22 @@ mod clipboard_history {
                 let mut output = String::with_capacity(
                     strings.len() * AVERAGE_SELECTION_SIZE_ESTIMATE
                 );
-    
+
                 let mut sep = "";
                 for s in strings {
                     output.push_str(sep);
-    
+
                     output.push_str(&s);
-    
+
                     self.push_if_does_not_match_top(s);
-    
+
                     sep = "\n";
                 }
-    
+
                 Some(output)
             }
         }
-    
+
         fn push_if_does_not_match_top(&mut self, to_push: String) {
             match self.entries.get(self.index).map(|s| s != &to_push) {
                 None => {
@@ -107,7 +107,8 @@ mod clipboard_history {
 use clipboard_history::ClipboardHistory;
 
 #[derive(Default)]
-pub struct State {    buffers: EditorBuffers,
+pub struct State {
+    buffers: EditorBuffers,
     buffer_xywh: TextBoxXYWH,
     current_buffer_kind: BufferIdKind,
     menu_mode: MenuMode,
@@ -263,7 +264,7 @@ impl State {
     fn set_id(&mut self, id: BufferId) {
         if kind_editable_during_mode(id.kind, self.menu_mode) {
             self.current_buffer_kind = id.kind;
-    
+
             if let Some(buffer) = get_text_buffer_mut!(self) {
                 // These need to be cleared so that the `platform_types::View` that is passed down
                 // can be examined to detemine if the user wants to navigate away from the given
@@ -272,7 +273,7 @@ impl State {
                 // ones, including plain `Text` buffers.
                 buffer.reset_cursor_states();
             }
-    
+
             self.buffers.set_current_index(id.index);
         }
     }
@@ -322,7 +323,7 @@ impl State {
         match attempt_result {
             VisibilityAttemptResult::Succeeded => Some(()),
             // TODO remove VisibilityAttemptResult once we are sure we don't need it.
-            #[allow(unreachable_patterns)] 
+            #[allow(unreachable_patterns)]
             _ => Option::None,
         }
     }
@@ -399,8 +400,8 @@ impl From<&str> for State {
 
 fn parse_for_go_to_position(input: &str) -> Result<Position, std::num::ParseIntError> {
    input.parse::<Position>().map(|p| {
-        // The largest use of jumping to a position is to jump to line numbers emitted 
-        // by an error message. Most line numbers like this start at one, so we need 
+        // The largest use of jumping to a position is to jump to line numbers emitted
+        // by an error message. Most line numbers like this start at one, so we need
         // to counteract that.
         pos!{
             l p.line.saturating_sub(1),
@@ -568,7 +569,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
     }
 
     let mut cmd = Cmd::None;
-    
+
     macro_rules! close_menu_if_any {
         () => {
             state.set_menu_mode(MenuMode::Hidden);
@@ -593,7 +594,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             )
         };
         ($index: expr, $transition: expr) => {{
-            // Since this may be an expression with side effects, 
+            // Since this may be an expression with side effects,
             // we want this to be evaluated whether or not we want
             // to record the transition.
             let transition = $transition;
@@ -627,6 +628,31 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                 Unedited => ToUnedited,
             });
         }
+    }
+
+    macro_rules! add_or_select {
+        ($name: expr, $str: expr) => {{
+            let name = $name;
+            let str = $str;
+            perf_viz::record_guard!("AddOrSelectBuffer");
+            let edited_transition_opt = state.buffers.add_or_select_buffer(name, str);
+            state.current_buffer_kind = BufferIdKind::Text;
+
+            buffer_view_sync!();
+            if let Some(edited_transition) = edited_transition_opt {
+                // We need to announce this so that the user can just track the
+                // transitions and have an accurate notion of which buffers exist.
+                mark_edited_transition!(current, edited_transition);
+            }
+        }}
+    }
+
+    macro_rules! go_to_position {
+        ($position: expr) => {{
+            state.buffers.get_current_buffer_mut().text_buffer.set_cursor($position, ReplaceOrAdd::Replace);
+            state.set_menu_mode(MenuMode::Hidden);
+            try_to_show_cursors!();
+        }}
     }
 
     state.view.stats.latest_update_time_span = TimeSpan::start();
@@ -770,31 +796,27 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             new_scratch_buffer!(data_op);
         }
         TabIn => {
-            text_buffer_call!(sync b, l { 
+            text_buffer_call!(sync b, l {
                 mark_edited_transition!(current, b.tab_in(l));
             });
         }
         TabOut => {
-            text_buffer_call!(sync b, l { 
+            text_buffer_call!(sync b, l {
                 mark_edited_transition!(current, b.tab_out(l));
             });
         }
         StripTrailingWhitespace => {
-            text_buffer_call!(sync b, l { 
+            text_buffer_call!(sync b, l {
                 mark_edited_transition!(current, b.strip_trailing_whitespace(l));
             });
         }
         AddOrSelectBuffer(name, str) => {
-            perf_viz::record_guard!("AddOrSelectBuffer");
-            let edited_transition_opt = state.buffers.add_or_select_buffer(name, str);
-            state.current_buffer_kind = BufferIdKind::Text;
+            add_or_select!(name, str);
+        }
+        AddOrSelectBufferThenGoTo(name, str, position) => {
+            add_or_select!(name, str);
 
-            buffer_view_sync!();
-            if let Some(edited_transition) = edited_transition_opt {
-                // We need to announce this so that the user can just track the 
-                // transitions and have an accurate notion of which buffers exist.
-                mark_edited_transition!(current, edited_transition);
-            }
+            go_to_position!(position);
         }
         AdjustBufferSelection(adjustment) => {
             dbg!(&state.buffers);
@@ -834,7 +856,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             } else {
                 let mut selections = d!();
 
-                text_buffer_call!(b { 
+                text_buffer_call!(b {
                     selections = b.copy_selections();
                 });
 
@@ -858,15 +880,15 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                     (s, _) => {s}
                 };
 
-                // We know that this is a non-editor buffer, so we don't need to 
+                // We know that this is a non-editor buffer, so we don't need to
                 // care about edited transitions at the current time.
                 text_buffer_call!(b {
                     if let Some(selection) = selection {
                         // For the small menu buffers I'd rather keep all the history
-                        // even if the history order is confusing, since the text 
+                        // even if the history order is confusing, since the text
                         // entered is usually small ... kind of like a shell prompt.
                         const UPPER_LOOP_BOUND: usize = 1024;
-                        // Use a bound like this just in case, since we do actually 
+                        // Use a bound like this just in case, since we do actually
                         // proiritize a sufficently quick response over a perfect history
                         for _ in 0..UPPER_LOOP_BOUND {
                             // Since we know this is a non-editor buffer, we also
@@ -876,7 +898,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                                 break;
                             }
                         }
-    
+
                         b.select_all();
                         // See note above about listener parameter.
                         b.insert_string(selection, Option::None);
@@ -904,7 +926,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                     state.buffers.get_current_buffer_mut().advance_or_refresh_search_results(
                         (&state.find).into(),
                     );
-                    
+
                     try_to_show_cursors!(BufferIdKind::Text);
                     try_to_show_cursors!();
                 }
@@ -917,9 +939,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                 text_buffer_call!(b{
                     let input: String = b.into();
                     if let Ok(position) = parse_for_go_to_position(&input) {
-                        state.buffers.get_current_buffer_mut().text_buffer.set_cursor(position, ReplaceOrAdd::Replace);
-                        state.set_menu_mode(MenuMode::Hidden);
-                        try_to_show_cursors!();
+                        go_to_position!(position);
                     }
                     // TODO: show Err case
                 });
@@ -930,9 +950,9 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
         },
         ShowError(error) => {
             let mut saw_same_error = false;
-            
+
             for editor_buffer in state.buffers.iter() {
-                if let BufferName::Scratch(_) = &editor_buffer.name {                    
+                if let BufferName::Scratch(_) = &editor_buffer.name {
                     if editor_buffer.text_buffer.borrow_rope() == &error {
                         saw_same_error = true;
                         break;
