@@ -121,8 +121,8 @@ pub fn run(
                 })
                 // Would it be better to open the window and display a path error
                 // there instead of `?` here?
-                // If someone specified a file, they probably want to open that 
-                // particular file, or maybe they made a typo, either way, they 
+                // If someone specified a file, they probably want to open that
+                // particular file, or maybe they made a typo, either way, they
                 // probably would rather have the feedback in their terminal or
                 // whatever, so they can correct the file name
                 .map(PathBuf::from)?;
@@ -261,7 +261,7 @@ pub fn run(
                         // paths.
                         // TODO: is there a reasonable way to avoid these extra
                         // allocations?
-                        let _write_on_string_cannot_fail = 
+                        let _write_on_string_cannot_fail =
                             write!(&mut path_list, "{}\n", p.to_string_lossy());
                     }
 
@@ -355,7 +355,7 @@ pub fn run(
     enum PathMailboxThread {
         Quit,
     }
-    
+
     let mut path_mailbox_join_handle = Some({
         let running_lock_path = running_lock_path.clone();
         let path_mailbox_path = path_mailbox_path.clone();
@@ -390,7 +390,7 @@ pub fn run(
                         use PathMailboxThread::*;
                         match message {
                             Quit => {
-                                let running_lock_path_string = 
+                                let running_lock_path_string =
                                     running_lock_path.to_string_lossy().to_string();
                                 match std::fs::remove_file(
                                     running_lock_path
@@ -528,7 +528,7 @@ pub fn run(
 
         // We return early here for similar reasons to the reasons given in the
         // comment by the FILE argument parsing code above.
-        for p in extra_paths {            
+        for p in extra_paths {
             previous_tabs.push(load_tab(p, PathReadMode::CheckForTrailingLocation)?);
         }
 
@@ -598,7 +598,7 @@ pub fn run(
         let clipboard = get_clipboard();
 
         let mut view: wimp_types::View = d!();
-        
+
         view.update(v, d!());
 
         RunState {
@@ -821,7 +821,7 @@ pub fn run(
                 fn command($vars: &mut CommandVars) {
                     $code
                 }
-                let key = ($modifiers, VirtualKeyCode::$main_key);  
+                let key = ($modifiers, VirtualKeyCode::$main_key);
                 debug_assert!(r_c.commands.get(&key).is_none());
                 r_c.commands.insert(key, LabelledCommand{ label: $label, command});
             }}
@@ -910,7 +910,7 @@ pub fn run(
                     std::sync::Arc::new(std::sync::Mutex::new($event_proxy.clone()));
                 let proxy = proxy.clone();
                 file_chooser::$func(
-                    $default_path, 
+                    $default_path,
                     move |$path: PathBuf| {
                         let _bye = proxy
                             .lock()
@@ -928,7 +928,7 @@ pub fn run(
             ($r_s: expr, $mode: expr) => {
                 let r_s = $r_s;
                 let mode: MenuMode = $mode;
-                
+
                 call_u_and_r!(r_s, Input::SetMenuMode(mode));
 
                 call_u_and_r!(r_s, Input::SetSizeDependents(
@@ -1296,7 +1296,7 @@ pub fn run(
                     // As of this writing, issues on https://github.com/rust-windowing/winit ,
                     // specifically #1124 and #883, suggest that the it is up in the air as to
                     // whether the modifiers field on some of the matches below will actually
-                    // be eventually removed or not. So, in the meantime, I choose the path 
+                    // be eventually removed or not. So, in the meantime, I choose the path
                     // that is the least work right now, since it seems unlikely for the amount
                     // of work it will be later to grow significantly. Time will tell.
                     #[allow(deprecated)]
@@ -1504,7 +1504,7 @@ pub fn run(
                                         BufferStatusTransition::from(e_t)
                                     );
                                 }
-                                
+
 
                                 r_s.cmds.push_back(c);
                             }
@@ -1606,7 +1606,7 @@ pub fn run(
                         );
 
                         let editor_stats = r_s.view.stats();
-                        // TODO move the final string into editor_view, as a 
+                        // TODO move the final string into editor_view, as a
                         // secondary status line? Either this and the status
                         // line should both be in editor_view, or neither of
                         // them should be.
@@ -1707,7 +1707,7 @@ pub fn run(
                         // thread, and instead send it there directly
                         let r_s = &mut r_s;
                         // The fact we need to store the index and retreive it later,
-                        // potentially across multiple updates, is why this thread 
+                        // potentially across multiple updates, is why this thread
                         // needs to know about the generational indices.
                         if let Some(label) = r_s.view.get_buffer_label(index)
                         {
@@ -1727,7 +1727,7 @@ pub fn run(
                         transform_at(
                             &mut r_s.buffer_status_map,
                             // TODO should this be the index state before the save?
-                            r_s.view.index_state(), 
+                            r_s.view.index_state(),
                             index,
                             transition
                         );
@@ -1738,7 +1738,7 @@ pub fn run(
                         );
                     },
                     CustomEvent::SendBuffersToBeSaved => {
-                        // TODO Can we send this directly from the edited files 
+                        // TODO Can we send this directly from the edited files
                         // thread to the editor thread, without passing through here?
                         let view = &r_s.view;
                         let index_state = view.index_state();
@@ -1746,7 +1746,7 @@ pub fn run(
 
                         let mut names = Vec::with_capacity(32);
                         let mut statuses = Vec::with_capacity(32);
-                        
+
                         for (i, label) in view.buffers.buffer_iter() {
                             names.push(label.name.clone());
                             statuses.push(
