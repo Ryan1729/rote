@@ -665,6 +665,7 @@ dependencies = [
 name = "edited_storage"
 version = "0.1.0"
 dependencies = [
+ "macros",
  "platform_types",
  "proptest",
  "rand 0.7.3",

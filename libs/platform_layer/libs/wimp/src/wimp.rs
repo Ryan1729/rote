@@ -528,8 +528,8 @@ pub fn run(
 
         // We return early here for similar reasons to the reasons given in the
         // comment by the FILE argument parsing code above.
-        for p in extra_paths {
-            previous_tabs.push(load_tab(p)?);
+        for p in extra_paths {            
+            previous_tabs.push(load_tab(p, PathReadMode::CheckForTrailingLocation)?);
         }
 
         previous_tabs
@@ -789,8 +789,13 @@ pub fn run(
             }};
         }
 
-        for (i, LoadedTab{name, data}) in loaded_tabs.into_iter().enumerate() {
-            call_u_and_r!(Input::AddOrSelectBuffer(name, data));
+        for (i, LoadedTab{ name, data, position }) in loaded_tabs.into_iter().enumerate() {
+            let input = if let Some(position) = position {
+                Input::AddOrSelectBufferThenGoTo(name, data, position)
+            } else {
+                Input::AddOrSelectBuffer(name, data)
+            };
+            call_u_and_r!(input);
 
             let index_state = r_s.view.index_state();
 
@@ -868,12 +873,12 @@ pub fn run(
             }};
             ($path: expr, $path_read_mode: expr) => {{
                 let unparsed_path = $path;
-                match read_path_to_string(&unparsed_path, $path_read_mode) {
-                    Ok(ReadPath{string: s, position, path}) => {
+                match load_tab(&unparsed_path, $path_read_mode) {
+                    Ok(LoadedTab{ name, data, position }) => {
                         let input = if let Some(position) = position {
-                            Input::AddOrSelectBufferThenGoTo(BufferName::Path(path), s, position)
+                            Input::AddOrSelectBufferThenGoTo(name, data, position)
                         } else {
-                            Input::AddOrSelectBuffer(BufferName::Path(path), s)
+                            Input::AddOrSelectBuffer(name, data)
                         };
 
                         call_u_and_r!(input);
@@ -1783,75 +1788,4 @@ fn canonical_or_same<P: AsRef<Path>>(p: P) -> PathBuf {
     let path = p.as_ref();
 
     path.canonicalize().unwrap_or_else(|_| path.into())
-}
-
-struct ReadPath {
-    string: String,
-    position: Option<Position>,
-    path: PathBuf,
-}
-
-enum PathReadError {
-    IO(std::io::Error),
-    Str(&'static str)
-}
-
-macros::fmt_display!{
-    for PathReadError: match pre {
-        IO(e) => e.to_string(),
-        Str(s) => s.to_string(),
-    }
-}
-
-fn read_path_to_string(path: &Path, mode: PathReadMode) -> Result<ReadPath, PathReadError> {
-    match mode {
-        PathReadMode::ExactlyAsPassed => std::fs::read_to_string(path)
-                        .map(|string| {
-                            ReadPath {
-                                string,
-                                position: d!(),
-                                path: path.to_owned()
-                            }
-                        })
-                        .map_err(PathReadError::IO),
-        PathReadMode::CheckForTrailingLocation => {
-            path.file_name()
-                .and_then(std::ffi::OsStr::to_str)
-                .ok_or_else(|| PathReadError::Str("Invalid unicode?"))
-                .and_then(|s| {
-                    let mut chunks = s.splitn(2, ':');
-                    let file_name = chunks.next().ok_or_else(|| PathReadError::Str("Bad filename"))?;
-
-                    let position = chunks.next()
-                        .and_then(|rest| {
-                            rest.parse::<Position>().ok()
-                        });
-
-                    let adjusted_path = path.with_file_name(file_name);
-
-                    std::fs::read_to_string(&adjusted_path)
-                        .map(|string| {
-                            ReadPath {
-                                string,
-                                position,
-                                path: adjusted_path,
-                            }
-                        })
-                        .map_err(PathReadError::IO)
-                })
-                // If the path is not valid unicode or whatever, then we just try 
-                // it as is.
-                .or_else(|_| {
-                    std::fs::read_to_string(path)
-                        .map(|string| {
-                            ReadPath {
-                                string,
-                                position: d!(),
-                                path: path.to_owned()
-                            }
-                        })
-                        .map_err(PathReadError::IO)
-                })
-        }
-    }
 }
