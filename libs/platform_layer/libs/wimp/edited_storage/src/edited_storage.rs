@@ -129,16 +129,42 @@ pub fn load_previous_tabs(
 }
 
 #[derive(Debug)]
-pub enum PathReadError {
+pub enum PathReadErrorKind {
     IO(std::io::Error),
     Str(&'static str)
 }
 
 fmt_display!{
-    for PathReadError: match pre {
+    for PathReadErrorKind: match kind {
         IO(e) => e.to_string(),
         Str(s) => s.to_string(),
     }
+}
+
+#[derive(Debug)]
+pub struct PathReadError {
+    kind: PathReadErrorKind,
+    last_path_tried: PathBuf,
+}
+
+impl PathReadError {
+    fn io(last_path_tried: PathBuf, error: std::io::Error) -> Self {
+        Self {
+            kind: PathReadErrorKind::IO(error),
+            last_path_tried,
+        }
+    }
+
+    fn str(last_path_tried: PathBuf, error: &'static str) -> Self {
+        Self {
+            kind: PathReadErrorKind::Str(error),
+            last_path_tried,
+        }
+    }
+}
+
+fmt_display!{
+    for PathReadError: pre in "{}\nLast Path tried: {}", pre.kind, pre.last_path_tried.display()
 }
 
 impl std::error::Error for PathReadError {}
@@ -155,31 +181,31 @@ pub fn load_tab<P: AsRef<Path>>(path: P, mode: PathReadMode) -> Result<LoadedTab
                                 position: d!(),
                             }
                         })
-                        .map_err(PathReadError::IO),
+                        .map_err(|e| PathReadError::io(path.to_owned(), e)),
         PathReadMode::CheckForTrailingLocation => {
             path.file_name()
                 .and_then(std::ffi::OsStr::to_str)
-                .ok_or_else(|| PathReadError::Str("Invalid unicode?"))
+                .ok_or_else(|| PathReadError::str(path.to_owned(), "Invalid unicode?"))
                 .and_then(|s| {
                     let mut chunks = s.splitn(2, ':');
-                    let file_name = chunks.next().ok_or_else(|| PathReadError::Str("Bad filename"))?;
+                    let file_name = chunks.next().ok_or_else(|| PathReadError::str(path.to_owned(), "Bad filename"))?;
 
                     let position = chunks.next()
                         .and_then(|rest| {
                             rest.parse::<Position>().ok()
                         });
 
-                    let adjusted_path = path.with_file_name(file_name);
-
-                    std::fs::read_to_string(&adjusted_path)
+                    let adjusted_path_buf = path.with_file_name(file_name);
+                    let adjusted_path = &adjusted_path_buf;
+                    std::fs::read_to_string(adjusted_path)
                         .map(|data| {
                             LoadedTab {
-                                name: BufferName::Path(adjusted_path),
+                                name: BufferName::Path(adjusted_path.to_owned()),
                                 data,
                                 position,
                             }
                         })
-                        .map_err(PathReadError::IO)
+                        .map_err(|e| PathReadError::io(adjusted_path.to_owned(), e))
                 })
                 // If the path is not valid unicode or whatever, then we just try 
                 // it as is.
@@ -192,7 +218,7 @@ pub fn load_tab<P: AsRef<Path>>(path: P, mode: PathReadMode) -> Result<LoadedTab
                                 position: d!(),
                             }
                         })
-                        .map_err(PathReadError::IO)
+                        .map_err(|e| PathReadError::io(path.to_owned(), e))
                 })
         }
     }
