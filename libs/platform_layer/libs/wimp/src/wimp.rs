@@ -8,7 +8,7 @@
 use glutin_wrapper::{dpi::LogicalPosition, Api, GlProfile, GlRequest};
 use std::{
     collections::VecDeque,
-    path::{Path, PathBuf},
+    path::{PathBuf},
     time::Duration,
 };
 use wimp_render::{get_find_replace_info, FindReplaceInfo, get_go_to_position_info, GoToPositionInfo, ViewOutput, ViewAction};
@@ -16,6 +16,7 @@ use wimp_types::{ui, ui::{PhysicalButtonState, Navigation}, transform_at, Buffer
 use macros::{d, dbg, u};
 use platform_types::{screen_positioning::screen_to_text_box, *};
 use shared::{Res};
+use edited_storage::{canonical_or_same, load_tab, load_previous_tabs, LoadedTab};
 
 #[perf_viz::record]
 pub fn run(
@@ -520,8 +521,6 @@ pub fn run(
     let (editor_in_sink, editor_in_source) = channel();
     // out of the editor thread
     let (editor_out_sink, editor_out_source) = channel();
-
-    use edited_storage::{load_tab, load_previous_tabs, LoadedTab};
 
     let loaded_tabs = {
         let mut previous_tabs = load_previous_tabs(&edited_files_dir_buf, &edited_files_index_path_buf);
@@ -1782,10 +1781,4 @@ pub fn run(
             }
         });
     }
-}
-
-fn canonical_or_same<P: AsRef<Path>>(p: P) -> PathBuf {
-    let path = p.as_ref();
-
-    path.canonicalize().unwrap_or_else(|_| path.into())
 }

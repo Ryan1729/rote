@@ -94,6 +94,12 @@ pub fn store_buffers(
     Ok(result)
 }
 
+pub fn canonical_or_same<P: AsRef<Path>>(p: P) -> PathBuf {
+    let path = p.as_ref();
+
+    path.canonicalize().unwrap_or_else(|_| path.into())
+}
+
 pub struct LoadedTab {
     pub name: BufferName,
     pub data: String,
@@ -138,7 +144,8 @@ fmt_display!{
 impl std::error::Error for PathReadError {}
 
 pub fn load_tab<P: AsRef<Path>>(path: P, mode: PathReadMode) -> Result<LoadedTab, PathReadError>{
-    let path = path.as_ref();
+    let pathbuf = canonical_or_same(path);
+    let path: &Path = pathbuf.as_ref();
     match mode {
         PathReadMode::ExactlyAsPassed => std::fs::read_to_string(path)
                         .map(|data| {
