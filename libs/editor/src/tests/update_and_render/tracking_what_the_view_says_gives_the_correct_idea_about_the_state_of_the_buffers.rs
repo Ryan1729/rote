@@ -285,6 +285,16 @@ fn in_this_generated_heavy_saving_case() {
 }
 
 #[test]
+fn in_the_default_add_or_select_buffer_then_go_to_case() {
+    u!{BufferName, Input}
+
+    on(
+        d!(),
+        vec![AddOrSelectBufferThenGoTo(Scratch(0), "".to_string(), pos!{l 0 o 0})]
+    )
+}
+
+#[test]
 fn if_we_search_for_the_empty_string() {
     u!{BufferIdKind, Input}
     on(
