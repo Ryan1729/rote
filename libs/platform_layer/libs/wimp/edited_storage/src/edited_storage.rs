@@ -2,14 +2,14 @@
 use platform_types::*;
 
 use rand::{thread_rng, Rng};
-use wimp_types::{BufferStatus, BufferStatusTransition, PathReadMode};
+use wimp_types::{BufferStatus, BufferStatusTransition};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use macros::{d, fmt_display};
 
 #[derive(Debug)]
 pub struct BufferInfo {
-    pub name: BufferName, 
+    pub name: BufferName,
     pub name_string: String,
     pub chars: String,
     pub status: BufferStatus,
@@ -94,10 +94,112 @@ pub fn store_buffers(
     Ok(result)
 }
 
-pub fn canonical_or_same<P: AsRef<Path>>(p: P) -> PathBuf {
+#[derive(Debug)]
+pub enum CanonicalizeErrorKind {
+    IO(std::io::Error),
+    Str(&'static str)
+}
+
+fmt_display!{
+    for CanonicalizeErrorKind: match kind {
+        IO(e) => e.to_string(),
+        Str(s) => s.to_string(),
+    }
+}
+
+#[derive(Debug)]
+pub struct CanonicalizeError {
+    kind: CanonicalizeErrorKind,
+    last_path_tried: PathBuf,
+}
+
+impl CanonicalizeError {
+    pub fn io(last_path_tried: PathBuf, error: std::io::Error) -> Self {
+        Self {
+            kind: CanonicalizeErrorKind::IO(error),
+            last_path_tried,
+        }
+    }
+
+    pub fn str(last_path_tried: PathBuf, error: &'static str) -> Self {
+        Self {
+            kind: CanonicalizeErrorKind::Str(error),
+            last_path_tried,
+        }
+    }
+}
+
+fmt_display!{
+    for CanonicalizeError: pre in "{}\nLast Path tried: {}", pre.kind, pre.last_path_tried.display()
+}
+
+impl std::error::Error for CanonicalizeError {}
+
+pub struct CanonicalPath {
+    pub path: PathBuf,
+    pub position: Option<Position>,
+}
+
+impl <'path> CanonicalPath {
+    pub fn to_string_lossy(&'path self) -> std::borrow::Cow<'path, str> {
+        if let Some(position) = self.position {
+            if let Some(os_str) = self.path.file_name() {
+                let mut file_name = os_str.to_owned();
+                file_name.push::<String>(format!(":{}", position.line).into());
+
+                let adjusted_path = self.path.with_file_name(file_name);
+                let cow = adjusted_path.to_string_lossy();
+
+                use std::borrow::Cow::{Borrowed, Owned};
+                return match cow {
+                    Borrowed(s) => Owned(s.to_owned()),
+                    Owned(s) => Owned(s)
+                };
+            }
+        }
+
+        self.path.to_string_lossy()
+    }
+}
+
+pub fn canonicalize<P: AsRef<Path>>(p: P) -> Result<CanonicalPath, CanonicalizeError> {
     let path = p.as_ref();
 
-    path.canonicalize().unwrap_or_else(|_| path.into())
+    path.file_name()
+        .and_then(std::ffi::OsStr::to_str)
+        .ok_or_else(|| CanonicalizeError::str(path.to_owned(), "Invalid unicode?"))
+        .and_then(|s| {
+            let mut chunks = s.splitn(2, ':');
+            let file_name = chunks.next().ok_or_else(|| CanonicalizeError::str(path.to_owned(), "Bad filename"))?;
+
+            let position = chunks.next()
+                .and_then(|rest| {
+                    rest.parse::<Position>().ok()
+                });
+
+            let adjusted_path_buf = path.with_file_name(file_name);
+            let adjusted_path = &adjusted_path_buf;
+            adjusted_path.canonicalize()
+                .map(|path| {
+                    CanonicalPath {
+                        path,
+                        position,
+                    }
+                })
+                .map_err(|e| CanonicalizeError::io(adjusted_path.to_owned(), e))
+        })
+        // If the path is not valid unicode or whatever, then we just try
+        // it as is.
+        .or_else(|_| {
+            path.canonicalize()
+                .map(|path| {
+                    CanonicalPath {
+                        path,
+                        position: d!(),
+                    }
+                })
+                .map_err(|e| CanonicalizeError::io(path.to_owned(), e))
+        })
 }
 
 pub struct LoadedTab {
@@ -128,100 +230,15 @@ pub fn load_previous_tabs(
     result
 }
 
-#[derive(Debug)]
-pub enum PathReadErrorKind {
-    IO(std::io::Error),
-    Str(&'static str)
-}
-
-fmt_display!{
-    for PathReadErrorKind: match kind {
-        IO(e) => e.to_string(),
-        Str(s) => s.to_string(),
-    }
-}
-
-#[derive(Debug)]
-pub struct PathReadError {
-    kind: PathReadErrorKind,
-    last_path_tried: PathBuf,
-}
-
-impl PathReadError {
-    fn io(last_path_tried: PathBuf, error: std::io::Error) -> Self {
-        Self {
-            kind: PathReadErrorKind::IO(error),
-            last_path_tried,
-        }
-    }
-
-    fn str(last_path_tried: PathBuf, error: &'static str) -> Self {
-        Self {
-            kind: PathReadErrorKind::Str(error),
-            last_path_tried,
-        }
-    }
-}
-
-fmt_display!{
-    for PathReadError: pre in "{}\nLast Path tried: {}", pre.kind, pre.last_path_tried.display()
-}
-
-impl std::error::Error for PathReadError {}
-
-pub fn load_tab<P: AsRef<Path>>(path: P, mode: PathReadMode) -> Result<LoadedTab, PathReadError>{
-    let pathbuf = canonical_or_same(path);
-    let path: &Path = pathbuf.as_ref();
-    match mode {
-        PathReadMode::ExactlyAsPassed => std::fs::read_to_string(path)
-                        .map(|data| {
-                            LoadedTab {
-                                name: BufferName::Path(path.to_owned()),
-                                data,
-                                position: d!(),
-                            }
-                        })
-                        .map_err(|e| PathReadError::io(path.to_owned(), e)),
-        PathReadMode::CheckForTrailingLocation => {
-            path.file_name()
-                .and_then(std::ffi::OsStr::to_str)
-                .ok_or_else(|| PathReadError::str(path.to_owned(), "Invalid unicode?"))
-                .and_then(|s| {
-                    let mut chunks = s.splitn(2, ':');
-                    let file_name = chunks.next().ok_or_else(|| PathReadError::str(path.to_owned(), "Bad filename"))?;
-
-                    let position = chunks.next()
-                        .and_then(|rest| {
-                            rest.parse::<Position>().ok()
-                        });
-
-                    let adjusted_path_buf = path.with_file_name(file_name);
-                    let adjusted_path = &adjusted_path_buf;
-                    std::fs::read_to_string(adjusted_path)
-                        .map(|data| {
-                            LoadedTab {
-                                name: BufferName::Path(adjusted_path.to_owned()),
-                                data,
-                                position,
-                            }
-                        })
-                        .map_err(|e| PathReadError::io(adjusted_path.to_owned(), e))
-                })
-                // If the path is not valid unicode or whatever, then we just try 
-                // it as is.
-                .or_else(|_| {
-                    std::fs::read_to_string(path)
-                        .map(|data| {
-                            LoadedTab {
-                                name: BufferName::Path(path.to_owned()),
-                                data,
-                                position: d!(),
-                            }
-                        })
-                        .map_err(|e| PathReadError::io(path.to_owned(), e))
-                })
-        }
-    }
+pub fn load_tab(canonical_path: CanonicalPath) -> Result<LoadedTab, std::io::Error>{
+    std::fs::read_to_string(&canonical_path.path)
+        .map(|data| {
+            LoadedTab {
+                name: BufferName::Path(canonical_path.path),
+                data,
+                position: canonical_path.position,
+            }
+        })
 }
 
 fn load_tab_with_name<P: AsRef<Path>>(path: P, name: BufferName) -> std::io::Result<LoadedTab>{

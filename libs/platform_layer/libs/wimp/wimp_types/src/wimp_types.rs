@@ -91,17 +91,9 @@ pub enum PidKind {
     PathMailbox,
 }
 
-#[derive(Clone, Copy, Debug)]
-pub enum PathReadMode {
-    ExactlyAsPassed,
-    CheckForTrailingLocation
-}
-
-d!{for PathReadMode: PathReadMode::ExactlyAsPassed}
-
 #[derive(Clone, Debug)]
 pub enum CustomEvent {
-    OpenFile(PathBuf, PathReadMode),
+    OpenFile(PathBuf),
     SaveNewFile(PathBuf, g_i::Index),
     SendBuffersToBeSaved,
     EditedBufferError(String),

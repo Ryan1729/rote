@@ -12,11 +12,11 @@ use std::{
     time::Duration,
 };
 use wimp_render::{get_find_replace_info, FindReplaceInfo, get_go_to_position_info, GoToPositionInfo, ViewOutput, ViewAction};
-use wimp_types::{ui, ui::{PhysicalButtonState, Navigation}, transform_at, BufferStatus, BufferStatusTransition, CustomEvent, get_clipboard, ClipboardProvider, Dimensions, LabelledCommand, RunConsts, RunState, MenuMode, PathReadMode, Pids, PidKind, EditorThreadInput};
+use wimp_types::{ui, ui::{PhysicalButtonState, Navigation}, transform_at, BufferStatus, BufferStatusTransition, CustomEvent, get_clipboard, ClipboardProvider, Dimensions, LabelledCommand, RunConsts, RunState, MenuMode, Pids, PidKind, EditorThreadInput};
 use macros::{d, dbg, u};
 use platform_types::{screen_positioning::screen_to_text_box, *};
 use shared::{Res};
-use edited_storage::{canonical_or_same, load_tab, load_previous_tabs, LoadedTab};
+use edited_storage::{canonicalize, load_tab, load_previous_tabs, LoadedTab};
 
 #[perf_viz::record]
 pub fn run(
@@ -90,7 +90,7 @@ pub fn run(
                 })?)
                 .map(PathBuf::from);
 
-                data_dir = data_dir.map(canonical_or_same);
+                data_dir = data_dir.map(|dd| dd.canonicalize().unwrap_or_else(|_| dd.into()));
             }
             HIDPI_OVERRIDE => {
                 hidpi_factor_override = Some(args.next().ok_or_else(|| {
@@ -125,10 +125,11 @@ pub fn run(
                 // If someone specified a file, they probably want to open that
                 // particular file, or maybe they made a typo, either way, they
                 // probably would rather have the feedback in their terminal or
-                // whatever, so they can correct the file name
+                // whatever, so they can correct the file name. Hence, `?`.
                 .map(PathBuf::from)?;
 
-                extra_paths.push(canonical_or_same(path));
+                // See comment above for why `?`.
+                extra_paths.push(canonicalize(path)?);
             }
             _ => {
                 eprintln!("unknown arg {:?}", s);
@@ -438,8 +439,11 @@ pub fn run(
                                 // this in the mailbox, so it does not make sense
                                 // to canonicalize this path ourselves. The code
                                 // putting the line in here must do that.
-                                std::path::PathBuf::from(line),
-                                PathReadMode::CheckForTrailingLocation,
+                                // ... That said, it's convenient to fuse the
+                                // canonicalization and position parsing, so any
+                                // canonicalizing that happens shouldn't hurt,
+                                // given the path is canonical already.
+                                std::path::PathBuf::from(line)
                             ));
                     }
                 }
@@ -527,8 +531,8 @@ pub fn run(
 
         // We return early here for similar reasons to the reasons given in the
         // comment by the FILE argument parsing code above.
-        for p in extra_paths {
-            previous_tabs.push(load_tab(p, PathReadMode::CheckForTrailingLocation)?);
+        for c_p in extra_paths {
+            previous_tabs.push(load_tab(c_p)?);
         }
 
         previous_tabs
@@ -868,11 +872,18 @@ pub fn run(
 
         macro_rules! load_file {
             ($path: expr) => {{
-                load_file!($path, PathReadMode::ExactlyAsPassed)
-            }};
-            ($path: expr, $path_read_mode: expr) => {{
                 let unparsed_path = $path;
-                match load_tab(&unparsed_path, $path_read_mode) {
+
+                match canonicalize(&unparsed_path).and_then(|p| {
+                    let last_path_tried = p.path.to_owned();
+                    load_tab(p)
+                        .map_err(|e|
+                            edited_storage::CanonicalizeError::io(
+                                last_path_tried,
+                                e
+                            )
+                        )
+                }) {
                     Ok(LoadedTab{ name, data, position }) => {
                         let input = if let Some(position) = position {
                             Input::AddOrSelectBufferThenGoTo(name, data, position)
@@ -1053,7 +1064,7 @@ pub fn run(
                     r_s.event_proxy,
                     single,
                     r_s.view.current_path(),
-                    p in CustomEvent::OpenFile(p, d!())
+                    p in CustomEvent::OpenFile(p)
                 );
             }]
             [CTRL, P, "Switch files.", r_s {
@@ -1700,7 +1711,7 @@ pub fn run(
                             }
                         }
                     },
-                    CustomEvent::OpenFile(p, path_read_mode) => load_file!(p, path_read_mode),
+                    CustomEvent::OpenFile(p) => load_file!(p),
                     CustomEvent::SaveNewFile(p, index) => {
                         // TODO Stop receiving this here and forwarding to the next
                         // thread, and instead send it there directly
