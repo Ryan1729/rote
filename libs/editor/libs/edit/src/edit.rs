@@ -1,7 +1,7 @@
 #![deny(unused)]
 use cursors::{Cursors, set_cursors};
 use editor_types::{Cursor, SetPositionAction, cur};
-use macros::{CheckedSub, d, some_or};
+use macros::{CheckedSub, d, some_or, dbg};
 use panic_safe_rope::{is_linebreak_char, LineIndex, Rope, RopeSliceTrait, RopeLine};
 use platform_types::*;
 use rope_pos::{AbsoluteCharOffsetRange, char_offset_to_pos, final_non_newline_offset_for_rope_line, get_first_non_white_space_offset_in_range, get_last_non_white_space_offset_in_range, offset_pair, pos_to_char_offset};
