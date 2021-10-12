@@ -505,8 +505,13 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                     let needle_string: String =
                         state.file_switcher.borrow_rope().into();
                     let needle_str: &str = &needle_string;
+                    let opened_paths = state.opened_paths();
                     state.file_switcher_results =
-                        paths::find_in(state.opened_paths().iter().map(|p| p.as_path()), needle_str);
+                        if needle_str.is_empty() {
+                            opened_paths.into_iter().map(|p| p.to_owned()).collect()
+                        } else {
+                            paths::find_in(opened_paths.iter().map(|p| p.as_path()), needle_str)
+                        };
                 }
                 MenuMode::GoToPosition => {}
             }
