@@ -563,7 +563,7 @@ pub fn view<'view>(
                     
                         command_button(
                             ui,
-                            ui_id!(),
+                            ui_id!(format!("{:p}", result)),
                             text_or_rects,
                             current_rect,
                             dimensions,
