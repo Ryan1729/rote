@@ -13,7 +13,7 @@ mod clipboard_layer {
     use shared::Res;
     use macros::fmt_debug;
 
-    
+
     /// This enum exists so we can do dynamic dispatch on `ClipboardProvider` instances even though
     /// the trait requires `Sized`. The reason  we want to do that, is so that if we try to run this
     /// on a platform where `clipboard::ClipboardContext::new` retirns an `Err` we can continue
@@ -76,7 +76,7 @@ mod clipboard_layer {
 }
 pub use clipboard_layer::{get_clipboard, Clipboard, ClipboardProvider};
 
-// Parts of RunState that represent externally chosen, absolute dimensions of things, 
+// Parts of RunState that represent externally chosen, absolute dimensions of things,
 // including the window, from which the sizes of several UI elements are derived.
 #[derive(Clone, Copy, Debug)]
 pub struct Dimensions {
@@ -101,11 +101,11 @@ pub enum CustomEvent {
     MarkBufferStatusTransition(PathBuf, g_i::Index, BufferStatusTransition),
 }
 
-/// This module exists because when adding WIMP only UI elements we found that 
-/// we wanted to have several parts of the code start checking the whether a 
-/// WIMP only menu was up. Because I was not sure where all the parts of the code 
+/// This module exists because when adding WIMP only UI elements we found that
+/// we wanted to have several parts of the code start checking the whether a
+/// WIMP only menu was up. Because I was not sure where all the parts of the code
 /// that were that were talking directly to the `platform_types::View` and therefore
-/// might need to be changed, I wanted to lean on the compiler to find all those 
+/// might need to be changed, I wanted to lean on the compiler to find all those
 /// places for me.
 mod view {
     use macros::{d};
@@ -140,7 +140,8 @@ mod view {
     pub struct WimpMenuView<'view> {
         pub platform_menu: &'view MenuView,
         pub local_menu: &'view Option<LocalMenuView>,
-    }    
+    }
+
     impl WimpMenuView<'_> {
         pub fn get_mode(&self) -> WimpMenuMode {
             match self.local_menu {
@@ -181,7 +182,7 @@ mod view {
     }
 
     #[derive(Default, Debug)]
-    // This struct hides the platform::View, but allows borrowing the buffers 
+    // This struct hides the platform::View, but allows borrowing the buffers
     // disjointly, which helps rustc figure out some ownership things.
     pub struct BuffersView {
         // We want to hide the `platform_types::View` from the rest of the code
@@ -203,7 +204,7 @@ mod view {
         pub scratch: ViewScratch,
     }
 
-    // TODO Maybe replace this with a bump allocated arena that is cleared each 
+    // TODO Maybe replace this with a bump allocated arena that is cleared each
     // render?
     #[derive(Clone, Default, Debug, PartialEq)]
     pub struct ViewScratch {
@@ -217,7 +218,7 @@ mod view {
                     platform_types::MenuView::None => {
                         $view.local_menu = Some($toggled)
                     },
-                    _ => { 
+                    _ => {
                         // We don't want to be able to layer the local menus on top of the editor menus,
                         // because that makes them feel different/less integrated.
                     }
@@ -338,7 +339,7 @@ mod view {
 
     fn navigation_from_cursors(cursors: &[CursorView]) -> ui::Navigation {
         let mut output = d!();
-    
+
         for c in cursors.iter() {
             use platform_types::{CursorState, Move};
             match c.state {
@@ -356,7 +357,7 @@ mod view {
                 },
             }
         }
-    
+
         output
     }
 }
@@ -393,7 +394,7 @@ pub struct RunState {
     pub buffer_status_map: g_i::Map<BufferStatus>,
     pub editor_in_sink: std::sync::mpsc::Sender<EditorThreadInput>,
     pub dimensions: Dimensions,
-    pub event_proxy: EventLoopProxy<CustomEvent>, 
+    pub event_proxy: EventLoopProxy<CustomEvent>,
     pub clipboard: Clipboard,
     pub startup_description: String,
     pub pids: Pids,
@@ -413,7 +414,7 @@ pub mod command_keys {
     pub fn command_menu() -> CommandKey {
         (ModifiersState::empty(), VirtualKeyCode::Apps)
     }
-    
+
     pub fn debug_menu() -> CommandKey {
         (CTRL | SHIFT, VirtualKeyCode::Slash)
     }
@@ -426,7 +427,7 @@ pub mod command_keys {
 
 
 pub struct LabelledCommand {
-    pub label: &'static str, 
+    pub label: &'static str,
     pub command: fn(&mut RunState),
 }
 
@@ -434,16 +435,17 @@ impl std::fmt::Debug for LabelledCommand {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         f.debug_struct("LabelledCommand")
            .field("label", &self.label)
-           .field("command", &"fn(&mut RunState)")           .finish()
+           .field("command", &"fn(&mut RunState)")
+           .finish()
     }
 }
 
 pub type CommandsMap = BTreeMap<CommandKey, LabelledCommand>;
 
 #[derive(Debug)]
-/// Values that should not be changed (i.e. should be left constant,) which were 
+/// Values that should not be changed (i.e. should be left constant,) which were
 /// lazily initialized by the `run` function, which can be shared by other functions
-/// called inside `run`. Keeping this separate from `RunState` also simplifies some 
+/// called inside `run`. Keeping this separate from `RunState` also simplifies some
 /// borrow checking when using the `commands` map.
 pub struct RunConsts {
     pub commands: CommandsMap
@@ -543,19 +545,19 @@ pub mod ui {
             ReleasedThisFrame => 2,
             PressedThisFrame => 3,
         };
-    
+
         let other = match other {
             Released => 0,
             Pressed => 1,
             ReleasedThisFrame => 2,
             PressedThisFrame => 3,
         };
-    
+
         s.cmp(&other)
     });
-    
+
     d!(for PhysicalButtonState: PhysicalButtonState::Released);
-    
+
     impl PhysicalButtonState {
         fn decay(&mut self) {
             *self = match *self {
@@ -564,7 +566,7 @@ pub mod ui {
                 other => other,
             }
         }
-    
+
         pub fn is_pressed(&self) -> bool {
             match *self {
                 Self::ReleasedThisFrame | Self::Released => false,
@@ -600,7 +602,7 @@ pub mod ui {
         pub previous_derived_navigation: Navigation,
         pub window_is_focused: bool,
     }
-    
+
     #[cfg(not(feature = "disable-fade-alpha"))]
     impl State {
         pub fn note_interaction(&mut self) {
@@ -609,7 +611,7 @@ pub mod ui {
         #[perf_viz::record]
         pub fn add_dt(&mut self, dt: std::time::Duration) {
             let offset = ((dt.as_millis() as u64 as f32) / 1000.0) * 1.5;
-    
+
             if self.fade_solid_override_accumulator > 0.0 {
                 self.fade_solid_override_accumulator -= offset;
                 if self.fade_solid_override_accumulator < 0.0 {
@@ -637,16 +639,17 @@ pub mod ui {
     #[cfg(feature = "disable-fade-alpha")]
     impl State {
         pub fn note_interaction(&mut self) {
-            
+
         }
         #[perf_viz::record]
-        pub fn add_dt(&mut self, _: std::time::Duration) {
+        pub fn add_dt(&mut self, _: std::time::Duration) {
+
         }
         pub fn get_fade_alpha(&self) -> f32 {
             1.0
         }
     }
-    
+
     impl State {
         pub fn frame_init(&mut self) {
             self.mouse.frame_init();
@@ -659,14 +662,14 @@ pub mod ui {
             self.enter_key_state.decay();
         }
     }
-    
+
     #[derive(Debug, Default)]
     pub struct Focus {
         pub active: Id,
         pub hot: Id,
         pub next_hot: Id,
     }
-    
+
     impl Focus {
         pub fn set_not_active(&mut self) {
             self.active = d!();
@@ -695,7 +698,7 @@ pub mod ui {
         Keyboard,
         Both,
     }
-    
+
     macro_rules! input_type_tag {
         ($input_type: expr) => {{
             use InputType::*;
@@ -706,9 +709,9 @@ pub mod ui {
             }
         }};
     }
-    
+
     ord!(and friends for InputType: t, other in input_type_tag!(t).cmp(&input_type_tag!(other)));
-    
+
     #[derive(Clone, Copy, Debug)]
     pub enum ButtonState {
         Usual,
@@ -726,12 +729,12 @@ pub mod ui {
                 }
             );
         }
-    
+
         button_state_tag!(s).cmp(&button_state_tag!(other))
     });
-    
+
     type DoButtonResult = (bool, ButtonState);
-    
+
     /// calling this once will swallow multiple clicks on the button. We could either
     /// pass in and return the number of clicks to fix that, or this could simply be
     /// called multiple times per frame (once for each click).
@@ -739,13 +742,13 @@ pub mod ui {
     pub fn do_button_logic(ui: &mut ui::State, id: ui::Id, rect: ScreenSpaceRect) -> DoButtonResult {
         use ButtonState::*;
         let mut clicked = false;
-    
+
         let mouse_pos = ui.mouse_pos;
         let mouse_state = ui.left_mouse_state;
         let enter_key_state = ui.enter_key_state;
-    
+
         let inside = inside_rect(mouse_pos, rect);
-    
+
         if ui.mouse.active == id {
             if mouse_state == PhysicalButtonState::ReleasedThisFrame {
                 clicked = ui.mouse.hot == id && inside;
@@ -757,23 +760,23 @@ pub mod ui {
                 ui.keyboard.set_not_active();
             }
         } else {
-            if ui.mouse.hot == id 
+            if ui.mouse.hot == id
             && mouse_state == PhysicalButtonState::PressedThisFrame {
                 ui.mouse.set_active(id);
             }
-    
+
             if ui.keyboard.hot == id
             && enter_key_state == PhysicalButtonState::PressedThisFrame {
                 ui.keyboard.set_active(id);
             }
         }
-    
+
         if inside {
             ui.mouse.set_next_hot(id);
         }
         // keyboard_hot is expected to be set by other ui code, since it depends on what that code
         // wants to allow regarding movement.
-    
+
         let state = match (
             ui.mouse.active == id && mouse_state.is_pressed(),
             ui.keyboard.active == id && enter_key_state.is_pressed(),
@@ -799,11 +802,11 @@ pub mod ui {
         Interact,
     }
     d!(for Navigation: Navigation::None);
-    
+
     #[perf_viz::record]
     pub fn begin_view(ui: &mut State, view: &View) {
         if let Some(derived_navigation) = view.get_navigation() {
-            // We want to allow the view state to keep indicating the same 
+            // We want to allow the view state to keep indicating the same
             // navigation, but only propagate it when either the derived input has
             // just changed, or the the the input is fresh, (AKA made this frame).
             if ui.fresh_navigation != Navigation::None
@@ -822,7 +825,7 @@ pub mod ui {
             ui.navigation = ui.fresh_navigation;
         }
     }
-    
+
     #[perf_viz::record]
     pub fn end_view(ui: &mut State) {
         ui.fresh_navigation = d!();

@@ -2131,6 +2131,5 @@ pub fn inside_tab_area(
     y < upper_position_info(tab_char_dim).edit_y
 }
 
-
 #[cfg(test)]
 mod wimp_render_tests;
