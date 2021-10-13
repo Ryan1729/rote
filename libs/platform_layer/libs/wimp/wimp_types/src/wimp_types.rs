@@ -458,7 +458,7 @@ pub mod ui {
     /// The varaints here represent sections of code that want to be able to store information in the
     /// ids. For example, so that the ui state can change differently based on which part of some
     /// dynamically generated UI is selected.
-    #[derive(Clone, Copy, Debug)]
+    #[derive(Clone, Copy, Debug, Ord, PartialOrd, PartialEq, Eq)]
     pub enum Tag {
         FileSwitcherResults,
     }
@@ -471,7 +471,7 @@ pub mod ui {
 
     // This is probably excessive size-wise. We can make this smaller if there is a measuarable
     // perf impact but given this goes on the stack, that seems unlikely?
-    #[derive(Clone, Copy)]
+    #[derive(Clone, Copy, Ord, PartialOrd, PartialEq, Eq)]
     pub enum Id {
         /// The generic data variant. Used when the data's sizes are not known ahead of time
         Data(Data),
@@ -502,24 +502,6 @@ pub mod ui {
             },
             Id::TaggedUsize(tag, payload) => {
                 format!("TaggedUsize{:?}", (tag, payload))
-            }
-        }
-    });
-    ord!(and friends for Id: id, other in {
-        use Id::*;
-        use std::cmp::Ordering::*;
-        match (id, other) {
-            (Data(_), TaggedUsize(_, _)) => {
-                Less
-            },
-            (TaggedUsize(_, _), Data(_)) => {
-                Greater
-            },
-            (Data(d1), Data(d2)) => {
-                d1.cmp(&d2)
-            }
-            (TaggedUsize(Tag::FileSwitcherResults, payload1), TaggedUsize(Tag::FileSwitcherResults, payload2)) => {
-                payload1.cmp(&payload2)
             }
         }
     });
@@ -843,7 +825,7 @@ macro_rules! ui_id {
     }};
     ($thing: expr) => {{
         let mut id = [0; ui::DATA_LEN];
-        // TODO is the compilier smart enough to avoid the allocation here?
+        // TODO is the compiler smart enough to avoid the allocation here?
         let s = format!(
             "{},{}",
             $thing,
