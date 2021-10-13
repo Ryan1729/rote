@@ -155,7 +155,7 @@ impl ViewAction {
 
     pub fn is_none(&self) -> bool {
         matches!(self, ViewAction::None)
-    } 
+    }
 }
 
 fn into_action(opt: Option<Input>) -> ViewAction {
@@ -210,7 +210,7 @@ pub fn view<'view>(
     if cfg!(feature = "extra-prints") {
         if_changed::dbg!(&view);
     }
-    
+
     ui::begin_view(ui, view);
 
     let dimensions = *dimensions;
@@ -389,7 +389,8 @@ pub fn view<'view>(
                                     "In current file"
                                 } else {
                                     // cheap hack to avoid lifetime issues
-                                    match result_count {                                        0 => "In current file (0 results)",
+                                    match result_count {
+                                        0 => "In current file (0 results)",
                                         1 => "In current file (1 result)",
                                         2 => "In current file (2 results)",
                                         3 => "In current file (3 results)",
@@ -427,7 +428,7 @@ pub fn view<'view>(
                                     .or(action);
                                 }};
                             }
-            
+
                             spaced_input_box!(find, b_id!(BufferIdKind::Find, index), find_outer_rect);
                             spaced_input_box!(
                                 replace,
@@ -447,7 +448,7 @@ pub fn view<'view>(
                         &mut text_or_rects,
                         &mut action,
                     );
-            
+
                     if action.is_none() {
                         if cfg!(feature="extra-prints") {
                             print!(".");
@@ -473,7 +474,7 @@ pub fn view<'view>(
                         colour: CHROME_BACKGROUND_COLOUR,
                         z: FIND_REPLACE_BACKGROUND_Z,
                     }));
-                    
+
                     text_or_rects.push(TextOrRect::Text(TextSpec {
                         text: "Go to position",
                         size: FIND_REPLACE_SIZE,
@@ -484,7 +485,7 @@ pub fn view<'view>(
                             z: FIND_REPLACE_Z,
                         },
                     }));
-            
+
                     action = into_action(text_box(
                         ui,
                         &mut text_or_rects,
@@ -515,19 +516,19 @@ pub fn view<'view>(
                         colour: CHROME_BACKGROUND_COLOUR,
                         z: FIND_REPLACE_BACKGROUND_Z,
                     }));
-            
+
                     let text_or_rects = &mut text_or_rects;
-                
+
                     let mut current_rect = first_button_rect;
                     let vertical_shift = first_button_rect.height()
                         + list_margin.into_ltrb().b;
-                
+
                     let mut navigated_result = None;
                     let results: Vec<CommandKey> = commands.keys().cloned().collect();
-                
+
                     if action.is_none() {
                         u!{ui::Navigation}
-            
+
                         match if_changed::dbg!(ui.navigation) {
                             None => {}
                             Up => {
@@ -547,20 +548,20 @@ pub fn view<'view>(
                                     .into();
                             }
                         }
-            
+
                         navigated_result = Some(ui.file_switcher_pos.index);
                     }
-            
+
                     for (result_index, result) in results.iter().enumerate() {
                         let result_id = ui_id!(result_index);
-                
+
                         match navigated_result {
                             Some(i) if i == result_index => {
                                 ui.keyboard.set_next_hot(result_id);
                             }
                             _ => {}
                         };
-                    
+
                         command_button(
                             ui,
                             ui_id!(format!("{:p}", result)),
@@ -571,7 +572,7 @@ pub fn view<'view>(
                             result,
                             &mut action,
                         );
-                            
+
                         current_rect.min.y += vertical_shift;
                         current_rect.max.y += vertical_shift;
                     }
@@ -590,9 +591,9 @@ pub fn view<'view>(
                     }));
 
                     // TODO render a bar chart of the last N view renders,
-                    // where the x axis is  the Input variant, and the y axis is 
+                    // where the x axis is  the Input variant, and the y axis is
                     // duration statisics like maximum, mean, median and mode.
-                    
+
                     let vertical_shift = first_button_rect.height()
                             + list_margin.into_ltrb().b;
 
@@ -620,7 +621,7 @@ pub fn view<'view>(
                         ($field_name: ident) => {{
                             pid_bottom_y += line_shift;
 
-                            let field_name = stringify!($field_name);  
+                            let field_name = stringify!($field_name);
                             for _ in 0..(16usize.saturating_sub(field_name.len())) {
                                 pid_string.push(' ');
                             }
@@ -682,7 +683,7 @@ pub fn view<'view>(
 
     text_or_rects.push(TextOrRect::Rect(VisualSpec {
         rect: get_full_width_ssr(
-            status_line_y, 
+            status_line_y,
             width,
             status_line_y + SEPARATOR_LINE_THICKNESS
         ),
@@ -691,7 +692,7 @@ pub fn view<'view>(
     }));
 
     let rect = get_full_width_ssr(
-        status_line_y + SEPARATOR_LINE_THICKNESS, 
+        status_line_y + SEPARATOR_LINE_THICKNESS,
         width,
         height
     );
@@ -773,7 +774,8 @@ pub fn view<'view>(
     perf_viz::end_record!("Status line");
 
     //
-    //    Recolouring    //
+    //    Recolouring
+    //
     perf_viz::start_record!("Recolouring");
     if !ui.window_is_focused {
         for t_or_r in text_or_rects.iter_mut() {
@@ -1140,7 +1142,7 @@ fn text_box_view<'view>(
     }));
 
     let scroll = *scroll;
-    
+
     let text_box_pos = tbxy!{
         outer_rect.min.x,
         outer_rect.min.y,
@@ -1149,7 +1151,7 @@ fn text_box_view<'view>(
         text_to_text_box(TextSpaceXY::default(), scroll),
         text_box_pos,
     );
-    
+
     let offset_text_rect = shrink_by(ssr!(scroll_offset, outer_rect.max), padding);
 
     text_or_rects.push(TextOrRect::MulticolourText(MulticolourTextSpec {
@@ -1250,7 +1252,7 @@ fn unscrolled_tab_left_edge(
 ) -> abs::Pos {
     abs::Pos::from(
         abs::Ratio::from(target_index) * tab_width
-    )    
+    )
 }
 
 fn unscrolled_tab_right_edge(
@@ -1268,7 +1270,7 @@ fn make_nth_tab_visible_if_present(
 ) {
     let min_pos: abs::Pos = d!();
 
-    let to_make_visible = 
+    let to_make_visible =
         unscrolled_tab_left_edge(target_index, tab_width)
         + tab_width.halve();
 
@@ -1279,7 +1281,8 @@ fn make_nth_tab_visible_if_present(
         F32_0_1::MAX,
         min_pos + to_make_visible,
     );
-}
+}
+
 struct LineSpec {
     colour: Colour,
     thickness: abs::Length,
@@ -1353,7 +1356,8 @@ fn render_outline_button<'view>(
             u!{ui::InputType}
             match $input_type {
                 Mouse => palette![yellow, fade_alpha],
-                Keyboard => palette![blue, fade_alpha],                Both => palette![green, fade_alpha],
+                Keyboard => palette![blue, fade_alpha],
+                Both => palette![green, fade_alpha],
             }
         }};
     }
@@ -1586,7 +1590,7 @@ fn shrink_by(
 
 pub fn get_inner_text_rect(text: &str, char_dim: CharDim, rect: ScreenSpaceRect) -> ScreenSpaceRect {
     let text_w = abs::Ratio::from(text.chars().count()) * char_dim.w;
-    
+
     center_within((text_w.get().into(), char_dim.h.get().into()), rect)
 }
 
@@ -1682,7 +1686,7 @@ pub fn get_find_replace_info(
     let SpacingAllSpec { margin, padding } = get_menu_spacing(height);
 
     let bottom_y = get_status_line_y(status_char_dim, height);
-    // assuming that there are two text buffers and a heading, each with the same 
+    // assuming that there are two text buffers and a heading, each with the same
     // margin and padding, without the margins being duplicated
     let top_y = bottom_y - (
         margin * abs::Ratio::FOUR
@@ -1713,7 +1717,7 @@ pub fn get_find_replace_info(
     let find_outer_rect = ssr!(
         margin,
         current_y,
-        width - margin, 
+        width - margin,
         current_y + text_height
     );
     let find_text_xywh = text_rect!();
@@ -1911,12 +1915,13 @@ pub fn get_command_menu_info(
         ssr!(
             _,
             _,
-            width, 
+            width,
             top_y + padding.double() + tab_char_dim.h
         ),
         Spacing::Horizontal(margin)
     ).with_min_y(top_y + list_margin);
-    CommandMenuInfo {
+
+    CommandMenuInfo {
         margin: Spacing::All(margin),
         padding: Spacing::All(padding),
         top_y,
@@ -2113,7 +2118,7 @@ pub fn should_show_text_cursor(
 
             inside_rect(xy, input_outer_rect)
         }
-        
+
     }
 }
 
