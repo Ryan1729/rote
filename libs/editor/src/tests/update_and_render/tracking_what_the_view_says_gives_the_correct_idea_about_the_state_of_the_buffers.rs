@@ -670,7 +670,7 @@ fn on(
         u!{Input}
         let index_state = state.buffers.buffers().index_state();
         match input {
-            AddOrSelectBuffer(ref name, ref data) => {
+            AddOrSelectBuffer(ref name, ref data)|AddOrSelectBufferThenGoTo(ref name, ref data, _) => {
                 if state.buffers.index_with_name(name).is_none() {
                     // I'm not certain, but I think that checking what type of 
                     // buffer name we have here is fine, since for the purposes
