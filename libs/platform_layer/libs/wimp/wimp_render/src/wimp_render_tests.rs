@@ -477,9 +477,9 @@ fn render_file_switcher_menu_selects_the_fileswitcher_buffer_when_the_navigation
 
     let mut ui: ui::State = d!();
     ui.navigation = Navigation::Up;
-    ui.keyboard.hot = ui::Id::TaggedUsize(
+    ui.keyboard.hot = ui::Id::TaggedListSelection(
         ui::Tag::FileSwitcherResults,
-        0,
+        d!(),
     );
 
     let dimensions: Dimensions = Dimensions {

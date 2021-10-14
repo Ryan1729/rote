@@ -1,6 +1,6 @@
 #![deny(bindings_with_variant_name, unused)]
 use gl_layer::{ColouredText, MulticolourTextSpec, TextLayout, TextOrRect, TextSpec, VisualSpec};
-use wimp_types::{CommandsMap, LocalMenuView, View, WimpMenuMode, MenuView, WimpMenuView, FindReplaceMode, ui_id, ui, ui::{ButtonState}, BufferStatus, CommandKey, Dimensions, RunConsts, RunState, command_keys};
+use wimp_types::{CommandsMap, LocalMenuView, View, WimpMenuMode, MenuView, WimpMenuView, FindReplaceMode, ui_id, ui, ui::{ButtonState}, BufferStatus, CommandKey, Dimensions, RunConsts, RunState, ui::ListSelection, command_keys};
 use macros::{c, d, dbg, invariant_assert, u};
 use platform_types::{
     *,
@@ -917,9 +917,8 @@ fn render_file_switcher_menu<'view>(
 
     let search_buffer_id = b_id!(BufferIdKind::FileSwitcher, buffer_index);
 
-    fn get_result_id(index: usize) -> ui::Id {
-        ui::Id::TaggedUsize(ui::Tag::FileSwitcherResults, index)
-    }
+     // TODO calculate how many will fit based on screen size etc.
+    let window_size = core::num::NonZeroUsize::new(5).unwrap();
 
     let mut navigated_result = None;
 
@@ -927,49 +926,50 @@ fn render_file_switcher_menu<'view>(
         u!{ui::Navigation}
         match ui.navigation {
             None => {
-                if let ui::Id::TaggedUsize(
+                if let ui::Id::TaggedListSelection(
                     ui::Tag::FileSwitcherResults,
-                    result_index,
+                    selection
                 ) = ui.keyboard.hot
                 {
-                    navigated_result = Some(result_index);
+                    navigated_result = Some(selection);
                 }
             }
             Up => {
-                if let ui::Id::TaggedUsize(
+                if let ui::Id::TaggedListSelection(
                     ui::Tag::FileSwitcherResults,
-                    result_index,
+                    selection,
                 ) = ui.keyboard.hot
                 {
-                    if result_index == 0 {
+                    std::dbg!(selection);
+                    if selection.index == 0 {
                         *action = ViewAction::Input(Input::SelectBuffer(search_buffer_id));
                     } else {
-                        navigated_result = Some(result_index - 1);
+                        navigated_result = Some(selection.move_up());
                     }
                 }
             }
             Down => {
-                if let ui::Id::TaggedUsize(
+                if let ui::Id::TaggedListSelection(
                     ui::Tag::FileSwitcherResults,
-                    result_index,
+                    selection,
                 ) = ui.keyboard.hot
                 {
-                    navigated_result = Some((result_index + 1) % results.len());
+                    navigated_result = Some(selection.move_down(window_size, results.len()));
                 } else if !results.is_empty() {
-                    navigated_result = Some(0);
+                    navigated_result = Some(d!());
                     *action = ViewAction::Input(
                         Input::SelectBuffer(b_id!(BufferIdKind::None, buffer_index))
                     );
                 }
             }
             Interact => {
-                if let ui::Id::TaggedUsize(
+                if let ui::Id::TaggedListSelection(
                     ui::Tag::FileSwitcherResults,
-                    result_index,
+                    selection,
                 ) = ui.keyboard.hot
                 {
                     *action = results
-                        .get(result_index)
+                        .get(selection.index)
                         .cloned()
                         .map(Input::OpenOrSelectBuffer)
                         .into();
@@ -1007,17 +1007,35 @@ fn render_file_switcher_menu<'view>(
     current_rect.max.y += vertical_shift;
     current_rect.max.y += list_bottom_margin;
 
-    for (result_index, result) in results.iter().enumerate() {
+    fn get_result_id(selection: ListSelection) -> ui::Id {
+        ui::Id::TaggedListSelection(
+            ui::Tag::FileSwitcherResults,
+            selection
+        )
+    }
+
+    let selection = navigated_result.unwrap_or_default();
+
+    for (result_index, result) in results.iter()
+        .enumerate()
+        .skip(selection.window_start)
+        .take(window_size.get())
+    {
         let path_text = result.to_str().unwrap_or("Non-UTF8 Path");
         let rect = shrink_by(current_rect, list_margin);
 
-        let result_id = get_result_id(result_index);
-
-        match navigated_result {
-            Some(i) if i == result_index => {
+        let result_id = match navigated_result {
+            Some(selection) if selection.index == result_index => {
+                let result_id = get_result_id(selection);
                 ui.keyboard.set_next_hot(result_id);
+                result_id
             }
-            _ => {}
+            _ => {
+                get_result_id(ListSelection{
+                    index: result_index,
+                    ..selection
+                })
+            }
         };
 
         if do_outline_button(

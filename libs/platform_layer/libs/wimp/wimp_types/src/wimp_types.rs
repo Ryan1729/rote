@@ -4,6 +4,7 @@ use platform_types::{screen_positioning::*, abs, g_i, Input, Cmd, EditedTransiti
 
 use std::collections::{VecDeque, BTreeMap};
 use std::path::PathBuf;
+use std::cmp::min;
 
 pub use glutin_wrapper::event_loop::EventLoopProxy;
 
@@ -469,13 +470,13 @@ pub mod ui {
     /// The payload of the `UUId::Data` variant
     type Data = [u64; DATA_LEN];
 
-    // This is probably excessive size-wise. We can make this smaller if there is a measuarable
-    // perf impact but given this goes on the stack, that seems unlikely?
+    // This is probably excessive size-wise. We can make this smaller if there is a
+    // noticable perf impact but given this goes on the stack, that seems unlikely?
     #[derive(Clone, Copy, Ord, PartialOrd, PartialEq, Eq)]
     pub enum Id {
         /// The generic data variant. Used when the data's sizes are not known ahead of time
         Data(Data),
-        TaggedUsize(Tag, usize),
+        TaggedListSelection(Tag, ListSelection),
     }
     d!(for Id: Id::Data(d!()));
 
@@ -500,8 +501,8 @@ pub mod ui {
                     s
                 }
             },
-            Id::TaggedUsize(tag, payload) => {
-                format!("TaggedUsize{:?}", (tag, payload))
+            Id::TaggedListSelection(tag, payload) => {
+                format!("TaggedListSelection{:?}", (tag, payload))
             }
         }
     });
@@ -509,6 +510,46 @@ pub mod ui {
     impl Id {
         pub const fn new(id: Data) -> Self {
             Id::Data(id)
+        }
+    }
+
+    #[derive(Clone, Copy, Debug, Ord, PartialOrd, PartialEq, Eq, Default)]
+    pub struct ListSelection {
+        pub index: usize,
+        pub window_start: usize
+        // Since we are unlikely to need a window as large as 256, this could be 
+        // phrased as the following if the memory used became an issue. That seems
+        // unlikely at the moment though.
+        // pub window_start: usize
+        // pub intra_window_offset: u8
+    }
+
+    impl ListSelection {
+        pub fn move_up(self) -> Self {
+            std::dbg!(self);
+            let index = self.index.saturating_sub(1);
+            Self {
+                index,
+                window_start: min(index, self.window_start)
+            }
+        }
+
+        pub fn move_down(self, window_size: core::num::NonZeroUsize, length: usize) -> Self {
+            let index = self.index.saturating_add(1);
+
+            if index >= length {
+                d!()
+            } else {
+                let pivot = self.window_start + (window_size.get() / 2);
+                Self {
+                    index,
+                    window_start: if index > pivot {
+                        self.window_start + 1
+                    } else {
+                        self.window_start
+                    }
+                }
+            }
         }
     }
 
