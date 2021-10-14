@@ -183,7 +183,7 @@ macro_rules! tab_visible_assert {
         let target_index = $target_index;
         let tab_width = $tab_width;
         let screen_width = $screen_width;
-        
+
         let left_visible = is_tab_left_edge_visible(tab_scroll, target_index, tab_width);
         let right_visible = is_tab_right_edge_visible(tab_scroll, target_index, tab_width, screen_width);
 
@@ -211,10 +211,10 @@ macro_rules! tab_as_visible_as_possible_assert {
         let target_index = $target_index;
         let tab_width = $tab_width;
         let screen_width = $screen_width;
-        
-        // measure how much of the tab width is visible and assert that the value is 
+
+        // measure how much of the tab width is visible and assert that the value is
         // at least min(tab_width, screen_width)
-        
+
         let left_e = left_edge(tab_scroll, target_index, tab_width);
         let right_e = right_edge(tab_scroll, target_index, tab_width);
 
@@ -229,7 +229,7 @@ macro_rules! tab_as_visible_as_possible_assert {
 
         assert!(
             covers >= needs_to_cover,
-            "tab {} covers only {} pixels where it should cover at least {} on a {} wide screen when the tabs are {} wide and the `tab_scroll` is {} 
+            "tab {} covers only {} pixels where it should cover at least {} on a {} wide screen when the tabs are {} wide and the `tab_scroll` is {}
             Begins at {} (clipped from {}) and ends at {} (clipped from {}).",
             target_index,
             covers,
@@ -343,7 +343,8 @@ proptest! {
 
 #[test]
 fn make_nth_tab_visible_if_present_works_on_this_generated_example() {
-    make_nth_tab_visible_if_present_works_on(MakeNthTabVisibleSpec {        tab_width: SOME_SCREEN_WIDTH,
+    make_nth_tab_visible_if_present_works_on(MakeNthTabVisibleSpec {
+        tab_width: SOME_SCREEN_WIDTH,
         screen_width: SOME_SCREEN_WIDTH,
         ..d!()
     });
@@ -489,11 +490,11 @@ fn render_file_switcher_menu_selects_the_fileswitcher_buffer_when_the_navigation
     let mut view_output: ViewOutput = d!();
 
     render_file_switcher_menu(
-        index, 
-        &fs_view, 
-        &mut ui, 
-        b_id!(BufferIdKind::FileSwitcher, index), 
-        dimensions, 
+        index,
+        &fs_view,
+        &mut ui,
+        b_id!(BufferIdKind::FileSwitcher, index),
+        dimensions,
         &mut view_output.text_or_rects,
         &mut view_output.action,
     );
