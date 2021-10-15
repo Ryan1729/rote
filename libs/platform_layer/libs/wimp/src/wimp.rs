@@ -12,7 +12,7 @@ use std::{
     time::Duration,
 };
 use wimp_render::{get_find_replace_info, FindReplaceInfo, get_go_to_position_info, GoToPositionInfo, ViewOutput, ViewAction};
-use wimp_types::{ui, ui::{PhysicalButtonState, Navigation}, transform_at, BufferStatus, BufferStatusTransition, CustomEvent, get_clipboard, ClipboardProvider, Dimensions, LabelledCommand, RunConsts, RunState, MenuMode, Pids, PidKind, EditorThreadInput};
+use wimp_types::{ui, ui::{PhysicalButtonState, Navigation}, transform_at, BufferStatus, BufferStatusTransition, CustomEvent, get_clipboard, ClipboardProvider, Dimensions, LabelledCommand, RunConsts, RunState, MenuMode, Pids, PidKind, EditorThreadInput, ViewRunState};
 use macros::{d, dbg, u};
 use platform_types::{screen_positioning::screen_to_text_box, *};
 use shared::{Res};
@@ -605,20 +605,31 @@ pub fn run(
         view.update(v, d!());
 
         RunState {
-            view,
+            view_state: ViewRunState {
+                view,
+                ui,
+                buffer_status_map,
+                dimensions,
+                startup_description,
+                pids,
+                pid_string: String::with_capacity(256),
+                stats: d!(),
+            },
             cmds,
-            ui,
-            buffer_status_map,
-            editor_in_sink,
-            dimensions,
             clipboard,
+            editor_in_sink,
             event_proxy: event_proxy.clone(),
-            startup_description,
-            pids,
-            pid_string: String::with_capacity(256),
-            stats: d!(),
         }
     };
+
+    macro_rules! v_s {
+        () => {
+            r_s.view_state
+        };
+        ($r_s: expr) => {
+            $r_s.view_state
+        };
+    }
 
     enum EditorThreadOutput {
         Rendered((View, Cmd, LoadBufferViewsResult)),
@@ -749,7 +760,7 @@ pub fn run(
     // If you didn't click on the same symbol, counting that as a double click seems like it
     // would be annoying.
     let mouse_epsilon_radius: abs::Length = {
-        let char_dim = r_s.dimensions.font.text_char_dim;
+        let char_dim = v_s!().dimensions.font.text_char_dim;
         let (w, h) = (char_dim.w, char_dim.h);
 
         (if w < h { w } else { h }).halve()
@@ -761,7 +772,7 @@ pub fn run(
 
     macro_rules! mouse_within_radius {
         () => {{
-            let mouse_pos = &r_s.ui.mouse_pos;
+            let mouse_pos = &v_s!().ui.mouse_pos;
             abs::Pos::abs(&(last_click_x - mouse_pos.x)) <= mouse_epsilon_radius
                 && abs::Pos::abs(&(last_click_y - mouse_pos.y)) <= mouse_epsilon_radius
         }};
@@ -773,7 +784,7 @@ pub fn run(
                 call_u_and_r!(r_s, $input)
             };
             ($vars: ident, $input:expr) => {
-                call_u_and_r!(&mut $vars.ui, &$vars.editor_in_sink, $input)
+                call_u_and_r!(&mut v_s!($vars).ui, &$vars.editor_in_sink, $input)
             };
             ($ui: expr, $editor_in_sink: expr, $input: expr) => {{
                 if cfg!(feature = "skip-updating-editor-thread") {
@@ -800,10 +811,10 @@ pub fn run(
             };
             call_u_and_r!(input);
 
-            let index_state = r_s.view.index_state();
+            let index_state = v_s!().view.index_state();
 
             // if we bothered saving them before, they were clearly edited.
-            r_s.buffer_status_map.insert(
+            v_s!().buffer_status_map.insert(
                 index_state,
                 index_state.new_index(g_i::IndexPart::or_max(i)),
                 BufferStatus::EditedAndSaved,
@@ -945,7 +956,7 @@ pub fn run(
                     Box::new(SizeDependents {
                         buffer_xywh: wimp_render::get_edit_buffer_xywh(
                             mode.into(),
-                            r_s.dimensions,
+                            v_s!(r_s).dimensions,
                         )
                         .into(),
                         find_xywh: None,
@@ -967,16 +978,16 @@ pub fn run(
 
         register_commands!{
             [empty, Apps, "Open/Close this menu.", r_s {
-                r_s.view.toggle_command_menu();
+                v_s!(r_s).view.toggle_command_menu();
             }]
             [empty, Escape, "Close menus.", r_s {
-                r_s.view.close_menus();
+                v_s!(r_s).view.close_menus();
 
                 call_u_and_r!(r_s, Input::SetSizeDependents(
                     Box::new(SizeDependents {
                         buffer_xywh: wimp_render::get_edit_buffer_xywh(
                             d!(),
-                            r_s.dimensions
+                            v_s!(r_s).dimensions
                         )
                         .into(),
                         find_xywh: None,
@@ -998,11 +1009,11 @@ pub fn run(
             }]
             [empty, Up, "Move all cursors up.", r_s {
                 call_u_and_r!(r_s, Input::MoveAllCursors(Move::Up));
-                r_s.ui.fresh_navigation = Navigation::Up;
+                v_s!(r_s).ui.fresh_navigation = Navigation::Up;
             }]
             [empty, Down, "Move all cursors down.", r_s {
                 call_u_and_r!(r_s, Input::MoveAllCursors(Move::Down));
-                r_s.ui.fresh_navigation = Navigation::Down;
+                v_s!(r_s).ui.fresh_navigation = Navigation::Down;
             }]
             [empty, Left, "Move all cursors left.", r_s {
                 call_u_and_r!(r_s, Input::MoveAllCursors(Move::Left));
@@ -1032,13 +1043,13 @@ pub fn run(
                 call_u_and_r!(state, Input::MoveAllCursors(Move::ToNextLikelyEditLocation))
             }]
             [CTRL, Key0, "Reset scroll (context sensitive).", r_s {
-                let ui = &mut r_s.ui;
-                let font_info = r_s.dimensions.font;
+                let ui = &mut v_s!(r_s).ui;
+                let font_info = v_s!(r_s).dimensions.font;
                 if wimp_render::inside_tab_area(ui.mouse_pos, font_info) {
                     wimp_render::make_active_tab_visible(
                         ui,
-                        &r_s.view,
-                        r_s.dimensions
+                        &v_s!(r_s).view,
+                        v_s!(r_s).dimensions
                     );
                 } else {
                     call_u_and_r!(r_s, Input::ResetScroll);
@@ -1063,7 +1074,7 @@ pub fn run(
                 file_chooser_call!(
                     r_s.event_proxy,
                     single,
-                    r_s.view.current_path(),
+                    v_s!(r_s).view.current_path(),
                     p in CustomEvent::OpenFile(p)
                 );
             }]
@@ -1071,13 +1082,13 @@ pub fn run(
                 switch_menu_mode!(r_s, MenuMode::FileSwitcher);
             }]
             [CTRL, S, "Save.", r_s {
-                let (i, label) = r_s.view.current_text_index_and_buffer_label();
+                let (i, label) = v_s!(r_s).view.current_text_index_and_buffer_label();
                 match label.name.clone() {
                     BufferName::Scratch(_) => {
                         file_chooser_call!(
                             r_s.event_proxy,
                             save,
-                            r_s.view.current_path(),
+                            v_s!(r_s).view.current_path(),
                             p in CustomEvent::SaveNewFile(p, i)
                         );
                     }
@@ -1098,7 +1109,7 @@ pub fn run(
                 call_u_and_r!(state, Input::Paste(state.clipboard.get_contents().ok()));
             }]
             [CTRL, W, "Close tab.", r_s {
-                match r_s.view.current_buffer_id() {
+                match v_s!(r_s).view.current_buffer_id() {
                     BufferId {
                         kind: BufferIdKind::Text,
                         index,
@@ -1170,11 +1181,11 @@ pub fn run(
                 ));
             }]
             [CTRL | SHIFT, S, "Save new file.", r_s {
-                let i = r_s.view.current_text_index();
+                let i = v_s!(r_s).view.current_text_index();
                 file_chooser_call!(
                     r_s.event_proxy,
                     save,
-                    r_s.view.current_path(),
+                    v_s!(r_s).view.current_path(),
                     p in CustomEvent::SaveNewFile(p, i)
                 );
             }]
@@ -1182,18 +1193,18 @@ pub fn run(
                 call_u_and_r!(state, Input::Redo);
             }]
             [CTRL | SHIFT, Slash, "Toggle debug menu.", r_s {
-                r_s.view.toggle_debug_menu();
+                v_s!(r_s).view.toggle_debug_menu();
             }]
             [SHIFT, Tab, "Indent out selection/line.", r_s {
                 call_u_and_r!(r_s, Input::TabOut);
             }]
             [SHIFT, Up, "Extend selection(s) upward.", r_s {
                 call_u_and_r!(r_s, Input::ExtendSelectionForAllCursors(Move::Up));
-                r_s.ui.fresh_navigation = Navigation::Up;
+                v_s!(r_s).ui.fresh_navigation = Navigation::Up;
             }]
             [SHIFT, Down, "Extend selection(s) downward.", r_s {
                 call_u_and_r!(r_s, Input::ExtendSelectionForAllCursors(Move::Down));
-                r_s.ui.fresh_navigation = Navigation::Down;
+                v_s!(r_s).ui.fresh_navigation = Navigation::Down;
             }]
             [SHIFT, Left, "Extend selection(s) leftward.", r_s {
                 call_u_and_r!(r_s, Input::ExtendSelectionForAllCursors(Move::Left));
@@ -1279,15 +1290,15 @@ pub fn run(
 
                     macro_rules! text_box_xy {
                         () => {{
-                            let view = &r_s.view;
+                            let view = &v_s!().view;
                             let xy = wimp_render::get_current_buffer_rect(
                                 view.current_buffer_kind(),
                                 view.menu_mode(),
-                                r_s.dimensions
+                                v_s!().dimensions
                             )
                             .xy;
 
-                            screen_to_text_box(r_s.ui.mouse_pos, xy)
+                            screen_to_text_box(v_s!().ui.mouse_pos, xy)
                         }};
                     }
 
@@ -1321,14 +1332,14 @@ pub fn run(
                         WindowEvent::Resized(size) => {
                             let hidpi_factor = get_hidpi_factor!();
                             glutin_context.resize(size);
-                            r_s.dimensions.window = wh_from_size!(size);
+                            v_s!().dimensions.window = wh_from_size!(size);
                             call_u_and_r!(
                                 get_non_font_size_dependents_input!(
-                                    r_s.view.menu_mode(),
-                                    r_s.dimensions
+                                    v_s!().view.menu_mode(),
+                                    v_s!().dimensions
                                 )
                             );
-                            let sswh!(w, h) = r_s.dimensions.window;
+                            let sswh!(w, h) = v_s!().dimensions.window;
                             gl_layer::set_dimensions(
                                 &mut gl_state,
                                 hidpi_factor as _,
@@ -1337,7 +1348,7 @@ pub fn run(
                         }
                         WindowEvent::Focused(is_focused) => {
                             dbg!("set to ", is_focused);
-                            r_s.ui.window_is_focused = is_focused;
+                            v_s!().ui.window_is_focused = is_focused;
                             if is_focused {
                                 // X11 requires us to explicitly unset the window
                                 // attention.
@@ -1373,9 +1384,9 @@ pub fn run(
 
                                 if c == '\n' {
                                     use BufferIdKind::*;
-                                    match r_s.view.current_buffer_kind() {
+                                    match v_s!().view.current_buffer_kind() {
                                         None | FileSwitcher => {
-                                            r_s.ui.fresh_navigation = Navigation::Interact;
+                                            v_s!().ui.fresh_navigation = Navigation::Interact;
                                         }
                                         Text => {
                                             call_u_and_r!(Input::Insert(c));
@@ -1406,9 +1417,9 @@ pub fn run(
                             modifiers,
                             ..
                         } if modifiers.is_empty() => {
-                            let ui = &mut r_s.ui;
+                            let ui = &mut v_s!().ui;
                             let scroll_y = y * wimp_render::SCROLL_MULTIPLIER;
-                            if wimp_render::inside_tab_area(ui.mouse_pos, r_s.dimensions.font) {
+                            if wimp_render::inside_tab_area(ui.mouse_pos, v_s!().dimensions.font) {
                                 ui.tab_scroll -= scroll_y;
                             } else {
                                 call_u_and_r!(Input::ScrollVertically(scroll_y));
@@ -1419,9 +1430,9 @@ pub fn run(
                             modifiers,
                             ..
                         } if modifiers == SHIFT => {
-                            let ui = &mut r_s.ui;
+                            let ui = &mut v_s!().ui;
                             let scroll_y = y * wimp_render::SCROLL_MULTIPLIER;
-                            if wimp_render::inside_tab_area(ui.mouse_pos, r_s.dimensions.font) {
+                            if wimp_render::inside_tab_area(ui.mouse_pos, v_s!().dimensions.font) {
                                 ui.tab_scroll -= scroll_y;
                             } else {
                                 call_u_and_r!(Input::ScrollHorizontally(scroll_y));
@@ -1432,7 +1443,7 @@ pub fn run(
                             modifiers,
                             ..
                         } => {
-                            let ui = &mut r_s.ui;
+                            let ui = &mut v_s!().ui;
                             let LogicalPosition::<f32> { x, y } = position.to_logical(get_hidpi_factor!());
                             ui.mouse_pos = ssxy!{
                                 x,
@@ -1443,8 +1454,8 @@ pub fn run(
                                 m if m.is_empty() => {
                                     let cursor_icon = if wimp_render::should_show_text_cursor(
                                         ui.mouse_pos,
-                                        r_s.view.menu_mode(),
-                                        r_s.dimensions
+                                        v_s!().view.menu_mode(),
+                                        v_s!().dimensions
                                     ) {
                                         glutin_wrapper::window::CursorIcon::Text
                                     } else {
@@ -1467,7 +1478,7 @@ pub fn run(
                             ..
                         } // allow things like Shift-Alt-Click
                         if (!modifiers).intersects(!CTRL) => {
-                            r_s.ui.left_mouse_state = PhysicalButtonState::PressedThisFrame;
+                            v_s!().ui.left_mouse_state = PhysicalButtonState::PressedThisFrame;
 
                             let replace_or_add = if modifiers.ctrl() {
                                 ReplaceOrAdd::Add
@@ -1488,7 +1499,7 @@ pub fn run(
                             state: ElementState::Released,
                             ..
                         } => {
-                            let ui = &mut r_s.ui;
+                            let ui = &mut v_s!().ui;
                             ui.left_mouse_state = PhysicalButtonState::ReleasedThisFrame;
                             last_click_x = ui.mouse_pos.x;
                             last_click_y = ui.mouse_pos.y;
@@ -1498,15 +1509,15 @@ pub fn run(
                 }
                 Event::MainEventsCleared if running => {
                     perf_viz::start_record!("MainEventsCleared");
-                    let index_state = r_s.view.index_state();
-                    let buffer_status_map = &mut r_s.buffer_status_map;
+                    let index_state = v_s!().view.index_state();
+                    let buffer_status_map = &mut v_s!().buffer_status_map;
 
                     for _ in 0..EVENTS_PER_FRAME {
                         match editor_out_source.try_recv() {
                             Ok(EditorThreadOutput::Rendered((v, c, result))) => {
                                 debug_assert!(result.is_ok());
-                                r_s.view.update(v, result.map(|b| b.data).unwrap_or_default());
-                                for (i, e_t) in r_s.view.edited_transitions() {
+                                v_s!().view.update(v, result.map(|b| b.data).unwrap_or_default());
+                                for (i, e_t) in v_s!().view.edited_transitions() {
                                     transform_at(
                                         buffer_status_map,
                                         index_state,
@@ -1519,7 +1530,7 @@ pub fn run(
                                 r_s.cmds.push_back(c);
                             }
                             Ok(EditorThreadOutput::Pid(pid)) => {
-                                r_s.pids.editor = pid;
+                                v_s!().pids.editor = pid;
                             }
                             Err(_) => break,
                         };
@@ -1547,15 +1558,15 @@ pub fn run(
                 }
                 Event::RedrawRequested(_) => {
                     perf_viz::start_record!("frame");
-                    r_s.stats = d!();
+                    v_s!().stats = d!();
 
-                    r_s.ui.frame_init();
+                    v_s!().ui.frame_init();
 
-                    let sswh!(width, height) = r_s.dimensions.window;
+                    let sswh!(width, height) = v_s!().dimensions.window;
 
                     let ViewOutput { text_or_rects, action } =
                         wimp_render::view(
-                            &mut r_s,
+                            &mut v_s!(),
                             &r_c,
                             dt,
                         );
@@ -1609,13 +1620,13 @@ pub fn run(
                                 .duration_or_default().as_micros() as f32 / 1000.0
                             }
                         }
-                        let wimp_stats = r_s.stats;
+                        let wimp_stats = v_s!().stats;
 
                         let view_function_ms = ms_from_span!(
                             wimp_stats.latest_view_function_time_span
                         );
 
-                        let editor_stats = r_s.view.stats();
+                        let editor_stats = v_s!().view.stats();
                         // TODO move the final string into editor_view, as a
                         // secondary status line? Either this and the status
                         // line should both be in editor_view, or neither of
@@ -1679,18 +1690,18 @@ pub fn run(
                             parse_total,
                             editor_status_line_ms,
                             editor_menu_render_ms,
-                            (r_s.ui.mouse_pos.x, r_s.ui.mouse_pos.y),
+                            (v_s!().ui.mouse_pos.x, v_s!().ui.mouse_pos.y),
                             (last_click_x, last_click_y),
                         ));
                     }
                     perf_viz::end_record!("report_rate");
 
-                    r_s.ui.frame_end();
+                    v_s!().ui.frame_end();
                     perf_viz::end_record!("frame");
                     perf_viz::start_record!("sleepin'");
                     if cfg!(feature="no-spinning-sleep") {
                         loop_helper.loop_sleep_no_spin();
-                    } else if r_s.ui.window_is_focused {
+                    } else if v_s!().ui.window_is_focused {
                         loop_helper.loop_sleep();
                     } else {
                         loop_helper.loop_sleep_no_spin();
@@ -1707,19 +1718,21 @@ pub fn run(
                     CustomEvent::Pid(kind, pid) => {
                         match kind {
                             PidKind::PathMailbox => {
-                                r_s.pids.path_mailbox = pid;
+                                v_s!().pids.path_mailbox = pid;
                             }
                         }
                     },
                     CustomEvent::OpenFile(p) => load_file!(p),
                     CustomEvent::SaveNewFile(p, index) => {
-                        // TODO Stop receiving this here and forwarding to the next
-                        // thread, and instead send it there directly
+                        // TODO Stop receiving this `p` and `index` here and 
+                        // forwarding to the next thread, and instead send it
+                        // there directly
+
                         let r_s = &mut r_s;
                         // The fact we need to store the index and retreive it later,
                         // potentially across multiple updates, is why this thread
                         // needs to know about the generational indices.
-                        if let Some(label) = r_s.view.get_buffer_label(index)
+                        if let Some(label) = v_s!(r_s).view.get_buffer_label(index)
                         {
                             save_to_disk!(
                                 r_s,
@@ -1735,14 +1748,14 @@ pub fn run(
                         transition,
                     ) => {
                         transform_at(
-                            &mut r_s.buffer_status_map,
+                            &mut v_s!().buffer_status_map,
                             // TODO should this be the index state before the save?
-                            r_s.view.index_state(),
+                            v_s!().view.index_state(),
                             index,
                             transition
                         );
                         call_u_and_r!(
-                            r_s.ui,
+                            v_s!().ui,
                             r_s.editor_in_sink,
                             Input::SavedAs(index, path.to_path_buf())
                         );
@@ -1750,9 +1763,9 @@ pub fn run(
                     CustomEvent::SendBuffersToBeSaved => {
                         // TODO Can we send this directly from the edited files
                         // thread to the editor thread, without passing through here?
-                        let view = &r_s.view;
+                        let view = &v_s!().view;
                         let index_state = view.index_state();
-                        let buffer_status_map = &mut r_s.buffer_status_map;
+                        let buffer_status_map = &mut v_s!().buffer_status_map;
 
                         let mut names = Vec::with_capacity(32);
                         let mut statuses = Vec::with_capacity(32);

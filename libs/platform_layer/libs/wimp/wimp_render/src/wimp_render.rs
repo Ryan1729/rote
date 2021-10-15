@@ -1,6 +1,6 @@
 #![deny(bindings_with_variant_name, unused)]
 use gl_layer::{ColouredText, MulticolourTextSpec, TextLayout, TextOrRect, TextSpec, VisualSpec};
-use wimp_types::{CommandsMap, LocalMenuView, View, WimpMenuMode, MenuView, WimpMenuView, FindReplaceMode, ui_id, ui, ui::{ButtonState}, BufferStatus, CommandKey, Dimensions, RunConsts, RunState, ui::ListSelection, command_keys};
+use wimp_types::{CommandsMap, LocalMenuView, View, WimpMenuMode, MenuView, WimpMenuView, FindReplaceMode, ui_id, ui, ui::{ButtonState}, BufferStatus, CommandKey, Dimensions, RunConsts, ViewRunState, ui::ListSelection, command_keys};
 use macros::{c, d, dbg, invariant_assert, u};
 use platform_types::{
     *,
@@ -190,7 +190,7 @@ pub struct ViewOutput<'view> {
 
 #[perf_viz::record]
 pub fn view<'view>(
-    RunState {
+    ViewRunState {
         ref mut ui,
         ref mut view,
         ref mut buffer_status_map,
@@ -200,7 +200,7 @@ pub fn view<'view>(
         ref mut pid_string,
         ref mut stats,
         ..
-    }: &'view mut RunState,
+    }: &'view mut ViewRunState,
     RunConsts {
         commands
     }: &RunConsts,

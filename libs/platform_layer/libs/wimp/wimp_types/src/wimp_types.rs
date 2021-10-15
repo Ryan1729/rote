@@ -79,7 +79,7 @@ pub use clipboard_layer::{get_clipboard, Clipboard, ClipboardProvider};
 
 // Parts of RunState that represent externally chosen, absolute dimensions of things,
 // including the window, from which the sizes of several UI elements are derived.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct Dimensions {
     pub window: ScreenSpaceWH,
     pub font: FontInfo,
@@ -386,21 +386,27 @@ pub enum EditorThreadInput {
     SaveToDisk(PathBuf, BufferLabel, g_i::Index),
 }
 
-/// State owned by the `run` function, which can be uniquely borrowed by other functions called inside `run`.
-#[derive(Debug)]
-pub struct RunState {
+/// The subset of RunState that is relevant to rendering the view.
+#[derive(Debug, Default)]
+pub struct ViewRunState {
     pub view: View,
-    pub cmds: VecDeque<Cmd>,
     pub ui: ui::State,
     pub buffer_status_map: g_i::Map<BufferStatus>,
-    pub editor_in_sink: std::sync::mpsc::Sender<EditorThreadInput>,
     pub dimensions: Dimensions,
-    pub event_proxy: EventLoopProxy<CustomEvent>,
-    pub clipboard: Clipboard,
     pub startup_description: String,
     pub pids: Pids,
     pub pid_string: String,
     pub stats: Stats,
+}
+
+/// State owned by the `run` function, which can be uniquely borrowed by other functions called inside `run`.
+#[derive(Debug)]
+pub struct RunState {
+    pub view_state: ViewRunState,
+    pub cmds: VecDeque<Cmd>,
+    pub editor_in_sink: std::sync::mpsc::Sender<EditorThreadInput>,
+    pub event_proxy: EventLoopProxy<CustomEvent>,
+    pub clipboard: Clipboard,
 }
 
 pub type CommandKey = (ModifiersState, VirtualKeyCode);
@@ -443,7 +449,7 @@ impl std::fmt::Debug for LabelledCommand {
 
 pub type CommandsMap = BTreeMap<CommandKey, LabelledCommand>;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 /// Values that should not be changed (i.e. should be left constant,) which were
 /// lazily initialized by the `run` function, which can be shared by other functions
 /// called inside `run`. Keeping this separate from `RunState` also simplifies some
@@ -526,7 +532,6 @@ pub mod ui {
 
     impl ListSelection {
         pub fn move_up(self) -> Self {
-            std::dbg!(self);
             let index = self.index.saturating_sub(1);
             Self {
                 index,

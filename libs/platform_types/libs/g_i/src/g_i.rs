@@ -938,7 +938,7 @@ use std::collections::HashMap;
 #[cfg(feature = "fast_hash")]
 use fast_hash::Map as HashMap;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Default)]
 pub struct Map<A> {
     map: HashMap<IndexPart, A>,
     last_state: Option<State>,

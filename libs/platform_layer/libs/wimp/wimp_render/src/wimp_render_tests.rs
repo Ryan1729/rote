@@ -2,7 +2,7 @@ use super::*;
 use wimp_types::{ui_id, ui::{do_button_logic, InputType, PhysicalButtonState, Navigation}};
 use platform_types::{bvd};
 
-use macros::{dbg};
+use macros::{dbg, d};
 
 use proptest::{
     prelude::{Just, Strategy},
@@ -500,4 +500,12 @@ fn render_file_switcher_menu_selects_the_fileswitcher_buffer_when_the_navigation
     );
 
     assert_eq!(view_output.action, ViewAction::Input(Input::SelectBuffer(b_id!(BufferIdKind::FileSwitcher, index))));
+}
+
+#[test]
+fn view_does_not_panic_with_empty_input() {
+    view(&mut d!(), &d!(), d!());
+
+    // If we got here, the test passes.
+    assert!(true);
 }
