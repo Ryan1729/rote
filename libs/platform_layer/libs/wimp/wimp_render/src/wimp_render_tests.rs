@@ -482,11 +482,6 @@ fn render_file_switcher_menu_selects_the_fileswitcher_buffer_when_the_navigation
         d!(),
     );
 
-    let dimensions: Dimensions = Dimensions {
-        window: sswh!(1024.0, 768.0),
-        font: d!(),
-    };
-
     let mut view_output: ViewOutput = d!();
 
     render_file_switcher_menu(
@@ -494,7 +489,7 @@ fn render_file_switcher_menu_selects_the_fileswitcher_buffer_when_the_navigation
         &fs_view,
         &mut ui,
         b_id!(BufferIdKind::FileSwitcher, index),
-        dimensions,
+        d!(),
         &mut view_output.text_or_rects,
         &mut view_output.action,
     );

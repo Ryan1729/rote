@@ -79,10 +79,19 @@ pub use clipboard_layer::{get_clipboard, Clipboard, ClipboardProvider};
 
 // Parts of RunState that represent externally chosen, absolute dimensions of things,
 // including the window, from which the sizes of several UI elements are derived.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug)]
 pub struct Dimensions {
     pub window: ScreenSpaceWH,
     pub font: FontInfo,
+}
+
+impl Default for Dimensions {
+    fn default() -> Self {
+        Self {
+            window: sswh!(1024.0, 768.0),
+            font: d!(),
+        }
+    }
 }
 
 pub type PID = u32;
