@@ -10,7 +10,7 @@ pub use screen_space::*;
 // TODO should this be moved into screen_space?
 impl MapElements<abs::Pos> for ScreenSpaceXY {
     fn map_elements(&self, mapper: &impl Fn(abs::Pos) -> abs::Pos) -> Self {
-        Self { 
+        Self {
             x: mapper(self.x),
             y: mapper(self.y),
         }
@@ -80,7 +80,7 @@ impl From<TextBoxXY> for ScreenSpaceXY {
 
 impl MapElements<abs::Pos> for TextBoxXY {
     fn map_elements(&self, mapper: &impl Fn(abs::Pos) -> abs::Pos) -> Self {
-        Self { 
+        Self {
             x: mapper(self.x),
             y: mapper(self.y),
         }
@@ -234,7 +234,7 @@ macro_rules! tsxywh {
     // Pattern matching
     //
     ($x: ident, $y: ident, $w: ident, $h: ident) => {
-        $crate::TextSpaceXYWH { 
+        $crate::TextSpaceXYWH {
             xy: $crate::tsxy!($x, $y),
             wh: $crate::sswh!($w, $h),
         }
@@ -243,13 +243,13 @@ macro_rules! tsxywh {
     // Initialization
     //
     ($x: expr, $y: expr, $w: expr, $h: expr) => {
-        $crate::TextSpaceXYWH { 
+        $crate::TextSpaceXYWH {
             xy: $crate::tsxy!($x, $y),
             wh: $crate::sswh!($w, $h),
         }
     };
     ($xy: expr, $wh: expr) => {
-        $crate::TextSpaceXYWH { 
+        $crate::TextSpaceXYWH {
             xy: $xy,
             wh: $wh,
         }
@@ -272,7 +272,7 @@ pub struct ScrollXY {
 fmt_debug!(for ScrollXY: ScrollXY {x, y} in "slxy!({}, {})", x, y);
 fmt_display!(for ScrollXY: ScrollXY {x, y} in "({}, {})", x, y);
 
-/// This uses `slxy` becasue `scxy`, or `srxy` seem confusable with being for 
+/// This uses `slxy` becasue `scxy`, or `srxy` seem confusable with being for
 /// ScreenSpaceXY. `soxy` seems less evocative of scrolling than `slxy`.
 #[macro_export]
 macro_rules! slxy {
@@ -304,7 +304,7 @@ macro_rules! slxy {
 
 impl MapElements<abs::Pos> for ScrollXY {
     fn map_elements(&self, mapper: &impl Fn(abs::Pos) -> abs::Pos) -> Self {
-        Self { 
+        Self {
             x: mapper(self.x),
             y: mapper(self.y),
         }
@@ -489,7 +489,7 @@ pub struct Apron {
     pub bottom_h_ratio: F32_0_1,
 }
 
-// TODO make a derive macro that hashes all the fields, but checks if fields are 
+// TODO make a derive macro that hashes all the fields, but checks if fields are
 // f32/f64 and calls `to_bits` if they are.
 macro_rules! hash_to_bits {
     (for $name: ty : $self: ident, $state: ident in $($field: ident),* ) => {
