@@ -1558,10 +1558,9 @@ pub fn run(
                 }
                 Event::RedrawRequested(_) => {
                     perf_viz::start_record!("frame");
-                    v_s!().stats = d!();
 
-                    v_s!().ui.frame_init();
-
+                    // This is done before calling `wimp_render::view` because the
+                    // `ViewOutput` borrows `v_s!()`.
                     let sswh!(width, height) = v_s!().dimensions.window;
 
                     let ViewOutput { text_or_rects, action } =

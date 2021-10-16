@@ -206,6 +206,10 @@ pub fn view<'view>(
     }: &RunConsts,
     dt: std::time::Duration,
 ) -> ViewOutput<'view> {
+    *stats = d!();
+
+    ui.frame_init();
+
     stats.latest_view_function_time_span = TimeSpan::start();
     if cfg!(feature = "extra-prints") {
         if_changed::dbg!(&view);
