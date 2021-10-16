@@ -468,8 +468,6 @@ fn make_nth_tab_visible_if_present_is_idempotent_on_this_generated_example() {
 #[test]
 /// The idea here is to make sure that going off the top of the list leads to the input box being selected.
 fn render_file_switcher_menu_selects_the_fileswitcher_buffer_when_the_navigation_is_up_from_index_0() {
-    let index = d!();
-
     let fs_view = FileSwitcherView {
         search: bvd!("a"),
         results: vec!["a".into(), "ab".into(), "abc".into()],
@@ -484,6 +482,7 @@ fn render_file_switcher_menu_selects_the_fileswitcher_buffer_when_the_navigation
 
     let mut view_output: ViewOutput = d!();
 
+    let index = d!();
     render_file_switcher_menu(
         index,
         &fs_view,
@@ -495,6 +494,86 @@ fn render_file_switcher_menu_selects_the_fileswitcher_buffer_when_the_navigation
     );
 
     assert_eq!(view_output.action, ViewAction::Input(Input::SelectBuffer(b_id!(BufferIdKind::FileSwitcher, index))));
+}
+
+#[test]
+/// This is meant to reproduce a bug we had that caused the list selection to reset 
+/// to a default state when pressing up after scrolling down.
+fn render_file_switcher_menu_does_not_reset_in_this_case() {
+    let window_size = calculate_window_size();
+
+    let fs_view = FileSwitcherView {
+        search: bvd!("a"),
+        results: vec!["a".into(), "ab".into(), "abc".into(), "abcd".into(), "abcde".into()],
+    };
+
+    // We need to have enough results to trigger a pivot based scroll offsetting.
+    assert!(fs_view.results.len() >= window_size.get());
+
+    let mut ui: ui::State = d!();
+    ui.frame_init();
+    ui.keyboard.hot = ui::Id::TaggedListSelection(
+        ui::Tag::FileSwitcherResults,
+        d!(),
+    );
+
+    let mut view_output: ViewOutput = d!();
+    let index = d!();
+
+    // -1 so we do not go past the bottom one.
+    for i in 0..(fs_view.results.len() - 1) {
+        ui.navigation = Navigation::Down;
+        render_file_switcher_menu(
+            index,
+            &fs_view,
+            &mut ui,
+            b_id!(BufferIdKind::FileSwitcher, index),
+            d!(),
+            &mut view_output.text_or_rects,
+            &mut view_output.action,
+        );
+
+        ui.frame_init();
+
+        match ui.keyboard.hot {
+            ui::Id::TaggedListSelection(
+                ui::Tag::FileSwitcherResults,
+                selection,
+            ) => {
+                assert_ne!(selection, d!(), "was default on iteration {}", i);
+                assert_eq!(selection.index, i + 1, "index mismatch on iteration {}", i);
+            },
+            _ => {
+                panic!("Unexpected value for ui.keyboard.hot on iteration {}: {:?}", i, ui.keyboard.hot)
+            }
+        }
+    }
+
+    ui.navigation = Navigation::Up;
+    render_file_switcher_menu(
+        index,
+        &fs_view,
+        &mut ui,
+        b_id!(BufferIdKind::FileSwitcher, index),
+        d!(),
+        &mut view_output.text_or_rects,
+        &mut view_output.action,
+    );
+
+    ui.frame_init();
+
+    match ui.keyboard.hot {
+        ui::Id::TaggedListSelection(
+            ui::Tag::FileSwitcherResults,
+            selection,
+        ) => {
+            assert_ne!(selection, d!());
+            assert_eq!(selection.index, fs_view.results.len() - 2, "index mismatch after Up");
+        },
+        _ => {
+            panic!("Unexpected value for ui.keyboard.hot: {:?}", ui.keyboard.hot)
+        }
+    }
 }
 
 #[test]

@@ -1,6 +1,6 @@
 #![deny(bindings_with_variant_name, unused)]
 use gl_layer::{ColouredText, MulticolourTextSpec, TextLayout, TextOrRect, TextSpec, VisualSpec};
-use wimp_types::{CommandsMap, LocalMenuView, View, WimpMenuMode, MenuView, WimpMenuView, FindReplaceMode, ui_id, ui, ui::{ButtonState}, BufferStatus, CommandKey, Dimensions, RunConsts, ViewRunState, ui::ListSelection, command_keys};
+use wimp_types::{CommandsMap, LocalMenuView, View, WimpMenuMode, MenuView, WimpMenuView, FindReplaceMode, ui_id, ui, ui::{ButtonState}, BufferStatus, CommandKey, Dimensions, RunConsts, ViewRunState, ui::{ListSelection, ListSelectionWindowSize}, command_keys};
 use macros::{c, d, dbg, invariant_assert, u};
 use platform_types::{
     *,
@@ -850,6 +850,11 @@ fn command_button<'view> (
     }
 }
 
+// TODO add arguments and calculate how many will fit based on screen size etc.
+fn calculate_window_size() -> ListSelectionWindowSize {
+    ListSelectionWindowSize::new(5).unwrap()
+}
+
 fn render_file_switcher_menu<'view>(
     buffer_index: g_i::Index,
     FileSwitcherView { search, results }: &'view FileSwitcherView,
@@ -859,6 +864,7 @@ fn render_file_switcher_menu<'view>(
     text_or_rects: &mut Vec<TextOrRect<'view>>,
     action: &mut ViewAction,
 ) {
+    dbg!();
     let FontInfo {
         ref tab_char_dim,
         ref find_replace_char_dim,
@@ -917,11 +923,10 @@ fn render_file_switcher_menu<'view>(
 
     let search_buffer_id = b_id!(BufferIdKind::FileSwitcher, buffer_index);
 
-     // TODO calculate how many will fit based on screen size etc.
-    let window_size = core::num::NonZeroUsize::new(5).unwrap();
+    let window_size = calculate_window_size();
 
     let mut navigated_result = None;
-
+    dbg!(&action);
     if action.is_none() {
         u!{ui::Navigation}
         match ui.navigation {
@@ -1016,6 +1021,7 @@ fn render_file_switcher_menu<'view>(
 
     let selection = navigated_result.unwrap_or_default();
 
+    // TODO Is the reset bug caused by not calling set_next_hot on the skipped ones?
     for (result_index, result) in results.iter()
         .enumerate()
         .skip(selection.window_start)
@@ -1026,11 +1032,13 @@ fn render_file_switcher_menu<'view>(
 
         let result_id = match navigated_result {
             Some(selection) if selection.index == result_index => {
+                dbg!(selection);
                 let result_id = get_result_id(selection);
                 ui.keyboard.set_next_hot(result_id);
                 result_id
             }
             _ => {
+                dbg!(navigated_result);
                 get_result_id(ListSelection{
                     index: result_index,
                     ..selection

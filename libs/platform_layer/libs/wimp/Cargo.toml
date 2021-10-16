@@ -35,7 +35,7 @@ no-spinning-sleep = []
 skip-updating-editor-thread = []
 invariant-checking = ["wimp_render/invariant-checking"]
 time-render = ["gl_layer/time-render"]
-extra-prints = ["shared/extra-prints"]
+extra-prints = ["shared/extra-prints", "wimp_render/extra-prints"]
 print-raw-input = []
 
 [dev-dependencies]

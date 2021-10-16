@@ -23,4 +23,5 @@ proptest = "0.10"
 [features]
 clip-debugging = []
 default = []
+extra-prints = []
 invariant-checking = ["macros/invariant-checking"]

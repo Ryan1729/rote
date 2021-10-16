@@ -539,6 +539,8 @@ pub mod ui {
         // pub intra_window_offset: u8
     }
 
+    pub type ListSelectionWindowSize = core::num::NonZeroUsize;
+
     impl ListSelection {
         pub fn move_up(self) -> Self {
             let index = self.index.saturating_sub(1);
@@ -548,7 +550,7 @@ pub mod ui {
             }
         }
 
-        pub fn move_down(self, window_size: core::num::NonZeroUsize, length: usize) -> Self {
+        pub fn move_down(self, window_size: ListSelectionWindowSize, length: usize) -> Self {
             let index = self.index.saturating_add(1);
 
             if index >= length {
