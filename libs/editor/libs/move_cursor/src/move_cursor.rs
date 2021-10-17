@@ -80,7 +80,9 @@ fn move_to<OptionPos: Into<Option<Position>>>(
     position: OptionPos,
     action: SetPositionAction,
 ) -> Moved {
-    if let Some(position) = position.into() {
+    let p = position.into();
+    std::dbg!(p, cursor.get_position());
+    if let Some(position) = p {
         if cursor.get_position() == position {
             // We might need to clear the highlight cursor, depending on the action, even though
             // the position matches.

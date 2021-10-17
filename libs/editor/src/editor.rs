@@ -663,7 +663,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
     state.view.stats.latest_update_time_span = TimeSpan::start();
 
     u!{Input}
-    match input {
+    match std::dbg!(input) {
         Input::None => {}
         Quit => {}
         CloseMenuIfAny => {

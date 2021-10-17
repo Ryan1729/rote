@@ -692,7 +692,7 @@ pub mod ui {
     impl State {
         pub fn frame_init(&mut self) {
             self.mouse.frame_init();
-            self.keyboard.frame_init();
+            if_changed::dbg!(&mut self.keyboard).frame_init();
         }
         pub fn frame_end(&mut self) {
             // This needs to go here instead of in init, so that we actually see the undecayed state

@@ -207,8 +207,9 @@ pub fn view<'view>(
     dt: std::time::Duration,
 ) -> ViewOutput<'view> {
     *stats = d!();
-
+    std::dbg!(&ui.keyboard);
     ui.frame_init();
+    std::dbg!(&ui.keyboard);
 
     stats.latest_view_function_time_span = TimeSpan::start();
     if cfg!(feature = "extra-prints") {
@@ -561,7 +562,7 @@ pub fn view<'view>(
 
                         match navigated_result {
                             Some(i) if i == result_index => {
-                                ui.keyboard.set_next_hot(result_id);
+                                dbg!(&mut ui.keyboard).set_next_hot(result_id);
                             }
                             _ => {}
                         };
@@ -806,6 +807,8 @@ pub fn view<'view>(
 
     stats.latest_view_function_time_span = stats.latest_view_function_time_span.end_if_started();
 
+    std::dbg!(&ui.keyboard);
+
     ViewOutput {
         text_or_rects,
         action,
@@ -1038,7 +1041,7 @@ fn render_file_switcher_menu<'view>(
             Some(selection) if selection.index == result_index => {
                 dbg!(selection);
                 let result_id = get_result_id(selection);
-                ui.keyboard.set_next_hot(result_id);
+                dbg!(&mut ui.keyboard).set_next_hot(result_id);
                 result_id
             }
             _ => {
