@@ -845,16 +845,23 @@ pub mod ui {
     #[perf_viz::record]
     pub fn begin_view(ui: &mut State, view: &View) {
         if let Some(derived_navigation) = view.get_navigation() {
+            std::dbg!(&derived_navigation, &ui.fresh_navigation);
             // We want to allow the view state to keep indicating the same
             // navigation, but only propagate it when either the derived input has
             // just changed, or the the the input is fresh, (AKA made this frame).
-            if ui.fresh_navigation != Navigation::None
+            ui.navigation = if ui.fresh_navigation != Navigation::None
             || derived_navigation != ui.previous_derived_navigation {
-                ui.navigation = derived_navigation;
+                if ui.fresh_navigation != Navigation::None {
+                    ui.previous_derived_navigation = ui.fresh_navigation;
+                    ui.fresh_navigation
+                } else {
+                    ui.previous_derived_navigation = derived_navigation;
+                    derived_navigation
+                }
             } else {
-                ui.navigation = d!();
-            }
-            ui.previous_derived_navigation = derived_navigation;
+                ui.previous_derived_navigation = derived_navigation;
+                d!()
+            };
         } else {
             ui.previous_derived_navigation = d!();
         }

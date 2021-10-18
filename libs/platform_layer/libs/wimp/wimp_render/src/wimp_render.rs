@@ -257,7 +257,7 @@ pub fn view<'view>(
     //
     perf_viz::start_record!("render Tabs");
     let selected_index = view.current_text_index();
-
+    std::dbg!(&ui.keyboard);
     let tab_count = buffer_count;
     for (i, (index, label))
     in view.buffers.buffer_iter().enumerate() {
@@ -357,6 +357,7 @@ pub fn view<'view>(
     ))
     .or(action);
     perf_viz::end_record!("render BufferIdKind::Text");
+    std::dbg!(&ui.keyboard);
 
     perf_viz::start_record!("render view.menu()");
     match view.menu() {
@@ -444,6 +445,7 @@ pub fn view<'view>(
                     }
                 }
                 MenuView::FileSwitcher(ref fs_view) => {
+                    std::dbg!(&ui.keyboard);
                     render_file_switcher_menu(
                         index,
                         fs_view,
@@ -453,6 +455,7 @@ pub fn view<'view>(
                         &mut text_or_rects,
                         &mut action,
                     );
+                    std::dbg!(&ui.keyboard);
 
                     if action.is_none() {
                         if cfg!(feature="extra-prints") {
@@ -678,6 +681,7 @@ pub fn view<'view>(
         }
     }
     perf_viz::end_record!("render view.menu()");
+    std::dbg!(&ui.keyboard);
 
     //
     //    Status line
@@ -777,6 +781,7 @@ pub fn view<'view>(
         action = Some(command_keys::command_menu()).into()
     }
     perf_viz::end_record!("Status line");
+    std::dbg!(&ui.keyboard);
 
     //
     //    Recolouring
@@ -871,7 +876,7 @@ fn render_file_switcher_menu<'view>(
     text_or_rects: &mut Vec<TextOrRect<'view>>,
     action: &mut ViewAction,
 ) {
-    dbg!();
+    std::dbg!(&ui.keyboard);
     let FontInfo {
         ref tab_char_dim,
         ref find_replace_char_dim,
@@ -933,10 +938,11 @@ fn render_file_switcher_menu<'view>(
     let window_size = calculate_window_size();
 
     let mut navigated_result = None;
-    dbg!(&action);
+    std::dbg!(&action, &ui.keyboard);
     if action.is_none() {
         u!{ui::Navigation}
-        match ui.navigation {
+        std::dbg!(&ui.keyboard);
+        match std::dbg!(ui.navigation) {
             None => {
                 if let ui::Id::TaggedListSelection(
                     ui::Tag::FileSwitcherResults,
@@ -947,6 +953,7 @@ fn render_file_switcher_menu<'view>(
                 }
             }
             Up => {
+                std::dbg!(&ui.keyboard);
                 if let ui::Id::TaggedListSelection(
                     ui::Tag::FileSwitcherResults,
                     selection,
@@ -961,6 +968,7 @@ fn render_file_switcher_menu<'view>(
                 }
             }
             Down => {
+                std::dbg!(&ui.keyboard);
                 if let ui::Id::TaggedListSelection(
                     ui::Tag::FileSwitcherResults,
                     selection,
@@ -990,6 +998,7 @@ fn render_file_switcher_menu<'view>(
         }
     }
 
+    std::dbg!(&ui.keyboard, &navigated_result);
     macro_rules! spaced_input_box {
         ($data: expr, $input: expr, $outer_rect: expr) => {{
             *action = into_action(text_box(
@@ -1039,7 +1048,7 @@ fn render_file_switcher_menu<'view>(
 
         let result_id = match navigated_result {
             Some(selection) if selection.index == result_index => {
-                dbg!(selection);
+                std::dbg!(selection);
                 let result_id = get_result_id(selection);
                 dbg!(&mut ui.keyboard).set_next_hot(result_id);
                 result_id
