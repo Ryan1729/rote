@@ -532,7 +532,7 @@ pub mod ui {
     pub struct ListSelection {
         pub index: usize,
         pub window_start: usize
-        // Since we are unlikely to need a window as large as 256, this could be 
+        // Since we are unlikely to need a window as large as 256, this could be
         // phrased as the following if the memory used became an issue. That seems
         // unlikely at the moment though.
         // pub window_start: usize
@@ -690,15 +690,59 @@ pub mod ui {
     }
 
     impl State {
-        pub fn frame_init(&mut self) {
+        pub fn frame_init(&mut self, view: &View) {
             self.mouse.frame_init();
             if_changed::dbg!(&mut self.keyboard).frame_init();
+
+            Self::complicated_input_propagation(self, view);
         }
         pub fn frame_end(&mut self) {
             // This needs to go here instead of in init, so that we actually see the undecayed state
-            // for the first frame after the input event.
+            // for the first frame after the input event. {
             self.left_mouse_state.decay();
             self.enter_key_state.decay();
+            // }
+
+            self.fresh_navigation = d!();
+            self.navigation = d!();
+        }
+
+        // TODO simplify/rewrite this.
+        //  The main issue seems to be dealing with input to the editor changing
+        //  things. So it seems like a promising direction to, right before the
+        //  input would be sent to the editor, check the hot UiId and if it
+        //  indicates a a component that wants the a subset of the keyboard input
+        //  for itself, skip sending that inputto the editor, and instead set a
+        //  property on the `ui::State`. Then it will be the responsibilty of the
+        //  UI component to give back the input to the editor at the right time.
+        //  We'd also need to make Esc etc. work properly.
+        fn complicated_input_propagation(ui: &mut ui::State, view: &View) {
+            if let Some(derived_navigation) = view.get_navigation() {
+                std::dbg!(&derived_navigation, &ui.fresh_navigation);
+                // We want to allow the view state to keep indicating the same
+                // navigation, but only propagate it when either the derived input has
+                // just changed, or the the the input is fresh, (AKA made this frame).
+                ui.navigation = if ui.fresh_navigation != Navigation::None
+                || derived_navigation != ui.previous_derived_navigation {
+                    if ui.fresh_navigation != Navigation::None {
+                        ui.previous_derived_navigation = ui.fresh_navigation;
+                        ui.fresh_navigation
+                    } else {
+                        ui.previous_derived_navigation = derived_navigation;
+                        derived_navigation
+                    }
+                } else {
+                    ui.previous_derived_navigation = derived_navigation;
+                    d!()
+                };
+            } else {
+                ui.previous_derived_navigation = d!();
+            }
+
+            // Since `Interact` is never derived, we can always let it through.
+            if ui.fresh_navigation == Navigation::Interact {
+                ui.navigation = ui.fresh_navigation;
+            }
         }
     }
 
@@ -841,42 +885,6 @@ pub mod ui {
         Interact,
     }
     d!(for Navigation: Navigation::None);
-
-    #[perf_viz::record]
-    pub fn begin_view(ui: &mut State, view: &View) {
-        if let Some(derived_navigation) = view.get_navigation() {
-            std::dbg!(&derived_navigation, &ui.fresh_navigation);
-            // We want to allow the view state to keep indicating the same
-            // navigation, but only propagate it when either the derived input has
-            // just changed, or the the the input is fresh, (AKA made this frame).
-            ui.navigation = if ui.fresh_navigation != Navigation::None
-            || derived_navigation != ui.previous_derived_navigation {
-                if ui.fresh_navigation != Navigation::None {
-                    ui.previous_derived_navigation = ui.fresh_navigation;
-                    ui.fresh_navigation
-                } else {
-                    ui.previous_derived_navigation = derived_navigation;
-                    derived_navigation
-                }
-            } else {
-                ui.previous_derived_navigation = derived_navigation;
-                d!()
-            };
-        } else {
-            ui.previous_derived_navigation = d!();
-        }
-
-        // Since `Interact` is never derived, we can always let it through.
-        if ui.fresh_navigation == Navigation::Interact {
-            ui.navigation = ui.fresh_navigation;
-        }
-    }
-
-    #[perf_viz::record]
-    pub fn end_view(ui: &mut State) {
-        ui.fresh_navigation = d!();
-        ui.navigation = d!();
-    }
 }
 
 /// This macro creates a ui::Id based on the expression passed in and the location of the invocation

@@ -1701,9 +1701,7 @@ pub fn run(
                         ));
                     }
                     perf_viz::end_record!("report_rate");
-                    std::dbg!(&v_s!().ui.keyboard);
-                    v_s!().ui.frame_end();
-                    std::dbg!(&v_s!().ui.keyboard);
+
                     perf_viz::end_record!("frame");
                     perf_viz::start_record!("sleepin'");
                     if cfg!(feature="no-spinning-sleep") {

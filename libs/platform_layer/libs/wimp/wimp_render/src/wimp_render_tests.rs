@@ -15,6 +15,8 @@ mod arb {
 
 #[test]
 fn do_button_logic_does_not_flash_like_it_used_to() {
+    let view: View = d!();
+
     use ButtonState::*;
     let mut ui: ui::State = d!();
     let id = ui_id!(&0);
@@ -24,10 +26,10 @@ fn do_button_logic_does_not_flash_like_it_used_to() {
         abs::Pos::MAX,
         abs::Pos::MAX,
     );
-    ui.frame_init();
+    ui.frame_init(&view);
     assert_eq!(do_button_logic(&mut ui, id, rect), (false, Usual));
     ui.frame_end();
-    ui.frame_init();
+    ui.frame_init(&view);
     assert_eq!(
         do_button_logic(&mut ui, id, rect),
         (false, Hover(InputType::Mouse))
@@ -35,7 +37,7 @@ fn do_button_logic_does_not_flash_like_it_used_to() {
     ui.frame_end();
     ui.left_mouse_state = PhysicalButtonState::PressedThisFrame;
     for i in 0..16 {
-        ui.frame_init();
+        ui.frame_init(&view);
         assert_eq!(
             do_button_logic(&mut ui, id, rect),
             (false, Pressed(InputType::Mouse)),
@@ -45,14 +47,14 @@ fn do_button_logic_does_not_flash_like_it_used_to() {
         ui.frame_end();
     }
     ui.left_mouse_state = PhysicalButtonState::ReleasedThisFrame;
-    ui.frame_init();
+    ui.frame_init(&view);
     assert_eq!(
         do_button_logic(&mut ui, id, rect),
         (true, Hover(InputType::Mouse))
     );
     ui.frame_end();
     for i in 0..16 {
-        ui.frame_init();
+        ui.frame_init(&view);
         assert_eq!(
             do_button_logic(&mut ui, id, rect),
             (false, Hover(InputType::Mouse)),
@@ -500,6 +502,7 @@ fn render_file_switcher_menu_selects_the_fileswitcher_buffer_when_the_navigation
 /// This is meant to reproduce a bug we had that caused the list selection to reset 
 /// to a default state when pressing up after scrolling down.
 fn render_file_switcher_menu_does_not_reset_in_this_case() {
+    let view: View = d!();
     let window_size = calculate_window_size();
 
     let fs_view = FileSwitcherView {
@@ -511,7 +514,7 @@ fn render_file_switcher_menu_does_not_reset_in_this_case() {
     assert!(fs_view.results.len() >= window_size.get());
 
     let mut ui: ui::State = d!();
-    ui.frame_init();
+    ui.frame_init(&view);
     ui.keyboard.hot = ui::Id::TaggedListSelection(
         ui::Tag::FileSwitcherResults,
         d!(),
@@ -533,7 +536,7 @@ fn render_file_switcher_menu_does_not_reset_in_this_case() {
             &mut view_output.action,
         );
 
-        ui.frame_init();
+        ui.frame_init(&view);
 
         match ui.keyboard.hot {
             ui::Id::TaggedListSelection(
@@ -560,7 +563,7 @@ fn render_file_switcher_menu_does_not_reset_in_this_case() {
         &mut view_output.action,
     );
 
-    ui.frame_init();
+    ui.frame_init(&view);
 
     match ui.keyboard.hot {
         ui::Id::TaggedListSelection(

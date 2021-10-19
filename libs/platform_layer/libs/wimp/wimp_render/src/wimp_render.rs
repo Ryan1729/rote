@@ -207,16 +207,12 @@ pub fn view<'view>(
     dt: std::time::Duration,
 ) -> ViewOutput<'view> {
     *stats = d!();
-    std::dbg!(&ui.keyboard);
-    ui.frame_init();
-    std::dbg!(&ui.keyboard);
+    ui.frame_init(&view);
 
     stats.latest_view_function_time_span = TimeSpan::start();
     if cfg!(feature = "extra-prints") {
         if_changed::dbg!(&view);
     }
-
-    ui::begin_view(ui, view);
 
     let dimensions = *dimensions;
     let sswh!(width, height) = dimensions.window;
@@ -808,7 +804,7 @@ pub fn view<'view>(
     perf_viz::end_record!("Recolouring");
     perf_viz::end_record!("fill text_or_rects");
 
-    ui::end_view(ui);
+    ui.frame_end();
 
     stats.latest_view_function_time_span = stats.latest_view_function_time_span.end_if_started();
 
