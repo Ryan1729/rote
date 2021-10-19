@@ -156,7 +156,7 @@ impl Pos {
     }
 
     #[must_use]
-    fn from_bits(bits: i64) -> Self {
+    pub fn from_bits(bits: i64) -> Self {
         Self(
             std::cmp::max(
                 bits,
@@ -378,7 +378,7 @@ impl Length {
     }
 
     #[must_use]
-    fn from_bits(bits: i64) -> Self {
+    pub fn from_bits(bits: i64) -> Self {
         Self(Pos::from_bits(bits))
     }
 

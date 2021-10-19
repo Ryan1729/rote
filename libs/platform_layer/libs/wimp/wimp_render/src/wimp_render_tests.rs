@@ -396,6 +396,47 @@ fn make_nth_tab_visible_if_present_works_on_this_generated_three_tab_example() {
 }
 
 #[test]
+fn make_nth_tab_visible_if_present_works_on_this_wide_generated_example() {
+    make_nth_tab_visible_if_present_works_on(MakeNthTabVisibleSpec {
+        tab_scroll: abs::Pos::from_bits(-6851472033972278267),
+        tab_width: abs::Length::from_bits(28640120287913559),
+        screen_width: abs::Length::from_bits(28640120287913559),
+        ..d!()
+    });
+}
+
+#[test]
+fn make_nth_tab_visible_if_present_works_on_this_wide_generated_example_reduction() {
+    let tab_width = abs::Length::from_bits(0x10_0000_0002);
+    let screen_width = tab_width;
+    let target_index = 0;
+    let tab_scroll = abs::Pos::from_bits(0x1_0000_0000);
+
+    let mut ui = ui::State { tab_scroll, ..d!() };
+
+    make_nth_tab_visible_if_present(&mut ui, target_index, tab_width, screen_width);
+
+    println!("{} -> {}", tab_scroll, ui.tab_scroll);
+
+    tab_as_visible_as_possible_assert!(
+        ui.tab_scroll,
+        target_index,
+        tab_width,
+        screen_width,
+    );
+}
+
+#[test]
+fn make_nth_tab_visible_if_present_works_on_this_negative_scroll_example() {
+    make_nth_tab_visible_if_present_works_on(MakeNthTabVisibleSpec {
+        tab_scroll: abs::Pos::from_f32(-2.),
+        tab_width: SOME_SCREEN_WIDTH,
+        screen_width: SOME_SCREEN_WIDTH,
+        ..d!()
+    });
+}
+
+#[test]
 fn make_nth_tab_visible_if_present_terminates_in_reasonable_time_on_this_example_with_a_large_index(
 ) {
     let mut ui = d!();

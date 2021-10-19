@@ -1306,6 +1306,15 @@ fn make_nth_tab_visible_if_present(
     tab_width: abs::Length,
     screen_width: abs::Length,
 ) {
+    // This was written to fix a suddenly failing proptest. Maybe a simpler
+    // overall solution without this special case exists?
+    if tab_width >= screen_width {
+        let to_make_visible = unscrolled_tab_left_edge(target_index, tab_width);
+
+        ui.tab_scroll = to_make_visible;
+        return
+    }
+
     let min_pos: abs::Pos = d!();
 
     let to_make_visible =
