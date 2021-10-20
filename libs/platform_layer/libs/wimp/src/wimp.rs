@@ -1279,7 +1279,7 @@ pub fn run(
         }
 
         events.run(move |event, _, control_flow| {
-            match std::dbg!(event) {
+            match event {
                 Event::WindowEvent { event, .. } => {
                     macro_rules! quit {
                         () => {{
@@ -1434,7 +1434,6 @@ pub fn run(
                             ..
                         } => {
                             perform_command!(&(modifiers, keypress));
-                            std::dbg!(&v_s!().ui.keyboard);
                         }
                         WindowEvent::MouseWheel {
                             delta: MouseScrollDelta::LineDelta(_, y),
@@ -1532,7 +1531,6 @@ pub fn run(
                     }
                 }
                 Event::MainEventsCleared if running => {
-                    std::dbg!(&v_s!().ui.keyboard);
                     perf_viz::start_record!("MainEventsCleared");
                     let index_state = v_s!().view.index_state();
                     let buffer_status_map = &mut v_s!().buffer_status_map;
@@ -1582,7 +1580,6 @@ pub fn run(
                     perf_viz::end_record!("MainEventsCleared");
                 }
                 Event::RedrawRequested(_) => {
-                    std::dbg!(&v_s!().ui.keyboard);
                     perf_viz::start_record!("frame");
 
                     // This is done before calling `wimp_render::view` because the
@@ -1598,8 +1595,6 @@ pub fn run(
 
                     gl_layer::render(&mut gl_state, text_or_rects, width.get() as _, height.get() as _)
                         .expect("gl_layer::render didn't work");
-
-                    std::dbg!(&v_s!().ui.keyboard);
 
                     perf_viz::start_record!("swap_buffers");
                     glutin_context
@@ -1624,7 +1619,7 @@ pub fn run(
                         }
                     }
                     perf_viz::end_record!("r_s.cmds");
-                    std::dbg!(&v_s!().ui.keyboard);
+
                     match action {
                         ViewAction::Input(input) => {
                             perf_viz::start_record!("ViewAction::Input");
@@ -1634,12 +1629,12 @@ pub fn run(
                         ViewAction::Command(key) => {
                             perf_viz::start_record!("ViewAction::Command");
                             perform_command!(&key);
-                            std::dbg!(&v_s!().ui.keyboard);
+
                             perf_viz::end_record!("ViewAction::Command");
                         }
                         ViewAction::None => {}
                     }
-                    std::dbg!(&v_s!().ui.keyboard);
+
                     perf_viz::start_record!("report_rate");
                     if let Some(render_rate) = loop_helper.report_rate() {
                         macro_rules! ms_from_span {
