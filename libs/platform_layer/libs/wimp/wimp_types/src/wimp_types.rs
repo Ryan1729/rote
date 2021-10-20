@@ -705,7 +705,7 @@ pub mod ui {
             }
 
             self.mouse.frame_init();
-            if_changed::dbg!(&mut self.keyboard).frame_init();
+            self.keyboard.frame_init();
             
             self.navigation = self.fresh_navigation;
             self.fresh_navigation = d!();

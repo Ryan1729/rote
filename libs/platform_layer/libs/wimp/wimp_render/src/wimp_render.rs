@@ -530,7 +530,7 @@ pub fn view<'view>(
                     if action.is_none() {
                         u!{ui::Navigation}
 
-                        match if_changed::dbg!(ui.navigation) {
+                        match ui.navigation {
                             None => {}
                             Up => {
                                 ui.file_switcher_pos.index = if ui.file_switcher_pos.index == 0 {
