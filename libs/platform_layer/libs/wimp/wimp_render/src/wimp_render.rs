@@ -441,7 +441,6 @@ pub fn view<'view>(
                     }
                 }
                 MenuView::FileSwitcher(ref fs_view) => {
-                    std::dbg!(&ui.keyboard);
                     render_file_switcher_menu(
                         index,
                         fs_view,
@@ -451,7 +450,6 @@ pub fn view<'view>(
                         &mut text_or_rects,
                         &mut action,
                     );
-                    std::dbg!(&ui.keyboard);
 
                     if action.is_none() {
                         if cfg!(feature="extra-prints") {
@@ -958,6 +956,8 @@ fn render_file_switcher_menu<'view>(
                     std::dbg!(selection);
                     if selection.index == 0 {
                         *action = ViewAction::Input(Input::SelectBuffer(search_buffer_id));
+
+                        ui.keyboard.set_not_hot();
                     } else {
                         navigated_result = Some(selection.move_up());
                     }

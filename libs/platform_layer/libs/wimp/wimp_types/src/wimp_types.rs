@@ -638,7 +638,6 @@ pub mod ui {
         pub keyboard: Focus,
         pub navigation: Navigation,
         pub fresh_navigation: Navigation,
-        pub previous_derived_navigation: Navigation,
         pub window_is_focused: bool,
     }
 
@@ -691,10 +690,25 @@ pub mod ui {
 
     impl State {
         pub fn frame_init(&mut self, view: &View) {
+            match self.keyboard.hot {
+                ui::Id::TaggedListSelection(..) => {},
+                _ => {
+                    if let WimpMenuMode::FileSwitcher = view.menu().get_mode() {
+                        if let Some(Navigation::Down) = view.get_navigation() {
+                            self.keyboard.set_next_hot(ui::Id::TaggedListSelection(
+                                ui::Tag::FileSwitcherResults,
+                                d!()
+                            ));
+                        }
+                    }
+                }
+            }
+
             self.mouse.frame_init();
             if_changed::dbg!(&mut self.keyboard).frame_init();
-
-            Self::complicated_input_propagation(self, view);
+            
+            self.navigation = self.fresh_navigation;
+            self.fresh_navigation = d!();
         }
         pub fn frame_end(&mut self) {
             // This needs to go here instead of in init, so that we actually see the undecayed state
@@ -707,42 +721,8 @@ pub mod ui {
             self.navigation = d!();
         }
 
-        // TODO simplify/rewrite this.
-        //  The main issue seems to be dealing with input to the editor changing
-        //  things. So it seems like a promising direction to, right before the
-        //  input would be sent to the editor, check the hot UiId and if it
-        //  indicates a a component that wants the a subset of the keyboard input
-        //  for itself, skip sending that inputto the editor, and instead set a
-        //  property on the `ui::State`. Then it will be the responsibilty of the
-        //  UI component to give back the input to the editor at the right time.
-        //  We'd also need to make Esc etc. work properly.
-        fn complicated_input_propagation(ui: &mut ui::State, view: &View) {
-            if let Some(derived_navigation) = view.get_navigation() {
-                std::dbg!(&derived_navigation, &ui.fresh_navigation);
-                // We want to allow the view state to keep indicating the same
-                // navigation, but only propagate it when either the derived input has
-                // just changed, or the the the input is fresh, (AKA made this frame).
-                ui.navigation = if ui.fresh_navigation != Navigation::None
-                || derived_navigation != ui.previous_derived_navigation {
-                    if ui.fresh_navigation != Navigation::None {
-                        ui.previous_derived_navigation = ui.fresh_navigation;
-                        ui.fresh_navigation
-                    } else {
-                        ui.previous_derived_navigation = derived_navigation;
-                        derived_navigation
-                    }
-                } else {
-                    ui.previous_derived_navigation = derived_navigation;
-                    d!()
-                };
-            } else {
-                ui.previous_derived_navigation = d!();
-            }
-
-            // Since `Interact` is never derived, we can always let it through.
-            if ui.fresh_navigation == Navigation::Interact {
-                ui.navigation = ui.fresh_navigation;
-            }
+        pub fn set_fresh_navigation(&mut self, fresh_navigation: Navigation) {
+            self.fresh_navigation = fresh_navigation;
         }
     }
 

@@ -787,18 +787,47 @@ pub fn run(
                 call_u_and_r!(&mut v_s!($vars).ui, &$vars.editor_in_sink, $input)
             };
             ($ui: expr, $editor_in_sink: expr, $input: expr) => {{
+                let input = $input;
                 if cfg!(feature = "skip-updating-editor-thread") {
-                    let input = $input;
                     if let Input::Quit = &input {
                         let _hope_it_gets_there = $editor_in_sink.send(
                             EditorThreadInput::Render(input)
                         );
                     }
                 } else {
-                    $ui.note_interaction();
-                    let _hope_it_gets_there = $editor_in_sink.send(
-                        EditorThreadInput::Render($input)
-                    );
+                    let ui: &mut ui::State = $ui;
+                    ui.note_interaction();
+                    let send_through = match ui.keyboard.hot {
+                        ui::Id::TaggedListSelection(
+                            ui::Tag::FileSwitcherResults,
+                            _
+                        ) => {
+                            match input {
+                                Input::Insert('\n') => {
+                                    ui.set_fresh_navigation(Navigation::Interact);
+                                    false
+                                },
+                                Input::MoveAllCursors(Move::Up)
+                                | Input::ExtendSelectionForAllCursors(Move::Up) => {
+                                    ui.set_fresh_navigation(Navigation::Up);
+                                    false
+                                },
+                                Input::MoveAllCursors(Move::Down)
+                                | Input::ExtendSelectionForAllCursors(Move::Down) => {
+                                    ui.set_fresh_navigation(Navigation::Down);
+                                    false
+                                },
+                                _ => true,
+                            }
+                        },
+                        _ => true,
+                    };
+
+                    if send_through {
+                        let _hope_it_gets_there = $editor_in_sink.send(
+                            EditorThreadInput::Render(input)
+                        );
+                    }
                 }
             }};
         }
@@ -1009,12 +1038,9 @@ pub fn run(
             }]
             [empty, Up, "Move all cursors up.", r_s {
                 call_u_and_r!(r_s, Input::MoveAllCursors(Move::Up));
-                v_s!(r_s).ui.fresh_navigation = Navigation::Up;
-                std::dbg!(&v_s!(r_s).ui.keyboard);
             }]
             [empty, Down, "Move all cursors down.", r_s {
                 call_u_and_r!(r_s, Input::MoveAllCursors(Move::Down));
-                v_s!(r_s).ui.fresh_navigation = Navigation::Down;
             }]
             [empty, Left, "Move all cursors left.", r_s {
                 call_u_and_r!(r_s, Input::MoveAllCursors(Move::Left));
@@ -1201,11 +1227,9 @@ pub fn run(
             }]
             [SHIFT, Up, "Extend selection(s) upward.", r_s {
                 call_u_and_r!(r_s, Input::ExtendSelectionForAllCursors(Move::Up));
-                v_s!(r_s).ui.fresh_navigation = Navigation::Up;
             }]
             [SHIFT, Down, "Extend selection(s) downward.", r_s {
                 call_u_and_r!(r_s, Input::ExtendSelectionForAllCursors(Move::Down));
-                v_s!(r_s).ui.fresh_navigation = Navigation::Down;
             }]
             [SHIFT, Left, "Extend selection(s) leftward.", r_s {
                 call_u_and_r!(r_s, Input::ExtendSelectionForAllCursors(Move::Left));
@@ -1386,10 +1410,8 @@ pub fn run(
                                 if c == '\n' {
                                     use BufferIdKind::*;
                                     match v_s!().view.current_buffer_kind() {
-                                        None | FileSwitcher => {
-                                            v_s!().ui.fresh_navigation = Navigation::Interact;
-                                        }
-                                        Text => {
+                                        None => {}
+                                        Text| FileSwitcher => {
                                             call_u_and_r!(Input::Insert(c));
                                         }
                                         Find | Replace | GoToPosition => {
@@ -1760,7 +1782,7 @@ pub fn run(
                             transition
                         );
                         call_u_and_r!(
-                            v_s!().ui,
+                            &mut v_s!().ui,
                             r_s.editor_in_sink,
                             Input::SavedAs(index, path.to_path_buf())
                         );
