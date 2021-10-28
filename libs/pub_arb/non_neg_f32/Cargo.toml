@@ -2,7 +2,7 @@
 name = "pub_arb_non_neg_f32"
 version = "0.1.0"
 authors = ["ryan"]
-edition = "2018"
+edition = "2021"
 
 [lib]
 path = "./src/pub_arb_non_neg_f32.rs"

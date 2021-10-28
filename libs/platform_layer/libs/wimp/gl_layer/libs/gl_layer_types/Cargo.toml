@@ -2,7 +2,7 @@
 name = "gl_layer_types"
 version = "0.1.0"
 authors = ["Ryan1729 <ryan1729@gmail.com>"]
-edition = "2018"
+edition = "2021"
 
 [lib]
 path = "./src/gl_layer_types.rs"

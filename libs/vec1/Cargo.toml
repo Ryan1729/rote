@@ -2,7 +2,7 @@
 name = "vec1"
 version = "0.1.0"
 authors = ["Ryan1729 <Ryan1729@gmail.com>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 vec1_external = { version = "1.4", package = "vec1" }
