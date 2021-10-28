@@ -205,7 +205,7 @@ fn final_non_newline_offset_for_rope_line_(line: RopeLine) -> CharOffset {
                 // so this case should not actually happen. But, we have a reasonable
                 // value to return so why no just do that?
                 return CharOffset(0);
-            };
+            }
         };
     }
 
