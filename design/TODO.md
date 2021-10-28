@@ -1,5 +1,15 @@
 ## TODO
 
+* Fix panic that happened after doing multiple `Save-As`.
+    * panic message:
+        * `thread 'main' panicked at 'slice had incorrect index!', libs/platform_types/./src/spans.rs:280:22`
+    * Before that, we had this show up as an error tab:
+        * `libs/platform_layer/libs/wimp/./src/wimp.rs,1818: Could not find index for buffer named "sample.c" in 98 buffers`
+    * Untested repro steps:
+        * Save an already saved file, say `a.c`, as a new file, say `b.c`.
+        * Then, save `b.c` as a third file, say `c.c`. Note presence of panic.
+
+
 * Prove the perf issues are not related to stray logs by making all logs go through an l! macro which also tracks how many bytes were logged in a way that we can show while the app is running.
     * ln! for logging with a newline may make sense.
 
