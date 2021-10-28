@@ -305,7 +305,6 @@ fn get_ranges_previous_impl(
     macro_rules! get_chars_at {
         ($rope: expr, $n: expr) => {{
             perf_viz::record_guard!("get_chars_at");
-            use std::convert::TryInto;
             $n.try_into()
                 .ok()
                 .map(CharOffset)

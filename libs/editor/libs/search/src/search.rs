@@ -234,7 +234,6 @@ fn get_ranges_impl(
         matches
     };
 
-    use std::convert::TryInto;
     macro_rules! get_chars_at {
         ($rope: expr, $n: expr) => {{
             perf_viz::record_guard!("get_chars_at");

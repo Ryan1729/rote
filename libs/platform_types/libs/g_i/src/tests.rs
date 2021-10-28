@@ -182,7 +182,6 @@ pub mod arb {
     use super::{*};
     use proptest::prelude::{any, Strategy, prop_compose};
     use proptest::collection::vec;
-    use std::convert::TryInto;
 
     pub fn index_from_parts(generation: Generation, index: IndexPart) -> Index {
         Index::new_from_parts(generation, index)
