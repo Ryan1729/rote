@@ -1,6 +1,8 @@
 ## TODO
 
-* Fix panic that happened after doing multiple `Save-As`.
+* Pull out re-usable UI component from the file switcher and use it to fix the wimp menu.
+
+* Fix panic that happened after doing multiple `Save-As`. Edit: See [!] below
     * panic message:
         * `thread 'main' panicked at 'slice had incorrect index!', libs/platform_types/./src/spans.rs:280:22`
     * Before that, we had this show up as an error tab:
@@ -8,6 +10,21 @@
     * Untested repro steps:
         * Save an already saved file, say `a.c`, as a new file, say `b.c`.
         * Then, save `b.c` as a third file, say `c.c`. Note presence of panic.
+    * [!] This seems unreproducable. And, upon reflection, that panic message seems unrelated to saving. Instead it seem like a treesitter bug.
+        * Options:
+            * Ignore it until it happens again :(
+            * See if there is an update and/or a probably related bug reported for treesitter. Then see above.
+            * Make that case into an error tab instead of a panic
+            * Fuzz the hell out of treesitter and report and/or fix the bug
+            * Abandon treesitter and.or highlighting in general
+        * Leaning towards "Make that case into an error tab instead of a panic"
+
+* Try making an "AST mode" that highlights smaller pieces of text, making highlighting large files more tractable.
+    * On save we'd write out a text file based on our AST-ishg thing.
+    * As a first step, each function or other top level thing can have its own buffer.
+        * Need way to insert a new one between two other ones.
+        * Need way to delete one.
+        * Navigation from function to function.
 
 
 * Prove the perf issues are not related to stray logs by making all logs go through an l! macro which also tracks how many bytes were logged in a way that we can show while the app is running.
