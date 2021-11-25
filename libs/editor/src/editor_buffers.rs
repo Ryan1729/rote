@@ -131,6 +131,22 @@ impl EditorBuffer {
             self.text_buffer.borrow_rope()
         );
     }
+
+    // TODO write a test that fails when we add a new field that isn't counted here.
+    // A compile-time assert would be preferable, of course.
+    pub fn size_in_bytes(&self) -> usize {
+        let mut output = 0;
+        output += self.text_buffer.size_in_bytes();
+        output += self.name.size_in_bytes();
+
+        output += self.search_results.size_in_bytes();
+
+        // ParserKind seems like it will probably always be on the stack, 
+        // meaning `size_of_val` be accurate.
+        output += core::mem::size_of_val(&self.parser_kind);
+
+        output
+    }
 }
 
 /// The collection of files opened for editing, and/or in-memory scratch buffers.
@@ -154,6 +170,36 @@ impl EditorBuffers {
             buffers: SelectableVec1::new(buffer.into()),
             ..d!()
         }
+    }
+
+    // TODO write a test that fails when we add a new field that isn't counted here.
+    // A compile-time assert would be preferable, of course.
+    pub fn size_in_bytes(&self) -> usize {
+        use core::mem;
+
+        let mut output = 0;
+
+        // stack size
+        output += mem::size_of_val(&self.buffers);
+        output += mem::size_of_val(&self.last_non_rope_hash);
+        output += mem::size_of_val(&self.last_full_hash);
+
+        // heap size
+
+        // This assumes that the only heap memory allocated by a SelectableVec1 is
+        // the memory the buffers use. This assumption seems like it will be likely
+        // to remain true.
+        for buffer in self.buffers.iter() {
+            output += buffer.size_in_bytes();
+        }
+        output += (
+            self.buffers.capacity() -
+            // Don't double count the struct bytes from the `buffer.size_in_bytes()`
+            // calls above.
+            usize::from(self.buffers.len())
+        ) * mem::size_of::<EditorBuffer>();
+
+        output
     }
 }
 

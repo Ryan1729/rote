@@ -172,11 +172,13 @@ pub fn render(
         perf_viz::end_record!("set view.menu");
     }
 
+    view_stats.editor_buffers_size_in_bytes = state.buffers.size_in_bytes();
+
+    view.current_buffer_kind = state.current_buffer_kind;
+
     view_stats.latest_menu_render_time_span = TimeSpan::end_if_started(
         view_stats.latest_menu_render_time_span
     );
-    
-    view.current_buffer_kind = state.current_buffer_kind;
 }
 
 #[perf_viz::record]

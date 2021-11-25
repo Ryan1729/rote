@@ -378,6 +378,24 @@ impl BufferName {
             _ => "",
         }
     }
+
+    pub fn size_in_bytes(&self) -> usize {
+        use core::mem;
+
+        // TODO Do other platforms need adjusting as well?
+        #[cfg(target_os = "windows")]
+        const BYTES_PER_UNIT: usize = 2;
+
+        #[cfg(not(target_os = "windows"))]
+        const BYTES_PER_UNIT: usize = 1;
+
+        match self {
+            Self::Path(p) => {
+                mem::size_of_val(p) + p.capacity() * BYTES_PER_UNIT
+            },
+            Self::Scratch(n) => mem::size_of_val(n),
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -758,8 +776,11 @@ pub struct ViewStats {
     pub latest_buffer_render_time_span: TimeSpan,
     pub latest_status_line_time_span: TimeSpan,
     pub latest_menu_render_time_span: TimeSpan,
+    // {
     pub latest_parse_time_spans: [TimeSpan; PARSE_TIME_SPAN_COUNT],
     pub current_parse_length: u8,
+    // }
+    pub editor_buffers_size_in_bytes: usize,
 }
 
 impl ViewStats {

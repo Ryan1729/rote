@@ -395,6 +395,15 @@ pub enum EditorThreadInput {
     SaveToDisk(PathBuf, BufferLabel, g_i::Index),
 }
 
+/// Info displayed on the debug menu
+#[derive(Debug, Default)]
+pub struct DebugMenuState {
+    pub startup_description: String,
+    pub pids: Pids,
+    pub pid_string: String,
+    pub editor_state_description: String,
+}
+
 /// The subset of RunState that is relevant to rendering the view.
 #[derive(Debug, Default)]
 pub struct ViewRunState {
@@ -402,11 +411,11 @@ pub struct ViewRunState {
     pub ui: ui::State,
     pub buffer_status_map: g_i::Map<BufferStatus>,
     pub dimensions: Dimensions,
-    pub startup_description: String,
-    pub pids: Pids,
-    pub pid_string: String,
+    pub debug_menu_state: DebugMenuState,
     pub stats: Stats,
 }
+
+
 
 /// State owned by the `run` function, which can be uniquely borrowed by other functions called inside `run`.
 #[derive(Debug)]

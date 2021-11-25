@@ -12,7 +12,7 @@ use std::{
     time::Duration,
 };
 use wimp_render::{get_find_replace_info, FindReplaceInfo, get_go_to_position_info, GoToPositionInfo, ViewOutput, ViewAction};
-use wimp_types::{ui, ui::{PhysicalButtonState, Navigation}, transform_at, BufferStatus, BufferStatusTransition, CustomEvent, get_clipboard, ClipboardProvider, Dimensions, LabelledCommand, RunConsts, RunState, MenuMode, Pids, PidKind, EditorThreadInput, ViewRunState};
+use wimp_types::{ui, ui::{PhysicalButtonState, Navigation}, transform_at, BufferStatus, BufferStatusTransition, CustomEvent, get_clipboard, ClipboardProvider, Dimensions, LabelledCommand, RunConsts, RunState, MenuMode, Pids, PidKind, EditorThreadInput, ViewRunState, DebugMenuState};
 use macros::{d, dbg, u};
 use platform_types::{screen_positioning::screen_to_text_box, *};
 use shared::{Res};
@@ -600,6 +600,13 @@ pub fn run(
 
         let clipboard = get_clipboard();
 
+        let mut editor_state_description = String::with_capacity(256);
+
+        wimp_render::write_editor_state_description(
+            &mut editor_state_description,
+            v.stats.editor_buffers_size_in_bytes,
+        );
+
         let mut view: wimp_types::View = d!();
 
         view.update(v, d!());
@@ -610,9 +617,12 @@ pub fn run(
                 ui,
                 buffer_status_map,
                 dimensions,
-                startup_description,
-                pids,
-                pid_string: String::with_capacity(256),
+                debug_menu_state: DebugMenuState {
+                    startup_description,
+                    pids,
+                    pid_string: String::with_capacity(256),
+                    editor_state_description,
+                },
                 stats: d!(),
             },
             cmds,
@@ -1539,6 +1549,11 @@ pub fn run(
                         match editor_out_source.try_recv() {
                             Ok(EditorThreadOutput::Rendered((v, c, result))) => {
                                 debug_assert!(result.is_ok());
+                                wimp_render::write_editor_state_description(
+                                    &mut v_s!().debug_menu_state.editor_state_description,
+                                    v.stats.editor_buffers_size_in_bytes,
+                                );
+
                                 v_s!().view.update(v, result.map(|b| b.data).unwrap_or_default());
                                 for (i, e_t) in v_s!().view.edited_transitions() {
                                     transform_at(
@@ -1549,11 +1564,10 @@ pub fn run(
                                     );
                                 }
 
-
                                 r_s.cmds.push_back(c);
                             }
                             Ok(EditorThreadOutput::Pid(pid)) => {
-                                v_s!().pids.editor = pid;
+                                v_s!().debug_menu_state.pids.editor = pid;
                             }
                             Err(_) => break,
                         };
@@ -1740,7 +1754,7 @@ pub fn run(
                     CustomEvent::Pid(kind, pid) => {
                         match kind {
                             PidKind::PathMailbox => {
-                                v_s!().pids.path_mailbox = pid;
+                                v_s!().debug_menu_state.pids.path_mailbox = pid;
                             }
                         }
                     },

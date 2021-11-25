@@ -62,6 +62,18 @@ impl SearchResults {
 
         *self = new
     }
+
+    // TODO write a test that fails when we add a new field that isn't counted here.
+    // A compile-time assert would be preferable, of course.
+    pub fn size_in_bytes(&self) -> usize {
+        use core::mem;
+        mem::size_of_val(&self.needle) +
+        self.needle.len() +
+        mem::size_of_val(&self.ranges) +
+        // It seems safe to assume that `Position` will not allocate on the heap.
+        (self.ranges.len() * mem::size_of::<(Position, Position)>()) +
+        mem::size_of_val(&self.current_range)
+    }
 }
 
 /// A `haystack_range` of `None` means use the whole haystack. AKA no limit.

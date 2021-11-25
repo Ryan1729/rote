@@ -468,6 +468,10 @@ mod selectable_vec1 {
             self.index_state.hash(state);
             self.current_index.hash(state);
         }
+
+        pub fn capacity(&self) -> usize {
+            self.elements.capacity()
+        }
     }
 
     impl <A: PartialEq> PartialEq for SelectableVec1<A> {

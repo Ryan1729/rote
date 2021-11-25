@@ -1,6 +1,6 @@
 #![deny(bindings_with_variant_name, unused)]
 use gl_layer::{ColouredText, MulticolourTextSpec, TextLayout, TextOrRect, TextSpec, VisualSpec};
-use wimp_types::{CommandsMap, LocalMenuView, View, WimpMenuMode, MenuView, WimpMenuView, FindReplaceMode, ui_id, ui, ui::{ButtonState}, BufferStatus, CommandKey, Dimensions, RunConsts, ViewRunState, ui::{ListSelection, ListSelectionWindowSize}, command_keys};
+use wimp_types::{CommandsMap, LocalMenuView, View, WimpMenuMode, MenuView, WimpMenuView, FindReplaceMode, ui_id, ui, ui::{ButtonState}, BufferStatus, CommandKey, Dimensions, RunConsts, ViewRunState, DebugMenuState, ui::{ListSelection, ListSelectionWindowSize}, command_keys};
 use macros::{c, d, dbg, invariant_assert, u};
 use platform_types::{
     *,
@@ -195,9 +195,7 @@ pub fn view<'view>(
         ref mut view,
         ref mut buffer_status_map,
         dimensions,
-        ref startup_description,
-        ref pids,
-        ref mut pid_string,
+        ref mut debug_menu_state,
         ref mut stats,
         ..
     }: &'view mut ViewRunState,
@@ -591,6 +589,13 @@ pub fn view<'view>(
                         z: FIND_REPLACE_BACKGROUND_Z,
                     }));
 
+                    let DebugMenuState {
+                        ref startup_description,
+                        ref pids,
+                        ref mut pid_string,
+                        ref editor_state_description,
+                    } = debug_menu_state;
+
                     // TODO render a bar chart of the last N view renders,
                     // where the x axis is  the Input variant, and the y axis is
                     // duration statisics like maximum, mean, median and mode.
@@ -655,6 +660,22 @@ pub fn view<'view>(
                     ));
 
                     y = pid_bottom_y;
+
+                    text_or_rects.push(TextOrRect::Text(TextSpec {
+                        text: editor_state_description,
+                        size: FIND_REPLACE_SIZE,
+                        layout: TextLayout::Unbounded,
+                        spec: VisualSpec {
+                            rect: ssr!(
+                                first_button_rect.min.x, y,
+                                first_button_rect.max.x, y + vertical_shift,
+                            ),
+                            colour: CHROME_TEXT_COLOUR,
+                            z: FIND_REPLACE_BACKGROUND_Z,
+                        }
+                    }));
+
+                    y += line_shift;
 
                     text_or_rects.push(TextOrRect::Text(TextSpec {
                         text: startup_description,
@@ -2164,6 +2185,22 @@ pub fn inside_tab_area(
     }: FontInfo,
 ) -> bool {
     y < upper_position_info(tab_char_dim).edit_y
+}
+
+pub fn write_editor_state_description(
+    output: &mut String,
+    editor_buffers_size_in_bytes: usize
+) {
+    use std::fmt::Write;
+    output.clear();
+
+    // TODO human readable size
+    let _cannot_actually_fail = write!(
+        output,
+        "buffers bytes: {}",
+        editor_buffers_size_in_bytes,
+    );
+    
 }
 
 #[cfg(test)]

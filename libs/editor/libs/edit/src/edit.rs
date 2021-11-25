@@ -766,6 +766,31 @@ impl Edit {
             (Change {old, new}, &self.range_edits[i])
         )
     }
+
+    // TODO write a test that fails when we add a new field that isn't counted here.
+    // A compile-time assert would be preferable, of course.
+    #[perf_viz::record]
+    pub fn size_in_bytes(&self) -> usize {
+        use core::mem;
+        
+        let mut output = 0;
+
+        for edit in self.range_edits.iter() {
+            output += edit.size_in_bytes();
+        }
+
+        output += (
+            self.range_edits.capacity() -
+            // Don't double count the struct bytes from the `edit.size_in_bytes()`
+            // calls above.
+            self.range_edits.len()
+        ) * mem::size_of::<RangeEdits>();
+
+        output += self.cursors.old.size_in_bytes();
+        output += self.cursors.new.size_in_bytes();
+
+        output
+    }
 }
 
 impl From<Change<Cursors>> for Edit {

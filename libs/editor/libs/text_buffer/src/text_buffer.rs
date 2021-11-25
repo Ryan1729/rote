@@ -69,6 +69,38 @@ impl TextBuffer {
             c.hash(state);    
         }
     }
+
+    // TODO write a test that fails when we add a new field that isn't counted here.
+    // A compile-time assert would be preferable, of course.
+    #[perf_viz::record]
+    pub fn size_in_bytes(&self) -> usize {
+        use core::mem;
+
+        let mut output = 0;
+
+        output += mem::size_of_val(self.rope);
+        output += usize::from(self.rope.len_bytes());
+        output += self.cursors.size_in_bytes();
+
+        // TODO Does this take long enough that we should memoize this method?
+        // Maybe caching further upstream would be better?
+        for edit in self.history.iter() {
+            output += edit.size_in_bytes();
+        }
+
+        output += (
+            self.history.capacity() -
+            // Don't double count the struct bytes from the `edit.size_in_bytes()`
+            // calls above.
+            self.history.len()
+        ) * mem::size_of::<Edit>();
+        output += mem::size_of_val(self.history_index);
+        output += mem::size_of_val(self.unedited);
+        output += usize::from(self.unedited.len_bytes());
+        output += mem::size_of_val(self.scroll);
+
+        output
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
