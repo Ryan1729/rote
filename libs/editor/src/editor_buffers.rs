@@ -134,6 +134,7 @@ impl EditorBuffer {
 
     // TODO write a test that fails when we add a new field that isn't counted here.
     // A compile-time assert would be preferable, of course.
+    #[perf_viz::record]
     pub fn size_in_bytes(&self) -> usize {
         let mut output = 0;
         output += self.text_buffer.size_in_bytes();
@@ -174,6 +175,7 @@ impl EditorBuffers {
 
     // TODO write a test that fails when we add a new field that isn't counted here.
     // A compile-time assert would be preferable, of course.
+    #[perf_viz::record]
     pub fn size_in_bytes(&self) -> usize {
         use core::mem;
 

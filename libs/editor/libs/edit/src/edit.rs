@@ -827,6 +827,18 @@ pub struct RangeEdit {
     pub range: AbsoluteCharOffsetRange,
 }
 
+impl RangeEdit {
+    // TODO write a test that fails when we add a new field that isn't counted here.
+    // A compile-time assert would be preferable, of course.
+    pub fn size_in_bytes(&self) -> usize {
+        use core::mem;
+
+        mem::size_of::<String>() +
+        self.chars.len() +
+        mem::size_of_val(&self.range)
+    }
+}
+
 /// Some seemingly redundant information is stored here, for example the insert's range's maximum
 /// is never read. But that information is needed if the edits are ever negated, which swaps the
 /// insert and delete ranges.
@@ -851,6 +863,30 @@ impl RangeEdits {
         {
             rope.insert(range.min(), chars);
         }
+    }
+
+    // TODO write a test that fails when we add a new field that isn't counted here.
+    // A compile-time assert would be preferable, of course.
+    pub fn size_in_bytes(&self) -> usize {
+        use core::mem;
+
+        let mut output = 0;
+
+        output += mem::size_of_val(&self.insert_range);
+        if let Some(ref r) = self.insert_range {
+            // Don't double count the stack size of a RangeEdit
+            output -= mem::size_of::<RangeEdit>();
+            output += r.size_in_bytes();
+        }
+
+        output += mem::size_of_val(&self.delete_range);
+        if let Some(ref r) = self.delete_range {
+            // Don't double count the stack size of a RangeEdit
+            output -= mem::size_of::<RangeEdit>();
+            output += r.size_in_bytes();
+        }
+
+        output
     }
 }
 

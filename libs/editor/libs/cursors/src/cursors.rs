@@ -192,6 +192,14 @@ impl Cursors {
             c.state = d!();
         }
     }
+
+    // TODO write a test that fails when we add a new field that isn't counted here.
+    // A compile-time assert would be preferable, of course.
+    pub fn size_in_bytes(&self) -> usize {
+        use core::mem;
+        mem::size_of_val(&self.cursors) +
+        (self.cursors.len() * mem::size_of::<Cursor>())
+    }
 }
 
 pub fn set_cursors(rope: &Rope, pointer: &mut Cursors, mut new: Cursors) {

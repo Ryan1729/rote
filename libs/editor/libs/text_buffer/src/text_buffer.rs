@@ -78,8 +78,8 @@ impl TextBuffer {
 
         let mut output = 0;
 
-        output += mem::size_of_val(self.rope);
-        output += usize::from(self.rope.len_bytes());
+        output += mem::size_of_val(&self.rope);
+        output += usize::from(self.rope.len_bytes().0);
         output += self.cursors.size_in_bytes();
 
         // TODO Does this take long enough that we should memoize this method?
@@ -94,10 +94,10 @@ impl TextBuffer {
             // calls above.
             self.history.len()
         ) * mem::size_of::<Edit>();
-        output += mem::size_of_val(self.history_index);
-        output += mem::size_of_val(self.unedited);
-        output += usize::from(self.unedited.len_bytes());
-        output += mem::size_of_val(self.scroll);
+        output += mem::size_of_val(&self.history_index);
+        output += mem::size_of_val(&self.unedited);
+        output += usize::from(self.unedited.len_bytes().0);
+        output += mem::size_of_val(&self.scroll);
 
         output
     }
