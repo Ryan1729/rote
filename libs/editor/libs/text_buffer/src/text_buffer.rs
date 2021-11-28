@@ -385,7 +385,11 @@ impl TextBuffer {
     }
 
     pub fn copy_selections(&self) -> Vec<String> {
-        self.get_selections_and_cut_edit().0
+        let mut selections = self.get_selections_and_cut_edit().0;
+
+        selections.reverse();
+
+        selections
     }
 
     pub fn cut_selections(&mut self, listener: ppel!()) -> (Vec<String>, PossibleEditedTransition) {
