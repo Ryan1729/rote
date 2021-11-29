@@ -27,9 +27,32 @@ mod clipboard_history {
     use super::*;
     use std::collections::VecDeque;
 
+    #[derive(Debug, PartialEq, Eq)]
+    enum Entry {
+        /// This is the by far more common case, so making it separate often saves
+        /// an allocation/level of indirection.
+        Single(String),
+        Multiple(Vec<String>)
+    }
+
+    impl Entry {
+        fn loose_equal(&self, other: &Entry) -> bool {
+            use Entry::*;
+            match (self, other) {
+                (Single(s), Multiple(strings))
+                | (Multiple(strings), Single(s)) => {
+                    // TODO non-allocating version of this, by looping over `s` char
+                    // by char.
+                    &strings.join("\n") == s
+                },
+                _ => self == other
+            }
+        }
+    }
+
     #[derive(Debug, Default, PartialEq, Eq)]
     pub struct ClipboardHistory {
-        entries: VecDeque<String>,
+        entries: VecDeque<Entry>,
         index: usize,
     }
 
@@ -54,11 +77,29 @@ mod clipboard_history {
             let mut output = None;
 
             if let Some(s) = possible_string {
-                self.push_if_does_not_match_top(s)
+                self.push_if_does_not_match_top(Entry::Single(s))
             }
 
-            if let Some(s) = self.entries.get(self.index) {
-                output = buffer.insert_string(s.to_owned(), listener);
+            if let Some(entry) = self.entries.get(self.index) {
+                use Entry::*;
+                output = match entry {
+                    Single(ref s) => buffer.insert_string(s.to_owned(), listener),
+                    Multiple(ref strings) => {
+                        let cursor_count = buffer.borrow_cursors().len();
+                        let len = strings.len();
+
+                        if len == cursor_count {
+                            buffer.insert_at_each_cursor(
+                                // We just checked the len matches the cursor count
+                                // so this should never panic.
+                                |index| strings[index].to_owned(),
+                                listener
+                            )
+                        } else {
+                            buffer.insert_string(strings.join("\n").to_owned(), listener)
+                        }
+                    }
+                };
             }
 
             output
@@ -76,22 +117,29 @@ mod clipboard_history {
                 );
 
                 let mut sep = "";
-                for s in strings {
+                for s in &strings {
                     output.push_str(sep);
 
-                    output.push_str(&s);
+                    output.push_str(s);
 
-                    self.push_if_does_not_match_top(s);
+                    self.push_if_does_not_match_top(Entry::Single(s.to_owned()));
 
                     sep = "\n";
                 }
+
+                self.push_if_does_not_match_top(Entry::Multiple(strings));
 
                 Some(output)
             }
         }
 
-        fn push_if_does_not_match_top(&mut self, to_push: String) {
-            match self.entries.get(self.index).map(|s| s != &to_push) {
+        fn push_if_does_not_match_top(&mut self, to_push: Entry) {
+            match self.entries
+                .get(self.index)
+                .map(
+                    |e| !Entry::loose_equal(e, &to_push)
+                ) 
+            {
                 None => {
                     self.entries.push_back(to_push);
                 }
