@@ -50,6 +50,52 @@ mod clipboard_history {
         }
     }
 
+    #[test]
+    fn loose_equal_works_on_these_examples() {
+        use Entry::*;
+
+        impl Entry {
+            fn loose_equal_slow(&self, other: &Entry) -> bool {
+                match (self, other) {
+                    (Single(s), Multiple(strings))
+                    | (Multiple(strings), Single(s)) => {
+                        // The obviously correct but slow version.
+                        &strings.join("\n") == s
+                    },
+                    _ => self == other
+                }
+            }
+        }
+
+        fn single(s: &'static str) -> Entry {
+            Single(s.to_owned())
+        }
+
+        fn multiple(v: Vec<&'static str>) -> Entry {
+            Multiple(v.into_iter().map(|s| s.to_owned()).collect())
+        }
+
+        // Short for assert. We can be this brief becasue this is lexically scoped.
+        macro_rules! a {
+            ($a: expr, $b: expr) => {
+                let a = $a;
+                let b = $b;
+                assert_eq!(
+                    a.loose_equal(&b),
+                    a.loose_equal_slow(&b),
+                );
+            }
+        }
+
+        a!(single("a"), single("a"));
+        a!(multiple(vec!["a", "b"]), multiple(vec!["a", "b"]));
+        a!(single("a\nb"), multiple(vec!["a", "b"]));
+        a!(single("ab"), multiple(vec!["a", "b"]));
+        a!(single("a\nb\n"), multiple(vec!["a", "b"]));
+        a!(single("\na\nb\n"), multiple(vec!["a", "b"]));
+        a!(single("\na\nb"), multiple(vec!["a", "b"]));
+    }
+
     #[derive(Debug, Default, PartialEq, Eq)]
     pub struct ClipboardHistory {
         entries: VecDeque<Entry>,
