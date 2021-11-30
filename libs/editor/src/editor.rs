@@ -39,11 +39,35 @@ mod clipboard_history {
         fn loose_equal(&self, other: &Entry) -> bool {
             use Entry::*;
             match (self, other) {
-                (Single(s), Multiple(strings))
-                | (Multiple(strings), Single(s)) => {
-                    // TODO non-allocating version of this, by looping over `s` char
-                    // by char.
-                    &strings.join("\n") == s
+                (Single(single), Multiple(strings))
+                | (Multiple(strings), Single(single)) => {
+                    let mut str_index = 0;
+                    let mut multi_chars = match strings.get(str_index) {
+                        None => return single.is_empty(),
+                        Some(s) => s.chars(),
+                    };
+
+                    for c in single.chars() {
+                        match c {
+                            '\n' => {
+                                str_index += 1;
+                                multi_chars = match strings.get(str_index) {
+                                    None => return false,
+                                    Some(s) => s.chars(),
+                                };
+                            }
+                            _ => {
+                                let next_char = multi_chars.next();
+                                if next_char != Some(c) {
+                                    return false;
+                                }
+                            }
+                        }
+                    }
+
+                    // We know that `strings` has at least one element since
+                    // we didn't early return from assigning `multi_chars`.
+                    str_index == strings.len() - 1
                 },
                 _ => self == other
             }
@@ -87,6 +111,9 @@ mod clipboard_history {
             }
         }
 
+        a!(single(""), single(""));
+        a!(single(""), multiple(vec![]));
+        a!(single(""), multiple(vec![""]));
         a!(single("a"), single("a"));
         a!(multiple(vec!["a", "b"]), multiple(vec!["a", "b"]));
         a!(single("a\nb"), multiple(vec!["a", "b"]));
