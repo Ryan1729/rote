@@ -45,6 +45,9 @@ path = "libs/search"
 [dependencies.text_buffer]
 path = "libs/text_buffer"
 
+[dependencies.vec1]
+path = "../vec1"
+
 [dev-dependencies]
 criterion = "0.2"
 proptest = "0.10"

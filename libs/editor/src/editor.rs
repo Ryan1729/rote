@@ -3,6 +3,7 @@
 use macros::{d, dbg, fmt_debug, u, SaturatingSub};
 use platform_types::{screen_positioning::*, *};
 use parsers::{Parsers, ParserKind};
+use vec1::{Vec1};
 
 use std::{
     path::PathBuf,
@@ -32,7 +33,7 @@ mod clipboard_history {
         /// This is the by far more common case, so making it separate often saves
         /// an allocation/level of indirection.
         Single(String),
-        Multiple(Vec<String>)
+        Multiple(Vec1<String>)
     }
 
     impl Entry {
@@ -65,8 +66,6 @@ mod clipboard_history {
                         }
                     }
 
-                    // We know that `strings` has at least one element since
-                    // we didn't early return from assigning `multi_chars`.
                     str_index == strings.len() - 1
                 },
                 _ => self == other
@@ -77,6 +76,7 @@ mod clipboard_history {
     #[test]
     fn loose_equal_works_on_these_examples() {
         use Entry::*;
+        use vec1::{vec1};
 
         impl Entry {
             fn loose_equal_slow(&self, other: &Entry) -> bool {
@@ -95,8 +95,14 @@ mod clipboard_history {
             Single(s.to_owned())
         }
 
-        fn multiple(v: Vec<&'static str>) -> Entry {
-            Multiple(v.into_iter().map(|s| s.to_owned()).collect())
+        fn multiple(v1: Vec1<&'static str>) -> Entry {
+            let v = v1.into_iter()
+                    .map(|s| s.to_owned())
+                    .collect::<Vec<_>>();
+
+            Multiple(
+                TryFrom::try_from(v).unwrap()
+            )
         }
 
         // Short for assert. We can be this brief becasue this is lexically scoped.
@@ -112,15 +118,14 @@ mod clipboard_history {
         }
 
         a!(single(""), single(""));
-        a!(single(""), multiple(vec![]));
-        a!(single(""), multiple(vec![""]));
+        a!(single(""), multiple(vec1![""]));
         a!(single("a"), single("a"));
-        a!(multiple(vec!["a", "b"]), multiple(vec!["a", "b"]));
-        a!(single("a\nb"), multiple(vec!["a", "b"]));
-        a!(single("ab"), multiple(vec!["a", "b"]));
-        a!(single("a\nb\n"), multiple(vec!["a", "b"]));
-        a!(single("\na\nb\n"), multiple(vec!["a", "b"]));
-        a!(single("\na\nb"), multiple(vec!["a", "b"]));
+        a!(multiple(vec1!["a", "b"]), multiple(vec1!["a", "b"]));
+        a!(single("a\nb"), multiple(vec1!["a", "b"]));
+        a!(single("ab"), multiple(vec1!["a", "b"]));
+        a!(single("a\nb\n"), multiple(vec1!["a", "b"]));
+        a!(single("\na\nb\n"), multiple(vec1!["a", "b"]));
+        a!(single("\na\nb"), multiple(vec1!["a", "b"]));
     }
 
     #[derive(Debug, Default, PartialEq, Eq)]
@@ -182,27 +187,29 @@ mod clipboard_history {
             &mut self,
             strings: Vec<String>
         ) -> Option<String> {
-            if strings.is_empty() {
-                None
-            } else {
-                let mut output = String::with_capacity(
-                    strings.len() * AVERAGE_SELECTION_SIZE_ESTIMATE
-                );
+            let res: Result<Vec1<_>, _> = TryFrom::try_from(strings);
+            match res {
+                Err(_) => None,
+                Ok(strings) => {
+                    let mut output = String::with_capacity(
+                        strings.len() * AVERAGE_SELECTION_SIZE_ESTIMATE
+                    );
 
-                let mut sep = "";
-                for s in &strings {
-                    output.push_str(sep);
+                    let mut sep = "";
+                    for s in &strings {
+                        output.push_str(sep);
 
-                    output.push_str(s);
+                        output.push_str(s);
 
-                    self.push_if_does_not_match_top(Entry::Single(s.to_owned()));
+                        self.push_if_does_not_match_top(Entry::Single(s.to_owned()));
 
-                    sep = "\n";
+                        sep = "\n";
+                    }
+
+                    self.push_if_does_not_match_top(Entry::Multiple(strings));
+
+                    Some(output)
                 }
-
-                self.push_if_does_not_match_top(Entry::Multiple(strings));
-
-                Some(output)
             }
         }
 
@@ -211,7 +218,7 @@ mod clipboard_history {
                 .get(self.index)
                 .map(
                     |e| !Entry::loose_equal(e, &to_push)
-                ) 
+                )
             {
                 None => {
                     self.entries.push_back(to_push);
