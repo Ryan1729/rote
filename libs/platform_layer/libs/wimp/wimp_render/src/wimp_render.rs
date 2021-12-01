@@ -504,77 +504,13 @@ pub fn view<'view>(
         WimpMenuView { local_menu: Some(local_menu), .. } => {
             match local_menu {
                 LocalMenuView::Command => {
-                    let CommandMenuInfo {
-                        list_margin,
-                        first_button_rect,
-                        outer_rect,
-                        ..
-                    } = get_command_menu_info(dimensions);
-                    text_or_rects.push(TextOrRect::Rect(VisualSpec {
-                        rect: outer_rect,
-                        colour: CHROME_BACKGROUND_COLOUR,
-                        z: FIND_REPLACE_BACKGROUND_Z,
-                    }));
-
-                    let text_or_rects = &mut text_or_rects;
-
-                    let mut current_rect = first_button_rect;
-                    let vertical_shift = first_button_rect.height()
-                        + list_margin.into_ltrb().b;
-
-                    let mut navigated_result = None;
-                    let results: Vec<CommandKey> = commands.keys().cloned().collect();
-
-                    if action.is_none() {
-                        u!{ui::Navigation}
-
-                        match ui.navigation {
-                            None => {}
-                            Up => {
-                                ui.file_switcher_pos.index = if ui.file_switcher_pos.index == 0 {
-                                    results.len().clone().saturating_sub(1)
-                                } else {
-                                    ui.file_switcher_pos.index - 1
-                                };
-                            }
-                            Down => {
-                                ui.file_switcher_pos.index = (ui.file_switcher_pos.index + 1) % results.len();
-                            }
-                            Interact => {
-                                action = results
-                                    .get(ui.file_switcher_pos.index)
-                                    .cloned()
-                                    .into();
-                            }
-                        }
-
-                        navigated_result = Some(ui.file_switcher_pos.index);
-                    }
-
-                    for (result_index, result) in results.iter().enumerate() {
-                        let result_id = ui_id!(result_index);
-
-                        match navigated_result {
-                            Some(i) if i == result_index => {
-                                dbg!(&mut ui.keyboard).set_next_hot(result_id);
-                            }
-                            _ => {}
-                        };
-
-                        command_button(
-                            ui,
-                            ui_id!(format!("{:p}", result)),
-                            text_or_rects,
-                            current_rect,
-                            dimensions,
-                            &commands,
-                            result,
-                            &mut action,
-                        );
-
-                        current_rect.min.y += vertical_shift;
-                        current_rect.max.y += vertical_shift;
-                    }
+                    render_command_menu(
+                        ui,
+                        &mut text_or_rects,
+                        dimensions,
+                        &mut action,
+                        commands,
+                    );
                 }
                 LocalMenuView::Debug => {
                     let DebugMenuInfo {
@@ -1084,6 +1020,84 @@ fn render_file_switcher_menu<'view>(
         ) {
             *action = ViewAction::Input(Input::OpenOrSelectBuffer(result.to_owned()));
         }
+        current_rect.min.y += vertical_shift;
+        current_rect.max.y += vertical_shift;
+    }
+}
+
+fn render_command_menu(
+    ui: &mut ui::State,
+    text_or_rects: &mut Vec<TextOrRect>,
+    dimensions: Dimensions,
+    action: &mut ViewAction,
+    commands: &CommandsMap,
+) {
+    let CommandMenuInfo {
+        list_margin,
+        first_button_rect,
+        outer_rect,
+        ..
+    } = get_command_menu_info(dimensions);
+    text_or_rects.push(TextOrRect::Rect(VisualSpec {
+        rect: outer_rect,
+        colour: CHROME_BACKGROUND_COLOUR,
+        z: FIND_REPLACE_BACKGROUND_Z,
+    }));
+
+    let mut current_rect = first_button_rect;
+    let vertical_shift = first_button_rect.height()
+        + list_margin.into_ltrb().b;
+
+    let mut navigated_result = None;
+    let results: Vec<CommandKey> = commands.keys().cloned().collect();
+
+    if action.is_none() {
+        u!{ui::Navigation}
+
+        match ui.navigation {
+            None => {}
+            Up => {
+                ui.file_switcher_pos.index = if ui.file_switcher_pos.index == 0 {
+                    results.len().clone().saturating_sub(1)
+                } else {
+                    ui.file_switcher_pos.index - 1
+                };
+            }
+            Down => {
+                ui.file_switcher_pos.index = (ui.file_switcher_pos.index + 1) % results.len();
+            }
+            Interact => {
+                *action = results
+                    .get(ui.file_switcher_pos.index)
+                    .cloned()
+                    .into();
+            }
+        }
+
+        navigated_result = Some(ui.file_switcher_pos.index);
+    }
+
+    for (result_index, result) in results.iter().enumerate() {
+        let result_id = ui_id!(result_index);
+
+        match navigated_result {
+            Some(i) if i == result_index => {
+                dbg!(&mut ui.keyboard).set_next_hot(result_id);
+            }
+            _ => {}
+        };
+
+        command_button(
+            ui,
+            ui_id!(format!("{:p}", result)),
+            text_or_rects,
+            current_rect,
+            dimensions,
+            &commands,
+            result,
+            action,
+        );
+
         current_rect.min.y += vertical_shift;
         current_rect.max.y += vertical_shift;
     }
