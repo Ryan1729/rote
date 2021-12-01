@@ -545,7 +545,7 @@ pub fn view<'view>(
                             + list_margin.into_ltrb().b;
 
                     let mut y = first_button_rect.min.y;
-                    command_button(
+                    rect_command_button(
                         &mut pen!(),
                         ui_id!(),
                         first_button_rect,
@@ -695,7 +695,7 @@ pub fn view<'view>(
         + (far_right_button_rect.width())
     );
 
-    if do_outline_button(
+    outline_command_button(
         &mut pen!(),
         ui_id!(),
         OutlineButtonSpec {
@@ -708,12 +708,11 @@ pub fn view<'view>(
             z: STATUS_Z,
             ..d!()
         },
-    ) {
-        action = Some(command_keys::debug_menu()).into()
-    }
+        &command_keys::debug_menu(),
+    );
 
 
-    if do_outline_button(
+    outline_command_button(
         &mut pen!(),
         ui_id!(),
         OutlineButtonSpec {
@@ -726,9 +725,8 @@ pub fn view<'view>(
             z: STATUS_Z,
             ..d!()
         },
-    ) {
-        action = Some(command_keys::command_menu()).into()
-    }
+        &command_keys::command_menu()
+    );
     perf_viz::end_record!("Status line");
 
     //
@@ -779,24 +777,26 @@ struct Pen<'view, 'frame> {
     dimensions: Dimensions
 }
 
-fn command_button<'view> (
+/// A convenience function that lets you specify the rect and makes the other 
+/// visual decisions for you.
+fn rect_command_button (
     pen: &mut Pen,
     id: ui::Id,
     rect: ScreenSpaceRect,
     commands: &CommandsMap,
     command_key: &CommandKey,
 ) {
+    let Dimensions {
+        window: sswh!(_w, height),
+        ..
+    } = pen.dimensions;
+    let SpacingAllSpec { margin, .. } = get_menu_spacing(height);
+
     let cmd_option = commands.get(command_key);
     invariant_assert!(cmd_option.is_some(), "{:?} has no command associated with it!", command_key);
 
     if let Some(cmd) = cmd_option {
-        let Dimensions {
-            window: sswh!(_w, height),
-            ..
-        } = pen.dimensions;
-        let SpacingAllSpec { margin, .. } = get_menu_spacing(height);
-
-        if do_outline_button(
+        outline_command_button(
             pen,
             id,
             OutlineButtonSpec {
@@ -809,9 +809,23 @@ fn command_button<'view> (
                 z: TAB_Z,
                 ..d!()
             },
-        ) {
-            *pen.action = ViewAction::Command(*command_key);
-        }
+            command_key
+        );
+    }
+}
+
+fn outline_command_button<'view> (
+    pen: &mut Pen<'view, '_>,
+    id: ui::Id,
+    spec: OutlineButtonSpec<'view>,
+    command_key: &CommandKey,
+) {
+    if do_outline_button(
+        pen,
+        id,
+        spec,
+    ) {
+        *pen.action = ViewAction::Command(*command_key);
     }
 }
 
@@ -1087,7 +1101,7 @@ fn render_command_menu(
             _ => {}
         };
 
-        command_button(
+        rect_command_button(
             pen,
             ui_id!(format!("{:p}", result)),
             current_rect,
