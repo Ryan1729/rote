@@ -213,6 +213,7 @@ pub fn view<'view>(
     }
 
     let dimensions = *dimensions;
+
     let sswh!(width, height) = dimensions.window;
     let FontInfo {
         ref text_char_dim,
@@ -232,6 +233,17 @@ pub fn view<'view>(
     let mut text_or_rects = Vec::with_capacity(buffer_count * PER_BUFFER_TEXT_OR_RECT_ESTIMATE);
 
     let mut action = ViewAction::None;
+
+    macro_rules! pen {
+        () => {
+            Pen {
+                ui,
+                text_or_rects: &mut text_or_rects,
+                action: &mut action,
+                dimensions,
+            }
+        }
+    }
 
     let UpperPositionInfo {
         edit_y,
@@ -265,9 +277,8 @@ pub fn view<'view>(
         }
 
         if do_outline_button(
-            ui,
+            &mut pen!(),
             ui_id!(i),
-            &mut text_or_rects,
             OutlineButtonSpec {
                 text: &label.name_string,
                 size: TAB_SIZE,
@@ -439,13 +450,10 @@ pub fn view<'view>(
                 }
                 MenuView::FileSwitcher(ref fs_view) => {
                     render_file_switcher_menu(
+                        &mut pen!(),
                         index,
                         fs_view,
-                        ui,
                         view.current_buffer_id(),
-                        dimensions,
-                        &mut text_or_rects,
-                        &mut action,
                     );
 
                     if action.is_none() {
@@ -505,10 +513,7 @@ pub fn view<'view>(
             match local_menu {
                 LocalMenuView::Command => {
                     render_command_menu(
-                        ui,
-                        &mut text_or_rects,
-                        dimensions,
-                        &mut action,
+                        &mut pen!(),
                         commands,
                     );
                 }
@@ -541,14 +546,11 @@ pub fn view<'view>(
 
                     let mut y = first_button_rect.min.y;
                     command_button(
-                        ui,
+                        &mut pen!(),
                         ui_id!(),
-                        &mut text_or_rects,
                         first_button_rect,
-                        dimensions,
                         &commands,
                         &command_keys::add_run_state_snapshot(),
-                        &mut action,
                     );
 
                     y += vertical_shift;
@@ -694,9 +696,8 @@ pub fn view<'view>(
     );
 
     if do_outline_button(
-        ui,
+        &mut pen!(),
         ui_id!(),
-        &mut text_or_rects,
         OutlineButtonSpec {
             text: "?", // 0x3F
             size: STATUS_SIZE,
@@ -713,9 +714,8 @@ pub fn view<'view>(
 
 
     if do_outline_button(
-        ui,
+        &mut pen!(),
         ui_id!(),
-        &mut text_or_rects,
         OutlineButtonSpec {
             text: "≡", // U+2261
             size: STATUS_SIZE,
@@ -766,17 +766,25 @@ pub fn view<'view>(
     }
 }
 
-// This is a private function so having a slightly awkward API is tolerable
-#[allow(clippy::too_many_arguments)]
+/// "What? Why is this called a pen?" I hear you say.
+/// Well, it's the thing you write with. This struct emerged as a thing I was 
+/// passing to several functions as separate arguments, so I to pass one thing
+/// instead. I then needed a name. I wanted something at least somewhat descriptive,
+/// but also short. `Pen` fits that description.
+#[derive(Debug)]
+struct Pen<'view, 'frame> {
+    ui: &'frame mut ui::State,
+    text_or_rects: &'frame mut Vec<TextOrRect<'view>>,
+    action: &'frame mut ViewAction,
+    dimensions: Dimensions
+}
+
 fn command_button<'view> (
-    ui: &mut ui::State,
+    pen: &mut Pen,
     id: ui::Id,
-    text_or_rects: &mut Vec<TextOrRect<'view>>,
     rect: ScreenSpaceRect,
-    dimensions: Dimensions,
     commands: &CommandsMap,
     command_key: &CommandKey,
-    action: &mut ViewAction,
 ) {
     let cmd_option = commands.get(command_key);
     invariant_assert!(cmd_option.is_some(), "{:?} has no command associated with it!", command_key);
@@ -785,17 +793,16 @@ fn command_button<'view> (
         let Dimensions {
             window: sswh!(_w, height),
             ..
-        } = dimensions;
+        } = pen.dimensions;
         let SpacingAllSpec { margin, .. } = get_menu_spacing(height);
 
         if do_outline_button(
-            ui,
+            pen,
             id,
-            text_or_rects,
             OutlineButtonSpec {
                 text: cmd.label,
                 size: TAB_SIZE,
-                char_dim: dimensions.font.tab_char_dim,
+                char_dim: pen.dimensions.font.tab_char_dim,
                 layout: TextLayout::Unbounded,
                 margin: Spacing::All(margin * LIST_MARGIN_TO_PADDING_RATIO),
                 rect,
@@ -803,7 +810,7 @@ fn command_button<'view> (
                 ..d!()
             },
         ) {
-            *action = ViewAction::Command(*command_key);
+            *pen.action = ViewAction::Command(*command_key);
         }
     }
 }
@@ -814,19 +821,16 @@ fn calculate_window_size() -> ListSelectionWindowSize {
 }
 
 fn render_file_switcher_menu<'view>(
+    pen: &mut Pen<'view, '_>,
     buffer_index: g_i::Index,
     FileSwitcherView { search, results }: &'view FileSwitcherView,
-    ui: &mut ui::State,
     current_buffer_id: BufferId,
-    dimensions: Dimensions,
-    text_or_rects: &mut Vec<TextOrRect<'view>>,
-    action: &mut ViewAction,
 ) {
     let FontInfo {
-        ref tab_char_dim,
+        tab_char_dim,
         ref find_replace_char_dim,
         ..
-    } = dimensions.font;
+    } = pen.dimensions.font;
 
     let FileSwitcherInfo {
         padding,
@@ -838,15 +842,15 @@ fn render_file_switcher_menu<'view>(
         search_outer_rect,
         search_text_xywh,
         ..
-    } = get_file_switcher_info(dimensions);
-    let outer_rect = get_full_width_ssr(top_y, dimensions.window.w, bottom_y);
-    text_or_rects.push(TextOrRect::Rect(VisualSpec {
+    } = get_file_switcher_info(pen.dimensions);
+    let outer_rect = get_full_width_ssr(top_y, pen.dimensions.window.w, bottom_y);
+    pen.text_or_rects.push(TextOrRect::Rect(VisualSpec {
         rect: outer_rect,
         colour: CHROME_BACKGROUND_COLOUR,
         z: FIND_REPLACE_BACKGROUND_Z,
     }));
 
-    text_or_rects.push(TextOrRect::Text(TextSpec {
+    pen.text_or_rects.push(TextOrRect::Text(TextSpec {
         text: if search.chars.is_empty() {
             "Find File"
         } else {
@@ -884,15 +888,15 @@ fn render_file_switcher_menu<'view>(
 
     let mut navigated_result = None;
 
-    if action.is_none() {
+    if pen.action.is_none() {
         u!{ui::Navigation}
 
-        match ui.navigation {
+        match pen.ui.navigation {
             None => {
                 if let ui::Id::TaggedListSelection(
                     ui::Tag::FileSwitcherResults,
                     selection
-                ) = ui.keyboard.hot
+                ) = pen.ui.keyboard.hot
                 {
                     navigated_result = Some(selection);
                 }
@@ -901,12 +905,12 @@ fn render_file_switcher_menu<'view>(
                 if let ui::Id::TaggedListSelection(
                     ui::Tag::FileSwitcherResults,
                     selection,
-                ) = ui.keyboard.hot
+                ) = pen.ui.keyboard.hot
                 {
                     if selection.index == 0 {
-                        *action = ViewAction::Input(Input::SelectBuffer(search_buffer_id));
+                        *pen.action = ViewAction::Input(Input::SelectBuffer(search_buffer_id));
 
-                        ui.keyboard.set_not_hot();
+                        pen.ui.keyboard.set_not_hot();
                     } else {
                         navigated_result = Some(selection.move_up());
                     }
@@ -916,12 +920,12 @@ fn render_file_switcher_menu<'view>(
                 if let ui::Id::TaggedListSelection(
                     ui::Tag::FileSwitcherResults,
                     selection,
-                ) = ui.keyboard.hot
+                ) = pen.ui.keyboard.hot
                 {
                     navigated_result = Some(selection.move_down(window_size, results.len()));
                 } else if !results.is_empty() {
                     navigated_result = Some(d!());
-                    *action = ViewAction::Input(
+                    *pen.action = ViewAction::Input(
                         Input::SelectBuffer(b_id!(BufferIdKind::None, buffer_index))
                     );
                 }
@@ -930,9 +934,9 @@ fn render_file_switcher_menu<'view>(
                 if let ui::Id::TaggedListSelection(
                     ui::Tag::FileSwitcherResults,
                     selection,
-                ) = ui.keyboard.hot
+                ) = pen.ui.keyboard.hot
                 {
-                    *action = results
+                    *pen.action = results
                         .get(selection.index)
                         .cloned()
                         .map(Input::OpenOrSelectBuffer)
@@ -944,9 +948,9 @@ fn render_file_switcher_menu<'view>(
 
     macro_rules! spaced_input_box {
         ($data: expr, $input: expr, $outer_rect: expr) => {{
-            *action = into_action(text_box(
-                ui,
-                text_or_rects,
+            *pen.action = into_action(text_box(
+                pen.ui,
+                pen.text_or_rects,
                 $outer_rect,
                 padding,
                 *find_replace_char_dim,
@@ -957,7 +961,7 @@ fn render_file_switcher_menu<'view>(
                 FIND_REPLACE_Z,
                 current_buffer_id,
             ))
-            .or(action.clone());
+            .or(pen.action.clone());
         }};
     }
 
@@ -992,7 +996,7 @@ fn render_file_switcher_menu<'view>(
         let result_id = match navigated_result {
             Some(selection) if selection.index == result_index => {
                 let result_id = get_result_id(selection);
-                ui.keyboard.set_next_hot(result_id);
+                pen.ui.keyboard.set_next_hot(result_id);
                 result_id
             }
             _ => {
@@ -1004,13 +1008,12 @@ fn render_file_switcher_menu<'view>(
         };
 
         if do_outline_button(
-            ui,
+            pen,
             result_id,
-            text_or_rects,
             OutlineButtonSpec {
                 text: &path_text,
                 size: TAB_SIZE,
-                char_dim: *tab_char_dim,
+                char_dim: tab_char_dim,
                 layout: TextLayout::Unbounded,
                 margin: list_margin,
                 rect,
@@ -1018,7 +1021,7 @@ fn render_file_switcher_menu<'view>(
                 ..d!()
             },
         ) {
-            *action = ViewAction::Input(Input::OpenOrSelectBuffer(result.to_owned()));
+            *pen.action = ViewAction::Input(Input::OpenOrSelectBuffer(result.to_owned()));
         }
         current_rect.min.y += vertical_shift;
         current_rect.max.y += vertical_shift;
@@ -1026,10 +1029,7 @@ fn render_file_switcher_menu<'view>(
 }
 
 fn render_command_menu(
-    ui: &mut ui::State,
-    text_or_rects: &mut Vec<TextOrRect>,
-    dimensions: Dimensions,
-    action: &mut ViewAction,
+    pen: &mut Pen,
     commands: &CommandsMap,
 ) {
     let CommandMenuInfo {
@@ -1037,8 +1037,8 @@ fn render_command_menu(
         first_button_rect,
         outer_rect,
         ..
-    } = get_command_menu_info(dimensions);
-    text_or_rects.push(TextOrRect::Rect(VisualSpec {
+    } = get_command_menu_info(pen.dimensions);
+    pen.text_or_rects.push(TextOrRect::Rect(VisualSpec {
         rect: outer_rect,
         colour: CHROME_BACKGROUND_COLOUR,
         z: FIND_REPLACE_BACKGROUND_Z,
@@ -1051,30 +1051,30 @@ fn render_command_menu(
     let mut navigated_result = None;
     let results: Vec<CommandKey> = commands.keys().cloned().collect();
 
-    if action.is_none() {
+    if pen.action.is_none() {
         u!{ui::Navigation}
 
-        match ui.navigation {
+        match pen.ui.navigation {
             None => {}
             Up => {
-                ui.file_switcher_pos.index = if ui.file_switcher_pos.index == 0 {
+                pen.ui.file_switcher_pos.index = if pen.ui.file_switcher_pos.index == 0 {
                     results.len().clone().saturating_sub(1)
                 } else {
-                    ui.file_switcher_pos.index - 1
+                    pen.ui.file_switcher_pos.index - 1
                 };
             }
             Down => {
-                ui.file_switcher_pos.index = (ui.file_switcher_pos.index + 1) % results.len();
+                pen.ui.file_switcher_pos.index = (pen.ui.file_switcher_pos.index + 1) % results.len();
             }
             Interact => {
-                *action = results
-                    .get(ui.file_switcher_pos.index)
+                *pen.action = results
+                    .get(pen.ui.file_switcher_pos.index)
                     .cloned()
                     .into();
             }
         }
 
-        navigated_result = Some(ui.file_switcher_pos.index);
+        navigated_result = Some(pen.ui.file_switcher_pos.index);
     }
 
     for (result_index, result) in results.iter().enumerate() {
@@ -1082,20 +1082,17 @@ fn render_command_menu(
 
         match navigated_result {
             Some(i) if i == result_index => {
-                dbg!(&mut ui.keyboard).set_next_hot(result_id);
+                dbg!(&mut pen.ui.keyboard).set_next_hot(result_id);
             }
             _ => {}
         };
 
         command_button(
-            ui,
+            pen,
             ui_id!(format!("{:p}", result)),
-            text_or_rects,
             current_rect,
-            dimensions,
             &commands,
             result,
-            action,
         );
 
         current_rect.min.y += vertical_shift;
@@ -1382,14 +1379,13 @@ d!(for OutlineButtonSpec<'static>: OutlineButtonSpec {
 });
 
 fn do_outline_button<'view>(
-    ui_state: &mut ui::State,
+    pen: &mut Pen<'view, '_>,
     id: ui::Id,
-    text_or_rects: &mut Vec<TextOrRect<'view>>,
     spec: OutlineButtonSpec<'view>,
 ) -> bool {
-    let (clicked, state) = ui::do_button_logic(ui_state, id, spec.rect);
+    let (clicked, state) = ui::do_button_logic(pen.ui, id, spec.rect);
 
-    render_outline_button(text_or_rects, spec, state, ui_state.get_fade_alpha());
+    render_outline_button(pen.text_or_rects, spec, state, pen.ui.get_fade_alpha());
 
     clicked
 }
