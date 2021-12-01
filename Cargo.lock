@@ -2399,7 +2399,6 @@ dependencies = [
  "pub_arb_std",
  "pub_arb_text_pos",
  "pub_arb_vec1",
- "regex",
  "rope_pos",
  "search",
 ]
