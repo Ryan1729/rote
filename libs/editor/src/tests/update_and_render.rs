@@ -205,7 +205,6 @@ fn resets_the_cursor_states_in_this_case() {
     // to trigger a SelectBuffer input, given that their UI places the input box 
     // above the results list. We should not require clients to do this, but if they 
     // do this it should work.
-
     update_and_render(&mut state, Input::SelectBuffer(b_id!(BufferIdKind::FileSwitcher, d!())));
 
     // Assert

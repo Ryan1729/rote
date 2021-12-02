@@ -5,7 +5,6 @@ use macros::{c, d, dbg, invariant_assert, u};
 use platform_types::{
     *,
     screen_positioning::*,
-    g_i,
     GoToPositionView,
     FindReplaceView,
     FileSwitcherView,
@@ -451,7 +450,6 @@ pub fn view<'view>(
                 MenuView::FileSwitcher(ref fs_view) => {
                     render_file_switcher_menu(
                         &mut pen!(),
-                        index,
                         fs_view,
                         view.current_buffer_id(),
                     );
@@ -836,15 +834,13 @@ fn calculate_window_size() -> ListSelectionWindowSize {
 
 fn render_file_switcher_menu<'view>(
     pen: &mut Pen<'view, '_>,
-    buffer_index: g_i::Index,
     FileSwitcherView { search, results }: &'view FileSwitcherView,
     current_buffer_id: BufferId,
 ) {
-    assert_eq!(current_buffer_id.index, buffer_index);
-    // The buffer index is needed so we can avoid switching the selected Text buffer
-    // when selecting and deselecting the switcher buffer. E.g. press down to
+    // We use the current buffer index so we can avoid switching the selected Text
+    // buffer when selecting and deselecting the switcher buffer. E.g. press down to
     // select the first result then up to select the buffer again.
-    let search_buffer_id = b_id!(BufferIdKind::FileSwitcher, buffer_index);
+    let search_buffer_id = b_id!(BufferIdKind::FileSwitcher, current_buffer_id.index);
 
     let FontInfo {
         tab_char_dim,
@@ -944,7 +940,7 @@ fn render_file_switcher_menu<'view>(
                 } else if !results.is_empty() {
                     navigated_result = Some(d!());
                     *pen.action = ViewAction::Input(
-                        Input::SelectBuffer(b_id!(BufferIdKind::None, buffer_index))
+                        Input::SelectBuffer(b_id!(BufferIdKind::None, current_buffer_id.index))
                     );
                 }
             }
