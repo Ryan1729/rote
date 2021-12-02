@@ -133,7 +133,6 @@ pub enum BufferIdKind {
     None,
     /// Indicates a buffer repesenting an open file or an in memory scratch file.
     /// Almost all buffers are `Text` buffers.
-
     Text,
     Find,
     Replace,
@@ -471,7 +470,6 @@ pub fn kind_editable_during_mode(kind: BufferIdKind, menu_mode: MenuMode) -> boo
         (BufferIdKind::None, _) => false,
         // We want this to be true always since it would be completely reasonable 
         // behaviour for a different client to always show the text buffers.
-
         (BufferIdKind::Text, _) => true, 
         (BufferIdKind::Find, FindReplace(_)) => {
             true

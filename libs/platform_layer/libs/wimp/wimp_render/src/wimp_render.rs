@@ -1982,10 +1982,12 @@ pub fn get_command_menu_info(
     let CoverTextAreaInfo {
         margin,
         padding,
-        top_y,
+        top_y: cover_top_y,
         bottom_y,
         outer_rect,
     } = cover_text_area_info(dimensions);
+
+    let top_y = cover_top_y + margin + margin;
 
     let list_margin = margin * LIST_MARGIN_TO_PADDING_RATIO;
 
