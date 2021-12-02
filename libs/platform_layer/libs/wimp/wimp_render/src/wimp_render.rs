@@ -840,6 +840,11 @@ fn render_file_switcher_menu<'view>(
     FileSwitcherView { search, results }: &'view FileSwitcherView,
     current_buffer_id: BufferId,
 ) {
+    // The buffer index is needed so we can avoid switching the selected Text buffer
+    // when selecting and deselecting the switcher buffer. E.g. press down to
+    // select the first result then up to select the buffer again.
+    let search_buffer_id = b_id!(BufferIdKind::FileSwitcher, buffer_index);
+
     let FontInfo {
         tab_char_dim,
         ref find_replace_char_dim,
@@ -895,8 +900,6 @@ fn render_file_switcher_menu<'view>(
     let list_bottom_margin = list_margin.into_ltrb().b;
     let vertical_shift =
         search_text_xywh.wh.h + margin.into_ltrb().b - list_bottom_margin;
-
-    let search_buffer_id = b_id!(BufferIdKind::FileSwitcher, buffer_index);
 
     let window_size = calculate_window_size();
 
@@ -960,26 +963,21 @@ fn render_file_switcher_menu<'view>(
         }
     }
 
-    macro_rules! spaced_input_box {
-        ($data: expr, $input: expr, $outer_rect: expr) => {{
-            *pen.action = into_action(text_box(
-                pen.ui,
-                pen.text_or_rects,
-                $outer_rect,
-                padding,
-                *find_replace_char_dim,
-                FIND_REPLACE_SIZE,
-                TextBoxColour::Single(CHROME_TEXT_COLOUR),
-                $data,
-                $input,
-                FIND_REPLACE_Z,
-                current_buffer_id,
-            ))
-            .or(pen.action.clone());
-        }};
-    }
+    *pen.action = into_action(text_box(
+        pen.ui,
+        pen.text_or_rects,
+        current_rect,
+        padding,
+        *find_replace_char_dim,
+        FIND_REPLACE_SIZE,
+        TextBoxColour::Single(CHROME_TEXT_COLOUR),
+        search,
+        search_buffer_id,
+        FIND_REPLACE_Z,
+        current_buffer_id,
+    ))
+    .or(pen.action.clone());
 
-    spaced_input_box!(search, search_buffer_id, current_rect);
     // We add the extra `list_bottom_margin` here but not in the loop so that the
     // spacing bewteen the textbox and the first button is the same as the spacing
     // between subsequent buttons. If we added it in both, there would be a double
