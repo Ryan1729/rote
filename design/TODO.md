@@ -1,5 +1,27 @@
 ## TODO
 
+* run NFD in a separate process, (N.B. not a the same thing as a thread) so that
+  aborts in the file dialog do not cause the whole program to be aborted!
+    * During testing, when we opened the file dialog, we got the following error:
+        * Gtk:ERROR:../../../../gtk/gtkicontheme.c:4305:proxy_symbolic_pixbuf_destroy: assertion failed: (symbolic_cache != NULL)
+          Bail out! Gtk:ERROR:../../../../gtk/gtkicontheme.c:4305:proxy_symbolic_pixbuf_destroy: assertion failed: (symbolic_cache != NULL)
+          Aborted (core dumped)
+        * (IIRC we pressed Ctrl-O multiple times since the first one apparently didn't do anything.)
+    * Plan:
+        * Use `std::process::Command` to call the binary again with a special
+          commandline flag, which just brings up the file dialog.
+        * write the path out to stdout in the new process.
+        * Use `wait_with_output` on the `Command` and read the file name from the
+          returned `std::process::Output`.
+    * Notes:
+        * We should probably call `std::env::current_exe` right before calling
+          ourselves, so that there is less chance of a TOCTOU error which can lead to
+          security vulnerabilities, as noted in the `std::env::current_exe` docs.
+            * add feature flag to go back to the current behaviour, without this
+              exe loopback in case that ever becomes an issue. Also, this loopback
+              might not be portable everywhere.
+
+
 * Pull out re-usable UI component from the file switcher and use it to fix the wimp menu.
 
 * Fix panic that happened after doing multiple `Save-As`. Edit: See [!] below
@@ -51,7 +73,7 @@
             * If you mash Ctrl-t, then eventually the new tab is invisible
 
 * fix the CRLF/\r\n display issues, or at least figure out a performant way to display control pictures
-    * Specifically, the thing where comments ending in CRLF (or at least something weird at the ends) 
+    * Specifically, the thing where comments ending in CRLF (or at least something weird at the ends)
     make the lines not line up
 
 * make auto-tab-scroll happen when a tab is switched to with the keyboard
@@ -60,7 +82,7 @@
     * currently this is not true if keyboard shortcuts are used. We should make sure
     the menus will be hidden when we do the numeric tab jumping, as well.
 
-* make some way to jump to tab a given tab, say by making numbers appear on tabs when 
+* make some way to jump to tab a given tab, say by making numbers appear on tabs when
 holding down modifiers
     * We'll probably want to make "making the current tab visible when changing to it"
      work, before doing this.
@@ -68,18 +90,18 @@ holding down modifiers
 * on windows, consider closing the console after flags are handled, unless a debug flag
     is passed to keep it open.
 
-* as part of making the state of the editor more observable, when holding down 
+* as part of making the state of the editor more observable, when holding down
 modifier keys, indicate what pressing non-modifiers will do.
     * Where should this go on the screen? Are we realy going to want a bunch of text
     to appear over top of everything when we tap the ctrl key?
         * we could make it fade in, after say an entire second of holding it.
     * Maybe do the numeric tab jumping one first, and see how we feel about this afterwards.
 
-* if multiple things are copied with multiple cursors then if they are pasted with the same number of cursors then 
+* if multiple things are copied with multiple cursors then if they are pasted with the same number of cursors then
     they should be pasted separately
     * given the numbers are selected by three cursors represented by "|"
-        1|  copy then paste should be 11 not 1123 
-        2|                            22     2123 
+        1|  copy then paste should be 11 not 1123
+        2|                            22     2123
         3|                            33     3123
 
 * Make Esc pick only one of the mulitple cursors to keep and remove that one's selection if there is one.
@@ -89,7 +111,7 @@ modifier keys, indicate what pressing non-modifiers will do.
 
 * It seems like the editor thread slows down sometimes. Possibly when there are many
 files open, or just when the editor has been open a long time
-    * We've started measuring and displaying how long it took the last call to 
+    * We've started measuring and displaying how long it took the last call to
     `editor::update_and_render` to run. Do we need more visualization than that?
         * If we do, the next obvious step would be a bar chart of the last N view
         renders, where the x axis is the Input variant, and the y axis is duration
@@ -139,8 +161,8 @@ files open, or just when the editor has been open a long time
 * report the time the editor thread took to render the previous view. Maybe a rolling average too?
     * how do linux load averages work? Would something like that make sense here?
     * What about a tiny line chart?
-        * that doesn't fit into our current text and rectangles setup. 
-            * What about a histogram? 
+        * that doesn't fit into our current text and rectangles setup.
+            * What about a histogram?
             * Or maybe just draw tall thin rects
 
 * fix slowness that shows up when selecting things with the mouse
@@ -177,7 +199,7 @@ files open, or just when the editor has been open a long time
             * in the outermost scope of the innermost module
         * do the above but also set/check that the cursors are in the right spots.
 
-* refresh search spans on tab-in/out 
+* refresh search spans on tab-in/out
     * Should be all edits really; are there other ones we missed? We should only need to put the refresh in one place.
     * Is this fixed now?
 
@@ -200,7 +222,7 @@ files open, or just when the editor has been open a long time
     * the Ctrl-P menu is also capable of provoking this FWIW
     * I suspect an issue with the generational indexes based on nothing but intuition.
     * Does it make sense to make a proptest that claims that you can never get to the "No buffer selected" state,
-        and then make the relevant generator avoid any cases that really cannot happen? That would hopefully 
+        and then make the relevant generator avoid any cases that really cannot happen? That would hopefully
         identify the problem, at least.
     * We've now done some corrections to the generational indexes. This may actually be fixed.
 
@@ -256,7 +278,7 @@ files open, or just when the editor has been open a long time
             a += 1;
         }
     ```
-    That is, we want 
+    That is, we want
     ```
         {
             a = 1;
@@ -279,7 +301,7 @@ files open, or just when the editor has been open a long time
 
 * have some way to see what whitespace, (including line endings) is in a file.
     * see if we can get conditionally transforming ascii into the control pictures block fast enough
-        * if not fast enough to do repeatedly and still scrolling, then at least 
+        * if not fast enough to do repeatedly and still scrolling, then at least
             we could do it once and stick it in a scratch buffer.
     * a built-in hex dump viewer?
     * would conditionally changing the font be better? That way the layout doesn't get messed up.
@@ -290,7 +312,7 @@ files open, or just when the editor has been open a long time
 
 * make it such that buffers are not considered edited if their contents matches what is on disk
     * do we want a hash here?
-        * we would only want that as an optimization. 
+        * we would only want that as an optimization.
         * let's try without one and see if we run into problems in practice
     * We've added the hash but I'm not positive there aren't still issues here.
 
@@ -450,7 +472,7 @@ files open, or just when the editor has been open a long time
 the cursor position is way off of where it should be.
 
 * figure out why `#[check_or_no_panic]` seems to always report a panic in `panic_safe_rope`
-  * current suspicion: Allocating memory can always panic.  
+  * current suspicion: Allocating memory can always panic.
 
 * Measure the timings and perceived latency without the weird `"time-render"` stuff again. A quick check is not showing a perceived difference anymore
   * see https://gamedev.stackexchange.com/a/173730
