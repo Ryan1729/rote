@@ -840,6 +840,7 @@ fn render_file_switcher_menu<'view>(
     FileSwitcherView { search, results }: &'view FileSwitcherView,
     current_buffer_id: BufferId,
 ) {
+    assert_eq!(current_buffer_id.index, buffer_index);
     // The buffer index is needed so we can avoid switching the selected Text buffer
     // when selecting and deselecting the switcher buffer. E.g. press down to
     // select the first result then up to select the buffer again.
