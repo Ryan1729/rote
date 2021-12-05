@@ -398,10 +398,48 @@ pub enum EditorThreadInput {
 /// Info displayed on the debug menu
 #[derive(Debug, Default)]
 pub struct DebugMenuState {
+    // We don't want to be allocating a string every frame. So instead, we clear 
+    // this one and write the data into it.
+    pub preallocated_scratch: String,
     pub startup_description: String,
     pub pids: Pids,
-    pub pid_string: String,
-    pub editor_state_description: String,
+    pub editor_buffers_size_in_bytes: usize,
+}
+
+impl DebugMenuState {
+    pub fn render_to_scratch(&mut self) {
+        use std::fmt::Write;
+        let output = &mut self.preallocated_scratch;
+        output.clear();
+    
+        macro_rules! push_pid_line {
+            ($field_name: ident) => {{
+                let field_name = stringify!($field_name);
+                for _ in 0..(16usize.saturating_sub(field_name.len())) {
+                    output.push(' ');
+                }
+
+                output.push_str(field_name);
+                output.push_str(" PID: ");
+                output.push_str(&format!("{}", self.pids.$field_name));
+                output.push('\n');
+            }}
+        }
+
+        push_pid_line!(window);
+        push_pid_line!(editor);
+        push_pid_line!(path_mailbox);
+
+        // TODO human readable size
+        let _cannot_actually_fail = write!(
+            output,
+            "buffers bytes: {}\n",
+            self.editor_buffers_size_in_bytes,
+        );
+
+        output.push_str(&self.startup_description);
+        output.push('\n');
+    }
 }
 
 /// The subset of RunState that is relevant to rendering the view.

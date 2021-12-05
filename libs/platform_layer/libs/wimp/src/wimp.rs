@@ -600,12 +600,7 @@ pub fn run(
 
         let clipboard = get_clipboard();
 
-        let mut editor_state_description = String::with_capacity(256);
-
-        wimp_render::write_editor_state_description(
-            &mut editor_state_description,
-            v.stats.editor_buffers_size_in_bytes,
-        );
+        let editor_buffers_size_in_bytes = v.stats.editor_buffers_size_in_bytes;
 
         let mut view: wimp_types::View = d!();
 
@@ -618,10 +613,10 @@ pub fn run(
                 buffer_status_map,
                 dimensions,
                 debug_menu_state: DebugMenuState {
+                    preallocated_scratch: String::with_capacity(1024),
                     startup_description,
                     pids,
-                    pid_string: String::with_capacity(256),
-                    editor_state_description,
+                    editor_buffers_size_in_bytes,
                 },
                 stats: d!(),
             },
@@ -1549,10 +1544,8 @@ pub fn run(
                         match editor_out_source.try_recv() {
                             Ok(EditorThreadOutput::Rendered((v, c, result))) => {
                                 debug_assert!(result.is_ok());
-                                wimp_render::write_editor_state_description(
-                                    &mut v_s!().debug_menu_state.editor_state_description,
-                                    v.stats.editor_buffers_size_in_bytes,
-                                );
+                                v_s!().debug_menu_state.editor_buffers_size_in_bytes
+                                    = v.stats.editor_buffers_size_in_bytes;
 
                                 v_s!().view.update(v, result.map(|b| b.data).unwrap_or_default());
                                 for (i, e_t) in v_s!().view.edited_transitions() {
