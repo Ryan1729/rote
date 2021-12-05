@@ -617,6 +617,7 @@ pub fn run(
                     startup_description,
                     pids,
                     editor_buffers_size_in_bytes,
+                    last_hidpi_factors: [get_hidpi_factor!(), 0.0, 0.0, 0.0]
                 },
                 stats: d!(),
             },
@@ -1358,6 +1359,8 @@ pub fn run(
                             ..
                         } => {
                             current_hidpi_factor = scale_factor;
+                            v_s!().debug_menu_state.last_hidpi_factors.rotate_right(1);
+                            v_s!().debug_menu_state.last_hidpi_factors[0] = get_hidpi_factor!();
                         }
                         WindowEvent::Resized(size) => {
                             let hidpi_factor = get_hidpi_factor!();

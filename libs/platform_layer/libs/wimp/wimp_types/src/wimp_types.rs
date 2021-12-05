@@ -404,6 +404,7 @@ pub struct DebugMenuState {
     pub startup_description: String,
     pub pids: Pids,
     pub editor_buffers_size_in_bytes: usize,
+    pub last_hidpi_factors: [f64; 4]
 }
 
 impl DebugMenuState {
@@ -439,6 +440,20 @@ impl DebugMenuState {
 
         output.push_str(&self.startup_description);
         output.push('\n');
+
+        let _cannot_actually_fail = write!(
+            output,
+            "last {} DPI factors:\n",
+            self.last_hidpi_factors.len(),
+        );
+
+        for factor in &self.last_hidpi_factors {
+            let _cannot_actually_fail = write!(
+                output,
+                "{}\n",
+                factor,
+            );
+        }
     }
 }
 
