@@ -207,9 +207,6 @@ pub fn view<'view>(
     ui.frame_init(&view);
 
     stats.latest_view_function_time_span = TimeSpan::start();
-    if cfg!(feature = "extra-prints") {
-        if_changed::dbg!(&view);
-    }
 
     let dimensions = *dimensions;
 

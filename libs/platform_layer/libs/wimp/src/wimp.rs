@@ -12,7 +12,7 @@ use std::{
     time::Duration,
 };
 use wimp_render::{get_find_replace_info, FindReplaceInfo, get_go_to_position_info, GoToPositionInfo, ViewOutput, ViewAction};
-use wimp_types::{ui, ui::{PhysicalButtonState, Navigation}, transform_at, BufferStatus, BufferStatusTransition, CustomEvent, get_clipboard, ClipboardProvider, Dimensions, LabelledCommand, RunConsts, RunState, MenuMode, Pids, PidKind, EditorThreadInput, ViewRunState, DebugMenuState};
+use wimp_types::{ui, ui::{PhysicalButtonState, Navigation}, transform_at, BufferStatus, BufferStatusTransition, CustomEvent, get_clipboard, ClipboardProvider, Dimensions, LabelledCommand, RunConsts, RunState, MenuMode, Pids, PidKind, EditorThreadInput, ViewRunState, DebugMenuState, DpiFactor};
 use macros::{d, dbg, u};
 use platform_types::{screen_positioning::screen_to_text_box, *};
 use shared::{Res};
@@ -321,15 +321,12 @@ pub fn run(
         )?;
     let glutin_context = unsafe { glutin_context.make_current().map_err(|(_, e)| e)? };
 
-    let mut current_hidpi_factor = 1.0;
-    macro_rules! get_hidpi_factor {
-        () => {
-            hidpi_factor_override.unwrap_or(current_hidpi_factor)
-        }
-    }
+    const HIDPI_INCREMENT_BY: DpiFactor = 1./12.;
+    const HIDPI_MINIMUM: DpiFactor = HIDPI_INCREMENT_BY;
+    const HIDPI_DEFAULT: DpiFactor = 1.;
 
     let (mut gl_state, char_dims) = gl_layer::init(
-        get_hidpi_factor!() as f32,
+        hidpi_factor_override.unwrap_or(HIDPI_DEFAULT) as f32,
         &wimp_render::TEXT_SIZES,
         wimp_render::TEXT_BACKGROUND_COLOUR,
         |symbol| glutin_context.get_proc_address(symbol) as _,
@@ -617,16 +614,32 @@ pub fn run(
                     startup_description,
                     pids,
                     editor_buffers_size_in_bytes,
-                    last_hidpi_factors: [get_hidpi_factor!(), 0.0, 0.0, 0.0]
+                    last_hidpi_factors: [
+                        hidpi_factor_override.unwrap_or(HIDPI_DEFAULT),
+                        0.,
+                        0.,
+                        0.,
+                    ]
                 },
                 stats: d!(),
             },
+            hidpi_factor_override,
+            current_hidpi_factor: HIDPI_DEFAULT,
             cmds,
             clipboard,
             editor_in_sink,
             event_proxy: event_proxy.clone(),
         }
     };
+
+    macro_rules! get_hidpi_factor {
+        () => {
+            get_hidpi_factor!(r_s)
+        };
+        ($r_s: expr) => {
+            $r_s.hidpi_factor_override.unwrap_or($r_s.current_hidpi_factor)
+        };
+    }
 
     macro_rules! v_s {
         () => {
@@ -854,6 +867,16 @@ pub fn run(
                 index_state.new_index(g_i::IndexPart::or_max(i)),
                 BufferStatus::EditedAndSaved,
             );
+        }
+
+        fn set_current_hidpi_factor(r_s: &mut RunState, mut factor: DpiFactor) {
+            if !(factor >= HIDPI_MINIMUM) {
+                // We negate so that NaN goes here
+                factor = HIDPI_MINIMUM;
+            }
+            r_s.current_hidpi_factor = factor;
+            v_s!(r_s).debug_menu_state.last_hidpi_factors.rotate_right(1);
+            v_s!(r_s).debug_menu_state.last_hidpi_factors[0] = get_hidpi_factor!(r_s);
         }
 
         type CommandVars = RunState;
@@ -1193,6 +1216,15 @@ pub fn run(
             [CTRL | ALT | SHIFT, L, "Switch document parsing to previous language.", state {
                 call_u_and_r!(state, Input::PreviousLanguage);
             }]
+            [CTRL | ALT, Equals /* AKA unshifted Plus */, "Increase DPI factor.", r_s {
+                set_current_hidpi_factor(r_s, get_hidpi_factor!(r_s) + HIDPI_INCREMENT_BY);
+            }]
+            [CTRL | ALT, Minus, "Decrease DPI factor.", r_s {
+                set_current_hidpi_factor(r_s, get_hidpi_factor!(r_s) - HIDPI_INCREMENT_BY);
+            }]
+            [CTRL | ALT, Key1, "Reset DPI factor.", r_s {
+                set_current_hidpi_factor(r_s, HIDPI_DEFAULT);
+            }]
             [CTRL | SHIFT, Home, "Move all cursors to buffer start.", state {
                 call_u_and_r!(state, Input::ExtendSelectionForAllCursors(
                     Move::ToBufferStart
@@ -1358,9 +1390,7 @@ pub fn run(
                             scale_factor,
                             ..
                         } => {
-                            current_hidpi_factor = scale_factor;
-                            v_s!().debug_menu_state.last_hidpi_factors.rotate_right(1);
-                            v_s!().debug_menu_state.last_hidpi_factors[0] = get_hidpi_factor!();
+                            set_current_hidpi_factor(&mut r_s, scale_factor);
                         }
                         WindowEvent::Resized(size) => {
                             let hidpi_factor = get_hidpi_factor!();
@@ -1400,7 +1430,7 @@ pub fn run(
                              && c != '\u{9}'    // horizontal tab (sent with Ctrl-i)
                              && c != '\u{c}'    // new page/form feed (sent with Ctrl-l)
                              && c != '\u{f}'    // "shift in" AKA use black ink apparently, (sent with Ctrl-o)
-                             && c != '\u{10}'   // "data link escape" AKA interprt the following as raw data, (sent with Ctrl-p)
+                             && c != '\u{10}'   // "data link escape" AKA interpret the following as raw data, (sent with Ctrl-p)
                              && c != '\u{13}'   // "device control 3" (sent with Ctrl-s)
                              && c != '\u{14}'   // "device control 4" (sent with Ctrl-t)
                              && c != '\u{16}'   // "synchronous idle" (sent with Ctrl-v)
@@ -1756,7 +1786,7 @@ pub fn run(
                     },
                     CustomEvent::OpenFile(p) => load_file!(p),
                     CustomEvent::SaveNewFile(p, index) => {
-                        // TODO Stop receiving this `p` and `index` here and 
+                        // TODO Stop receiving this `p` and `index` here and
                         // forwarding to the next thread, and instead send it
                         // there directly
 

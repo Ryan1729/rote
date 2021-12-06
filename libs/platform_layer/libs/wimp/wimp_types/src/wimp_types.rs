@@ -468,13 +468,15 @@ pub struct ViewRunState {
     pub stats: Stats,
 }
 
-
+pub type DpiFactor = f64;
 
 /// State owned by the `run` function, which can be uniquely borrowed by other functions called inside `run`.
 #[derive(Debug)]
 pub struct RunState {
     pub view_state: ViewRunState,
     pub cmds: VecDeque<Cmd>,
+    pub hidpi_factor_override: Option<DpiFactor>,
+    pub current_hidpi_factor: DpiFactor,
     pub editor_in_sink: std::sync::mpsc::Sender<EditorThreadInput>,
     pub event_proxy: EventLoopProxy<CustomEvent>,
     pub clipboard: Clipboard,
