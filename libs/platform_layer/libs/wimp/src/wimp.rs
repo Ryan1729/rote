@@ -325,7 +325,7 @@ pub fn run(
     const HIDPI_MINIMUM: DpiFactor = HIDPI_INCREMENT_BY;
     const HIDPI_DEFAULT: DpiFactor = 1.;
 
-    let (mut gl_state, char_dims) = gl_layer::init(
+    let (gl_state, char_dims) = gl_layer::init(
         hidpi_factor_override.unwrap_or(HIDPI_DEFAULT) as f32,
         &wimp_render::TEXT_SIZES,
         wimp_render::TEXT_BACKGROUND_COLOUR,
@@ -629,6 +629,7 @@ pub fn run(
             clipboard,
             editor_in_sink,
             event_proxy: event_proxy.clone(),
+            gl_state,
         }
     };
 
@@ -869,7 +870,10 @@ pub fn run(
             );
         }
 
-        fn set_current_hidpi_factor(r_s: &mut RunState, mut factor: DpiFactor) {
+        fn set_current_hidpi_factor(
+            r_s: &mut RunState,
+            mut factor: DpiFactor
+        ) {
             if !(factor >= HIDPI_MINIMUM) {
                 // We negate so that NaN goes here
                 factor = HIDPI_MINIMUM;
@@ -877,9 +881,17 @@ pub fn run(
             r_s.current_hidpi_factor = factor;
             v_s!(r_s).debug_menu_state.last_hidpi_factors.rotate_right(1);
             v_s!(r_s).debug_menu_state.last_hidpi_factors[0] = get_hidpi_factor!(r_s);
+
+            let hidpi_factor = get_hidpi_factor!(r_s);
+            let sswh!(w, h) = v_s!(r_s).dimensions.window;
+            gl_layer::set_dimensions(
+                &mut r_s.gl_state,
+                hidpi_factor as _,
+                (w.get() as _, h.get() as _),
+            );
         }
 
-        type CommandVars = RunState;
+        type CommandVars<'font> = RunState<'font>;
 
         let mut r_c: RunConsts = RunConsts {
             commands: std::collections::BTreeMap::new(),
@@ -1345,7 +1357,7 @@ pub fn run(
 
                             perf_viz::output!();
 
-                            let _ = gl_layer::cleanup(&gl_state);
+                            let _ = gl_layer::cleanup(&r_s.gl_state);
 
                             *control_flow = glutin_wrapper::event_loop::ControlFlow::Exit;
                         }};
@@ -1390,10 +1402,12 @@ pub fn run(
                             scale_factor,
                             ..
                         } => {
-                            set_current_hidpi_factor(&mut r_s, scale_factor);
+                            set_current_hidpi_factor(
+                                &mut r_s,
+                                scale_factor,
+                            );
                         }
                         WindowEvent::Resized(size) => {
-                            let hidpi_factor = get_hidpi_factor!();
                             glutin_context.resize(size);
                             v_s!().dimensions.window = wh_from_size!(size);
                             call_u_and_r!(
@@ -1404,8 +1418,8 @@ pub fn run(
                             );
                             let sswh!(w, h) = v_s!().dimensions.window;
                             gl_layer::set_dimensions(
-                                &mut gl_state,
-                                hidpi_factor as _,
+                                &mut r_s.gl_state,
+                                get_hidpi_factor!() as _,
                                 (w.get() as _, h.get() as _),
                             );
                         }
@@ -1633,7 +1647,7 @@ pub fn run(
                             dt,
                         );
 
-                    gl_layer::render(&mut gl_state, text_or_rects, width.get() as _, height.get() as _)
+                    gl_layer::render(&mut r_s.gl_state, text_or_rects, width.get() as _, height.get() as _)
                         .expect("gl_layer::render didn't work");
 
                     perf_viz::start_record!("swap_buffers");

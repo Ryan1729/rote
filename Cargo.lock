@@ -2094,7 +2094,7 @@ dependencies = [
 
 [[package]]
 name = "rote"
-version = "0.2.269"
+version = "0.2.270"
 dependencies = [
  "editor",
  "lazy_static 1.4.0",
@@ -2713,6 +2713,7 @@ name = "wimp_types"
 version = "0.1.0"
 dependencies = [
  "clipboard",
+ "gl_layer",
  "glutin_wrapper",
  "if_changed",
  "macros",
