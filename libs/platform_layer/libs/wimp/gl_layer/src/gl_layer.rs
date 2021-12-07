@@ -14,25 +14,26 @@ pub use text_rendering::FONT_LICENSE;
 
 pub fn init<F>(
     hidpi_factor: f32,
-    text_sizes: &'static [f32],
     clear_colour: [f32; 4], // the clear colour currently flashes up on exit.
     load_fn: F,
-) -> Res<(State<'static>, Vec<CharDim>)>
+) -> Res<State<'static>>
 where
     F: FnMut(&'static str) -> open_gl::LoadFnOutput,
 {
-    let (text_rendering_state, char_dims) = text_rendering::new(
-        hidpi_factor,
-        text_sizes
+    let text_rendering_state = text_rendering::new(
+        hidpi_factor
     )?;
 
-    Ok((
+    Ok(
         State {
             open_gl: open_gl:: State::new(clear_colour, text_rendering_state.texture_dimensions(), load_fn)?,
             text_rendering: text_rendering_state,
-        },
-        char_dims,
-    ))
+        }
+    )
+}
+
+pub fn get_char_dims(state: &State, text_sizes: &[f32]) -> Vec<CharDim> {
+    state.text_rendering.get_char_dims(text_sizes)
 }
 
 pub fn set_dimensions(state: &mut State, hidpi_factor: f32, wh: (i32, i32)) {

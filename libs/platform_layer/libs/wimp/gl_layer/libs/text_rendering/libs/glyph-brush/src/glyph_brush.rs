@@ -144,6 +144,11 @@ where
             glyphed.vertices.clear();
         }
     }
+
+    #[inline]
+    pub fn fonts(&self) -> &[Font<'font>] {
+        &self.fonts
+    }
 }
 
 pub type CalculatedGlyphIter<'a, 'font> = std::iter::Map<

@@ -325,9 +325,8 @@ pub fn run(
     const HIDPI_MINIMUM: DpiFactor = HIDPI_INCREMENT_BY;
     const HIDPI_DEFAULT: DpiFactor = 1.;
 
-    let (gl_state, char_dims) = gl_layer::init(
+    let gl_state = gl_layer::init(
         hidpi_factor_override.unwrap_or(HIDPI_DEFAULT) as f32,
-        &wimp_render::TEXT_SIZES,
         wimp_render::TEXT_BACKGROUND_COLOUR,
         |symbol| glutin_context.get_proc_address(symbol) as _,
     )?;
@@ -573,6 +572,12 @@ pub fn run(
 
     let mut r_s = {
         let editor_in_sink = editor_in_sink.clone();
+
+        let char_dims = gl_layer::get_char_dims(
+            &gl_state,
+            &wimp_render::TEXT_SIZES,
+        );
+
         let dimensions = Dimensions {
             font: wimp_render::get_font_info(&char_dims),
             window: wh_from_size!(
@@ -879,16 +884,26 @@ pub fn run(
                 factor = HIDPI_MINIMUM;
             }
             r_s.current_hidpi_factor = factor;
-            v_s!(r_s).debug_menu_state.last_hidpi_factors.rotate_right(1);
-            v_s!(r_s).debug_menu_state.last_hidpi_factors[0] = get_hidpi_factor!(r_s);
-
             let hidpi_factor = get_hidpi_factor!(r_s);
+
+            v_s!(r_s).debug_menu_state.last_hidpi_factors.rotate_right(1);
+            v_s!(r_s).debug_menu_state.last_hidpi_factors[0] = hidpi_factor;
+            
             let sswh!(w, h) = v_s!(r_s).dimensions.window;
+
+            let gl_state = &mut r_s.gl_state;
             gl_layer::set_dimensions(
-                &mut r_s.gl_state,
+                gl_state,
                 hidpi_factor as _,
                 (w.get() as _, h.get() as _),
             );
+
+            let char_dims = gl_layer::get_char_dims(
+                gl_state,
+                &wimp_render::TEXT_SIZES,
+            );
+
+            v_s!(r_s).dimensions.font = wimp_render::get_font_info(&char_dims);
         }
 
         type CommandVars<'font> = RunState<'font>;

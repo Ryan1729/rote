@@ -407,6 +407,34 @@ impl <'font> State<'font> {
             }
         }
     }
+
+    pub fn get_char_dims(&self, text_sizes: &[f32]) -> CharDims {
+        // We currently assume there is exactly one font used.
+        let font = &self.glyph_brush.fonts()[0];
+
+        // We currently assume the font is monospaced.
+        let em_space_char = '\u{2003}';
+    
+        macro_rules! get_char_dim {
+            ($scale:expr) => {{
+                let scale = $scale;
+                char_dim!({
+                        let em_space_glyph = new_glyph(&font, em_space_char, scale, d!());
+                        get_advance_width(&font, &em_space_glyph)
+                    },
+                    get_line_height(&font, scale),
+                )
+            }};
+        }
+    
+        let mut char_dims = Vec::with_capacity(text_sizes.len());
+    
+        for size in text_sizes {
+            char_dims.push(get_char_dim!(get_scale(*size, self.hidpi_factor)));
+        }
+    
+        char_dims
+    }
 }
 
 pub(crate) type CharDims = Vec<CharDim>;
@@ -414,37 +442,15 @@ pub(crate) type CharDims = Vec<CharDim>;
 const FONT_BYTES: &[u8] = include_bytes!("./fonts/FiraCode-Retina.ttf");
 pub const FONT_LICENSE: &str = include_str!("./fonts/LICENSE");
 
-pub fn new(hidpi_factor: f32, text_sizes: &[f32]) -> Res<(State, CharDims)> {
+pub fn new(hidpi_factor: f32) -> Res<State<'static>> {
     let font = Font::from_bytes(FONT_BYTES)?;
 
-    // We currently assume the font is monospaced.
-    let em_space_char = '\u{2003}';
-
-    macro_rules! get_char_dim {
-        ($scale:expr) => {{
-            let scale = $scale;
-            char_dim!({
-                    let em_space_glyph = new_glyph(&font, em_space_char, scale, d!());
-                    get_advance_width(&font, &em_space_glyph)
-                },
-                get_line_height(&font, scale),
-            )
-        }};
-    }
-
-    let mut char_dims = Vec::with_capacity(text_sizes.len());
-
-    for size in text_sizes {
-        char_dims.push(get_char_dim!(get_scale(*size, hidpi_factor)));
-    }
-
-    Ok((
+    Ok(
         State {
             glyph_brush: GlyphBrush::using_font(font.clone()),
             hidpi_factor,
-        },
-        char_dims
-    ))
+        }
+    )
 }
 
 fn get_scale(size: f32, hidpi_factor: f32) -> Scale {
