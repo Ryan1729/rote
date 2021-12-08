@@ -236,6 +236,8 @@ d!(for ScreenSpaceRect : ScreenSpaceRect{
 min: ssxy!(abs::Pos::ZERO, abs::Pos::ZERO), max: ssxy!(abs::Pos::MAX, abs::Pos::MAX)
 });
 
+fmt_display!(for ScreenSpaceRect: ScreenSpaceRect {min, max} in "({},{})", min, max);
+
 #[macro_export]
 macro_rules! ssr {
     //

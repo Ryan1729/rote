@@ -404,7 +404,9 @@ pub struct DebugMenuState {
     pub startup_description: String,
     pub pids: Pids,
     pub editor_buffers_size_in_bytes: usize,
-    pub last_hidpi_factors: [f64; 4]
+    pub last_hidpi_factors: [f64; 4],
+    pub status_line_rect: ScreenSpaceRect,
+    pub mouse_pos: ScreenSpaceXY,
 }
 
 impl DebugMenuState {
@@ -412,24 +414,6 @@ impl DebugMenuState {
         use std::fmt::Write;
         let output = &mut self.preallocated_scratch;
         output.clear();
-    
-        macro_rules! push_pid_line {
-            ($field_name: ident) => {{
-                let field_name = stringify!($field_name);
-                for _ in 0..(16usize.saturating_sub(field_name.len())) {
-                    output.push(' ');
-                }
-
-                output.push_str(field_name);
-                output.push_str(" PID: ");
-                output.push_str(&format!("{}", self.pids.$field_name));
-                output.push('\n');
-            }}
-        }
-
-        push_pid_line!(window);
-        push_pid_line!(editor);
-        push_pid_line!(path_mailbox);
 
         // TODO human readable size
         let _cannot_actually_fail = write!(
@@ -454,6 +438,32 @@ impl DebugMenuState {
                 factor,
             );
         }
+
+        let _cannot_actually_fail = write!(
+            output,
+            "{}\nin {}?: {}\n",
+            self.mouse_pos,
+            self.status_line_rect,
+            inside_rect(self.mouse_pos, self.status_line_rect)
+        );
+
+        macro_rules! push_pid_line {
+            ($field_name: ident) => {{
+                let field_name = stringify!($field_name);
+                for _ in 0..(16usize.saturating_sub(field_name.len())) {
+                    output.push(' ');
+                }
+
+                output.push_str(field_name);
+                output.push_str(" PID: ");
+                output.push_str(&format!("{}", self.pids.$field_name));
+                output.push('\n');
+            }}
+        }
+
+        push_pid_line!(window);
+        push_pid_line!(editor);
+        push_pid_line!(path_mailbox);
     }
 }
 

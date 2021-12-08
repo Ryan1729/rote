@@ -587,6 +587,10 @@ pub fn view<'view>(
         height
     );
 
+    // I don't think I will care that this is a frame old.
+    debug_menu_state.status_line_rect = rect;
+    debug_menu_state.mouse_pos = ui.mouse_pos;
+
     text_or_rects.push(TextOrRect::Rect(VisualSpec {
         rect,
         colour: CHROME_BACKGROUND_COLOUR,
