@@ -81,14 +81,23 @@ pub use clipboard_layer::{get_clipboard, Clipboard, ClipboardProvider};
 // including the window, from which the sizes of several UI elements are derived.
 #[derive(Clone, Copy, Debug)]
 pub struct Dimensions {
+    pub window_physical: ScreenSpaceWH,
+    pub window_logical: ScreenSpaceWH,
+    // TODO Decide which of the two above all the old places should use instead
     pub window: ScreenSpaceWH,
+    pub hidpi_factor_override: Option<DpiFactor>,
+    pub current_hidpi_factor: DpiFactor,
     pub font: FontInfo,
 }
 
 impl Default for Dimensions {
     fn default() -> Self {
         Self {
+            window_physical: sswh!(1024.0, 768.0),
+            window_logical: sswh!(1024.0, 768.0),
             window: sswh!(1024.0, 768.0),
+            hidpi_factor_override: None,
+            current_hidpi_factor: 1.,
             font: d!(),
         }
     }
@@ -407,6 +416,9 @@ pub struct DebugMenuState {
     pub last_hidpi_factors: [f64; 4],
     pub status_line_rect: ScreenSpaceRect,
     pub mouse_pos: ScreenSpaceXY,
+    pub window: ScreenSpaceWH,
+    pub window_physical: ScreenSpaceWH,
+    pub window_logical: ScreenSpaceWH,
 }
 
 impl DebugMenuState {
@@ -438,6 +450,14 @@ impl DebugMenuState {
                 factor,
             );
         }
+
+        let _cannot_actually_fail = write!(
+            output,
+            "window: {}\nphysical: {}\nlogical: {}\n",
+            self.window,
+            self.window_physical,
+            self.window_logical,
+        );
 
         let _cannot_actually_fail = write!(
             output,
@@ -485,8 +505,6 @@ pub type DpiFactor = f64;
 pub struct RunState<'font> {
     pub view_state: ViewRunState,
     pub cmds: VecDeque<Cmd>,
-    pub hidpi_factor_override: Option<DpiFactor>,
-    pub current_hidpi_factor: DpiFactor,
     pub gl_state: gl_layer::State<'font>,
     pub editor_in_sink: std::sync::mpsc::Sender<EditorThreadInput>,
     pub event_proxy: EventLoopProxy<CustomEvent>,

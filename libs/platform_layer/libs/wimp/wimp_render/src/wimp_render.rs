@@ -590,6 +590,9 @@ pub fn view<'view>(
     // I don't think I will care that this is a frame old.
     debug_menu_state.status_line_rect = rect;
     debug_menu_state.mouse_pos = ui.mouse_pos;
+    debug_menu_state.window = dimensions.window;
+    debug_menu_state.window_physical = dimensions.window_physical;
+    debug_menu_state.window_logical = dimensions.window_logical;
 
     text_or_rects.push(TextOrRect::Rect(VisualSpec {
         rect,
@@ -1236,7 +1239,8 @@ pub fn make_active_tab_visible<'view>(
     view: &'view View,
     Dimensions {
         font: FontInfo { tab_char_dim, .. },
-        window: sswh!(window_width, _h)
+        window: sswh!(window_width, _h),
+        ..
     }: Dimensions,
 ) -> Option<()> {
     let target_index_or_max: usize = view.current_text_index().into();
@@ -1692,6 +1696,7 @@ pub fn get_find_replace_info(
             ..
         },
         window: sswh!(width, height),
+        ..
     }: Dimensions,
 ) -> FindReplaceInfo {
     let SpacingAllSpec { margin, padding } = get_menu_spacing(height);
@@ -1777,6 +1782,7 @@ pub fn get_file_switcher_info(
             ..
         },
         window: sswh!(width, height),
+        ..
     }: Dimensions,
 ) -> FileSwitcherInfo {
     let SpacingAllSpec { margin, padding } = get_menu_spacing(height);
@@ -1844,6 +1850,7 @@ pub fn get_go_to_position_info(
             ..
         },
         window: sswh!(width, height),
+        ..
     }: Dimensions,
 ) -> GoToPositionInfo {
     let SpacingAllSpec { margin, padding } = get_menu_spacing(height);
@@ -1910,6 +1917,7 @@ pub fn get_command_menu_info(
             ..
         },
         window: sswh!(width, _),
+        ..
     } = dimensions;
 
     let CoverTextAreaInfo {
@@ -1965,6 +1973,7 @@ pub fn get_debug_menu_info(
             ..
         },
         window: sswh!(width, _),
+        ..
     } = dimensions;
 
     let CoverTextAreaInfo {
@@ -2015,6 +2024,7 @@ pub fn cover_text_area_info(
             ..
         },
         window: sswh!(width, height),
+        ..
     }: Dimensions,
 ) -> CoverTextAreaInfo {
     let SpacingAllSpec { margin, padding } = get_menu_spacing(height);
@@ -2060,6 +2070,7 @@ pub fn get_edit_buffer_xywh(
             ..
         },
         window: sswh!(width, height),
+        ..
     } = dimensions;
     u!{WimpMenuMode}
     let max_y = match mode {

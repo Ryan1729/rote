@@ -5,7 +5,7 @@
 
 #![deny(unused)]
 
-use glutin_wrapper::{dpi::LogicalPosition, Api, GlProfile, GlRequest};
+use glutin_wrapper::{dpi::{LogicalPosition, PhysicalSize}, Api, GlProfile, GlRequest};
 use std::{
     collections::VecDeque,
     path::{PathBuf},
@@ -534,14 +534,24 @@ pub fn run(
         previous_tabs
     };
 
-    macro_rules! wh_from_size {
-        ($size: expr) => {{
-            let dimensions = $size;
-            sswh!{
-                dimensions.width as f32,
-                dimensions.height as f32,
-            }
-        }}
+    fn get_physical_wh(
+        size: PhysicalSize<u32>
+    ) -> ScreenSpaceWH {
+        sswh!{
+            size.width as f32,
+            size.height as f32,
+        }
+    }
+
+    fn get_logical_wh(
+        physical: ScreenSpaceWH,
+        dpi_factor: DpiFactor,
+    ) -> ScreenSpaceWH {
+        assert!(dpi_factor > 0.);
+        sswh!{
+            (physical.w.get() as DpiFactor / dpi_factor) as f32,
+            (physical.h.get() as DpiFactor / dpi_factor) as f32,
+        }
     }
 
     macro_rules! get_non_font_size_dependents_input {
@@ -578,13 +588,25 @@ pub fn run(
             &wimp_render::TEXT_SIZES,
         );
 
+        let current_hidpi_factor = HIDPI_DEFAULT;
+        let resolved_hidpi_factor = hidpi_factor_override.unwrap_or(current_hidpi_factor);
+
+        let window_physical = get_physical_wh(
+            glutin_context
+                .window()
+                .inner_size()
+        );
+
         let dimensions = Dimensions {
             font: wimp_render::get_font_info(&char_dims),
-            window: wh_from_size!(
-                glutin_context
-                    .window()
-                    .inner_size()
+            window_physical,
+            window: window_physical,
+            window_logical: get_logical_wh(
+                window_physical,
+                resolved_hidpi_factor,
             ),
+            hidpi_factor_override,
+            current_hidpi_factor,
         };
 
         let (v, c) = (editor_api.update_and_render)(
@@ -620,7 +642,7 @@ pub fn run(
                     pids,
                     editor_buffers_size_in_bytes,
                     last_hidpi_factors: [
-                        hidpi_factor_override.unwrap_or(HIDPI_DEFAULT),
+                        resolved_hidpi_factor,
                         0.,
                         0.,
                         0.,
@@ -629,8 +651,6 @@ pub fn run(
                 },
                 stats: d!(),
             },
-            hidpi_factor_override,
-            current_hidpi_factor: HIDPI_DEFAULT,
             cmds,
             clipboard,
             editor_in_sink,
@@ -644,7 +664,7 @@ pub fn run(
             get_hidpi_factor!(r_s)
         };
         ($r_s: expr) => {
-            $r_s.hidpi_factor_override.unwrap_or($r_s.current_hidpi_factor)
+            v_s!($r_s).dimensions.hidpi_factor_override.unwrap_or(v_s!($r_s).dimensions.current_hidpi_factor)
         };
     }
 
@@ -884,12 +904,17 @@ pub fn run(
                 // We negate so that NaN goes here
                 factor = HIDPI_MINIMUM;
             }
-            r_s.current_hidpi_factor = factor;
+            v_s!(r_s).dimensions.current_hidpi_factor = factor;
             let hidpi_factor = get_hidpi_factor!(r_s);
 
             v_s!(r_s).debug_menu_state.last_hidpi_factors.rotate_right(1);
             v_s!(r_s).debug_menu_state.last_hidpi_factors[0] = hidpi_factor;
             
+            v_s!(r_s).dimensions.window_logical = get_logical_wh(
+                v_s!(r_s).dimensions.window_physical,
+                hidpi_factor
+            );
+
             let sswh!(w, h) = v_s!(r_s).dimensions.window;
 
             let gl_state = &mut r_s.gl_state;
@@ -1424,8 +1449,18 @@ pub fn run(
                             );
                         }
                         WindowEvent::Resized(size) => {
+                            let hidpi_factor = get_hidpi_factor!();
+
                             glutin_context.resize(size);
-                            v_s!().dimensions.window = wh_from_size!(size);
+                            v_s!().dimensions.window_physical = get_physical_wh(
+                                size
+                            );
+                            v_s!().dimensions.window_logical = get_logical_wh(
+                                v_s!().dimensions.window_physical,
+                                hidpi_factor
+                            );
+                            v_s!().dimensions.window = v_s!().dimensions.window_physical;
+
                             call_u_and_r!(
                                 get_non_font_size_dependents_input!(
                                     v_s!().view.menu_mode(),
@@ -1435,7 +1470,7 @@ pub fn run(
                             let sswh!(w, h) = v_s!().dimensions.window;
                             gl_layer::set_dimensions(
                                 &mut r_s.gl_state,
-                                get_hidpi_factor!() as _,
+                                hidpi_factor as _,
                                 (w.get() as _, h.get() as _),
                             );
                         }
@@ -1654,7 +1689,7 @@ pub fn run(
 
                     // This is done before calling `wimp_render::view` because the
                     // `ViewOutput` borrows `v_s!()`.
-                    let sswh!(width, height) = v_s!().dimensions.window;
+                    let sswh!(width, height) = v_s!().dimensions.window_physical;
 
                     let ViewOutput { text_or_rects, action } =
                         wimp_render::view(
