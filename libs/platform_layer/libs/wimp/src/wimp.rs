@@ -5,7 +5,7 @@
 
 #![deny(unused)]
 
-use glutin_wrapper::{dpi::{LogicalPosition, PhysicalSize}, Api, GlProfile, GlRequest};
+use glutin_wrapper::{dpi::PhysicalSize, Api, GlProfile, GlRequest};
 use std::{
     collections::VecDeque,
     path::{PathBuf},
@@ -1570,10 +1570,9 @@ pub fn run(
                             ..
                         } => {
                             let ui = &mut v_s!().ui;
-                            let LogicalPosition::<f32> { x, y } = position.to_logical(get_hidpi_factor!());
                             ui.mouse_pos = ssxy!{
-                                x,
-                                y,
+                                position.x as f32,
+                                position.y as f32,
                             };
 
                             match modifiers {
