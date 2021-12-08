@@ -543,17 +543,6 @@ pub fn run(
         }
     }
 
-    fn get_logical_wh(
-        physical: ScreenSpaceWH,
-        dpi_factor: DpiFactor,
-    ) -> ScreenSpaceWH {
-        assert!(dpi_factor > 0.);
-        sswh!{
-            (physical.w.get() as DpiFactor / dpi_factor) as f32,
-            (physical.h.get() as DpiFactor / dpi_factor) as f32,
-        }
-    }
-
     macro_rules! get_non_font_size_dependents_input {
         ($mode: expr, $dimensions: expr) => {{
             let dimensions = $dimensions;
@@ -591,19 +580,12 @@ pub fn run(
         let current_hidpi_factor = HIDPI_DEFAULT;
         let resolved_hidpi_factor = hidpi_factor_override.unwrap_or(current_hidpi_factor);
 
-        let window_physical = get_physical_wh(
-            glutin_context
-                .window()
-                .inner_size()
-        );
-
         let dimensions = Dimensions {
             font: wimp_render::get_font_info(&char_dims),
-            window_physical,
-            window: window_physical,
-            window_logical: get_logical_wh(
-                window_physical,
-                resolved_hidpi_factor,
+            window: get_physical_wh(
+                glutin_context
+                    .window()
+                    .inner_size()
             ),
             hidpi_factor_override,
             current_hidpi_factor,
@@ -909,11 +891,6 @@ pub fn run(
 
             v_s!(r_s).debug_menu_state.last_hidpi_factors.rotate_right(1);
             v_s!(r_s).debug_menu_state.last_hidpi_factors[0] = hidpi_factor;
-            
-            v_s!(r_s).dimensions.window_logical = get_logical_wh(
-                v_s!(r_s).dimensions.window_physical,
-                hidpi_factor
-            );
 
             let sswh!(w, h) = v_s!(r_s).dimensions.window;
 
@@ -1452,14 +1429,9 @@ pub fn run(
                             let hidpi_factor = get_hidpi_factor!();
 
                             glutin_context.resize(size);
-                            v_s!().dimensions.window_physical = get_physical_wh(
+                            v_s!().dimensions.window = get_physical_wh(
                                 size
                             );
-                            v_s!().dimensions.window_logical = get_logical_wh(
-                                v_s!().dimensions.window_physical,
-                                hidpi_factor
-                            );
-                            v_s!().dimensions.window = v_s!().dimensions.window_physical;
 
                             call_u_and_r!(
                                 get_non_font_size_dependents_input!(
@@ -1688,7 +1660,7 @@ pub fn run(
 
                     // This is done before calling `wimp_render::view` because the
                     // `ViewOutput` borrows `v_s!()`.
-                    let sswh!(width, height) = v_s!().dimensions.window_physical;
+                    let sswh!(width, height) = v_s!().dimensions.window;
 
                     let ViewOutput { text_or_rects, action } =
                         wimp_render::view(

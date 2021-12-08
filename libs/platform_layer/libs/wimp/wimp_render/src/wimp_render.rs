@@ -591,8 +591,6 @@ pub fn view<'view>(
     debug_menu_state.status_line_rect = rect;
     debug_menu_state.mouse_pos = ui.mouse_pos;
     debug_menu_state.window = dimensions.window;
-    debug_menu_state.window_physical = dimensions.window_physical;
-    debug_menu_state.window_logical = dimensions.window_logical;
 
     text_or_rects.push(TextOrRect::Rect(VisualSpec {
         rect,
