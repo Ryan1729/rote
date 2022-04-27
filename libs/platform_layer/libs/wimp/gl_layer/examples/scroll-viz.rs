@@ -24,10 +24,7 @@ fn main() -> Res<()> {
         )?;
     let glutin_wrapper_context = unsafe { glutin_wrapper_context.make_current().map_err(|(_, e)| e)? };
 
-    const TEXT_SIZE: f32 = 128.0;
     const HELP_SIZE: f32 = 16.0;
-
-    const TEXT_SIZES: [f32; 2] = [TEXT_SIZE, HELP_SIZE];
 
     let mut hidpi_factor = 1.0;
 

@@ -34,8 +34,6 @@ fn main() -> Res<()> {
     const TEXT_SIZE: f32 = 128.0;
     const HELP_SIZE: f32 = 16.0;
 
-    const TEXT_SIZES: [f32; 2] = [TEXT_SIZE, HELP_SIZE];
-
     let mut hidpi_factor = 1.0;
 
     let mut gl_state = gl_layer::init(
