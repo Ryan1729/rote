@@ -31,9 +31,8 @@ fn main() -> Res<()> {
 
     let mut hidpi_factor = 1.0;
 
-    let (mut gl_state, _) = gl_layer::init(
+    let mut gl_state = gl_layer::init(
         hidpi_factor as f32,
-        &TEXT_SIZES,
         [0.3, 0.3, 0.3, 1.0],
         |symbol| glutin_wrapper_context.get_proc_address(symbol) as _,
     )?;
