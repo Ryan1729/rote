@@ -525,15 +525,18 @@ fn render_file_switcher_menu_selects_the_fileswitcher_buffer_when_the_navigation
 
     let mut view_output: ViewOutput = d!();
 
+    let mut pen = Pen {
+        ui: &mut ui,
+        text_or_rects: &mut view_output.text_or_rects,
+        action: &mut view_output.action,
+        dimensions: d!(),
+    };
+
     let index = d!();
     render_file_switcher_menu(
-        index,
+        &mut pen,
         &fs_view,
-        &mut ui,
         b_id!(BufferIdKind::FileSwitcher, index),
-        d!(),
-        &mut view_output.text_or_rects,
-        &mut view_output.action,
     );
 
     assert_eq!(view_output.action, ViewAction::Input(Input::SelectBuffer(b_id!(BufferIdKind::FileSwitcher, index))));
@@ -567,14 +570,18 @@ fn render_file_switcher_menu_does_not_reset_in_this_case() {
     // -1 so we do not go past the bottom one.
     for i in 0..(fs_view.results.len() - 1) {
         ui.navigation = Navigation::Down;
+
+        let mut pen = Pen {
+            ui: &mut ui,
+            text_or_rects: &mut view_output.text_or_rects,
+            action: &mut view_output.action,
+            dimensions: d!(),
+        };
+
         render_file_switcher_menu(
-            index,
+            &mut pen,
             &fs_view,
-            &mut ui,
             b_id!(BufferIdKind::FileSwitcher, index),
-            d!(),
-            &mut view_output.text_or_rects,
-            &mut view_output.action,
         );
 
         ui.frame_init(&view);
@@ -594,14 +601,18 @@ fn render_file_switcher_menu_does_not_reset_in_this_case() {
     }
 
     ui.navigation = Navigation::Up;
+
+    let mut pen = Pen {
+        ui: &mut ui,
+        text_or_rects: &mut view_output.text_or_rects,
+        action: &mut view_output.action,
+        dimensions: d!(),
+    };
+
     render_file_switcher_menu(
-        index,
+        &mut pen,
         &fs_view,
-        &mut ui,
         b_id!(BufferIdKind::FileSwitcher, index),
-        d!(),
-        &mut view_output.text_or_rects,
-        &mut view_output.action,
     );
 
     ui.frame_init(&view);
