@@ -709,7 +709,7 @@ struct Pen<'view, 'frame> {
     ui: &'frame mut ui::State,
     text_or_rects: &'frame mut Vec<TextOrRect<'view>>,
     action: &'frame mut ViewAction,
-    dimensions: Dimensions
+    dimensions: Dimensions,
 }
 
 /// A convenience function that lets you specify the rect and makes the other 
@@ -994,6 +994,8 @@ fn render_command_menu(
     let vertical_shift = first_button_rect.height()
         + list_margin.into_ltrb().b;
 
+    let window_size = calculate_window_size();
+
     let mut navigated_result = None;
     let results: Vec<CommandKey> = commands.keys().cloned().collect();
 
@@ -1001,33 +1003,59 @@ fn render_command_menu(
         u!{ui::Navigation}
 
         match pen.ui.navigation {
-            None => {}
+            None => {
+                if let ui::Id::TaggedListSelection(
+                    ui::Tag::CommandMenu,
+                    selection
+                ) = pen.ui.keyboard.hot
+                {
+                    navigated_result = Some(selection);
+                }
+            }
             Up => {
-                pen.ui.file_switcher_pos.index = if pen.ui.file_switcher_pos.index == 0 {
-                    results.len().clone().saturating_sub(1)
-                } else {
-                    pen.ui.file_switcher_pos.index - 1
-                };
+                if let ui::Id::TaggedListSelection(
+                    ui::Tag::CommandMenu,
+                    selection,
+                ) = pen.ui.keyboard.hot
+                {
+                    navigated_result = Some(selection.move_up());
+                }
             }
             Down => {
-                pen.ui.file_switcher_pos.index = (pen.ui.file_switcher_pos.index + 1) % results.len();
+                if let ui::Id::TaggedListSelection(
+                    ui::Tag::CommandMenu,
+                    selection,
+                ) = pen.ui.keyboard.hot
+                {
+                    navigated_result = Some(selection.move_down(window_size, results.len()));
+                }
             }
             Interact => {
-                *pen.action = results
-                    .get(pen.ui.file_switcher_pos.index)
-                    .cloned()
-                    .into();
+                if let ui::Id::TaggedListSelection(
+                    ui::Tag::CommandMenu,
+                    selection,
+                ) = pen.ui.keyboard.hot
+                {
+                    *pen.action = results
+                        .get(selection.index)
+                        .cloned()
+                        .into();
+                }
             }
         }
-
-        navigated_result = Some(pen.ui.file_switcher_pos.index);
     }
 
-    for (result_index, result) in results.iter().enumerate() {
+    let selection = navigated_result.unwrap_or_default();
+
+    for (result_index, result) in results.iter()
+        .enumerate()
+        .skip(selection.window_start)
+        .take(window_size.get())
+    {
         let result_id = ui_id!(result_index);
 
         match navigated_result {
-            Some(i) if i == result_index => {
+            Some(selection) if selection.index == result_index => {
                 dbg!(&mut pen.ui.keyboard).set_next_hot(result_id);
             }
             _ => {}

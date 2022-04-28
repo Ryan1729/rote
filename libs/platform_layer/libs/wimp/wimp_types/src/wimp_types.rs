@@ -561,6 +561,7 @@ pub mod ui {
     #[derive(Clone, Copy, Debug, Ord, PartialOrd, PartialEq, Eq)]
     pub enum Tag {
         FileSwitcherResults,
+        CommandMenu,
     }
 
     /// 31 to leave space for the enum variant tag.
@@ -777,13 +778,22 @@ pub mod ui {
             match self.keyboard.hot {
                 ui::Id::TaggedListSelection(..) => {},
                 _ => {
-                    if let WimpMenuMode::FileSwitcher = view.menu().get_mode() {
-                        if let Some(Navigation::Down) = view.get_navigation() {
+                    match view.menu().get_mode() {
+                        WimpMenuMode::FileSwitcher => {
+                            if let Some(Navigation::Down) = view.get_navigation() {
+                                self.keyboard.set_next_hot(ui::Id::TaggedListSelection(
+                                    ui::Tag::FileSwitcherResults,
+                                    d!()
+                                ));
+                            }
+                        },
+                        WimpMenuMode::Command => {
                             self.keyboard.set_next_hot(ui::Id::TaggedListSelection(
-                                ui::Tag::FileSwitcherResults,
+                                ui::Tag::CommandMenu,
                                 d!()
                             ));
                         }
+                        _ => {}
                     }
                 }
             }
