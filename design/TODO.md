@@ -1,5 +1,7 @@
 ## TODO
 
+* Pull out re-usable UI component from the file switcher and use it to fix the wimp menu.
+
 * run NFD in a separate process, (N.B. not a the same thing as a thread) so that
   aborts in the file dialog do not cause the whole program to be aborted!
     * During testing, when we opened the file dialog, we got the following error:
@@ -20,9 +22,6 @@
             * add feature flag to go back to the current behaviour, without this
               exe loopback in case that ever becomes an issue. Also, this loopback
               might not be portable everywhere.
-
-
-* Pull out re-usable UI component from the file switcher and use it to fix the wimp menu.
 
 * Fix panic that happened after doing multiple `Save-As`. Edit: See [!] below
     * panic message:
