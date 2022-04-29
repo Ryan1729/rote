@@ -287,7 +287,8 @@ impl <'font> State<'font> {
     {
         use TextOrRect::*;
 
-        let mut rect_specs = Vec::new();
+        // We guess that usually around half of them are rects.
+        let mut rect_specs = Vec::with_capacity(text_or_rects.len() / 2);
 
         perf_viz::start_record!("for &text_or_rects");
         for t_or_r in text_or_rects {
