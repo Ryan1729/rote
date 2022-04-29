@@ -182,6 +182,12 @@ impl From<f32> for Pos {
     }
 }
 
+impl From<&Pos> for f32 {
+    fn from(a_p: &Pos) -> Self {
+        From::from(*a_p)
+    }
+}
+
 impl From<Pos> for f32 {
     fn from(a_p: Pos) -> Self {
         a_p.to_f32_lossy()
@@ -413,6 +419,12 @@ impl From<Pos> for Length {
 impl From<f32> for Length {
     fn from(f: f32) -> Self {
         Length::new_saturating(f.into())
+    }
+}
+
+impl From<&Length> for f32 {
+    fn from(p_a_p: &Length) -> Self {
+        From::from(*p_a_p)
     }
 }
 

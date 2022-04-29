@@ -59,7 +59,7 @@ pub fn render(
     };
 
     let replacement_vertices = state.text_rendering.render_vertices(
-        text_or_rects,
+        &text_or_rects,
         (width, height),
         |rect: text_rendering::TextureRect, tex_data: &_| {
             // Update part of gpu texture with new glyph alpha values

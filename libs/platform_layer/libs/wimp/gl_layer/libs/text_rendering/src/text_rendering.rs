@@ -276,7 +276,7 @@ impl <'font> State<'font> {
     #[perf_viz::record]
     pub fn render_vertices<Update, Resize>(
         &mut self,
-        text_or_rects: Vec<TextOrRect>,
+        text_or_rects: &[TextOrRect],
         dimensions: (u32, u32),
         update_texture: Update,
         mut resize_texture: Resize,
@@ -306,7 +306,7 @@ impl <'font> State<'font> {
                         TextLayout::UnboundedLayoutClipped(ssr, scroll) => {
                             glyph_brush.queue_layout(
                                 $section,
-                                &UnboundedLayoutClipped::new(ssr, scroll)
+                                &UnboundedLayoutClipped::new(*ssr, scroll)
                             )
                         }
                     };
@@ -321,8 +321,10 @@ impl <'font> State<'font> {
                     z,
                 }) => {
                     perf_viz::start_record!("Rect");
+                    let colour = *colour;
+
                     let pixel_coords: PixelCoords = 
-                        text_layouts::ssr_to_glyph_brush_rect(rect);
+                        text_layouts::ssr_to_glyph_brush_rect(*rect);
 
                     let ssr!(_, _, max_x, max_y) = rect;    
 
@@ -333,7 +335,7 @@ impl <'font> State<'font> {
                         pixel_coords,
                         bounds,
                         colour,
-                        z: z_to_f32(z),
+                        z: z_to_f32(*z),
                     });
                     perf_viz::end_record!("Rect");
                 }
@@ -344,13 +346,14 @@ impl <'font> State<'font> {
                     spec: VisualSpec { rect, colour, z },
                 }) => {
                     perf_viz::start_record!("Text");
+                    let colour = *colour;
                     let section = Section {
                         text: &text,
-                        scale: get_scale(size, self.hidpi_factor),
+                        scale: get_scale(*size, self.hidpi_factor),
                         screen_position: rect.min.into(),
                         bounds: rect.max.into(),
                         colour,
-                        z: z_to_f32(z),
+                        z: z_to_f32(*z),
                         ..d!()
                     };
     
@@ -365,12 +368,12 @@ impl <'font> State<'font> {
                     text,
                 }) => {
                     perf_viz::start_record!("MulticolourText");
-                    let scale = get_scale(size, self.hidpi_factor);
+                    let scale = get_scale(*size, self.hidpi_factor);
                     let section = VariedSection {
                         screen_position: rect.min.into(),
                         bounds: rect.max.into(),
                         scale,
-                        z: z_to_f32(z),
+                        z: z_to_f32(*z),
                         text: text.iter().map(|ColouredText { text, colour }| {
                             SectionText {
                                 text: &text,
