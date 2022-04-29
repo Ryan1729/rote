@@ -47,6 +47,13 @@ fn main() -> Res<()> {
 
     let mut frame_count: u32 = 0;
 
+    fn recycle<A, B>(mut v: Vec<A>) -> Vec<B> {
+        v.clear();
+        v.into_iter().map(|_| unreachable!()).collect()
+    }
+
+    let mut text_and_rects_cache: Vec<TextOrRect<'static>> = Vec::with_capacity(16);
+
     {
         events.run(move |event, _, control_flow| {
             use glutin_wrapper::event::*;
@@ -57,20 +64,20 @@ fn main() -> Res<()> {
                     glutin_wrapper_context.window().request_redraw();
                 }
                 Event::RedrawRequested(_) => {
+                    let mut text_and_rects: Vec<TextOrRect<'_>> = recycle(text_and_rects_cache);
                     frame_count = frame_count.wrapping_add(1);
+
                     let width = dimensions.width as f32;
                     let height = dimensions.height as f32;
 
-                    let mut text_and_rects = Vec::with_capacity(16);
-
                     let rate = loop_helper.report_rate().unwrap_or_default();
 
-                    let text = &format!(
+                    let text = format!(
                         "Hello world! {rate:.2} FPS on frame {frame_count}"
                     );
 
                     text_and_rects.push(TextOrRect::Text(TextSpec {
-                        text,
+                        text: &text,
                         size: TEXT_SIZE,
                         spec: VisualSpec {
                             rect: ScreenSpaceRect {
@@ -83,12 +90,12 @@ fn main() -> Res<()> {
                         layout: TextLayout::Unbounded,
                     }));
 
-                    gl_layer::render(&mut gl_state, &text_and_rects, width as _, height as _)
-                        .expect("gl_layer::render didn't work");
+                    let _ = gl_layer::render(&mut gl_state, &text_and_rects, width as _, height as _);
 
-                    glutin_wrapper_context
-                        .swap_buffers()
-                        .expect("swap_buffers didn't work!");
+                    let _ = glutin_wrapper_context
+                        .swap_buffers();
+
+                    text_and_rects_cache = recycle(text_and_rects);
                     loop_helper.loop_sleep();
 
                     // We want to track the time that the message loop takes too!
