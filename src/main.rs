@@ -8,7 +8,7 @@ use editor::State;
 fn state_call<In, Out>(
     r#in: In,
     callback: fn(&mut State, In) -> Out,
-    fallback: fn() -> Out,
+    fallback_maker: fn() -> Out,
 ) -> Out {
     use lazy_static::lazy_static;
     lazy_static! {
@@ -22,7 +22,7 @@ fn state_call<In, Out>(
             {
                 panic!("STATE_MUTEX already borrowed!? \n{}", _e);
             }
-            fallback()
+            fallback_maker()
         }
     }
 }
