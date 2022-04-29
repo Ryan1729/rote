@@ -38,7 +38,7 @@ extra-prints = ["platform_types/extra-prints", "platform_layer/extra-prints", "e
 print-raw-input = ["platform_layer/print-raw-input"]
 
 [workspace]
-
+resolver = "2"
 members = [
     "libs/editor",
     "libs/macros",
