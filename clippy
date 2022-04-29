@@ -12,3 +12,5 @@ cargo clippy --color=always -- -D clippy::pedantic \
     -A clippy::enum-glob-use \
     -A clippy::default-trait-access \
     -A clippy::wildcard-imports \
+    -D clippy::missing_safety_doc \
+    -D clippy::undocumented_unsafe_blocks \
