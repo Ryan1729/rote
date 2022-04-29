@@ -17,8 +17,11 @@ fn state_call<In, Out>(
     }
     match STATE_MUTEX.try_lock() {
         Ok(mut state) => callback(&mut state, r#in),
-        Err(e) => {
-            assert!(!cfg!(feature = "invariant-checking"), "STATE_MUTEX already borrowed!? \n{}", e);
+        Err(_e) => {
+            #[cfg(feature = "invariant-checking")]
+            {
+                panic!("STATE_MUTEX already borrowed!? \n{}", _e);
+            }
             fallback()
         }
     }
