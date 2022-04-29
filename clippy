@@ -1,3 +1,4 @@
+#!/bin/bash
 
 # enum-glob-use used tastefully, inside small scopes doesn't cause a problem, 
 #    besides sometimes needing to disambiguate.
@@ -8,7 +9,7 @@
 #    module there is at most one module import that uses them. It would be nice to
 #    have a lint for that though.
 
-cargo clippy --color=always -- -D clippy::pedantic \
+cargo clippy --color=always "$@" -- -D clippy::pedantic \
     -A clippy::enum-glob-use \
     -A clippy::default-trait-access \
     -A clippy::wildcard-imports \
