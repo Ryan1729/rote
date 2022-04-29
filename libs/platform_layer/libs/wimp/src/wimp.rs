@@ -1669,7 +1669,8 @@ pub fn run(
                             dt,
                         );
 
-                    gl_layer::render(&mut r_s.gl_state, text_or_rects, width.get() as _, height.get() as _)
+                    // TODO Stop allocating new text_or_rects every frame.
+                    gl_layer::render(&mut r_s.gl_state, &text_or_rects, width.get() as _, height.get() as _)
                         .expect("gl_layer::render didn't work");
 
                     perf_viz::start_record!("swap_buffers");

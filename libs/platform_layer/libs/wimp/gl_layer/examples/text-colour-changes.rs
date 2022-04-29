@@ -280,7 +280,7 @@ fn main() -> Res<()> {
                         }
                     }
 
-                    gl_layer::render(&mut gl_state, text_and_rects, width as _, height as _)
+                    gl_layer::render(&mut gl_state, &text_and_rects, width as _, height as _)
                         .expect("gl_layer::render didn't work");
 
                     glutin_wrapper_context

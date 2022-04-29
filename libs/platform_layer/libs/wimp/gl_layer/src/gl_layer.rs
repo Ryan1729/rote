@@ -45,7 +45,7 @@ pub fn set_dimensions(state: &mut State, hidpi_factor: f32, wh: (i32, i32)) {
 #[perf_viz::record]
 pub fn render(
     state: &mut State,
-    text_or_rects: Vec<TextOrRect>,
+    text_or_rects: &[TextOrRect],
     width: u32,
     height: u32,
 ) -> Res<()> {
