@@ -1,4 +1,4 @@
-/// This is an example/test that was originally made wit hthe intent of demonstrating a bug where 
+/// This is an example/test that was originally made wit hthe intent of demonstrating a bug where
 /// the colour of text, when changed from one colour to another and back again, would get stuck,
 /// and it would not change when it was expected to.
 use gl_layer::{ColouredText, TextLayout, TextOrRect, TextSpec, VisualSpec};
@@ -112,7 +112,7 @@ fn main() -> Res<()> {
             // As of this writing, issues on https://github.com/rust-windowing/winit ,
             // specifically #1124 and #883, suggest that the it is up in the air as to
             // whether the modifiers field on some of the matches below will actually
-            // be eventually removed or not. So, in the meantime, I choose the path 
+            // be eventually removed or not. So, in the meantime, I choose the path
             // that is the least work right now, since it seems unlikely for the amount
             // of work it will be later to grow significantly. Time will tell.
             #[allow(deprecated)]

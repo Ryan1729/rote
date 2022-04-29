@@ -524,8 +524,6 @@ pub mod command_keys {
     }
 }
 
-
-
 pub struct LabelledCommand {
     pub label: &'static str,
     pub command: fn(&mut RunState),

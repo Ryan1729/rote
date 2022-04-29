@@ -72,12 +72,13 @@ fn main() -> Res<()> {
             // As of this writing, issues on https://github.com/rust-windowing/winit ,
             // specifically #1124 and #883, suggest that the it is up in the air as to
             // whether the modifiers field on some of the matches below will actually
-            // be eventually removed or not. So, in the meantime, I choose the path 
+            // be eventually removed or not. So, in the meantime, I choose the path
             // that is the least work right now, since it seems unlikely for the amount
             // of work it will be later to grow significantly. Time will tell.
             #[allow(deprecated)]
             match event {
-                Event::MainEventsCleared if running => {                    // Queue a RedrawRequested event so we draw the updated view quickly.
+                Event::MainEventsCleared if running => {
+                    // Queue a RedrawRequested event so we draw the updated view quickly.
                     glutin_wrapper_context.window().request_redraw();
                 }
                 Event::RedrawRequested(_) => {
@@ -106,7 +107,7 @@ fn main() -> Res<()> {
                         colour: second_colour,
                         z: second_z,
                     }));
-                    
+
                     let cursor_screen_xy = text_space_to_screen_space(
                         scroll_xy,
                         text_box_xywh.xy,
@@ -126,10 +127,10 @@ fn main() -> Res<()> {
                                 cursor_screen_xy,
                                 text_box_xywh.wh
                             ).into(),
-                            colour: if inside_rect(cursor_screen_xy, text_box_ssr) { 
-                                text_colour 
-                            } else { 
-                                error_colour 
+                            colour: if inside_rect(cursor_screen_xy, text_box_ssr) {
+                                text_colour
+                            } else {
+                                error_colour
                             },
                             z: first_z_add_1,
                         },
@@ -143,7 +144,7 @@ fn main() -> Res<()> {
                         text_box_xywh.wh,
                         cursor_xy,
                         attempt_count,
-                        visibility_attempt, 
+                        visibility_attempt,
                     );
 
                     text_and_rects.push(TextOrRect::Text(TextSpec {
@@ -163,7 +164,7 @@ fn main() -> Res<()> {
                         },
                         layout: TextLayout::Unbounded,
                     }));
- 
+
                     gl_layer::render(&mut gl_state, text_and_rects, width as _, height as _)
                         .expect("gl_layer::render didn't work");
 
@@ -225,7 +226,8 @@ fn main() -> Res<()> {
                                     text_box_xywh.xy.y -= move_amount;
                                 }
                                 VirtualKeyCode::Down => {
-                                    text_box_xywh.xy.y += move_amount;                                }
+                                    text_box_xywh.xy.y += move_amount;
+                                }
                                 VirtualKeyCode::Left => {
                                     text_box_xywh.xy.x -= move_amount;
                                 }
@@ -250,18 +252,19 @@ fn main() -> Res<()> {
                                     quit!();
                                 }
                                 VirtualKeyCode::Up => {
-                                    text_box_xywh.wh.h = 
+                                    text_box_xywh.wh.h =
                                         text_box_xywh.wh.h - move_amount;
                                 }
                                 VirtualKeyCode::Down => {
-                                    text_box_xywh.wh.h = 
-                                        text_box_xywh.wh.h + move_amount;                                }
+                                    text_box_xywh.wh.h =
+                                        text_box_xywh.wh.h + move_amount;
+                                }
                                 VirtualKeyCode::Left => {
-                                    text_box_xywh.wh.w = 
+                                    text_box_xywh.wh.w =
                                         text_box_xywh.wh.w - move_amount;
                                 }
                                 VirtualKeyCode::Right => {
-                                    text_box_xywh.wh.w = 
+                                    text_box_xywh.wh.w =
                                         text_box_xywh.wh.w + move_amount;
                                 }
                                 _ => {}
@@ -285,7 +288,8 @@ fn main() -> Res<()> {
                                     cursor_xy.y -= move_amount;
                                 }
                                 VirtualKeyCode::Down => {
-                                    cursor_xy.y += move_amount;                                }
+                                    cursor_xy.y += move_amount;
+                                }
                                 VirtualKeyCode::Left => {
                                     cursor_xy.x -= move_amount;
                                 }
@@ -294,10 +298,10 @@ fn main() -> Res<()> {
                                 }
                                 // AKA plus
                                 VirtualKeyCode::Equals => {
-                                    
+
                                 }
                                 VirtualKeyCode::Minus => {
-                                    
+
                                 }
                                 VirtualKeyCode::Space => {
                                     visibility_attempt = attempt_to_make_xy_visible(
