@@ -36,7 +36,7 @@ impl VisitMut for MutMethods {
             let signature = &method.sig;
             if let Some(FnArg::Receiver(r)) = signature.receiver() {
                 if r.mutability.is_some() {
-                    self.method_names.push(signature.ident.to_string())
+                    self.method_names.push(signature.ident.to_string());
                 }
             }
         }

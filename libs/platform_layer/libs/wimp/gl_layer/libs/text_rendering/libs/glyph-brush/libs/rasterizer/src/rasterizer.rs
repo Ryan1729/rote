@@ -61,6 +61,9 @@ mod per_backend {
         cache.cache.queue_glyph(font_index, glyph);
     }
     
+    /// # Errors
+    ///
+    /// Will return `Err` if there is not enough room in the cache.
     pub fn cache_queued<'font, UpdateTexture>(
         cache: &mut Cache<'font>,
         _: &[Font],
@@ -223,6 +226,9 @@ mod per_backend {
         cache.cache.queue_glyph(font_index, glyph.glyph);
     }
 
+    /// # Errors
+    ///
+    /// Will return `Err` if there is not enough room in the cache.
     pub fn cache_queued<'font, UpdateTexture>(
         cache: &mut Cache<'font>,
         fonts: &[Font],

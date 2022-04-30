@@ -10,7 +10,6 @@ use macros::{
     sub_assign, 
     mul_assign, 
     div_assign,
-    dbg,
     u
 };
 use std::ops::{Add, Sub, Mul, Div, Neg, Not};
@@ -23,19 +22,24 @@ fmt_debug!(
     Pos(*bits).to_string(),
     bits
 );
+
+#[allow(clippy::cast_precision_loss)]
+fn lossy_to_f64(bits: i64) -> f64 {
+    // It's just for display purposes.
+    (bits & Pos::FRAC_BIT_MASK) as f64
+        / Pos::SCALE as f64
+}
+
 fmt_display!(
     for Pos: Pos(bits) in "{}{}", 
-    bits >> Pos::SCALE_BIT_COUNT, 
-    (
-        (bits & Pos::FRAC_BIT_MASK) as f64 
-        / Pos::SCALE as f64
-    )
+    bits >> Pos::SCALE_BIT_COUNT,
+    (lossy_to_f64(*bits))
     .to_string().trim_start_matches('0')
 );
 
 impl Pos {
-    const SCALE_BIT_COUNT: u64 = 32;
-    const SCALE: i64 = 1_i64 << Self::SCALE_BIT_COUNT;
+    const SCALE_BIT_COUNT: u8 = 32;
+    const SCALE: i64 = 1_i64 << Self::SCALE_BIT_COUNT as i64;
     const SCALE_F32: f32 = Self::SCALE as f32;
     const FRAC_BIT_MASK: i64 = Self::SCALE - 1;
     const TRUNC_BIT_MASK: i64 = !Self::FRAC_BIT_MASK;
@@ -63,11 +67,9 @@ impl Pos {
         u!{std::num::FpCategory}
         let scaled = f * Self::SCALE_F32;
 
-        dbg!(scaled, scaled as i64);
-
         match scaled.classify() {
             Normal => {
-                if scaled as f64 >= Self::MAX.0 as f64 {
+                if f64::from(scaled) >= Self::MAX.0 as f64 {
                     Self::MAX
                 } else {
                     Self::from_bits(scaled as i64)

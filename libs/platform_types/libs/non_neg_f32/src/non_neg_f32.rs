@@ -42,6 +42,7 @@ macro_rules! non_neg_f32 {
 }
 
 impl NonNegF32 {
+    #[must_use]
     pub fn new_saturating(f: f32) -> Self {
         Self(if is_non_neg!(f) {
             f
@@ -51,11 +52,13 @@ impl NonNegF32 {
         })
     }
 
+    #[must_use]
     #[inline]
     pub fn get(&self) -> f32 {
         self.0
     }
 
+    #[must_use]
     #[inline]
     pub fn to_bits(&self) -> u32 {
         self.0.to_bits()
