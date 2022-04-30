@@ -92,7 +92,7 @@ p_if_changed! {
     println_if_changed
     (printable)
     {
-        std::println!("{}", printable)
+        std::println!("{}", printable);
     }
 }
 
@@ -100,6 +100,6 @@ p_if_changed! {
     print_if_changed
     (printable)
     {
-        std::print!("{}", printable)
+        std::print!("{}", printable);
     }
 }
