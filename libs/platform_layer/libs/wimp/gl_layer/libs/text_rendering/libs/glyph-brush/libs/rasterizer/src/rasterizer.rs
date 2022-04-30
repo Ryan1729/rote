@@ -6,15 +6,15 @@ compile_error!("Either feature \"rusttype\" or \"glyph_brush_draw_cache\" must b
 /// RGBA `[0, 1]` colour data.
 pub type Colour = [f32; 4];
 
-/// A TextureCoords struct specifies floating point coordinates on the given
+/// A `TextureCoords` struct specifies floating point coordinates on the given
 /// texture.
 pub type TextureCoords = per_backend::Rect;
 
-/// A PixelCoords struct specifies floating point coordinates on the screen
+/// A `PixelCoords` struct specifies floating point coordinates on the screen
 /// for the given glyph.
 pub type PixelCoords = per_backend::Rect;
 
-/// A TextureRect specifies a rectangular integer section of the given texture.
+/// A `TextureRect` specifies a rectangular integer section of the given texture.
 pub type TextureRect = per_backend::TextureRect;
 
 pub struct Coords {
