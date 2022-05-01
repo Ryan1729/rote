@@ -74,7 +74,8 @@ mod per_backend {
         cache.cache.cache_queued(update_texture)
     }
     
-    pub fn dimensions<'font>(cache: &Cache<'font>) -> (u32, u32) {
+    #[must_use]
+    pub fn dimensions(cache: &Cache<'_>) -> (u32, u32) {
         cache.cache.dimensions()
     }
     

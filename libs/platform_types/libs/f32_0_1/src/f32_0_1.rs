@@ -59,6 +59,7 @@ macro_rules! f32_0_1 {
 }
 
 impl F32_0_1 {
+    #[must_use]
     pub fn new_saturating(f: f32) -> Self {
         Self(if is_0_or_above!(f) {
             if is_1_or_below!(f) {
@@ -72,11 +73,13 @@ impl F32_0_1 {
         })
     }
 
+    #[must_use]
     #[inline]
     pub fn get(&self) -> f32 {
         self.0
     }
 
+    #[must_use]
     #[inline]
     pub fn to_bits(&self) -> u32 {
         self.0.to_bits()
