@@ -40,6 +40,9 @@ fmt_display!(
 impl Pos {
     const SCALE_BIT_COUNT: u8 = 32;
     const SCALE: i64 = 1_i64 << Self::SCALE_BIT_COUNT as i64;
+    // Since `SCALE` is a power of 2, which is below `f32::MAX`
+    // there isn't actually any precision loss in this case.
+    #[allow(clippy::cast_precision_loss)]
     const SCALE_F32: f32 = Self::SCALE as f32;
     const FRAC_BIT_MASK: i64 = Self::SCALE - 1;
     const TRUNC_BIT_MASK: i64 = !Self::FRAC_BIT_MASK;
