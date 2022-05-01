@@ -41,11 +41,11 @@ mod per_backend {
     use rusttype::gpu_cache;
 
     pub type TextureRect = U32Rect;
-    
+
     pub struct Cache<'font>{
         cache: gpu_cache::Cache<'font>,
     }
-    
+
     #[must_use]
     pub fn new_cache<'font>() -> Cache<'font> {
         Cache {
@@ -57,11 +57,11 @@ mod per_backend {
                 .build()
         }
     }
-    
+
     pub fn queue_glyph<'font>(cache: &mut Cache<'font>, font_index: usize, glyph: Glyph<'font>) {
         cache.cache.queue_glyph(font_index, glyph);
     }
-    
+
     /// # Errors
     ///
     /// Will return `Err` if there is not enough room in the cache.
@@ -73,26 +73,39 @@ mod per_backend {
     where for <'r> UpdateTexture: FnMut(TextureRect, &'r [u8]) {
         cache.cache.cache_queued(update_texture)
     }
-    
+
     #[must_use]
     pub fn dimensions(cache: &Cache<'_>) -> (u32, u32) {
         cache.cache.dimensions()
     }
-    
+
+    /// # Errors
+    ///
+    /// Will return `Err` if glyph cannot be read. For example, if that glyph is not
+    /// currently cached.
     pub fn rect_for(cache: &Cache<'_>, font_index: usize, glyph: &Glyph) -> Result<Option<Coords>, CacheReadErr> {
         cache.cache
             .rect_for(font_index, glyph)
-            .map(|op| 
-                op.map(|(texture, pixel)| Coords {
-                    texture,
-                    pixel: Rect {
-                        min: point(pixel.min.x as f32, pixel.min.y as f32),
-                        max: point(pixel.max.x as f32, pixel.max.y as f32),
-                    },
+            .map(|op|
+                op.map(|(texture, pixel)| {
+                    // These casts do lose precision if the cache is large enough.
+                    // At the moment it seems unlikely that the cache will actually
+                    // get large enough in practice for actual precision loss to be
+                    // observed.
+                    // TODO address this by capping the max size of the cache?
+                    #[allow(clippy::cast_precision_loss)]
+                    let min = point(pixel.min.x as f32, pixel.min.y as f32);
+                    #[allow(clippy::cast_precision_loss)]
+                    let max = point(pixel.max.x as f32, pixel.max.y as f32);
+
+                    Coords {
+                        texture,
+                        pixel: Rect { min, max },
+                    }
                 })
             )
     }
-    
+
     pub fn resize_texture<'font>(
         cache: &mut Cache<'font>,
         new_width: u32,
@@ -103,11 +116,11 @@ mod per_backend {
             .dimensions(new_width, new_height)
             .rebuild(&mut cache.cache);
     }
-    
+
     pub type Point = rusttype::Point<f32>;
     pub type Rect = rusttype::Rect<f32>;
     type U32Rect = rusttype::Rect<u32>;
-    
+
     #[derive(Clone, Debug)]
     pub struct CalculatedGlyph<'font> {
         pub glyph: Glyph<'font>,
@@ -134,26 +147,26 @@ mod per_backend {
 
     pub fn add_position(glyph: &mut Glyph, position: Point) {
         let mut pos = glyph.position();
-    
+
         pos.x += position.x;
         pos.y += position.y;
-    
+
         glyph.set_position(pos);
     }
-    
+
     pub fn get_scale(glyph: &Glyph) -> Scale {
         glyph.scale()
     }
-    
+
     pub fn get_advance_width(_: &Font, glyph: &Glyph) -> f32 {
         glyph.unpositioned().h_metrics().advance_width
     }
-    
+
     pub fn get_line_height(font: &Font, scale: Scale) -> f32 {
         let v_metrics = font.v_metrics(scale);
         v_metrics.ascent - v_metrics.descent + v_metrics.line_gap
     }
-    
+
     pub fn intersects(_: &Font, glyph: &Glyph, clip: &Rect) -> bool {
         glyph
             // TODO when is this None?
@@ -186,7 +199,7 @@ mod per_backend {
         CachedBy,
         CacheWriteErr,
     };
-    
+
     use glyph_brush_draw_cache::{
         ab_glyph::{
             self,
@@ -196,11 +209,11 @@ mod per_backend {
         DrawCache,
         Rectangle,
     };
-    
+
     use std::marker::PhantomData;
 
     pub type TextureRect = Rectangle<u32>;
-    
+
     pub struct Cache<'font>{
         cache: DrawCache,
         // We'll need this before can compile under glyph_brush_draw_cache
@@ -219,7 +232,7 @@ mod per_backend {
             allow_lifetime_param: PhantomData,
         }
     }
-    
+
     pub fn queue_glyph<'font>(
         cache: &mut Cache<'font>,
         font_index: usize,
@@ -239,12 +252,12 @@ mod per_backend {
     where for <'r> UpdateTexture: FnMut(TextureRect, &'r [u8]) {
         cache.cache.cache_queued(fonts, update_texture)
     }
-    
+
     pub fn dimensions<'font>(cache: &Cache<'font>) -> (u32, u32) {
         cache.cache.dimensions()
     }
 
-    /// This has no variants because we're just trying to match the signature for 
+    /// This has no variants because we're just trying to match the signature for
     /// `rect_for`
     pub enum CacheReadErr {}
 
@@ -254,7 +267,7 @@ mod per_backend {
             write!(f, "CacheReadErr")
         }
     }
-    
+
     pub fn rect_for(cache: &Cache<'_>, font_index: usize, glyph: &Glyph) -> Result<Option<Coords>, CacheReadErr> {
         Ok(
             cache.cache
@@ -276,12 +289,12 @@ mod per_backend {
             .dimensions(new_width, new_height)
             .rebuild(&mut cache.cache);
     }
-    
+
     pub struct Font<'font>{
         font: ab_glyph::FontVec,
         allow_lifetime_param: PhantomData<&'font ()>,
     }
-    
+
     #[derive(Clone, Debug)]
     pub struct CalculatedGlyph<'font> {
         pub glyph: Glyph<'font>,
@@ -300,7 +313,7 @@ mod per_backend {
         glyph: ab_glyph::Glyph,
         allow_lifetime_param: PhantomData<&'font ()>,
     }
-    
+
     pub fn new_glyph<'font>(
         font: &Font<'font>,
         c: char,
@@ -316,20 +329,20 @@ mod per_backend {
             allow_lifetime_param: PhantomData,
         }
     }
-    
+
     pub fn add_position(glyph: &mut Glyph, position: Point) {
         glyph.glyph.position.x += position.x;
         glyph.glyph.position.x += position.y;
     }
-    
+
     pub fn get_scale(glyph: &Glyph) -> Scale {
         glyph.glyph.scale
     }
-    
+
     pub fn get_advance_width(font: &Font, glyph: &Glyph) -> f32 {
         font.font.as_scaled(glyph.glyph.scale).h_advance(glyph.glyph.id)
     }
-    
+
     pub fn get_line_height(font: &Font, scale: Scale) -> f32 {
         let scale_font = font.font.as_scaled(scale);
         scale_font.height() + scale_font.line_gap()
@@ -337,7 +350,7 @@ mod per_backend {
 
     pub fn intersects(font: &Font, glyph: &Glyph, clip: &Rect) -> bool {
         let pixel_coords = font.glyph_bounds(&glyph.glyph);
-        
+
         // true if pixel_coords intersects clip
         pixel_coords.min.x as f32 <= clip.max.x
         && pixel_coords.min.y as f32 <= clip.max.y
@@ -346,40 +359,40 @@ mod per_backend {
     }
 
     impl ab_glyph::Font for Font<'_> {
-        fn units_per_em(&self) -> std::option::Option<f32> { 
+        fn units_per_em(&self) -> std::option::Option<f32> {
             self.font.units_per_em()
         }
-        fn ascent_unscaled(&self) -> f32 { 
+        fn ascent_unscaled(&self) -> f32 {
             self.font.ascent_unscaled()
         }
-        fn descent_unscaled(&self) -> f32 { 
+        fn descent_unscaled(&self) -> f32 {
             self.font.descent_unscaled()
         }
-        fn line_gap_unscaled(&self) -> f32 { 
+        fn line_gap_unscaled(&self) -> f32 {
             self.font.line_gap_unscaled()
         }
-        fn glyph_id(&self, c: char) -> glyph_brush_draw_cache::ab_glyph::GlyphId { 
+        fn glyph_id(&self, c: char) -> glyph_brush_draw_cache::ab_glyph::GlyphId {
             self.font.glyph_id(c)
         }
-        fn h_advance_unscaled(&self, id: glyph_brush_draw_cache::ab_glyph::GlyphId) -> f32 { 
+        fn h_advance_unscaled(&self, id: glyph_brush_draw_cache::ab_glyph::GlyphId) -> f32 {
             self.font.h_advance_unscaled(id)
         }
-        fn h_side_bearing_unscaled(&self, id: glyph_brush_draw_cache::ab_glyph::GlyphId) -> f32 { 
+        fn h_side_bearing_unscaled(&self, id: glyph_brush_draw_cache::ab_glyph::GlyphId) -> f32 {
             self.font.h_side_bearing_unscaled(id)
         }
-        fn v_advance_unscaled(&self, id: glyph_brush_draw_cache::ab_glyph::GlyphId) -> f32 { 
+        fn v_advance_unscaled(&self, id: glyph_brush_draw_cache::ab_glyph::GlyphId) -> f32 {
             self.font.v_advance_unscaled(id)
         }
-        fn v_side_bearing_unscaled(&self, id: glyph_brush_draw_cache::ab_glyph::GlyphId) -> f32 { 
+        fn v_side_bearing_unscaled(&self, id: glyph_brush_draw_cache::ab_glyph::GlyphId) -> f32 {
             self.font.v_side_bearing_unscaled(id)
         }
-        fn kern_unscaled(&self, id_a: glyph_brush_draw_cache::ab_glyph::GlyphId, id_b: glyph_brush_draw_cache::ab_glyph::GlyphId) -> f32 { 
+        fn kern_unscaled(&self, id_a: glyph_brush_draw_cache::ab_glyph::GlyphId, id_b: glyph_brush_draw_cache::ab_glyph::GlyphId) -> f32 {
             self.font.kern_unscaled(id_a, id_b)
         }
-        fn outline(&self, id: glyph_brush_draw_cache::ab_glyph::GlyphId) -> std::option::Option<glyph_brush_draw_cache::ab_glyph::Outline> { 
+        fn outline(&self, id: glyph_brush_draw_cache::ab_glyph::GlyphId) -> std::option::Option<glyph_brush_draw_cache::ab_glyph::Outline> {
             self.font.outline(id)
         }
-        fn glyph_count(&self) -> usize { 
+        fn glyph_count(&self) -> usize {
             self.font.glyph_count()
         }
     }
