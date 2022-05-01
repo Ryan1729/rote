@@ -60,6 +60,10 @@ impl Pos {
 
     pub const TWO_TO_THE_TWENTY_THREE: Pos = Pos(Self::SCALE << 23);
     pub const MAX: Pos = Pos(i64::max_value());
+    // This is actually slightly higher than `i64::max_value()`, so comparing
+    // to this for saturation purposes gives the correct answer.
+    #[allow(clippy::cast_precision_loss)]
+    const MAX_F64: f64 = Self::MAX.0 as f64;
 
 
     #[must_use]
@@ -69,7 +73,7 @@ impl Pos {
 
         match scaled.classify() {
             Normal => {
-                if f64::from(scaled) >= Self::MAX.0 as f64 {
+                if f64::from(scaled) >= Self::MAX_F64 {
                     Self::MAX
                 } else {
                     Self::from_bits(scaled as i64)

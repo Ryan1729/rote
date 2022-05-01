@@ -46,6 +46,7 @@ mod per_backend {
         cache: gpu_cache::Cache<'font>,
     }
     
+    #[must_use]
     pub fn new_cache<'font>() -> Cache<'font> {
         Cache {
             cache: gpu_cache::Cache::builder()
