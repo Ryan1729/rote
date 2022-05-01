@@ -88,26 +88,30 @@ mod per_backend {
             .rect_for(font_index, glyph)
             .map(|op|
                 op.map(|(texture, pixel)| {
-                    // These casts do lose precision if the cache is large enough.
-                    // At the moment it seems unlikely that the cache will actually
-                    // get large enough in practice for actual precision loss to be
-                    // observed.
-                    // TODO address this by capping the max size of the cache?
-                    #[allow(clippy::cast_precision_loss)]
-                    let min = point(pixel.min.x as f32, pixel.min.y as f32);
-                    #[allow(clippy::cast_precision_loss)]
-                    let max = point(pixel.max.x as f32, pixel.max.y as f32);
-
                     Coords {
                         texture,
-                        pixel: Rect { min, max },
+                        pixel: convert_rect(pixel),
                     }
                 })
             )
     }
 
-    pub fn resize_texture<'font>(
-        cache: &mut Cache<'font>,
+    fn convert_rect(pixel_coords: rusttype::Rect<i32>) -> Rect {
+        // These casts do lose precision if the cache is large enough.
+        // At the moment it seems unlikely that the cache will actually
+        // get large enough in practice for actual precision loss to be
+        // observed.
+        // TODO address this by capping the max size of the cache?
+        #[allow(clippy::cast_precision_loss)]
+        let min = point(pixel_coords.min.x as f32, pixel_coords.min.y as f32);
+        #[allow(clippy::cast_precision_loss)]
+        let max = point(pixel_coords.max.x as f32, pixel_coords.max.y as f32);
+
+        Rect { min, max }
+    }
+
+    pub fn resize_texture(
+        cache: &mut Cache<'_>,
         new_width: u32,
         new_height: u32,
     ) {
@@ -136,6 +140,7 @@ mod per_backend {
         }
     }
 
+    #[must_use]
     pub fn new_glyph<'font>(
         font: &Font<'font>,
         c: char,
@@ -154,31 +159,39 @@ mod per_backend {
         glyph.set_position(pos);
     }
 
+    #[must_use]
     pub fn get_scale(glyph: &Glyph) -> Scale {
         glyph.scale()
     }
 
+    #[must_use]
     pub fn get_advance_width(_: &Font, glyph: &Glyph) -> f32 {
         glyph.unpositioned().h_metrics().advance_width
     }
 
+    #[must_use]
     pub fn get_line_height(font: &Font, scale: Scale) -> f32 {
         let v_metrics = font.v_metrics(scale);
         v_metrics.ascent - v_metrics.descent + v_metrics.line_gap
     }
 
+    #[must_use]
     pub fn intersects(_: &Font, glyph: &Glyph, clip: &Rect) -> bool {
         glyph
             // TODO when is this None?
             .pixel_bounding_box()
-            .map(move |pixel_coords| {
-                // true if pixel_coords intersects clip
-                pixel_coords.min.x as f32 <= clip.max.x
-                && pixel_coords.min.y as f32 <= clip.max.y
-                && clip.min.x <= pixel_coords.max.x as f32
-                && clip.min.y <= pixel_coords.max.y as f32
-            })
-            .unwrap_or(true)
+            .map_or(
+                true,
+                move |pixel_coords| {
+                    let rect = convert_rect(pixel_coords);
+
+                    // true if pixel_coords intersects clip
+                    rect.min.x <= clip.max.x
+                    && rect.min.y <= clip.max.y
+                    && clip.min.x <= rect.max.x
+                    && clip.min.y <= rect.max.y
+                }
+            )
     }
 }
 
