@@ -469,6 +469,7 @@ mod selectable_vec1 {
             self.current_index.hash(state);
         }
 
+        #[must_use]
         pub fn capacity(&self) -> usize {
             self.elements.capacity()
         }

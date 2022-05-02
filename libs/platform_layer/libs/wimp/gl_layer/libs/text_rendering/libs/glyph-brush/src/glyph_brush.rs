@@ -112,10 +112,12 @@ impl <'font, V> GlyphBrush<'font, V>
 where
     V: Clone + 'static,
 {
+    #[must_use]
     pub fn using_font(font_0: Font<'font>) -> Self {
         Self::using_fonts(vec![font_0])
     }
 
+    #[must_use]
     fn using_fonts<Fonts: Into<Vec<Font<'font>>>>(fonts: Fonts) -> Self {
         GlyphBrush {
             fonts: fonts.into(),
@@ -142,6 +144,7 @@ where
         }
     }
 
+    #[must_use]
     #[inline]
     pub fn fonts(&self) -> &[Font<'font>] {
         &self.fonts
@@ -197,6 +200,7 @@ enum GlyphChange {
     Unknown,
 }
 
+#[must_use]
 fn recalculate_glyphs<'font, G>(
     positioner: &G,
     previous: Cow<Vec<CalculatedGlyph<'font>>>,
@@ -528,6 +532,7 @@ where
     }
 
     /// Returns the logical texture cache pixel dimensions `(width, height)`.
+    #[must_use]
     pub fn texture_dimensions(&self) -> (u32, u32) {
         dimensions(&self.texture_cache)
     }
@@ -621,6 +626,7 @@ struct SectionHashDetail {
 }
 
 impl SectionHashDetail {
+    #[must_use]
     #[inline]
     fn new<G>(section: &VariedSection<'_>, layout: &G) -> Self
     where
@@ -685,6 +691,7 @@ impl SectionHashDetail {
     }
 
     /// They're different, but how?
+    #[must_use]
     fn diff(self, other: SectionHashDetail) -> GlyphChange {
         if self.text_alpha_colour == other.text_alpha_colour {
             return GlyphChange::Geometry(self.geometry);

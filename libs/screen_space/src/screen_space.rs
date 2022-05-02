@@ -151,6 +151,7 @@ impl From<ScreenSpaceRect> for ScreenSpaceWH {
     }
 }
 
+#[must_use]
 pub fn inside_rect(
     ScreenSpaceXY { x, y }: ScreenSpaceXY,
     ssr!{ min_x, min_y, max_x, max_y }: ScreenSpaceRect,
@@ -346,6 +347,7 @@ impl std::ops::Add<ScreenSpaceXY> for ScreenSpaceRect {
 }
 
 impl ScreenSpaceRect {
+    #[must_use]
     #[allow(dead_code)]
     pub fn with_min_x(&self, min_x: abs::Pos) -> Self {
         ScreenSpaceRect {
@@ -353,6 +355,8 @@ impl ScreenSpaceRect {
             ..*self
         }
     }
+
+    #[must_use]
     pub fn with_min_y(&self, min_y: abs::Pos) -> Self {
         ScreenSpaceRect {
             min: ssxy!(self.min.x, min_y),
@@ -360,12 +364,14 @@ impl ScreenSpaceRect {
         }
     }
 
+    #[must_use]
     pub fn with_max_x(&self, max_x: abs::Pos) -> Self {
         ScreenSpaceRect {
             max: ssxy!(max_x, self.max.y),
             ..*self
         }
     }
+    #[must_use]
     pub fn with_max_y(&self, max_y: abs::Pos) -> Self {
         ScreenSpaceRect {
             max: ssxy!(self.max.x, max_y),
@@ -373,14 +379,16 @@ impl ScreenSpaceRect {
         }
     }
 
+    #[must_use]
     pub fn width(&self) -> abs::Length {
         (self.max.x - self.min.x).into()
     }
-
+    #[must_use]
     pub fn height(&self) -> abs::Length {
         (self.max.y - self.min.y).into()
     }
 
+    #[must_use]
     pub fn middle(&self) -> (abs::Pos, abs::Pos) {
         (
             (self.min.x + self.max.x).halve(),
@@ -388,6 +396,7 @@ impl ScreenSpaceRect {
         )
     }
 
+    #[must_use]
     pub fn has_any_area(&self) -> bool {
         self.min.x < self.max.x && self.min.y < self.max.y
     }

@@ -119,6 +119,7 @@ impl From<LineIndex> for LineLength {
 
 impl Rope {
     //#[check_or_no_panic]
+    #[must_use]
     #[inline]
     #[perf_viz::record]
     pub fn new() -> Self {
@@ -128,6 +129,7 @@ impl Rope {
     }
 
     #[allow(clippy::should_implement_trait)]
+    #[must_use]
     // our from_str cannot fail so the FromStr trait's type doesn't match.
     #[inline]
     pub fn from_str(text: &str) -> Self {
@@ -144,20 +146,23 @@ impl Rope {
         self.rope.write_to(writer)
     }
 
+    #[must_use]
     pub fn capacity(&self) -> usize {
         self.rope.capacity()
     }
 
     pub fn shrink_to_fit(&mut self) {
-        self.rope.shrink_to_fit()
+        self.rope.shrink_to_fit();
     }
 
+    #[must_use]
     /// Returns `None` and does not mutate if `char_idx` is out of bounds (i.e. `char_idx > len_chars()`).
     #[inline]
     pub fn insert(&mut self, char_idx: AbsoluteCharOffset, text: &str) -> Option<()> {
         some_if!(char_idx <= self.len_chars() => self.rope.insert(char_idx.0, text))
     }
 
+    #[must_use]
     /// Returns `None` and does not mutate if `char_idx` is out of bounds (i.e. `char_idx > len_chars()`).
     #[inline]
     pub fn insert_char(&mut self, char_idx: AbsoluteCharOffset, ch: char) -> Option<()> {
@@ -166,6 +171,7 @@ impl Rope {
         )
     }
 
+    #[must_use]
     /// Returns `None` and does not mutate if the start of the range is greater than the end, or if the
     /// end is out of bounds (i.e. `end > len_chars()`).
     //#[check_or_no_panic]
@@ -176,6 +182,7 @@ impl Rope {
         to_slice_range(char_range, self.len_chars()).map(|r| self.rope.remove(r))
     }
 
+    #[must_use]
     /// Returns `None` and does not mutate if `char_idx` is out of bounds (i.e. `char_idx > len_chars()`).
     pub fn split_off(&mut self, char_idx: AbsoluteCharOffset) -> Option<Self> {
         some_if!(
@@ -188,6 +195,7 @@ impl Rope {
         self.rope.append(other.rope)
     }
 
+    #[must_use]
     // Begin methods in common with `RopeSlice`
     #[inline]
     #[perf_viz::record]
@@ -195,18 +203,21 @@ impl Rope {
         ByteLength(self.rope.len_bytes())
     }
 
+    #[must_use]
     #[inline]
     #[perf_viz::record]
     pub fn len_chars(&self) -> AbsoluteCharOffset {
         AbsoluteCharOffset(self.rope.len_chars())
     }
 
+    #[must_use]
     #[inline]
     #[perf_viz::record]
     pub fn len_lines(&self) -> LineLength {
         LineLength(self.rope.len_lines())
     }
 
+    #[must_use]
     /// Returns `None`  if `byte_idx` is out of bounds (i.e. `byte_idx > len_bytes()`).
     #[inline]
     #[perf_viz::record]
@@ -214,6 +225,7 @@ impl Rope {
         macros::some_if!(byte_idx <= self.len_bytes().0 => AbsoluteCharOffset(self.rope.byte_to_char(byte_idx.0)))
     }
 
+    #[must_use]
     /// Returns `None`  if `byte_idx` is out of bounds (i.e. `byte_idx > len_bytes()`).
     #[inline]
     #[perf_viz::record]
@@ -221,6 +233,7 @@ impl Rope {
         macros::some_if!(byte_idx <= self.len_bytes().0 => LineIndex(self.rope.byte_to_line(byte_idx.0)))
     }
 
+    #[must_use]
     /// Returns `None`  if `char_idx` is out of bounds (i.e. `char_idx > len_chars()`).
     #[inline]
     #[perf_viz::record]
@@ -228,6 +241,7 @@ impl Rope {
         macros::some_if!(char_idx <= self.len_chars() => ByteIndex(self.rope.char_to_byte(char_idx.0)))
     }
 
+    #[must_use]
     /// Returns `None`  if `char_idx` is out of bounds (i.e. `char_idx > len_chars()`).
     #[inline]
     #[perf_viz::record]
@@ -237,6 +251,7 @@ impl Rope {
         )
     }
 
+    #[must_use]
     /// Returns `None`  if `line_idx` is out of bounds (i.e. `line_idx > len_lines()`).
     #[inline]
     #[perf_viz::record]
@@ -246,6 +261,7 @@ impl Rope {
         )
     }
 
+    #[must_use]
     /// Returns `None`  if `line_idx` is out of bounds (i.e. `line_idx > len_lines()`).
     #[inline]
     #[perf_viz::record]
@@ -255,6 +271,7 @@ impl Rope {
         )
     }
 
+    #[must_use]
     /// Returns `None`  if `byte_idx` is out of bounds (i.e. `byte_idx >= len_bytes()`).
     #[inline]
     #[perf_viz::record]
@@ -264,6 +281,7 @@ impl Rope {
         )
     }
 
+    #[must_use]
     /// Returns `None`  if `char_idx` is out of bounds (i.e. `char_idx >= len_chars()`).
     #[inline]
     #[perf_viz::record]
@@ -273,6 +291,7 @@ impl Rope {
         )
     }
 
+    #[must_use]
     /// Returns `None` if `byte_idx` is out of bounds (i.e. `byte_idx > len_bytes()`).
     #[inline]
     #[perf_viz::record]
@@ -283,6 +302,7 @@ impl Rope {
         .map(to_chunk)
     }
 
+    #[must_use]
     /// Returns `None` if `char_idx` is out of bounds (i.e. `char_idx > len_chars()`).
     #[inline]
     #[perf_viz::record]
@@ -293,6 +313,7 @@ impl Rope {
         .map(to_chunk)
     }
 
+    #[must_use]
     /// Returns `None` if `line_break_idx` is out of bounds (i.e. `line_break_idx > len_lines()`).
     #[inline]
     #[perf_viz::record]
@@ -303,18 +324,21 @@ impl Rope {
         .map(to_chunk)
     }
 
+    #[must_use]
     #[inline]
     #[perf_viz::record]
     pub fn bytes(&self) -> ropey::iter::Bytes {
         self.rope.bytes()
     }
 
+    #[must_use]
     #[inline]
     #[perf_viz::record]
     pub fn chars(&self) -> ropey::iter::Chars {
         self.rope.chars()
     }
 
+    #[must_use]
     #[inline]
     #[perf_viz::record]
     /// Returns `None` if `char_idx` is out of bounds (i.e. `char_idx > len_chars()`).
@@ -324,6 +348,7 @@ impl Rope {
         )
     }
 
+    #[must_use]
     /// Equivalent to `r.chars_at(r.len_chars()).unwrap()`
     #[inline]
     #[perf_viz::record]
@@ -337,6 +362,7 @@ impl Rope {
         self.rope.lines().map(to_rope_line)
     }
 
+    #[must_use]
     /// Returns `None` if `line_break_idx` is out of bounds (i.e. `line_break_idx > len_lines()`).
     #[inline]
     #[perf_viz::record]
@@ -346,12 +372,14 @@ impl Rope {
         )
     }
 
+    #[must_use]
     #[inline]
     #[perf_viz::record]
     pub fn chunks(&self) -> ropey::iter::Chunks {
         self.rope.chunks()
     }
 
+    #[must_use]
     /// Returns `None`  if `line_idx` is out of bounds (i.e. `line_idx >= len_lines()`).
     #[inline]
     #[perf_viz::record]
@@ -361,6 +389,7 @@ impl Rope {
         )
     }
 
+    #[must_use]
     /// Returns `None` if the start of the range is greater than the end, or if the
     /// end is out of bounds (i.e. `end > len_chars()`).
     #[inline]
@@ -374,6 +403,7 @@ impl Rope {
         })
     }
 
+    #[must_use]
     /// Equivalent to `slice(..0)` except it always returns a `RopeSlice`
     #[inline]
     #[perf_viz::record]
@@ -383,6 +413,7 @@ impl Rope {
         }
     }
 
+    #[must_use]
     /// Equivalent to `slice(..)` except it always returns a `RopeSlice`
     #[inline]
     #[perf_viz::record]
