@@ -1,6 +1,8 @@
 // While I haven't done rigorous benchmarks, some things in this module
 // are on hot paths, so I think inline annotations are warranted.
 #![allow(clippy::inline_always)]
+// It does not seem worth it to change to `slice::Rope`, etc. at this time.
+#![allow(clippy::module_name_repetitions)]
 
 mod conversion;
 mod slice;
@@ -192,7 +194,7 @@ impl Rope {
 
     /// Appends a `Rope` to the end of this one, consuming the other `Rope`.
     pub fn append(&mut self, other: Self) {
-        self.rope.append(other.rope)
+        self.rope.append(other.rope);
     }
 
     #[must_use]

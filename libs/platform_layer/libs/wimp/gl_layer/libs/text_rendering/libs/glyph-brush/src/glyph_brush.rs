@@ -369,6 +369,8 @@ where
     ///
     /// Trims the cache, see [caching behaviour](#caching-behaviour).
     ///
+    /// # Errors
+    /// Returns an `Err` if the texture is too small.
     #[perf_viz::record]
     // if this panics it's a bug in this code, not the calling code.
     #[allow(clippy::missing_panics_doc)]
@@ -408,7 +410,7 @@ where
                     .iter()
                 {
                     let font_id = positioned.font_id;
-                    for cg in positioned.glyphs.iter() {
+                    for cg in &positioned.glyphs {
                         queue_glyph(
                             &mut self.texture_cache,
                             font_id.0,
@@ -419,12 +421,9 @@ where
                 }
             }
 
-            for positioned in self
-                .pre_positioned
-                .iter()
-            {
+            for positioned in &self.pre_positioned {
                 let font_id = positioned.font_id;
-                for cg in positioned.glyphs.iter() {
+                for cg in &positioned.glyphs {
                     queue_glyph(&mut self.texture_cache, font_id.0, cg.glyph.clone());
                     some_text = true;
                 }

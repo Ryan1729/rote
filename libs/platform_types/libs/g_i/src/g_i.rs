@@ -231,7 +231,7 @@ fmt_display!(
 
 impl std::cmp::PartialOrd<IndexPart> for Index {
     fn partial_cmp(&self, other: &IndexPart) -> Option<std::cmp::Ordering> {
-        Some(self.index.cmp(&other))
+        Some(self.index.cmp(other))
     }
 }
 
@@ -567,10 +567,9 @@ mod selectable_vec1 {
             // borrow checker. This may eventually be resolved by non-lexical lifetimes.
             let i = self.current_index().get(self.index_state).unwrap_or(usize::max_value());
             if i < self.elements.len() {
-                // This unwrap is valid because of the length check. Additionally, `set_current_index` 
-                // doesn't set the value if it is invalid. There's also a proptest checking that this 
-                // method doesn't panic when all of the &mut ation
-                self.elements.get_mut(i).unwrap()
+                // This indexing is valid because of the length check. Additionally, 
+                // `set_current_index` doesn't set the value if it is invalid.
+                &mut self.elements[i]
             } else {
                 self.elements.first_mut()    
             }
