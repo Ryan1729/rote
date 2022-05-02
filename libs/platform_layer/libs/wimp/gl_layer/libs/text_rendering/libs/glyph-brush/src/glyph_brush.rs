@@ -84,8 +84,7 @@ type SectionHash = u64;
 /// to it's draw positioning.
 ///
 /// This behaviour can be adjusted with
-/// [`GlyphBrushBuilder::gpu_cache_position_tolerance`]
-/// (struct.GlyphBrushBuilder.html#method.gpu_cache_position_tolerance).
+/// [`GlyphBrushBuilder::gpu_cache_position_tolerance`](struct.GlyphBrushBuilder.html#method.gpu_cache_position_tolerance).
 pub struct GlyphBrush<'font, V> {
     fonts: Vec<Font<'font>>,
     texture_cache: Cache<'font>,
