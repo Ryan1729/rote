@@ -35,7 +35,7 @@ fn panic_safe_rope_slices_properly_in_pre_deleted_txt() {
 fn panic_safe_rope_slices_properly_in_buggy_txt() {
     let mut rope = Rope::from_str(include_str!("./buggy.txt"));
 
-    rope.remove(AbsoluteCharOffset(971)..AbsoluteCharOffset(973));
+    rope.remove(AbsoluteCharOffset(971)..AbsoluteCharOffset(973)).unwrap();
 
     this_panic_safe_rope_slices_properly_on_line_14(&mut rope);
 }
@@ -115,7 +115,7 @@ fn both_ropey_rope_and_panic_safe_rope_slices_properly_in_this_case_when_we_call
     {
         let mut safe_rope = Rope::from_str(include_str!("./buggy.txt"));
 
-        safe_rope.remove(AbsoluteCharOffset(971)..AbsoluteCharOffset(973));
+        safe_rope.remove(AbsoluteCharOffset(971)..AbsoluteCharOffset(973)).unwrap();
         let mut rope = safe_rope.rope;
     
         rope.remove(971..973);    
@@ -132,7 +132,7 @@ fn both_ropey_rope_and_panic_safe_rope_slices_properly_in_this_case_when_we_call
 
     let mut safe_rope = Rope::from_str(include_str!("./buggy.txt"));
 
-    safe_rope.remove(AbsoluteCharOffset(971)..AbsoluteCharOffset(973));
+    safe_rope.remove(AbsoluteCharOffset(971)..AbsoluteCharOffset(973)).unwrap();
 
     let safe_line = safe_rope.line(LineIndex(line_index)).unwrap();
 
@@ -149,7 +149,7 @@ fn both_ropey_rope_and_panic_safe_rope_slices_properly_in_this_case_when_we_call
 fn panic_safe_rope_slices_properly_in_buggy_txt_all_in_one_test() {
     let mut rope = Rope::from_str(include_str!("./buggy.txt"));
 
-    rope.remove(AbsoluteCharOffset(971)..AbsoluteCharOffset(973));
+    rope.remove(AbsoluteCharOffset(971)..AbsoluteCharOffset(973)).unwrap();
 
     assert_matches_pre_deleted!(&rope);
 
@@ -168,7 +168,7 @@ fn panic_safe_rope_slices_properly_in_buggy_txt_all_in_one_test() {
 fn reduced_panic_safe_rope_slices_properly_in_buggy_txt_all_in_one_test() {
     let mut rope = Rope::from_str(include_str!("./buggy.txt"));
 
-    rope.remove(AbsoluteCharOffset(971)..AbsoluteCharOffset(973));
+    rope.remove(AbsoluteCharOffset(971)..AbsoluteCharOffset(973)).unwrap();
 
     assert_matches_pre_deleted!(&rope);
 
