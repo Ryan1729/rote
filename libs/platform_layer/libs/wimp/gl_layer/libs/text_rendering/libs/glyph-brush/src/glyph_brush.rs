@@ -7,7 +7,6 @@ use std::{
     mem,
 };
 
-mod owned_section;
 mod section;
 
 pub use rasterizer::{
@@ -31,7 +30,6 @@ use rasterizer::{
 };
 
 pub use crate::{
-    owned_section::*,
     section::*,
 };
 
