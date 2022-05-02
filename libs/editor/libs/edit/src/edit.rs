@@ -188,7 +188,11 @@ fn get_standard_insert_range_edits(
     chars: String,
     char_count: usize, //we take this as a param to support it being a const.
 ) -> (RangeEdits, CursorPlacementSpec) {
-    rope.insert(offset, &chars);
+    let insert_option = rope.insert(offset, &chars);
+    if cfg!(feature = "invariant-checking") {
+        insert_option.expect(&format!("offset {offset} was invalid!"));
+    }
+
     let range = AbsoluteCharOffsetRange::new(offset, offset + char_count);
 
     let mut post_delta_shift = d!();
@@ -217,7 +221,11 @@ fn get_standard_insert_range_edits(
 /// Returns an edit that, if applied, after deleting the highlighted region at each cursor if
 /// there is one, inserts the given string at each of the cursors.
 #[perf_viz::record]
-pub fn get_insert_edit<F>(original_rope: &Rope, original_cursors: &Cursors, get_string: F) -> Edit
+pub fn get_insert_edit<F>(
+    original_rope: &Rope,
+    original_cursors: &Cursors,
+    get_string: F
+) -> Edit
 where
     F: Fn(usize) -> String,
 {
@@ -263,7 +271,10 @@ pub fn get_delete_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit
             (Some(o), None) if o > 0 => {
                 let delete_offset_range = AbsoluteCharOffsetRange::new(o - 1, o);
                 let chars = copy_string(&rope, delete_offset_range);
-                rope.remove(delete_offset_range.range());
+                let remove_option = rope.remove(delete_offset_range.range());
+                if cfg!(feature = "invariant-checking") {
+                    remove_option.expect(&format!("delete offset {delete_offset_range:?} was invalid!"));
+                }
 
                 let min = delete_offset_range.min();
                 let max = delete_offset_range.max();
@@ -703,7 +714,13 @@ fn replace_in_range(
         return d!()
     );
 
-    rope.insert(delete_edit.range.min(), &chars);
+    let insert_range = delete_edit.range.min();
+    let insert_option = rope.insert(insert_range, &chars);
+    if cfg!(feature = "invariant-checking") {
+        insert_option.expect(
+            &format!("offset {insert_range} was invalid!")
+        );
+    }
 
     dbg!(
         RangeEdits {
@@ -854,14 +871,22 @@ pub struct RangeEdits {
 impl RangeEdits {
     fn apply(&self, rope: &mut Rope) {
         if let Some(RangeEdit { range, .. }) = self.delete_range {
-            rope.remove(range.range());
+            let remove_option = rope.remove(range.range());
+            if cfg!(feature = "invariant-checking") {
+                let range = range.range();
+                remove_option.expect(&format!("range {range:?} was invalid!"));
+            }
         }
 
         if let Some(RangeEdit {
             ref chars, range, ..
         }) = self.insert_range
         {
-            rope.insert(range.min(), chars);
+            let offset = range.min();
+            let insert_option = rope.insert(offset, chars);
+            if cfg!(feature = "invariant-checking") {
+                insert_option.expect(&format!("offset {offset} was invalid!"));
+            }
         }
     }
 
@@ -947,7 +972,11 @@ fn delete_within_range(
 ) -> (RangeEdit, AbsoluteCharOffset, isize) {
     let chars = copy_string(rope, range);
 
-    rope.remove(range.range());
+    let remove_option = rope.remove(range.range());
+    if cfg!(feature = "invariant-checking") {
+        let range = range.range();
+        remove_option.expect(&format!("range {range:?} was invalid!"));
+    }
 
     let min = range.min();
     let max = range.max();
