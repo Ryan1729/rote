@@ -894,22 +894,20 @@ mod selectable_vec1 {
         }
     }
 
-    impl <A> IntoIterator for SelectableVec1<A> {
+    impl <A: 'static> IntoIterator for SelectableVec1<A> {
         type Item = (Index, A);
-        type IntoIter = std::vec::IntoIter<Self::Item>;
+        type IntoIter = Box<dyn Iterator<Item=Self::Item>>;
     
         fn into_iter(self) -> Self::IntoIter {
             let mut index = self.index_state.new_index(d!());
 
-            let v: Vec<_> = self.elements.into_iter().map(|a| {
+            Box::new(self.elements.into_iter().map(move |a| {
                 let i = index;
 
                 index = index.saturating_add(1);
 
                 (i, a)
-            }).collect();
-    
-            v.into_iter()
+            }))
         }
     }
 
@@ -1004,7 +1002,7 @@ impl <A> Map<A> {
             // This intermediary `Vec` prevents keys being overwritten 
             // nd the values therefore lost.
             let mut entries: Vec<_> = Vec::with_capacity(self.map.len());
-            let keys: Vec<_> = self.map.keys().cloned().collect();
+            let keys: Vec<_> = self.map.keys().copied().collect();
             for old_key in keys {
                 if let Some(new_key) = last_state.and_then(|s| {
                     state

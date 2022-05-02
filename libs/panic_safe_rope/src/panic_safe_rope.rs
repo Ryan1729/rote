@@ -140,10 +140,14 @@ impl Rope {
         }
     }
 
+    /// # Errors
+    /// Returns an `Err` if and only if the reader returns one.
     pub fn from_reader<T: io::Read>(reader: T) -> io::Result<Self> {
         ropey::Rope::from_reader(reader).map(|rope| Rope { rope })
     }
 
+    /// # Errors
+    /// Returns an `Err` if and only if the writer returns one.
     pub fn write_to<T: io::Write>(&self, writer: T) -> io::Result<()> {
         self.rope.write_to(writer)
     }
