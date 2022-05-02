@@ -70,8 +70,8 @@ impl std::ops::Add<(f32, f32)> for ScreenSpaceXY {
 
     fn add(self, (x, y): (f32, f32)) -> ScreenSpaceXY {
         ssxy!{
-            self.x + x,
-            self.y + y,
+            self.x + abs::Pos::from(x),
+            self.y + abs::Pos::from(y),
         }
     }
 }
@@ -164,22 +164,22 @@ pub fn clamp_within(
     ssr!{ min_x, min_y, max_x, max_y }: ScreenSpaceRect
 ) {
     if rect.min.x < min_x {
-        rect.min.x = min_x
+        rect.min.x = min_x;
     } else {
         // NaN ends up here
     };
     if rect.min.y < min_y {
-        rect.min.y = min_y
+        rect.min.y = min_y;
     } else {
         // NaN ends up here
     };
 
     if rect.max.x > max_x {
-        rect.max.x = max_x
+        rect.max.x = max_x;
     } else {
         // NaN ends up here
     };
-    if rect.max.y > max_y {        rect.max.y = max_y
+    if rect.max.y > max_y {        rect.max.y = max_y;
     } else {
         // NaN ends up here
     };

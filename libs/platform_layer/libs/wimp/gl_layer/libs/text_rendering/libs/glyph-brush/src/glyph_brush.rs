@@ -189,7 +189,7 @@ pub struct AdditionalRects<V: Clone + 'static> {
     pub rect_specs: Vec<RectSpec>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 enum GlyphChange {
     /// Only the geometry has changed, contains the old geometry
     Geometry(SectionGeometry),
@@ -302,7 +302,7 @@ where
             let glyphs = self
                 .last_frame_seq_id_sections
                 .get(frame_seq_id)
-                .cloned()
+                .copied()
                 .and_then(|hash| {
                     let font = &self.fonts[font_id.0];
                     let change = hash.diff(section_hash);
@@ -370,6 +370,8 @@ where
     /// Trims the cache, see [caching behaviour](#caching-behaviour).
     ///
     #[perf_viz::record]
+    // if this panics it's a bug in this code, not the calling code.
+    #[allow(clippy::missing_panics_doc)]
     pub fn process_queued<F1, F2>(
         &mut self,
         update_texture: F1,
@@ -482,23 +484,11 @@ where
                  }) = additional_rects
                 {
                     perf_viz::record_guard!("rect_specs loop");
-                    for range in rect_specs {
-                        let RectSpec {
-                            pixel_coords,
-                            bounds,
-                            colour,
-                            z,
-                        } = range;
+                    for spec in rect_specs {
+                        let alpha = spec.colour[3];
+                        let mut v = to_vertex(GlyphVertex::from(spec));
 
-                        let mut v = to_vertex(GlyphVertex {
-                            pixel_coords,
-                            bounds,
-                            colour,
-                            z,
-                            ..Default::default()
-                        });
-
-                        set_alpha(&mut v, colour[3]);
+                        set_alpha(&mut v, alpha);
 
                         verts.push(v);
                     }
@@ -577,6 +567,25 @@ pub struct GlyphVertex {
     pub bounds: Bounds,
     pub colour: Colour,
     pub z: f32,
+}
+
+impl From<RectSpec> for GlyphVertex {
+    fn from(
+        RectSpec {
+            pixel_coords,
+            bounds,
+            colour,
+            z,
+        }: RectSpec
+    ) -> Self {
+        GlyphVertex {
+            pixel_coords,
+            bounds,
+            colour,
+            z,
+            ..Default::default()
+        }
+    }
 }
 
 /// Actions that should be taken after processing queue data
