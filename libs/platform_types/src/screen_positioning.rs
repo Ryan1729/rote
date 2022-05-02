@@ -147,6 +147,7 @@ impl std::ops::Add<TextBoxSpaceXY> for TextBoxXY {
     }
 }
 
+#[must_use]
 pub fn text_box_to_screen(xy: TextBoxSpaceXY, pos: TextBoxXY) -> ScreenSpaceXY {
     xy + pos
 }
@@ -159,6 +160,7 @@ impl std::ops::Sub<TextBoxXY> for ScreenSpaceXY {
     }
 }
 
+#[must_use]
 pub fn screen_to_text_box(xy: ScreenSpaceXY, pos: TextBoxXY) -> TextBoxSpaceXY {
     xy - pos
 }
@@ -350,6 +352,7 @@ impl std::ops::Add<TextBoxSpaceXY> for ScrollXY {
     }
 }
 
+#[must_use]
 pub fn text_box_to_text(xy: TextBoxSpaceXY, scroll: ScrollXY) -> TextSpaceXY {
     scroll + xy
 }
@@ -365,6 +368,7 @@ impl std::ops::Sub<ScrollXY> for TextSpaceXY {
     }
 }
 
+#[must_use]
 pub fn text_to_text_box(xy: TextSpaceXY, scroll: ScrollXY) -> TextBoxSpaceXY {
     xy - scroll
 }
@@ -374,6 +378,7 @@ pub enum PositionRound {
     TowardsZero,
 }
 
+#[must_use]
 pub fn screen_space_to_position(
     xy: ScreenSpaceXY,
     text_box_pos: TextBoxXY,
@@ -388,6 +393,7 @@ pub fn screen_space_to_position(
     )
 }
 
+#[must_use]
 pub fn screen_space_to_text_space(
     xy: ScreenSpaceXY,
     text_box_pos: TextBoxXY,
@@ -404,6 +410,7 @@ fn normal_or_zero(x: f32) -> f32 {
     }
 }
 
+#[must_use]
 pub fn text_space_to_position(
     TextSpaceXY { x, y }: TextSpaceXY,
     CharDim { w, h }: CharDim,
@@ -431,6 +438,7 @@ pub fn text_space_to_position(
     }
 }
 
+#[must_use]
 pub fn text_space_to_screen_space(
     scroll: ScrollXY,
     text_box_pos: TextBoxXY,
@@ -442,6 +450,7 @@ pub fn text_space_to_screen_space(
     )
 }
 
+#[must_use]
 pub fn position_to_screen_space(
     pos: Position,
     char_dim: CharDim,
@@ -455,6 +464,7 @@ pub fn position_to_screen_space(
     )
 }
 
+#[must_use]
 pub fn position_to_text_space(
     Position { offset, line }: Position,
     CharDim { w, h }: CharDim,
@@ -781,5 +791,6 @@ pub struct SizeDependents {
 }
 
 pub trait MapElements<T> {
+    #[must_use]
     fn map_elements(&self, mapper: &impl Fn(T) -> T) -> Self;
 }
