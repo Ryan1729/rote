@@ -79,7 +79,11 @@ impl Pos {
                 if f64::from(scaled) >= Self::MAX_F64 {
                     Self::MAX
                 } else {
-                    Self::from_bits(scaled as i64)
+                    // I'm pretty sure the above `if` check prevents the truncation.
+                    #[allow(clippy::cast_possible_truncation)]
+                    let bits = scaled as i64;
+
+                    Self::from_bits(bits)
                 }
             },
             Infinite => if scaled == f32::INFINITY {
@@ -92,6 +96,8 @@ impl Pos {
     }
 
     #[must_use]
+    // We know it's lossy.
+    #[allow(clippy::cast_precision_loss)]
     pub fn to_f32_lossy(&self) -> f32 {
         self.0 as f32 / Self::SCALE_F32
     }
@@ -626,7 +632,15 @@ impl Not for Ratio {
 
 impl From<usize> for Ratio {
     fn from(x: usize) -> Self {
-        Ratio::from_u16_saturating(x as _)
+        // This check avoids the trucation and saturates instead.
+        #[allow(clippy::cast_possible_truncation)]
+        let x = if x < u16::MAX as usize {
+            x as _
+        } else {
+            u16::MAX
+        };
+
+        Ratio::from_u16_saturating(x)
     }
 }
 
