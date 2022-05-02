@@ -1,3 +1,7 @@
+// While I haven't done rigorous benchmarks, some things in this module
+// are on hot paths, so I think inline annotations are warranted.
+#![allow(clippy::inline_always)]
+
 mod conversion;
 mod slice;
 

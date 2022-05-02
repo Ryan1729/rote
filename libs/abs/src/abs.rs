@@ -571,7 +571,7 @@ impl Ratio {
         if x == 0 {
             Self::ZERO
         } else {
-            Self::from_bits((x - 1) as RatioBits)
+            Self::from_bits(RatioBits::from(x - 1))
         }
     }
 }

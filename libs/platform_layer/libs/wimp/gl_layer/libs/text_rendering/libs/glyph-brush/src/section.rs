@@ -1,3 +1,6 @@
+// It does not seem worth it to change to `section::Text`, etc. at this time.
+#![allow(clippy::module_name_repetitions)]
+
 use crate::{FontId};
 use rasterizer::{Colour, Scale};
 use std::{borrow::Cow, f32, hash::*};
