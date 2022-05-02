@@ -53,6 +53,7 @@ fmt_display!(for SpanKind: k in "{}", match *k {
 });
 
 impl SpanKind {
+    #[must_use]
     pub const fn new(byte: u8) -> Self { 
         SpanKind(byte)
     }
@@ -75,6 +76,7 @@ impl SpanKind {
     /// meaning they wish.
     pub const FIRST_UNASSIGNED_RAW: SpanKindRaw = sk!(FIRST_UNASSIGNED_RAW);
 
+    #[must_use]
     pub fn get_byte(&self) -> u8 {
         self.0
     }
@@ -225,10 +227,12 @@ impl PartialEq<Vec<SpanView>> for Spans {
 }
 
 impl Spans {
+    #[must_use]
     pub fn len(&self) -> usize {
         self.spans.len()
     }
 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.spans.is_empty()
     }
@@ -244,6 +248,7 @@ pub struct LabelledSlice<'text> {
 }
 
 impl <'text, 'spans> Spans {
+    #[must_use]
     pub fn labelled_slices(
         &'spans self,
         slice: LSSlice<'text>
