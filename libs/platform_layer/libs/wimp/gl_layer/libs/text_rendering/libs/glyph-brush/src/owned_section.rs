@@ -32,6 +32,7 @@ impl Default for OwnedVariedSection {
 }
 
 impl OwnedVariedSection {
+    #[must_use]
     pub fn to_borrowed(&self) -> VariedSection<'_> {
         VariedSection {
             screen_position: self.screen_position,
@@ -39,7 +40,7 @@ impl OwnedVariedSection {
             z: self.z,
             font_id: self.font_id,
             scale: self.scale,
-            text: self.text.iter().map(|t| t.into()).collect(),
+            text: self.text.iter().map(Into::into).collect(),
         }
     }
 }

@@ -97,7 +97,7 @@ impl Pos {
     }
 
     /// This method exists for ease of switching between this and f32 wrappers
-    /// like F32_0_1 that have a method with the same signature.
+    /// like `F32_0_1` that have a method with the same signature.
     // TODO make this a trait? Why not just use `Into<f32>`?
     #[must_use]
     pub fn get(&self) -> f32 {
@@ -205,13 +205,13 @@ impl From<Pos> for f32 {
 
 impl PartialEq<f32> for Pos {
     fn eq(&self, other: &f32) -> bool {
-        *self == Pos::from(*other)
+        *self == Pos::from_f32(*other)
     }
 }
 
 impl PartialEq<Pos> for f32 {
     fn eq(&self, other: &Pos) -> bool {
-        Pos::from(*self) == *other
+        Pos::from_f32(*self) == *other
     }
 }
 
@@ -324,7 +324,7 @@ impl Length {
     pub const TWO_FIFTY_SIX: Length = Length(Pos::TWO_FIFTY_SIX);
     pub const MAX: Length = Length(Pos::MAX);
     
-
+    #[must_use]
     pub fn new_saturating(p: Pos) -> Self {
         if p < Self::MIN.0 {
             Self::MIN

@@ -194,6 +194,7 @@ impl std::str::FromStr for Position {
 /// side, is concatenated at the beginning of a string with a final position of the position on the
 /// right hand side, the resulting string will have the position that results applying this
 /// function.
+#[must_use]
 pub fn append_positions(left: Position, right: Position) -> Position {
     Position {
         line: left.line + right.line,
@@ -204,6 +205,7 @@ pub fn append_positions(left: Position, right: Position) -> Position {
 /// The inverse of `append_positions`. That is,
 /// `unappend_positions(append_positions(p, q), q) == p`
 // TODO proptest this property
+#[must_use]
 pub fn unappend_positions(left: Position, right: Position) -> Position {
     Position {
         line: left.line - right.line,
