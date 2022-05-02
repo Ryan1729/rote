@@ -165,7 +165,7 @@ fn does_not_lose_a_line_in_this_codewise_unreduced_manually_found_case() {
 fn the_rope_acts_as_expected_in_this_does_not_lose_a_line_derived_case() {
     let mut rope = r!(include_str!("./test-text-0-reduced-3.txt"));
 
-    rope.remove(AbsoluteCharOffsetRange::new_usize(971, 973).range());
+    rope.remove(AbsoluteCharOffsetRange::new_usize(971, 973).range()).unwrap();
 
     let line = rope.line(LineIndex(14)).unwrap();
 
