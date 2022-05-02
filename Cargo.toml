@@ -37,6 +37,9 @@ flame-graph = ["perf_viz/flame-graph"]
 extra-prints = ["platform_types/extra-prints", "platform_layer/extra-prints", "editor/extra-prints"]
 print-raw-input = ["platform_layer/print-raw-input"]
 
+[profile.test]
+opt-level = 1
+
 [workspace]
 resolver = "2"
 members = [
