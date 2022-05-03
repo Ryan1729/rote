@@ -370,6 +370,7 @@ ord!(for BufferName: name, other in {
  });
 
 impl BufferName {
+    #[must_use]
     pub fn get_extension_or_empty(&self) -> &str {
         use BufferName::*;
         match self {
@@ -382,6 +383,7 @@ impl BufferName {
         }
     }
 
+    #[must_use]
     pub fn size_in_bytes(&self) -> usize {
         use core::mem;
 
@@ -420,7 +422,7 @@ ord!(for CursorState: state, other in {
         (CursorState::None, CursorState::PressedAgainstWall(_)) => Less,
         (CursorState::PressedAgainstWall(_), CursorState::None) => Greater,
         (CursorState::PressedAgainstWall(m1), CursorState::PressedAgainstWall(m2)) => {
-            m1.cmp(m2)
+            m1.cmp(&m2)
         }
     }
 });
@@ -458,6 +460,7 @@ pub enum MenuView {
 d!(for MenuView: MenuView::None);
 
 impl MenuView {
+    #[must_use]
     pub fn get_mode(&self) -> MenuMode {
         match self {
             Self::None => MenuMode::Hidden,
@@ -468,6 +471,7 @@ impl MenuView {
     }
 }
 
+#[must_use]
 pub fn kind_editable_during_mode(kind: BufferIdKind, menu_mode: MenuMode) -> bool {
     u!{MenuMode}
     match (kind, menu_mode) {
@@ -540,14 +544,17 @@ impl EditedTransitions {
         self.0.clear();
     }
 
+    #[must_use]
     pub fn len(&self) -> usize {
         self.0.len()
     }
 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
 
+    #[must_use]
     pub fn iter(&self) -> impl Iterator<Item = &IndexedEditedTransition> {
         self.0.iter()
     }
@@ -607,11 +614,13 @@ pub struct View {
 }
 
 impl View {
+    #[must_use]
     /// returns the currently visible editor buffer index.
     pub fn current_text_index(&self) -> g_i::Index {
         self.buffers.current_index()
     }
 
+    #[must_use]
     /// returns the currently visible editor buffer view's index and label.
     pub fn current_text_index_and_buffer_label(&self) -> (g_i::Index, &BufferLabel) {
         (
@@ -620,10 +629,12 @@ impl View {
         )
     }
 
+    #[must_use]
     pub fn get_buffer_label(&self, index: g_i::Index) -> Option<&BufferLabel> {
         self.buffers.get(index)
     }
 
+    #[must_use]
     pub fn current_buffer_id(&self) -> BufferId {
         b_id!(
             self.current_buffer_kind,
@@ -631,6 +642,7 @@ impl View {
         )
     }
 
+    #[must_use]
     /// returns the selected menu's cursors if there is a menu containing a buffer
     /// currently visible, or the current text buffer's cursors if not.
     pub fn get_selected_cursors(&self) -> Option<&[CursorView]> {
@@ -659,6 +671,7 @@ impl View {
         }.map(|d| &d.cursors[..])
     }
 
+    #[must_use]
     /// returns the currently visible editor buffer path if it has one.
     pub fn current_path(&self) -> Option<PathBuf> {
         u!{BufferName}
@@ -747,6 +760,7 @@ pub enum TimeSpan {
 }
 
 impl TimeSpan {
+    #[must_use]
     pub fn duration_or_default(&self) -> Duration {
         use TimeSpan::*;
         match self {
@@ -755,10 +769,12 @@ impl TimeSpan {
         }
     }
 
+    #[must_use]
     pub fn start() -> Self {
         TimeSpan::Started(Instant::now())
     }
 
+    #[must_use]
     pub fn end_if_started(self) -> Self {
         if let TimeSpan::Started(started) = self {
             TimeSpan::Ended(Instant::now() - started)
@@ -814,6 +830,7 @@ impl ViewStats {
         }
     }
 
+    #[must_use]
     fn last_index(&self) -> Option<usize> {
         if self.current_parse_length > 0 
         && (self.current_parse_length as usize) <= PARSE_TIME_SPAN_COUNT {
