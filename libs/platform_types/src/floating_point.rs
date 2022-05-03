@@ -12,8 +12,27 @@ pub fn usual_f32_minimal_increase<F32: Into<f32>>(x: F32) -> f32 {
     } else {
         let sign_bit = x.to_bits() & SIGN_BIT;
         let sign = if sign_bit == 0 { 1 } else { -1 };
+        // We have ANDed off the sign bit above, and the case that would cause
+        // an overflow is outside the documented domain of this fn.
+        #[allow(clippy::cast_sign_loss, clippy::cast_possible_wrap)]
         f32::from_bits(sign_bit | (non_sign_bits as i32 + sign) as u32)
     }
+}
+
+#[test]
+fn usual_f32_minimal_increase_does_not_wrap_on_max_i32() {
+    assert_eq!(0x7FFF_FFFF, i32::MAX);
+    let input = 0x7FFF_FFFF as f32;
+    let output = usual_f32_minimal_increase(input);
+
+    assert!(output >= input);
+}
+
+#[test]
+fn usual_f32_minimal_increase_does_not_need_to_handle_the_f32_represented_as_0x7fff_ffff() {
+    let input = f32::from_bits(0x7FFF_FFFF);
+    assert_eq!(input.to_bits(), 0x7FFF_FFFF);
+    assert_eq!(input.classify(), core::num::FpCategory::Nan);
 }
 
 /// Assumes x is one of the "usual" `f32`s, AKA not sub/denormal, Infinity or NaN.
@@ -27,8 +46,18 @@ pub fn usual_f32_minimal_decrease<F32: Into<f32>>(x: F32) -> f32 {
     } else {
         let sign_bit = x.to_bits() & SIGN_BIT;
         let sign = if sign_bit == 0 { 1 } else { -1 };
+        // We have ANDed off the sign bit above, and the case that would cause
+        // an underflow is caught by the above `if`.
+        #[allow(clippy::cast_sign_loss, clippy::cast_possible_wrap)]
         f32::from_bits(sign_bit | (non_sign_bits as i32 - sign) as u32)
     }
+}
+
+#[test]
+fn usual_f32_minimal_decrease_does_handles_the_f32_represented_as_0x8000_0000() {
+    let input = f32::from_bits(0x8000_0000);
+    assert_eq!(input.to_bits(), 0x8000_0000);
+    assert_eq!(usual_f32_minimal_decrease(input), -std::f32::MIN_POSITIVE);
 }
 
 pub fn is_normal_or_0<F32: Into<f32>>(x: F32) -> bool {
@@ -72,7 +101,7 @@ mod floating_point_tests {
     use std::f32::{MAX, MIN, MIN_POSITIVE};
     use std::num::FpCategory::{Infinite, Normal, Zero};
     use pub_arb_std::usual;
-    
+
 
     // note, the following tests demostates that prop testing is not the same thing as testing every
     // case!
