@@ -38,6 +38,7 @@ pub const VERTEX_SPEC: [(&str, i32); 6] = [
 
 pub type Vertex = [f32; 14];
 
+#[must_use]
 pub fn extract_tex_coords(vertex: &Vertex) -> TexCoords {
     let mut output: TexCoords = d!();
     // To compensate for y flipping in to_vertex
@@ -70,6 +71,7 @@ pub struct VertexStruct {
 }
 
 impl VertexStruct {
+    #[must_use]
     pub fn into_vertex(self) -> Vertex {
         [
             self.left_top_x,
@@ -95,8 +97,9 @@ impl VertexStruct {
 /// Normally, the z values are clamped to be inside [0.0, 1.0], but given only 24 bits of
 /// precision, even values within that smaller range are not alwasys distinguishable.
 pub const DEPTH_MIN: f32 = 0.3125; // AKA z_to_f32(0)
-pub const DEPTH_MAX: f32 = 0.6249924; // AKA z_to_f32(65535)
+pub const DEPTH_MAX: f32 = 0.624_992_4; // AKA z_to_f32(65535)
 
+#[must_use]
 pub fn z_to_f32(z: u16) -> f32 {
     // for some bizarre reason OpenGL maps most of the depth precision to the middle of the range
     // see https://developer.nvidia.com/content/depth-precision-visualized

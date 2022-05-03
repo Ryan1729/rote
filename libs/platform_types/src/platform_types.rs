@@ -667,7 +667,7 @@ impl View {
     pub fn current_path(&self) -> Option<PathBuf> {
         u!{BufferName}
         match self.buffers.get_current_element().name {
-            Path(ref p) => Some(p.to_owned()),
+            Path(ref p) => Some(p.clone()),
             Scratch(_) => None,
         }
     }
@@ -810,13 +810,10 @@ impl ViewStats {
 
     pub fn end_parse_duration_saturating(&mut self) {
         if let Some(index) = self.last_index() {
-            match self.latest_parse_time_spans[index] {
-                TimeSpan::Started(instant) => {
-                    self.latest_parse_time_spans[index] = TimeSpan::Ended(
-                        Instant::now() - instant
-                    );
-                },
-                _ => {},
+            if let TimeSpan::Started(instant) = self.latest_parse_time_spans[index] {
+                self.latest_parse_time_spans[index] = TimeSpan::Ended(
+                    Instant::now() - instant
+                );
             }
         }
     }
