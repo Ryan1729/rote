@@ -16,6 +16,7 @@ mod absolute_char_offset_range {
     }
 
     impl AbsoluteCharOffsetRange {
+        #[must_use]
         pub fn new(o1: AbsoluteCharOffset, o2: AbsoluteCharOffset) -> Self {
             let min = std::cmp::min(o1, o2);
             let max = std::cmp::max(o1, o2);
@@ -23,6 +24,7 @@ mod absolute_char_offset_range {
             AbsoluteCharOffsetRange { min, max }
         }
 
+        #[must_use]
         pub fn new_usize(o1: usize, o2: usize) -> Self {
             AbsoluteCharOffsetRange::new(
                 AbsoluteCharOffset(o1),
@@ -30,18 +32,22 @@ mod absolute_char_offset_range {
             )
         }
 
+        #[must_use]
         pub fn range(&self) -> std::ops::Range<AbsoluteCharOffset> {
             self.min..self.max
         }
 
+        #[must_use]
         pub fn min(&self) -> AbsoluteCharOffset {
             self.min
         }
 
+        #[must_use]
         pub fn max(&self) -> AbsoluteCharOffset {
             self.max
         }
 
+        #[must_use]
         #[allow(dead_code)]
         pub fn add_to_min<A>(&self, min: A) -> Self
         where
@@ -50,6 +56,7 @@ mod absolute_char_offset_range {
             Self::new(self.min + min, self.max)
         }
 
+        #[must_use]
         pub fn add_to_max<A>(&self, max: A) -> Self
         where
             AbsoluteCharOffset: std::ops::Add<A, Output = AbsoluteCharOffset>,
@@ -57,6 +64,7 @@ mod absolute_char_offset_range {
             Self::new(self.min, self.max + max)
         }
 
+        #[must_use]
         #[allow(dead_code)]
         pub fn sub_from_min<A>(&self, min: A) -> Self
         where
@@ -65,6 +73,7 @@ mod absolute_char_offset_range {
             Self::new(self.min - min, self.max)
         }
 
+        #[must_use]
         #[allow(dead_code)]
         pub fn sub_from_max<A>(&self, max: A) -> Self
         where
@@ -73,6 +82,7 @@ mod absolute_char_offset_range {
             Self::new(self.min, self.max - max)
         }
 
+        #[must_use]
         #[allow(dead_code)]
         pub fn checked_sub_from_min<A>(&self, min: A) -> Option<Self>
         where
@@ -83,6 +93,7 @@ mod absolute_char_offset_range {
                 .map(|min| Self::new(min, self.max))
         }
 
+        #[must_use]
         pub fn checked_sub_from_max<A>(&self, max: A) -> Option<Self>
         where
             AbsoluteCharOffset: CheckedSub<A, Output = AbsoluteCharOffset>,
@@ -95,6 +106,7 @@ mod absolute_char_offset_range {
 }
 pub use absolute_char_offset_range::AbsoluteCharOffsetRange;
 
+#[must_use]
 #[perf_viz::record]
 pub fn in_cursor_bounds<P: Borrow<Position>>(rope: &Rope, position: P) -> bool {
     let p = position.borrow();
@@ -103,6 +115,7 @@ pub fn in_cursor_bounds<P: Borrow<Position>>(rope: &Rope, position: P) -> bool {
         .unwrap_or(false)
 }
 
+#[must_use]
 /// Returns `None` iff the position is not valid for the given rope.
 #[perf_viz::record]
 pub fn pos_to_char_offset(rope: &Rope, position: &Position) -> Option<AbsoluteCharOffset> {
@@ -118,6 +131,7 @@ pub fn pos_to_char_offset(rope: &Rope, position: &Position) -> Option<AbsoluteCh
     }
 }
 
+#[must_use]
 #[perf_viz::record]
 pub fn char_offset_to_pos(rope: &Rope, offset: AbsoluteCharOffset) -> Option<Position> {
     if rope.len_chars() == offset {
@@ -137,6 +151,7 @@ pub fn char_offset_to_pos(rope: &Rope, offset: AbsoluteCharOffset) -> Option<Pos
     })
 }
 
+#[must_use]
 pub fn clamp_position(rope: &Rope, position: Position) -> Position {
     clamp_position_helper(rope, position)
         .unwrap_or_else(|| 
@@ -145,6 +160,7 @@ pub fn clamp_position(rope: &Rope, position: Position) -> Position {
         )
 }
 
+#[must_use]
 fn clamp_position_helper(rope: &Rope, position: Position) -> Option<Position> {
     let line_index = LineIndex(position.line);
 
@@ -172,6 +188,7 @@ fn clamp_position_helper(rope: &Rope, position: Position) -> Option<Position> {
     })
 }
 
+#[must_use]
 /// returns `None` if the input position's line does not refer to a line in the `Rope`.
 pub fn nearest_valid_position_on_same_line<P: Borrow<Position>>(rope: &Rope, p: P) -> Option<Position> {
     let p = p.borrow();
@@ -182,6 +199,7 @@ pub fn nearest_valid_position_on_same_line<P: Borrow<Position>>(rope: &Rope, p: 
     })
 }
 
+#[must_use]
 /// Returns `None` if that line is not in the `Rope`.
 #[perf_viz::record]
 fn final_non_newline_offset_for_line(rope: &Rope, line_index: LineIndex) -> Option<CharOffset> {
@@ -189,10 +207,12 @@ fn final_non_newline_offset_for_line(rope: &Rope, line_index: LineIndex) -> Opti
         .map(final_non_newline_offset_for_rope_line)
 }
 
+#[must_use]
 #[perf_viz::record]
 pub fn final_non_newline_offset_for_rope_line(line: RopeLine) -> CharOffset {
     final_non_newline_offset_for_rope_line_(line)
 }
+#[must_use]
 fn final_non_newline_offset_for_rope_line_(line: RopeLine) -> CharOffset {
     let mut len = line.len_chars();
 
@@ -269,6 +289,7 @@ fn get_line_char_iterator<'line, R: std::ops::RangeBounds<CharOffset>>(
         .take(std::cmp::min(take, final_offset.0))
 }
 
+#[must_use]
 pub fn get_first_non_white_space_offset_in_range<R: std::ops::RangeBounds<CharOffset>>(
     line: RopeLine,
     range: R,
@@ -282,6 +303,7 @@ pub fn get_first_non_white_space_offset_in_range<R: std::ops::RangeBounds<CharOf
     None
 }
 
+#[must_use]
 pub fn get_last_non_white_space_offset_in_range<R: std::ops::RangeBounds<CharOffset>>(
     line: RopeLine,
     range: R,

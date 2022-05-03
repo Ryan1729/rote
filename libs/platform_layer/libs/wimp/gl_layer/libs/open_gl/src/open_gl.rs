@@ -23,13 +23,17 @@ pub struct State {
     program: u32,
     fs: u32,
     vs: u32,
-    vbo: u32,
-    vao: u32,
+    v_buffer_o: u32,
+    v_array_o: u32,
     glyph_texture: u32,
     query_ids: [GLuint; 1],
 }
 
 impl State {
+    /// # Errors
+    /// Returns an `Err` if the shaders cannot be compiled or linked.
+    // `CString::new("out_color")?` won't return an `Err`, since "out_color" has no
+    // nul char.
     pub fn new<F>(
         clear_colour: [f32; 4], // the clear colour currently flashes up on exit.
         (width, height): (u32, u32),
@@ -44,38 +48,47 @@ impl State {
         let fs = compile_shader(include_str!("shader/frag.glsl"), gl::FRAGMENT_SHADER)?;
         let program = link_program(vs, fs)?;
     
-        let mut vao = 0;
-        let mut vbo = 0;
+        let mut v_array_o = 0;
+        let mut v_buffer_o = 0;
         let mut glyph_texture = 0;
     
+        // SAFETY: We've set up the OpenGL stuff correctly.
         unsafe {
             // Create Vertex Array Object
-            gl::GenVertexArrays(1, &mut vao);
-            gl::BindVertexArray(vao);
+            gl::GenVertexArrays(1, &mut v_array_o);
+            gl::BindVertexArray(v_array_o);
     
             // Create a Vertex Buffer Object
-            gl::GenBuffers(1, &mut vbo);
-            gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
+            gl::GenBuffers(1, &mut v_buffer_o);
+            gl::BindBuffer(gl::ARRAY_BUFFER, v_buffer_o);
     
             // Enable depth testing so we can occlude things while sending them down in any order
             gl::Enable(gl::DEPTH_TEST);
             gl::DepthRangef(DEPTH_MIN, DEPTH_MAX);
     
             {
+                // We don't care if GL constants wrap. They only care about the bits.
+                #[allow(clippy::cast_possible_wrap)]
+                const CLAMP_TO_EDGE: i32 = gl::CLAMP_TO_EDGE as _;
+                #[allow(clippy::cast_possible_wrap)]
+                const LINEAR: i32 = gl::LINEAR as _;
+                #[allow(clippy::cast_possible_wrap)]
+                const R8: i32 = gl::R8 as _;
                 // Create a texture for the glyphs
                 // The texture holds 1 byte per pixel as alpha data
                 gl::PixelStorei(gl::UNPACK_ALIGNMENT, 1);
                 gl::GenTextures(1, &mut glyph_texture);
                 gl::BindTexture(gl::TEXTURE_2D, glyph_texture);
-                gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::CLAMP_TO_EDGE as _);
-                gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE as _);
-                gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as _);
-                gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as _);
+                
+                gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, CLAMP_TO_EDGE);
+                gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, CLAMP_TO_EDGE);
+                gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, LINEAR);
+                gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, LINEAR);
                 
                 gl::TexImage2D(
                     gl::TEXTURE_2D,
                     0,
-                    gl::R8 as _,
+                    R8,
                     width as _,
                     height as _,
                     0,
@@ -93,16 +106,23 @@ impl State {
             // Specify the layout of the vertex data
             let mut offset = 0;
             for (v_field, float_count) in &VERTEX_SPEC {
-                let attr = gl::GetAttribLocation(program, CString::new(*v_field)?.as_ptr());
+                // Who cares what happens if a `Vertex` is over 2 billion bytes?
+                #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+                const VERTEX_SIZE: i32 = mem::size_of::<Vertex>() as i32;
+
+                let attr: i32 = gl::GetAttribLocation(program, CString::new(*v_field)?.as_ptr());
                 if attr < 0 {
                     return Err(format!("{} GetAttribLocation -> {}", v_field, attr).into());
                 }
+                // We just checked if it was negative
+                #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
+                let attr = attr as u32;
                 gl::VertexAttribPointer(
-                    attr as _,
+                    attr,
                     *float_count,
                     gl::FLOAT,
                     gl::FALSE as _,
-                    mem::size_of::<Vertex>() as _,
+                    VERTEX_SIZE,
                     offset as _,
                 );
                 gl::EnableVertexAttribArray(attr as _);
@@ -143,14 +163,17 @@ impl State {
             program,
             fs,
             vs,
-            vbo,
-            vao,
+            v_buffer_o,
+            v_array_o,
             glyph_texture,
             query_ids: [0; 1]
         })
     }
 
+    #[allow(clippy::unused_self)]
     pub fn set_dimensions(&mut self, (width, height): (i32, i32)) {
+        // SAFETY: The otherwise unused `&mut self` prevents another thread from
+        // calling this method.
         unsafe {
             gl::Viewport(0, 0, width, height);
         }
@@ -176,6 +199,7 @@ impl State {
         });
         // Draw new vertices
         *vertex_count = vertices.len();
+        // SAFETY: We've set up the OpenGL stuff correctly.
         unsafe {
             if vertex_max < vertex_count {
                 gl::BufferData(
@@ -287,8 +311,8 @@ impl State {
             program,
             fs,
             vs,
-            vbo,
-            vao,
+            v_buffer_o,
+            v_array_o,
             glyph_texture,
             ..
         } = self;
@@ -297,8 +321,8 @@ impl State {
             gl::DeleteProgram(program);
             gl::DeleteShader(fs);
             gl::DeleteShader(vs);
-            gl::DeleteBuffers(1, &vbo);
-            gl::DeleteVertexArrays(1, &vao);
+            gl::DeleteBuffers(1, &v_buffer_o);
+            gl::DeleteVertexArrays(1, &v_array_o);
             gl::DeleteTextures(1, &glyph_texture);
         }
     

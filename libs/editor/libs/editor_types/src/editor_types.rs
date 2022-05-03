@@ -40,9 +40,11 @@ ord!(for Cursor: c, other in {
 });
 
 impl Cursor {
+    #[must_use]
     pub fn new(position: Position) -> Self {
         Self::new_with_highlight(position, position)
     }
+    #[must_use]
     pub fn new_with_highlight(position: Position, highlight_position: Position) -> Self {
         Cursor {
             position,
@@ -52,12 +54,13 @@ impl Cursor {
         }
     }
 
+    #[must_use]
     pub fn get_position(&self) -> Position {
         self.position
     }
 
     pub fn set_position(&mut self, position: Position) {
-        self.set_position_custom(position, d!())
+        self.set_position_custom(position, d!());
     }
 
     #[perf_viz::record]
@@ -76,11 +79,13 @@ impl Cursor {
         self.position = position;
     }
 
+    #[must_use]
     pub fn get_highlight_position(&self) -> Option<Position> {
         Some(self.highlight_position).filter(|&p| p != self.position)
     }
 
     /// Equivalent to `c.get_highlight_position().unwrap_or(c.get_position())`
+    #[must_use]
     pub fn get_highlight_position_or_position(&self) -> Position {
         self.highlight_position
     }
