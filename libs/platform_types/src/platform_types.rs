@@ -376,10 +376,10 @@ impl BufferName {
         match self {
             Path(p) => {
                 p.extension()
-                    .and_then(|os_str| os_str.to_str())
+                    .and_then(std::ffi::OsStr::to_str)
                     .unwrap_or("")
             },
-            _ => "",
+            Scratch(..) => "",
         }
     }
 
@@ -422,7 +422,7 @@ ord!(for CursorState: state, other in {
         (CursorState::None, CursorState::PressedAgainstWall(_)) => Less,
         (CursorState::PressedAgainstWall(_), CursorState::None) => Greater,
         (CursorState::PressedAgainstWall(m1), CursorState::PressedAgainstWall(m2)) => {
-            m1.cmp(&m2)
+            m1.cmp(m2)
         }
     }
 });
@@ -475,22 +475,13 @@ impl MenuView {
 pub fn kind_editable_during_mode(kind: BufferIdKind, menu_mode: MenuMode) -> bool {
     u!{MenuMode}
     match (kind, menu_mode) {
-        (BufferIdKind::None, _) => false,
-        // We want this to be true always since it would be completely reasonable 
-        // behaviour for a different client to always show the text buffers.
-        (BufferIdKind::Text, _) => true, 
-        (BufferIdKind::Find, FindReplace(_)) => {
-            true
-        },
-        (BufferIdKind::Replace, FindReplace(_)) => {
-            true
-        },
-        (BufferIdKind::FileSwitcher, MenuMode::FileSwitcher) => {
-            true
-        },
-        (BufferIdKind::GoToPosition, MenuMode::GoToPosition) => {
-            true
-        },
+        // We want this to be true for `Text` always since it would be completely 
+        // reasonable behaviour for a different client to always show the text
+        // buffers.
+        (BufferIdKind::Text, _)
+        | (BufferIdKind::Find | BufferIdKind::Replace, FindReplace(_))
+        | (BufferIdKind::FileSwitcher, MenuMode::FileSwitcher)
+        | (BufferIdKind::GoToPosition, MenuMode::GoToPosition) => true,
         _ => {
             false
         },
@@ -554,7 +545,6 @@ impl EditedTransitions {
         self.0.is_empty()
     }
 
-    #[must_use]
     pub fn iter(&self) -> impl Iterator<Item = &IndexedEditedTransition> {
         self.0.iter()
     }
