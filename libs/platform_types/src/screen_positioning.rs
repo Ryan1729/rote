@@ -89,9 +89,10 @@ impl MapElements<abs::Pos> for TextBoxXY {
 
 #[derive(Clone, Copy, Default, PartialEq)]
 /// A vector in the space with the origin at the top left corner of a given text box.
-/// The top left corner of the text box is `(0.0, 0.0), top right corner is `(width, 0.0)`,
-/// the bottom left corner is `(0.0, height)`. In other words, the x-axis point right, the y-axis
-/// points down. Note that this is different than `TextSpaceXY` since the text can be scrolled.
+/// The top left corner of the text box is `(0.0, 0.0)`, top right corner is
+/// `(width, 0.0)`, the bottom left corner is `(0.0, height)`. In other words, the
+/// x-axis point right, the y-axis points down. Note that this is different than
+/// `TextSpaceXY` since the text can be scrolled.
 pub struct TextBoxSpaceXY {
     pub x: abs::Pos,
     pub y: abs::Pos,
@@ -166,9 +167,10 @@ pub fn screen_to_text_box(xy: ScreenSpaceXY, pos: TextBoxXY) -> TextBoxSpaceXY {
 }
 
 #[derive(Clone, Copy, Default, Hash, PartialEq)]
-/// The top left corner of the text is `(0.0, 0.0), top right corner is `(width, 0.0)`,
-/// the bottom left corner is `(0.0, height)`. In other words, the x-axis point right, the y-axis
-/// points down. Note that this is different than `TextBoxSpaceXY` since the text can be scrolled.
+/// The top left corner of the text is `(0.0, 0.0)`, top right corner is
+/// `(width, 0.0)`, the bottom left corner is `(0.0, height)`. In other words, the
+/// x-axis point right, the y-axis points down. Note that this is different than
+/// `TextBoxSpaceXY` since the text can be scrolled.
 pub struct TextSpaceXY {
     pub x: abs::Pos,
     pub y: abs::Pos,
@@ -262,7 +264,7 @@ macro_rules! tsxywh {
 }
 
 #[derive(Clone, Copy, Default, Hash, PartialEq)]
-/// An offset in TextBoxSpace.
+/// An offset in text box space.
 /// The top left corner of the text is `(0.0, 0.0)`, top right corner is `(width, 0.0)`,
 /// the bottom left corner is `(0.0, height)`. In other words, the x-axis point right, the y-axis
 /// points down.
@@ -275,7 +277,7 @@ fmt_debug!(for ScrollXY: ScrollXY {x, y} in "slxy!({}, {})", x, y);
 fmt_display!(for ScrollXY: ScrollXY {x, y} in "({}, {})", x, y);
 
 /// This uses `slxy` becasue `scxy`, or `srxy` seem confusable with being for
-/// ScreenSpaceXY. `soxy` seems less evocative of scrolling than `slxy`.
+/// `ScreenSpaceXY`. `soxy` seems less evocative of scrolling than `slxy`.
 #[macro_export]
 macro_rules! slxy {
     //
