@@ -178,6 +178,7 @@ pub struct Highlight {
 }
 
 impl Highlight {
+    #[must_use]
     pub fn new((p1, p2): (Position, Position), kind: HighlightKind) -> Self {
         Highlight {
             min: std::cmp::min(p1, p2),
@@ -186,6 +187,7 @@ impl Highlight {
         }
     }
 
+    #[must_use]
     pub fn get(&self) -> (Position, Position) {
         (self.min, self.max)
     }
@@ -334,8 +336,10 @@ fmt_display!(for BufferName: name in "{}",
     match name {
         BufferName::Path(p) => p
             .file_name()
-            .map(|s| s.to_string_lossy().into_owned())
-            .unwrap_or_else(|| "?Unknown Path?".to_string()),
+            .map_or_else(
+                || "?Unknown Path?".to_string(),
+                |s| s.to_string_lossy().into_owned()
+            ),
         BufferName::Scratch(n) => format!("*scratch {}*", n),
     }
  );
@@ -349,7 +353,7 @@ ord!(for BufferName: name, other in {
                      Equal
                  }
                  _ => {
-                     p1.cmp(&p2)
+                     p1.cmp(p2)
                  }
              }
          }
@@ -360,7 +364,7 @@ ord!(for BufferName: name, other in {
              Greater
          }
          (Scratch(n1), Scratch(n2)) => {
-             n1.cmp(&n2)
+             n1.cmp(n2)
          }
      }
  });

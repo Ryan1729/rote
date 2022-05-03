@@ -7,14 +7,14 @@ pub use panic_safe_rope::{RopeSlice, RopeSliceTrait, ByteIndex};
 /// We might change this later, but it will always be an integer of some sort.
 pub type SpanKindRaw = u8;
 
-/// We want to allow different kinds of span classifiers to have 
+/// We want to allow different kinds of span classifiers to have
 /// different sets of span kinds, and to be able to invent new ones
-/// without needing to list them all here. Additionally we want 
-/// deciding what to do when presented with values of this type to 
-/// be up to individual clients of the `editor` crate, while also 
-/// allowing at least some form of backward compatibility. For 
+/// without needing to list them all here. Additionally we want
+/// deciding what to do when presented with values of this type to
+/// be up to individual clients of the `editor` crate, while also
+/// allowing at least some form of backward compatibility. For
 /// example, a client should be allowed to conflate different
-/// SpanKinds up to and including ones that were not known at the 
+/// `SpanKinds` up to and including ones that were not known at the
 /// time that client was written. All that leads us to allowing all
 /// values of the structs size as possible values, rather than an
 /// enum where only certain values are allowed.
@@ -35,7 +35,7 @@ macro_rules! sk {
     (STRING) => {
         sk!(2)
     };
-    // When adding a new one of these, increment 
+    // When adding a new one of these, increment
     // the value below for each new one.
     (FIRST_UNASSIGNED_RAW) => {
         3
@@ -54,25 +54,25 @@ fmt_display!(for SpanKind: k in "{}", match *k {
 
 impl SpanKind {
     #[must_use]
-    pub const fn new(byte: u8) -> Self { 
+    pub const fn new(byte: u8) -> Self {
         SpanKind(byte)
     }
 
     /// The justification for using all values of a given size
-    /// notwithstanding, it is still useful to have clear 
+    /// notwithstanding, it is still useful to have clear
     /// conventions, (which can be ignored as necessary,)
     /// hence these constants.
     pub const PLAIN: SpanKind = sk!(PLAIN);
     pub const COMMENT: SpanKind = sk!(COMMENT);
     pub const STRING: SpanKind = sk!(STRING);
 
-    /// Given we have conventions, we want to be able to 
+    /// Given we have conventions, we want to be able to
     /// conform with them, but also allow new conventions
-    /// to be created. This value represents the smallest 
+    /// to be created. This value represents the smallest
     /// value that does not have a conventional meaning.
     /// all the values of a `SpanKindRaw` will not have a
-    /// conventional meaning, so different span 
-    /// classifiers can assign those values whatever 
+    /// conventional meaning, so different span
+    /// classifiers can assign those values whatever
     /// meaning they wish.
     pub const FIRST_UNASSIGNED_RAW: SpanKindRaw = sk!(FIRST_UNASSIGNED_RAW);
 
@@ -87,9 +87,9 @@ d!(for SpanKind: SpanKind::PLAIN);
 pub struct SpanView {
     /// The index of the byte one past the last byte that belongs to this span.
     /// We store only this index because in a list of `Spanview`s the start index
-    /// for the first span is zero, and start of the each other span is simply the 
+    /// for the first span is zero, and start of the each other span is simply the
     /// value of the previous span's `one_past_end` field.
-    /// See EWD831 for a further argument as to why we use this instead of the 
+    /// See EWD831 for a further argument as to why we use this instead of the
     /// last byte of the span.
     pub one_past_end: ByteIndex,
     /// Which kind of span this is, available here for highlighting purposes.
@@ -99,19 +99,19 @@ pub struct SpanView {
 #[macro_export]
 macro_rules! sv {
     (i $index: literal $(,)? k $($tokens: tt)+) => {
-        SpanView { 
+        SpanView {
             one_past_end: ByteIndex($index),
             kind: sk!($($tokens)+)
         }
     };
     (i $index: literal) => {
-        SpanView { 
+        SpanView {
             one_past_end: ByteIndex($index),
             kind: sk!()
         }
     };
     (i $index: expr, k $($tokens: tt)+) => {
-        SpanView { 
+        SpanView {
             one_past_end: ByteIndex($index),
             kind: sk!($($tokens)+)
         }
@@ -127,7 +127,7 @@ pub struct Spans {
     spans: Vec<SpanView>,
 }
 
-/// This macro asserts that the passes `$spans`, (either a `Spans` or a 
+/// This macro asserts that the passes `$spans`, (either a `Spans` or a
 /// `Vec<SpanView>`) satisifies the invaraints that the Spans type ensures.
 #[macro_export]
 macro_rules! spans_assert {
@@ -163,7 +163,7 @@ macro_rules! spans_assert {
                         assert_ne!(
                             s.kind,
                             prev,
-                            "at index {} in spans was {:?} which has the same kind as the previous span: {:?}", 
+                            "at index {} in spans was {:?} which has the same kind as the previous span: {:?}",
                             i,
                             s,
                             spans,
@@ -174,14 +174,14 @@ macro_rules! spans_assert {
                     assert_ne!(
                         s.one_past_end,
                         previous_one_past_end,
-                        "at index {} in spans was {:?} which has the same one_past_end as the previous span: {:?}", 
+                        "at index {} in spans was {:?} which has the same one_past_end as the previous span: {:?}",
                         i,
                         s,
                         spans,
                     );
                 }
             }
-            
+
             assert!(
                 previous_one_past_end <= s.one_past_end,
                 "{} > {} {}\n\n{:?}",
@@ -197,11 +197,11 @@ macro_rules! spans_assert {
 
 impl From<Vec<SpanView>> for Spans {
     fn from(spans: Vec<SpanView>) -> Self {
-        if cfg!(feature = "debug_assertions") 
+        if cfg!(feature = "debug_assertions")
         || cfg!(feature = "invariant-checking") {
             spans_assert!(&spans);
         }
-        Spans { spans } 
+        Spans { spans }
     }
 }
 
@@ -292,26 +292,26 @@ impl <'text, 'spans> Iterator for LabelledSlices<'text, 'spans> {
                     };
                     let first_non_whitespace_index = {
                         let mut chars = current_slice.chars();
-            
+
                         let mut char_offset = CharOffset(0);
                         while let Some(true) = chars.next().map(|c| c.is_whitespace()) {
                             char_offset = char_offset.saturating_add(1);
                         }
-            
+
                         start_char_index + char_offset
                     };
-    
+
                     let last_non_whitespace_index = {
                         let mut chars = current_slice.chars_at_end();
-            
+
                         let mut char_offset = current_slice.len_chars();
                         while let Some(true) = chars.prev().map(|c| c.is_whitespace()) {
                             char_offset = char_offset.saturating_sub(1);
                         }
-            
+
                         start_char_index + char_offset
                     };
-    
+
                     let trimmed_slice = self
                         .slice
                         .slice(first_non_whitespace_index..last_non_whitespace_index)

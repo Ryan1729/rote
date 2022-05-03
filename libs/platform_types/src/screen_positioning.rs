@@ -375,6 +375,7 @@ pub fn text_to_text_box(xy: TextSpaceXY, scroll: ScrollXY) -> TextBoxSpaceXY {
     xy - scroll
 }
 
+#[derive(Clone, Copy)]
 pub enum PositionRound {
     Up,
     TowardsZero,
@@ -404,6 +405,7 @@ pub fn screen_space_to_text_space(
     text_box_to_text(screen_to_text_box(xy, text_box_pos), scroll)
 }
 
+#[must_use]
 fn normal_or_zero(x: f32) -> f32 {
     if x.is_normal() {
         x
@@ -421,9 +423,9 @@ pub fn text_space_to_position(
     // This is made much more conveinient by the monospace assumption!
     let pre_rounded = x.get() / w.get();
 
-    // if the value would not fit in a `usize` then the `as usize` is undefined behaviour.
-    // https://github.com/rust-lang/rust/issues/10184
-    // https://play.rust-lang.org/?version=stable&mode=debug&edition=2018&gist=21e5f8c502c8e6e16a685449ccc9db82
+    // If the value would not fit in a `usize` then the `as usize` is now saturating.
+    // Truncation, including trunating negative floats to `0`, is acceptable here.
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     let offset = normal_or_zero(match round {
         PositionRound::TowardsZero => pre_rounded,
         PositionRound::Up => {
@@ -432,6 +434,7 @@ pub fn text_space_to_position(
             pre_rounded + 0.5
         }
     }) as usize;
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     let line = normal_or_zero(y.get() / h.get()) as usize;
 
     Position {
