@@ -751,7 +751,7 @@ fn screen_space_to_position_then_position_to_screen_space_is_identity_after_one_
 }
 
 fn clamp_to_65536(x: abs::Pos) -> abs::Pos {
-    if x < abs::Pos::from(65536.0) {
+    if x < 65536.0 {
         x
     } else {
         abs::Pos::from(65536.0)

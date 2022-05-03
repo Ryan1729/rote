@@ -310,7 +310,7 @@ prop_compose!{
 
 prop_compose!{
     pub fn span_kind()(
-        kind in any::<SpanKindRaw>().prop_map(|raw| SpanKind::new(raw))
+        kind in any::<SpanKindRaw>().prop_map(SpanKind::new)
     ) -> SpanKind {
         kind
     }

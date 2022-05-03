@@ -420,7 +420,7 @@ ord!(for CursorState: state, other in {
         (CursorState::None, CursorState::PressedAgainstWall(_)) => Less,
         (CursorState::PressedAgainstWall(_), CursorState::None) => Greater,
         (CursorState::PressedAgainstWall(m1), CursorState::PressedAgainstWall(m2)) => {
-            m1.cmp(&m2)
+            m1.cmp(m2)
         }
     }
 });
