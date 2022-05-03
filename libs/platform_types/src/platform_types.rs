@@ -638,10 +638,11 @@ impl View {
     pub fn get_selected_cursors(&self) -> Option<&[CursorView]> {
         use BufferIdKind::*;
         match self.current_buffer_kind {
-            None => Option::None,
-            // TODO Do we ever actually need to access the Text buffer cursors here?
-            // If we do, then some restructuring will be needed.
-            Text => Option::None,//Some(&self.buffers.get_current_element().data),
+            // Seems like we never actually need to access the Text buffer
+            // cursors here. If we want to later, then some additional restructuring
+            // will be needed, at least according to the comment this comment
+            // replaced.
+            None | Text => Option::None,
             Find => match &self.menu {
                 MenuView::FindReplace(ref fr) => Some(&fr.find),
                 _ => Option::None,
