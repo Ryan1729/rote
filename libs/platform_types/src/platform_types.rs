@@ -641,7 +641,7 @@ impl View {
             // Seems like we never actually need to access the Text buffer
             // cursors here. If we want to later, then some additional restructuring
             // will be needed, at least according to the comment this comment
-            // replaced.
+            // replaced. commmit `680d9507`
             None | Text => Option::None,
             Find => match &self.menu {
                 MenuView::FindReplace(ref fr) => Some(&fr.find),
