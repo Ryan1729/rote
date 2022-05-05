@@ -1,6 +1,8 @@
-use std::{ffi::CString, mem, ptr, str};
 // This file was split off of a file that was part of https://github.com/alexheretic/glyph-brush
-use gl::types::*;
+
+use std::{ffi::CString, mem, ptr, str};
+
+use gl33::{*, global_loader::*};
 
 use gl_layer_types::{DEPTH_MIN, DEPTH_MAX, Vertex, VERTEX_SPEC, Res};
 
@@ -9,23 +11,32 @@ use macros::{invariants_checked};
 macro_rules! gl_assert_ok {
     () => {{
         if invariants_checked!() {
-            let err = gl::GetError();
-            assert_eq!(err, gl::NO_ERROR, "{}", gl_err_to_str(err));
+            let err = glGetError();
+            assert_eq!(err, GL_NO_ERROR, "{}", gl_err_to_str(err));
         }
     }};
 }
 
-pub type LoadFnOutput = *const GLvoid;
+pub type LoadFnOutput = *const core::ffi::c_void;
+pub type LoadFn = dyn Fn(*const u8) -> LoadFnOutput;
+
+type GLint = i32;
+type GLuint = u32;
+/// As of this writing, [this opengl wiki page](https://www.khronos.org/opengl/wiki/OpenGL_Type)
+/// says that `GLsizeiptr` should be an non-negative type. And the things we use it for
+/// are sematically non-negative. But, the gl.xml file that the bindings are based on
+/// says it's an `ssize_t`, (read as "signed pointer size type"). Sigh.
+type GLsizeiptr = isize;
 
 pub struct State {
     vertex_count: usize,
     vertex_max: usize,
-    program: u32,
-    fs: u32,
-    vs: u32,
-    v_buffer_o: u32,
-    v_array_o: u32,
-    glyph_texture: u32,
+    program: GLuint,
+    fs: GLuint,
+    vs: GLuint,
+    v_buffer_o: GLuint,
+    v_array_o: GLuint,
+    glyph_texture: GLuint,
     query_ids: [GLuint; 1],
 }
 
@@ -34,18 +45,20 @@ impl State {
     /// Returns an `Err` if the shaders cannot be compiled or linked.
     // `CString::new("out_color")?` won't return an `Err`, since "out_color" has no
     // nul char.
-    pub fn new<F>(
+    pub fn new<'load_fn>(
         clear_colour: [f32; 4], // the clear colour currently flashes up on exit.
         (width, height): (u32, u32),
-        load_fn: F,
-    ) -> Res<Self>
-    where F: FnMut(&'static str) -> LoadFnOutput {
+        load_fn: &'load_fn LoadFn,
+    ) -> Res<Self> {
         // Load the OpenGL function pointers
-        gl::load_with(load_fn);
+        // SAFETY: The passed load_fn must always return accurate function pointer 
+        // values, or null on failure.
+        // TODO make this fn unsafe making that responsibilty clear to the caller.
+        unsafe { load_global_gl(load_fn); }
     
         // Create GLSL shaders
-        let vs = compile_shader(include_str!("shader/vert.glsl"), gl::VERTEX_SHADER)?;
-        let fs = compile_shader(include_str!("shader/frag.glsl"), gl::FRAGMENT_SHADER)?;
+        let vs = compile_shader(include_str!("shader/vert.glsl"), GL_VERTEX_SHADER)?;
+        let fs = compile_shader(include_str!("shader/frag.glsl"), GL_FRAGMENT_SHADER)?;
         let program = link_program(vs, fs)?;
     
         let mut v_array_o = 0;
@@ -55,53 +68,57 @@ impl State {
         // SAFETY: We've set up the OpenGL stuff correctly.
         unsafe {
             // Create Vertex Array Object
-            gl::GenVertexArrays(1, &mut v_array_o);
-            gl::BindVertexArray(v_array_o);
+            glGenVertexArrays(1, &mut v_array_o);
+            glBindVertexArray(v_array_o);
     
             // Create a Vertex Buffer Object
-            gl::GenBuffers(1, &mut v_buffer_o);
-            gl::BindBuffer(gl::ARRAY_BUFFER, v_buffer_o);
+            glGenBuffers(1, &mut v_buffer_o);
+            glBindBuffer(GL_ARRAY_BUFFER, v_buffer_o);
     
             // Enable depth testing so we can occlude things while sending them down in any order
-            gl::Enable(gl::DEPTH_TEST);
-            gl::DepthRangef(DEPTH_MIN, DEPTH_MAX);
+            glEnable(GL_DEPTH_TEST);
+            glDepthRange(DEPTH_MIN as _, DEPTH_MAX as _);
     
             {
                 // We don't care if GL constants wrap. They only care about the bits.
                 #[allow(clippy::cast_possible_wrap)]
-                const CLAMP_TO_EDGE: i32 = gl::CLAMP_TO_EDGE as _;
+                const CLAMP_TO_EDGE: GLint = GL_CLAMP_TO_EDGE.0 as _;
                 #[allow(clippy::cast_possible_wrap)]
-                const LINEAR: i32 = gl::LINEAR as _;
+                const LINEAR: GLint = GL_LINEAR.0 as _;
                 #[allow(clippy::cast_possible_wrap)]
-                const R8: i32 = gl::R8 as _;
+                const R8: GLint = GL_R8.0 as _;
                 // Create a texture for the glyphs
                 // The texture holds 1 byte per pixel as alpha data
-                gl::PixelStorei(gl::UNPACK_ALIGNMENT, 1);
-                gl::GenTextures(1, &mut glyph_texture);
-                gl::BindTexture(gl::TEXTURE_2D, glyph_texture);
+                glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+                glGenTextures(1, &mut glyph_texture);
+                glBindTexture(GL_TEXTURE_2D, glyph_texture);
                 
-                gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, CLAMP_TO_EDGE);
-                gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, CLAMP_TO_EDGE);
-                gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, LINEAR);
-                gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, LINEAR);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, CLAMP_TO_EDGE);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, CLAMP_TO_EDGE);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, LINEAR);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, LINEAR);
                 
-                gl::TexImage2D(
-                    gl::TEXTURE_2D,
+                glTexImage2D(
+                    GL_TEXTURE_2D,
                     0,
                     R8,
                     width as _,
                     height as _,
                     0,
-                    gl::RED,
-                    gl::UNSIGNED_BYTE,
+                    GL_RED,
+                    GL_UNSIGNED_BYTE,
                     ptr::null(),
                 );
                 gl_assert_ok!();
             }
     
             // Use shader program
-            gl::UseProgram(program);
-            gl::BindFragDataLocation(program, 0, CString::new("out_color")?.as_ptr());
+            glUseProgram(program);
+            glBindFragDataLocation(
+                program,
+                0,
+                CString::new("out_color")?.as_ptr() as _
+            );
     
             // Specify the layout of the vertex data
             let mut offset = 0;
@@ -110,39 +127,42 @@ impl State {
                 #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
                 const VERTEX_SIZE: i32 = mem::size_of::<Vertex>() as i32;
 
-                let attr: i32 = gl::GetAttribLocation(program, CString::new(*v_field)?.as_ptr());
+                let attr: i32 = glGetAttribLocation(
+                    program,
+                    CString::new(*v_field)?.as_ptr() as _
+                );
                 if attr < 0 {
                     return Err(format!("{} GetAttribLocation -> {}", v_field, attr).into());
                 }
                 // We just checked if it was negative
                 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
                 let attr = attr as u32;
-                gl::VertexAttribPointer(
+                glVertexAttribPointer(
                     attr,
                     *float_count,
-                    gl::FLOAT,
-                    gl::FALSE as _,
+                    GL_FLOAT,
+                    false as _,
                     VERTEX_SIZE,
                     offset as _,
                 );
-                gl::EnableVertexAttribArray(attr as _);
-                gl::VertexAttribDivisor(attr as _, 1);
+                glEnableVertexAttribArray(attr as _);
+                glVertexAttribDivisor(attr as _, 1);
     
                 offset += float_count * 4;
             }
     
             // Enabled alpha blending
-            gl::Enable(gl::BLEND);
-            gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     
             // We specifically do *not* enable `FRAMEBUFFER_SRGB` because we currently are passing
             // sRGB colours into the shader, rather than linear colours, so the extra linear to sRGB
             // conversion that this setting would apply, would make our colours too bright. If we want
             // to do colour blends in the shader, we'll need to enable this and convert our input
             // colours to linear ourselves.
-            //gl::Enable(gl::FRAMEBUFFER_SRGB);
+            //glEnable(glFRAMEBUFFER_SRGB);
     
-            gl::ClearColor(
+            glClearColor(
                 clear_colour[0],
                 clear_colour[1],
                 clear_colour[2],
@@ -150,7 +170,7 @@ impl State {
             );
     
             let mut depth_bits = 0;
-            gl::GetIntegerv(3414, &mut depth_bits);
+            glGetIntegerv(GLenum(3414), &mut depth_bits);
             dbg!(depth_bits);
         }
     
@@ -175,7 +195,7 @@ impl State {
         // SAFETY: The otherwise unused `&mut self` prevents another thread from
         // calling this method.
         unsafe {
-            gl::Viewport(0, 0, width, height);
+            glViewport(0, 0, width, height);
         }
     }
 
@@ -202,15 +222,15 @@ impl State {
         // SAFETY: We've set up the OpenGL stuff correctly.
         unsafe {
             if vertex_max < vertex_count {
-                gl::BufferData(
-                    gl::ARRAY_BUFFER,
+                glBufferData(
+                    GL_ARRAY_BUFFER,
                     (*vertex_count * mem::size_of::<Vertex>()) as GLsizeiptr,
                     vertices.as_ptr() as _,
-                    gl::DYNAMIC_DRAW,
+                    GL_DYNAMIC_DRAW,
                 );
             } else {
-                gl::BufferSubData(
-                    gl::ARRAY_BUFFER,
+                glBufferSubData(
+                    GL_ARRAY_BUFFER,
                     0,
                     (*vertex_count * mem::size_of::<Vertex>()) as GLsizeiptr,
                     vertices.as_ptr() as _,
@@ -222,15 +242,15 @@ impl State {
 
     pub fn update_texture(x: u32, y: u32, w: u32, h: u32, tex_data: &[u8]) {
         unsafe {
-            gl::TexSubImage2D(
-                gl::TEXTURE_2D,
+            glTexSubImage2D(
+                GL_TEXTURE_2D,
                 0,
                 x as _,
                 y as _,
                 w as _,
                 h as _,
-                gl::RED,
-                gl::UNSIGNED_BYTE,
+                GL_RED,
+                GL_UNSIGNED_BYTE,
                 tex_data.as_ptr() as _,
             );
             gl_assert_ok!();
@@ -240,15 +260,15 @@ impl State {
     pub fn resize_texture(new_width: u32, new_height: u32) {
         unsafe {
             // Recreate texture as a larger size to fit more
-            gl::TexImage2D(
-                gl::TEXTURE_2D,
+            glTexImage2D(
+                GL_TEXTURE_2D,
                 0,
-                gl::R8 as _,
+                GL_R8.0 as _,
                 new_width as _,
                 new_height as _,
                 0,
-                gl::RED,
-                gl::UNSIGNED_BYTE,
+                GL_RED,
+                GL_UNSIGNED_BYTE,
                 ptr::null(),
             );
             gl_assert_ok!();
@@ -271,20 +291,20 @@ impl State {
             // currently faster, but this may well not be true any more on a future machine/driver
             // so it seems worth it to keep it a feature.
             unsafe {
-                gl::GenQueries(1, self.query_ids.as_ptr() as _);
-                gl::BeginQuery(gl::TIME_ELAPSED, self.query_ids[0])
+                glGenQueries(1, self.query_ids.as_ptr() as _);
+                glBeginQuery(GL_TIME_ELAPSED, self.query_ids[0])
             }
         }
     }
 
     #[perf_viz::record]
     pub fn end_frame(&mut self) {
-        perf_viz::start_record!("gl::Clear & gl::DrawArraysInstanced");
+        perf_viz::start_record!("glClear & glDrawArraysInstanced");
         unsafe {
-            gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
-            gl::DrawArraysInstanced(gl::TRIANGLE_STRIP, 0, 4, self.vertex_count as _);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, self.vertex_count as _);
         }
-        perf_viz::end_record!("gl::Clear & gl::DrawArraysInstanced");
+        perf_viz::end_record!("glClear & glDrawArraysInstanced");
     
         //See comment in above "time-render" check.
         if cfg!(feature = "time-render") {
@@ -292,14 +312,14 @@ impl State {
             let query_ids = &mut self.query_ids;
             let mut time_elapsed = 0;
             unsafe {
-                gl::EndQuery(gl::TIME_ELAPSED);
-                gl::GetQueryObjectiv(query_ids[0], gl::QUERY_RESULT, &mut time_elapsed);
-                gl::DeleteQueries(1, query_ids.as_ptr() as _);
+                glEndQuery(GL_TIME_ELAPSED);
+                glGetQueryObjectiv(query_ids[0], GL_QUERY_RESULT, &mut time_elapsed);
+                glDeleteQueries(1, query_ids.as_ptr() as _);
             }
         } else {
-            perf_viz::record_guard!("gl::Finish");
+            perf_viz::record_guard!("glFinish");
             unsafe {
-                gl::Finish();
+                glFinish();
             }
         }
     }
@@ -318,12 +338,12 @@ impl State {
         } = self;
         
         unsafe {
-            gl::DeleteProgram(program);
-            gl::DeleteShader(fs);
-            gl::DeleteShader(vs);
-            gl::DeleteBuffers(1, &v_buffer_o);
-            gl::DeleteVertexArrays(1, &v_array_o);
-            gl::DeleteTextures(1, &glyph_texture);
+            glDeleteProgram(program);
+            glDeleteShader(fs);
+            glDeleteShader(vs);
+            glDeleteBuffers(1, &v_buffer_o);
+            glDeleteVertexArrays(1, &v_array_o);
+            glDeleteTextures(1, &glyph_texture);
         }
     
         Ok(())
@@ -331,15 +351,15 @@ impl State {
 }
 
 
-fn gl_err_to_str(err: u32) -> &'static str {
+fn gl_err_to_str(err: GLenum) -> &'static str {
     match err {
-        gl::INVALID_ENUM => "INVALID_ENUM",
-        gl::INVALID_VALUE => "INVALID_VALUE",
-        gl::INVALID_OPERATION => "INVALID_OPERATION",
-        gl::INVALID_FRAMEBUFFER_OPERATION => "INVALID_FRAMEBUFFER_OPERATION",
-        gl::OUT_OF_MEMORY => "OUT_OF_MEMORY",
-        gl::STACK_UNDERFLOW => "STACK_UNDERFLOW",
-        gl::STACK_OVERFLOW => "STACK_OVERFLOW",
+        GL_INVALID_ENUM => "INVALID_ENUM",
+        GL_INVALID_VALUE => "INVALID_VALUE",
+        GL_INVALID_OPERATION => "INVALID_OPERATION",
+        GL_INVALID_FRAMEBUFFER_OPERATION => "INVALID_FRAMEBUFFER_OPERATION",
+        GL_OUT_OF_MEMORY => "OUT_OF_MEMORY",
+        GL_STACK_UNDERFLOW => "STACK_UNDERFLOW",
+        GL_STACK_OVERFLOW => "STACK_OVERFLOW",
         _ => "Unknown error",
     }
 }
@@ -347,27 +367,27 @@ fn gl_err_to_str(err: u32) -> &'static str {
 fn compile_shader(src: &str, ty: GLenum) -> Res<GLuint> {
     let shader;
     unsafe {
-        shader = gl::CreateShader(ty);
+        shader = glCreateShader(ty);
         // Attempt to compile the shader
         let c_str = CString::new(src.as_bytes())?;
-        gl::ShaderSource(shader, 1, &c_str.as_ptr(), ptr::null());
-        gl::CompileShader(shader);
+        glShaderSource(shader, 1, (&c_str.as_ptr()).cast(), ptr::null());
+        glCompileShader(shader);
 
         // Get the compile status
-        let mut status = GLint::from(gl::FALSE);
-        gl::GetShaderiv(shader, gl::COMPILE_STATUS, &mut status);
+        let mut status = false as _;
+        glGetShaderiv(shader, GL_COMPILE_STATUS, &mut status);
 
         // Fail on error
-        if status != GLint::from(gl::TRUE) {
+        if status != true as _ {
             let mut len = 0;
-            gl::GetShaderiv(shader, gl::INFO_LOG_LENGTH, &mut len);
+            glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &mut len);
             let mut buf = Vec::with_capacity(len as usize);
             buf.set_len((len as usize) - 1); // subtract 1 to skip the trailing null character
-            gl::GetShaderInfoLog(
+            glGetShaderInfoLog(
                 shader,
                 len,
                 ptr::null_mut(),
-                buf.as_mut_ptr() as *mut GLchar,
+                buf.as_mut_ptr() as *mut u8,
             );
             return Err(std::str::from_utf8(&buf)?.into());
         }
@@ -377,25 +397,25 @@ fn compile_shader(src: &str, ty: GLenum) -> Res<GLuint> {
 
 fn link_program(vs: GLuint, fs: GLuint) -> Res<GLuint> {
     unsafe {
-        let program = gl::CreateProgram();
-        gl::AttachShader(program, vs);
-        gl::AttachShader(program, fs);
-        gl::LinkProgram(program);
+        let program = glCreateProgram();
+        glAttachShader(program, vs);
+        glAttachShader(program, fs);
+        glLinkProgram(program);
         // Get the link status
-        let mut status = GLint::from(gl::FALSE);
-        gl::GetProgramiv(program, gl::LINK_STATUS, &mut status);
+        let mut status = false as _;
+        glGetProgramiv(program, GL_LINK_STATUS, &mut status);
 
         // Fail on error
-        if status != GLint::from(gl::TRUE) {
+        if status != true as _ {
             let mut len: GLint = 0;
-            gl::GetProgramiv(program, gl::INFO_LOG_LENGTH, &mut len);
+            glGetProgramiv(program, GL_INFO_LOG_LENGTH, &mut len);
             let mut buf = Vec::with_capacity(len as usize);
             buf.set_len((len as usize) - 1); // subtract 1 to skip the trailing null character
-            gl::GetProgramInfoLog(
+            glGetProgramInfoLog(
                 program,
                 len,
                 ptr::null_mut(),
-                buf.as_mut_ptr() as *mut GLchar,
+                buf.as_mut_ptr() as *mut u8,
             );
             return Err(std::str::from_utf8(&buf)?.into());
         }

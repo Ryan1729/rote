@@ -8,7 +8,7 @@ edition = "2021"
 path = "./src/open_gl.rs"
 
 [dependencies]
-gl = { path = "../gl" }
+gl33 = "0.2.1"
 gl_layer_types = { path = "../gl_layer_types" }
 perf_viz = { path = "../../../../../../perf_viz" }
 macros = { path = "../../../../../../macros" }

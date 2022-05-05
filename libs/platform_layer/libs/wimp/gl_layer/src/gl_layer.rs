@@ -12,21 +12,22 @@ macros::fmt_debug!(for State<'_>: _ in "{}", "State");
 
 pub use text_rendering::FONT_LICENSE;
 
-pub fn init<F>(
+pub fn init<'load_fn>(
     hidpi_factor: f32,
     clear_colour: [f32; 4], // the clear colour currently flashes up on exit.
-    load_fn: F,
-) -> Res<State<'static>>
-where
-    F: FnMut(&'static str) -> open_gl::LoadFnOutput,
-{
+    load_fn: &'load_fn open_gl::LoadFn,
+) -> Res<State<'static>> {
     let text_rendering_state = text_rendering::new(
         hidpi_factor
     )?;
 
     Ok(
         State {
-            open_gl: open_gl:: State::new(clear_colour, text_rendering_state.texture_dimensions(), load_fn)?,
+            open_gl: open_gl:: State::new(
+                clear_colour,
+                text_rendering_state.texture_dimensions(),
+                load_fn
+            )?,
             text_rendering: text_rendering_state,
         }
     )
