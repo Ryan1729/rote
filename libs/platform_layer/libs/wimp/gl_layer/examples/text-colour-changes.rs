@@ -38,7 +38,15 @@ fn main() -> Res<()> {
     let mut gl_state = gl_layer::init(
         hidpi_factor as f32,
         [0.3, 0.3, 0.3, 1.0],
-        |symbol| glutin_wrapper_context.get_proc_address(symbol) as _,
+        &|symbol| {
+            // SAFETY: The underlying library has promised to pass us a nul 
+            // terminated pointer.
+            let cstr = unsafe { std::ffi::CStr::from_ptr(symbol as _) };
+    
+            let s = cstr.to_str().unwrap();
+    
+            glutin_wrapper_context.get_proc_address(s) as _
+        },
     )?;
 
     let mut loop_helper = spin_sleep::LoopHelper::builder().build_with_target_rate(250.0);

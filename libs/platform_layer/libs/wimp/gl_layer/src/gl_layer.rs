@@ -15,7 +15,7 @@ pub use text_rendering::FONT_LICENSE;
 pub fn init<'load_fn>(
     hidpi_factor: f32,
     clear_colour: [f32; 4], // the clear colour currently flashes up on exit.
-    load_fn: &'load_fn open_gl::LoadFn,
+    load_fn: &open_gl::LoadFn<'load_fn>,
 ) -> Res<State<'static>> {
     let text_rendering_state = text_rendering::new(
         hidpi_factor

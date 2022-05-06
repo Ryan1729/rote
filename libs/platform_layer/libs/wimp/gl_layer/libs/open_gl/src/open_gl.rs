@@ -19,7 +19,7 @@ macro_rules! gl_assert_ok {
 }
 
 pub type LoadFnOutput = *const core::ffi::c_void;
-pub type LoadFn = dyn Fn(*const u8) -> LoadFnOutput;
+pub type LoadFn<'a> = dyn Fn(*const u8) -> LoadFnOutput + 'a;
 
 type GLint = i32;
 type GLuint = u32;
@@ -49,7 +49,7 @@ impl State {
     pub fn new<'load_fn>(
         clear_colour: [f32; 4], // the clear colour currently flashes up on exit.
         (width, height): (u32, u32),
-        load_fn: &'load_fn LoadFn,
+        load_fn: &LoadFn<'load_fn>,
     ) -> Res<Self> {
         // Load the OpenGL function pointers
         // SAFETY: The passed load_fn must always return accurate function pointer 
@@ -57,16 +57,6 @@ impl State {
         // TODO make this fn unsafe making that responsibilty clear to the caller.
         unsafe { load_global_gl(load_fn); }
     
-        Self::new_already_loaded(
-            clear_colour,
-            (width, height),
-        )
-    }
-
-    pub fn new_already_loaded(
-        clear_colour: [f32; 4], // the clear colour currently flashes up on exit.
-        (width, height): (u32, u32),
-    ) -> Res<Self> {
         // Create GLSL shaders
         let vs = compile_shader(include_str!("shader/vert.glsl"), GL_VERTEX_SHADER)?;
         let fs = compile_shader(include_str!("shader/frag.glsl"), GL_FRAGMENT_SHADER)?;

@@ -326,8 +326,6 @@ pub fn run(
     const HIDPI_DEFAULT: DpiFactor = 1.;
     
     let gl_state = {
-        let context_ref = glutin_context.context();
-
         let load_fn = |symbol| {
             // SAFETY: The underlying library has promised to pass us a nul 
             // terminated pointer.
@@ -335,18 +333,14 @@ pub fn run(
     
             let s = cstr.to_str().unwrap();
     
-            context_ref.get_proc_address(&s)
+            glutin_context.get_proc_address(&s)
         };
     
-        let gl_state = gl_layer::init(
+        gl_layer::init(
             hidpi_factor_override.unwrap_or(HIDPI_DEFAULT) as f32,
             wimp_render::TEXT_BACKGROUND_COLOUR,
             &load_fn,
-        )?;
-
-        drop(load_fn);
-
-        gl_state
+        )?
     };
 
     const TARGET_RATE: f64 = 128.0; //250.0);
