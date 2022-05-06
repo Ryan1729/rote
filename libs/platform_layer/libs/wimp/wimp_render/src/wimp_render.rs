@@ -15,8 +15,6 @@ use platform_types::{
     CursorState,
     Highlight,
     HighlightKind,
-    tbxy,
-    tbxywh,
     Input,
     sswh,
     ssr,

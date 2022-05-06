@@ -47,7 +47,7 @@ fmt_debug!(for TextBoxXY: TextBoxXY {x, y} in "tbxy!({}, {})", x, y);
 fmt_display!(for TextBoxXY: TextBoxXY {x, y} in "({},{})", x, y);
 
 #[macro_export]
-macro_rules! tbxy {
+macro_rules! _tbxy {
     //
     // Initialization
     //
@@ -64,6 +64,7 @@ macro_rules! tbxy {
         TextBoxXY { x: $x, y: $y }
     };
 }
+pub use _tbxy as tbxy;
 
 impl From<TextBoxXY> for (f32, f32) {
     fn from(TextBoxXY { x, y }: TextBoxXY) -> Self {
@@ -102,7 +103,7 @@ fmt_debug!(for TextBoxSpaceXY: TextBoxSpaceXY {x, y} in "tbsxy!({}, {})", x, y);
 fmt_display!(for TextBoxSpaceXY: TextBoxSpaceXY {x, y} in "{:?}", (x, y));
 
 #[macro_export]
-macro_rules! tbsxy {
+macro_rules! _tbsxy {
     //
     // Initialization
     //
@@ -119,6 +120,7 @@ macro_rules! tbsxy {
         $crate::TextBoxSpaceXY { x: $x, y: $y }
     };
 }
+pub use _tbsxy as tbsxy;
 
 impl From<TextBoxSpaceXY> for (f32, f32) {
     fn from(TextBoxSpaceXY { x, y }: TextBoxSpaceXY) -> Self {
@@ -180,7 +182,7 @@ fmt_debug!(for TextSpaceXY: TextSpaceXY {x, y} in "tsxy!({}, {})", x, y);
 fmt_display!(for TextSpaceXY: TextSpaceXY {x, y} in "{:?}", (x, y));
 
 #[macro_export]
-macro_rules! tsxy {
+macro_rules! _tsxy {
     //
     // Pattern matching
     //
@@ -197,6 +199,7 @@ macro_rules! tsxy {
         $crate::TextSpaceXY::default()
     };
 }
+pub use _tsxy as tsxy;
 
 impl From<TextSpaceXY> for (f32, f32) {
     fn from(TextSpaceXY { x, y }: TextSpaceXY) -> Self {
@@ -233,7 +236,7 @@ pub struct TextSpaceXYWH {
 fmt_debug!(for TextSpaceXYWH: TextSpaceXYWH {xy, wh} in "tsxywh!({}, {})", xy, wh);
 
 #[macro_export]
-macro_rules! tsxywh {
+macro_rules! _tsxywh {
     //
     // Pattern matching
     //
@@ -262,6 +265,7 @@ macro_rules! tsxywh {
         $crate::TextSpaceXYWH::default()
     };
 }
+pub use _tsxywh as tsxywh;
 
 #[derive(Clone, Copy, Default, Hash, PartialEq)]
 /// An offset in text box space.
@@ -279,7 +283,7 @@ fmt_display!(for ScrollXY: ScrollXY {x, y} in "({}, {})", x, y);
 /// This uses `slxy` becasue `scxy`, or `srxy` seem confusable with being for
 /// `ScreenSpaceXY`. `soxy` seems less evocative of scrolling than `slxy`.
 #[macro_export]
-macro_rules! slxy {
+macro_rules! _slxy {
     //
     // Initialization
     //
@@ -305,6 +309,7 @@ macro_rules! slxy {
         ScrollXY { x: $x, y: _ }
     };
 }
+pub use _slxy as slxy;
 
 impl MapElements<abs::Pos> for ScrollXY {
     fn map_elements(&self, mapper: &impl Fn(abs::Pos) -> abs::Pos) -> Self {
@@ -716,7 +721,7 @@ impl MapElements<abs::Pos> for TextBoxXYWH {
 }
 
 #[macro_export]
-macro_rules! tbxywh {
+macro_rules! _tbxywh {
     //
     // Pattern matching
     //
@@ -775,6 +780,7 @@ macro_rules! tbxywh {
         TextBoxXYWH::default()
     };
 }
+pub use _tbxywh as tbxywh;
 
 #[derive(Clone, Copy, Debug, Default, Hash, PartialEq)]
 pub struct FontInfo {

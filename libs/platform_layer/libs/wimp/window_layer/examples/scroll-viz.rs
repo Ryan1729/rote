@@ -1,25 +1,25 @@
 /// This is an example/test that is used to ensure that the scroll related stuff exported by
 /// `platform_types` works properly. This visual stuff is eaiser to verify visually.
 use window_layer::{TextLayout, TextOrRect, TextSpec, VisualSpec, Api, GlProfile, GlRequest};
-use platform_types::screen_positioning::*;
+use platform_types::{abs, screen_positioning::*};
 
-fn main() -> Res<()> {
-    let events = glutin_wrapper::event_loop::EventLoop::new();
-    let glutin_wrapper_context = glutin_wrapper::ContextBuilder::new()
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let events = window_layer::event_loop::EventLoop::new();
+    let window_layer_context = window_layer::ContextBuilder::new()
         .with_gl_profile(GlProfile::Core)
         //As of now we only need 3.3 for GL_TIME_ELAPSED. Otherwise we could use 3.2.
         .with_gl(GlRequest::Specific(Api::OpenGl, (3, 3)))
         .with_srgb(true)
         .with_depth_buffer(24)
         .build_windowed(
-            glutin_wrapper::window::WindowBuilder::new()
+            window_layer::window::WindowBuilder::new()
                 .with_inner_size(
-                    glutin_wrapper::dpi::Size::Logical(glutin_wrapper::dpi::LogicalSize::new(683.0, 393.0))
+                    window_layer::dpi::Size::Logical(window_layer::dpi::LogicalSize::new(683.0, 393.0))
                 )
                 .with_title("scroll visualiztion example/test"),
             &events,
         )?;
-    let glutin_wrapper_context = unsafe { glutin_wrapper_context.make_current().map_err(|(_, e)| e)? };
+    let window_layer_context = unsafe { window_layer_context.make_current().map_err(|(_, e)| e)? };
 
     const HELP_SIZE: f32 = 16.0;
 
@@ -35,14 +35,14 @@ fn main() -> Res<()> {
     
             let s = cstr.to_str().unwrap();
     
-            glutin_wrapper_context.get_proc_address(s) as _
+            window_layer_context.get_proc_address(s) as _
         },
     )?;
 
     let mut loop_helper = spin_sleep::LoopHelper::builder().build_with_target_rate(250.0);
 
     let mut running = true;
-    let mut dimensions = glutin_wrapper_context
+    let mut dimensions = window_layer_context
         .window()
         .inner_size();
 
@@ -72,7 +72,7 @@ fn main() -> Res<()> {
 
     {
         events.run(move |event, _, control_flow| {
-            use glutin_wrapper::event::*;
+            use window_layer::event::*;
 
             // As of this writing, issues on https://github.com/rust-windowing/winit ,
             // specifically #1124 and #883, suggest that the it is up in the air as to
@@ -84,7 +84,7 @@ fn main() -> Res<()> {
             match event {
                 Event::MainEventsCleared if running => {
                     // Queue a RedrawRequested event so we draw the updated view quickly.
-                    glutin_wrapper_context.window().request_redraw();
+                    window_layer_context.window().request_redraw();
                 }
                 Event::RedrawRequested(_) => {
                     let width = dimensions.width as f32;
@@ -173,7 +173,7 @@ fn main() -> Res<()> {
                     gl_layer::render(&mut gl_state, &text_and_rects, width as _, height as _)
                         .expect("gl_layer::render didn't work");
 
-                    glutin_wrapper_context
+                    window_layer_context
                         .swap_buffers()
                         .expect("swap_buffers didn't work!");
                     loop_helper.loop_sleep();
@@ -192,7 +192,7 @@ fn main() -> Res<()> {
 
                             let _ = gl_layer::cleanup(&gl_state);
 
-                            *control_flow = glutin_wrapper::event_loop::ControlFlow::Exit;
+                            *control_flow = window_layer::event_loop::ControlFlow::Exit;
                         }};
                     }
 
@@ -205,7 +205,7 @@ fn main() -> Res<()> {
                             hidpi_factor = scale_factor;
                         }
                         WindowEvent::Resized(size) => {
-                            glutin_wrapper_context.resize(size);
+                            window_layer_context.resize(size);
                             dimensions = size;
                             gl_layer::set_dimensions(
                                 &mut gl_state,
