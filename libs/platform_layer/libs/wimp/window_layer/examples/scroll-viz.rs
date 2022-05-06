@@ -4,7 +4,7 @@ use window_layer::{TextLayout, TextOrRect, TextSpec, VisualSpec, Api, GlProfile,
 use platform_types::{abs, screen_positioning::*};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let events = window_layer::event_loop::EventLoop::new();
+    let events = window_layer::EventLoop::new();
     let window_layer_context = window_layer::ContextBuilder::new()
         .with_gl_profile(GlProfile::Core)
         //As of now we only need 3.3 for GL_TIME_ELAPSED. Otherwise we could use 3.2.
@@ -12,7 +12,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_srgb(true)
         .with_depth_buffer(24)
         .build_windowed(
-            window_layer::window::WindowBuilder::new()
+            window_layer::WindowBuilder::new()
                 .with_inner_size(
                     window_layer::dpi::Size::Logical(window_layer::dpi::LogicalSize::new(683.0, 393.0))
                 )
@@ -70,275 +70,273 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut visibility_attempt = VisibilityAttemptResult::Succeeded;
     let mut attempt_count = 0;
 
-    {
-        events.run(move |event, _, control_flow| {
-            use window_layer::event::*;
+    events.run(move |event, _, control_flow| {
+        use window_layer::{Event, WindowEvent, ElementState, StartCause, KeyboardInput, MouseScrollDelta, VirtualKeyCode};
 
-            // As of this writing, issues on https://github.com/rust-windowing/winit ,
-            // specifically #1124 and #883, suggest that the it is up in the air as to
-            // whether the modifiers field on some of the matches below will actually
-            // be eventually removed or not. So, in the meantime, I choose the path
-            // that is the least work right now, since it seems unlikely for the amount
-            // of work it will be later to grow significantly. Time will tell.
-            #[allow(deprecated)]
-            match event {
-                Event::MainEventsCleared if running => {
-                    // Queue a RedrawRequested event so we draw the updated view quickly.
-                    window_layer_context.window().request_redraw();
-                }
-                Event::RedrawRequested(_) => {
-                    let width = dimensions.width as f32;
-                    let height = dimensions.height as f32;
-
-                    let mut text_and_rects = Vec::with_capacity(16);
-
-                    text_and_rects.push(TextOrRect::Rect(VisualSpec {
-                        rect: text_box_xywh.into(),
-                        colour: first_colour,
-                        z: first_z,
-                    }));
-                    let first_z_add_1 = first_z.saturating_add(1);
-                    let text_space_ssr = ssxywh!(
-                        text_space_to_screen_space(
-                            scroll_xy,
-                            text_box_xywh.xy,
-                            <_>::default()
-                        ),
-                        text_box_xywh.wh
-                    ).into();
-
-                    text_and_rects.push(TextOrRect::Rect(VisualSpec {
-                        rect: text_space_ssr,
-                        colour: second_colour,
-                        z: second_z,
-                    }));
-
-                    let cursor_screen_xy = text_space_to_screen_space(
-                        scroll_xy,
-                        text_box_xywh.xy,
-                        cursor_xy
-                    );
-
-                    let text_box_ssr = ssxywh!(
-                        text_box_xywh.xy.into(),
-                        text_box_xywh.wh
-                    ).into();
-
-                    text_and_rects.push(TextOrRect::Text(TextSpec {
-                        text: "▏",
-                        size: HELP_SIZE,
-                        spec: VisualSpec {
-                            rect: ssxywh!(
-                                cursor_screen_xy,
-                                text_box_xywh.wh
-                            ).into(),
-                            colour: if inside_rect(cursor_screen_xy, text_box_ssr) {
-                                text_colour
-                            } else {
-                                error_colour
-                            },
-                            z: first_z_add_1,
-                        },
-                        layout: TextLayout::Unbounded,
-                    }));
-
-                    let info_text = &format!(
-                        "scroll_xy {:?}\ntext_box_xywh: {:?} {:?}\ncursor_xy: {:?}\nattempt #{} {:?}\nSpacebar to make attempt to make the cursor visible.\nArrows or scroll wheel along with various combinations of Ctrl and Shift to move things",
-                        scroll_xy,
-                        text_box_xywh.xy,
-                        text_box_xywh.wh,
-                        cursor_xy,
-                        attempt_count,
-                        visibility_attempt,
-                    );
-
-                    text_and_rects.push(TextOrRect::Text(TextSpec {
-                        text: info_text,
-                        size: HELP_SIZE,
-                        spec: VisualSpec {
-                            rect: ScreenSpaceRect {
-                                min: ssxy!(
-                                    0.0,
-                                    dimensions.height as f32
-                                    - (info_text.lines().count() as f32 * HELP_SIZE)
-                                ),
-                                max: ssxy!(dimensions.width as f32, dimensions.height as f32),
-                            },
-                            colour: text_colour,
-                            ..<_>::default()
-                        },
-                        layout: TextLayout::Unbounded,
-                    }));
-
-                    gl_layer::render(&mut gl_state, &text_and_rects, width as _, height as _)
-                        .expect("gl_layer::render didn't work");
-
-                    window_layer_context
-                        .swap_buffers()
-                        .expect("swap_buffers didn't work!");
-                    loop_helper.loop_sleep();
-
-                    // We want to track the time that the message loop takes too!
-                    loop_helper.loop_start();
-                }
-                Event::NewEvents(StartCause::Init) => {
-                    // At least try to measure the first frame accurately
-                    loop_helper.loop_start();
-                }
-                Event::WindowEvent { event, .. } => {
-                    macro_rules! quit {
-                        () => {{
-                            running = false;
-
-                            let _ = gl_layer::cleanup(&gl_state);
-
-                            *control_flow = window_layer::event_loop::ControlFlow::Exit;
-                        }};
-                    }
-
-                    match event {
-                        WindowEvent::CloseRequested => quit!(),
-                        WindowEvent::ScaleFactorChanged {
-                            scale_factor,
-                            ..
-                        } => {
-                            hidpi_factor = scale_factor;
-                        }
-                        WindowEvent::Resized(size) => {
-                            window_layer_context.resize(size);
-                            dimensions = size;
-                            gl_layer::set_dimensions(
-                                &mut gl_state,
-                                hidpi_factor as _,
-                                (dimensions.width as _, dimensions.height as _),
-                            );
-                        }
-                        WindowEvent::KeyboardInput {
-                            input:
-                                KeyboardInput {
-                                    state: ElementState::Pressed,
-                                    virtual_keycode: Some(keypress),
-                                    modifiers,
-                                    ..
-                                },
-                            ..
-                        } if modifiers.shift() && !modifiers.ctrl() => {
-                            match keypress {
-                                VirtualKeyCode::Escape => {
-                                    quit!();
-                                }
-                                VirtualKeyCode::Up => {
-                                    text_box_xywh.xy.y -= move_amount;
-                                }
-                                VirtualKeyCode::Down => {
-                                    text_box_xywh.xy.y += move_amount;
-                                }
-                                VirtualKeyCode::Left => {
-                                    text_box_xywh.xy.x -= move_amount;
-                                }
-                                VirtualKeyCode::Right => {
-                                    text_box_xywh.xy.x += move_amount;
-                                }
-                                _ => {}
-                            }
-                        },
-                        WindowEvent::KeyboardInput {
-                            input:
-                                KeyboardInput {
-                                    state: ElementState::Pressed,
-                                    virtual_keycode: Some(keypress),
-                                    modifiers,
-                                    ..
-                                },
-                            ..
-                        } if !modifiers.shift() && modifiers.ctrl() => {
-                            match keypress {
-                                VirtualKeyCode::Escape => {
-                                    quit!();
-                                }
-                                VirtualKeyCode::Up => {
-                                    text_box_xywh.wh.h =
-                                        text_box_xywh.wh.h - move_amount;
-                                }
-                                VirtualKeyCode::Down => {
-                                    text_box_xywh.wh.h =
-                                        text_box_xywh.wh.h + move_amount;
-                                }
-                                VirtualKeyCode::Left => {
-                                    text_box_xywh.wh.w =
-                                        text_box_xywh.wh.w - move_amount;
-                                }
-                                VirtualKeyCode::Right => {
-                                    text_box_xywh.wh.w =
-                                        text_box_xywh.wh.w + move_amount;
-                                }
-                                _ => {}
-                            }
-                        },
-                        WindowEvent::KeyboardInput {
-                            input:
-                                KeyboardInput {
-                                    state: ElementState::Pressed,
-                                    virtual_keycode: Some(keypress),
-                                    modifiers,
-                                    ..
-                                },
-                            ..
-                        } if modifiers.is_empty() => {
-                            match keypress {
-                                VirtualKeyCode::Escape => {
-                                    quit!();
-                                }
-                                VirtualKeyCode::Up => {
-                                    cursor_xy.y -= move_amount;
-                                }
-                                VirtualKeyCode::Down => {
-                                    cursor_xy.y += move_amount;
-                                }
-                                VirtualKeyCode::Left => {
-                                    cursor_xy.x -= move_amount;
-                                }
-                                VirtualKeyCode::Right => {
-                                    cursor_xy.x += move_amount;
-                                }
-                                // AKA plus
-                                VirtualKeyCode::Equals => {
-
-                                }
-                                VirtualKeyCode::Minus => {
-
-                                }
-                                VirtualKeyCode::Space => {
-                                    visibility_attempt = attempt_to_make_xy_visible(
-                                        &mut scroll_xy,
-                                        text_box_xywh,
-                                        apron,
-                                        cursor_xy,
-                                    );
-                                    attempt_count += 1;
-                                }
-                                _ => (),
-                            };
-                        }
-                        WindowEvent::MouseWheel {
-                            delta: MouseScrollDelta::LineDelta(_, y),
-                            modifiers,
-                            ..
-                        } if modifiers.is_empty() => {
-                            scroll_xy.y += y * 16.0;
-                        }
-                        WindowEvent::MouseWheel {
-                            delta: MouseScrollDelta::LineDelta(_, y),
-                            modifiers,
-                            ..
-                        } if modifiers.shift() => {
-                            scroll_xy.x += y * 16.0;
-                        }
-                        _ => {}
-                    }
-                }
-                _ => {}
+        // As of this writing, issues on https://github.com/rust-windowing/winit ,
+        // specifically #1124 and #883, suggest that the it is up in the air as to
+        // whether the modifiers field on some of the matches below will actually
+        // be eventually removed or not. So, in the meantime, I choose the path
+        // that is the least work right now, since it seems unlikely for the amount
+        // of work it will be later to grow significantly. Time will tell.
+        #[allow(deprecated)]
+        match event {
+            Event::MainEventsCleared if running => {
+                // Queue a RedrawRequested event so we draw the updated view quickly.
+                window_layer_context.window().request_redraw();
             }
-        });
-    }
+            Event::RedrawRequested(_) => {
+                let width = dimensions.width as f32;
+                let height = dimensions.height as f32;
+
+                let mut text_and_rects = Vec::with_capacity(16);
+
+                text_and_rects.push(TextOrRect::Rect(VisualSpec {
+                    rect: text_box_xywh.into(),
+                    colour: first_colour,
+                    z: first_z,
+                }));
+                let first_z_add_1 = first_z.saturating_add(1);
+                let text_space_ssr = ssxywh!(
+                    text_space_to_screen_space(
+                        scroll_xy,
+                        text_box_xywh.xy,
+                        <_>::default()
+                    ),
+                    text_box_xywh.wh
+                ).into();
+
+                text_and_rects.push(TextOrRect::Rect(VisualSpec {
+                    rect: text_space_ssr,
+                    colour: second_colour,
+                    z: second_z,
+                }));
+
+                let cursor_screen_xy = text_space_to_screen_space(
+                    scroll_xy,
+                    text_box_xywh.xy,
+                    cursor_xy
+                );
+
+                let text_box_ssr = ssxywh!(
+                    text_box_xywh.xy.into(),
+                    text_box_xywh.wh
+                ).into();
+
+                text_and_rects.push(TextOrRect::Text(TextSpec {
+                    text: "▏",
+                    size: HELP_SIZE,
+                    spec: VisualSpec {
+                        rect: ssxywh!(
+                            cursor_screen_xy,
+                            text_box_xywh.wh
+                        ).into(),
+                        colour: if inside_rect(cursor_screen_xy, text_box_ssr) {
+                            text_colour
+                        } else {
+                            error_colour
+                        },
+                        z: first_z_add_1,
+                    },
+                    layout: TextLayout::Unbounded,
+                }));
+
+                let info_text = &format!(
+                    "scroll_xy {:?}\ntext_box_xywh: {:?} {:?}\ncursor_xy: {:?}\nattempt #{} {:?}\nSpacebar to make attempt to make the cursor visible.\nArrows or scroll wheel along with various combinations of Ctrl and Shift to move things",
+                    scroll_xy,
+                    text_box_xywh.xy,
+                    text_box_xywh.wh,
+                    cursor_xy,
+                    attempt_count,
+                    visibility_attempt,
+                );
+
+                text_and_rects.push(TextOrRect::Text(TextSpec {
+                    text: info_text,
+                    size: HELP_SIZE,
+                    spec: VisualSpec {
+                        rect: ScreenSpaceRect {
+                            min: ssxy!(
+                                0.0,
+                                dimensions.height as f32
+                                - (info_text.lines().count() as f32 * HELP_SIZE)
+                            ),
+                            max: ssxy!(dimensions.width as f32, dimensions.height as f32),
+                        },
+                        colour: text_colour,
+                        ..<_>::default()
+                    },
+                    layout: TextLayout::Unbounded,
+                }));
+
+                gl_layer::render(&mut gl_state, &text_and_rects, width as _, height as _)
+                    .expect("gl_layer::render didn't work");
+
+                window_layer_context
+                    .swap_buffers()
+                    .expect("swap_buffers didn't work!");
+                loop_helper.loop_sleep();
+
+                // We want to track the time that the message loop takes too!
+                loop_helper.loop_start();
+            }
+            Event::NewEvents(StartCause::Init) => {
+                // At least try to measure the first frame accurately
+                loop_helper.loop_start();
+            }
+            Event::WindowEvent { event, .. } => {
+                macro_rules! quit {
+                    () => {{
+                        running = false;
+
+                        let _ = gl_layer::cleanup(&gl_state);
+
+                        *control_flow = window_layer::ControlFlow::Exit;
+                    }};
+                }
+
+                match event {
+                    WindowEvent::CloseRequested => quit!(),
+                    WindowEvent::ScaleFactorChanged {
+                        scale_factor,
+                        ..
+                    } => {
+                        hidpi_factor = scale_factor;
+                    }
+                    WindowEvent::Resized(size) => {
+                        window_layer_context.resize(size);
+                        dimensions = size;
+                        gl_layer::set_dimensions(
+                            &mut gl_state,
+                            hidpi_factor as _,
+                            (dimensions.width as _, dimensions.height as _),
+                        );
+                    }
+                    WindowEvent::KeyboardInput {
+                        input:
+                            KeyboardInput {
+                                state: ElementState::Pressed,
+                                virtual_keycode: Some(keypress),
+                                modifiers,
+                                ..
+                            },
+                        ..
+                    } if modifiers.shift() && !modifiers.ctrl() => {
+                        match keypress {
+                            VirtualKeyCode::Escape => {
+                                quit!();
+                            }
+                            VirtualKeyCode::Up => {
+                                text_box_xywh.xy.y -= move_amount;
+                            }
+                            VirtualKeyCode::Down => {
+                                text_box_xywh.xy.y += move_amount;
+                            }
+                            VirtualKeyCode::Left => {
+                                text_box_xywh.xy.x -= move_amount;
+                            }
+                            VirtualKeyCode::Right => {
+                                text_box_xywh.xy.x += move_amount;
+                            }
+                            _ => {}
+                        }
+                    },
+                    WindowEvent::KeyboardInput {
+                        input:
+                            KeyboardInput {
+                                state: ElementState::Pressed,
+                                virtual_keycode: Some(keypress),
+                                modifiers,
+                                ..
+                            },
+                        ..
+                    } if !modifiers.shift() && modifiers.ctrl() => {
+                        match keypress {
+                            VirtualKeyCode::Escape => {
+                                quit!();
+                            }
+                            VirtualKeyCode::Up => {
+                                text_box_xywh.wh.h =
+                                    text_box_xywh.wh.h - move_amount;
+                            }
+                            VirtualKeyCode::Down => {
+                                text_box_xywh.wh.h =
+                                    text_box_xywh.wh.h + move_amount;
+                            }
+                            VirtualKeyCode::Left => {
+                                text_box_xywh.wh.w =
+                                    text_box_xywh.wh.w - move_amount;
+                            }
+                            VirtualKeyCode::Right => {
+                                text_box_xywh.wh.w =
+                                    text_box_xywh.wh.w + move_amount;
+                            }
+                            _ => {}
+                        }
+                    },
+                    WindowEvent::KeyboardInput {
+                        input:
+                            KeyboardInput {
+                                state: ElementState::Pressed,
+                                virtual_keycode: Some(keypress),
+                                modifiers,
+                                ..
+                            },
+                        ..
+                    } if modifiers.is_empty() => {
+                        match keypress {
+                            VirtualKeyCode::Escape => {
+                                quit!();
+                            }
+                            VirtualKeyCode::Up => {
+                                cursor_xy.y -= move_amount;
+                            }
+                            VirtualKeyCode::Down => {
+                                cursor_xy.y += move_amount;
+                            }
+                            VirtualKeyCode::Left => {
+                                cursor_xy.x -= move_amount;
+                            }
+                            VirtualKeyCode::Right => {
+                                cursor_xy.x += move_amount;
+                            }
+                            // AKA plus
+                            VirtualKeyCode::Equals => {
+
+                            }
+                            VirtualKeyCode::Minus => {
+
+                            }
+                            VirtualKeyCode::Space => {
+                                visibility_attempt = attempt_to_make_xy_visible(
+                                    &mut scroll_xy,
+                                    text_box_xywh,
+                                    apron,
+                                    cursor_xy,
+                                );
+                                attempt_count += 1;
+                            }
+                            _ => (),
+                        };
+                    }
+                    WindowEvent::MouseWheel {
+                        delta: MouseScrollDelta::LineDelta(_, y),
+                        modifiers,
+                        ..
+                    } if modifiers.is_empty() => {
+                        scroll_xy.y += y * 16.0;
+                    }
+                    WindowEvent::MouseWheel {
+                        delta: MouseScrollDelta::LineDelta(_, y),
+                        modifiers,
+                        ..
+                    } if modifiers.shift() => {
+                        scroll_xy.x += y * 16.0;
+                    }
+                    _ => {}
+                }
+            }
+            _ => {}
+        }
+    });
 }

@@ -301,8 +301,8 @@ pub fn run(
     let edited_files_dir_buf = data_dir.join("edited_files_v1/");
     let edited_files_index_path_buf = data_dir.join("edited_files_v1_index.txt");
 
-    use window_layer::event_loop::EventLoop;
-    let events: EventLoop<CustomEvent> = window_layer::event_loop::EventLoop::with_user_event();
+    use window_layer::EventLoop;
+    let events: EventLoop<CustomEvent> = window_layer::EventLoop::with_user_event();
     let event_proxy = events.create_proxy();
 
     let glutin_context = window_layer::ContextBuilder::new()
@@ -312,7 +312,7 @@ pub fn run(
         .with_srgb(true)
         .with_depth_buffer(24)
         .build_windowed(
-            window_layer::window::WindowBuilder::new()
+            window_layer::WindowBuilder::new()
                 .with_inner_size(
                     window_layer::dpi::Size::Logical(window_layer::dpi::LogicalSize::new(1024.0, 576.0))
                  )
@@ -819,6 +819,8 @@ pub fn run(
     }
 
     {
+        use window_layer::{MouseButton, ModifiersState, VirtualKeyCode};
+
         macro_rules! call_u_and_r {
             ($input:expr) => {
                 call_u_and_r!(r_s, $input)
@@ -1010,7 +1012,7 @@ pub fn run(
 
                         // Notify the user that the file loaded, if we are not
                         // already in focus.
-                        use window_layer::window::UserAttentionType;
+                        use window_layer::UserAttentionType;
                         window.request_user_attention(
                             Some(UserAttentionType::Informational)
                         );
@@ -1067,8 +1069,6 @@ pub fn run(
                 ));
             };
         }
-
-        use window_layer::event::*;
 
         let empty: ModifiersState = ModifiersState::empty();
         const LOGO: ModifiersState = ModifiersState::LOGO;
@@ -1359,6 +1359,8 @@ pub fn run(
         }
 
         events.run(move |event, _, control_flow| {
+            use window_layer::{Event, WindowEvent, ElementState, StartCause, KeyboardInput, MouseScrollDelta, VirtualKeyCode};
+
             match event {
                 Event::WindowEvent { event, .. } => {
                     macro_rules! quit {
@@ -1389,7 +1391,7 @@ pub fn run(
 
                             let _ = window_layer::cleanup(&r_s.window_state);
 
-                            *control_flow = window_layer::event_loop::ControlFlow::Exit;
+                            *control_flow = window_layer::ControlFlow::Exit;
                         }};
                     }
 
@@ -1566,7 +1568,7 @@ pub fn run(
                                         v_s!().view.menu_mode(),
                                         v_s!().dimensions
                                     ) {
-                                        window_layer::window::CursorIcon::Text
+                                        window_layer::CursorIcon::Text
                                     } else {
                                         d!()
                                     };

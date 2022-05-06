@@ -13,5 +13,30 @@ pub use gl_layer::{
     TextSpec,
     VisualSpec
 };
-pub use glutin_wrapper::{*, event::{*, VirtualKeyCode as KeyCode}, event_loop::EventLoopProxy};
+pub use glutin_wrapper::{
+    Api, GlProfile, GlRequest, dpi,
+    ContextBuilder,
+    window::{
+        CursorIcon,
+        UserAttentionType,
+        WindowBuilder,
+    },
+    event::{
+        Event,
+        KeyboardInput,
+        MouseButton,
+        MouseScrollDelta,
+        WindowEvent,
+        ElementState,
+        StartCause,
+        ModifiersState,
+        VirtualKeyCode as KeyCode,
+        VirtualKeyCode,
+    },
+    event_loop::{
+        ControlFlow,
+        EventLoop,
+        EventLoopProxy
+    },
+};
 
