@@ -2674,8 +2674,6 @@ dependencies = [
  "edited_storage",
  "editor",
  "file_chooser",
- "gl_layer",
- "glutin_wrapper",
  "if_changed",
  "macros",
  "perf_viz",
@@ -2686,6 +2684,7 @@ dependencies = [
  "spin_sleep",
  "wimp_render",
  "wimp_types",
+ "window_layer",
 ]
 
 [[package]]
@@ -2708,14 +2707,13 @@ name = "wimp_types"
 version = "0.1.0"
 dependencies = [
  "clipboard",
- "gl_layer",
- "glutin_wrapper",
  "if_changed",
  "macros",
  "perf_viz",
  "platform_types",
  "proptest",
  "shared",
+ "window_layer",
 ]
 
 [[package]]
@@ -2748,6 +2746,14 @@ name = "winapi-x86_64-pc-windows-gnu"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
+
+[[package]]
+name = "window_layer"
+version = "0.1.0"
+dependencies = [
+ "gl_layer",
+ "glutin_wrapper",
+]
 
 [[package]]
 name = "winit"

@@ -5,7 +5,7 @@
 
 #![deny(unused)]
 
-use glutin_wrapper::{dpi::PhysicalSize, Api, GlProfile, GlRequest};
+use window_layer::{dpi::PhysicalSize, Api, GlProfile, GlRequest};
 use std::{
     collections::VecDeque,
     path::{PathBuf},
@@ -110,7 +110,7 @@ pub fn run(
                 println!("    https://github.com/Ryan1729/{}", title);
                 println!();
                 println!("License for the font:");
-                println!("{}", gl_layer::FONT_LICENSE);
+                println!("{}", window_layer::FONT_LICENSE);
                 std::process::exit(0)
             }
             FILE => {
@@ -301,20 +301,20 @@ pub fn run(
     let edited_files_dir_buf = data_dir.join("edited_files_v1/");
     let edited_files_index_path_buf = data_dir.join("edited_files_v1_index.txt");
 
-    use glutin_wrapper::event_loop::EventLoop;
-    let events: EventLoop<CustomEvent> = glutin_wrapper::event_loop::EventLoop::with_user_event();
+    use window_layer::event_loop::EventLoop;
+    let events: EventLoop<CustomEvent> = window_layer::event_loop::EventLoop::with_user_event();
     let event_proxy = events.create_proxy();
 
-    let glutin_context = glutin_wrapper::ContextBuilder::new()
+    let glutin_context = window_layer::ContextBuilder::new()
         .with_gl_profile(GlProfile::Core)
         //As of now we only need 3.3 for GL_TIME_ELAPSED. Otherwise we could use 3.2.
         .with_gl(GlRequest::Specific(Api::OpenGl, (3, 3)))
         .with_srgb(true)
         .with_depth_buffer(24)
         .build_windowed(
-            glutin_wrapper::window::WindowBuilder::new()
+            window_layer::window::WindowBuilder::new()
                 .with_inner_size(
-                    glutin_wrapper::dpi::Size::Logical(glutin_wrapper::dpi::LogicalSize::new(1024.0, 576.0))
+                    window_layer::dpi::Size::Logical(window_layer::dpi::LogicalSize::new(1024.0, 576.0))
                  )
                 .with_title(title),
             &events,
@@ -325,7 +325,7 @@ pub fn run(
     const HIDPI_MINIMUM: DpiFactor = HIDPI_INCREMENT_BY;
     const HIDPI_DEFAULT: DpiFactor = 1.;
     
-    let gl_state = {
+    let window_state = {
         let load_fn = |symbol| {
             // SAFETY: The underlying library has promised to pass us a nul 
             // terminated pointer.
@@ -336,7 +336,7 @@ pub fn run(
             glutin_context.get_proc_address(&s)
         };
     
-        gl_layer::init(
+        window_layer::init(
             hidpi_factor_override.unwrap_or(HIDPI_DEFAULT) as f32,
             wimp_render::TEXT_BACKGROUND_COLOUR,
             &load_fn,
@@ -584,8 +584,8 @@ pub fn run(
     let mut r_s = {
         let editor_in_sink = editor_in_sink.clone();
 
-        let char_dims = gl_layer::get_char_dims(
-            &gl_state,
+        let char_dims = window_layer::get_char_dims(
+            &window_state,
             &wimp_render::TEXT_SIZES,
         );
 
@@ -649,7 +649,7 @@ pub fn run(
             clipboard,
             editor_in_sink,
             event_proxy: event_proxy.clone(),
-            gl_state,
+            window_state,
         }
     };
 
@@ -906,15 +906,15 @@ pub fn run(
 
             let sswh!(w, h) = v_s!(r_s).dimensions.window;
 
-            let gl_state = &mut r_s.gl_state;
-            gl_layer::set_dimensions(
-                gl_state,
+            let window_state = &mut r_s.window_state;
+            window_layer::set_dimensions(
+                window_state,
                 hidpi_factor as _,
                 (w.get() as _, h.get() as _),
             );
 
-            let char_dims = gl_layer::get_char_dims(
-                gl_state,
+            let char_dims = window_layer::get_char_dims(
+                window_state,
                 &wimp_render::TEXT_SIZES,
             );
 
@@ -1010,7 +1010,7 @@ pub fn run(
 
                         // Notify the user that the file loaded, if we are not
                         // already in focus.
-                        use glutin_wrapper::window::UserAttentionType;
+                        use window_layer::window::UserAttentionType;
                         window.request_user_attention(
                             Some(UserAttentionType::Informational)
                         );
@@ -1068,7 +1068,7 @@ pub fn run(
             };
         }
 
-        use glutin_wrapper::event::*;
+        use window_layer::event::*;
 
         let empty: ModifiersState = ModifiersState::empty();
         const LOGO: ModifiersState = ModifiersState::LOGO;
@@ -1387,9 +1387,9 @@ pub fn run(
 
                             perf_viz::output!();
 
-                            let _ = gl_layer::cleanup(&r_s.gl_state);
+                            let _ = window_layer::cleanup(&r_s.window_state);
 
-                            *control_flow = glutin_wrapper::event_loop::ControlFlow::Exit;
+                            *control_flow = window_layer::event_loop::ControlFlow::Exit;
                         }};
                     }
 
@@ -1452,8 +1452,8 @@ pub fn run(
                                 )
                             );
                             let sswh!(w, h) = v_s!().dimensions.window;
-                            gl_layer::set_dimensions(
-                                &mut r_s.gl_state,
+                            window_layer::set_dimensions(
+                                &mut r_s.window_state,
                                 hidpi_factor as _,
                                 (w.get() as _, h.get() as _),
                             );
@@ -1566,7 +1566,7 @@ pub fn run(
                                         v_s!().view.menu_mode(),
                                         v_s!().dimensions
                                     ) {
-                                        glutin_wrapper::window::CursorIcon::Text
+                                        window_layer::window::CursorIcon::Text
                                     } else {
                                         d!()
                                     };
@@ -1682,8 +1682,8 @@ pub fn run(
                         );
 
                     // TODO Stop allocating new text_or_rects every frame.
-                    gl_layer::render(&mut r_s.gl_state, &text_or_rects, width.get() as _, height.get() as _)
-                        .expect("gl_layer::render didn't work");
+                    window_layer::render(&mut r_s.window_state, &text_or_rects, width.get() as _, height.get() as _)
+                        .expect("window_layer::render didn't work");
 
                     perf_viz::start_record!("swap_buffers");
                     glutin_context

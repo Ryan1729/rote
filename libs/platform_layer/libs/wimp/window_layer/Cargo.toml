@@ -1,0 +1,16 @@
+[package]
+name = "window_layer"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+path = "src/window_layer.rs"
+
+[dependencies]
+gl_layer = { path = "../gl_layer" }
+glutin_wrapper = { path = "../glutin_wrapper" }
+
+[features]
+default = []
+time-render = ["gl_layer/time-render"]
+

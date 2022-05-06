@@ -1,12 +1,10 @@
-use glutin_wrapper::event::{ModifiersState, VirtualKeyCode};
+use window_layer::{ModifiersState, KeyCode};
 use macros::{d, dbg, ord, u};
 use platform_types::{screen_positioning::*, abs, g_i, Input, Cmd, EditedTransition, TimeSpan, BufferLabel, BufferName};
 
 use std::collections::{VecDeque, BTreeMap};
 use std::path::PathBuf;
 use std::cmp::min;
-
-pub use glutin_wrapper::event_loop::EventLoopProxy;
 
 mod clipboard_layer {
     use super::dbg;
@@ -496,31 +494,31 @@ pub type DpiFactor = f64;
 pub struct RunState<'font> {
     pub view_state: ViewRunState,
     pub cmds: VecDeque<Cmd>,
-    pub gl_state: gl_layer::State<'font>,
+    pub window_state: window_layer::State<'font>,
     pub editor_in_sink: std::sync::mpsc::Sender<EditorThreadInput>,
-    pub event_proxy: EventLoopProxy<CustomEvent>,
+    pub event_proxy: window_layer::EventLoopProxy<CustomEvent>,
     pub clipboard: Clipboard,
 }
 
-pub type CommandKey = (ModifiersState, VirtualKeyCode);
+pub type CommandKey = (ModifiersState, KeyCode);
 
 pub mod command_keys {
-    use super::{CommandKey, ModifiersState, VirtualKeyCode};
+    use super::{CommandKey, ModifiersState, KeyCode};
     pub const CTRL: ModifiersState = ModifiersState::CTRL;
     pub const SHIFT: ModifiersState = ModifiersState::SHIFT;
     pub const ALT: ModifiersState = ModifiersState::ALT;
     pub const LOGO: ModifiersState = ModifiersState::LOGO;
 
     pub fn command_menu() -> CommandKey {
-        (ModifiersState::empty(), VirtualKeyCode::Apps)
+        (ModifiersState::empty(), KeyCode::Apps)
     }
 
     pub fn debug_menu() -> CommandKey {
-        (CTRL | SHIFT, VirtualKeyCode::Slash)
+        (CTRL | SHIFT, KeyCode::Slash)
     }
 
     pub fn add_run_state_snapshot() -> CommandKey {
-        (CTRL | SHIFT, VirtualKeyCode::F1)
+        (CTRL | SHIFT, KeyCode::F1)
     }
 }
 
