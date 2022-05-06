@@ -1,28 +1,25 @@
 /// This is meant to be the smallest reasonable example, and perhaps a template
 /// for other examples/applications.
-use gl_layer::{TextLayout, TextOrRect, TextSpec, VisualSpec};
-use glutin_wrapper::{Api, GlProfile, GlRequest};
-use platform_types::{screen_positioning::*};
-use shared::Res;
-use macros::{d};
+use window_layer::{TextLayout, TextOrRect, TextSpec, VisualSpec, Api, GlProfile, GlRequest};
+use platform_types::screen_positioning::*;
 
-fn main() -> Res<()> {
-    let events = glutin_wrapper::event_loop::EventLoop::new();
-    let glutin_wrapper_context = glutin_wrapper::ContextBuilder::new()
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let events = window_layer::event_loop::EventLoop::new();
+    let window_layer_context = window_layer::ContextBuilder::new()
         .with_gl_profile(GlProfile::Core)
         //As of now we only need 3.3 for GL_TIME_ELAPSED. Otherwise we could use 3.2.
         .with_gl(GlRequest::Specific(Api::OpenGl, (3, 3)))
         .with_srgb(true)
         .with_depth_buffer(24)
         .build_windowed(
-            glutin_wrapper::window::WindowBuilder::new()
+            window_layer::window::WindowBuilder::new()
                 .with_inner_size(
-                    glutin_wrapper::dpi::Size::Logical(glutin_wrapper::dpi::LogicalSize::new(683.0, 393.0))
+                    window_layer::dpi::Size::Logical(window_layer::dpi::LogicalSize::new(683.0, 393.0))
                 )
                 .with_title("hello-world"),
             &events,
         )?;
-    let glutin_wrapper_context = unsafe { glutin_wrapper_context.make_current().map_err(|(_, e)| e)? };
+    let window_layer_context = unsafe { window_layer_context.make_current() }.map_err(|(_, e)| e)?;
 
     const TEXT_SIZE: f32 = 16.0;
 
@@ -38,7 +35,7 @@ fn main() -> Res<()> {
     
             let s = cstr.to_str().unwrap();
     
-            glutin_wrapper_context.get_proc_address(s) as _
+            window_layer_context.get_proc_address(s) as _
         },
     )?;
 
@@ -47,7 +44,7 @@ fn main() -> Res<()> {
         .build_with_target_rate(250.0);
 
     let mut running = true;
-    let mut dimensions = glutin_wrapper_context
+    let mut dimensions = window_layer_context
         .window()
         .inner_size();
 
@@ -57,12 +54,12 @@ fn main() -> Res<()> {
 
     {
         events.run(move |event, _, control_flow| {
-            use glutin_wrapper::event::*;
+            use window_layer::event::*;
 
             match event {
                 Event::MainEventsCleared if running => {
                     // Queue a RedrawRequested event so we draw the updated view quickly.
-                    glutin_wrapper_context.window().request_redraw();
+                    window_layer_context.window().request_redraw();
                 }
                 Event::RedrawRequested(_) => {
                     frame_count = frame_count.wrapping_add(1);
@@ -86,7 +83,7 @@ fn main() -> Res<()> {
                                 max: ssxy!(width, height),
                             },
                             colour: text_colour,
-                            ..d!()
+                            ..<_>::default()
                         },
                         layout: TextLayout::Unbounded,
                     }));
@@ -94,7 +91,7 @@ fn main() -> Res<()> {
                     gl_layer::render(&mut gl_state, &text_and_rects, width as _, height as _)
                         .expect("gl_layer::render didn't work");
 
-                    glutin_wrapper_context
+                    window_layer_context
                         .swap_buffers()
                         .expect("swap_buffers didn't work!");
                     loop_helper.loop_sleep();
@@ -113,7 +110,7 @@ fn main() -> Res<()> {
 
                             let _ = gl_layer::cleanup(&gl_state);
 
-                            *control_flow = glutin_wrapper::event_loop::ControlFlow::Exit;
+                            *control_flow = window_layer::event_loop::ControlFlow::Exit;
                         }};
                     }
 
@@ -126,7 +123,7 @@ fn main() -> Res<()> {
                             hidpi_factor = scale_factor;
                         }
                         WindowEvent::Resized(size) => {
-                            glutin_wrapper_context.resize(size);
+                            window_layer_context.resize(size);
                             dimensions = size;
                             gl_layer::set_dimensions(
                                 &mut gl_state,

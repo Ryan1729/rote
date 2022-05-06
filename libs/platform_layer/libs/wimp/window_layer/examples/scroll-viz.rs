@@ -1,10 +1,7 @@
 /// This is an example/test that is used to ensure that the scroll related stuff exported by
 /// `platform_types` works properly. This visual stuff is eaiser to verify visually.
-use gl_layer::{TextLayout, TextOrRect, TextSpec, VisualSpec};
-use glutin_wrapper::{Api, GlProfile, GlRequest};
-use platform_types::{screen_positioning::*, *};
-use shared::Res;
-use macros::{d};
+use window_layer::{TextLayout, TextOrRect, TextSpec, VisualSpec, Api, GlProfile, GlRequest};
+use platform_types::screen_positioning::*;
 
 fn main() -> Res<()> {
     let events = glutin_wrapper::event_loop::EventLoop::new();
@@ -62,14 +59,14 @@ fn main() -> Res<()> {
     let move_amount: abs::Length = abs::Length::from(16.0);
 
     // User manipulable state
-    let mut scroll_xy: ScrollXY = d!();
+    let mut scroll_xy: ScrollXY = <_>::default();
     let mut text_box_xywh = tbxywh!(
         dimensions.width as f32 * 0.25,
         dimensions.height as f32 * 0.25,
         dimensions.width as f32 / 2.0,
         dimensions.height as f32 / 2.0
     );
-    let mut cursor_xy: TextSpaceXY = d!();
+    let mut cursor_xy: TextSpaceXY = <_>::default();
     let mut visibility_attempt = VisibilityAttemptResult::Succeeded;
     let mut attempt_count = 0;
 
@@ -105,7 +102,7 @@ fn main() -> Res<()> {
                         text_space_to_screen_space(
                             scroll_xy,
                             text_box_xywh.xy,
-                            d!()
+                            <_>::default()
                         ),
                         text_box_xywh.wh
                     ).into();
@@ -168,7 +165,7 @@ fn main() -> Res<()> {
                                 max: ssxy!(dimensions.width as f32, dimensions.height as f32),
                             },
                             colour: text_colour,
-                            ..d!()
+                            ..<_>::default()
                         },
                         layout: TextLayout::Unbounded,
                     }));

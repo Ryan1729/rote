@@ -16,11 +16,6 @@ platform_types = { path = "../../../../platform_types" }
 macros = { path = "../../../../macros" }
 shared = { path = "../shared" }
 
-[dev-dependencies]
-# for the example(s)
-glutin_wrapper = { path = "../glutin_wrapper" }
-spin_sleep = "0.3"
-
 [features]
 default = []
 invariant-checking = []

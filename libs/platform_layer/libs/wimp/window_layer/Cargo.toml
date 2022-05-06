@@ -10,6 +10,11 @@ path = "src/window_layer.rs"
 gl_layer = { path = "../gl_layer" }
 glutin_wrapper = { path = "../glutin_wrapper" }
 
+[dev-dependencies]
+# for the example(s)
+spin_sleep = "0.3"
+platform_types = { path = "../../../../platform_types" }
+
 [features]
 default = []
 time-render = ["gl_layer/time-render"]

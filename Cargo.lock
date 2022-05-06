@@ -916,13 +916,11 @@ name = "gl_layer"
 version = "0.1.0"
 dependencies = [
  "gl_layer_types",
- "glutin_wrapper",
  "macros",
  "open_gl",
  "perf_viz",
  "platform_types",
  "shared",
- "spin_sleep",
  "text_rendering",
 ]
 
@@ -2753,6 +2751,8 @@ version = "0.1.0"
 dependencies = [
  "gl_layer",
  "glutin_wrapper",
+ "platform_types",
+ "spin_sleep",
 ]
 
 [[package]]

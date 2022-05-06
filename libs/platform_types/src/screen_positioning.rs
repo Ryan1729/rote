@@ -519,7 +519,7 @@ macro_rules! hash_to_bits {
 hash_to_bits!(for Apron : s, state in bottom_h_ratio, top_h_ratio, right_w_ratio, left_w_ratio);
 
 #[macro_export]
-macro_rules! apron {
+macro_rules! _apron {
     (
         $left_w_ratio: literal $(,)?
         $right_w_ratio: literal $(,)?
@@ -590,6 +590,7 @@ macro_rules! apron {
     };
     () => { Apron::default() }
 }
+pub use _apron as apron;
 
 impl MapElements<F32_0_1> for Apron {
     fn map_elements(&self, mapper: &impl Fn(F32_0_1) -> F32_0_1) -> Self {
