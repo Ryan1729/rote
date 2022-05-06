@@ -104,9 +104,8 @@ fn main() -> Res<()> {
         )?;
     
         type LoadFnOutput = *const core::ffi::c_void;
-        type LoadFn = dyn Fn(*const u8) -> LoadFnOutput;
         
-        let load_fn: &LoadFn = &|symbol| {
+        let load_fn: &dyn Fn(*const u8) -> LoadFnOutput = &|symbol| {
             // SAFETY: The underlying library has promised to pass us a nul 
             // terminated pointer.
             let cstr = unsafe { std::ffi::CStr::from_ptr(symbol as _) };
