@@ -2,41 +2,33 @@
 /// allows, actually work. This might seems like a silly thing to have to test, but GPUs and OpenGL
 /// are silly things. Besides, this should be a nice simple example of how to setup a simple
 /// scene with this crate.
-use gl_layer::{TextLayout, TextOrRect, TextSpec, VisualSpec};
-use glutin_wrapper::{Api, GlProfile, GlRequest};
+use window_layer::{TextLayout, TextOrRect, TextSpec, VisualSpec, Api, GlProfile, GlRequest};
 use platform_types::*;
-use shared::Res;
 
-macro_rules! d {
-    () => {
-        Default::default()
-    };
-}
-
-fn main() -> Res<()> {
-    let events = glutin_wrapper::event_loop::EventLoop::new();
-    let glutin_wrapper_context = glutin_wrapper::ContextBuilder::new()
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let events = window_layer::event_loop::EventLoop::new();
+    let window_layer_context = window_layer::ContextBuilder::new()
         .with_gl_profile(GlProfile::Core)
         //As of now we only need 3.3 for GL_TIME_ELAPSED. Otherwise we could use 3.2.
         .with_gl(GlRequest::Specific(Api::OpenGl, (3, 3)))
         .with_srgb(true)
         .with_depth_buffer(24)
         .build_windowed(
-            glutin_wrapper::window::WindowBuilder::new()
+            window_layer::window::WindowBuilder::new()
                 .with_inner_size(
-                    glutin_wrapper::dpi::Size::Logical(glutin_wrapper::dpi::LogicalSize::new(683.0, 393.0))
+                    window_layer::dpi::Size::Logical(window_layer::dpi::LogicalSize::new(683.0, 393.0))
                 )
                 .with_title("z-layers example"),
             &events,
         )?;
-    let glutin_wrapper_context = unsafe { glutin_wrapper_context.make_current().map_err(|(_, e)| e)? };
+    let window_layer_context = unsafe { window_layer_context.make_current().map_err(|(_, e)| e)? };
 
     const TEXT_SIZE: f32 = 128.0;
     const HELP_SIZE: f32 = 16.0;
 
     let mut hidpi_factor = 1.0;
 
-    let mut gl_state = gl_layer::init(
+    let mut gl_state = window_layer::init(
         hidpi_factor as f32,
         [0.3, 0.3, 0.3, 1.0],
         &|symbol| {
@@ -46,14 +38,14 @@ fn main() -> Res<()> {
     
             let s = cstr.to_str().unwrap();
     
-            glutin_wrapper_context.get_proc_address(s) as _
+            window_layer_context.get_proc_address(s) as _
         },
     )?;
 
     let mut loop_helper = spin_sleep::LoopHelper::builder().build_with_target_rate(250.0);
 
     let mut running = true;
-    let mut dimensions = glutin_wrapper_context
+    let mut dimensions = window_layer_context
         .window()
         .inner_size();
 
@@ -68,7 +60,7 @@ fn main() -> Res<()> {
 
     {
         events.run(move |event, _, control_flow| {
-            use glutin_wrapper::event::*;
+            use window_layer::event::*;
 
             macro_rules! advance {
                 () => {
@@ -87,7 +79,7 @@ fn main() -> Res<()> {
             match event {
                 Event::MainEventsCleared if running => {
                     // Queue a RedrawRequested event so we draw the updated view quickly.
-                    glutin_wrapper_context.window().request_redraw();
+                    window_layer_context.window().request_redraw();
                 }
                 Event::RedrawRequested(_) => {
                     if auto_advance {
@@ -199,7 +191,7 @@ fn main() -> Res<()> {
                         second_z,
                         second_z_sub_1,
                         second_z_sub_2,
-                        (gl_layer::z_to_f32(first_z), gl_layer::z_to_f32(second_z))
+                        (window_layer::z_to_f32(first_z), window_layer::z_to_f32(second_z))
                     );
                     text_and_rects.push(TextOrRect::Text(TextSpec {
                         text: &z_text,
@@ -210,7 +202,7 @@ fn main() -> Res<()> {
                                 max: ssxy!(x4, y1),
                             },
                             colour: text_colour,
-                            ..d!()
+                            ..<_>::default()
                         },
                         layout: TextLayout::Unbounded,
                     }));
@@ -224,15 +216,15 @@ fn main() -> Res<()> {
                                 max: ssxy!(x1, y4),
                             },
                             colour: text_colour,
-                            ..d!()
+                            ..<_>::default()
                         },
                         layout: TextLayout::Unbounded,
                     }));
 
-                    gl_layer::render(&mut gl_state, &text_and_rects, width as _, height as _)
-                        .expect("gl_layer::render didn't work");
+                    window_layer::render(&mut gl_state, &text_and_rects, width as _, height as _)
+                        .expect("window_layer::render didn't work");
 
-                    glutin_wrapper_context
+                    window_layer_context
                         .swap_buffers()
                         .expect("swap_buffers didn't work!");
 
@@ -250,9 +242,9 @@ fn main() -> Res<()> {
                         () => {{
                             running = false;
 
-                            let _ = gl_layer::cleanup(&gl_state);
+                            let _ = window_layer::cleanup(&gl_state);
 
-                            *control_flow = glutin_wrapper::event_loop::ControlFlow::Exit;
+                            *control_flow = window_layer::event_loop::ControlFlow::Exit;
                         }};
                     }
 
@@ -265,9 +257,9 @@ fn main() -> Res<()> {
                             hidpi_factor = scale_factor;
                         }
                         WindowEvent::Resized(size) => {
-                            glutin_wrapper_context.resize(size);
+                            window_layer_context.resize(size);
                             dimensions = size;
-                            gl_layer::set_dimensions(
+                            window_layer::set_dimensions(
                                 &mut gl_state,
                                 hidpi_factor as _,
                                 (dimensions.width as _, dimensions.height as _),
