@@ -103,19 +103,28 @@ fn main() -> Res<()> {
             hidpi_factor as f32
         )?;
     
+        type LoadFnOutput = *const core::ffi::c_void;
+        type LoadFn = dyn Fn(*const u8) -> LoadFnOutput;
+        
+        let load_fn: &LoadFn = &|symbol| {
+            // SAFETY: The underlying library has promised to pass us a nul 
+            // terminated pointer.
+            let cstr = unsafe { std::ffi::CStr::from_ptr(symbol as _) };
+    
+            let s = cstr.to_str().unwrap();
+    
+            glutin_wrapper_context.get_proc_address(s) as _
+        };
+
+        // Load the OpenGL function pointers
+        // SAFETY: The passed load_fn must always return accurate function pointer 
+        // values, or null on failure.
+        unsafe { open_gl::load_global_gl(load_fn); }
+
         State {
-            open_gl: open_gl::State::new(
+            open_gl: open_gl::State::new_already_loaded(
                 [0.3, 0.3, 0.3, 1.0],
                 text_rendering_state.texture_dimensions(),
-                &|symbol| {
-                    // SAFETY: The underlying library has promised to pass us a nul 
-                    // terminated pointer.
-                    let cstr = unsafe { std::ffi::CStr::from_ptr(symbol as _) };
-            
-                    let s = cstr.to_str().unwrap();
-            
-                    glutin_wrapper_context.get_proc_address(s) as _
-                }
             )?,
             text_rendering: text_rendering_state,
         }

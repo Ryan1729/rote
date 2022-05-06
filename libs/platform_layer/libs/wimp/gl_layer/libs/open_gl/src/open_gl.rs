@@ -3,6 +3,7 @@
 use std::{ffi::CString, mem, ptr, str};
 
 use gl33::{*, global_loader::*};
+pub use gl33::global_loader::load_global_gl;
 
 use gl_layer_types::{DEPTH_MIN, DEPTH_MAX, Vertex, VERTEX_SPEC, Res};
 
@@ -56,6 +57,16 @@ impl State {
         // TODO make this fn unsafe making that responsibilty clear to the caller.
         unsafe { load_global_gl(load_fn); }
     
+        Self::new_already_loaded(
+            clear_colour,
+            (width, height),
+        )
+    }
+
+    pub fn new_already_loaded(
+        clear_colour: [f32; 4], // the clear colour currently flashes up on exit.
+        (width, height): (u32, u32),
+    ) -> Res<Self> {
         // Create GLSL shaders
         let vs = compile_shader(include_str!("shader/vert.glsl"), GL_VERTEX_SHADER)?;
         let fs = compile_shader(include_str!("shader/frag.glsl"), GL_FRAGMENT_SHADER)?;
