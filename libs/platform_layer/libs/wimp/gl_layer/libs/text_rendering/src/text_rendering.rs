@@ -161,13 +161,13 @@ mod text_layouts {
             // TODO test this.
             let to_skip = -(caret.1 - min_y) / line_height;
             let to_skip: u16 = if to_skip > 65535.0 {
-                65535.0
+                65535
             } else if to_skip >= 0.0 {
-                to_skip
+                to_skip as u16
             } else {
                 // NaN ends up here
-                0.0
-            } as u16;
+                0
+            };
 
             if to_skip > 0 {
                 caret.1 += f32::from(to_skip) * line_height;

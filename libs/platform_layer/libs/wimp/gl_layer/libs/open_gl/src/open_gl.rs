@@ -46,10 +46,10 @@ impl State {
     /// Returns an `Err` if the shaders cannot be compiled or linked.
     // `CString::new("out_color")?` won't return an `Err`, since "out_color" has no
     // nul char.
-    pub fn new<'load_fn>(
+    pub fn new(
         clear_colour: [f32; 4], // the clear colour currently flashes up on exit.
         (width, height): (u32, u32),
-        load_fn: &LoadFn<'load_fn>,
+        load_fn: &LoadFn<'_>,
     ) -> Res<Self> {
         // Load the OpenGL function pointers
         // SAFETY: The passed load_fn must always return accurate function pointer 
@@ -78,7 +78,7 @@ impl State {
     
             // Enable depth testing so we can occlude things while sending them down in any order
             glEnable(GL_DEPTH_TEST);
-            glDepthRange(DEPTH_MIN as _, DEPTH_MAX as _);
+            glDepthRange(DEPTH_MIN.into(), DEPTH_MAX.into());
     
             {
                 // We don't care if GL constants wrap. They only care about the bits.

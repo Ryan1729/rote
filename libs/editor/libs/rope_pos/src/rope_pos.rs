@@ -111,8 +111,7 @@ pub use absolute_char_offset_range::AbsoluteCharOffsetRange;
 pub fn in_cursor_bounds<P: Borrow<Position>>(rope: &Rope, position: P) -> bool {
     let p = position.borrow();
     final_non_newline_offset_for_line(rope, LineIndex(p.line))
-        .map(|l| p.offset <= l)
-        .unwrap_or(false)
+        .map_or(false, |l| p.offset <= l)
 }
 
 #[must_use]
