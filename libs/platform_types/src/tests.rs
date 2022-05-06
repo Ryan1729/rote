@@ -29,7 +29,7 @@ use crate::screen_positioning::{
     TextSpaceXY,
     VisibilityAttemptResult,
 };
-use crate::{apron, pos, slxy, tbsxy, tbxy, tbxywh, tsxy};
+use crate::{pos, screen_positioning::{apron, slxy, tbsxy, tbxy, tbxywh, tsxy}};
 use proptest::{prop_compose, proptest, num::f32, strategy::Strategy};
 
 prop_compose! {
