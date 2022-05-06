@@ -1,18 +1,10 @@
 /// This is an example/test that was originally made wit hthe intent of demonstrating a bug where
 /// the colour of text, when changed from one colour to another and back again, would get stuck,
 /// and it would not change when it was expected to.
-use gl_layer::{ColouredText, TextLayout, TextOrRect, TextSpec, VisualSpec};
-use glutin_wrapper::{Api, GlProfile, GlRequest};
+use window_layer::{ColouredText, TextLayout, TextOrRect, TextSpec, VisualSpec, Api, GlProfile, GlRequest};
 use platform_types::*;
-use shared::Res;
 
-macro_rules! d {
-    () => {
-        Default::default()
-    };
-}
-
-fn main() -> Res<()> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let events = glutin_wrapper::event_loop::EventLoop::new();
     let glutin_wrapper_context = glutin_wrapper::ContextBuilder::new()
         .with_gl_profile(GlProfile::Core)
@@ -250,7 +242,7 @@ fn main() -> Res<()> {
                                 max: ssxy!(x4, y1),
                             },
                             colour: text_colour,
-                            ..d!()
+                            ..<_>::default()
                         },
                         layout: TextLayout::Unbounded,
                     }));
@@ -264,7 +256,7 @@ fn main() -> Res<()> {
                                 max: ssxy!(x1, y4),
                             },
                             colour: text_colour,
-                            ..d!()
+                            ..<_>::default()
                         },
                         layout: TextLayout::Unbounded,
                     }));
