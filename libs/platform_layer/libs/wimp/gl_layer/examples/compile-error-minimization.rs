@@ -18,27 +18,6 @@ macros::fmt_debug!(for State<'_>: _ in "{}", "State");
 
 pub use text_rendering::FONT_LICENSE;
 
-pub fn init<'load_fn>(
-    hidpi_factor: f32,
-    clear_colour: [f32; 4], // the clear colour currently flashes up on exit.
-    load_fn: &'load_fn open_gl::LoadFn,
-) -> Res<State<'static>> {
-    let text_rendering_state = text_rendering::new(
-        hidpi_factor
-    )?;
-
-    Ok(
-        State {
-            open_gl: open_gl::State::new(
-                clear_colour,
-                text_rendering_state.texture_dimensions(),
-                load_fn
-            )?,
-            text_rendering: text_rendering_state,
-        }
-    )
-}
-
 pub fn get_char_dims(state: &State, text_sizes: &[f32]) -> Vec<CharDim> {
     state.text_rendering.get_char_dims(text_sizes)
 }
@@ -119,19 +98,28 @@ fn main() -> Res<()> {
 
     let mut hidpi_factor = 1.0;
 
-    let mut gl_state = init(
-        hidpi_factor as f32,
-        [0.3, 0.3, 0.3, 1.0],
-        &|symbol| {
-            // SAFETY: The underlying library has promised to pass us a nul 
-            // terminated pointer.
-            let cstr = unsafe { std::ffi::CStr::from_ptr(symbol as _) };
+    let mut gl_state = {
+        let text_rendering_state = text_rendering::new(
+            hidpi_factor as f32
+        )?;
     
-            let s = cstr.to_str().unwrap();
-    
-            glutin_wrapper_context.get_proc_address(s) as _
-        },
-    )?;
+        State {
+            open_gl: open_gl::State::new(
+                [0.3, 0.3, 0.3, 1.0],
+                text_rendering_state.texture_dimensions(),
+                &|symbol| {
+                    // SAFETY: The underlying library has promised to pass us a nul 
+                    // terminated pointer.
+                    let cstr = unsafe { std::ffi::CStr::from_ptr(symbol as _) };
+            
+                    let s = cstr.to_str().unwrap();
+            
+                    glutin_wrapper_context.get_proc_address(s) as _
+                }
+            )?,
+            text_rendering: text_rendering_state,
+        }
+    };
 
     let mut loop_helper = spin_sleep::LoopHelper::builder()
         .report_interval_s(1./500.)
