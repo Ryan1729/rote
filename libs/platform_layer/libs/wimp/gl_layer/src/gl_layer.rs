@@ -23,7 +23,7 @@ pub fn init<'load_fn>(
 
     Ok(
         State {
-            open_gl: open_gl:: State::new(
+            open_gl: open_gl::State::new(
                 clear_colour,
                 text_rendering_state.texture_dimensions(),
                 load_fn
