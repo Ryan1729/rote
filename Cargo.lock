@@ -2087,7 +2087,7 @@ dependencies = [
 
 [[package]]
 name = "rote"
-version = "0.2.279"
+version = "0.2.280"
 dependencies = [
  "editor",
  "lazy_static 1.4.0",

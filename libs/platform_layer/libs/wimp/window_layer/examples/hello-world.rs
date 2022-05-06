@@ -25,7 +25,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut hidpi_factor = 1.0;
 
-    let mut gl_state = gl_layer::init(
+    let mut window_state = window_layer::init(
         hidpi_factor as f32,
         [0.3, 0.3, 0.3, 1.0],
         &|symbol| {
@@ -88,8 +88,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         layout: TextLayout::Unbounded,
                     }));
 
-                    gl_layer::render(&mut gl_state, &text_and_rects, width as _, height as _)
-                        .expect("gl_layer::render didn't work");
+                    window_layer::render(&mut window_state, &text_and_rects, width as _, height as _)
+                        .expect("window_layer::render didn't work");
 
                     window_layer_context
                         .swap_buffers()
@@ -108,7 +108,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         () => {{
                             running = false;
 
-                            let _ = gl_layer::cleanup(&gl_state);
+                            let _ = window_layer::cleanup(&window_state);
 
                             *control_flow = window_layer::event_loop::ControlFlow::Exit;
                         }};
@@ -125,8 +125,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         WindowEvent::Resized(size) => {
                             window_layer_context.resize(size);
                             dimensions = size;
-                            gl_layer::set_dimensions(
-                                &mut gl_state,
+                            window_layer::set_dimensions(
+                                &mut window_state,
                                 hidpi_factor as _,
                                 (dimensions.width as _, dimensions.height as _),
                             );
