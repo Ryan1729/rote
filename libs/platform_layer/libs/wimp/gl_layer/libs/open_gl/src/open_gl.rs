@@ -381,7 +381,8 @@ fn compile_shader(src: &str, ty: GLenum) -> Res<GLuint> {
         shader = glCreateShader(ty);
         // Attempt to compile the shader
         let c_str = CString::new(src.as_bytes())?;
-        glShaderSource(shader, 1, (&c_str.as_ptr()).cast(), ptr::null());
+        let string_array: [*const u8; 1] = [(&c_str.as_ptr()).cast()];
+        glShaderSource(shader, 1, string_array.as_ptr(), ptr::null());
         glCompileShader(shader);
 
         // Get the compile status

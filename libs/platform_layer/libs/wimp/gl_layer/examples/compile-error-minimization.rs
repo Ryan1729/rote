@@ -120,11 +120,12 @@ fn main() -> Res<()> {
         // values, or null on failure.
         unsafe { open_gl::load_global_gl(load_fn); }
 
+        let open_gl = open_gl::State::new_already_loaded(
+            [0.3, 0.3, 0.3, 1.0],
+            text_rendering_state.texture_dimensions(),
+        )?;
         State {
-            open_gl: open_gl::State::new_already_loaded(
-                [0.3, 0.3, 0.3, 1.0],
-                text_rendering_state.texture_dimensions(),
-            )?,
+            open_gl,
             text_rendering: text_rendering_state,
         }
     };
