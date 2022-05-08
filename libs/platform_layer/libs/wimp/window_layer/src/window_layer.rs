@@ -20,7 +20,6 @@ pub use glutin_wrapper::{
         UserAttentionType,
     },
     event::{
-        KeyboardInput,
         MouseButton,
         MouseScrollDelta,
         WindowEvent,
@@ -41,10 +40,15 @@ use glutin_wrapper::event_loop::ControlFlow;
 pub type RGBA = [f32; 4];
 
 /// The clear colour currently flashes up on exit.
-pub fn init<'font, CustomEvent>(
+pub fn init<'font, 'title, CustomEvent>(
     hidpi_factor: f32,
     clear: RGBA,
-) -> Result<State<'font, CustomEvent>, Box<dyn std::error::Error>> {
+    title: Option<&'title str>,
+) -> Result<State<'font, CustomEvent>, Box<dyn std::error::Error>>
+// See https://github.com/rust-lang/rust/issues/80618 for description of this one 
+// weird trick.
+where 'title: 'title
+{
     use glutin_wrapper::{
         Api,
         GlProfile,
@@ -57,6 +61,14 @@ pub fn init<'font, CustomEvent>(
     let events: EventLoop<CustomEvent> = EventLoop::with_user_event();
     let event_proxy = events.create_proxy();
 
+    let mut window_builder = WindowBuilder::new()
+        .with_inner_size(
+            dpi::Size::Logical(dpi::LogicalSize::new(683.0, 393.0))
+        );
+    if let Some(title) = title {
+        window_builder = window_builder.with_title(title);
+    }
+
     let context = ContextBuilder::new()
         .with_gl_profile(GlProfile::Core)
         //As of now we only need 3.3 for GL_TIME_ELAPSED. Otherwise we could use 3.2.
@@ -64,11 +76,7 @@ pub fn init<'font, CustomEvent>(
         .with_srgb(true)
         .with_depth_buffer(24)
         .build_windowed(
-            WindowBuilder::new()
-                .with_inner_size(
-                    dpi::Size::Logical(dpi::LogicalSize::new(683.0, 393.0))
-                )
-                .with_title("hello-world"),
+            window_builder,
             &events,
         )?;
     let context = 
@@ -120,13 +128,23 @@ pub struct State<'font, CustomEvent: 'static = ()> {
     unsend: PhantomUnsend,
 }
 
-#[non_exhaustive]
-pub enum Event {
-    RedrawRequested,
-    KeyboardInput {
-        state: ElementState,
-        keycode: KeyCode,
-    },
+#[derive(Clone, Copy, Debug)]
+pub struct Dimensions {
+    pub width: u32,
+    pub height: u32,
+}
+
+pub fn dimensions(
+    state: &State,
+) -> Dimensions {
+    let dimensions = state.context
+        .window()
+        .inner_size();
+
+    Dimensions {
+        width: dimensions.width as _,
+        height: dimensions.height as _,
+    }
 }
 
 pub fn render(
@@ -169,7 +187,7 @@ pub struct Fns<'running, 'gl, 'font, 'control, 'loop_helper, 'context> {
     running: &'running mut bool,
     gl_state: &'gl mut gl_layer::State<'font>,
     control_flow: &'control mut ControlFlow,
-    dimensions: (u32, u32),
+    dimensions: Dimensions,
     loop_helper: &'loop_helper mut spin_sleep::LoopHelper,
     context: &'context Context,
 }
@@ -183,7 +201,7 @@ impl Fns<'_, '_, '_, '_, '_, '_> {
         *self.control_flow = ControlFlow::Exit;
     }
 
-    pub fn dimensions(&self) -> (u32, u32) {
+    pub fn dimensions(&self) -> Dimensions {
         self.dimensions
     }
 
@@ -198,6 +216,20 @@ impl Fns<'_, '_, '_, '_, '_, '_> {
             text_or_rects,
         )
     }
+}
+
+#[non_exhaustive]
+pub enum Event {
+    RedrawRequested,
+    KeyboardInput {
+        state: ElementState,
+        keycode: KeyCode,
+        modifiers: ModifiersState,
+    },
+    MouseWheel {
+        delta: MouseScrollDelta,
+        modifiers: ModifiersState,
+    },
 }
 
 impl <A> State<'static, A> {
@@ -221,9 +253,14 @@ impl <A> State<'static, A> {
             .window()
             .inner_size();
 
+        let mut modifiers = ModifiersState::default();
+
         events.run(move |event, _, control_flow| {
             use glutin_wrapper::{
-                event::Event as GWEvent,
+                event::{
+                    KeyboardInput,
+                    Event as GWEvent
+                },
             };
 
             macro_rules! fns {
@@ -232,7 +269,10 @@ impl <A> State<'static, A> {
                         running: &mut running,
                         gl_state: &mut gl_state,
                         control_flow,
-                        dimensions: (dimensions.width, dimensions.height),
+                        dimensions: Dimensions {
+                            width: dimensions.width,
+                            height: dimensions.height,
+                        },
                         loop_helper: &mut loop_helper,
                         context: &context,
                     }
@@ -285,6 +325,9 @@ impl <A> State<'static, A> {
                                 (dimensions.width as _, dimensions.height as _),
                             );
                         }
+                        WindowEvent::ModifiersChanged(modifiers_state) => {
+                            modifiers = modifiers_state;
+                        }
                         WindowEvent::KeyboardInput {
                             input:
                                 KeyboardInput {
@@ -293,14 +336,22 @@ impl <A> State<'static, A> {
                                     ..
                                 },
                             ..
-                        }=> {
+                        } => {
                             pass_down!(
-                                Event::KeyboardInput { state, keycode }
+                                Event::KeyboardInput { state, keycode, modifiers }
                             );
-                        }
+                        },
+                        WindowEvent::MouseWheel {
+                            delta,
+                            ..
+                        } => {
+                            pass_down!(
+                                Event::MouseWheel { delta, modifiers }
+                            );
+                        },
                         _ => {}
                     }
-                }
+                },
                 _ => {}
             }
         })

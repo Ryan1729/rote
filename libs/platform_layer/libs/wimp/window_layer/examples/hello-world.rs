@@ -9,9 +9,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut frame_count: u32 = 0;
 
-    let mut window_state = window_layer::init::<'_, ()>(
+    let window_state = window_layer::init::<'_, '_, ()>(
         1.,
         [0.3, 0.3, 0.3, 1.0],
+        "hello-world".into()
     )?;
 
     window_state.run(move |event, mut fns| {
@@ -20,8 +21,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Event::RedrawRequested => {
                 frame_count = frame_count.wrapping_add(1);
                 let dimensions = fns.dimensions();
-                let width = dimensions.0 as f32;
-                let height = dimensions.1 as f32;
+                let width = dimensions.width as f32;
+                let height = dimensions.height as f32;
 
                 let mut text_and_rects = Vec::with_capacity(16);
 
@@ -46,7 +47,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }));
 
                 fns.render(&text_and_rects)
-                    .expect("window_layer::render didn't work");
+                    .expect("fns.render didn't work");
             }
             Event::KeyboardInput {
                 state: ElementState::Pressed,
