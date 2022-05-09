@@ -2,52 +2,12 @@
 /// allows, actually work. This might seems like a silly thing to have to test, but GPUs and OpenGL
 /// are silly things. Besides, this should be a nice simple example of how to setup a simple
 /// scene with this crate.
-use window_layer::{TextLayout, TextOrRect, TextSpec, VisualSpec, Api, GlProfile, GlRequest};
+use window_layer::{TextLayout, TextOrRect, TextSpec, VisualSpec};
 use platform_types::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let events = window_layer::EventLoop::new();
-    let window_layer_context = window_layer::ContextBuilder::new()
-        .with_gl_profile(GlProfile::Core)
-        //As of now we only need 3.3 for GL_TIME_ELAPSED. Otherwise we could use 3.2.
-        .with_gl(GlRequest::Specific(Api::OpenGl, (3, 3)))
-        .with_srgb(true)
-        .with_depth_buffer(24)
-        .build_windowed(
-            window_layer::WindowBuilder::new()
-                .with_inner_size(
-                    window_layer::dpi::Size::Logical(window_layer::dpi::LogicalSize::new(683.0, 393.0))
-                )
-                .with_title("z-layers example"),
-            &events,
-        )?;
-    let window_layer_context = unsafe { window_layer_context.make_current().map_err(|(_, e)| e)? };
-
     const TEXT_SIZE: f32 = 128.0;
     const HELP_SIZE: f32 = 16.0;
-
-    let mut hidpi_factor = 1.0;
-
-    let mut gl_state = window_layer::init(
-        hidpi_factor as f32,
-        [0.3, 0.3, 0.3, 1.0],
-        &|symbol| {
-            // SAFETY: The underlying library has promised to pass us a nul 
-            // terminated pointer.
-            let cstr = unsafe { std::ffi::CStr::from_ptr(symbol as _) };
-    
-            let s = cstr.to_str().unwrap();
-    
-            window_layer_context.get_proc_address(s) as _
-        },
-    )?;
-
-    let mut loop_helper = spin_sleep::LoopHelper::builder().build_with_target_rate(250.0);
-
-    let mut running = true;
-    let mut dimensions = window_layer_context
-        .window()
-        .inner_size();
 
     let first_colour = [0.0, 0.6, 0.6, 1.0];
     let text_colour = [0.9, 0.9, 0.9, 1.0];
@@ -58,8 +18,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut second_z: u16 = first_z + 1;
     let mut auto_advance = false;
 
-    events.run(move |event, _, control_flow| {
-        use window_layer::{Event, WindowEvent, ElementState, StartCause, KeyboardInput, VirtualKeyCode};
+    let window_state = window_layer::init::<'_, '_, ()>(
+        1.,
+        [0.3, 0.3, 0.3, 1.0],
+        "z-layers example".into()
+    )?;
+
+    window_state.run(move |event, mut fns| {
+        use window_layer::{Event, ElementState, KeyCode};
 
         macro_rules! advance {
             () => {
@@ -68,23 +34,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
         }
 
-        // As of this writing, issues on https://github.com/rust-windowing/winit ,
-        // specifically #1124 and #883, suggest that the it is up in the air as to
-        // whether the modifiers field on some of the matches below will actually
-        // be eventually removed or not. So, in the meantime, I choose the path
-        // that is the least work right now, since it seems unlikely for the amount
-        // of work it will be later to grow significantly. Time will tell.
-        #[allow(deprecated)]
         match event {
-            Event::MainEventsCleared if running => {
-                // Queue a RedrawRequested event so we draw the updated view quickly.
-                window_layer_context.window().request_redraw();
-            }
-            Event::RedrawRequested(_) => {
+            Event::RedrawRequested => {
                 if auto_advance {
                     advance!();
                 }
-
+                let dimensions = fns.dimensions();
                 let width = dimensions.width as f32;
                 let height = dimensions.height as f32;
 
@@ -220,123 +175,68 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     layout: TextLayout::Unbounded,
                 }));
 
-                window_layer::render(&mut gl_state, &text_and_rects, width as _, height as _)
-                    .expect("window_layer::render didn't work");
-
-                window_layer_context
-                    .swap_buffers()
-                    .expect("swap_buffers didn't work!");
-
-                loop_helper.loop_sleep();
-
-                // We want to track the time that the message loop takes too!
-                loop_helper.loop_start();
+                fns.render(&text_and_rects)
+                    .expect("fns.render didn't work");
             }
-            Event::NewEvents(StartCause::Init) => {
-                // At least try to measure the first frame accurately
-                loop_helper.loop_start();
-            }
-            Event::WindowEvent { event, .. } => {
-                macro_rules! quit {
-                    () => {{
-                        running = false;
-
-                        let _ = window_layer::cleanup(&gl_state);
-
-                        *control_flow = window_layer::ControlFlow::Exit;
-                    }};
-                }
-
-                match event {
-                    WindowEvent::CloseRequested => quit!(),
-                    WindowEvent::ScaleFactorChanged {
-                        scale_factor,
-                        ..
-                    } => {
-                        hidpi_factor = scale_factor;
+            Event::KeyboardInput {
+                state: ElementState::Pressed,
+                keycode,
+                modifiers,
+            } if modifiers.shift() => {
+                const SHIFT: u16 = 65535 / 16;
+                match keycode {
+                    KeyCode::Escape => {
+                        fns.quit();
                     }
-                    WindowEvent::Resized(size) => {
-                        window_layer_context.resize(size);
-                        dimensions = size;
-                        window_layer::set_dimensions(
-                            &mut gl_state,
-                            hidpi_factor as _,
-                            (dimensions.width as _, dimensions.height as _),
-                        );
+                    KeyCode::Up => {
+                        second_z = second_z.saturating_sub(SHIFT);
                     }
-                    WindowEvent::KeyboardInput {
-                        input:
-                            KeyboardInput {
-                                state: ElementState::Pressed,
-                                virtual_keycode: Some(keypress),
-                                modifiers,
-                                ..
-                            },
-                        ..
-                    } if modifiers.shift() => {
-                        const SHIFT: u16 = 65535 / 16;
-                        match keypress {
-                            VirtualKeyCode::Escape => {
-                                quit!();
-                            }
-                            VirtualKeyCode::Up => {
-                                second_z = second_z.saturating_sub(SHIFT);
-                            }
-                            VirtualKeyCode::Down => {
-                                second_z = second_z.saturating_add(SHIFT);
-                            }
-                            VirtualKeyCode::Left => {
-                                first_z = first_z.saturating_sub(SHIFT);
-                            }
-                            VirtualKeyCode::Right => {
-                                first_z = first_z.saturating_add(SHIFT);
-                            }
-                            _ => {}
-                        }
-                    },
-                    WindowEvent::KeyboardInput {
-                        input:
-                            KeyboardInput {
-                                state: ElementState::Pressed,
-                                virtual_keycode: Some(keypress),
-                                modifiers,
-                                ..
-                            },
-                        ..
-                    } if !modifiers.shift() => {
-                        match keypress {
-                            VirtualKeyCode::Escape => {
-                                quit!();
-                            }
-                            VirtualKeyCode::Up => {
-                                second_z = second_z.saturating_sub(1);
-                            }
-                            VirtualKeyCode::Down => {
-                                second_z = second_z.saturating_add(1);
-                            }
-                            VirtualKeyCode::Left => {
-                                first_z = first_z.saturating_sub(1);
-                            }
-                            VirtualKeyCode::Right => {
-                                first_z = first_z.saturating_add(1);
-                            }
-                            // AKA plus
-                            VirtualKeyCode::Equals => {
-                                advance!();
-                            }
-                            VirtualKeyCode::Minus => {
-                                second_z = second_z.saturating_sub(1);
-                                first_z = first_z.saturating_sub(1);
-                            }
-                            VirtualKeyCode::Space => {
-                                auto_advance = !auto_advance;
-                            }
-                            _ => (),
-                        };
-                        println!("{:?}", (first_z, second_z));
+                    KeyCode::Down => {
+                        second_z = second_z.saturating_add(SHIFT);
+                    }
+                    KeyCode::Left => {
+                        first_z = first_z.saturating_sub(SHIFT);
+                    }
+                    KeyCode::Right => {
+                        first_z = first_z.saturating_add(SHIFT);
                     }
                     _ => {}
                 }
+            },
+            Event::KeyboardInput {
+                state: ElementState::Pressed,
+                keycode,
+                modifiers,
+            } if !modifiers.shift() => {
+                match keycode {
+                    KeyCode::Escape => {
+                        fns.quit();
+                    }
+                    KeyCode::Up => {
+                        second_z = second_z.saturating_sub(1);
+                    }
+                    KeyCode::Down => {
+                        second_z = second_z.saturating_add(1);
+                    }
+                    KeyCode::Left => {
+                        first_z = first_z.saturating_sub(1);
+                    }
+                    KeyCode::Right => {
+                        first_z = first_z.saturating_add(1);
+                    }
+                    // AKA plus
+                    KeyCode::Equals => {
+                        advance!();
+                    }
+                    KeyCode::Minus => {
+                        second_z = second_z.saturating_sub(1);
+                        first_z = first_z.saturating_sub(1);
+                    }
+                    KeyCode::Space => {
+                        auto_advance = !auto_advance;
+                    }
+                    _ => (),
+                };
             }
             _ => {}
         }
