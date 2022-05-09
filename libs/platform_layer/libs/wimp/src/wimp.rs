@@ -5,7 +5,6 @@
 
 #![deny(unused)]
 
-use window_layer::{dpi::PhysicalSize, Api, GlProfile, GlRequest};
 use std::{
     collections::VecDeque,
     path::{PathBuf},
@@ -301,53 +300,17 @@ pub fn run(
     let edited_files_dir_buf = data_dir.join("edited_files_v1/");
     let edited_files_index_path_buf = data_dir.join("edited_files_v1_index.txt");
 
-    use window_layer::EventLoop;
-    let events: EventLoop<CustomEvent> = window_layer::EventLoop::with_user_event();
-    let event_proxy = events.create_proxy();
-
-    let glutin_context = window_layer::ContextBuilder::new()
-        .with_gl_profile(GlProfile::Core)
-        //As of now we only need 3.3 for GL_TIME_ELAPSED. Otherwise we could use 3.2.
-        .with_gl(GlRequest::Specific(Api::OpenGl, (3, 3)))
-        .with_srgb(true)
-        .with_depth_buffer(24)
-        .build_windowed(
-            window_layer::WindowBuilder::new()
-                .with_inner_size(
-                    window_layer::dpi::Size::Logical(window_layer::dpi::LogicalSize::new(1024.0, 576.0))
-                 )
-                .with_title(title),
-            &events,
-        )?;
-    let glutin_context = unsafe { glutin_context.make_current() }.map_err(|(_, e)| e)?;
-
     const HIDPI_INCREMENT_BY: DpiFactor = 1./12.;
     const HIDPI_MINIMUM: DpiFactor = HIDPI_INCREMENT_BY;
     const HIDPI_DEFAULT: DpiFactor = 1.;
-    
-    let window_state = {
-        let load_fn = |symbol| {
-            // SAFETY: The underlying library has promised to pass us a nul 
-            // terminated pointer.
-            let cstr = unsafe { std::ffi::CStr::from_ptr(symbol as _) };
-    
-            let s = cstr.to_str().unwrap();
-    
-            glutin_context.get_proc_address(&s)
-        };
-    
-        window_layer::init(
-            hidpi_factor_override.unwrap_or(HIDPI_DEFAULT) as f32,
-            wimp_render::TEXT_BACKGROUND_COLOUR,
-            &load_fn,
-        )?
-    };
 
-    const TARGET_RATE: f64 = 128.0; //250.0);
+    let window_state = window_layer::init::<'_, '_, CustomEvent>(
+        hidpi_factor_override.unwrap_or(HIDPI_DEFAULT) as f32,
+        wimp_render::TEXT_BACKGROUND_COLOUR,
+        title.into(),
+    )?;
 
-    let mut loop_helper = spin_sleep::LoopHelper::builder().build_with_target_rate(TARGET_RATE);
-
-    let mut running = true;
+    let event_proxy = window_layer::create_event_proxy(&window_state);
 
     let startup_description = format!(
         "data_dir: \n{}", data_dir.to_string_lossy()
@@ -547,11 +510,11 @@ pub fn run(
     };
 
     fn get_physical_wh(
-        size: PhysicalSize<u32>
+        dimensions: window_layer::Dimensions
     ) -> ScreenSpaceWH {
         sswh!{
-            size.width as f32,
-            size.height as f32,
+            dimensions.width as f32,
+            dimensions.height as f32,
         }
     }
 
@@ -595,9 +558,7 @@ pub fn run(
         let dimensions = Dimensions {
             font: wimp_render::get_font_info(&char_dims),
             window: get_physical_wh(
-                glutin_context
-                    .window()
-                    .inner_size()
+                window_state.dimensions()
             ),
             hidpi_factor_override,
             current_hidpi_factor,
@@ -1358,8 +1319,10 @@ pub fn run(
             }
         }
 
-        events.run(move |event, _, control_flow| {
-            use window_layer::{Event, WindowEvent, ElementState, StartCause, KeyboardInput, MouseScrollDelta, VirtualKeyCode};
+        const TARGET_RATE: f64 = 128.0; //250.0);
+
+        window_state.run(TARGET_RATE.into(), move |event, mut fns| {
+            use window_layer::{Event, ElementState, MouseScrollDelta, KeyCode};
 
             match event {
                 Event::WindowEvent { event, .. } => {
@@ -1369,7 +1332,6 @@ pub fn run(
                             call_u_and_r!(Input::Quit);
                             let _hope_it_gets_there = edited_files_in_sink.send(EditedFilesThread::Quit);
                             let _hope_it_gets_there = path_mailbox_in_sink.send(PathMailboxThread::Quit);
-                            running = false;
 
                             // If we got here, we assume that we've sent a Quit input to the editor thread so it will stop.
                             match editor_join_handle.take() {
@@ -1389,9 +1351,7 @@ pub fn run(
 
                             perf_viz::output!();
 
-                            let _ = window_layer::cleanup(&r_s.window_state);
-
-                            *control_flow = window_layer::ControlFlow::Exit;
+                            fns.quit();
                         }};
                     }
 
@@ -1421,13 +1381,6 @@ pub fn run(
                         }
                     }
 
-                    // As of this writing, issues on https://github.com/rust-windowing/winit ,
-                    // specifically #1124 and #883, suggest that the it is up in the air as to
-                    // whether the modifiers field on some of the matches below will actually
-                    // be eventually removed or not. So, in the meantime, I choose the path
-                    // that is the least work right now, since it seems unlikely for the amount
-                    // of work it will be later to grow significantly. Time will tell.
-                    #[allow(deprecated)]
                     match event {
                         WindowEvent::CloseRequested => quit!(),
                         WindowEvent::ScaleFactorChanged {

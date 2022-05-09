@@ -3,7 +3,7 @@
 /// are silly things. Besides, this should be a nice simple example of how to setup a simple
 /// scene with this crate.
 use window_layer::{TextLayout, TextOrRect, TextSpec, VisualSpec};
-use platform_types::*;
+use screen_space::{ScreenSpaceRect, ScreenSpaceXY, ssxy};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     const TEXT_SIZE: f32 = 128.0;
@@ -24,7 +24,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "z-layers example".into()
     )?;
 
-    window_state.run(move |event, mut fns| {
+    window_state.run(None, move |event, mut fns| {
         use window_layer::{Event, ElementState, KeyCode};
 
         macro_rules! advance {

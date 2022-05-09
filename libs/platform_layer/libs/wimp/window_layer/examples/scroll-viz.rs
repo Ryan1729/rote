@@ -43,7 +43,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
     };
 
-    window_state.run(move |event, mut fns| {
+    window_state.run(None, move |event, mut fns| {
         use window_layer::{Event, ElementState, KeyCode, MouseScrollDelta};
         match event {
             Event::RedrawRequested => {

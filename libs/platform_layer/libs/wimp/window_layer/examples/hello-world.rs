@@ -1,7 +1,7 @@
 /// This is meant to be the smallest reasonable example, and perhaps a template
 /// for other examples/applications.
 use window_layer::{TextLayout, TextOrRect, TextSpec, VisualSpec};
-use platform_types::screen_positioning::*;
+use screen_space::{ScreenSpaceRect, ScreenSpaceXY, ssxy};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     const TEXT_SIZE: f32 = 16.0;
@@ -15,7 +15,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "hello-world".into()
     )?;
 
-    window_state.run(move |event, mut fns| {
+    window_state.run(None, move |event, mut fns| {
         use window_layer::{Event, ElementState, KeyCode};
         match event {
             Event::RedrawRequested => {

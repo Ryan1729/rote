@@ -2,7 +2,7 @@
 /// the colour of text, when changed from one colour to another and back again, would get stuck,
 /// and it would not change when it was expected to.
 use window_layer::{ColouredText, TextLayout, TextOrRect, TextSpec, VisualSpec};
-use platform_types::*;
+use screen_space::{ScreenSpaceRect, ScreenSpaceXY, ssxy};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     const TEXT_SIZE: f32 = 128.0;
@@ -63,7 +63,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "text-colour-changes example".into()
     )?;
 
-    window_state.run(move |event, mut fns| {
+    window_state.run(None, move |event, mut fns| {
         use window_layer::{Event, ElementState, KeyCode};
 
         macro_rules! advance {

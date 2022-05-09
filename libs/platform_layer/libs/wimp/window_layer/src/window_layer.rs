@@ -4,8 +4,9 @@ use std::sync::MutexGuard;
 /// See https://stackoverflow.com/a/71945606
 type PhantomUnsend = PhantomData<MutexGuard<'static, ()>>;
 
+pub use screen_space::CharDim;
+
 pub use gl_layer::{
-    get_char_dims,
     z_to_f32,
     FONT_LICENSE,
     ColouredText,
@@ -27,7 +28,6 @@ pub use glutin_wrapper::{
         StartCause,
         ModifiersState,
         VirtualKeyCode as KeyCode,
-        VirtualKeyCode,
     },
     event_loop::{
         EventLoop,
@@ -59,7 +59,6 @@ where 'title: 'title
     };
 
     let events: EventLoop<CustomEvent> = EventLoop::with_user_event();
-    let event_proxy = events.create_proxy();
 
     let mut window_builder = WindowBuilder::new()
         .with_inner_size(
@@ -109,7 +108,6 @@ where 'title: 'title
     Ok(State {
         gl_state,
         events,
-        event_proxy,
         context,
         unsend: PhantomData,
     })
@@ -121,11 +119,23 @@ type Context = glutin_wrapper::ContextWrapper<glutin_wrapper::PossiblyCurrent, g
 pub struct State<'font, CustomEvent: 'static = ()> {
     gl_state: gl_layer::State<'font>,
     events: EventLoop<CustomEvent>,
-    event_proxy: EventLoopProxy<CustomEvent>,
     context: Context,
     // See note inside `init` for why we make this struct `!Send` by including this 
     // field.
     unsend: PhantomUnsend,
+}
+
+pub fn get_char_dims<CustomEvent>(
+    state: &State<'_, CustomEvent>,
+    text_sizes: &[f32],
+) -> Vec<CharDim> {
+    gl_layer::get_char_dims(&state.gl_state, text_sizes)
+}
+
+pub fn create_event_proxy<CustomEvent>(
+    state: &State<'_, CustomEvent>,
+) -> EventLoopProxy<CustomEvent> {
+    state.events.create_proxy()
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -233,20 +243,19 @@ pub enum Event {
 }
 
 impl <A> State<'static, A> {
-    pub fn run<F>(self, mut event_handler: F) -> !
+    pub fn run<F>(self, target_rate: Option<f32>, mut event_handler: F) -> !
     where
         F: 'static + FnMut(Event, Fns),
     {
         let mut gl_state = self.gl_state;
-        let mut events = self.events;
-        let mut event_proxy = self.event_proxy;
+        let events = self.events;
         let context = self.context;
 
         let mut hidpi_factor = 1.0;
     
         let mut loop_helper = spin_sleep::LoopHelper::builder()
             .report_interval_s(1./500.)
-            .build_with_target_rate(250.0);
+            .build_with_target_rate(target_rate.unwrap_or(250.0));
     
         let mut running = true;
         let mut dimensions = context
