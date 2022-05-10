@@ -46,6 +46,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     window_state.run(None, move |event, mut fns| {
         use window_layer::{Event, ElementState, KeyCode, MouseScrollDelta};
         match event {
+            Event::CloseRequested => fns.quit(),
             Event::RedrawRequested => {
                 let dimensions = fns.dimensions();
 

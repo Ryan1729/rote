@@ -230,6 +230,7 @@ impl Fns<'_, '_, '_, '_, '_, '_> {
 
 #[non_exhaustive]
 pub enum Event {
+    CloseRequested,
     RedrawRequested,
     KeyboardInput {
         state: ElementState,
@@ -318,7 +319,11 @@ impl <A> State<'static, A> {
                 }
                 GWEvent::WindowEvent { event, .. } => {
                     match event {
-                        WindowEvent::CloseRequested => fns!().quit(),
+                        WindowEvent::CloseRequested => {
+                            pass_down!(
+                                Event::CloseRequested
+                            );
+                        },
                         WindowEvent::ScaleFactorChanged {
                             scale_factor,
                             ..

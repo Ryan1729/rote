@@ -18,6 +18,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     window_state.run(None, move |event, mut fns| {
         use window_layer::{Event, ElementState, KeyCode};
         match event {
+            Event::CloseRequested => fns.quit(),
             Event::RedrawRequested => {
                 frame_count = frame_count.wrapping_add(1);
                 let dimensions = fns.dimensions();

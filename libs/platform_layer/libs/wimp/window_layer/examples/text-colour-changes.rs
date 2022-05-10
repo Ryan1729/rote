@@ -75,6 +75,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         match event {
+            Event::CloseRequested => fns.quit(),
             Event::RedrawRequested => {
                 if auto_advance {
                     advance!();
