@@ -1324,95 +1324,93 @@ pub fn run(
         window_state.run(TARGET_RATE.into(), move |event, mut fns| {
             use window_layer::{Event, ElementState, MouseScrollDelta, KeyCode};
 
+            macro_rules! quit {
+                () => {{
+                    perf_viz::end_record!("main loop");
+                    call_u_and_r!(Input::Quit);
+                    let _hope_it_gets_there = edited_files_in_sink.send(EditedFilesThread::Quit);
+                    let _hope_it_gets_there = path_mailbox_in_sink.send(PathMailboxThread::Quit);
+
+                    // If we got here, we assume that we've sent a Quit input to the editor thread so it will stop.
+                    match editor_join_handle.take() {
+                        Some(j_h) => j_h.join().expect("Could not join editor thread!"),
+                        None => {}
+                    };
+
+                    match edited_files_join_handle.take() {
+                        Some(j_h) => j_h.join().expect("Could not join edited_files thread!"),
+                        None => {}
+                    };
+
+                    match path_mailbox_join_handle.take() {
+                        Some(j_h) => j_h.join().expect("Could not join path_mailbox thread!"),
+                        None => {}
+                    };
+
+                    perf_viz::output!();
+
+                    fns.quit();
+                }};
+            }
+
+            if cfg!(feature = "print-raw-input") {
+                if let Event::KeyboardInput { keycode, state, .. } = event {
+                    println!(
+                        "{:?}",
+                        (
+                            keycode,
+                            state
+                        )
+                    );
+                }
+            }
+
+            macro_rules! text_box_xy {
+                () => {{
+                    let view = &v_s!().view;
+                    let xy = wimp_render::get_current_buffer_rect(
+                        view.current_buffer_kind(),
+                        view.menu_mode(),
+                        v_s!().dimensions
+                    )
+                    .xy;
+
+                    screen_to_text_box(v_s!().ui.mouse_pos, xy)
+                }};
+            }
+
             match event {
-                Event::WindowEvent { event, .. } => {
-                    macro_rules! quit {
-                        () => {{
-                            perf_viz::end_record!("main loop");
-                            call_u_and_r!(Input::Quit);
-                            let _hope_it_gets_there = edited_files_in_sink.send(EditedFilesThread::Quit);
-                            let _hope_it_gets_there = path_mailbox_in_sink.send(PathMailboxThread::Quit);
+                Event::CloseRequested => quit!(),
+                Event::ScaleFactorChanged {
+                    scale_factor,
+                    ..
+                } => {
+                    set_current_hidpi_factor(
+                        &mut r_s,
+                        scale_factor,
+                    );
+                }
+                Event::Resized(size) => {
+                    let hidpi_factor = get_hidpi_factor!();
 
-                            // If we got here, we assume that we've sent a Quit input to the editor thread so it will stop.
-                            match editor_join_handle.take() {
-                                Some(j_h) => j_h.join().expect("Could not join editor thread!"),
-                                None => {}
-                            };
+                    glutin_context.resize(size);
+                    v_s!().dimensions.window = get_physical_wh(
+                        size
+                    );
 
-                            match edited_files_join_handle.take() {
-                                Some(j_h) => j_h.join().expect("Could not join edited_files thread!"),
-                                None => {}
-                            };
-
-                            match path_mailbox_join_handle.take() {
-                                Some(j_h) => j_h.join().expect("Could not join path_mailbox thread!"),
-                                None => {}
-                            };
-
-                            perf_viz::output!();
-
-                            fns.quit();
-                        }};
-                    }
-
-                    macro_rules! text_box_xy {
-                        () => {{
-                            let view = &v_s!().view;
-                            let xy = wimp_render::get_current_buffer_rect(
-                                view.current_buffer_kind(),
-                                view.menu_mode(),
-                                v_s!().dimensions
-                            )
-                            .xy;
-
-                            screen_to_text_box(v_s!().ui.mouse_pos, xy)
-                        }};
-                    }
-
-                    if cfg!(feature = "print-raw-input") {
-                        if let WindowEvent::KeyboardInput { ref input, .. } = event {
-                            println!(
-                                "{:?}",
-                                (
-                                    input.virtual_keycode.unwrap_or(VirtualKeyCode::WebStop),
-                                    input.state
-                                )
-                            );
-                        }
-                    }
-
-                    match event {
-                        WindowEvent::CloseRequested => quit!(),
-                        WindowEvent::ScaleFactorChanged {
-                            scale_factor,
-                            ..
-                        } => {
-                            set_current_hidpi_factor(
-                                &mut r_s,
-                                scale_factor,
-                            );
-                        }
-                        WindowEvent::Resized(size) => {
-                            let hidpi_factor = get_hidpi_factor!();
-
-                            glutin_context.resize(size);
-                            v_s!().dimensions.window = get_physical_wh(
-                                size
-                            );
-
-                            call_u_and_r!(
-                                get_non_font_size_dependents_input!(
-                                    v_s!().view.menu_mode(),
-                                    v_s!().dimensions
-                                )
-                            );
-                            let sswh!(w, h) = v_s!().dimensions.window;
-                            window_layer::set_dimensions(
-                                &mut r_s.window_state,
-                                hidpi_factor as _,
-                                (w.get() as _, h.get() as _),
-                            );
-                        }
+                    call_u_and_r!(
+                        get_non_font_size_dependents_input!(
+                            v_s!().view.menu_mode(),
+                            v_s!().dimensions
+                        )
+                    );
+                    let sswh!(w, h) = v_s!().dimensions.window;
+                    window_layer::set_dimensions(
+                        &mut r_s.window_state,
+                        hidpi_factor as _,
+                        (w.get() as _, h.get() as _),
+                    );
+                }
                         WindowEvent::Focused(is_focused) => {
                             dbg!("set to ", is_focused);
                             v_s!().ui.window_is_focused = is_focused;
