@@ -79,7 +79,7 @@ pub use clipboard_layer::{get_clipboard, Clipboard, ClipboardProvider};
 // including the window, from which the sizes of several UI elements are derived.
 #[derive(Clone, Copy, Debug)]
 pub struct Dimensions {
-    pub window: ScreenSpaceWH,
+    pub window: window_layer::Dimensions,
     pub hidpi_factor_override: Option<DpiFactor>,
     pub current_hidpi_factor: DpiFactor,
     pub font: FontInfo,
@@ -88,7 +88,10 @@ pub struct Dimensions {
 impl Default for Dimensions {
     fn default() -> Self {
         Self {
-            window: sswh!(1024.0, 768.0),
+            window: window_layer::Dimensions{
+                width: 1024,
+                height: 768,
+            },
             hidpi_factor_override: None,
             current_hidpi_factor: 1.,
             font: d!(),
@@ -487,7 +490,8 @@ pub struct ViewRunState {
     pub stats: Stats,
 }
 
-pub type DpiFactor = f64;
+// TODO use the ScaleFactor name everywhere.
+pub type DpiFactor = window_layer::ScaleFactor;
 
 /// State owned by the `run` function, which can be uniquely borrowed by other functions called inside `run`.
 #[derive(Debug)]

@@ -557,9 +557,7 @@ pub fn run(
 
         let dimensions = Dimensions {
             font: wimp_render::get_font_info(&char_dims),
-            window: get_physical_wh(
-                window_state.dimensions()
-            ),
+            window: window_state.dimensions(),
             hidpi_factor_override,
             current_hidpi_factor,
         };
@@ -855,6 +853,7 @@ pub fn run(
 
         fn set_current_hidpi_factor(
             r_s: &mut RunState,
+            fns: &window_layer::Fns,
             mut factor: DpiFactor
         ) {
             if !(factor >= HIDPI_MINIMUM) {
@@ -867,17 +866,12 @@ pub fn run(
             v_s!(r_s).debug_menu_state.last_hidpi_factors.rotate_right(1);
             v_s!(r_s).debug_menu_state.last_hidpi_factors[0] = hidpi_factor;
 
-            let sswh!(w, h) = v_s!(r_s).dimensions.window;
-
-            let window_state = &mut r_s.window_state;
-            window_layer::set_dimensions(
-                window_state,
+            fns.set_dimensions(
                 hidpi_factor as _,
-                (w.get() as _, h.get() as _),
+                v_s!(r_s).dimensions.window,
             );
 
-            let char_dims = window_layer::get_char_dims(
-                window_state,
+            let char_dims = fns.get_char_dims(
                 &wimp_render::TEXT_SIZES,
             );
 
@@ -1220,13 +1214,13 @@ pub fn run(
                 call_u_and_r!(state, Input::PreviousLanguage);
             }]
             [CTRL | ALT, Equals /* AKA unshifted Plus */, "Increase DPI factor.", r_s {
-                set_current_hidpi_factor(r_s, get_hidpi_factor!(r_s) + HIDPI_INCREMENT_BY);
+                set_current_hidpi_factor(r_s, fns, get_hidpi_factor!(r_s) + HIDPI_INCREMENT_BY);
             }]
             [CTRL | ALT, Minus, "Decrease DPI factor.", r_s {
-                set_current_hidpi_factor(r_s, get_hidpi_factor!(r_s) - HIDPI_INCREMENT_BY);
+                set_current_hidpi_factor(r_s, fns, get_hidpi_factor!(r_s) - HIDPI_INCREMENT_BY);
             }]
             [CTRL | ALT, Key1, "Reset DPI factor.", r_s {
-                set_current_hidpi_factor(r_s, HIDPI_DEFAULT);
+                set_current_hidpi_factor(r_s, fns, HIDPI_DEFAULT);
             }]
             [CTRL | SHIFT, Home, "Move all cursors to buffer start.", state {
                 call_u_and_r!(state, Input::ExtendSelectionForAllCursors(
@@ -1381,34 +1375,21 @@ pub fn run(
 
             match event {
                 Event::CloseRequested => quit!(),
-                Event::ScaleFactorChanged {
-                    scale_factor,
-                    ..
-                } => {
+                Event::ScaleFactorChanged(scale_factor) => {
                     set_current_hidpi_factor(
                         &mut r_s,
+                        &fns,
                         scale_factor,
                     );
                 }
-                Event::Resized(size) => {
-                    let hidpi_factor = get_hidpi_factor!();
-
-                    glutin_context.resize(size);
-                    v_s!().dimensions.window = get_physical_wh(
-                        size
-                    );
+                Event::Resized => {
+                    v_s!().dimensions.window = fns.dimensions();
 
                     call_u_and_r!(
                         get_non_font_size_dependents_input!(
                             v_s!().view.menu_mode(),
                             v_s!().dimensions
                         )
-                    );
-                    let sswh!(w, h) = v_s!().dimensions.window;
-                    window_layer::set_dimensions(
-                        &mut r_s.window_state,
-                        hidpi_factor as _,
-                        (w.get() as _, h.get() as _),
                     );
                 }
                         WindowEvent::Focused(is_focused) => {

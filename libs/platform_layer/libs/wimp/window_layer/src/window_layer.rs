@@ -41,7 +41,7 @@ pub type RGBA = [f32; 4];
 
 /// The clear colour currently flashes up on exit.
 pub fn init<'font, 'title, CustomEvent>(
-    hidpi_factor: f32,
+    hidpi_factor: ScaleFactor,
     clear: RGBA,
     title: Option<&'title str>,
 ) -> Result<State<'font, CustomEvent>, Box<dyn std::error::Error>>
@@ -192,6 +192,10 @@ fn render_inner<'font>(
 
 pub type RatePerSecond = spin_sleep::RatePerSecond;
 
+/// AKA `hidpi_factor`/`DpiFactor`. The text rendering library only accepts `f32`,
+/// so there's not much point in higher precision elsewhere.
+pub type ScaleFactor = f32;
+
 #[derive(Debug)]
 pub struct Fns<'running, 'gl, 'font, 'control, 'loop_helper, 'context> {
     running: &'running mut bool,
@@ -226,6 +230,18 @@ impl Fns<'_, '_, '_, '_, '_, '_> {
             text_or_rects,
         )
     }
+
+    pub fn set_dimensions(
+        &mut self,
+        scale_factor: ScaleFactor,
+        dimensions: Dimensions
+    ) {
+        gl_layer::set_dimensions(
+            &mut self.gl_state,
+            scale_factor,
+            (dimensions.width as _, dimensions.height as _),
+        );
+    }
 }
 
 #[non_exhaustive]
@@ -241,6 +257,8 @@ pub enum Event {
         delta: MouseScrollDelta,
         modifiers: ModifiersState,
     },
+    ScaleFactorChanged(ScaleFactor),
+    Resized,
 }
 
 impl <A> State<'static, A> {
@@ -328,7 +346,16 @@ impl <A> State<'static, A> {
                             scale_factor,
                             ..
                         } => {
-                            hidpi_factor = scale_factor;
+                            hidpi_factor = scale_factor as _;
+                            gl_layer::set_dimensions(
+                                &mut gl_state,
+                                hidpi_factor,
+                                (dimensions.width as _, dimensions.height as _),
+                            );
+
+                            pass_down!(
+                                Event::ScaleFactorChanged(hidpi_factor)
+                            );
                         }
                         WindowEvent::Resized(size) => {
                             context.resize(size);
@@ -337,6 +364,10 @@ impl <A> State<'static, A> {
                                 &mut gl_state,
                                 hidpi_factor as _,
                                 (dimensions.width as _, dimensions.height as _),
+                            );
+
+                            pass_down!(
+                                Event::Resized
                             );
                         }
                         WindowEvent::ModifiersChanged(modifiers_state) => {
