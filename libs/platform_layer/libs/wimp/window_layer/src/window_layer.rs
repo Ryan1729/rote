@@ -265,7 +265,8 @@ pub enum Event {
     },
     ScaleFactorChanged(ScaleFactor),
     Resized,
-    Focused(bool)
+    Focused(bool),
+    ReceivedCharacter(char),
 }
 
 impl <A> State<'static, A> {
@@ -344,11 +345,9 @@ impl <A> State<'static, A> {
                 }
                 GWEvent::WindowEvent { event, .. } => {
                     match event {
-                        WindowEvent::CloseRequested => {
-                            pass_down!(
-                                Event::CloseRequested
-                            );
-                        },
+                        WindowEvent::CloseRequested => pass_down!(
+                            Event::CloseRequested
+                        ),
                         WindowEvent::ScaleFactorChanged {
                             scale_factor,
                             ..
@@ -364,11 +363,12 @@ impl <A> State<'static, A> {
                                 Event::ScaleFactorChanged(hidpi_factor)
                             );
                         }
-                        WindowEvent::Focused(is_focused) => {
-                            pass_down!(
-                                Event::Focused(is_focused)
-                            );
-                        }
+                        WindowEvent::Focused(is_focused) => pass_down!(
+                            Event::Focused(is_focused)
+                        ),
+                        WindowEvent::ReceivedCharacter(c) => pass_down!(
+                            Event::ReceivedCharacter(c)
+                        ),
                         WindowEvent::Resized(size) => {
                             context.resize(size);
                             dimensions = size;
@@ -393,19 +393,15 @@ impl <A> State<'static, A> {
                                     ..
                                 },
                             ..
-                        } => {
-                            pass_down!(
-                                Event::KeyboardInput { state, keycode, modifiers }
-                            );
-                        },
+                        } => pass_down!(
+                            Event::KeyboardInput { state, keycode, modifiers }
+                        ),
                         WindowEvent::MouseWheel {
                             delta,
                             ..
-                        } => {
-                            pass_down!(
-                                Event::MouseWheel { delta, modifiers }
-                            );
-                        },
+                        } => pass_down!(
+                            Event::MouseWheel { delta, modifiers }
+                        ),
                         _ => {}
                     }
                 },

@@ -1399,47 +1399,47 @@ pub fn run(
                         );
                     }
                 }
-                        WindowEvent::ReceivedCharacter(mut c) => {
-                            if c != '\u{1}'     // "start of heading" (sent with Ctrl-a)
-                             && c != '\u{3}'    // "end of text" (sent with Ctrl-c)
-                             && c != '\u{4}'    // "end of transmission" (sent with Ctrl-d)
-                             && c != '\u{6}'    // "acknowledge" (sent with Ctrl-f)
-                             && c != '\u{7}'    // bell (sent with Ctrl-g)
-                             && c != '\u{8}'    // backspace (sent with Ctrl-h)
-                             && c != '\u{9}'    // horizontal tab (sent with Ctrl-i)
-                             && c != '\u{c}'    // new page/form feed (sent with Ctrl-l)
-                             && c != '\u{f}'    // "shift in" AKA use black ink apparently, (sent with Ctrl-o)
-                             && c != '\u{10}'   // "data link escape" AKA interpret the following as raw data, (sent with Ctrl-p)
-                             && c != '\u{13}'   // "device control 3" (sent with Ctrl-s)
-                             && c != '\u{14}'   // "device control 4" (sent with Ctrl-t)
-                             && c != '\u{16}'   // "synchronous idle" (sent with Ctrl-v)
-                             && c != '\u{17}'   // "end of transmission block" (sent with Ctrl-w)
-                             && c != '\u{18}'   // "cancel" (sent with Ctrl-x)
-                             && c != '\u{19}'   // "end of medium" (sent with Ctrl-y)
-                             && c != '\u{1a}'   // "substitute" (sent with Ctrl-z)
-                             && c != '\u{1b}'   // escape
-                             && c != '\u{7f}'   // delete
-                            {
-                                if c == '\r' {
-                                    c = '\n';
-                                }
+                Event::ReceivedCharacter(mut c) => {
+                    if c != '\u{1}'    // "start of heading" (sent with Ctrl-a)
+                    && c != '\u{3}'    // "end of text" (sent with Ctrl-c)
+                    && c != '\u{4}'    // "end of transmission" (sent with Ctrl-d)
+                    && c != '\u{6}'    // "acknowledge" (sent with Ctrl-f)
+                    && c != '\u{7}'    // bell (sent with Ctrl-g)
+                    && c != '\u{8}'    // backspace (sent with Ctrl-h)
+                    && c != '\u{9}'    // horizontal tab (sent with Ctrl-i)
+                    && c != '\u{c}'    // new page/form feed (sent with Ctrl-l)
+                    && c != '\u{f}'    // "shift in" AKA use black ink apparently, (sent with Ctrl-o)
+                    && c != '\u{10}'   // "data link escape" AKA interpret the following as raw data, (sent with Ctrl-p)
+                    && c != '\u{13}'   // "device control 3" (sent with Ctrl-s)
+                    && c != '\u{14}'   // "device control 4" (sent with Ctrl-t)
+                    && c != '\u{16}'   // "synchronous idle" (sent with Ctrl-v)
+                    && c != '\u{17}'   // "end of transmission block" (sent with Ctrl-w)
+                    && c != '\u{18}'   // "cancel" (sent with Ctrl-x)
+                    && c != '\u{19}'   // "end of medium" (sent with Ctrl-y)
+                    && c != '\u{1a}'   // "substitute" (sent with Ctrl-z)
+                    && c != '\u{1b}'   // escape
+                    && c != '\u{7f}'   // delete
+                    {
+                        if c == '\r' {
+                            c = '\n';
+                        }
 
-                                if c == '\n' {
-                                    use BufferIdKind::*;
-                                    match v_s!().view.current_buffer_kind() {
-                                        None => {}
-                                        Text| FileSwitcher => {
-                                            call_u_and_r!(Input::Insert(c));
-                                        }
-                                        Find | Replace | GoToPosition => {
-                                            call_u_and_r!(Input::SubmitForm);
-                                        }
-                                    }
-                                } else {
+                        if c == '\n' {
+                            use BufferIdKind::*;
+                            match v_s!().view.current_buffer_kind() {
+                                None => {}
+                                Text| FileSwitcher => {
                                     call_u_and_r!(Input::Insert(c));
                                 }
+                                Find | Replace | GoToPosition => {
+                                    call_u_and_r!(Input::SubmitForm);
+                                }
                             }
+                        } else {
+                            call_u_and_r!(Input::Insert(c));
                         }
+                    }
+                }
                         WindowEvent::KeyboardInput {
                             input:
                                 KeyboardInput {
