@@ -37,7 +37,7 @@ pub fn get_char_dims(state: &State, text_sizes: &[f32]) -> Vec<CharDim> {
     state.text_rendering.get_char_dims(text_sizes)
 }
 
-pub fn set_dimensions(state: &mut State, hidpi_factor: f32, wh: (i32, i32)) {
+pub fn set_dimensions(state: &mut State, hidpi_factor: f32, wh: (u32, u32)) {
     state.open_gl.set_dimensions(wh);
 
     state.text_rendering.set_dimensions(hidpi_factor);

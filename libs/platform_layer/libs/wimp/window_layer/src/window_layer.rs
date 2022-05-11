@@ -4,12 +4,14 @@ use std::sync::MutexGuard;
 /// See https://stackoverflow.com/a/71945606
 type PhantomUnsend = PhantomData<MutexGuard<'static, ()>>;
 
-pub use screen_space::CharDim;
+pub use screen_space::{abs, CharDim};
 
 pub use gl_layer::{
     z_to_f32,
+    DEFAULT_Z,
     FONT_LICENSE,
     ColouredText,
+    MulticolourTextSpec,
     TextLayout,
     TextOrRect,
     TextSpec,
@@ -140,8 +142,8 @@ pub fn create_event_proxy<CustomEvent>(
 
 #[derive(Clone, Copy, Debug)]
 pub struct Dimensions {
-    pub width: u32,
-    pub height: u32,
+    pub width: abs::Length,
+    pub height: abs::Length,
 }
 
 pub fn dimensions(
@@ -152,8 +154,8 @@ pub fn dimensions(
         .inner_size();
 
     Dimensions {
-        width: dimensions.width as _,
-        height: dimensions.height as _,
+        width: abs::Length::from(dimensions.width),
+        height: abs::Length::from(dimensions.height),
     }
 }
 

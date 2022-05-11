@@ -1,5 +1,5 @@
 #![deny(bindings_with_variant_name, unused)]
-use gl_layer::{ColouredText, MulticolourTextSpec, TextLayout, TextOrRect, TextSpec, VisualSpec};
+use window_layer::{ColouredText, MulticolourTextSpec, TextLayout, TextOrRect, TextSpec, VisualSpec};
 use wimp_types::{CommandsMap, LocalMenuView, View, WimpMenuMode, MenuView, WimpMenuView, FindReplaceMode, ui_id, ui, ui::{ButtonState}, BufferStatus, CommandKey, Dimensions, RunConsts, ViewRunState, ui::{ListSelection, ListSelectionWindowSize}, command_keys};
 use macros::{c, d, dbg, invariant_assert, u};
 use platform_types::{
@@ -208,7 +208,7 @@ pub fn view<'view>(
 
     let dimensions = *dimensions;
 
-    let sswh!(width, height) = dimensions.window;
+    let window_layer::Dimensions{ width, height } = dimensions.window;
     let FontInfo {
         ref text_char_dim,
         ref status_char_dim,
@@ -720,7 +720,7 @@ fn rect_command_button (
     command_key: &CommandKey,
 ) {
     let Dimensions {
-        window: sswh!(_w, height),
+        window: window_layer::Dimensions{ height, .. },
         ..
     } = pen.dimensions;
     let SpacingAllSpec { margin, .. } = get_menu_spacing(height);
@@ -1263,7 +1263,7 @@ pub fn make_active_tab_visible<'view>(
     view: &'view View,
     Dimensions {
         font: FontInfo { tab_char_dim, .. },
-        window: sswh!(window_width, _h),
+        window: window_layer::Dimensions{ width: window_width, .. },
         ..
     }: Dimensions,
 ) -> Option<()> {
@@ -1346,7 +1346,7 @@ d!(for OutlineButtonSpec<'static>: OutlineButtonSpec {
     layout: TextLayout::Unbounded,
     margin: d!(),
     rect: d!(),
-    z: gl_layer::DEFAULT_Z,
+    z: window_layer::DEFAULT_Z,
     underline: d!(),
     overline: d!(),
 });
@@ -1719,7 +1719,7 @@ pub fn get_find_replace_info(
             find_replace_char_dim,
             ..
         },
-        window: sswh!(width, height),
+        window: window_layer::Dimensions { width, height },
         ..
     }: Dimensions,
 ) -> FindReplaceInfo {
@@ -1805,7 +1805,7 @@ pub fn get_file_switcher_info(
             tab_char_dim,
             ..
         },
-        window: sswh!(width, height),
+        window: window_layer::Dimensions{ width, height },
         ..
     }: Dimensions,
 ) -> FileSwitcherInfo {
@@ -1873,7 +1873,7 @@ pub fn get_go_to_position_info(
             tab_char_dim,
             ..
         },
-        window: sswh!(width, height),
+        window: window_layer::Dimensions{ width, height },
         ..
     }: Dimensions,
 ) -> GoToPositionInfo {
@@ -1940,7 +1940,7 @@ pub fn get_command_menu_info(
             tab_char_dim,
             ..
         },
-        window: sswh!(width, _),
+        window: window_layer::Dimensions{ width, .. },
         ..
     } = dimensions;
 
@@ -1996,7 +1996,7 @@ pub fn get_debug_menu_info(
             tab_char_dim,
             ..
         },
-        window: sswh!(width, _),
+        window: window_layer::Dimensions{ width, .. },
         ..
     } = dimensions;
 
@@ -2047,7 +2047,7 @@ pub fn cover_text_area_info(
             tab_char_dim,
             ..
         },
-        window: sswh!(width, height),
+        window: window_layer::Dimensions{ width, height },
         ..
     }: Dimensions,
 ) -> CoverTextAreaInfo {
@@ -2093,7 +2093,7 @@ pub fn get_edit_buffer_xywh(
             ref tab_char_dim,
             ..
         },
-        window: sswh!(width, height),
+        window: window_layer::Dimensions{ width, height },
         ..
     } = dimensions;
     u!{WimpMenuMode}

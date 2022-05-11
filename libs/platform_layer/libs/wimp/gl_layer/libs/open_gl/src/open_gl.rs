@@ -23,6 +23,7 @@ pub type LoadFn<'a> = dyn Fn(*const u8) -> LoadFnOutput + 'a;
 
 type GLint = i32;
 type GLuint = u32;
+
 /// As of this writing, [this opengl wiki page](https://www.khronos.org/opengl/wiki/OpenGL_Type)
 /// says that `GLsizeiptr` should be an non-negative type. And the things we use it for
 /// are sematically non-negative. But, the gl.xml file that the bindings are based on
@@ -126,7 +127,7 @@ impl State {
             for (v_field, float_count) in &VERTEX_SPEC {
                 // Who cares what happens if a `Vertex` is over 2 billion bytes?
                 #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
-                const VERTEX_SIZE: i32 = mem::size_of::<Vertex>() as i32;
+                const VERTEX_SIZE: GLint = mem::size_of::<Vertex>() as GLint;
 
                 let attr: i32 = glGetAttribLocation(
                     program,
@@ -137,7 +138,7 @@ impl State {
                 }
                 // We just checked if it was negative
                 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
-                let attr = attr as u32;
+                let attr = attr as GLuint;
                 glVertexAttribPointer(
                     attr,
                     *float_count,
@@ -192,7 +193,11 @@ impl State {
     }
 
     #[allow(clippy::unused_self)]
-    pub fn set_dimensions(&mut self, (width, height): (i32, i32)) {
+    pub fn set_dimensions(&mut self, (width, height): (GLuint, GLuint)) {
+        // The documentation on `glViewport`, says it is meant to take GLsizei.
+        // The documentation on `GLsizei`, says it is meant to be unsigned.
+        #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
+        let (width, height) = (width as GLint, height as GLint);
         // SAFETY: The otherwise unused `&mut self` prevents another thread from
         // calling this method.
         unsafe {

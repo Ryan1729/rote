@@ -14,8 +14,10 @@ use macros::{
 };
 use std::ops::{Add, Sub, Mul, Div, Neg, Not};
 
+type PosInner = i64;
+
 #[derive(Clone, Copy, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Pos(i64);
+pub struct Pos(PosInner);
 
 fmt_debug!(
     for Pos: Pos(bits) in "{} ({})", 
@@ -191,6 +193,12 @@ macro_rules! abs_pos {
     }
 }
 
+impl From<u32> for Pos {
+    fn from(n: u32) -> Self {
+        Pos(PosInner::from(n))
+    }
+}
+
 impl From<f32> for Pos {
     fn from(f: f32) -> Self {
         Pos::from_f32(f)
@@ -303,7 +311,7 @@ impl Neg for Pos {
 }
 
 /// A type that represents the length of something, which since negative lengths
-// do not make sense, can never be negative. Has te same maximum valus as `Pos`
+// do not make sense, can never be negative. Has the same maximum values as `Pos`
 #[derive(Clone, Copy, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Length(Pos);
 
@@ -357,6 +365,15 @@ impl Length {
     #[must_use]
     pub fn trunc_to_i32(&self) -> i32 {
         self.0.trunc_to_i32()
+    }
+
+    #[must_use]
+    pub fn trunc_to_u32(&self) -> u32 {
+        // We maintain elsewhere that `Length`s cannot be negative.
+        #[allow(clippy::cast_sign_loss)]
+        let bits = (self.0.0 >> Pos::SCALE_BIT_COUNT) as u32;
+
+        bits
     }
 
     #[must_use]
@@ -416,6 +433,12 @@ macro_rules! abs_length {
     };
     () => {
         $crate::Length::default()
+    }
+}
+
+impl From<u32> for Length {
+    fn from(n: u32) -> Self {
+        Length(Pos::from(n))
     }
 }
 

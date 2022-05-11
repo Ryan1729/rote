@@ -2,6 +2,8 @@
 #![deny(unused)]
 use macros::{add_assign, fmt_debug, fmt_display, d};
 
+pub use abs;
+
 #[derive(Clone, Copy, Default, Hash, PartialEq, PartialOrd)]
 /// The top left corner of the screen is `(0.0, 0.0)`, top right corner is `(width, 0.0)`,
 /// the bottom left corner is `(0.0, height)`. In other words, the x-axis point right, the y-axis

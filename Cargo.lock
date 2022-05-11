@@ -2689,7 +2689,6 @@ dependencies = [
 name = "wimp_render"
 version = "0.1.0"
 dependencies = [
- "gl_layer",
  "if_changed",
  "macros",
  "perf_viz",
@@ -2698,6 +2697,7 @@ dependencies = [
  "pub_arb_abs",
  "shared",
  "wimp_types",
+ "window_layer",
 ]
 
 [[package]]
