@@ -961,14 +961,10 @@ pub fn run(
 
                         call_u_and_r!(input);
 
-                        // The main reason for this window manipulation is for after
-                        // reading from the path mailbox.
-                        let window = glutin_context.window();
-
                         // Notify the user that the file loaded, if we are not
                         // already in focus.
                         use window_layer::UserAttentionType;
-                        window.request_user_attention(
+                        fns.request_user_attention(
                             Some(UserAttentionType::Informational)
                         );
                     }
@@ -1392,17 +1388,17 @@ pub fn run(
                         )
                     );
                 }
-                        WindowEvent::Focused(is_focused) => {
-                            dbg!("set to ", is_focused);
-                            v_s!().ui.window_is_focused = is_focused;
-                            if is_focused {
-                                // X11 requires us to explicitly unset the window
-                                // attention.
-                                glutin_context.window().request_user_attention(
-                                    None
-                                );
-                            }
-                        }
+                Event::Focused(is_focused) => {
+                    dbg!("set to ", is_focused);
+                    v_s!().ui.window_is_focused = is_focused;
+                    if is_focused {
+                        // X11 requires us to explicitly unset the window
+                        // attention.
+                        fns.request_user_attention(
+                            None
+                        );
+                    }
+                }
                         WindowEvent::ReceivedCharacter(mut c) => {
                             if c != '\u{1}'     // "start of heading" (sent with Ctrl-a)
                              && c != '\u{3}'    // "end of text" (sent with Ctrl-c)

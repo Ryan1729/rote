@@ -242,6 +242,12 @@ impl Fns<'_, '_, '_, '_, '_, '_> {
             (dimensions.width as _, dimensions.height as _),
         );
     }
+
+    pub fn request_user_attention(&self, attention: Option<UserAttentionType>) {
+        self.context.window().request_user_attention(
+            attention
+        );
+    }
 }
 
 #[non_exhaustive]
@@ -259,6 +265,7 @@ pub enum Event {
     },
     ScaleFactorChanged(ScaleFactor),
     Resized,
+    Focused(bool)
 }
 
 impl <A> State<'static, A> {
@@ -355,6 +362,11 @@ impl <A> State<'static, A> {
 
                             pass_down!(
                                 Event::ScaleFactorChanged(hidpi_factor)
+                            );
+                        }
+                        WindowEvent::Focused(is_focused) => {
+                            pass_down!(
+                                Event::Focused(is_focused)
                             );
                         }
                         WindowEvent::Resized(size) => {
