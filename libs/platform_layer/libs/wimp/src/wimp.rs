@@ -1440,44 +1440,38 @@ pub fn run(
                         }
                     }
                 }
-                        WindowEvent::KeyboardInput {
-                            input:
-                                KeyboardInput {
-                                    state: ElementState::Pressed,
-                                    virtual_keycode: Some(keypress),
-                                    modifiers,
-                                    ..
-                                },
-                            ..
-                        } => {
-                            perform_command!(&(modifiers, keypress));
-                        }
-                        WindowEvent::MouseWheel {
-                            delta: MouseScrollDelta::LineDelta(_, y),
-                            modifiers,
-                            ..
-                        } if modifiers.is_empty() => {
-                            let ui = &mut v_s!().ui;
-                            let scroll_y = y * wimp_render::SCROLL_MULTIPLIER;
-                            if wimp_render::inside_tab_area(ui.mouse_pos, v_s!().dimensions.font) {
-                                ui.tab_scroll -= scroll_y;
-                            } else {
-                                call_u_and_r!(Input::ScrollVertically(scroll_y));
-                            }
-                        }
-                        WindowEvent::MouseWheel {
-                            delta: MouseScrollDelta::LineDelta(_, y),
-                            modifiers,
-                            ..
-                        } if modifiers == SHIFT => {
-                            let ui = &mut v_s!().ui;
-                            let scroll_y = y * wimp_render::SCROLL_MULTIPLIER;
-                            if wimp_render::inside_tab_area(ui.mouse_pos, v_s!().dimensions.font) {
-                                ui.tab_scroll -= scroll_y;
-                            } else {
-                                call_u_and_r!(Input::ScrollHorizontally(scroll_y));
-                            }
-                        }
+                Event::KeyboardInput {
+                    state: ElementState::Pressed,
+                    keycode,
+                    modifiers,
+                    ..
+                } => {
+                    perform_command!(&(modifiers, keypress));
+                }
+                Event::MouseWheel {
+                    delta: MouseScrollDelta::LineDelta(_, y),
+                    modifiers,
+                } if modifiers.is_empty() => {
+                    let ui = &mut v_s!().ui;
+                    let scroll_y = y * wimp_render::SCROLL_MULTIPLIER;
+                    if wimp_render::inside_tab_area(ui.mouse_pos, v_s!().dimensions.font) {
+                        ui.tab_scroll -= scroll_y;
+                    } else {
+                        call_u_and_r!(Input::ScrollVertically(scroll_y));
+                    }
+                }
+                Event::MouseWheel {
+                    delta: MouseScrollDelta::LineDelta(_, y),
+                    modifiers,
+                } if modifiers == SHIFT => {
+                    let ui = &mut v_s!().ui;
+                    let scroll_y = y * wimp_render::SCROLL_MULTIPLIER;
+                    if wimp_render::inside_tab_area(ui.mouse_pos, v_s!().dimensions.font) {
+                        ui.tab_scroll -= scroll_y;
+                    } else {
+                        call_u_and_r!(Input::ScrollHorizontally(scroll_y));
+                    }
+                }
                         WindowEvent::CursorMoved {
                             position,
                             modifiers,
