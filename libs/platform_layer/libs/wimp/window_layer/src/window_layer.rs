@@ -285,6 +285,10 @@ impl Fns<'_, '_, '_, '_, '_, '_> {
     pub fn request_redraw(&self) {
         self.context.window().request_redraw();
     }
+
+    pub fn set_title(&self, title: &str) {
+        self.context.window().set_title(title);
+    }
 }
 
 #[non_exhaustive]

@@ -1628,7 +1628,6 @@ pub fn run(
                         ViewAction::Command(key) => {
                             perf_viz::start_record!("ViewAction::Command");
                             perform_command!(&key);
-
                             perf_viz::end_record!("ViewAction::Command");
                         }
                         ViewAction::None => {}
@@ -1695,7 +1694,7 @@ pub fn run(
                             }
                         );
 
-                        glutin_context.window().set_title(&format!(
+                        fns.set_title(&format!(
                             "{}{} {:.0} FPS v{: >6.3} ms e{: >6.3} ms(e-u{: >6.3} ms e-r{: >6.3} ms(e-br{: >6.3} ms p{}) e-st{: >6.3} ms e-mr{: >6.3} ms) {:?} click {:?}",
                             title,
                             if cfg!(debug_assertions) {
