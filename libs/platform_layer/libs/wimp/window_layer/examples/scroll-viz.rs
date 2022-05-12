@@ -32,8 +32,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut text_box_xywh = {
         let dimensions = window_layer::dimensions(&window_state);
-        let width = dimensions.width as f32;
-        let height = dimensions.height as f32;
+        let width = f32::from(dimensions.width);
+        let height = f32::from(dimensions.height);
 
         tbxywh!(
             width * 0.25,
@@ -119,10 +119,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         rect: ScreenSpaceRect {
                             min: ssxy!(
                                 0.0,
-                                dimensions.height as f32
+                                f32::from(dimensions.height)
                                 - (info_text.lines().count() as f32 * HELP_SIZE)
                             ),
-                            max: ssxy!(dimensions.width as f32, dimensions.height as f32),
+                            max: ssxy!(
+                                f32::from(dimensions.width), 
+                                f32::from(dimensions.height)
+                            ),
                         },
                         colour: text_colour,
                         ..<_>::default()

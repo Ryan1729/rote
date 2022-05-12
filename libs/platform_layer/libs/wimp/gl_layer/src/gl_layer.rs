@@ -37,8 +37,10 @@ pub fn get_char_dims(state: &State, text_sizes: &[f32]) -> Vec<CharDim> {
     state.text_rendering.get_char_dims(text_sizes)
 }
 
-pub fn set_dimensions(state: &mut State, hidpi_factor: f32, wh: (u32, u32)) {
-    state.open_gl.set_dimensions(wh);
+pub type Dimensions = (u32, u32);
+
+pub fn set_dimensions(state: &mut State, hidpi_factor: f32, dimensions: Dimensions) {
+    state.open_gl.set_dimensions(dimensions);
 
     state.text_rendering.set_dimensions(hidpi_factor);
 }
@@ -47,8 +49,7 @@ pub fn set_dimensions(state: &mut State, hidpi_factor: f32, wh: (u32, u32)) {
 pub fn render(
     state: &mut State,
     text_or_rects: &[TextOrRect],
-    width: u32,
-    height: u32,
+    dimensions: Dimensions,
 ) -> Res<()> {
     state.open_gl.begin_frame();
 
@@ -61,7 +62,7 @@ pub fn render(
 
     let replacement_vertices = state.text_rendering.render_vertices(
         &text_or_rects,
-        (width, height),
+        dimensions,
         |rect: text_rendering::TextureRect, tex_data: &_| {
             // Update part of gpu texture with new glyph alpha values
             open_gl::State::update_texture(

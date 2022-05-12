@@ -37,7 +37,7 @@ pub use glutin_wrapper::{
     },
 };
 
-use glutin_wrapper::event_loop::ControlFlow;
+use glutin_wrapper::{dpi, event_loop::ControlFlow};
 
 pub type RGBA = [f32; 4];
 
@@ -56,7 +56,6 @@ where 'title: 'title
         GlProfile,
         GlRequest,
         ContextBuilder,
-        dpi,
         window::WindowBuilder,
     };
 
@@ -152,17 +151,38 @@ impl core::fmt::Display for Dimensions {
     }
 }
 
+impl From<dpi::PhysicalSize<u32>> for Dimensions {
+    fn from(dimensions: dpi::PhysicalSize<u32>) -> Self {
+        Dimensions {
+            width: abs::Length::from(dimensions.width),
+            height: abs::Length::from(dimensions.height),
+        }
+    }
+}
+
+#[test]
+fn converting_to_local_dimensions_returns_the_expected_result_in_this_example() {
+    let width = 1366u32;
+    let height = 768u32;
+
+    let example = dpi::PhysicalSize {
+        width,
+        height,
+    };
+
+    let dimensions = Dimensions::from(example);
+
+    assert_eq!(f32::from(dimensions.width), width as f32);
+    assert_eq!(f32::from(dimensions.height), height as f32);
+}
+
 pub fn dimensions(
     state: &State,
 ) -> Dimensions {
-    let dimensions = state.context
+    state.context
         .window()
-        .inner_size();
-
-    Dimensions {
-        width: abs::Length::from(dimensions.width),
-        height: abs::Length::from(dimensions.height),
-    }
+        .inner_size()
+        .into()
 }
 
 pub fn render(
@@ -189,8 +209,7 @@ fn render_inner<'font>(
     gl_layer::render(
         state,
         text_or_rects,
-        dimensions.width as _,
-        dimensions.height as _
+        (dimensions.width as _, dimensions.height as _)
     )?;
 
     context.swap_buffers()?;

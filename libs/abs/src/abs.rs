@@ -195,7 +195,7 @@ macro_rules! abs_pos {
 
 impl From<u32> for Pos {
     fn from(n: u32) -> Self {
-        Pos(PosInner::from(n))
+        Pos(PosInner::from(n) << Self::SCALE_BIT_COUNT)
     }
 }
 

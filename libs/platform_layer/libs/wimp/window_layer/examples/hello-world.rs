@@ -22,8 +22,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Event::RedrawRequested => {
                 frame_count = frame_count.wrapping_add(1);
                 let dimensions = fns.dimensions();
-                let width = dimensions.width as f32;
-                let height = dimensions.height as f32;
+                let width = f32::from(dimensions.width);
+                let height = f32::from(dimensions.height);
 
                 let mut text_and_rects = Vec::with_capacity(16);
 

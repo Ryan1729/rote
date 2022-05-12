@@ -41,8 +41,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     advance!();
                 }
                 let dimensions = fns.dimensions();
-                let width = dimensions.width as f32;
-                let height = dimensions.height as f32;
+                let width = f32::from(dimensions.width);
+                let height = f32::from(dimensions.height);
 
                 // The idea here is that we impose a 4 by 4 grid on the screen
                 // with the upper left corner notated as (0, 0) and the lower right as (4, 4).

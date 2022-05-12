@@ -246,15 +246,15 @@ impl State {
         *vertex_max = *vertex_max.max(vertex_count);
     }
 
-    pub fn update_texture(x: u32, y: u32, w: u32, h: u32, tex_data: &[u8]) {
+    pub fn update_texture(x: GLuint, y: GLuint, w: GLuint, h: GLuint, tex_data: &[u8]) {
         unsafe {
             glTexSubImage2D(
                 GL_TEXTURE_2D,
                 0,
-                x as _,
-                y as _,
-                w as _,
-                h as _,
+                x as GLint,
+                y as GLint,
+                w as GLint,
+                h as GLint,
                 GL_RED,
                 GL_UNSIGNED_BYTE,
                 tex_data.as_ptr() as _,
