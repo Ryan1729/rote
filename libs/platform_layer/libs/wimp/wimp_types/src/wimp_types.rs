@@ -89,8 +89,8 @@ impl Default for Dimensions {
     fn default() -> Self {
         Self {
             window: window_layer::Dimensions{
-                width: 1024,
-                height: 768,
+                width: abs::Length::from(1024),
+                height: abs::Length::from(768),
             },
             hidpi_factor_override: None,
             current_hidpi_factor: 1.,
@@ -412,7 +412,7 @@ pub struct DebugMenuState {
     pub last_hidpi_factors: [f64; 4],
     pub status_line_rect: ScreenSpaceRect,
     pub mouse_pos: ScreenSpaceXY,
-    pub window: ScreenSpaceWH,
+    pub window: window_layer::Dimensions,
 }
 
 impl DebugMenuState {

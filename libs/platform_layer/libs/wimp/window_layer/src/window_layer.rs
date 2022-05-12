@@ -140,10 +140,16 @@ pub fn create_event_proxy<CustomEvent>(
     state.events.create_proxy()
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct Dimensions {
     pub width: abs::Length,
     pub height: abs::Length,
+}
+
+impl core::fmt::Display for Dimensions {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "({}, {})", self.width, self.height)
+    }
 }
 
 pub fn dimensions(
@@ -241,7 +247,7 @@ impl Fns<'_, '_, '_, '_, '_, '_> {
         gl_layer::set_dimensions(
             &mut self.gl_state,
             scale_factor,
-            (dimensions.width as _, dimensions.height as _),
+            (dimensions.width.trunc_to_u32(), dimensions.height.trunc_to_u32()),
         );
     }
 
@@ -308,8 +314,8 @@ impl <A> State<'static, A> {
                         gl_state: &mut gl_state,
                         control_flow,
                         dimensions: Dimensions {
-                            width: dimensions.width,
-                            height: dimensions.height,
+                            width: abs::Length::from(dimensions.width),
+                            height: abs::Length::from(dimensions.height),
                         },
                         loop_helper: &mut loop_helper,
                         context: &context,

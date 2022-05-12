@@ -794,7 +794,7 @@ fn render_file_switcher_menu<'view>(
         search_text_xywh,
         ..
     } = get_file_switcher_info(pen.dimensions);
-    let outer_rect = get_full_width_ssr(top_y, pen.dimensions.window.w, bottom_y);
+    let outer_rect = get_full_width_ssr(top_y, pen.dimensions.window.width, bottom_y);
     pen.text_or_rects.push(TextOrRect::Rect(VisualSpec {
         rect: outer_rect,
         colour: CHROME_BACKGROUND_COLOUR,
