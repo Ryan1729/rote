@@ -1472,38 +1472,34 @@ pub fn run(
                         call_u_and_r!(Input::ScrollHorizontally(scroll_y));
                     }
                 }
-                        WindowEvent::CursorMoved {
-                            position,
-                            modifiers,
-                            ..
-                        } => {
-                            let ui = &mut v_s!().ui;
-                            ui.mouse_pos = ssxy!{
-                                position.x as f32,
-                                position.y as f32,
+                Event::CursorMoved {
+                    position,
+                    modifiers,
+                } => {
+                    let ui = &mut v_s!().ui;
+                    ui.mouse_pos = position;
+
+                    match modifiers {
+                        m if m.is_empty() => {
+                            let cursor_icon = if wimp_render::should_show_text_cursor(
+                                ui.mouse_pos,
+                                v_s!().view.menu_mode(),
+                                v_s!().dimensions
+                            ) {
+                                window_layer::CursorIcon::Text
+                            } else {
+                                d!()
                             };
 
-                            match modifiers {
-                                m if m.is_empty() => {
-                                    let cursor_icon = if wimp_render::should_show_text_cursor(
-                                        ui.mouse_pos,
-                                        v_s!().view.menu_mode(),
-                                        v_s!().dimensions
-                                    ) {
-                                        window_layer::CursorIcon::Text
-                                    } else {
-                                        d!()
-                                    };
+                            fns.set_cursor_icon(cursor_icon);
 
-                                    glutin_context.window().set_cursor_icon(cursor_icon);
-
-                                    if ui.left_mouse_state.is_pressed() && !mouse_within_radius!() {
-                                        call_u_and_r!(Input::DragCursors(text_box_xy!()));
-                                    }
-                                }
-                                _ => {}
+                            if ui.left_mouse_state.is_pressed() && !mouse_within_radius!() {
+                                call_u_and_r!(Input::DragCursors(text_box_xy!()));
                             }
                         }
+                        _ => {}
+                    }
+                }
                         WindowEvent::MouseInput {
                             button: MouseButton::Left,
                             state: ElementState::Pressed,

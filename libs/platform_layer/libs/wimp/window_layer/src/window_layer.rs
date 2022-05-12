@@ -4,7 +4,7 @@ use std::sync::MutexGuard;
 /// See https://stackoverflow.com/a/71945606
 type PhantomUnsend = PhantomData<MutexGuard<'static, ()>>;
 
-pub use screen_space::{abs, CharDim};
+pub use screen_space::{abs, CharDim, ScreenSpaceXY, ssxy};
 
 pub use gl_layer::{
     z_to_f32,
@@ -256,6 +256,10 @@ impl Fns<'_, '_, '_, '_, '_, '_> {
             attention
         );
     }
+
+    pub fn set_cursor_icon(&mut self, cursor_icon: CursorIcon) {
+        self.context.window().set_cursor_icon(cursor_icon);
+    }
 }
 
 #[non_exhaustive]
@@ -275,6 +279,10 @@ pub enum Event {
     Resized,
     Focused(bool),
     ReceivedCharacter(char),
+    CursorMoved {
+        position: ScreenSpaceXY,
+        modifiers: ModifiersState
+    }
 }
 
 impl <A> State<'static, A> {
@@ -409,6 +417,18 @@ impl <A> State<'static, A> {
                             ..
                         } => pass_down!(
                             Event::MouseWheel { delta, modifiers }
+                        ),
+                        WindowEvent::CursorMoved {
+                            position,
+                            ..
+                        } => pass_down!(
+                            Event::CursorMoved { 
+                                position: ssxy!{
+                                    position.x as f32,
+                                    position.y as f32,
+                                },
+                                modifiers
+                            }
                         ),
                         _ => {}
                     }
