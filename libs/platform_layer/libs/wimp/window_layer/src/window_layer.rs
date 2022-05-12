@@ -290,6 +290,11 @@ pub enum Event {
         keycode: KeyCode,
         modifiers: ModifiersState,
     },
+    MouseInput {
+        state: ElementState,
+        button: MouseButton,
+        modifiers: ModifiersState,
+    },
     MouseWheel {
         delta: MouseScrollDelta,
         modifiers: ModifiersState,
@@ -301,7 +306,7 @@ pub enum Event {
     CursorMoved {
         position: ScreenSpaceXY,
         modifiers: ModifiersState
-    }
+    },
 }
 
 impl <A> State<'static, A> {
@@ -430,6 +435,13 @@ impl <A> State<'static, A> {
                             ..
                         } => pass_down!(
                             Event::KeyboardInput { state, keycode, modifiers }
+                        ),
+                        WindowEvent::MouseInput {
+                            button,
+                            state,
+                            ..
+                        } => pass_down!(
+                            Event::MouseInput { button, state, modifiers }
                         ),
                         WindowEvent::MouseWheel {
                             delta,

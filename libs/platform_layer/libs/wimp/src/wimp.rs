@@ -1500,42 +1500,38 @@ pub fn run(
                         _ => {}
                     }
                 }
-                        WindowEvent::MouseInput {
-                            button: MouseButton::Left,
-                            state: ElementState::Pressed,
-                            modifiers,
-                            ..
-                        } // allow things like Shift-Alt-Click
-                        if (!modifiers).intersects(!CTRL) => {
-                            v_s!().ui.left_mouse_state = PhysicalButtonState::PressedThisFrame;
+                Event::MouseInput {
+                    button: MouseButton::Left,
+                    state: ElementState::Pressed,
+                    modifiers,
+                } // allow things like Shift-Alt-Click
+                if (!modifiers).intersects(!CTRL) => {
+                    v_s!().ui.left_mouse_state = PhysicalButtonState::PressedThisFrame;
 
-                            let replace_or_add = if modifiers.ctrl() {
-                                ReplaceOrAdd::Add
-                            } else {
-                                ReplaceOrAdd::Replace
-                            };
+                    let replace_or_add = if modifiers.ctrl() {
+                        ReplaceOrAdd::Add
+                    } else {
+                        ReplaceOrAdd::Replace
+                    };
 
-                            let input = if mouse_within_radius!() {
-                                Input::SelectCharTypeGrouping(text_box_xy!(), replace_or_add)
-                            } else {
-                                Input::SetCursor(text_box_xy!(), replace_or_add)
-                            };
+                    let input = if mouse_within_radius!() {
+                        Input::SelectCharTypeGrouping(text_box_xy!(), replace_or_add)
+                    } else {
+                        Input::SetCursor(text_box_xy!(), replace_or_add)
+                    };
 
-                            call_u_and_r!(input);
-                        }
-                        WindowEvent::MouseInput {
-                            button: MouseButton::Left,
-                            state: ElementState::Released,
-                            ..
-                        } => {
-                            let ui = &mut v_s!().ui;
-                            ui.left_mouse_state = PhysicalButtonState::ReleasedThisFrame;
-                            last_click_x = ui.mouse_pos.x;
-                            last_click_y = ui.mouse_pos.y;
-                        },
-                        _ => {}
-                    }
-                }
+                    call_u_and_r!(input);
+                },
+                Event::MouseInput {
+                    button: MouseButton::Left,
+                    state: ElementState::Released,
+                    ..
+                } => {
+                    let ui = &mut v_s!().ui;
+                    ui.left_mouse_state = PhysicalButtonState::ReleasedThisFrame;
+                    last_click_x = ui.mouse_pos.x;
+                    last_click_y = ui.mouse_pos.y;
+                },
                 Event::MainEventsCleared if running => {
                     perf_viz::start_record!("MainEventsCleared");
                     let index_state = v_s!().view.index_state();
