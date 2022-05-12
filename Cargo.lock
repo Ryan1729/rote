@@ -2751,6 +2751,7 @@ version = "0.1.0"
 dependencies = [
  "gl_layer",
  "glutin_wrapper",
+ "perf_viz",
  "platform_types",
  "screen_space",
  "spin_sleep",

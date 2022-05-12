@@ -778,7 +778,7 @@ pub fn run(
     }
 
     {
-        use window_layer::{MouseButton, ModifiersState, VirtualKeyCode};
+        use window_layer::{MouseButton, ModifiersState, KeyCode};
 
         macro_rules! call_u_and_r {
             ($input:expr) => {
@@ -892,7 +892,7 @@ pub fn run(
                 fn command($vars: &mut CommandVars) {
                     $code
                 }
-                let key = ($modifiers, VirtualKeyCode::$main_key);
+                let key = ($modifiers, KeyCode::$main_key);
                 debug_assert!(r_c.commands.get(&key).is_none());
                 r_c.commands.insert(key, LabelledCommand{ label: $label, command});
             }}
@@ -1532,7 +1532,7 @@ pub fn run(
                     last_click_x = ui.mouse_pos.x;
                     last_click_y = ui.mouse_pos.y;
                 },
-                Event::MainEventsCleared if running => {
+                Event::MainEventsCleared => {
                     perf_viz::start_record!("MainEventsCleared");
                     let index_state = v_s!().view.index_state();
                     let buffer_status_map = &mut v_s!().buffer_status_map;
@@ -1580,10 +1580,10 @@ pub fn run(
                     buffer_status_map.migrate_all(index_state);
 
                     // Queue a RedrawRequested event so we draw the updated view quickly.
-                    glutin_context.window().request_redraw();
+                    fns.request_redraw();
                     perf_viz::end_record!("MainEventsCleared");
                 }
-                Event::RedrawRequested(_) => {
+                Event::RedrawRequested => {
                     perf_viz::start_record!("frame");
 
                     // This is done before calling `wimp_render::view` because the
@@ -1598,14 +1598,8 @@ pub fn run(
                         );
 
                     // TODO Stop allocating new text_or_rects every frame.
-                    window_layer::render(&mut r_s.window_state, &text_or_rects, width.get() as _, height.get() as _)
-                        .expect("window_layer::render didn't work");
-
-                    perf_viz::start_record!("swap_buffers");
-                    glutin_context
-                        .swap_buffers()
-                        .expect("swap_buffers didn't work!");
-                    perf_viz::end_record!("swap_buffers");
+                    fns.render(&text_or_rects)
+                        .expect("fns didn't work");
 
                     perf_viz::start_record!("r_s.cmds");
                     for _ in 0..EVENTS_PER_FRAME {

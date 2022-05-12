@@ -212,7 +212,9 @@ fn render_inner<'font>(
         (dimensions.width as _, dimensions.height as _)
     )?;
 
+    perf_viz::start_record!("swap_buffers");
     context.swap_buffers()?;
+    perf_viz::end_record!("swap_buffers");
 
     Ok(())
 }
@@ -279,6 +281,10 @@ impl Fns<'_, '_, '_, '_, '_, '_> {
     pub fn set_cursor_icon(&mut self, cursor_icon: CursorIcon) {
         self.context.window().set_cursor_icon(cursor_icon);
     }
+
+    pub fn request_redraw(&self) {
+        self.context.window().request_redraw();
+    }
 }
 
 #[non_exhaustive]
@@ -307,6 +313,8 @@ pub enum Event {
         position: ScreenSpaceXY,
         modifiers: ModifiersState
     },
+    /// Only sent if we are not in the process of shutting down.
+    MainEventsCleared,
 }
 
 impl <A> State<'static, A> {
@@ -383,6 +391,9 @@ impl <A> State<'static, A> {
                     // At least try to measure the first frame accurately
                     loop_helper.loop_start();
                 }
+                GWEvent::MainEventsCleared if running => pass_down!(
+                    Event::MainEventsCleared
+                ),
                 GWEvent::WindowEvent { event, .. } => {
                     match event {
                         WindowEvent::CloseRequested => pass_down!(
