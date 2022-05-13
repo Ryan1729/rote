@@ -1583,6 +1583,10 @@ pub fn run(
                     fns.request_redraw();
                     perf_viz::end_record!("MainEventsCleared");
                 }
+                Event::Init => {
+                    // At least try to measure the first frame accurately
+                    fns.loop_start();
+                }
                 Event::RedrawRequested => {
                     perf_viz::start_record!("frame");
 
@@ -1718,21 +1722,14 @@ pub fn run(
                     perf_viz::end_record!("report_rate");
 
                     perf_viz::end_record!("frame");
-                    perf_viz::start_record!("sleepin'");
-                    if cfg!(feature="no-spinning-sleep") {
-                        loop_helper.loop_sleep_no_spin();
-                    } else if v_s!().ui.window_is_focused {
-                        loop_helper.loop_sleep();
-                    } else {
-                        loop_helper.loop_sleep_no_spin();
-                    }
-                    perf_viz::end_record!("sleepin'");
+
+                    fns.loop_sleep();
 
                     perf_viz::end_record!("main loop");
                     perf_viz::start_record!("main loop");
 
                     // We want to track the time that the message loop takes too!
-                    dt = loop_helper.loop_start();
+                    dt = fns.loop_start();
                 }
                 Event::UserEvent(e) => match e {
                     CustomEvent::Pid(kind, pid) => {

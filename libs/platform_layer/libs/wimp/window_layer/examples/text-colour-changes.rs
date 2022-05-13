@@ -237,6 +237,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 fns.render(&text_and_rects)
                     .expect("fns.render didn't work");
+
+                fns.loop_sleep_start();
             }
             Event::KeyboardInput {
                 state: ElementState::Pressed,

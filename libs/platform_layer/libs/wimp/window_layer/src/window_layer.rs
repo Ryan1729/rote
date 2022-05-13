@@ -47,7 +47,7 @@ pub fn init<'font, 'title, CustomEvent>(
     clear: RGBA,
     title: Option<&'title str>,
 ) -> Result<State<'font, CustomEvent>, Box<dyn std::error::Error>>
-// See https://github.com/rust-lang/rust/issues/80618 for description of this one 
+// See https://github.com/rust-lang/rust/issues/80618 for description of this one
 // weird trick.
 where 'title: 'title
 {
@@ -79,14 +79,14 @@ where 'title: 'title
             window_builder,
             &events,
         )?;
-    let context = 
+    let context =
         // SAFTEY: A quote from the glutin docs on `make_current`
-        // > In OpenGl, only a single context can be current in a thread at a time. 
-        // > Making a new context current will make the old one not current. 
+        // > In OpenGl, only a single context can be current in a thread at a time.
+        // > Making a new context current will make the old one not current.
         // > Contexts can only be sent to different threads if they are not current.
         // So, as I understand it, this is only unsafe becasue of issues regarding
         // sending contexts to other threads. Therefore, I think we can reasonably
-        // use this here in `init` without making `init` into an `unsafe fn`, if 
+        // use this here in `init` without making `init` into an `unsafe fn`, if
         // we make the struct holding the context `!Send`, meaning it cannot be sent
         // to other threads at all.
         unsafe { context.make_current() }
@@ -96,12 +96,12 @@ where 'title: 'title
         hidpi_factor,
         clear,
         &|symbol| {
-            // SAFETY: The underlying library has promised to pass us a nul 
+            // SAFETY: The underlying library has promised to pass us a nul
             // terminated pointer.
             let cstr = unsafe { std::ffi::CStr::from_ptr(symbol as _) };
-    
+
             let s = cstr.to_str().unwrap();
-    
+
             context.get_proc_address(s) as _
         },
     )?;
@@ -121,7 +121,7 @@ pub struct State<'font, CustomEvent: 'static = ()> {
     gl_state: gl_layer::State<'font>,
     events: EventLoop<CustomEvent>,
     context: Context,
-    // See note inside `init` for why we make this struct `!Send` by including this 
+    // See note inside `init` for why we make this struct `!Send` by including this
     // field.
     unsend: PhantomUnsend,
 }
@@ -233,6 +233,7 @@ pub struct Fns<'running, 'gl, 'font, 'control, 'loop_helper, 'context> {
     dimensions: Dimensions,
     loop_helper: &'loop_helper mut spin_sleep::LoopHelper,
     context: &'context Context,
+    is_focused: bool,
 }
 
 impl Fns<'_, '_, '_, '_, '_, '_> {
@@ -289,6 +290,32 @@ impl Fns<'_, '_, '_, '_, '_, '_> {
     pub fn set_title(&self, title: &str) {
         self.context.window().set_title(title);
     }
+
+    pub fn is_focused(&self) -> bool {
+        self.is_focused
+    }
+
+    pub fn loop_sleep(&mut self) {
+        perf_viz::start_record!("sleepin'");
+        if cfg!(feature="no-spinning-sleep") {
+            self.loop_helper.loop_sleep_no_spin();
+        } else if self.is_focused {
+            self.loop_helper.loop_sleep();
+        } else {
+            self.loop_helper.loop_sleep_no_spin();
+        }
+        perf_viz::end_record!("sleepin'");
+    }
+
+    pub fn loop_start(&mut self) -> std::time::Duration {
+        self.loop_helper.loop_start()
+    }
+
+    /// Equivalent to calling `loop_sleep` then calling `loop_start`
+    pub fn loop_sleep_start(&mut self) -> std::time::Duration {
+        self.loop_sleep();
+        self.loop_start()
+    }
 }
 
 #[non_exhaustive]
@@ -319,6 +346,7 @@ pub enum Event {
     },
     /// Only sent if we are not in the process of shutting down.
     MainEventsCleared,
+    Init,
 }
 
 impl <A> State<'static, A> {
@@ -335,6 +363,7 @@ impl <A> State<'static, A> {
         let mut loop_helper = spin_sleep::LoopHelper::builder()
             .report_interval_s(1./500.)
             .build_with_target_rate(target_rate.unwrap_or(250.0));
+        let mut is_focused = true;
     
         let mut running = true;
         let mut dimensions = context
@@ -363,6 +392,7 @@ impl <A> State<'static, A> {
                         },
                         loop_helper: &mut loop_helper,
                         context: &context,
+                        is_focused,
                     }
                 }};
             }
@@ -381,20 +411,12 @@ impl <A> State<'static, A> {
                     // Queue a RedrawRequested event so we draw the updated view quickly.
                     context.window().request_redraw();
                 }
-                GWEvent::RedrawRequested(_) => {
-                    pass_down!(
-                        Event::RedrawRequested
-                    );
-
-                    loop_helper.loop_sleep();
-    
-                    // We want to track the time that the message loop takes too!
-                    loop_helper.loop_start();
-                }
-                GWEvent::NewEvents(StartCause::Init) => {
-                    // At least try to measure the first frame accurately
-                    loop_helper.loop_start();
-                }
+                GWEvent::RedrawRequested(_) => pass_down!(
+                    Event::RedrawRequested
+                ),
+                GWEvent::NewEvents(StartCause::Init) => pass_down!(
+                    Event::Init
+                ),
                 GWEvent::MainEventsCleared if running => pass_down!(
                     Event::MainEventsCleared
                 ),
@@ -418,9 +440,12 @@ impl <A> State<'static, A> {
                                 Event::ScaleFactorChanged(hidpi_factor)
                             );
                         }
-                        WindowEvent::Focused(is_focused) => pass_down!(
-                            Event::Focused(is_focused)
-                        ),
+                        WindowEvent::Focused(window_is_focused) => {
+                            is_focused = window_is_focused;
+                            pass_down!(
+                                Event::Focused(is_focused)
+                            )
+                        },
                         WindowEvent::ReceivedCharacter(c) => pass_down!(
                             Event::ReceivedCharacter(c)
                         ),
