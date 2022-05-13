@@ -38,6 +38,13 @@ pub use glutin_wrapper::{
 };
 
 use glutin_wrapper::{dpi, event_loop::ControlFlow};
+pub use std::time::Duration;
+
+pub fn initial_dt(target_rate: Option<RatePerSecond>) -> Duration {
+    Duration::from_nanos((
+        (1.0 / target_rate.unwrap_or(DEFAULT_TARGET_RATE)) * 1_000_000_000.0
+    ) as u64)
+}
 
 pub type RGBA = [f32; 4];
 
@@ -176,8 +183,8 @@ fn converting_to_local_dimensions_returns_the_expected_result_in_this_example() 
     assert_eq!(f32::from(dimensions.height), height as f32);
 }
 
-pub fn dimensions(
-    state: &State,
+pub fn dimensions<A>(
+    state: &State<'_, A>,
 ) -> Dimensions {
     state.context
         .window()
@@ -261,6 +268,13 @@ impl Fns<'_, '_, '_, '_, '_, '_> {
         )
     }
 
+    pub fn get_char_dims(
+        &self,
+        text_sizes: &[f32],
+    ) -> Vec<CharDim> {
+        gl_layer::get_char_dims(&self.gl_state, text_sizes)
+    }
+
     pub fn set_dimensions(
         &mut self,
         scale_factor: ScaleFactor,
@@ -307,12 +321,12 @@ impl Fns<'_, '_, '_, '_, '_, '_> {
         perf_viz::end_record!("sleepin'");
     }
 
-    pub fn loop_start(&mut self) -> std::time::Duration {
+    pub fn loop_start(&mut self) -> Duration {
         self.loop_helper.loop_start()
     }
 
     /// Equivalent to calling `loop_sleep` then calling `loop_start`
-    pub fn loop_sleep_start(&mut self) -> std::time::Duration {
+    pub fn loop_sleep_start(&mut self) -> Duration {
         self.loop_sleep();
         self.loop_start()
     }
@@ -350,8 +364,10 @@ pub enum Event<CustomEvent: 'static = ()> {
     UserEvent(CustomEvent)
 }
 
+pub const DEFAULT_TARGET_RATE: RatePerSecond = 250.0;
+
 impl <A> State<'static, A> {
-    pub fn run<F>(self, target_rate: Option<f32>, mut event_handler: F) -> !
+    pub fn run<F>(self, target_rate: Option<RatePerSecond>, mut event_handler: F) -> !
     where
         F: 'static + FnMut(Event<A>, Fns),
     {
@@ -363,7 +379,7 @@ impl <A> State<'static, A> {
 
         let mut loop_helper = spin_sleep::LoopHelper::builder()
             .report_interval_s(1./500.)
-            .build_with_target_rate(target_rate.unwrap_or(250.0));
+            .build_with_target_rate(target_rate.unwrap_or(DEFAULT_TARGET_RATE));
         let mut is_focused = true;
 
         let mut running = true;

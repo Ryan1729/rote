@@ -409,7 +409,7 @@ pub struct DebugMenuState {
     pub startup_description: String,
     pub pids: Pids,
     pub editor_buffers_size_in_bytes: usize,
-    pub last_hidpi_factors: [f64; 4],
+    pub last_hidpi_factors: [window_layer::ScaleFactor; 4],
     pub status_line_rect: ScreenSpaceRect,
     pub mouse_pos: ScreenSpaceXY,
     pub window: window_layer::Dimensions,
@@ -495,10 +495,9 @@ pub type DpiFactor = window_layer::ScaleFactor;
 
 /// State owned by the `run` function, which can be uniquely borrowed by other functions called inside `run`.
 #[derive(Debug)]
-pub struct RunState<'font> {
+pub struct RunState {
     pub view_state: ViewRunState,
     pub cmds: VecDeque<Cmd>,
-    pub window_state: window_layer::State<'font>,
     pub editor_in_sink: std::sync::mpsc::Sender<EditorThreadInput>,
     pub event_proxy: window_layer::EventLoopProxy<CustomEvent>,
     pub clipboard: Clipboard,
@@ -526,16 +525,18 @@ pub mod command_keys {
     }
 }
 
+pub type CommandFn = fn(&mut RunState, &mut window_layer::Fns);
+
 pub struct LabelledCommand {
     pub label: &'static str,
-    pub command: fn(&mut RunState),
+    pub command: CommandFn,
 }
 
 impl std::fmt::Debug for LabelledCommand {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         f.debug_struct("LabelledCommand")
            .field("label", &self.label)
-           .field("command", &"fn(&mut RunState)")
+           .field("command", &"CommandFn")
            .finish()
     }
 }

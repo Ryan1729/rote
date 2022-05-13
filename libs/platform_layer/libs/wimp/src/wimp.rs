@@ -100,7 +100,9 @@ pub fn run(
                 })?)
                 .and_then(|s| {
                     use std::str::FromStr;
-                    f64::from_str(&s).ok()
+                    f64::from_str(&s)
+                        .map(|x| x as window_layer::ScaleFactor)
+                        .ok()
                 });
             }
             LICENSE => {
@@ -300,15 +302,17 @@ pub fn run(
     let edited_files_dir_buf = data_dir.join("edited_files_v1/");
     let edited_files_index_path_buf = data_dir.join("edited_files_v1_index.txt");
 
-    const HIDPI_INCREMENT_BY: DpiFactor = 1./12.;
-    const HIDPI_MINIMUM: DpiFactor = HIDPI_INCREMENT_BY;
-    const HIDPI_DEFAULT: DpiFactor = 1.;
+    use window_layer::ScaleFactor;
+    const HIDPI_INCREMENT_BY: ScaleFactor = 1./12.;
+    const HIDPI_MINIMUM: ScaleFactor = HIDPI_INCREMENT_BY;
+    const HIDPI_DEFAULT: ScaleFactor = 1.;
 
-    let window_state = window_layer::init::<'_, '_, CustomEvent>(
-        hidpi_factor_override.unwrap_or(HIDPI_DEFAULT) as f32,
-        wimp_render::TEXT_BACKGROUND_COLOUR,
-        title.into(),
-    )?;
+    let window_state: window_layer::State<'_, CustomEvent> =
+        window_layer::init::<'_, '_, CustomEvent>(
+            hidpi_factor_override.unwrap_or(HIDPI_DEFAULT),
+            wimp_render::TEXT_BACKGROUND_COLOUR,
+            title.into(),
+        )?;
 
     let event_proxy = window_layer::create_event_proxy(&window_state);
 
@@ -509,15 +513,6 @@ pub fn run(
         previous_tabs
     };
 
-    fn get_physical_wh(
-        dimensions: window_layer::Dimensions
-    ) -> ScreenSpaceWH {
-        sswh!{
-            dimensions.width as f32,
-            dimensions.height as f32,
-        }
-    }
-
     macro_rules! get_non_font_size_dependents_input {
         ($mode: expr, $dimensions: expr) => {{
             let dimensions = $dimensions;
@@ -557,7 +552,7 @@ pub fn run(
 
         let dimensions = Dimensions {
             font: wimp_render::get_font_info(&char_dims),
-            window: window_state.dimensions(),
+            window: window_layer::dimensions(&window_state),
             hidpi_factor_override,
             current_hidpi_factor,
         };
@@ -608,7 +603,6 @@ pub fn run(
             clipboard,
             editor_in_sink,
             event_proxy: event_proxy.clone(),
-            window_state,
         }
     };
 
@@ -767,7 +761,8 @@ pub fn run(
 
     let (mut last_click_x, mut last_click_y) = (d!(), d!());
 
-    let mut dt = Duration::from_nanos(((1.0 / TARGET_RATE) * 1_000_000_000.0) as u64);
+    const TARGET_RATE: window_layer::RatePerSecond = 128.0; //250.0);
+    let mut dt = window_layer::initial_dt(TARGET_RATE.into());
 
     macro_rules! mouse_within_radius {
         () => {{
@@ -853,7 +848,7 @@ pub fn run(
 
         fn set_current_hidpi_factor(
             r_s: &mut RunState,
-            fns: &window_layer::Fns,
+            fns: &mut window_layer::Fns,
             mut factor: DpiFactor
         ) {
             if !(factor >= HIDPI_MINIMUM) {
@@ -878,7 +873,8 @@ pub fn run(
             v_s!(r_s).dimensions.font = wimp_render::get_font_info(&char_dims);
         }
 
-        type CommandVars<'font> = RunState<'font>;
+
+        type CommandVars = RunState;
 
         let mut r_c: RunConsts = RunConsts {
             commands: std::collections::BTreeMap::new(),
@@ -888,8 +884,14 @@ pub fn run(
             ($modifiers: expr, $main_key: ident, $label: literal, $(_)? $code: block) => {
                 register_command!($modifiers, $main_key, $label, _unused_identifier $code)
             };
-            ($modifiers: expr, $main_key: ident, $label: literal, $vars: ident $code: block) => {{
-                fn command($vars: &mut CommandVars) {
+            ($modifiers: expr, $main_key: ident, $label: literal, $r_s: ident $code: block) => {{
+                register_command!($modifiers, $main_key, $label, $r_s, _unused_identifier $code)
+            }};
+            ($modifiers: expr, $main_key: ident, $label: literal, $r_s: ident $(,)? $fns: ident $code: block) => {{
+                fn command(
+                    $r_s: &mut CommandVars,
+                    $fns: &mut window_layer::Fns<'_, '_, '_, '_, '_, '_>,
+                ) {
                     $code
                 }
                 let key = ($modifiers, KeyCode::$main_key);
@@ -936,46 +938,6 @@ pub fn run(
                     EditorThreadInput::SaveToDisk($path, $label, $buffer_index)
                 );
             };
-        }
-
-        macro_rules! load_file {
-            ($path: expr) => {{
-                let unparsed_path = $path;
-
-                match canonicalize(&unparsed_path).and_then(|p| {
-                    let last_path_tried = p.path.to_owned();
-                    load_tab(p)
-                        .map_err(|e|
-                            edited_storage::CanonicalizeError::io(
-                                last_path_tried,
-                                e
-                            )
-                        )
-                }) {
-                    Ok(LoadedTab{ name, data, position }) => {
-                        let input = if let Some(position) = position {
-                            Input::AddOrSelectBufferThenGoTo(name, data, position)
-                        } else {
-                            Input::AddOrSelectBuffer(name, data)
-                        };
-
-                        call_u_and_r!(input);
-
-                        // Notify the user that the file loaded, if we are not
-                        // already in focus.
-                        use window_layer::UserAttentionType;
-                        fns.request_user_attention(
-                            Some(UserAttentionType::Informational)
-                        );
-                    }
-                    Err(err) => {
-                        handle_platform_error!(
-                            r_s,
-                            format!("{}\npath: {}", err, unparsed_path.to_string_lossy())
-                        );
-                    }
-                }
-            }};
         }
 
         macro_rules! file_chooser_call {
@@ -1209,13 +1171,13 @@ pub fn run(
             [CTRL | ALT | SHIFT, L, "Switch document parsing to previous language.", state {
                 call_u_and_r!(state, Input::PreviousLanguage);
             }]
-            [CTRL | ALT, Equals /* AKA unshifted Plus */, "Increase DPI factor.", r_s {
+            [CTRL | ALT, Equals /* AKA unshifted Plus */, "Increase DPI factor.", r_s, fns {
                 set_current_hidpi_factor(r_s, fns, get_hidpi_factor!(r_s) + HIDPI_INCREMENT_BY);
             }]
-            [CTRL | ALT, Minus, "Decrease DPI factor.", r_s {
+            [CTRL | ALT, Minus, "Decrease DPI factor.", r_s, fns {
                 set_current_hidpi_factor(r_s, fns, get_hidpi_factor!(r_s) - HIDPI_INCREMENT_BY);
             }]
-            [CTRL | ALT, Key1, "Reset DPI factor.", r_s {
+            [CTRL | ALT, Key1, "Reset DPI factor.", r_s, fns {
                 set_current_hidpi_factor(r_s, fns, HIDPI_DEFAULT);
             }]
             [CTRL | SHIFT, Home, "Move all cursors to buffer start.", state {
@@ -1300,19 +1262,8 @@ pub fn run(
             }]
         }
 
-        macro_rules! perform_command {
-            ($key: expr) => {
-                if let Some(LabelledCommand{ label, command }) = r_c.commands.get($key) {
-                    dbg!(label);
-                    command(&mut r_s);
-                }
-            }
-        }
-
-        const TARGET_RATE: f64 = 128.0; //250.0);
-
         window_state.run(TARGET_RATE.into(), move |event, mut fns| {
-            use window_layer::{Event, ElementState, MouseScrollDelta, KeyCode};
+            use window_layer::{Event, ElementState, MouseScrollDelta};
 
             macro_rules! quit {
                 () => {{
@@ -1369,12 +1320,61 @@ pub fn run(
                 }};
             }
 
+            macro_rules! perform_command {
+                ($key: expr) => {
+                    if let Some(LabelledCommand{ label, command }) = r_c.commands.get($key) {
+                        dbg!(label);
+                        command(&mut r_s, &mut fns);
+                    }
+                }
+            }
+
+            macro_rules! load_file {
+                ($path: expr) => {{
+                    let unparsed_path = $path;
+    
+                    match canonicalize(&unparsed_path).and_then(|p| {
+                        let last_path_tried = p.path.to_owned();
+                        load_tab(p)
+                            .map_err(|e|
+                                edited_storage::CanonicalizeError::io(
+                                    last_path_tried,
+                                    e
+                                )
+                            )
+                    }) {
+                        Ok(LoadedTab{ name, data, position }) => {
+                            let input = if let Some(position) = position {
+                                Input::AddOrSelectBufferThenGoTo(name, data, position)
+                            } else {
+                                Input::AddOrSelectBuffer(name, data)
+                            };
+    
+                            call_u_and_r!(input);
+    
+                            // Notify the user that the file loaded, if we are not
+                            // already in focus.
+                            use window_layer::UserAttentionType;
+                            fns.request_user_attention(
+                                Some(UserAttentionType::Informational)
+                            );
+                        }
+                        Err(err) => {
+                            handle_platform_error!(
+                                r_s,
+                                format!("{}\npath: {}", err, unparsed_path.to_string_lossy())
+                            );
+                        }
+                    }
+                }};
+            }
+
             match event {
                 Event::CloseRequested => quit!(),
                 Event::ScaleFactorChanged(scale_factor) => {
                     set_current_hidpi_factor(
                         &mut r_s,
-                        &fns,
+                        &mut fns,
                         scale_factor,
                     );
                 }
@@ -1446,7 +1446,7 @@ pub fn run(
                     modifiers,
                     ..
                 } => {
-                    perform_command!(&(modifiers, keypress));
+                    perform_command!(&(modifiers, keycode));
                 }
                 Event::MouseWheel {
                     delta: MouseScrollDelta::LineDelta(_, y),
@@ -1585,14 +1585,11 @@ pub fn run(
                 }
                 Event::Init => {
                     // At least try to measure the first frame accurately
-                    fns.loop_start();
+                    perf_viz::start_record!("main loop");
+                    dt = fns.loop_start();
                 }
                 Event::RedrawRequested => {
                     perf_viz::start_record!("frame");
-
-                    // This is done before calling `wimp_render::view` because the
-                    // `ViewOutput` borrows `v_s!()`.
-                    let sswh!(width, height) = v_s!().dimensions.window;
 
                     let ViewOutput { text_or_rects, action } =
                         wimp_render::view(
@@ -1638,7 +1635,7 @@ pub fn run(
                     }
 
                     perf_viz::start_record!("report_rate");
-                    if let Some(render_rate) = loop_helper.report_rate() {
+                    if let Some(render_rate) = fns.report_rate() {
                         macro_rules! ms_from_span {
                             ($span: expr) => {
                                 $span
@@ -1813,11 +1810,6 @@ pub fn run(
                         handle_platform_error!(r_s, e);
                     }
                 },
-                Event::NewEvents(StartCause::Init) => {
-                    // At least try to measure the first frame accurately
-                    perf_viz::start_record!("main loop");
-                    dt = loop_helper.loop_start();
-                }
                 _ => {}
             }
         });
