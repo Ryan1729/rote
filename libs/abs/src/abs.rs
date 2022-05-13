@@ -553,7 +553,7 @@ impl Sub<Length> for Length {
 
 type RatioBits = i32;
 
-/// Ratio allows scaling a langth by a restricted set of values.
+/// Ratio allows scaling a `Length` by a restricted set of values.
 #[derive(Copy, Clone, Debug)]
 // Internal details: 
 //  0 means 1/1
@@ -630,14 +630,6 @@ impl Div<Ratio> for Length {
     }
 }
 div_assign!(<Ratio> for Length);
-
-impl Div<Length> for Ratio {
-    type Output = Length;
-
-    fn div(self, other: Length) -> Self::Output {
-        other.scale_saturating(!self)
-    }
-}
 
 impl Not for Ratio {
     type Output = Ratio;
