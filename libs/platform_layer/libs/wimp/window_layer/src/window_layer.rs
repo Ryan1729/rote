@@ -319,7 +319,7 @@ impl Fns<'_, '_, '_, '_, '_, '_> {
 }
 
 #[non_exhaustive]
-pub enum Event {
+pub enum Event<CustomEvent: 'static = ()> {
     CloseRequested,
     RedrawRequested,
     KeyboardInput {
@@ -347,24 +347,25 @@ pub enum Event {
     /// Only sent if we are not in the process of shutting down.
     MainEventsCleared,
     Init,
+    UserEvent(CustomEvent)
 }
 
 impl <A> State<'static, A> {
     pub fn run<F>(self, target_rate: Option<f32>, mut event_handler: F) -> !
     where
-        F: 'static + FnMut(Event, Fns),
+        F: 'static + FnMut(Event<A>, Fns),
     {
         let mut gl_state = self.gl_state;
-        let events = self.events;
+        let events: EventLoop<A> = self.events;
         let context = self.context;
 
         let mut hidpi_factor = 1.0;
-    
+
         let mut loop_helper = spin_sleep::LoopHelper::builder()
             .report_interval_s(1./500.)
             .build_with_target_rate(target_rate.unwrap_or(250.0));
         let mut is_focused = true;
-    
+
         let mut running = true;
         let mut dimensions = context
             .window()
@@ -419,6 +420,9 @@ impl <A> State<'static, A> {
                 ),
                 GWEvent::MainEventsCleared if running => pass_down!(
                     Event::MainEventsCleared
+                ),
+                GWEvent::UserEvent(e) => pass_down!(
+                    Event::UserEvent::<A>(e)
                 ),
                 GWEvent::WindowEvent { event, .. } => {
                     match event {
@@ -493,7 +497,7 @@ impl <A> State<'static, A> {
                             position,
                             ..
                         } => pass_down!(
-                            Event::CursorMoved { 
+                            Event::CursorMoved {
                                 position: ssxy!{
                                     position.x as f32,
                                     position.y as f32,
