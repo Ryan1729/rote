@@ -424,10 +424,9 @@ impl <A> State<'static, A> {
             }
 
             match event {
-                GWEvent::MainEventsCleared if running => {
-                    // Queue a RedrawRequested event so we draw the updated view quickly.
-                    context.window().request_redraw();
-                }
+                GWEvent::MainEventsCleared if running => pass_down!(
+                    Event::MainEventsCleared
+                ),
                 GWEvent::RedrawRequested(_) => pass_down!(
                     Event::RedrawRequested
                 ),

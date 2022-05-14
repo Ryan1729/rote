@@ -206,6 +206,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     _ => {}
                 }
             },
+            Event::MainEventsCleared => {
+                // Queue a RedrawRequested event so we draw the updated view quickly.
+                fns.request_redraw();
+            }
             Event::KeyboardInput {
                 state: ElementState::Pressed,
                 keycode,

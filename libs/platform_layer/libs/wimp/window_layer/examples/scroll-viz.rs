@@ -138,6 +138,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 fns.loop_sleep_start();
             }
+            Event::MainEventsCleared => {
+                // Queue a RedrawRequested event so we draw the updated view quickly.
+                fns.request_redraw();
+            }
             Event::KeyboardInput {
                 state: ElementState::Pressed,
                 keycode,
