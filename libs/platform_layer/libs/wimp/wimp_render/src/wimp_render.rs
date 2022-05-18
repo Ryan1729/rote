@@ -1050,18 +1050,21 @@ fn render_command_menu(
         .skip(selection.window_start)
         .take(window_size.get())
     {
-        let result_id = ui_id!(result_index);
+        let result_id = ui::Id::TaggedListSelection(
+            ui::Tag::CommandMenu,
+            ListSelection{ index: result_index, window_start: selection.window_start },
+        );
 
         match navigated_result {
             Some(selection) if selection.index == result_index => {
-                dbg!(&mut pen.ui.keyboard).set_next_hot(result_id);
+                pen.ui.keyboard.set_next_hot(result_id);
             }
             _ => {}
         };
 
         rect_command_button(
             pen,
-            ui_id!(format!("{:p}", result)),
+            result_id,
             current_rect,
             &commands,
             result,
