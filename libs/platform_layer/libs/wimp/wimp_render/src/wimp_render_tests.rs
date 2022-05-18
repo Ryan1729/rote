@@ -632,6 +632,35 @@ fn render_file_switcher_menu_does_not_reset_in_this_case() {
 }
 
 #[test]
+fn rendering_the_command_menu_causes_the_keyboard_focus_to_be_set() {
+    let mut vrs: ViewRunState = d!();
+
+    assert!(!matches!(
+        vrs.view.menu(),
+        WimpMenuView { local_menu: Some(LocalMenuView::Command), .. },
+    ));
+
+    vrs.view.toggle_command_menu();
+
+    assert!(matches!(
+        vrs.view.menu(),
+        WimpMenuView { local_menu: Some(LocalMenuView::Command), .. },
+    ));
+
+    assert!(!matches!(
+        vrs.ui.keyboard.hot,
+        ui::Id::TaggedListSelection(ui::Tag::CommandMenu, ..),
+    ));
+
+    view(&mut vrs, &d!(), d!());
+
+    assert!(matches!(
+        vrs.ui.keyboard.hot,
+        ui::Id::TaggedListSelection(ui::Tag::CommandMenu, ..),
+    ));
+}
+
+#[test]
 fn view_does_not_panic_with_empty_input() {
     view(&mut d!(), &d!(), d!());
 
