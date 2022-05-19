@@ -795,7 +795,8 @@ pub fn run(
                     ui.note_interaction();
                     let send_through = match ui.keyboard.hot {
                         ui::Id::TaggedListSelection(
-                            ui::Tag::FileSwitcherResults,
+                            ui::Tag::FileSwitcherResults
+                            | ui::Tag::CommandMenu,
                             _
                         ) => {
                             match input {

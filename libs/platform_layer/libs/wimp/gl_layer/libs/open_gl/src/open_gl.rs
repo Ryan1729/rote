@@ -170,10 +170,13 @@ impl State {
                 clear_colour[2],
                 clear_colour[3],
             );
-    
-            let mut depth_bits = 0;
-            glGetIntegerv(GLenum(3414), &mut depth_bits);
-            dbg!(depth_bits);
+
+            #[cfg(any())]
+            {
+                let mut depth_bits = 0;
+                glGetIntegerv(GLenum(3414), &mut depth_bits);
+                dbg!(depth_bits);
+            }
         }
     
         let vertex_count = 0;

@@ -942,7 +942,7 @@ pub mod ui {
             (true, true) => Pressed(InputType::Both),
             (true, false) => Pressed(InputType::Mouse),
             (false, true) => Pressed(InputType::Keyboard),
-            (false, false) => match (ui.mouse.hot == id, std::dbg!(ui.keyboard.hot == id)) {
+            (false, false) => match (ui.mouse.hot == id, ui.keyboard.hot == id) {
                 (true, true) => Hover(InputType::Both),
                 (true, false) => Hover(InputType::Mouse),
                 (false, true) => Hover(InputType::Keyboard),
