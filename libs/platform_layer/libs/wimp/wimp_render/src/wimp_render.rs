@@ -762,9 +762,25 @@ fn outline_command_button<'view> (
     }
 }
 
-// TODO add arguments and calculate how many will fit based on screen size etc.
-fn calculate_window_size() -> ListSelectionWindowSize {
-    ListSelectionWindowSize::new(5).unwrap()
+use window_layer::abs::{Length, Ratio};
+
+const DEFAULT_LIST_WINDOW_SIZE: ListSelectionWindowSize = 
+    // SAFETY: We didn't pass 0.
+    unsafe { ListSelectionWindowSize::new_unchecked(5) };
+
+fn calculate_window_size(
+    window_height: Length,
+    vertical_shift: Length,
+) -> ListSelectionWindowSize {
+    // Hacked in without too much thought, then fiddled with until I got the answers
+    // I wanted. TODO
+    let SpacingAllSpec { margin, padding } = get_menu_spacing(window_height);
+    let usable_height = window_height - Ratio::TWO * (margin + padding);
+
+    ListSelectionWindowSize::new(
+        (usable_height / Ratio::from(vertical_shift.trunc_to_u32() as usize))
+            .trunc_to_u32() as usize
+    ).unwrap_or_else(|| DEFAULT_LIST_WINDOW_SIZE)
 }
 
 fn render_file_switcher_menu<'view>(
@@ -833,7 +849,20 @@ fn render_file_switcher_menu<'view>(
     let vertical_shift =
         search_text_xywh.wh.h + margin.into_ltrb().b - list_bottom_margin;
 
-    let window_size = calculate_window_size();
+    let window_size = calculate_window_size(
+        pen.dimensions.window.height,
+        vertical_shift,
+    );
+
+    let window_size = ListSelectionWindowSize::new(
+        window_size.get()
+            .saturating_sub(
+                calculate_window_size(
+                    Length::from(search_outer_rect.max.y),
+                    vertical_shift,
+                ).get()
+            )
+    ).unwrap_or_else(|| DEFAULT_LIST_WINDOW_SIZE);
 
     let mut navigated_result = None;
 
@@ -992,7 +1021,7 @@ fn render_command_menu(
     let vertical_shift = first_button_rect.height()
         + list_margin.into_ltrb().b;
 
-    let window_size = calculate_window_size();
+    let window_size = calculate_window_size(pen.dimensions.window.height, vertical_shift);
 
     let mut navigated_result = None;
     let results: Vec<CommandKey> = commands.keys().cloned().collect();
