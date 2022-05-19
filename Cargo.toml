@@ -1,6 +1,6 @@
 [package]
 name = "rote"
-version = "0.2.284"
+version = "0.2.285"
 authors = ["Ryan1729 <Ryan1729@gmail.com>"]
 license = "MIT and Apache 2.0"
 edition = "2021"

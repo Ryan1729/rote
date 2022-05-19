@@ -547,7 +547,7 @@ fn render_file_switcher_menu_selects_the_fileswitcher_buffer_when_the_navigation
 /// to a default state when pressing up after scrolling down.
 fn render_file_switcher_menu_does_not_reset_in_this_case() {
     let view: View = d!();
-    let window_size = calculate_window_size();
+    let window_size = ListSelectionWindowSize::try_from(5).unwrap();
 
     let fs_view = FileSwitcherView {
         search: bvd!("a"),
