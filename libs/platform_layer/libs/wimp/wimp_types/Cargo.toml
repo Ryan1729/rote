@@ -8,7 +8,6 @@ edition = "2021"
 path = "./src/wimp_types.rs"
 
 [dependencies]
-
 if_changed = { path = "../../../../if_changed" }
 macros = { path = "../../../../macros" }
 perf_viz = { path = "../../../../perf_viz" }
@@ -16,11 +15,13 @@ platform_types = { path = "../../../../platform_types" }
 shared = { path = "../shared" }
 window_layer = { path = "../window_layer" }
 clipboard = "0.5.0"
+libc = { version = "0.2.125", optional = true }
 
 [dev-dependencies]
 proptest = "0.10"
 
 [features]
-default = []
+default = ["libc-getrusage"]
 disable-fade-alpha = []
 extra-prints = []
+libc-getrusage = ["libc"]

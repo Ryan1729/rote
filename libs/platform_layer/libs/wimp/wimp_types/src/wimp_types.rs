@@ -459,6 +459,54 @@ impl DebugMenuState {
             inside_rect(self.mouse_pos, self.status_line_rect)
         );
 
+        #[cfg(feature = "libc-getrusage")]
+        {
+            perf_viz::record_guard!("getrusage");
+
+            // SAFETY: The type `libc::rusage` contains just Plain Old Data; no 
+            // pointers, and certainly no references.
+            let mut rusage: libc::rusage = unsafe{ std::mem::zeroed() };
+            // SAFETY: We pass a correct set of params:
+            // * We pass `libc::RUSAGE_SELF`, a constant that the fn is documented
+            //   to expect.
+            // * We pass a pointer to a proprly zeroed `libc::rusage` struct
+            //   for `libc::getrusage`'s out param.
+            if unsafe { libc::getrusage(
+                libc::RUSAGE_SELF,
+                &mut rusage as _
+            ) } == 0 {
+                let _cannot_actually_fail = write!(
+                    output,
+                    "Resource Usage:\n\
+                    User CPU time   (s): {}.{:06}\n\
+                    System CPU time (s): {}.{:06}\n\
+                    Maximum resident set size (B): {}\n\
+                    non-I/O page faults: {}\n\
+                    I/O page faults    : {}\n\
+                    voluntary contex switches  : {}\n\
+                    involuntary contex switches: {}\n\
+                    ",
+                    rusage.ru_utime.tv_sec,
+                    rusage.ru_utime.tv_usec,
+                    rusage.ru_stime.tv_sec,
+                    rusage.ru_stime.tv_usec,
+                    // This is in kilobytes by default.
+                    rusage.ru_maxrss.saturating_mul(1024),
+                    rusage.ru_minflt,
+                    rusage.ru_majflt,
+                    rusage.ru_nvcsw,
+                    rusage.ru_nivcsw,
+                );
+            } else {
+                let error = std::io::Error::last_os_error();
+
+                let _cannot_actually_fail = write!(
+                    output,
+                    "getrusage error\n{error}",
+                );
+            }
+        }
+
         macro_rules! push_pid_line {
             ($field_name: ident) => {{
                 let field_name = stringify!($field_name);
