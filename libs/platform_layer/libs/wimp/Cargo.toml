@@ -24,7 +24,7 @@ wimp_render = { path = "wimp_render" }
 wimp_types = { path = "wimp_types" }
 spin_sleep = "0.3"
 directories = "2.0"
-atomicwrites = "0.2.5"
+atomicwrites = "0.3"
 
 
 [features]

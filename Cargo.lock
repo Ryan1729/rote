@@ -106,12 +106,11 @@ dependencies = [
 
 [[package]]
 name = "atomicwrites"
-version = "0.2.5"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a2baf2feb820299c53c7ad1cc4f5914a220a1cb76d7ce321d2522a94b54651f"
+checksum = "eb8f2cd6962fa53c0e2a9d3f97eaa7dbd1e3cbbeeb4745403515b42ae07b3ff6"
 dependencies = [
- "nix 0.14.1",
- "tempdir",
+ "tempfile",
  "winapi",
 ]
 
@@ -217,7 +216,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b036167e76041694579972c28cf4877b4f92da222560ddb49008937b6a6727c"
 dependencies = [
  "log",
- "nix 0.18.0",
+ "nix",
 ]
 
 [[package]]
@@ -769,7 +768,7 @@ dependencies = [
  "macros",
  "platform_types",
  "proptest",
- "rand 0.7.3",
+ "rand",
  "wimp_types",
 ]
 
@@ -1460,19 +1459,6 @@ checksum = "c44922cb3dbb1c70b5e5f443d63b64363a898564d739ba5198e3a9138442868d"
 
 [[package]]
 name = "nix"
-version = "0.14.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6c722bee1037d430d0f8e687bbdbf222f27cc6e4e68d5caf630857bb2b6dbdce"
-dependencies = [
- "bitflags",
- "cc",
- "cfg-if 0.1.10",
- "libc",
- "void",
-]
-
-[[package]]
-name = "nix"
 version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "83450fe6a6142ddd95fb064b746083fc4ef1705fe81f64a64e1d4b39f54a1055"
@@ -1861,7 +1847,7 @@ dependencies = [
  "lazy_static 1.4.0",
  "num-traits",
  "quick-error",
- "rand 0.7.3",
+ "rand",
  "rand_chacha",
  "rand_xorshift",
  "regex-syntax",
@@ -1995,19 +1981,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "54a21852a652ad6f610c9510194f398ff6f8692e334fd1145fed931f7fbe44ea"
 dependencies = [
  "proc-macro2 1.0.24",
-]
-
-[[package]]
-name = "rand"
-version = "0.4.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "552840b97013b1a26992c11eac34bdd778e464601a4c2054b5f0bff7c6761293"
-dependencies = [
- "fuchsia-cprng",
- "libc",
- "rand_core 0.3.1",
- "rdrand",
- "winapi",
 ]
 
 [[package]]
@@ -2257,7 +2230,7 @@ dependencies = [
 
 [[package]]
 name = "rote"
-version = "0.2.284"
+version = "0.2.285"
 dependencies = [
  "editor",
  "lazy_static 1.4.0",
@@ -2464,7 +2437,7 @@ dependencies = [
  "lazy_static 1.4.0",
  "log",
  "memmap2",
- "nix 0.18.0",
+ "nix",
  "wayland-client",
  "wayland-cursor",
  "wayland-protocols",
@@ -2531,16 +2504,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tempdir"
-version = "0.3.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15f2b5fb00ccdf689e0149d1b1b3c03fead81c2b37735d812fa8bddbbf41b6d8"
-dependencies = [
- "rand 0.4.6",
- "remove_dir_all",
-]
-
-[[package]]
 name = "tempfile"
 version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2548,7 +2511,7 @@ checksum = "7a6e24d9338a0a5be79593e2fa15a648add6138caa803e2d5bc782c371732ca9"
 dependencies = [
  "cfg-if 0.1.10",
  "libc",
- "rand 0.7.3",
+ "rand",
  "redox_syscall",
  "remove_dir_all",
  "winapi",
@@ -2737,12 +2700,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b5a972e5669d67ba988ce3dc826706fb0a8b01471c088cb0b6110b805cc36aed"
 
 [[package]]
-name = "void"
-version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a02e4885ed3bc0f2de90ea6dd45ebcbb66dacffe03547fadbb0eeae2770887d"
-
-[[package]]
 name = "wait-timeout"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2843,7 +2800,7 @@ dependencies = [
  "bitflags",
  "downcast-rs",
  "libc",
- "nix 0.18.0",
+ "nix",
  "scoped-tls",
  "wayland-commons",
  "wayland-scanner",
@@ -2856,7 +2813,7 @@ version = "0.28.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "480450f76717edd64ad04a4426280d737fc3d10a236b982df7b1aee19f0e2d56"
 dependencies = [
- "nix 0.18.0",
+ "nix",
  "once_cell",
  "smallvec",
  "wayland-sys",
@@ -2868,7 +2825,7 @@ version = "0.28.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6eb122c160223a7660feeaf949d0100281d1279acaaed3720eb3c9894496e5f"
 dependencies = [
- "nix 0.18.0",
+ "nix",
  "wayland-client",
  "xcursor",
 ]
