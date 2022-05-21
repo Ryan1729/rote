@@ -68,8 +68,8 @@ pub fn render(
             open_gl::State::update_texture(
                 rect.min.x as _,
                 rect.min.y as _,
-                rect.width() as _,
-                rect.height() as _,
+                rect.width(),
+                rect.height(),
                 tex_data,
             );
         },

@@ -8,10 +8,19 @@
 #    where things are imported from, if when creating them we ensure that in each 
 #    module there is at most one module import that uses them. It would be nice to
 #    have a lint for that though.
+# too-many-lines turns out, in practice, to encourage time-wasting or even bad 
+#    changes to the code. For example, cramming code into a one-liner to get under
+#    the threshold. Or worse, splitting up code sections that should not be split up:
+#    Given a function `foo`, that checks an important precondition, splitting out a
+#    new function called `bar` containing code that relies on the precondition, 
+#    while keeping the checkiung code in `foo` creates a new possible bug. It is
+#    now possible to call `bar` without checking the precondition, where it wasn't 
+#    possible to do that before `bar` was split out.
 
 cargo clippy --color=always "$@" -- -D clippy::pedantic \
     -A clippy::enum-glob-use \
     -A clippy::default-trait-access \
     -A clippy::wildcard-imports \
+    -A clippy::too-many-lines \
     -D clippy::missing_safety_doc \
     -D clippy::undocumented_unsafe_blocks \

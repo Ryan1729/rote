@@ -24,11 +24,81 @@ pub type LoadFn<'a> = dyn Fn(*const u8) -> LoadFnOutput + 'a;
 type GLint = i32;
 type GLuint = u32;
 
-/// As of this writing, [this opengl wiki page](https://www.khronos.org/opengl/wiki/OpenGL_Type)
-/// says that `GLsizeiptr` should be an non-negative type. And the things we use it for
-/// are sematically non-negative. But, the gl.xml file that the bindings are based on
-/// says it's an `ssize_t`, (read as "signed pointer size type"). Sigh.
-type GLsizeiptr = isize;
+/// In the gl.xml file that the bindings are based on, `GLsizei` and `GLsizeiptr`
+/// are defined as types which allow negative values. However, the OpenGL spec
+/// also says the following:
+/// > If a negative number is provided where an argument of type sizei or
+/// > sizeiptr is specified, an `INVALID_VALUE` error is generated.
+/// So we provide a `GLsizei` type that saturates invalid values during conversions.
+pub struct GLsizei(i32);
+
+impl From<i32> for GLsizei {
+    fn from(n: i32) -> Self {
+        Self(
+            if n < 0 {
+                0
+            } else {
+                n
+            }
+        )
+    }
+}
+
+impl From<u32> for GLsizei {
+    fn from(n: u32) -> Self {
+        Self(
+            if n > i32::MAX as _ {
+                i32::MAX
+            } else {
+                // We just checked if it was too large
+                #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
+                { n as _ }
+            }
+        )
+    }
+}
+
+impl From<GLsizei> for i32 {
+    fn from(GLsizei(n): GLsizei) -> Self {
+        n
+    }
+}
+
+/// See note on `GLsizei` for why this type is the way it is.
+pub struct GLsizeiptr(isize);
+
+impl From<isize> for GLsizeiptr {
+    fn from(n: isize) -> Self {
+        Self(
+            if n < 0 {
+                0
+            } else {
+                n
+            }
+        )
+    }
+}
+
+impl From<usize> for GLsizeiptr {
+    fn from(n: usize) -> Self {
+        Self(
+            if n > isize::MAX as usize {
+                isize::MAX
+            } else {
+                // We just checked if it was too large
+                #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
+                { n as _ }
+            }
+        )
+    }
+}
+
+impl From<GLsizeiptr> for isize {
+    fn from(GLsizeiptr(n): GLsizeiptr) -> Self {
+        n
+    }
+}
+
 
 pub struct State {
     vertex_count: usize,
@@ -49,9 +119,17 @@ impl State {
     // nul char.
     pub fn new(
         clear_colour: [f32; 4], // the clear colour currently flashes up on exit.
-        (width, height): (u32, u32),
+        (width, height): (impl Into<GLsizei>, impl Into<GLsizei>),
         load_fn: &LoadFn<'_>,
     ) -> Res<Self> {
+        // We don't care if GL constants wrap. They only care about the bits.
+        #[allow(clippy::cast_possible_wrap)]
+        const CLAMP_TO_EDGE: GLint = GL_CLAMP_TO_EDGE.0 as _;
+        #[allow(clippy::cast_possible_wrap)]
+        const LINEAR: GLint = GL_LINEAR.0 as _;
+        #[allow(clippy::cast_possible_wrap)]
+        const R8: GLint = GL_R8.0 as _;
+
         // Load the OpenGL function pointers
         // SAFETY: The passed load_fn must always return accurate function pointer 
         // values, or null on failure.
@@ -67,6 +145,9 @@ impl State {
         let mut v_buffer_o = 0;
         let mut glyph_texture = 0;
     
+        let width = width.into();
+        let height = height.into();
+
         // SAFETY: We've set up the OpenGL stuff correctly.
         unsafe {
             // Create Vertex Array Object
@@ -81,79 +162,74 @@ impl State {
             glEnable(GL_DEPTH_TEST);
             glDepthRange(DEPTH_MIN.into(), DEPTH_MAX.into());
     
-            {
-                // We don't care if GL constants wrap. They only care about the bits.
-                #[allow(clippy::cast_possible_wrap)]
-                const CLAMP_TO_EDGE: GLint = GL_CLAMP_TO_EDGE.0 as _;
-                #[allow(clippy::cast_possible_wrap)]
-                const LINEAR: GLint = GL_LINEAR.0 as _;
-                #[allow(clippy::cast_possible_wrap)]
-                const R8: GLint = GL_R8.0 as _;
-                // Create a texture for the glyphs
-                // The texture holds 1 byte per pixel as alpha data
-                glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-                glGenTextures(1, &mut glyph_texture);
-                glBindTexture(GL_TEXTURE_2D, glyph_texture);
-                
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, CLAMP_TO_EDGE);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, CLAMP_TO_EDGE);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, LINEAR);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, LINEAR);
-                
-                glTexImage2D(
-                    GL_TEXTURE_2D,
-                    0,
-                    R8,
-                    width as _,
-                    height as _,
-                    0,
-                    GL_RED,
-                    GL_UNSIGNED_BYTE,
-                    ptr::null(),
-                );
-                gl_assert_ok!();
-            }
-    
-            // Use shader program
+            // Create a texture for the glyphs
+            // The texture holds 1 byte per pixel as alpha data
+            glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+            glGenTextures(1, &mut glyph_texture);
+            glBindTexture(GL_TEXTURE_2D, glyph_texture);
+            
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, LINEAR);
+            
+            glTexImage2D(
+                GL_TEXTURE_2D,
+                0,
+                R8,
+                width.0,
+                height.0,
+                0,
+                GL_RED,
+                GL_UNSIGNED_BYTE,
+                ptr::null(),
+            );
+            gl_assert_ok!();
+
             glUseProgram(program);
             glBindFragDataLocation(
                 program,
                 0,
-                CString::new("out_color")?.as_ptr() as _
+                CString::new("out_color")?.as_ptr().cast()
             );
-    
-            // Specify the layout of the vertex data
-            let mut offset = 0;
-            for (v_field, float_count) in &VERTEX_SPEC {
-                // Who cares what happens if a `Vertex` is over 2 billion bytes?
-                #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
-                const VERTEX_SIZE: GLint = mem::size_of::<Vertex>() as GLint;
+        }
+        
+        // Specify the layout of the vertex data
+        let mut offset = 0;
+        for (v_field, float_count) in &VERTEX_SPEC {
+            // Who cares what happens if a `Vertex` is over 2 billion bytes?
+            #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+            const VERTEX_SIZE: GLint = mem::size_of::<Vertex>() as GLint;
 
-                let attr: i32 = glGetAttribLocation(
-                    program,
-                    CString::new(*v_field)?.as_ptr() as _
-                );
-                if attr < 0 {
-                    return Err(format!("{} GetAttribLocation -> {}", v_field, attr).into());
-                }
-                // We just checked if it was negative
-                #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
-                let attr = attr as GLuint;
+            let v_field_ptr = CString::new(*v_field)?.as_ptr().cast();
+
+            // SAFETY: `CString` adds the nul terminator.
+            let attr: i32 = unsafe { glGetAttribLocation(program, v_field_ptr) };
+            if attr < 0 {
+                return Err(format!("{} GetAttribLocation -> {}", v_field, attr).into());
+            }
+            
+            // SAFETY: We have confirmed that `attr` is an atrribute location, not 
+            // an error sentinel.
+            unsafe {
                 glVertexAttribPointer(
-                    attr,
+                    // We just checked if it was negative
+                    #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
+                    { attr as GLuint },
                     *float_count,
                     GL_FLOAT,
-                    false as _,
+                    u8::from(false),
                     VERTEX_SIZE,
                     offset as _,
                 );
                 glEnableVertexAttribArray(attr as _);
                 glVertexAttribDivisor(attr as _, 1);
-    
-                offset += float_count * 4;
             }
-    
-            // Enabled alpha blending
+
+            offset += float_count * 4;
+        }
+
+        unsafe {
             glEnable(GL_BLEND);
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     
@@ -196,11 +272,12 @@ impl State {
     }
 
     #[allow(clippy::unused_self)]
-    pub fn set_dimensions(&mut self, (width, height): (GLuint, GLuint)) {
-        // The documentation on `glViewport`, says it is meant to take GLsizei.
-        // The documentation on `GLsizei`, says it is meant to be unsigned.
-        #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
-        let (width, height) = (width as GLint, height as GLint);
+    pub fn set_dimensions(
+        &mut self,
+        (width, height): (impl Into<GLsizei>, impl Into<GLsizei>)
+    ) {
+        let (width, height) = (width.into().0, height.into().0);
+
         // SAFETY: The otherwise unused `&mut self` prevents another thread from
         // calling this method.
         unsafe {
@@ -233,31 +310,37 @@ impl State {
             if vertex_max < vertex_count {
                 glBufferData(
                     GL_ARRAY_BUFFER,
-                    (*vertex_count * mem::size_of::<Vertex>()) as GLsizeiptr,
-                    vertices.as_ptr() as _,
+                    GLsizeiptr::from(*vertex_count * mem::size_of::<Vertex>()).0,
+                    vertices.as_ptr().cast(),
                     GL_DYNAMIC_DRAW,
                 );
             } else {
                 glBufferSubData(
                     GL_ARRAY_BUFFER,
                     0,
-                    (*vertex_count * mem::size_of::<Vertex>()) as GLsizeiptr,
-                    vertices.as_ptr() as _,
+                    GLsizeiptr::from(*vertex_count * mem::size_of::<Vertex>()).0,
+                    vertices.as_ptr().cast(),
                 );
             }
         }
         *vertex_max = *vertex_max.max(vertex_count);
     }
 
-    pub fn update_texture(x: GLuint, y: GLuint, w: GLuint, h: GLuint, tex_data: &[u8]) {
+    pub fn update_texture(
+        x: GLuint, 
+        y: GLuint, 
+        w: impl Into<GLsizei>,
+        h: impl Into<GLsizei>, 
+        tex_data: &[u8]
+    ) {
         unsafe {
             glTexSubImage2D(
                 GL_TEXTURE_2D,
                 0,
                 x as GLint,
                 y as GLint,
-                w as GLint,
-                h as GLint,
+                w.into().0,
+                h.into().0,
                 GL_RED,
                 GL_UNSIGNED_BYTE,
                 tex_data.as_ptr() as _,
@@ -266,15 +349,20 @@ impl State {
         }
     }
 
-    pub fn resize_texture(new_width: u32, new_height: u32) {
+    pub fn resize_texture(
+        new_width: impl Into<GLsizei>,
+        new_height: impl Into<GLsizei>,
+    ) {
+        let (new_width, new_height) = (new_width.into().0, new_height.into().0);
+
         unsafe {
             // Recreate texture as a larger size to fit more
             glTexImage2D(
                 GL_TEXTURE_2D,
                 0,
                 GL_R8.0 as _,
-                new_width as _,
-                new_height as _,
+                new_width,
+                new_height,
                 0,
                 GL_RED,
                 GL_UNSIGNED_BYTE,

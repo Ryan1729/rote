@@ -260,10 +260,10 @@ fn final_non_newline_offset_for_rope_line_(line: RopeLine) -> CharOffset {
     len
 }
 
-fn get_line_char_iterator<'line, R: std::ops::RangeBounds<CharOffset>>(
-    line: RopeLine<'line>,
+fn get_line_char_iterator<R: std::ops::RangeBounds<CharOffset>>(
+    line: RopeLine<'_>,
     range: R,
-) -> impl Iterator<Item = (CharOffset, char)> + 'line {
+) -> impl Iterator<Item = (CharOffset, char)> + '_ {
     use std::ops::Bound::*;
 
     let skip = match range.start_bound() {
@@ -323,6 +323,7 @@ pub fn get_last_non_white_space_offset_in_range<R: std::ops::RangeBounds<CharOff
 pub type OffsetPair = (Option<AbsoluteCharOffset>, Option<AbsoluteCharOffset>);
 
 /// This will return `None` if the offset is one-past the last index.
+#[must_use]
 pub fn offset_pair(rope: &Rope, cursor: &Cursor) -> OffsetPair {
     let filter_out_of_bounds =
         |position: Position| macros::some_if!(in_cursor_bounds(rope, position) => position);
