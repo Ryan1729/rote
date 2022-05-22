@@ -25,6 +25,7 @@ macro_rules! curs {
 impl Cursors {
     /// We require a rope parameter only so we can make sure the cursors are within the given
     /// rope's bounds.
+    #[must_use]
     pub fn new(rope: &Rope, mut cursors: Vec1<Cursor>) -> Self {
         cursors.sort();
         cursors.reverse();
@@ -34,6 +35,7 @@ impl Cursors {
         Self { cursors }
     }
 
+    #[must_use]
     pub fn mapped_ref<F, Out>(&self, mapper: F) -> Vec1<Out>
     where
         F: FnMut(&Cursor) -> Out,
@@ -41,19 +43,23 @@ impl Cursors {
         self.cursors.mapped_ref(mapper)
     }
 
+    #[must_use]
     pub fn borrow_cursors(&self) -> &Vec1<Cursor> {
         &self.cursors
     }
 
+    #[must_use]
     #[perf_viz::record]
     pub fn get_cloned_cursors(&self) -> Vec1<Cursor> {
         self.cursors.clone()
     }
 
+    #[must_use]
     pub fn len(&self) -> usize {
         self.cursors.len()
     }
 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.cursors.is_empty()
     }
@@ -62,16 +68,18 @@ impl Cursors {
         self.cursors.iter()
     }
 
+    #[must_use]
     pub fn first(&self) -> &Cursor {
         self.cursors.first()
     }
 
+    #[must_use]
     pub fn last(&self) -> &Cursor {
         self.cursors.last()
     }
 
     pub fn clamp_to_rope(&mut self, rope: &Rope) {
-        Self::clamp_vec_to_rope(&mut self.cursors, rope)
+        Self::clamp_vec_to_rope(&mut self.cursors, rope);
     }
 
     fn clamp_vec_to_rope(cursors: &mut Vec1<Cursor>, rope: &Rope) {
@@ -129,7 +137,7 @@ impl Cursors {
                         let p = $cursor.get_position();
                         let h = $cursor.get_highlight_position().unwrap_or(p.clone());
                         match p.cmp(&h) {
-                            o @ Less | o @ Equal => (p, h, o),
+                            o @ (Less | Equal) => (p, h, o),
                             Greater => (h, p, Greater),
                         }
                     }};
@@ -151,13 +159,13 @@ impl Cursors {
                         // the two cursors.
 
                         let max_was = match (c1_max.cmp(&c2_max), c1_ordering, c2_ordering) {
-                            (Greater, Greater, _) => MaxWas::P,
-                            (Greater, Less, _)|(Greater, Equal, _) => MaxWas::H,
-                            (Less, _, Greater) => MaxWas::P,
-                            (Less, _, Less)|(Less, _, Equal) => MaxWas::H,
-                            (Equal, Greater, _) => MaxWas::P,
-                            // If the two cursors are the same it doesn't matter which one we keep.
-                            (Equal, _, _) => MaxWas::H
+                            (Greater | Equal, Greater, _)
+                            | (Less, _, Greater) => MaxWas::P,
+                            (Greater, Less | Equal, _)
+                            | (Less, _, Less | Equal)
+                            // If the two cursors are the same it doesn't matter
+                            // which one we keep.
+                            | (Equal, _, _) => MaxWas::H,
                         };
 
                         match max_was {
@@ -195,6 +203,7 @@ impl Cursors {
 
     // TODO write a test that fails when we add a new field that isn't counted here.
     // A compile-time assert would be preferable, of course.
+    #[must_use]
     pub fn size_in_bytes(&self) -> usize {
         use core::mem;
         mem::size_of_val(&self.cursors) +

@@ -148,7 +148,8 @@ impl State {
         let width = width.into();
         let height = height.into();
 
-        // SAFETY: We've set up the OpenGL stuff correctly.
+        // SAFETY: We've set up the OpenGL function pointers correctly.
+        // We'll refer to the above as "Note 1".
         unsafe {
             // Create Vertex Array Object
             glGenVertexArrays(1, &mut v_array_o);
@@ -204,31 +205,34 @@ impl State {
             let v_field_ptr = CString::new(*v_field)?.as_ptr().cast();
 
             // SAFETY: `CString` adds the nul terminator.
-            let attr: i32 = unsafe { glGetAttribLocation(program, v_field_ptr) };
+            let attr: GLint = unsafe { glGetAttribLocation(program, v_field_ptr) };
             if attr < 0 {
                 return Err(format!("{} GetAttribLocation -> {}", v_field, attr).into());
             }
+
+            // We just checked if it was negative
+            #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
+            let attr = attr as GLuint;
             
             // SAFETY: We have confirmed that `attr` is an atrribute location, not 
-            // an error sentinel.
+            // an error sentinel. See also Note 1.
             unsafe {
                 glVertexAttribPointer(
-                    // We just checked if it was negative
-                    #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
-                    { attr as GLuint },
+                    attr,
                     *float_count,
                     GL_FLOAT,
                     u8::from(false),
                     VERTEX_SIZE,
                     offset as _,
                 );
-                glEnableVertexAttribArray(attr as _);
-                glVertexAttribDivisor(attr as _, 1);
+                glEnableVertexAttribArray(attr);
+                glVertexAttribDivisor(attr, 1);
             }
 
             offset += float_count * 4;
         }
 
+        // SAFETY: See Note 1.
         unsafe {
             glEnable(GL_BLEND);
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
