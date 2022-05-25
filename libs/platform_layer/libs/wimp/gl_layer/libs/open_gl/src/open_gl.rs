@@ -202,10 +202,12 @@ impl State {
             #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
             const VERTEX_SIZE: GLint = mem::size_of::<Vertex>() as GLint;
 
+            let v_field_with_nul = CString::new(*v_field)?;
+
             // SAFETY: `CString` adds the nul terminator.
             let attr: GLint = unsafe { glGetAttribLocation(
                 program,
-                CString::new(*v_field)?.as_ptr().cast()
+                v_field_with_nul.as_ptr().cast()
             ) };
             unsafe { gl_assert_ok!(); }
             if attr < 0 {
