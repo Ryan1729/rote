@@ -13,7 +13,6 @@ macro_rules! gl_assert_ok {
     () => {{
         if invariants_checked!() {
             let err = glGetError();
-            dbg!(err);
             assert_eq!(err, GL_NO_ERROR, "{}", gl_err_to_str(err));
         }
     }};
@@ -202,11 +201,12 @@ impl State {
             // Who cares what happens if a `Vertex` is over 2 billion bytes?
             #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
             const VERTEX_SIZE: GLint = mem::size_of::<Vertex>() as GLint;
-            dbg!(v_field);
-            let v_field_ptr = CString::new(*v_field)?.as_ptr().cast();
 
             // SAFETY: `CString` adds the nul terminator.
-            let attr: GLint = unsafe { glGetAttribLocation(program, v_field_ptr) };
+            let attr: GLint = unsafe { glGetAttribLocation(
+                program,
+                CString::new(*v_field)?.as_ptr().cast()
+            ) };
             unsafe { gl_assert_ok!(); }
             if attr < 0 {
                 return Err(format!("{} GetAttribLocation -> {}", v_field, attr).into());
