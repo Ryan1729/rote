@@ -19,3 +19,4 @@ if_changed = { path = "../../../../../../if_changed" }
 # "time-render" is on by default.
 default = ["time-render"]
 time-render = []
+invariant-checking = []

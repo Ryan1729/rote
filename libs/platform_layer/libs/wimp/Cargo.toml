@@ -32,7 +32,10 @@ default = []
 disable-fade-alpha = ["wimp_types/disable-fade-alpha"]
 no-spinning-sleep = []
 skip-updating-editor-thread = []
-invariant-checking = ["wimp_render/invariant-checking"]
+invariant-checking = [
+    "wimp_render/invariant-checking",
+    "window_layer/invariant-checking"
+]
 time-render = ["window_layer/time-render"]
 extra-prints = ["shared/extra-prints", "wimp_render/extra-prints"]
 print-raw-input = []

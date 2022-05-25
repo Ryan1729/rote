@@ -13,6 +13,7 @@ macro_rules! gl_assert_ok {
     () => {{
         if invariants_checked!() {
             let err = glGetError();
+            dbg!(err);
             assert_eq!(err, GL_NO_ERROR, "{}", gl_err_to_str(err));
         }
     }};
@@ -201,14 +202,16 @@ impl State {
             // Who cares what happens if a `Vertex` is over 2 billion bytes?
             #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
             const VERTEX_SIZE: GLint = mem::size_of::<Vertex>() as GLint;
-
+            dbg!(v_field);
             let v_field_ptr = CString::new(*v_field)?.as_ptr().cast();
 
             // SAFETY: `CString` adds the nul terminator.
             let attr: GLint = unsafe { glGetAttribLocation(program, v_field_ptr) };
+            unsafe { gl_assert_ok!(); }
             if attr < 0 {
                 return Err(format!("{} GetAttribLocation -> {}", v_field, attr).into());
             }
+            
 
             // We just checked if it was negative
             #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
@@ -330,8 +333,8 @@ impl State {
         h: impl Into<GLsizei>, 
         tex_data: &[u8]
     ) {
-        // These must be within bounds of the GPU texture, which implies they 
-        // must be positive. If they are within bounds then a `GL_INVALID_VALUE` 
+        // These must be within bounds of the GPU texture, which implies they must 
+        // be positive. If they are not within bounds then a `GL_INVALID_VALUE` 
         // error will be generated, which should trigger the below assert, if it
         // is enabled.
         #[allow(clippy::cast_possible_wrap)]

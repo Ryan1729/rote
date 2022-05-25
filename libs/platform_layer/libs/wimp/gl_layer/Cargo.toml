@@ -18,5 +18,5 @@ shared = { path = "../shared" }
 
 [features]
 default = []
-invariant-checking = []
+invariant-checking = ["open_gl/invariant-checking"]
 time-render = ["open_gl/time-render"]

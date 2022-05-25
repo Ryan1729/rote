@@ -19,5 +19,6 @@ platform_types = { path = "../../../../platform_types" }
 
 [features]
 default = []
+invariant-checking = ["gl_layer/invariant-checking"]
 time-render = ["gl_layer/time-render"]
 
