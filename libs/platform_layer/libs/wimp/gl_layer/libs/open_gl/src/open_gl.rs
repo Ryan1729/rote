@@ -330,17 +330,24 @@ impl State {
         h: impl Into<GLsizei>, 
         tex_data: &[u8]
     ) {
+        // These must be within bounds of the GPU texture, which implies they 
+        // must be positive. If they are within bounds then a `GL_INVALID_VALUE` 
+        // error will be generated, which should trigger the below assert, if it
+        // is enabled.
+        #[allow(clippy::cast_possible_wrap)]
+        let (x, y) = (x as GLint, y as GLint);
+        // SAFETY: See Note 1.
         unsafe {
             glTexSubImage2D(
                 GL_TEXTURE_2D,
                 0,
-                x as GLint,
-                y as GLint,
+                x,
+                y,
                 w.into().0,
                 h.into().0,
                 GL_RED,
                 GL_UNSIGNED_BYTE,
-                tex_data.as_ptr() as _,
+                tex_data.as_ptr().cast(),
             );
             gl_assert_ok!();
         }
