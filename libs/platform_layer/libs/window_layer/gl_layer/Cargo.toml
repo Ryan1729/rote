@@ -14,7 +14,7 @@ text_rendering = { path = "./libs/text_rendering" }
 perf_viz = { path = "../../../../perf_viz" }
 platform_types = { path = "../../../../platform_types" }
 macros = { path = "../../../../macros" }
-shared = { path = "../shared" }
+shared = { path = "../../shared" }
 
 [features]
 default = []

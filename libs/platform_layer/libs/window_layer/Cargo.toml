@@ -7,15 +7,15 @@ edition = "2021"
 path = "src/window_layer.rs"
 
 [dependencies]
-gl_layer = { path = "../gl_layer" }
-glutin_wrapper = { path = "../glutin_wrapper" }
-perf_viz = { path = "../../../../perf_viz" }
-screen_space = { path = "../../../../screen_space" }
+gl_layer = { path = "gl_layer" }
+glutin_wrapper = { path = "glutin_wrapper" }
+perf_viz = { path = "../../../perf_viz" }
+screen_space = { path = "../../../screen_space" }
 spin_sleep = "0.3"
 
 [dev-dependencies]
 # for some of the examples
-platform_types = { path = "../../../../platform_types" }
+platform_types = { path = "../../../platform_types" }
 
 [features]
 default = []
