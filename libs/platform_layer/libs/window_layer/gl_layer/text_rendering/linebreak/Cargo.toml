@@ -10,4 +10,4 @@ path = "./src/linebreak.rs"
 [dependencies]
 
 [dependencies.is_linebreak_char]
-path = "../../../../../../../../is_linebreak_char"
+path = "../../../../../../is_linebreak_char"

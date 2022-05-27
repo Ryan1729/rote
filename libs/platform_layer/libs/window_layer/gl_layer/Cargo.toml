@@ -8,9 +8,9 @@ edition = "2021"
 path = "./src/gl_layer.rs"
 
 [dependencies]
-gl_layer_types = { path = "./libs/gl_layer_types" }
-open_gl = { path = "./libs/open_gl" }
-text_rendering = { path = "./libs/text_rendering" }
+gl_layer_types = { path = "gl_layer_types" }
+open_gl = { path = "open_gl" }
+text_rendering = { path = "text_rendering" }
 perf_viz = { path = "../../../../perf_viz" }
 platform_types = { path = "../../../../platform_types" }
 macros = { path = "../../../../macros" }

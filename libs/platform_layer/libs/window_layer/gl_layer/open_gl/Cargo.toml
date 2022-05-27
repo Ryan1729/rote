@@ -10,9 +10,9 @@ path = "./src/open_gl.rs"
 [dependencies]
 gl33 = "0.2.1"
 gl_layer_types = { path = "../gl_layer_types" }
-perf_viz = { path = "../../../../../../perf_viz" }
-macros = { path = "../../../../../../macros" }
-if_changed = { path = "../../../../../../if_changed" }
+perf_viz = { path = "../../../../../perf_viz" }
+macros = { path = "../../../../../macros" }
+if_changed = { path = "../../../../../if_changed" }
 
 [features]
 # See comment in "time-render" check in open_gl.rs for the reason why
