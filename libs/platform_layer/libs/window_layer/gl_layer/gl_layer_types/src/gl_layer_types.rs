@@ -157,6 +157,8 @@ pub enum TextLayout {
     UnboundedLayoutClipped(ScreenSpaceRect, ScrollXY)
 }
 
+d!(for TextLayout: TextLayout::Unbounded);
+
 #[derive(Clone, Debug)]
 pub struct TextSpec<'text> {
     pub spec: VisualSpec,

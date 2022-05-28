@@ -23,28 +23,28 @@ macro_rules! ssxy {
     // Initialization
     //
     ($x: literal $(,)? $y: literal $(,)?) => {
-        ScreenSpaceXY { x: $x.into(), y: $y.into() }
+        $crate::ScreenSpaceXY { x: $x.into(), y: $y.into() }
     };
     ($x: expr, $y: expr $(,)?) => {
-        ScreenSpaceXY { x: $x.into(), y: $y.into() }
+        $crate::ScreenSpaceXY { x: $x.into(), y: $y.into() }
     };
     (raw $x: expr, $y: expr $(,)?) => {
-        ScreenSpaceXY { x: $x, y: $y }
+        $crate::ScreenSpaceXY { x: $x, y: $y }
     };
     () => {
-        ScreenSpaceXY::default()
+        $crate::ScreenSpaceXY::default()
     };
     //
     // Pattern matching
     //
     ($x: ident $(,)? $y: ident $(,)?) => {
-        ScreenSpaceXY { x: $x, y: $y }
+        $crate::ScreenSpaceXY { x: $x, y: $y }
     };
     (_ $(,)? $y: ident $(,)?) => {
-        ScreenSpaceXY { x: _, y: $y }
+        $crate::ScreenSpaceXY { x: _, y: $y }
     };
     ($x: ident $(,)? _ $(,)?) => {
-        ScreenSpaceXY { x: $x, y: _ }
+        $crate::ScreenSpaceXY { x: $x, y: _ }
     };
 }
 
@@ -247,49 +247,49 @@ macro_rules! ssr {
     // Pattern matching
     //
     ($min_x: ident $(,)? $min_y: ident $(,)? $max_x: ident $(,)? $max_y: ident $(,)?) => {
-        ScreenSpaceRect {
-            min: ScreenSpaceXY{ x: $min_x, y: $min_y },
-            max: ScreenSpaceXY{ x: $max_x, y: $max_y },
+        $crate::ScreenSpaceRect {
+            min: $crate::ScreenSpaceXY{ x: $min_x, y: $min_y },
+            max: $crate::ScreenSpaceXY{ x: $max_x, y: $max_y },
         }
     };
     ($min_x: ident $(,)? _ $(,)? $max_x: ident $(,)? _ $(,)?) => {
-        ScreenSpaceRect {
-            min: ScreenSpaceXY{ x: $min_x, _ },
-            max: ScreenSpaceXY{ x: $max_x, _ },
+        $crate::ScreenSpaceRect {
+            min: $crate::ScreenSpaceXY{ x: $min_x, _ },
+            max: $crate::ScreenSpaceXY{ x: $max_x, _ },
         }
     };
     (_ $(,)? $min_y: ident $(,)? _ $(,)? $max_y: ident $(,)?) => {
-        ScreenSpaceRect {
-            min: ScreenSpaceXY{ x: _, $min_y },
-            max: ScreenSpaceXY{ x: _, $max_y },
+        $crate::ScreenSpaceRect {
+            min: $crate::ScreenSpaceXY{ x: _, $min_y },
+            max: $crate::ScreenSpaceXY{ x: _, $max_y },
         }
     };
     ($min_x: ident $(,)? $min_y: ident $(,)? _ $(,)? _ $(,)?) => {
-        ScreenSpaceRect {
-            min: ScreenSpaceXY{ x: $min_x, y: $min_y },
+        $crate::ScreenSpaceRect {
+            min: $crate::ScreenSpaceXY{ x: $min_x, y: $min_y },
             max: _,
         }
     };
     (_ $(,)? _ $(,)? $max_x: ident $(,)? $max_y: ident $(,)?) => {
-        ScreenSpaceRect {
+        $crate::ScreenSpaceRect {
             min: _,
-            max: ScreenSpaceXY{ x: $max_x, y: $max_y },
+            max: $crate::ScreenSpaceXY{ x: $max_x, y: $max_y },
         }
     };
     ($min: ident $(,)? $max: ident $(,)?) => {
-        ScreenSpaceRect {
+        $crate::ScreenSpaceRect {
             min: $min,
             max: $max,
         }
     };
     ($min: ident $(,)? $max: ident $(,)?) => {
-        ScreenSpaceRect {
+        $crate::ScreenSpaceRect {
             min: $min,
             max: $max,
         }
     };
     ($min: ident $(,)?) => {
-        ScreenSpaceRect {
+        $crate::ScreenSpaceRect {
             min: $min,
             max: _
         }
@@ -298,43 +298,43 @@ macro_rules! ssr {
     // Initialization
     //
     ($min_x: expr, $min_y: expr, $max_x: expr, $max_y: expr $(,)?) => {
-        ScreenSpaceRect {
-            min: ssxy!($min_x, $min_y),
-            max: ssxy!($max_x, $max_y),
+        $crate::ScreenSpaceRect {
+            min: $crate::ssxy!($min_x, $min_y),
+            max: $crate::ssxy!($max_x, $max_y),
         }
     };
     (_, _, $max_x: expr, $max_y: expr $(,)?) => {
-        ScreenSpaceRect {
-            max: ssxy!($max_x, $max_y),
-            ..ScreenSpaceRect::default()
+        $crate::ScreenSpaceRect {
+            max: $crate::ssxy!($max_x, $max_y),
+            ..$crate::ScreenSpaceRect::default()
         }
     };
     (raw $min_x: expr, $min_y: expr, $max_x: expr, $max_y: expr $(,)?) => {
-        ScreenSpaceRect {
-            min: ssxy!(raw $min_x, $min_y),
-            max: ssxy!(raw $max_x, $max_y),
+        $crate::ScreenSpaceRect {
+            min: $crate::ssxy!(raw $min_x, $min_y),
+            max: $crate::ssxy!(raw $max_x, $max_y),
         }
     };
     ($min: expr, $max: expr $(,)?) => {
-        ScreenSpaceRect {
+        $crate::ScreenSpaceRect {
             min: $min,
             max: $max,
         }
     };
     ($min: expr $(,)?) => {
-        ScreenSpaceRect {
+        $crate::ScreenSpaceRect {
             min: $min,
             ..ScreenSpaceRect::default()
         }
     };
     (_, $max: expr $(,)?) => {
-        ScreenSpaceRect {
+        $crate::ScreenSpaceRect {
             max: $max,
             ..ScreenSpaceRect::default()
         }
     };
     () => {
-        ScreenSpaceRect::default()
+        $crate::ScreenSpaceRect::default()
     };
 }
 

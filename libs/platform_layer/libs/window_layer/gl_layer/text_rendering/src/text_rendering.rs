@@ -1,6 +1,6 @@
 #![deny(unused)]
 use screen_space::{
-    CharDim, ScreenSpaceXY, ScreenSpaceRect,
+    CharDim,
     char_dim, ssr,
 };
 use gl_layer_types::{Vertex, VertexStruct, set_alpha, TextOrRect, Res};
@@ -24,7 +24,6 @@ mod text_layouts {
     use super::unbounded;
     use macros::{d, dbg};
     use screen_space::{
-        ScreenSpaceXY,
         ScreenSpaceRect,
         ssr,
     };
@@ -443,7 +442,7 @@ impl <'font> State<'font> {
 
 pub(crate) type CharDims = Vec<CharDim>;
 
-const FONT_BYTES: &[u8] = include_bytes!("./fonts/FiraCode-Retina.ttf");
+pub const FONT_BYTES: &[u8] = include_bytes!("./fonts/FiraCode-Retina.ttf");
 pub const FONT_LICENSE: &str = include_str!("./fonts/LICENSE");
 
 pub fn new(hidpi_factor: f32) -> Res<State<'static>> {
