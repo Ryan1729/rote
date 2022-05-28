@@ -1,6 +1,14 @@
 use screen_space::ssr;
 use gl_layer_types::{TextOrRect, TextLayout, TextSpec, VisualSpec};
 
+// These were used in `wimp_render` at the time of writing.
+const TEXT_SIZE: f32 = 32.0;
+const FIND_REPLACE_SIZE: f32 = 26.0;
+const STATUS_SIZE: f32 = 22.0;
+const TAB_SIZE: f32 = 16.0;
+
+const TEXT_SIZES: [f32; 4] = [TEXT_SIZE, STATUS_SIZE, TAB_SIZE, FIND_REPLACE_SIZE];
+
 /// As of this writing, we use OpenGL to render the text. Specifically, we maintain
 /// a sinlge GPU texture containing the glyphs. OpenGL implementations (that is, the 
 /// combinations of hardware and drivers) expose a `GL_MAX_TEXTURE_SIZE` value,
@@ -28,17 +36,17 @@ fn rendering_all_the_characters_in_the_font_do_not_cause_the_texture_to_get_too_
     let all_chars = all_chars();
 
     state.render_vertices(
-        &vec![
+        &TEXT_SIZES.map(|size| {
             TextOrRect::Text(TextSpec {
                 text: &all_chars,
-                size: 32.,
+                size,
                 layout: TextLayout::Unbounded,
                 spec: VisualSpec {
                     rect: ssr!(0., 0., f32::INFINITY, f32::INFINITY),
                     ..<_>::default()
                 }
             })
-        ],
+        }),
         (u32::MAX, u32::MAX),
         |_, _| {},
         |_, _| {},
@@ -52,6 +60,22 @@ fn rendering_all_the_characters_in_the_font_do_not_cause_the_texture_to_get_too_
 }
 
 fn all_chars() -> String {
-    dbg!(text_rendering::FONT_BYTES.len());
-    todo!()
+    let mut output = String::with_capacity(4096);
+
+    let face = ttf_parser::Face::from_slice(
+        text_rendering::FONT_BYTES,
+        0
+    ).unwrap();
+    
+    let tables = face.tables();
+
+    let subtables = tables.cmap.unwrap().subtables;
+
+    for subtable in subtables {
+        subtable.codepoints(|bytes| {
+            output.push(char::from_u32(bytes).unwrap());
+        })
+    }
+
+    output
 }

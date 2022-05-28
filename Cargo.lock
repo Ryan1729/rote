@@ -2563,6 +2563,7 @@ dependencies = [
  "proptest",
  "pub_arb_std",
  "screen_space",
+ "ttf-parser 0.15.0",
 ]
 
 [[package]]
@@ -2654,6 +2655,12 @@ name = "ttf-parser"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d973cfa0e6124166b50a1105a67c85de40bbc625082f35c0f56f84cb1fb0a827"
+
+[[package]]
+name = "ttf-parser"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c74c96594835e10fa545e2a51e8709f30b173a092bfd6036ef2cec53376244f3"
 
 [[package]]
 name = "unicode-width"
