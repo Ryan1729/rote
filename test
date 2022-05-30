@@ -1,1 +1,6 @@
-cargo test --color=always --workspace -- $@ -Zunstable-options --report-time 2>&1
+
+# As of this writing nextest doesn't run doc tests, and running the tests it runs
+# and then only the doc tests with cargo-test is slower that just using cargo-test.
+# That makes it unacceptable for this script which is meant to test all the tests.
+
+cargo test --color=always --workspace -- "$@" -Zunstable-options --report-time 2>&1

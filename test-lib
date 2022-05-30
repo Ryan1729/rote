@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# Test only the lib tests to save some time. (Doc tests take a surprisingly long
+# time. Maybe because they are separate binaries?)
+
+if command -v cargo-nextest; then
+    cargo nextest run --color=always --workspace --lib -- "$@"
+else
+    cargo test --color=always --workspace --lib -- "$@" -Zunstable-options --report-time 2>&1
+    echo consider installing cargo-nextest for faster test execution.
+fi
