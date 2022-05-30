@@ -99,19 +99,38 @@ where 'title: 'title
         unsafe { context.make_current() }
             .map_err(|(_, e)| e)?;
 
-    let gl_state = gl_layer::init(
-        hidpi_factor,
-        clear,
-        &|symbol| {
-            // SAFETY: The underlying library has promised to pass us a nul
-            // terminated pointer.
-            let cstr = unsafe { std::ffi::CStr::from_ptr(symbol as _) };
+    let load_fn = &|symbol| {
+        // SAFETY: The underlying library has promised to pass us a nul
+        // terminated pointer.
+        let cstr = unsafe { std::ffi::CStr::from_ptr(symbol as _) };
 
-            let s = cstr.to_str().unwrap();
-
+        if let Ok(s) = cstr.to_str() {
+            // The glutin docs say the following:
+            // "Returns the address of an OpenGL function."
+            // Given there are no qualifiers there, it seems like we can
+            // assume that if we have a context then this call should work.
             context.get_proc_address(s) as _
-        },
-    )?;
+        } else {
+            // This case is not expected to happen, but the underlying 
+            // library is specifically documented to not expect this to
+            // panic, and instead expects a null pointer on errors, so 
+            // we'll return that if this case ever happens.
+
+            std::ptr::null()
+        }
+    };
+
+    // SAFETY:
+    // In the below closure, we avoid panicking to uphold the documented safety 
+    // invariant:
+    // "The passed `load_fn` must always return accurate function pointer 
+    // values, or null on failure."
+    let gl_state = unsafe { gl_layer::init(
+            hidpi_factor,
+            clear,
+            load_fn,
+        )?
+    };
 
     Ok(State {
         gl_state,

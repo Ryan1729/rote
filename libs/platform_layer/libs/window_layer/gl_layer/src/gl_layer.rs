@@ -12,7 +12,22 @@ macros::fmt_debug!(for State<'_>: _ in "{}", "State");
 
 pub use text_rendering::FONT_LICENSE;
 
-pub fn init<'load_fn>(
+/// # Safety
+/// The passed `load_fn` must always return accurate function pointer 
+/// values, or null on failure.
+pub unsafe fn init<'load_fn>(
+    hidpi_factor: f32,
+    clear_colour: [f32; 4],
+    load_fn: &open_gl::LoadFn<'load_fn>,
+) -> Res<State<'static>> {
+    init_inner(
+        hidpi_factor,
+        clear_colour,
+        load_fn,
+    )
+}
+
+fn init_inner<'load_fn>(
     hidpi_factor: f32,
     clear_colour: [f32; 4],
     load_fn: &open_gl::LoadFn<'load_fn>,
@@ -23,11 +38,14 @@ pub fn init<'load_fn>(
 
     Ok(
         State {
-            open_gl: open_gl::State::new(
-                clear_colour,
-                text_rendering_state.texture_dimensions(),
-                load_fn
-            )?,
+            
+            open_gl: unsafe { 
+                open_gl::State::new(
+                    clear_colour,
+                    text_rendering_state.texture_dimensions(),
+                    load_fn
+                )?
+            },
             text_rendering: text_rendering_state,
         }
     )
