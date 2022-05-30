@@ -128,14 +128,12 @@ impl State {
 }
 
 /// Only useable after `load_global_gl` has been called
-macro_rules! gl_assert_ok {
-    () => {{
-        if invariants_checked!() {
-            // SAFETY: See Note 1.
-            let err = unsafe { glGetError() };
-            assert_eq!(err, GL_NO_ERROR, "{}", gl_err_to_str(err));
-        }
-    }};
+fn gl_assert_ok() {
+    if invariants_checked!() {
+        // SAFETY: See Note 1.
+        let err = unsafe { glGetError() };
+        assert_eq!(err, GL_NO_ERROR, "{}", gl_err_to_str(err));
+    }
 }
 
 impl State {
@@ -202,7 +200,7 @@ impl State {
                 ptr::null(),
             );
         }
-        gl_assert_ok!();
+        gl_assert_ok();
 
         // SAFETY: See Note 1.
         unsafe {
@@ -228,7 +226,7 @@ impl State {
                 program,
                 v_field_with_nul.as_ptr().cast()
             ) };
-            gl_assert_ok!();
+            gl_assert_ok();
             if attr < 0 {
                 return Err(format!("{} GetAttribLocation -> {}", v_field, attr).into());
             }
@@ -374,7 +372,7 @@ impl State {
                 tex_data.as_ptr().cast(),
             );
         }
-        gl_assert_ok!();
+        gl_assert_ok();
     }
 
     pub fn resize_texture(
@@ -397,7 +395,7 @@ impl State {
                 ptr::null(),
             );
         }
-        gl_assert_ok!();
+        gl_assert_ok();
     }
 
     #[perf_viz::record]
