@@ -880,7 +880,6 @@ mod selectable_vec1 {
     }
     
     impl<A> SelectableVec1<A> {
-        #[must_use]
         pub fn iter(&self) -> std::slice::Iter<A> {
             self.elements.iter()
         }

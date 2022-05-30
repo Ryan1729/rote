@@ -19,6 +19,7 @@ fmt_debug!(collapse default for SearchResults : me {
 
 impl SearchResults {
     #[perf_viz::record]
+    #[must_use]
     pub fn new(needle: RopeSlice, haystack: &Rope) -> SearchResults {
         let ranges = get_ranges(
             needle,

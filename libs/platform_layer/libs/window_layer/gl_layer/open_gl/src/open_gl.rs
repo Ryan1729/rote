@@ -9,15 +9,6 @@ use gl_layer_types::{DEPTH_MIN, DEPTH_MAX, Vertex, VERTEX_SPEC, Res};
 
 use macros::{invariants_checked};
 
-macro_rules! gl_assert_ok {
-    () => {{
-        if invariants_checked!() {
-            let err = glGetError();
-            assert_eq!(err, GL_NO_ERROR, "{}", gl_err_to_str(err));
-        }
-    }};
-}
-
 pub type LoadFnOutput = *const core::ffi::c_void;
 pub type LoadFn<'a> = dyn Fn(*const u8) -> LoadFnOutput + 'a;
 
@@ -99,7 +90,6 @@ impl From<GLsizeiptr> for isize {
     }
 }
 
-
 pub struct State {
     vertex_count: usize,
     vertex_max: usize,
@@ -113,14 +103,46 @@ pub struct State {
 }
 
 impl State {
+    /// # Safety
+    /// The passed `load_fn` must always return accurate function pointer 
+    /// values, or null on failure.
     /// # Errors
     /// Returns an `Err` if the shaders cannot be compiled or linked.
     // `CString::new("out_color")?` won't return an `Err`, since "out_color" has no
     // nul char.
-    pub fn new(
+    pub unsafe fn new(
         clear_colour: [f32; 4], // the clear colour currently flashes up on exit.
         (width, height): (impl Into<GLsizei>, impl Into<GLsizei>),
         load_fn: &LoadFn<'_>,
+    ) -> Res<Self> {
+        // Load the OpenGL function pointers
+        // SAFETY: The passed `load_fn` must always return accurate function pointer 
+        // values, or null on failure.
+        /*unsafe {*/load_global_gl(load_fn); /*}*/
+
+        Self::new_inner(
+            clear_colour,
+            (width, height),
+        )
+    }
+}
+
+/// Only useable after `load_global_gl` has been called
+macro_rules! gl_assert_ok {
+    () => {{
+        if invariants_checked!() {
+            // SAFETY: See Note 1.
+            let err = unsafe { glGetError() };
+            assert_eq!(err, GL_NO_ERROR, "{}", gl_err_to_str(err));
+        }
+    }};
+}
+
+impl State {
+    #[inline]
+    fn new_inner(
+        clear_colour: [f32; 4], // the clear colour currently flashes up on exit.
+        (width, height): (impl Into<GLsizei>, impl Into<GLsizei>),
     ) -> Res<Self> {
         // We don't care if GL constants wrap. They only care about the bits.
         #[allow(clippy::cast_possible_wrap)]
@@ -129,12 +151,6 @@ impl State {
         const LINEAR: GLint = GL_LINEAR.0 as _;
         #[allow(clippy::cast_possible_wrap)]
         const R8: GLint = GL_R8.0 as _;
-
-        // Load the OpenGL function pointers
-        // SAFETY: The passed load_fn must always return accurate function pointer 
-        // values, or null on failure.
-        // TODO make this fn unsafe making that responsibilty clear to the caller.
-        unsafe { load_global_gl(load_fn); }
     
         // Create GLSL shaders
         let vs = compile_shader(include_str!("shader/vert.glsl"), GL_VERTEX_SHADER)?;
@@ -185,8 +201,11 @@ impl State {
                 GL_UNSIGNED_BYTE,
                 ptr::null(),
             );
-            gl_assert_ok!();
+        }
+        gl_assert_ok!();
 
+        // SAFETY: See Note 1.
+        unsafe {
             glUseProgram(program);
             glBindFragDataLocation(
                 program,
@@ -209,7 +228,7 @@ impl State {
                 program,
                 v_field_with_nul.as_ptr().cast()
             ) };
-            unsafe { gl_assert_ok!(); }
+            gl_assert_ok!();
             if attr < 0 {
                 return Err(format!("{} GetAttribLocation -> {}", v_field, attr).into());
             }
@@ -354,8 +373,8 @@ impl State {
                 GL_UNSIGNED_BYTE,
                 tex_data.as_ptr().cast(),
             );
-            gl_assert_ok!();
         }
+        gl_assert_ok!();
     }
 
     pub fn resize_texture(
@@ -377,8 +396,8 @@ impl State {
                 GL_UNSIGNED_BYTE,
                 ptr::null(),
             );
-            gl_assert_ok!();
         }
+        gl_assert_ok!();
     }
 
     #[perf_viz::record]
