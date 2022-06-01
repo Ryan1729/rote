@@ -459,7 +459,7 @@ impl DebugMenuState {
             inside_rect(self.mouse_pos, self.status_line_rect)
         );
 
-        #[cfg(feature = "libc-getrusage")]
+        #[cfg(all(unix, feature = "libc-getrusage"))]
         {
             perf_viz::record_guard!("getrusage");
 
