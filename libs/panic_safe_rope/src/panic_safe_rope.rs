@@ -542,6 +542,22 @@ impl std::cmp::PartialEq<Rope> for Rope {
     }
 }
 
+impl std::cmp::PartialEq<&Rope> for Rope {
+    #[inline]
+    #[perf_viz::record]
+    fn eq(&self, other: &&Rope) -> bool {
+        self.rope.eq(&other.rope)
+    }
+}
+
+impl std::cmp::PartialEq<Rope> for &Rope {
+    #[inline]
+    #[perf_viz::record]
+    fn eq(&self, other: &Rope) -> bool {
+        self.rope.eq(&other.rope)
+    }
+}
+
 impl<'a> std::cmp::PartialEq<&'a str> for Rope {
     #[inline]
     #[perf_viz::record]

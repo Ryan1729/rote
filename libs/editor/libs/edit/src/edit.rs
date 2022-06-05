@@ -1,5 +1,5 @@
 #![deny(unused)]
-use cursors::{Cursors, set_cursors};
+use cursors::Cursors;
 use editor_types::{Cursor, SetPositionAction, cur};
 use macros::{CheckedSub, d, some_or, dbg};
 use panic_safe_rope::{is_linebreak_char, LineIndex, Rope, RopeSliceTrait, RopeLine};
@@ -8,16 +8,16 @@ use rope_pos::{AbsoluteCharOffsetRange, char_offset_to_pos, final_non_newline_of
 
 use std::cmp::{min, max};
 
-pub fn apply(mut applier: Applier, edit: &Edit) {
+pub fn apply(rope: &mut CursoredRope, edit: &Edit) {
     // we assume that the edits are in the proper order so we won't mess up our indexes with our
     // own inserts and removals. I'm not positive that there being a single order that works
     // is possible for all possible edits, but in practice I think the edits we will actually
     // produce will work out. The tests should tell us if we're wrong!
     for range_edit in edit.range_edits.iter() {
-        range_edit.apply(applier.rope);
+        rope.apply(range_edit);
     }
 
-    applier.set_cursors(edit.cursors.new.clone());
+    rope.set_cursors(edit.cursors.new.clone());
 }
 
 #[derive(Debug)]
@@ -222,13 +222,14 @@ fn get_standard_insert_range_edits(
 /// there is one, inserts the given string at each of the cursors.
 #[perf_viz::record]
 pub fn get_insert_edit<F>(
-    original_rope: &Rope,
-    original_cursors: &Cursors,
+    rc: impl RC,
     get_string: F
 ) -> Edit
 where
     F: Fn(usize) -> String,
 {
+    let (original_rope, original_cursors) = rc.rc();
+
     get_edit(
         original_rope,
         original_cursors,
@@ -264,7 +265,9 @@ where
 
 /// Returns an edit that, if applied, deletes the highlighted region at each cursor if there is one.
 /// Otherwise the applying the edit will delete a single character at each cursor.
-pub fn get_delete_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
+pub fn get_delete_edit(rc: impl RC) -> Edit {
+    let (original_rope, original_cursors) = rc.rc();
+
     get_edit(original_rope, original_cursors, |cursor, rope, _| {
         let offsets = offset_pair(original_rope, cursor);
         match offsets {
@@ -342,13 +345,15 @@ pub fn extend_cursor_to_cover_line(c: &mut Cursor, rope: &Rope) {
 }
 
 /// Returns an edit that, if applied, deletes the line(s) each cursor intersects with.
-pub fn get_delete_lines_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
+pub fn get_delete_lines_edit(rc: impl RC) -> Edit {
+    let (original_rope, original_cursors) = rc.rc();
+
     let mut extended_cursors = original_cursors.get_cloned_cursors();
     for c in extended_cursors.iter_mut() {
         extend_cursor_to_cover_line(c, original_rope);
     }
 
-    let mut edit = get_delete_edit(original_rope, &Cursors::new(original_rope, extended_cursors));
+    let mut edit = get_delete_edit((original_rope, &Cursors::new(original_rope, extended_cursors)));
 
     edit.cursors.old = original_cursors.clone();
 
@@ -357,7 +362,9 @@ pub fn get_delete_lines_edit(original_rope: &Rope, original_cursors: &Cursors) -
 
 /// returns an edit that if applied will delete the highlighted region at each cursor if there is
 /// one, and which does nothing otherwise.
-pub fn get_cut_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
+pub fn get_cut_edit(rc: impl RC) -> Edit {
+    let (original_rope, original_cursors) = rc.rc();
+
     get_edit(original_rope, original_cursors, |cursor, rope, _| {
         let offsets = offset_pair(original_rope, cursor);
 
@@ -399,7 +406,9 @@ pub const TAB_STR_CHAR: char = ' ';
 pub const TAB_STR_CHAR_COUNT: usize = 4; // this isn't const (yet?) TAB_STR.chars().count();
 
 #[perf_viz::record]
-pub fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
+pub fn get_tab_in_edit(rc: impl RC) -> Edit {
+    let (original_rope, original_cursors) = rc.rc();
+
     get_edit(
         original_rope,
         original_cursors,
@@ -518,7 +527,9 @@ pub fn get_tab_in_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit
     )
 }
 
-pub fn get_tab_out_edit(original_rope: &Rope, original_cursors: &Cursors) -> Edit {
+pub fn get_tab_out_edit(rc: impl RC) -> Edit {
+    let (original_rope, original_cursors) = rc.rc();
+
     get_line_slicing_edit(
         original_rope,
         original_cursors,
@@ -553,9 +564,10 @@ fn tab_out_step(
 /// returns an edit that if applied will delete the non-line-ending whitespace at the 
 /// end of each line in the buffer, if there is any.
 pub fn get_strip_trailing_whitespace_edit(
-    original_rope: &Rope,
-    original_cursors: &Cursors
+    rc: impl RC
 ) -> Edit {
+    let (original_rope, original_cursors) = rc.rc();
+
     get_line_slicing_edit(
         original_rope,
         original_cursors,
@@ -869,27 +881,6 @@ pub struct RangeEdits {
 }
 
 impl RangeEdits {
-    fn apply(&self, rope: &mut Rope) {
-        if let Some(RangeEdit { range, .. }) = self.delete_range {
-            let remove_option = rope.remove(range.range());
-            if cfg!(feature = "invariant-checking") {
-                let range = range.range();
-                remove_option.expect(&format!("range {range:?} was invalid!"));
-            }
-        }
-
-        if let Some(RangeEdit {
-            ref chars, range, ..
-        }) = self.insert_range
-        {
-            let offset = range.min();
-            let insert_option = rope.insert(offset, chars);
-            if cfg!(feature = "invariant-checking") {
-                insert_option.expect(&format!("offset {offset} was invalid!"));
-            }
-        }
-    }
-
     // TODO write a test that fails when we add a new field that isn't counted here.
     // A compile-time assert would be preferable, of course.
     pub fn size_in_bytes(&self) -> usize {
@@ -1013,28 +1004,109 @@ pub fn copy_string(rope: &Rope, range: AbsoluteCharOffsetRange) -> String {
         .unwrap_or_default()
 }
 
-/// We want to ensure that the cursors are always kept within bounds, meaning the whenever they
-/// are changed they need to be clamped to the range of the rope. But we want to have a different
-/// module handle the actual changes. So we pass an instance of this struct which allows
-/// editing the rope and cursors in a controlled fashion.
-// TODO given we've moved this into the `edit` module, does this still make sense?
-pub struct Applier<'rope, 'cursors> {
-    pub rope: &'rope mut Rope,
-    cursors: &'cursors mut Cursors,
+/// Short for Rope and Cursors.
+pub trait RC {
+    fn rc(&self) -> (&Rope, &Cursors);
 }
 
-impl<'rope, 'cursors> Applier<'rope, 'cursors> {
-    pub fn new(rope: &'rope mut Rope, cursors: &'cursors mut Cursors) -> Self {
-        Applier {
-            rope,
-            cursors,
+impl RC for (&Rope, &Cursors) {
+    fn rc(&self) -> (&Rope, &Cursors) {
+        (self.0, self.1)
+    }
+}
+
+mod cursored_rope {
+    use cursors::{Cursors, set_cursors};
+    use panic_safe_rope::Rope;
+    use crate::{RangeEdit, RangeEdits, RC};
+    use editor_types::Cursor;
+    use platform_types::Vec1;
+
+    /// We keep the fields private so we can ensure that the cursors are always 
+    /// within the rope's bounds.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct CursoredRope {
+        rope: Rope,
+        cursors: Cursors,
+    }
+
+    impl <R: Into<Rope>> From<R> for CursoredRope {
+        fn from(into_rope: R) -> Self {
+            let rope = into_rope.into();
+            Self {
+                rope,
+                cursors: <_>::default(),
+            }
+        }
+    }
+    
+    impl CursoredRope {
+        pub fn new(
+            rope: Rope,
+            cursors: Cursors,
+        ) -> Self {
+            Self { rope, cursors }
+        }
+
+        #[cfg(any(test, feature = "pub_arb"))]
+        pub fn split(self) -> (Rope, Cursors) {
+            (self.rope, self.cursors)
+        }
+
+        pub fn set_cursors(&mut self, cursors: Cursors) {
+            set_cursors(&self.rope, &mut self.cursors, cursors)
+        }
+
+        pub fn borrow_rope(&self) -> &Rope {
+            &self.rope
+        }
+
+        pub fn borrow_cursors(&self) -> &Cursors {
+            &self.cursors
+        }
+
+        pub fn borrow_tuple(&self) -> (&Rope, &Cursors) {
+            (&self.rope, &self.cursors)
+        }
+
+        pub fn reset_cursor_states(&mut self) {
+            self.cursors.reset_states()
+        }
+
+        #[cfg(any(test, feature = "pub_arb"))]
+        pub fn set_cursors_from_vec1(&mut self, cursors: Vec1<Cursor>) {
+            self.cursors = Cursors::new(&self.rope, cursors);
+        }
+
+        pub fn apply(&mut self, edits: &RangeEdits) {
+            if let Some(RangeEdit { range, .. }) = edits.delete_range {
+                let remove_option = self.rope.remove(range.range());
+                if cfg!(feature = "invariant-checking") {
+                    let range = range.range();
+                    remove_option.expect(&format!("range {range:?} was invalid!"));
+                }
+            }
+    
+            if let Some(RangeEdit {
+                ref chars, range, ..
+            }) = edits.insert_range
+            {
+                let offset = range.min();
+                let insert_option = self.rope.insert(offset, chars);
+                if cfg!(feature = "invariant-checking") {
+                    insert_option.expect(&format!("offset {offset} was invalid!"));
+                }
+            }
         }
     }
 
-    fn set_cursors(&mut self, new: Cursors) {
-        set_cursors(self.rope, self.cursors, new);
+    impl RC for &CursoredRope {
+        fn rc(&self) -> (&Rope, &Cursors) {
+            self.borrow_tuple()
+        }
     }
 }
+pub use cursored_rope::CursoredRope;
 
 #[cfg(any(test, feature = "pub_arb"))]
 pub mod tests {

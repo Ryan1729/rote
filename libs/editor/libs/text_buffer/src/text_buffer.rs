@@ -1,6 +1,6 @@
 #![deny(unused)]
 use cursors::Cursors;
-use edit::{Applier, Change, Edit, change};
+use edit::{Change, CursoredRope, Edit, change};
 use editor_types::{Cursor, SetPositionAction};
 use macros::{d, dbg, u};
 use move_cursor::{forward, get_next_selection_point, get_previous_selection_point};
@@ -17,18 +17,142 @@ use rope_pos::{
 
 use std::{
     borrow::Borrow,
-    collections::VecDeque,
 };
 
+mod history {
+    use std::collections::VecDeque;
+    use edit::{Change, Edit, change};
+    use super::{EditedTransition, Editedness};
+    use macros::u;
+    
+
+    #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+    pub struct History {
+        edits: VecDeque<Edit>,
+        index: usize,
+    }
+
+    impl History {
+        pub fn get(&self) -> Option<Edit> {
+            self.edits.get(self.index).cloned()
+        }
+
+        pub fn redo(
+            &mut self,
+            apply_edit: impl FnOnce(Edit) -> Change<Editedness>
+        ) -> NavOutcome {
+            if let Some(edit) = self.get() {
+                self.index += 1;
+    
+                apply_edit(edit).into()
+            } else {
+                NavOutcome::RanOutOfHistory
+            }
+        }
+
+        pub fn undo(
+            &mut self,
+            apply_edit: impl FnOnce(Edit) -> Change<Editedness>
+        ) -> NavOutcome {
+            let opt = self.index.checked_sub(1)
+                .and_then(|new_index|
+                    self.get().map(|e| (new_index, e))
+                );
+
+            if let Some((new_index, edit)) = opt {
+                self.index = new_index;
+    
+                apply_edit(!edit).into()
+            } else {
+                NavOutcome::RanOutOfHistory
+            }
+        }
+
+        pub fn record_edit(&mut self, edit: Edit) {
+            self.edits.truncate(self.index);
+            self.edits.push_back(edit);
+            self.index += 1;
+        }
+
+        #[cfg(any(test, feature = "pub_arb"))]
+        pub fn len(&self) -> usize {
+            self.edits.len()
+        }
+
+        pub fn is_empty(&self) -> bool {
+            self.edits.is_empty()
+        }
+
+        pub fn clear(&mut self) {
+            self.edits.clear();
+            self.index = 0;
+        }
+
+        pub fn size_in_bytes(&self) -> usize {
+            let mut output = 0;
+            // TODO Does this take long enough that we should memoize this method?
+            // Maybe caching further upstream would be better?
+            for edit in self.edits.iter() {
+                output += edit.size_in_bytes();
+            }
+    
+            output += (
+                self.edits.capacity() -
+                // Don't double count the struct bytes from the `edit.size_in_bytes()`
+                // calls above.
+                self.edits.len()
+            ) * core::mem::size_of::<Edit>();
+            output += core::mem::size_of_val(&self.index);
+
+            output
+        }
+    }
+
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    pub enum NavOutcome {
+        NoTransition,
+        Transition(EditedTransition),
+        RanOutOfHistory,
+    }
+    
+    impl From<Change<Editedness>> for NavOutcome {
+        fn from(c: Change<Editedness>) -> Self {
+            u!{NavOutcome, Editedness, EditedTransition}
+            match c {
+                change!(Edited, Edited) | change!(Unedited, Unedited) => NoTransition,
+                change!(Edited, Unedited) => Transition(ToUnedited),
+                change!(Unedited, Edited) => Transition(ToEdited),
+            }
+        }
+    }
+    
+    impl From<NavOutcome> for Option<EditedTransition> {
+        fn from(hno: NavOutcome) -> Self {
+            u!{NavOutcome}
+            match hno {
+                RanOutOfHistory | NoTransition => None,
+                Transition(t) => Some(t)
+            }
+        }
+    }
+    
+    impl NavOutcome {
+        pub fn ran_out_of_history(&self) -> bool {
+            u!{NavOutcome}
+            matches!(self, RanOutOfHistory)
+        }
+    }
+}
+use history::{History, NavOutcome as HistoryNavOutcome};
+
+/// Not `Eq` because of the `ScrollXY` field.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TextBuffer {
-    /// We keep the rope private, and only allow non-mut borrows
+    /// We keep the `CursoredRope` private, and only allow non-mut borrows
     /// so we know that the history contains all the changes made
     /// to the rope.
-    rope: Rope,
-    cursors: Cursors,
-    history: VecDeque<Edit>,
-    history_index: usize,
+    rope: CursoredRope,
+    history: History,
     unedited: Rope,
     pub scroll: ScrollXY,
 }
@@ -37,10 +161,8 @@ d!(for TextBuffer: {
     let rope: Rope = d!();
     TextBuffer {
         unedited: rope.clone(),
-        rope,
-        cursors: d!(),
+        rope: rope.into(),
         history: d!(),
-        history_index: d!(),
         scroll: d!(),
     }
 });
@@ -49,18 +171,17 @@ impl TextBuffer {
     #[perf_viz::record]
     pub fn non_rope_hash<H: std::hash::Hasher>(&self, state: &mut H) {
         use std::hash::Hash;
-        self.cursors.hash(state);
+        self.borrow_cursors().hash(state);
         perf_viz::start_record!("history hash");
         self.history.hash(state);
         perf_viz::end_record!("history hash");
-        self.history_index.hash(state);
         self.scroll.hash(state);
     }
 
     #[perf_viz::record]
     pub fn rope_hash<H: std::hash::Hasher>(&self, state: &mut H) {
         use std::hash::Hash;
-        for c in self.rope.chunks() {
+        for c in self.borrow_rope().chunks() {
             c.hash(state);    
         }
 
@@ -78,23 +199,11 @@ impl TextBuffer {
 
         let mut output = 0;
 
-        output += mem::size_of_val(&self.rope);
-        output += usize::from(self.rope.len_bytes().0);
-        output += self.cursors.size_in_bytes();
-
-        // TODO Does this take long enough that we should memoize this method?
-        // Maybe caching further upstream would be better?
-        for edit in self.history.iter() {
-            output += edit.size_in_bytes();
-        }
-
-        output += (
-            self.history.capacity() -
-            // Don't double count the struct bytes from the `edit.size_in_bytes()`
-            // calls above.
-            self.history.len()
-        ) * mem::size_of::<Edit>();
-        output += mem::size_of_val(&self.history_index);
+        let rope = self.borrow_rope();
+        output += mem::size_of_val(rope);
+        output += usize::from(rope.len_bytes().0);
+        output += self.borrow_cursors().size_in_bytes();
+        output += self.history.size_in_bytes();
         output += mem::size_of_val(&self.unedited);
         output += usize::from(self.unedited.len_bytes().0);
         output += mem::size_of_val(&self.scroll);
@@ -111,32 +220,32 @@ pub enum ScrollAdjustSpec {
 
 impl TextBuffer {
     #[must_use]
+    pub fn borrow_rope(&self) -> &Rope {
+        self.rope.borrow_rope()
+    }
+
+    #[must_use]
     pub fn len(&self) -> usize {
         self.borrow_rope().chars().count()
     }
 
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.rope.len_bytes() == 0
-    }
-
-    #[must_use]
-    pub fn borrow_rope(&self) -> &Rope {
-        &self.rope
+        self.borrow_rope().len_bytes() == 0
     }
 
     #[must_use]
     pub fn clone_rope(&self) -> Rope {
-        self.rope.clone()
+        self.borrow_rope().clone()
     }
 
     #[must_use]
     pub fn borrow_cursors(&self) -> &Cursors {
-        &self.cursors
+        &self.rope.borrow_cursors()
     }
 
     pub fn reset_cursor_states(&mut self) {
-        self.cursors.reset_states();
+        self.rope.reset_cursor_states();
     }
 
     pub fn try_to_show_cursors_on(
@@ -153,7 +262,10 @@ impl TextBuffer {
                 Succeeded
             }
             Calculate(char_dim, xywh) => {
-                let text_space = position_to_text_space(dbg!(self.cursors.last().get_position()), char_dim);
+                let text_space = position_to_text_space(
+                    dbg!(self.rope.borrow_cursors().last().get_position()),
+                    char_dim
+                );
 
                 // We try first with this smaller xywh to make the cursor appear
                 // in the center more often.
@@ -199,7 +311,7 @@ impl From<String> for TextBuffer {
     fn from(s: String) -> Self {
         let mut output: Self = d!();
 
-        output.rope = Rope::from(s);
+        output.rope = CursoredRope::from(s);
         output.set_unedited();
 
         output
@@ -210,7 +322,7 @@ impl From<&str> for TextBuffer {
     fn from(s: &str) -> Self {
         let mut output: Self = d!();
 
-        output.rope = Rope::from(s);
+        output.rope = CursoredRope::from(s);
         output.set_unedited();
 
         output
@@ -219,25 +331,25 @@ impl From<&str> for TextBuffer {
 
 impl From<&TextBuffer> for String {
     fn from(t_b: &TextBuffer) -> Self {
-        t_b.rope.clone().into()
+        t_b.borrow_rope().clone().into()
     }
 }
 
 impl From<&mut TextBuffer> for String {
     fn from(t_b: &mut TextBuffer) -> Self {
-        t_b.rope.clone().into()
+        t_b.borrow_rope().clone().into()
     }
 }
 
 impl <'t_b> From<&'t_b TextBuffer> for RopeSlice<'t_b> {
     fn from(t_b: &'t_b TextBuffer) -> Self {
-        t_b.rope.full_slice()
+        t_b.borrow_rope().full_slice()
     }
 }
 
 impl <'t_b> From<&'t_b mut TextBuffer> for RopeSlice<'t_b> {
     fn from(t_b: &'t_b mut TextBuffer) -> Self {
-        t_b.rope.full_slice()
+        t_b.borrow_rope().full_slice()
     }
 }
 
@@ -327,7 +439,7 @@ impl TextBuffer {
         listener: ppel!()
     ) -> PossibleEditedTransition {
         let o = self.record_edit(
-            edit::get_insert_edit(&self.rope, &self.cursors, |_| s.clone()),
+            edit::get_insert_edit(&self.rope, |_| s.clone()),
             listener
         );
         dbg!(&self);
@@ -343,7 +455,7 @@ impl TextBuffer {
         F: Fn(usize) -> String,
     {
         self.record_edit(
-            edit::get_insert_edit(&self.rope, &self.cursors, func),
+            edit::get_insert_edit(&self.rope, func),
             listener,
         )
     }
@@ -351,7 +463,7 @@ impl TextBuffer {
     #[perf_viz::record]
     pub fn delete(&mut self, listener: ppel!()) -> PossibleEditedTransition {
         self.record_edit(
-            edit::get_delete_edit(&self.rope, &self.cursors),
+            edit::get_delete_edit(&self.rope),
             listener,
         )
     }
@@ -359,7 +471,7 @@ impl TextBuffer {
     #[perf_viz::record]
     pub fn delete_lines(&mut self, listener: ppel!()) -> PossibleEditedTransition {
         self.record_edit(
-            edit::get_delete_lines_edit(&self.rope, &self.cursors),
+            edit::get_delete_lines_edit(&self.rope),
             listener,
         )
     }
@@ -399,7 +511,7 @@ impl TextBuffer {
     }
 
     fn get_selections_and_cut_edit(&self) -> (Vec<String>, Edit) {
-        let edit = edit::get_cut_edit(&self.rope, &self.cursors);
+        let edit = edit::get_cut_edit(&self.rope);
 
         (edit.selected(), edit)
     }
@@ -428,10 +540,16 @@ impl TextBuffer {
         let unclamped_cursor = cursor.into();
 
         let cursor: Option<Cursor> = match (
-            nearest_valid_position_on_same_line(&self.rope, unclamped_cursor.get_position()),
+            nearest_valid_position_on_same_line(
+                self.borrow_rope(),
+                unclamped_cursor.get_position()
+            ),
             unclamped_cursor
                 .get_highlight_position()
-                .and_then(|h| nearest_valid_position_on_same_line(&self.rope, h)),
+                .and_then(|h| nearest_valid_position_on_same_line(
+                    self.borrow_rope(),
+                    h
+                )),
         ) {
             (Some(p), Some(h)) => Some((p, h).into()),
             (Some(p), None) => Some(p.into()),
@@ -441,19 +559,26 @@ impl TextBuffer {
         cursor.map(|c| match replace_or_add {
             ReplaceOrAdd::Replace => Vec1::new(c),
             ReplaceOrAdd::Add => {
-                let mut cursors = self.cursors.get_cloned_cursors();
+                let mut cursors = self.get_cloned_cursors();
                 cursors.push(c);
                 cursors
             }
         })
     }
 
+    fn get_cloned_cursors(&self) -> Vec1<Cursor> {
+        self.borrow_cursors().get_cloned_cursors()
+    }
+
     #[perf_viz::record]
     pub fn drag_cursors<P: Borrow<Position>>(&mut self, position: P) {
         let position = position.borrow();
 
-        if let Some(p) = nearest_valid_position_on_same_line(&self.rope, position) {
-            let mut new = self.cursors.get_cloned_cursors();
+        if let Some(p) = nearest_valid_position_on_same_line(
+            self.borrow_rope(),
+            position
+        ) {
+            let mut new = self.get_cloned_cursors();
             for c in new.iter_mut() {
                 c.set_position_custom(p, SetPositionAction::OldPositionBecomesHighlightIfItIsNone);
             }
@@ -491,7 +616,7 @@ impl TextBuffer {
         if let Some(mut new) = self.get_new_cursors(position, replace_or_add) {
             let c = new.last_mut();
 
-            let rope = &self.rope;
+            let rope = &self.borrow_rope();
             let old_position = c.get_position();
 
             let highlight_position = get_previous_selection_point(
@@ -504,7 +629,8 @@ impl TextBuffer {
             .unwrap_or(old_position);
             c.set_highlight_position(highlight_position);
 
-            let pos = get_next_selection_point(rope, old_position).unwrap_or(old_position);
+            let pos = get_next_selection_point(rope, old_position)
+                .unwrap_or(old_position);
             c.set_position_custom(
                 pos,
                 SetPositionAction::ClearHighlightOnlyIfItMatchesNewPosition,
@@ -554,7 +680,7 @@ impl TextBuffer {
     }
 
     fn move_cursors(&mut self, spec: CursorMoveSpec, r#move: Move) -> Option<()> {
-        let mut new = self.cursors.get_cloned_cursors();
+        let mut new = self.get_cloned_cursors();
 
         let action: for<'r, 's> fn(&'r Rope, &'s mut Cursor, Move) = match spec.what {
             MoveOrSelect::Move => move_cursor::or_clear_highlights,
@@ -564,11 +690,11 @@ impl TextBuffer {
         match spec.how_many {
             AllOrOne::All => {
                 for cursor in new.iter_mut() {
-                    action(&self.rope, cursor, r#move);
+                    action(&self.borrow_rope(), cursor, r#move);
                 }
             }
             AllOrOne::Index(index) => {
-                action(&self.rope, new.get_mut(index)?, r#move);
+                action(&self.borrow_rope(), new.get_mut(index)?, r#move);
             }
         };
 
@@ -584,15 +710,15 @@ impl TextBuffer {
         new: Vec1<Cursor>,
     ) {
         let change = edit::Change {
-            old: self.cursors.clone(),
-            new: Cursors::new(&self.rope, new),
+            old: self.rope.borrow_cursors().clone(),
+            new: Cursors::new(self.rope.borrow_rope(), new),
         };
 
-        self.apply_edit(
+        // We don't record cursor movements for undo purposes
+        // so you can undo, select, copy and then redo.
+        apply_edit(
+            &mut self.rope,
             change.into(),
-            // We don't record cursor movements for undo purposes
-            // so you can undo, select, copy and then redo.
-            ApplyKind::Playback,
             // Since we know that this edit only involves cursors, we know the
             // parsers won't care about it.
             None,        );
@@ -600,21 +726,21 @@ impl TextBuffer {
 
     pub fn tab_in(&mut self, listener: PossibleParserEditListener) -> PossibleEditedTransition {
         self.record_edit(
-            edit::get_tab_in_edit(&self.rope, &self.cursors),
+            edit::get_tab_in_edit(&self.rope),
             listener
         )
     }
 
     pub fn tab_out(&mut self, listener: PossibleParserEditListener) -> PossibleEditedTransition {
         self.record_edit(
-            edit::get_tab_out_edit(&self.rope, &self.cursors),
+            edit::get_tab_out_edit(&self.rope),
             listener,
         )
     }
 
     pub fn strip_trailing_whitespace(&mut self, listener: PossibleParserEditListener) -> PossibleEditedTransition {
         self.record_edit(
-            edit::get_strip_trailing_whitespace_edit(&self.rope, &self.cursors),
+            edit::get_strip_trailing_whitespace_edit(&self.rope),
             listener,
         )
     }
@@ -625,7 +751,9 @@ impl TextBuffer {
         let old_editedness = self.editedness();
         dbg!(old_editedness);
 
-        self.apply_edit(edit, ApplyKind::Record, listener);
+        apply_edit(&mut self.rope, edit, listener);
+
+        self.history.record_edit(edit);
 
         dbg!(self.editedness());
         match change!(old_editedness, self.editedness()) {
@@ -635,48 +763,34 @@ impl TextBuffer {
         }
     }
 
-    #[perf_viz::record]
-    fn apply_edit(
-        &mut self,
-        edit: Edit,
-        kind: ApplyKind,
-        listener: ppel!(),
-    ) {
-        if let Some(listener) = listener {
-            listener.parsers.acknowledge_edit(
-                listener.buffer_name,
-                listener.parser_kind,
-                &edit,
-                &self.rope
-            );
-        }
-
-        let applier = Applier::new(
-            &mut self.rope,
-            &mut self.cursors
-        );
-        edit::apply(applier, &edit);
-
-        match kind {
-            ApplyKind::Record => {
-                self.history.truncate(self.history_index);
-                self.history.push_back(edit);
-                self.history_index += 1;
-            }
-            ApplyKind::Playback => {}
-        }
-    }
-
     // some of these are convenience methods for tests
-    #[allow(dead_code)]
+    #[cfg(any(test, feature = "pub_arb"))]
     fn set_cursors(&mut self, new: Cursors) {
-        cursors::set_cursors(&self.rope, &mut self.cursors, new);
+        self.rope.set_cursors(new);
     }
 
-    #[allow(dead_code)]
+    #[cfg(any(test, feature = "pub_arb"))]
     fn set_cursors_from_vec1(&mut self, cursors: Vec1<Cursor>) {
-        self.cursors = Cursors::new(&self.rope, cursors);
+        self.rope.set_cursors_from_vec1(cursors);
     }
+}
+
+#[perf_viz::record]
+fn apply_edit(
+    rope: &mut CursoredRope,
+    edit: Edit,
+    listener: ppel!(),
+) {
+    if let Some(listener) = listener {
+        listener.parsers.acknowledge_edit(
+            listener.buffer_name,
+            listener.parser_kind,
+            &edit,
+            rope.borrow_rope()
+        );
+    }
+
+    edit::apply(rope, &edit);
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -690,7 +804,7 @@ impl TextBuffer {
         u!{Editedness}
 
         dbg!(&self.unedited, &self.rope);
-        if self.unedited == self.rope {
+        if self.unedited == self.borrow_rope() {
             Unedited
         } else {
             Edited
@@ -698,77 +812,29 @@ impl TextBuffer {
     }
 
     pub fn set_unedited(&mut self) {
-        self.unedited = self.rope.clone();
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum HistoryNavOutcome {
-    NoTransition,
-    Transition(EditedTransition),
-    RanOutOfHistory,
-}
-
-impl From<Change<Editedness>> for HistoryNavOutcome {
-    fn from(c: Change<Editedness>) -> Self {
-        u!{HistoryNavOutcome, Editedness, EditedTransition}
-        match c {
-            change!(Edited, Edited) | change!(Unedited, Unedited) => NoTransition,
-            change!(Edited, Unedited) => Transition(ToUnedited),
-            change!(Unedited, Edited) => Transition(ToEdited),
-        }
-    }
-}
-
-impl From<HistoryNavOutcome> for Option<EditedTransition> {
-    fn from(hno: HistoryNavOutcome) -> Self {
-        u!{HistoryNavOutcome}
-        match hno {
-            RanOutOfHistory | NoTransition => None,
-            Transition(t) => Some(t)
-        }
-    }
-}
-
-impl HistoryNavOutcome {
-    pub fn ran_out_of_history(&self) -> bool {
-        u!{HistoryNavOutcome}
-        matches!(self,RanOutOfHistory)
+        self.unedited = self.borrow_rope().clone();
     }
 }
 
 impl TextBuffer {
     pub fn redo(&mut self, listener: ppel!()) -> HistoryNavOutcome {
-        u!{HistoryNavOutcome}
         let old_editedness = self.editedness();
 
-        if let Some(edit) = self.history.get(self.history_index).cloned() {
-            self.apply_edit(edit, ApplyKind::Playback, listener);
-            self.history_index += 1;
+        self.history.redo(|edit| {
+            apply_edit(&mut self.rope, edit, listener);
 
-            change!(old_editedness, self.editedness()).into()
-        } else {
-            RanOutOfHistory
-        }
+            change!(old_editedness, self.editedness())
+        })
     }
 
     pub fn undo(&mut self, listener: ppel!()) -> HistoryNavOutcome {
-        u!{HistoryNavOutcome}
         let old_editedness = self.editedness();
 
-        let opt = self.history_index.checked_sub(1)
-            .and_then(|new_index|
-                self.history.get(new_index).cloned().map(|e| (new_index, e))
-            );
+        self.history.undo(|edit| {
+            apply_edit(&mut self.rope, edit, listener);
 
-        if let Some((new_index, edit)) = opt {
-            self.apply_edit(!edit, ApplyKind::Playback, listener);
-            self.history_index = new_index;
-
-            change!(old_editedness, self.editedness()).into()
-        } else {
-            RanOutOfHistory
-        } 
+            change!(old_editedness, self.editedness())
+        })
     }
 
     pub fn has_no_edits(&self) -> bool {
@@ -778,7 +844,6 @@ impl TextBuffer {
 
     pub fn clear_history(&mut self) {
         self.history.clear();
-        self.history_index = d!();
     }
 }
 
@@ -788,12 +853,12 @@ impl TextBuffer {
 
 impl TextBuffer {
     pub fn in_bounds<P: Borrow<Position>>(&self, position: P) -> bool {
-        in_cursor_bounds(&self.rope, position)
+        in_cursor_bounds(self.borrow_rope(), position)
     }
 
     #[perf_viz::record]
     pub fn find_index<P: Borrow<Position>>(&self, p: P) -> Option<ByteIndex> {
-        let rope = &self.rope;
+        let rope = self.borrow_rope();
         pos_to_char_offset(rope, p.borrow()).and_then(|o| rope.char_to_byte(o))
     }
 }

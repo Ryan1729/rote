@@ -31,10 +31,10 @@ fn parsers_rust_to_c_abort_does_not_happen() {
 
     let mut parsers = Parsers::default();
 
-    let mut rope = Rope::from(r#"int main() {
+    let rope = Rope::from(r#"int main() {
     return strlen('d'); "";
 }"#);
-    let mut cursors = d!();
+    let cursors = d!();
 
     let mut parser_kind = Rust(Extra);
 
@@ -47,7 +47,7 @@ fn parsers_rust_to_c_abort_does_not_happen() {
     // Here we simulate the user switching languages
     parser_kind = C(Extra);
 
-    let insert_edit = edit::get_insert_edit(&rope, &cursors, |_| "\n".to_owned());
+    let insert_edit = edit::get_insert_edit((&rope, &cursors), |_| "\n".to_owned());
 
     parsers.acknowledge_edit(
         &buffer_name,
@@ -56,18 +56,18 @@ fn parsers_rust_to_c_abort_does_not_happen() {
         &rope
     );
 
-    let applier = edit::Applier::new(
-        &mut rope,
-        &mut cursors
+    let mut rope = edit::CursoredRope::new(
+        rope,
+        cursors
     );
-    edit::apply(applier, &insert_edit);
+    edit::apply(&mut rope, &insert_edit);
 
     // As of this writing, the abort happens after this.
     // uncomment this for a demonstation:
     //assert!(false, "pre parsers.get_spans");
 
     parsers.get_spans(
-        rope.into(),
+        rope.borrow_rope().into(),
         &buffer_name,
         parser_kind
     );

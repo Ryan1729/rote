@@ -1,4 +1,4 @@
-use crate::{Change, Edit};
+use crate::{Change, Edit, CursoredRope};
 use proptest::{
     option,
     prelude::*,
@@ -66,7 +66,8 @@ pub fn edit<'rope, R: 'rope + Borrow<Rope>>(rope: R) -> impl Strategy<Value = Ed
     })
 }
 
-pub fn edit_with_cursors<'rope, R: 'rope + Borrow<Rope>>(rope: R, cursors: Cursors) -> impl Strategy<Value = Edit> + 'rope {
+pub fn edit_with_cursors(cursored_rope: CursoredRope) -> impl Strategy<Value = Edit>{
+    let (rope, cursors) = cursored_rope.split();
     edit(rope).prop_map(move |mut edit| {
         edit.cursors.old = cursors.clone();
         edit

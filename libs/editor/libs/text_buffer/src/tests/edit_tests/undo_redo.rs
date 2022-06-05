@@ -9,10 +9,7 @@ use pub_arb_edit::edit_with_cursors;
 use std::borrow::Borrow;
 
 fn arb_edit_from_buffer(text_buffer: TextBuffer) -> impl Strategy<Value = Edit> {
-    edit_with_cursors(
-        text_buffer.rope,
-        text_buffer.cursors
-    )
+    edit_with_cursors(text_buffer.rope)
 }
 
 prop_compose! {
@@ -46,23 +43,24 @@ proptest! {
 fn negated_edit_undo_redos_properly(initial_buffer: TextBuffer, edit: Edit) {
     let mut buffer: TextBuffer = deep_clone(&initial_buffer);
 
-    buffer.apply_edit(edit.clone(), ApplyKind::Record, None);
+    apply_edit(&mut buffer.rope, edit.clone(), None);
 
     let modified_buffer = deep_clone(&buffer);
 
-    buffer.apply_edit(!(edit.clone()), ApplyKind::Playback, None);
+    apply_edit(&mut buffer.rope, !(edit.clone()), None);
 
     assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
 
-    buffer.apply_edit(edit, ApplyKind::Playback, None);
+    apply_edit(&mut buffer.rope, edit, None);
 
     assert_text_buffer_eq_ignoring_history!(buffer, modified_buffer);
 }
 
-// I am more confidnent that this weaker theorem follows directly from undo/redo working. It is
-// essentially the statement that undo/redo works for a single action.
-// However,it is complicated to generate valid edits for this, whereas the method used in
-// `undo_redo_works_on_these_edits_and_index` (seemingly?) generates valid edits every time.
+// I am more confident that this weaker theorem follows directly from undo/redo
+// working. It is essentially the statement that undo/redo works for a single action.
+// However,it is complicated to generate valid edits for this, whereas the method
+// used in `undo_redo_works_on_these_edits_and_index` (seemingly?) generates valid
+// edits every time.
 // So let's skip these for now.
 proptest! {
     //#[test]
@@ -103,7 +101,7 @@ fn negated_edits_undo_redo_this_edit_that_only_changes_the_sticky_offset() {
     }
     .into();
 
-    buffer.apply_edit(edit.clone(), ApplyKind::Record, None);
+    apply_edit(&mut buffer.rope, edit.clone(), None);
 
     let modified_buffer = deep_clone(&buffer);
 
@@ -118,11 +116,11 @@ fn negated_edits_undo_redo_this_edit_that_only_changes_the_sticky_offset() {
         }
     }
 
-    buffer.apply_edit(undo_edit, ApplyKind::Playback, None);
+    apply_edit(&mut buffer.rope, undo_edit, None);
 
     assert_eq!(buffer.cursors.first(), initial_buffer.cursors.first());
 
-    buffer.apply_edit(edit, ApplyKind::Playback, None);
+    apply_edit(&mut buffer.rope, edit, None);
 
     assert_eq!(buffer.cursors.first(), modified_buffer.cursors.first());
 }
@@ -177,7 +175,7 @@ proptest! {
 // Historical note: This function preceded `undo_redo_works_on_these_edits_and_index_regarding_ropes`
 // but eventually we decided that caring about the cursor position in certain cases was too much work
 // for too little benefit, so we started only caring about the rope data. But in many cases the cursor
-// stuff did line up and so those places were left alone since there was not a pressing reason to 
+// stuff did line up and so those places were left alone since there was not a pressing reason to
 // loosen those requirements. And we might find it useful to know if future changes affect the results
 // of those tests?
 fn undo_redo_works_on_these_edits_and_index<TestEdits: Borrow<[TestEdit]>>(
@@ -397,7 +395,7 @@ fn undo_redo_works_on_all_these_edits<TestEdits: Borrow<[TestEdit]>>(
 
     // preconditon
     assert_eq!(
-        expected_buffers.len(), 
+        expected_buffers.len(),
         len,
         "wrong amount of expected_buffers"
     );
@@ -523,7 +521,7 @@ fn undo_redo_works_on_this_set_of_edits() {
     );
 }
 
-// Historical note: As of this writing, this is an example of a test which, without the 
+// Historical note: As of this writing, this is an example of a test which, without the
 // rope only loosening, fails.
 #[test]
 fn works_on_this_set_of_edits_including_cursor_movement_regarding_ropes() {
@@ -1074,13 +1072,13 @@ fn does_not_allow_applying_stale_redos_in_this_case() {
     assert_eq!(buffer.rope.to_string(), "123");
 
     TestEdit::apply(&mut buffer, TestEdit::Insert('6'));
-    
+
     // precondition
     assert_eq!(buffer.rope.to_string(), "1236");
     let buffer_after_6 = deep_clone(&buffer);
 
     buffer.redo(None);
-    
+
     assert_text_buffer_eq_ignoring_history!(buffer, buffer_after_6);
     assert_eq!(buffer.rope.to_string(), "1236");
 }

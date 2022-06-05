@@ -29,7 +29,7 @@ macro_rules! cursor_assert {
         $(, h: $highlight_position: expr)?
         $(, s: $state: pat)?
         $(,)?) => {{
-        let c = $buffer.cursors.first();
+        let c = $buffer.borrow_cursors().first();
 
         $(
             assert_eq!(c.get_position(), $pos, "positions do not match");
@@ -85,13 +85,13 @@ impl<'a, 'b> PartialEq<IgnoringState<'b>> for IgnoringState<'a> {
 pub struct IgnoringHistory<'buffer>(pub &'buffer TextBuffer);
 
 fmt_debug!(<'a> for IgnoringHistory<'a>:
-     IgnoringHistory(b) in "{{ rope: {:?}, cursors: {:?} }}", b.rope, IgnoringState(&b.cursors)
+     IgnoringHistory(b) in "{{ rope: {:?}, cursors: {:?} }}", b.borrow_rope(), IgnoringState(b.borrow_cursors())
  );
 
 impl<'a, 'b> PartialEq<IgnoringHistory<'b>> for IgnoringHistory<'a> {
     fn eq(&self, other: &IgnoringHistory<'b>) -> bool {
-        self.0.rope == other.0.rope
-            && IgnoringState(&self.0.cursors) == IgnoringState(&other.0.cursors)
+        self.0.borrow_rope() == other.0.borrow_rope()
+        && IgnoringState(self.0.borrow_cursors()) == IgnoringState(other.0.borrow_cursors())
     }
 }
 

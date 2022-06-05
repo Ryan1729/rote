@@ -38,18 +38,18 @@ prop_compose! {
     }
 }
 
+fn to_text_buffer((cursors, rope): (Cursors, Rope)) -> TextBuffer {
+    let mut text_buffer: TextBuffer = d!();
+    text_buffer.rope = CursoredRope::new(rope, cursors);
+    text_buffer
+}
+
 pub fn text_buffer_with_many_cursors() -> impl Strategy<Value = TextBuffer> {
     rope().prop_flat_map(|rop| {
         (
             many_valid_cursors_for_rope(rop.clone(), MORE_THAN_SOME_AMOUNT),
             Just(rop),
-        )
-            .prop_map(|(cursors, r)| {
-                let mut text_buffer: TextBuffer = d!();
-                text_buffer.rope = r;
-                text_buffer.set_cursors(cursors);
-                text_buffer
-            })
+        ).prop_map(to_text_buffer)
     })
 }
 
@@ -58,13 +58,7 @@ pub fn text_buffer_with_many_non_highlight_cursors() -> impl Strategy<Value = Te
         (
             many_valid_non_highlight_cursors_for_rope(rop.clone(), MORE_THAN_SOME_AMOUNT),
             Just(rop),
-        )
-            .prop_map(|(cursors, r)| {
-                let mut text_buffer: TextBuffer = d!();
-                text_buffer.rope = r;
-                text_buffer.set_cursors(cursors);
-                text_buffer
-            })
+        ).prop_map(to_text_buffer)
     })
 }
 
@@ -72,13 +66,10 @@ pub fn text_buffer_with_all_but_end_cursors() -> impl Strategy<Value = TextBuffe
     rope().prop_map(|r| {
         let cursors = all_but_end_cursors_for_rope(&r);
 
-        let mut text_buffer: TextBuffer = d!();
-        text_buffer.rope = r;
-
-        if let Ok(cs) = Vec1::try_from_vec(cursors) {
-            text_buffer.set_cursors(Cursors::new(&text_buffer.rope, cs));
-        }
-        text_buffer
+        to_text_buffer((
+            Cursors::new(&r, Vec1::try_from_vec(cursors).unwrap_or_default()),
+            r
+        ))
     })
 }
 
@@ -87,13 +78,7 @@ pub fn all_space_text_buffer_with_many_cursors() -> impl Strategy<Value = TextBu
         (
             many_valid_cursors_for_rope(rop.clone(), MORE_THAN_SOME_AMOUNT),
             Just(rop),
-        )
-            .prop_map(|(cursors, r)| {
-                let mut text_buffer: TextBuffer = d!();
-                text_buffer.rope = r.clone();
-                text_buffer.set_cursors(cursors);
-                text_buffer
-            })
+        ).prop_map(to_text_buffer)
     })
 }
 
@@ -102,13 +87,7 @@ pub fn no_history_text_buffer() -> impl Strategy<Value = TextBuffer> {
         (
             many_valid_cursors_for_rope(rop.clone(), rop.chars().count()),
             Just(rop),
-        )
-            .prop_map(|(cursors, r)| {
-                let mut text_buffer: TextBuffer = d!();
-                text_buffer.rope = r;
-                text_buffer.set_cursors(cursors);
-                text_buffer
-            })
+        ).prop_map(to_text_buffer)
     })
 }
 
@@ -135,13 +114,7 @@ pub fn text_buffer_with_valid_cursors() -> impl Strategy<Value = TextBuffer> {
                 .prop_map(move |c| Cursors::new(&rope, c))
             },
             Just(rope),
-        )
-            .prop_map(|(cursors, r)| {
-                let mut text_buffer: TextBuffer = d!();
-                text_buffer.rope = r;
-                text_buffer.set_cursors(cursors);
-                text_buffer
-            })
+        ).prop_map(to_text_buffer)
     })
 }
 
@@ -168,12 +141,8 @@ pub fn text_buffer_with_valid_cursors_and_no_0_to_9_chars(
     max_len: usize,
 ) -> impl Strategy<Value = TextBuffer> {
     non_0_to_9_char_rope().prop_flat_map(move |rop| {
-        (valid_cursors_for_rope(rop.clone(), max_len), Just(rop)).prop_map(|(cursors, r)| {
-            let mut text_buffer: TextBuffer = d!();
-            text_buffer.rope = r;
-            text_buffer.set_cursors(cursors);
-            text_buffer
-        })
+        (valid_cursors_for_rope(rop.clone(), max_len), Just(rop))
+        .prop_map(to_text_buffer)
     })
 }
 
@@ -181,12 +150,8 @@ pub fn text_buffer_with_many_valid_cursors_and_no_0_to_9_chars(
     max_len: usize,
 ) -> impl Strategy<Value = TextBuffer> {
     non_0_to_9_char_rope().prop_flat_map(move |rop| {
-        (many_valid_cursors_for_rope(rop.clone(), max_len), Just(rop)).prop_map(|(cursors, r)| {
-            let mut text_buffer: TextBuffer = d!();
-            text_buffer.rope = r;
-            text_buffer.set_cursors(cursors);
-            text_buffer
-        })
+        (many_valid_cursors_for_rope(rop.clone(), max_len), Just(rop))
+        .prop_map(to_text_buffer)
     })
 }
 
@@ -303,18 +268,18 @@ impl TestEdit {
     // do this instead? We'd need to make ppel!() into a trait I suppose.
     pub fn apply_with_counts(buffer: &mut TextBuffer, counts: &mut Counts, edit: &TestEdit) {
         fn apply_delete_edit(counts: &mut Counts, buffer: &TextBuffer, cursors_vec: Vec1<Cursor>) {
-            let cursors = Cursors::new(&buffer.rope, cursors_vec);
+            let cursors = Cursors::new(buffer.borrow_rope(), cursors_vec);
             for cur in cursors.iter() {
-                let offsets = offset_pair(&buffer.rope, &cur);
+                let offsets = offset_pair(buffer.borrow_rope(), &cur);
                 match offsets {
                     (Some(o), None) if o > 0 => {
                         let delete_offset_range = AbsoluteCharOffsetRange::new(o - 1, o);
-                        let s = edit::copy_string(&buffer.rope, delete_offset_range);
+                        let s = edit::copy_string(buffer.borrow_rope(), delete_offset_range);
                         decrement_string(counts, &s);
                     }
                     (Some(o1), Some(o2)) if o1 > 0 || o2 > 0 => {
                         let delete_offset_range = AbsoluteCharOffsetRange::new(o1, o2);
-                        let s = edit::copy_string(&buffer.rope, delete_offset_range);
+                        let s = edit::copy_string(buffer.borrow_rope(), delete_offset_range);
                         decrement_string(counts, &s);
                     }
                     _ => {},
@@ -342,7 +307,7 @@ impl TestEdit {
             DeleteLines => {
                 let mut cursor_vec = buffer.borrow_cursors().get_cloned_cursors();
                 for c in cursor_vec.iter_mut() {
-                    edit::extend_cursor_to_cover_line(c, &buffer.rope);
+                    edit::extend_cursor_to_cover_line(c, buffer.borrow_rope());
                 }
                 apply_delete_edit(counts, buffer, cursor_vec);
             },
@@ -362,13 +327,13 @@ impl TestEdit {
                 let selections: Vec<_> = buffer.borrow_cursors()
                     .iter()
                     .map(|cur| 
-                        match offset_pair(&buffer.rope, &cur) {
+                        match offset_pair(buffer.borrow_rope(), &cur) {
                             (Some(o1), Some(o2)) => {
                                 let range = AbsoluteCharOffsetRange::new(o1, o2);
-                                buffer.rope.slice(range.min()..range.max())
+                                buffer.borrow_rope().slice(range.min()..range.max())
                             }
                             _ => None,
-                        }.unwrap_or_else(|| buffer.rope.empty_slice())
+                        }.unwrap_or_else(|| buffer.borrow_rope().empty_slice())
                     ).collect();
 
                 for selection in selections {

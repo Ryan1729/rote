@@ -40,9 +40,9 @@ macro_rules! InsertString {
 
 // `Rope`s share backing buffers when cloned, so we want to avoid that.
 pub fn deep_clone(buffer: &TextBuffer) -> TextBuffer {
-    let s: std::borrow::Cow<str> = (&buffer.rope).into();
+    let s: std::borrow::Cow<str> = buffer.borrow_rope().into();
     TextBuffer {
-        rope: Rope::from_str(&s),
+        rope: CursoredRope::from(Rope::from_str(&s)),
         ..buffer.clone()
     }
 }
@@ -278,7 +278,7 @@ fn this_multi_cursor_example_produces_the_correct_final_string() {
     buffer.insert('5', None);
 
     let expected = "5000\n1511\n2252\n3335\n5".to_owned();
-    let actual: String = buffer.rope.into();
+    let actual: String = buffer.borrow_rope().into();
 
     assert_eq!(actual, expected);
 }
@@ -286,7 +286,7 @@ fn this_multi_cursor_example_produces_the_correct_final_string() {
 fn buffer_inserts_all_the_requested_numbers_in_order(buffer: &TextBuffer) {
     let mut buffer = deep_clone(buffer);
 
-    let cursors_len = buffer.cursors.len();
+    let cursors_len = buffer.borrow_cursors().len();
     assert!(
         cursors_len <= 9,
         "this test is only valid if there are less than 10 cursors."
@@ -298,7 +298,7 @@ fn buffer_inserts_all_the_requested_numbers_in_order(buffer: &TextBuffer) {
 
     let expected_strings = (0..cursors_len).map(get_string);
 
-    let buffer_string: String = buffer.rope.into();
+    let buffer_string: String = buffer.borrow_rope().into();
 
     let mut chars = buffer_string.chars();
 
@@ -517,7 +517,13 @@ fn cursors_maintains_invariants(rope: &Rope, cursors: &Cursors) -> u8 {
 }
 
 macro_rules! assert_cursor_invarints_maintained {
-    ($rope:expr, $cursors: expr) => {{
+    ($buffer: expr) => {{
+        let buffer = &$buffer;
+        let (rope, cursors) = (buffer.borrow_rope(), buffer.borrow_cursors());
+
+        assert_cursor_invarints_maintained!(rope, cursors)
+    }};
+    ($rope: expr, $cursors: expr) => {{
         let flags = cursors_maintains_invariants(&$rope, &$cursors);
 
         assert_eq!(
@@ -547,13 +553,13 @@ fn editing_this_buffer_preserves_the_cursors_invariants(
     mut buffer: TextBuffer,
     edits: Vec<TestEdit>,
 ) {
-    assert_cursor_invarints_maintained!(buffer.rope, buffer.cursors);
+    assert_cursor_invarints_maintained!(buffer);
 
     for edit in edits {
         TestEdit::apply(&mut buffer, edit);
     }
 
-    assert_cursor_invarints_maintained!(buffer.rope, buffer.cursors);
+    assert_cursor_invarints_maintained!(buffer);
 }
 
 proptest! {
@@ -571,19 +577,19 @@ fn editing_the_buffer_preserves_the_cursors_invariants_in_this_generated_case() 
     use arb::TestEdit::*;
     let mut buffer: TextBuffer = d!();
 
-    assert_cursor_invarints_maintained!(buffer.rope, buffer.cursors);
+    assert_cursor_invarints_maintained!(buffer);
 
     TestEdit::apply(&mut buffer, Insert('\n'));
-    assert_cursor_invarints_maintained!(buffer.rope, buffer.cursors);
+    assert_cursor_invarints_maintained!(buffer);
 
     TestEdit::apply(&mut buffer, MoveAllCursors(Move::ToBufferStart));
-    assert_cursor_invarints_maintained!(buffer.rope, buffer.cursors);
+    assert_cursor_invarints_maintained!(buffer);
 
     TestEdit::apply(&mut buffer, Insert('\t'));
-    assert_cursor_invarints_maintained!(buffer.rope, buffer.cursors);
+    assert_cursor_invarints_maintained!(buffer);
 
     TestEdit::apply(&mut buffer, TabOut);
-    assert_cursor_invarints_maintained!(buffer.rope, buffer.cursors);
+    assert_cursor_invarints_maintained!(buffer);
 }
 
 proptest! {
@@ -832,12 +838,12 @@ fn inserting_then_deleting_preserves_editedness_on(
 }
 
 fn all_selected(buffer: &TextBuffer) -> bool {
-    if buffer.cursors.len() != 1 {
+    if buffer.borrow_cursors().len() != 1 {
         return false;
     }
 
-    if let Some(last_pos) = last_position(&buffer.rope) {
-        buffer.cursors.first() == &cur!{pos! {}, last_pos}
+    if let Some(last_pos) = last_position(buffer.borrow_rope()) {
+        buffer.borrow_cursors().first() == &cur!{pos! {}, last_pos}
     } else {
         // We expect this will only happen when there are no lines. 
         // So all the characters would be selected, since there are none.
