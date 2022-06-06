@@ -41,10 +41,14 @@ macro_rules! InsertString {
 // `Rope`s share backing buffers when cloned, so we want to avoid that.
 pub fn deep_clone(buffer: &TextBuffer) -> TextBuffer {
     let s: std::borrow::Cow<str> = buffer.borrow_rope().into();
-    TextBuffer {
+    let mut new_buffer = TextBuffer {
         rope: CursoredRope::from(Rope::from_str(&s)),
         ..buffer.clone()
-    }
+    };
+
+    new_buffer.rope.set_cursors(buffer.borrow_cursors().clone());
+
+    new_buffer
 }
 
 prop_compose! {
@@ -882,7 +886,7 @@ fn inserting_then_deleting_preserves_editedness_in_this_minimal_example() {
 
 #[test]
 fn inserting_then_deleting_preserves_editedness_on_this_found_example() {
-    const EXPECTED_DEGUG_STR: &str = r#"TextBuffer { rope: ["\u{2028}"], cursors: Cursors { cursors: Vec1([cur!{l 0 o 0}]) }, history: [], history_index: 0, unedited: ["\u{2028}"], scroll: slxy!(0, 0) }"#;
+    const EXPECTED_DEGUG_STR: &str = r#"TextBuffer { rope: CursoredRope { rope: ["\u{2028}"], cursors: Cursors { cursors: Vec1([cur!{l 0 o 0}]) } }, history: History { edits: [], index: 0 }, unedited: ["\u{2028}"], scroll: slxy!(0, 0) }"#;
 
     let mut buffer: TextBuffer = d!();
     buffer.rope = c_r!("\u{2028}");

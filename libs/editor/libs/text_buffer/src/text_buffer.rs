@@ -52,7 +52,7 @@ mod history {
         ) -> NavOutcome {
             let opt = self.index.checked_sub(1)
                 .and_then(|new_index|
-                    self.edits.get(self.index).map(|e| (new_index, e))
+                    self.edits.get(new_index).map(|e| (new_index, e))
                 );
 
             if let Some((new_index, edit)) = opt {

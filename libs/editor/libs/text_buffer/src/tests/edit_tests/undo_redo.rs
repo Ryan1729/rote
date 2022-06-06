@@ -1110,3 +1110,20 @@ fn undoes_pastes_properly_in_this_case() {
 
     assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
 }
+
+#[test]
+fn works_in_this_simple_found_case() {
+    let mut buffer: TextBuffer = d!();
+
+    let buffer_before_1 = deep_clone(&buffer);
+
+    TestEdit::apply(&mut buffer, TestEdit::Insert('1'));
+
+    // precondition
+    assert_eq!(buffer.borrow_rope().to_string(), "1");
+
+    buffer.undo(None);
+
+    assert_text_buffer_eq_ignoring_history!(buffer, buffer_before_1);
+    assert_eq!(buffer.borrow_rope().to_string(), "");
+}

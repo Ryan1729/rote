@@ -125,8 +125,8 @@ macro_rules! text_buffer_eq_ignoring_history {
 macro_rules! assert_text_buffer_rope_eq {
     ($left:expr, $right:expr) => {
         assert_eq!(
-            $left.rope,
-            $right.rope,
+            $left.borrow_rope(),
+            $right.borrow_rope(),
             stringify!($left != $right (ignoring everything but the rope))
         );
     };

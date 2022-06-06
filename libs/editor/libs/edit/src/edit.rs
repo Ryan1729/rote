@@ -1027,8 +1027,6 @@ mod cursored_rope {
     use cursors::{Cursors, set_cursors};
     use panic_safe_rope::Rope;
     use crate::{RangeEdit, RangeEdits, RC};
-    use editor_types::Cursor;
-    use platform_types::Vec1;
 
     /// We keep the fields private so we can ensure that the cursors are always 
     /// within the rope's bounds.
@@ -1082,7 +1080,10 @@ mod cursored_rope {
         }
 
         #[cfg(any(test, feature = "pub_arb"))]
-        pub fn set_cursors_from_vec1(&mut self, cursors: Vec1<Cursor>) {
+        pub fn set_cursors_from_vec1(
+            &mut self,
+            cursors: platform_types::Vec1<editor_types::Cursor>
+        ) {
             self.cursors = Cursors::new(&self.rope, cursors);
         }
 

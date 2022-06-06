@@ -1435,6 +1435,15 @@ fn does_not_lose_characters_in_this_reduced_generated_case() {
 }
 
 #[test]
+fn does_not_lose_characters_in_this_tab_in_tab_in_tab_out_case() {
+    use TestEdit::*;
+    does_not_lose_characters_on(
+        t_b!(""),
+        [TabIn, TabIn, TabOut]
+    );
+}
+
+#[test]
 fn does_not_lose_characters_in_this_extend_selection_case() {
     use TestEdit::*;
     does_not_lose_characters_on(
