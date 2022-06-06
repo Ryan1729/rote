@@ -33,18 +33,14 @@ mod history {
     }
 
     impl History {
-        pub fn get(&self) -> Option<Edit> {
-            self.edits.get(self.index).cloned()
-        }
-
         pub fn redo(
             &mut self,
-            apply_edit: impl FnOnce(Edit) -> Change<Editedness>
+            callback: impl FnOnce(&Edit) -> Change<Editedness>
         ) -> NavOutcome {
-            if let Some(edit) = self.get() {
+            if let Some(edit) = self.edits.get(self.index) {
                 self.index += 1;
     
-                apply_edit(edit).into()
+                callback(edit).into()
             } else {
                 NavOutcome::RanOutOfHistory
             }
@@ -52,17 +48,17 @@ mod history {
 
         pub fn undo(
             &mut self,
-            apply_edit: impl FnOnce(Edit) -> Change<Editedness>
+            callback: impl FnOnce(&Edit) -> Change<Editedness>
         ) -> NavOutcome {
             let opt = self.index.checked_sub(1)
                 .and_then(|new_index|
-                    self.get().map(|e| (new_index, e))
+                    self.edits.get(self.index).map(|e| (new_index, e))
                 );
 
             if let Some((new_index, edit)) = opt {
                 self.index = new_index;
     
-                apply_edit(!edit).into()
+                callback(&!edit).into()
             } else {
                 NavOutcome::RanOutOfHistory
             }
@@ -378,10 +374,6 @@ fn next_instance_of_selected(rope: &Rope, cursor: &Cursor) -> Option<(Position, 
         }
         _ => None,
     }
-}
-enum ApplyKind {
-    Record,
-    Playback,
 }
 
 enum AllOrOne {
@@ -718,7 +710,7 @@ impl TextBuffer {
         // so you can undo, select, copy and then redo.
         apply_edit(
             &mut self.rope,
-            change.into(),
+            &change.into(),
             // Since we know that this edit only involves cursors, we know the
             // parsers won't care about it.
             None,        );
@@ -751,7 +743,7 @@ impl TextBuffer {
         let old_editedness = self.editedness();
         dbg!(old_editedness);
 
-        apply_edit(&mut self.rope, edit, listener);
+        apply_edit(&mut self.rope, &edit, listener);
 
         self.history.record_edit(edit);
 
@@ -764,7 +756,7 @@ impl TextBuffer {
     }
 
     // some of these are convenience methods for tests
-    #[cfg(any(test, feature = "pub_arb"))]
+    #[cfg(test)]
     fn set_cursors(&mut self, new: Cursors) {
         self.rope.set_cursors(new);
     }
@@ -778,19 +770,19 @@ impl TextBuffer {
 #[perf_viz::record]
 fn apply_edit(
     rope: &mut CursoredRope,
-    edit: Edit,
+    edit: &Edit,
     listener: ppel!(),
 ) {
     if let Some(listener) = listener {
         listener.parsers.acknowledge_edit(
             listener.buffer_name,
             listener.parser_kind,
-            &edit,
+            edit,
             rope.borrow_rope()
         );
     }
 
-    edit::apply(rope, &edit);
+    edit::apply(rope, edit);
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -801,18 +793,22 @@ pub enum Editedness {
 
 impl TextBuffer {
     pub fn editedness(&self) -> Editedness {
-        u!{Editedness}
-
-        dbg!(&self.unedited, &self.rope);
-        if self.unedited == self.borrow_rope() {
-            Unedited
-        } else {
-            Edited
-        }
+        editedness(&self.unedited, self.rope.borrow_rope())
     }
 
     pub fn set_unedited(&mut self) {
         self.unedited = self.borrow_rope().clone();
+    }
+}
+
+fn editedness(unedited: &Rope, current: &Rope) -> Editedness {
+    u!{Editedness}
+
+    dbg!(unedited, current);
+    if unedited == current {
+        Unedited
+    } else {
+        Edited
     }
 }
 
@@ -823,7 +819,10 @@ impl TextBuffer {
         self.history.redo(|edit| {
             apply_edit(&mut self.rope, edit, listener);
 
-            change!(old_editedness, self.editedness())
+            change!(
+                old_editedness,
+                editedness(&self.unedited, self.rope.borrow_rope())
+            )
         })
     }
 
@@ -833,7 +832,10 @@ impl TextBuffer {
         self.history.undo(|edit| {
             apply_edit(&mut self.rope, edit, listener);
 
-            change!(old_editedness, self.editedness())
+            change!(
+                old_editedness,
+                editedness(&self.unedited, self.rope.borrow_rope())
+            )
         })
     }
 

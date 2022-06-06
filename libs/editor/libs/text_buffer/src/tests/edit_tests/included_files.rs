@@ -23,21 +23,21 @@ fn does_not_lose_a_line_in_this_manually_found_case() {
 
     //precondition given we assert it again below
     {
-        let s: String = buffer.rope.clone().into();
+        let s: String = buffer.borrow_rope().into();
         assert!(s.contains(expected_line_suffix), "\n*****\n\nPrecondition failure!\n\n*****\n");
     }
 
-    let line_count = buffer.rope.len_lines();
+    let line_count = buffer.borrow_rope().len_lines();
 
     buffer.set_cursor(cur!{l 92 o 0 h l 93 o 37}, Replace);
 
     TestEdit::apply(&mut buffer, TabOut);
 
     {
-        let s: String = buffer.rope.clone().into();
+        let s: String = buffer.borrow_rope().clone().into();
         assert!(s.contains(expected_line_suffix));
     }
-    assert_eq!(line_count, buffer.rope.len_lines());
+    assert_eq!(line_count, buffer.borrow_rope().len_lines());
 }
 
 #[test]
@@ -58,21 +58,21 @@ fn does_not_lose_a_line_in_this_reduced_manually_found_case() {
 
     //precondition given we assert it again below
     {
-        let s: String = buffer.rope.clone().into();
+        let s: String = buffer.borrow_rope().clone().into();
         assert!(s.contains(expected_line_suffix), "\n*****\n\nPrecondition failure!\n\n*****\n");
     }
 
-    let line_count = buffer.rope.len_lines();
+    let line_count = buffer.borrow_rope().len_lines();
 
     buffer.set_cursor(cur!{l 92 o 0 h l 93 o 37}, Replace);
 
     TestEdit::apply(&mut buffer, TabOut);
 
     {
-        let s: String = buffer.rope.clone().into();
+        let s: String = buffer.borrow_rope().clone().into();
         assert!(s.contains(expected_line_suffix));
     }
-    assert_eq!(line_count, buffer.rope.len_lines());
+    assert_eq!(line_count, buffer.borrow_rope().len_lines());
 }
 
 #[test]
@@ -98,23 +98,23 @@ fn does_not_lose_a_line_in_this_further_reduced_manually_found_case() {
 
     //precondition given we assert it again below
     {
-        let s: String = buffer.rope.clone().into();
+        let s: String = buffer.borrow_rope().clone().into();
         assert!(s.contains(expected_line_suffix), "\n*****\n\nPrecondition failure!\n\n*****\n");
         assert!(s.contains(expected_pre_chunk));
     }
 
-    let line_count = buffer.rope.len_lines();
+    let line_count = buffer.borrow_rope().len_lines();
 
     buffer.set_cursor(cur!{l 13 o 0 h l 14 o 13}, Replace);
 
     TestEdit::apply(&mut buffer, TabOut);
 
     {
-        let s: String = buffer.rope.clone().into();
+        let s: String = buffer.borrow_rope().clone().into();
         assert!(s.contains(expected_line_suffix));
         assert!(s.contains(expected_post_chunk));
     }
-    assert_eq!(line_count, buffer.rope.len_lines());
+    assert_eq!(line_count, buffer.borrow_rope().len_lines());
 }
 
 #[test]
@@ -142,23 +142,23 @@ fn does_not_lose_a_line_in_this_codewise_unreduced_manually_found_case() {
 
     //precondition given we assert it again below
     {
-        let s: String = buffer.rope.clone().into();
+        let s: String = buffer.borrow_rope().clone().into();
         assert!(s.contains(expected_line_suffix), "\n*****\n\nPrecondition failure!\n\n*****\n");
         assert!(s.contains(expected_pre_chunk));
     }
 
-    let line_count = buffer.rope.len_lines();
+    let line_count = buffer.borrow_rope().len_lines();
 
     buffer.set_cursor(cur!{l 13 o 0 h l 14 o 13}, Replace);
 
     TestEdit::apply(&mut buffer, TabOut);
 
     {
-        let s: String = buffer.rope.clone().into();
+        let s: String = buffer.borrow_rope().clone().into();
         assert!(s.contains(expected_line_suffix));
         assert!(s.contains(expected_post_chunk));
     }
-    assert_eq!(line_count, buffer.rope.len_lines());
+    assert_eq!(line_count, buffer.borrow_rope().len_lines());
 }
 
 #[test]
@@ -191,15 +191,15 @@ fn does_not_lose_a_line_in_this_second_manually_found_case() {
     use ReplaceOrAdd::*;
     let mut buffer = t_b!(include_str!("./test-text-1.txt"));
 
-    let line_count = buffer.rope.len_lines();
+    let line_count = buffer.borrow_rope().len_lines();
 
     let expected_line_suffix = "// We don't need to make sure a cursor is visible here since the user";
 
     //precondition given we assert it again below
     {
-        let s: String = buffer.rope.clone().into();
+        let s: String = buffer.borrow_rope().clone().into();
         assert!(s.contains(expected_line_suffix), "\n*****\n\nPrecondition failure!\n\n*****\n");
-        assert_eq!(line_count, buffer.rope.len_lines(), "\n*****\n\nPrecondition failure!\n\n*****\n");
+        assert_eq!(line_count, buffer.borrow_rope().len_lines(), "\n*****\n\nPrecondition failure!\n\n*****\n");
     }
 
     buffer.set_cursor(cur!{l 813 o 0 h l 830 o 30}, Replace);
@@ -207,10 +207,10 @@ fn does_not_lose_a_line_in_this_second_manually_found_case() {
     TestEdit::apply(&mut buffer, TabIn);
 
     {
-        let s: String = buffer.rope.clone().into();
+        let s: String = buffer.borrow_rope().clone().into();
         assert!(s.contains(expected_line_suffix));
     }
-    assert_eq!(line_count, buffer.rope.len_lines());
+    assert_eq!(line_count, buffer.borrow_rope().len_lines());
 }
 
 #[test]
@@ -219,16 +219,16 @@ fn does_not_lose_a_line_in_this_reduced_second_manually_found_case() {
     use ReplaceOrAdd::*;
     let mut buffer = t_b!(include_str!("./test-text-1-reduced-0.txt"));
 
-    let line_count = buffer.rope.len_lines();
+    let line_count = buffer.borrow_rope().len_lines();
 
     //precondition given we assert it again below
-    assert_eq!(line_count, buffer.rope.len_lines(), "\n*****\n\nPrecondition failure!\n\n*****\n");
+    assert_eq!(line_count, buffer.borrow_rope().len_lines(), "\n*****\n\nPrecondition failure!\n\n*****\n");
 
     buffer.set_cursor(cur!{l 827 o 0 h l 828 o 30}, Replace);
 
     TestEdit::apply(&mut buffer, TabIn);
 
-    assert_eq!(line_count, buffer.rope.len_lines());
+    assert_eq!(line_count, buffer.borrow_rope().len_lines());
 }
 
 #[test]
@@ -237,15 +237,15 @@ fn does_not_lose_a_line_in_this_reduced_1_second_manually_found_case() {
     use ReplaceOrAdd::*;
     let mut buffer = t_b!(include_str!("./test-text-1-reduced-1.txt"));
 
-    let line_count = buffer.rope.len_lines();
+    let line_count = buffer.borrow_rope().len_lines();
 
     //precondition given we assert it again below
-    assert_eq!(line_count, buffer.rope.len_lines(), "\n*****\n\nPrecondition failure!\n\n*****\n");
+    assert_eq!(line_count, buffer.borrow_rope().len_lines(), "\n*****\n\nPrecondition failure!\n\n*****\n");
 
     buffer.set_cursor(cur!{l 827 o 0 h l 828 o 30}, Replace);
 
     TestEdit::apply(&mut buffer, TabIn);
 
-    assert_eq!(line_count, buffer.rope.len_lines());
+    assert_eq!(line_count, buffer.borrow_rope().len_lines());
 }
 

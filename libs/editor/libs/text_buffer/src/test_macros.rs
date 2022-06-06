@@ -9,6 +9,13 @@ macro_rules! r {
 }
 
 #[macro_export]
+macro_rules! c_r {
+    ($s:expr) => {
+        CursoredRope::from(Rope::from_str(&$s))
+    };
+}
+
+#[macro_export]
 macro_rules! t_b {
     ($s:expr) => {{
         let t: TextBuffer = $s.into();

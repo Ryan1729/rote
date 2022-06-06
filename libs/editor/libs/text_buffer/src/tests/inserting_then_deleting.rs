@@ -5,7 +5,7 @@ use pretty_assertions::assert_eq;
 
 macro_rules! buffer_str_assert_eq {
     ($buffer: expr, $s: expr) => {
-        let string: String = $buffer.rope.clone().into();
+        let string: String = $buffer.borrow_rope().into();
         assert_eq!(&string, $s);
     };
 }

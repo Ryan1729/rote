@@ -850,6 +850,14 @@ impl std::ops::Not for Edit {
     }
 }
 
+impl std::ops::Not for &Edit {
+    type Output = Edit;
+
+    fn not(self) -> Self::Output {
+        !(self.clone())
+    }
+}
+
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct RangeEdit {
     pub chars: String,

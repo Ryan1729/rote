@@ -21,7 +21,6 @@ use crate::{
         arb::{TestEdit, TestEditSpec, *},
         deep_clone, SOME_AMOUNT, *,
     },
-    ApplyKind,
     TextBuffer,
 };
 use panic_safe_rope::is_linebreak_char;
@@ -75,11 +74,9 @@ fn get_tab_in_edit_produces_the_expected_edit_from_this_buffer_with_different_le
     let mut buffer = t_b!(text.to_owned());
     buffer.select_all();
 
-    let rope = buffer.borrow_rope();
+    let cursors = buffer.borrow_cursors();
 
-    let cursors = &buffer.cursors;
-
-    let edit = get_tab_in_edit(rope, cursors);
+    let edit = get_tab_in_edit(&buffer.rope);
 
     let expected = {
         let new_chars =
@@ -113,7 +110,7 @@ fn get_tab_in_edit_produces_the_expected_edit_from_this_buffer_with_different_le
             }),
             Change {
                 new: Cursors::new(&new_rope, Vec1::new(cursor)),
-                old: cursors.clone(),
+                old: (*cursors).clone(),
             },
         )
     };
@@ -136,9 +133,9 @@ fn get_tab_in_edit_produces_the_expected_edit_with_multiple_cursors_in_this_buff
 
     //pre-condition
     assert_eq!(
-        buffer.cursors,
-        Cursors::new(
-            &buffer.rope,
+        buffer.borrow_cursors(),
+        &Cursors::new(
+            buffer.borrow_rope(),
             vec1![
                 cur! {
                     l 9 o 0 h start_of_empty_line, ->|(Move::Right)
@@ -148,11 +145,9 @@ fn get_tab_in_edit_produces_the_expected_edit_with_multiple_cursors_in_this_buff
         )
     );
 
-    let rope = &buffer.rope;
+    let cursors = &buffer.borrow_cursors();
 
-    let cursors = &buffer.cursors;
-
-    let edit = get_tab_in_edit(rope, cursors);
+    let edit = get_tab_in_edit(&buffer.rope);
 
     let expected = {
         // Many things here rely on the example text being ASCII.
@@ -234,7 +229,7 @@ fn get_tab_in_edit_produces_the_expected_edit_with_multiple_cursors_in_this_buff
             vec1![last_range_edits, first_range_edits],
             Change {
                 new: new_cursors,
-                old: cursors.clone(),
+                old: (*cursors).clone(),
             },
         )
     };
@@ -253,13 +248,13 @@ fn get_tab_in_edit_produces_the_expected_change_when_two_cursors_are_on_the_same
         buffer.extend_selection_for_all_cursors(Move::Right);
     }
 
-    let edit = get_tab_in_edit(&buffer.rope, &buffer.cursors);
+    let edit = get_tab_in_edit(&buffer.rope);
 
     dbg!(&edit);
 
-    buffer.apply_edit(edit, ApplyKind::Playback, None);
+    apply_edit(&mut buffer.rope, &edit, None);
 
-    let s: String = buffer.rope.into();
+    let s: String = buffer.borrow_rope().into();
     //2 + (2 * 4) = 10 ___1234567890
     assert_eq!(s, "    0\n          2\n    ");
 }
@@ -276,13 +271,13 @@ fn get_tab_in_edit_produces_the_expected_change_when_three_cursors_are_on_the_sa
         buffer.extend_selection_for_all_cursors(Move::Right);
     }
 
-    let edit = get_tab_in_edit(&buffer.rope, &buffer.cursors);
+    let edit = get_tab_in_edit(&buffer.rope);
 
     dbg!(&edit);
 
-    buffer.apply_edit(edit, ApplyKind::Playback, None);
+    apply_edit(&mut buffer.rope, &edit, None);
 
-    let s: String = buffer.rope.into();
+    let s: String = buffer.borrow_rope().into();
     //7 + (3 * 4) = 19 ___1234567890123456789
     assert_eq!(s, "    0\n                   7\n    ");
 }
@@ -291,13 +286,13 @@ fn get_tab_in_edit_produces_the_expected_change_when_three_cursors_are_on_the_sa
 fn get_delete_edit_produces_the_expected_change_in_this_case() {
     let mut buffer = t_b!("\n", vec1![cur!{l 0 o 0 h l 1 o 0}]);
 
-    let edit = get_delete_edit(&buffer.rope, &buffer.cursors);
+    let edit = get_delete_edit(&buffer.rope);
 
     dbg!(&edit);
 
-    buffer.apply_edit(edit, ApplyKind::Playback, None);
+    apply_edit(&mut buffer.rope, &edit, None);
 
-    let s: String = buffer.rope.into();
+    let s: String = buffer.borrow_rope().into();
 
     assert_eq!(s, "");
 }
@@ -638,11 +633,11 @@ fn tab_in_acts_as_expected_on_this_example_based_on_the_above_generated_test() {
 
     TestEdit::apply(&mut buffer, TestEdit::TabIn);
 
-    assert_eq!(&buffer.rope.to_string(), "    \n       \n    \n    ");
+    assert_eq!(&buffer.borrow_rope().to_string(), "    \n       \n    \n    ");
     assert_eq!(
-        buffer.cursors,
-        Cursors::new(
-            &buffer.rope,
+        buffer.borrow_cursors(),
+        &Cursors::new(
+            buffer.borrow_rope(),
             vec1![cur! {l 3 o 4}, cur! {l 2 o 4 h l 0 o 4}]
         )
     );
@@ -655,11 +650,11 @@ fn tab_in_acts_as_expected_on_this_simplified_example_based_on_the_above_generat
 
     TestEdit::apply(&mut buffer, TestEdit::TabIn);
 
-    assert_eq!(&buffer.rope.to_string(), "    \n       \n    ");
+    assert_eq!(buffer.borrow_rope().to_string(), "    \n       \n    ");
     assert_eq!(
-        buffer.cursors,
-        Cursors::new(
-            &buffer.rope,
+        buffer.borrow_cursors(),
+        &Cursors::new(
+            buffer.borrow_rope(),
             vec1![cur! {l 2 o 4 h l 0 o 4}]
         )
     );
@@ -673,7 +668,7 @@ fn tab_out_acts_as_expected_on_this_simplified_example_based_on_the_above_genera
 
     TestEdit::apply(&mut buffer, TestEdit::TabOut);
 
-    assert_eq!(&buffer.rope.to_string(), "   \n");
+    assert_eq!(&buffer.borrow_rope().to_string(), "   \n");
 }
 
 #[test]
@@ -684,7 +679,7 @@ fn tab_out_acts_as_expected_on_this_further_simplified_example_based_on_the_abov
 
     TestEdit::apply(&mut buffer, TestEdit::TabOut);
 
-    assert_eq!(&buffer.rope.to_string(), "\n");
+    assert_eq!(&buffer.borrow_rope().to_string(), "\n");
 }
 
 fn get_expected_tab_out_edit() -> Edit {
@@ -726,7 +721,7 @@ fn get_tab_out_edit_returns_the_expected_tab_edit_on_this_further_simplified_exa
 
     buffer.set_cursors_from_vec1(vec1![cur! {l 1 o 4 h l 0 o 0}]);
 
-    let edit = get_tab_out_edit(&buffer.rope, &buffer.cursors);
+    let edit = get_tab_out_edit(&buffer.rope);
 
     assert_eq!(edit, get_expected_tab_out_edit());
 }
@@ -737,7 +732,7 @@ fn changing_the_range_on_this_tab_out_edit_fixes_the_problem_from_this_further_s
 
     buffer.set_cursors_from_vec1(vec1![cur! {l 1 o 4 h l 0 o 0}]);
 
-    let mut edit = get_tab_out_edit(&buffer.rope, &buffer.cursors);
+    let mut edit = get_tab_out_edit(&buffer.rope);
 
     let range_edit = &mut edit_range_edits_mut(&mut edit)[0];
 
@@ -750,9 +745,9 @@ fn changing_the_range_on_this_tab_out_edit_fixes_the_problem_from_this_further_s
         assert!(false);
     };
 
-    buffer.apply_edit(edit, ApplyKind::Playback, None);
+    apply_edit(&mut buffer.rope, &edit, None);
 
-    assert_eq!(&buffer.rope.to_string(), "\n");
+    assert_eq!(&buffer.borrow_rope().to_string(), "\n");
 }
 
 #[test]
@@ -763,9 +758,9 @@ fn applying_this_tab_out_edit_has_the_expected_effect() {
 
     let edit = get_expected_tab_out_edit();
 
-    buffer.apply_edit(edit, ApplyKind::Playback, None);
+    apply_edit(&mut buffer.rope, &edit, None);
 
-    assert_eq!(&buffer.rope.to_string(), "\n");
+    assert_eq!(&buffer.borrow_rope().to_string(), "\n");
 }
 
 fn get_2_spaces_then_a_single_newline_and_particular_cursors() -> TextBuffer {
@@ -796,7 +791,7 @@ fn tab_in_is_as_expected_on_2_spaces_then_a_single_newline_and_particular_cursor
     TestEdit::apply(&mut buffer, TestEdit::TabIn);
     // I'm not positive this is actually what we should expect given the cursors are both starting
     // on the first line
-    assert_eq!(buffer.rope, r!("      \n    "));
+    assert_eq!(buffer.borrow_rope(), r!("      \n    "));
 }
 
 #[test]
@@ -808,7 +803,7 @@ fn tab_out_results_in_2_spaces_then_a_single_newline_in_this_case() {
 
     TestEdit::apply(&mut buffer, TestEdit::TabOut);
 
-    assert_eq!(buffer.rope, r!("  \n"));
+    assert_eq!(buffer.borrow_rope(), r!("  \n"));
 }
 
 #[test]
@@ -851,7 +846,7 @@ proptest! {
         for i in 0..SOME_AMOUNT {
             TestEdit::apply(&mut buffer, TestEdit::TabIn);
 
-            let actual: String = buffer.rope.chars().filter(|c| !c.is_whitespace()).collect();
+            let actual: String = buffer.borrow_rope().chars().filter(|c| !c.is_whitespace()).collect();
 
             assert_eq!(actual, expected, "iteration {}", i);
         }
@@ -986,7 +981,7 @@ mod strip_trailing_whitespace_preserves_line_count {
 
         let line_count = buffer.borrow_rope().len_lines();
 
-        let stw_edit = edit::get_strip_trailing_whitespace_edit(buffer.borrow_rope(), &buffer.cursors);
+        let stw_edit = edit::get_strip_trailing_whitespace_edit(&buffer.rope);
 
         let inserted_chars = &stw_edit.range_edits().first().insert_range.as_ref().unwrap().chars;
 
@@ -1033,7 +1028,7 @@ mod strip_trailing_whitespace_preserves_line_count {
 
         let line_count = buffer.borrow_rope().len_lines();
 
-        let stw_edit = edit::get_strip_trailing_whitespace_edit(buffer.borrow_rope(), &buffer.cursors);
+        let stw_edit = edit::get_strip_trailing_whitespace_edit(&buffer.rope);
 
         let inserted_chars = &stw_edit.range_edits().first().insert_range.as_ref().unwrap().chars;
         assert_eq!(inserted_chars, "a\n\nb\n");
@@ -1066,7 +1061,7 @@ fn tab_out_produces_the_expected_string_on_this_code_like_example() {
     let mut buffer = get_code_like_example();
 
     TestEdit::apply(&mut buffer, TestEdit::TabOut);
-    assert_eq!(buffer.rope, r!("{\n{\n    A\n}\n}\n"));
+    assert_eq!(buffer.borrow_rope(), r!("{\n{\n    A\n}\n}\n"));
 }
 
 #[test]
@@ -1074,7 +1069,7 @@ fn tab_out_places_the_cursors_correctly_on_this_code_like_example() {
     let mut buffer = get_code_like_example();
 
     TestEdit::apply(&mut buffer, TestEdit::TabOut);
-    assert_eq!(buffer.cursors, curs!(buffer.rope, cur!(l 1 o 0 h l 3 o 1)));
+    assert_eq!(buffer.borrow_cursors(), &curs!(buffer.borrow_rope(), cur!(l 1 o 0 h l 3 o 1)));
 }
 
 #[test]
@@ -1083,7 +1078,7 @@ fn tab_in_places_the_cursors_correctly_on_this_edge_case_example() {
     buffer.set_cursors_from_vec1(vec1![cur!(l 1 o 3 h l 2 o 1 ),]);
 
     TestEdit::apply(&mut buffer, TestEdit::TabIn);
-    assert_eq!(buffer.cursors, curs!(buffer.rope, cur!(l 1 o 7 h l 2 o 5 )));
+    assert_eq!(buffer.borrow_cursors(), &curs!(buffer.borrow_rope(), cur!(l 1 o 7 h l 2 o 5 )));
 }
 
 // several of the next tests were based on a generated test about the effect of n inserts and then n deletes
@@ -1091,12 +1086,11 @@ fn tab_in_places_the_cursors_correctly_on_this_edge_case_example() {
 fn get_insert_edit_produces_the_expected_edit_on_this_cr_lf_edit_example() {
     let mut buffer = t_b!("\rA");
     buffer.set_cursors_from_vec1(vec1![Cursor::new(pos! {l 1 o 0})]);
-    let rope = buffer.borrow_rope();
 
-    let cursors = &buffer.cursors;
+    let cursors = &buffer.borrow_cursors();
 
     // Act
-    let edit = get_insert_edit(rope, cursors, |_| "\n".to_owned());
+    let edit = get_insert_edit(&buffer.rope, |_| "\n".to_owned());
 
     // Assert
     let expected = {
@@ -1123,7 +1117,7 @@ fn get_insert_edit_produces_the_expected_edit_on_this_cr_lf_edit_example() {
             vec1![range_edits],
             Change {
                 new: new_cursors,
-                old: cursors.clone(),
+                old: (*cursors).clone(),
             },
         )
     };
@@ -1140,12 +1134,10 @@ fn get_delete_edit_produces_the_expected_edit_on_this_cr_lf_edit_example() {
     arb::TestEdit::apply(&mut buffer, TestEdit::Insert('\r'));
     arb::TestEdit::apply(&mut buffer, TestEdit::Insert('\n'));
 
-    let rope = buffer.borrow_rope();
-
-    let cursors = &buffer.cursors;
+    let cursors = &buffer.borrow_cursors();
 
     // Act
-    let edit = get_delete_edit(rope, cursors);
+    let edit = get_delete_edit(&buffer.rope);
 
     // Assert
     let expected = {
@@ -1172,7 +1164,7 @@ fn get_delete_edit_produces_the_expected_edit_on_this_cr_lf_edit_example() {
             vec1![range_edits],
             Change {
                 new: new_cursors,
-                old: cursors.clone(),
+                old: (*cursors).clone(),
             },
         )
     };
@@ -1188,12 +1180,10 @@ fn get_delete_lines_edit_produces_the_expected_edit_on_this_backslash_example() 
         cur!{l 3 o 1}
     ]);
 
-    let rope = buffer.borrow_rope();
-
-    let cursors = &buffer.cursors;
+    let cursors = &buffer.borrow_cursors();
 
     // Act
-    let edit = get_delete_lines_edit(rope, cursors);
+    let edit = get_delete_lines_edit(&buffer.rope);
 
     // Assert
     let expected = {
@@ -1220,7 +1210,7 @@ fn get_delete_lines_edit_produces_the_expected_edit_on_this_backslash_example() 
             vec1![range_edits],
             Change {
                 new: new_cursors,
-                old: cursors.clone(),
+                old: (*cursors).clone(),
             },
         )
     };
@@ -1233,12 +1223,10 @@ fn get_insert_edit_produces_the_expected_edit_on_this_multi_byte_char_example() 
     let mut buffer = t_b!("Aa 0");
     buffer.set_cursors_from_vec1(vec1![cur! {l 0 o 2}, cur! {l 0 o 1}]);
 
-    let rope = buffer.borrow_rope();
-
-    let cursors = &buffer.cursors;
+    let cursors = &buffer.borrow_cursors();
 
     // Act
-    let edit = get_insert_edit(rope, cursors, |_| "¡".to_owned());
+    let edit = get_insert_edit(&buffer.rope, |_| "¡".to_owned());
 
     // Assert
     let expected = {
@@ -1281,7 +1269,7 @@ fn get_insert_edit_produces_the_expected_edit_on_this_multi_byte_char_example() 
             range_edits,
             Change {
                 new: new_cursors,
-                old: cursors.clone(),
+                old: (*cursors).clone(),
             },
         )
     };
@@ -1294,12 +1282,10 @@ fn get_insert_edit_produces_the_expected_edit_on_this_multi_cursor_cr_lf_example
     let mut buffer = t_b!("1\r2\r3\r4");
     buffer.set_cursors_from_vec1(vec1![cur! {l 3 o 0}, cur! {l 2 o 0}, cur! {l 1 o 0}]);
 
-    let rope = buffer.borrow_rope();
-
-    let cursors = &buffer.cursors;
+    let cursors = &buffer.borrow_cursors();
 
     // Act
-    let edit = get_insert_edit(rope, cursors, |_| "\n".to_owned());
+    let edit = get_insert_edit(&buffer.rope, |_| "\n".to_owned());
 
     // Assert
     let expected = {
@@ -1351,7 +1337,7 @@ fn get_insert_edit_produces_the_expected_edit_on_this_multi_cursor_cr_lf_example
             range_edits,
             Change {
                 new: new_cursors,
-                old: cursors.clone(),
+                old: (*cursors).clone(),
             },
         )
     };
@@ -1723,9 +1709,9 @@ fn tab_in_does_what_is_expected_with_this_selection() {
     let mut buffer = t_b!(" 0");
     buffer.set_cursor(cur!{l 0 o 1 h l 0 o 0}, Replace);
 
-    let edit = dbg!(get_tab_in_edit(buffer.borrow_rope(), &buffer.cursors));
+    let edit = dbg!(get_tab_in_edit(&buffer.rope));
 
-    buffer.apply_edit(edit, ApplyKind::Playback, None);
+    apply_edit(&mut buffer.rope, &edit, None);
 
     let mut expected_buffer = t_b!("     0");
     expected_buffer.set_cursor(cur!{l 0 o 5 h l 0 o 4}, Replace);
@@ -1784,7 +1770,7 @@ fn this_tab_in_edit_does_what_is_expected_with_this_selection() {
 
     let edit = get_expected_tab_in_edit();
 
-    buffer.apply_edit(edit, ApplyKind::Playback, None);
+    apply_edit(&mut buffer.rope, &edit, None);
 
     let mut expected_buffer = t_b!("     0");
     expected_buffer.set_cursor(cur!{l 0 o 5 h l 0 o 4}, Replace);
@@ -1799,7 +1785,7 @@ fn get_tab_in_edit_produces_the_expected_edit_with_this_selection() {
     buffer.set_cursor(cur!{l 0 o 1 h l 0 o 0}, Replace);
 
     assert_eq!(
-        get_tab_in_edit(buffer.borrow_rope(), &buffer.cursors),
+        get_tab_in_edit(&buffer.rope),
         get_expected_tab_in_edit()
     );
 }
@@ -1852,7 +1838,7 @@ fn get_cut_edit_returns_an_edit_with_the_right_selection_in_this_tab_out_case() 
 
     TestEdit::apply(&mut buffer, TabOut);
 
-    let cut_edit = get_cut_edit(buffer.borrow_rope(), &buffer.cursors);
+    let cut_edit = get_cut_edit(&buffer.rope);
 
     assert_eq!(cut_edit.selected(), vec!["!"]);
 }
@@ -1866,13 +1852,13 @@ fn get_tab_out_edit_returns_an_edit_with_the_right_selection_in_this_case() {
     cursor.sticky_offset = CharOffset(0);
     buffer.set_cursor(cursor, Replace);
 
-    let edit = get_tab_out_edit(buffer.borrow_rope(), &buffer.cursors);
+    let edit = get_tab_out_edit(&buffer.rope);
 
     assert_eq!(edit.selected(), vec!["!"]);
 
-    buffer.apply_edit(dbg!(edit), ApplyKind::Playback, None);
+    apply_edit(&mut buffer.rope, dbg!(&edit), None);
 
-    assert_eq!(buffer.rope, r!("!\u{2000}"));
+    assert_eq!(buffer.borrow_rope(), r!("!\u{2000}"));
 }
 
 #[test]
@@ -1936,9 +1922,9 @@ fn copy_selections_returns_what_is_expected_in_this_two_tab_in_case() {
 proptest!{
     #[test]
     fn get_cut_edit_does_not_affect_a_lone_cursor_if_there_is_no_selection(buffer in arb::text_buffer_with_no_selection()) {
-        let expected = buffer.cursors.clone();
+        let expected = buffer.borrow_cursors().clone();
 
-        let edit = get_cut_edit(buffer.borrow_rope(), &buffer.cursors);
+        let edit = get_cut_edit(&buffer.rope);
 
         assert_eq!(&edit.cursors().new, &expected);
         assert_eq!(edit.cursors().new, edit.cursors().old);
@@ -1952,9 +1938,9 @@ fn get_cut_edit_does_not_affect_a_lone_cursor_if_there_is_no_selection_in_this_s
 
     buffer.set_cursor(cur!{l 0 o 1}, Replace);
 
-    let expected = buffer.cursors.clone();
+    let expected = buffer.borrow_cursors().clone();
 
-    let edit = get_cut_edit(buffer.borrow_rope(), &buffer.cursors);
+    let edit = get_cut_edit(&buffer.rope);
 
     assert_eq!(&edit.cursors().new, &expected);
     assert_eq!(edit.cursors().new, edit.cursors().old);
@@ -2043,7 +2029,7 @@ fn get_tab_out_edit_returns_the_right_chars_in_this_unicode_case() {
 
     buffer.set_cursor(cur!{l 0 o 0 h l 1 o 0}, Replace);
 
-    let edit = edit::get_tab_out_edit(buffer.borrow_rope(), &buffer.cursors);
+    let edit = edit::get_tab_out_edit(&buffer.rope);
 
     assert_eq!(edit.range_edits().len(), 1);
 
@@ -2063,7 +2049,7 @@ fn get_tab_out_edit_returns_the_right_chars_in_this_ascii_case() {
 
     buffer.set_cursor(cur!{l 0 o 0 h l 1 o 0}, Replace);
 
-    let edit = edit::get_tab_out_edit(buffer.borrow_rope(), &buffer.cursors);
+    let edit = edit::get_tab_out_edit(&buffer.rope);
 
     assert_eq!(edit.range_edits().len(), 1);
 

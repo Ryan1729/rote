@@ -14,7 +14,6 @@ fn insert_with_matching_cursor_and_highlight_sets_highlight_to_none() {
 
     {
         let mut c = buffer
-            .cursors
             .get_cloned_cursors()
             .into_vec()
             .pop()
@@ -27,14 +26,14 @@ fn insert_with_matching_cursor_and_highlight_sets_highlight_to_none() {
     buffer.insert('1', None);
 
     {
-        let c = buffer.cursors.first();
+        let c = buffer.borrow_cursors().first();
         assert_eq!(c.get_highlight_position(), None);
     }
 
     buffer.insert('2', None);
 
     {
-        let c = buffer.cursors.first();
+        let c = buffer.borrow_cursors().first();
         assert_eq!(c.get_highlight_position(), None);
     }
 }
@@ -76,7 +75,7 @@ fn insertion_with_forward_selection_deletes_selected_text() {
     buffer.insert('3', None);
 
     // Assert
-    let s: String = buffer.rope.into();
+    let s: String = buffer.borrow_rope().into();
     assert_eq!(s, "1234");
 
     cursor_assert! {
@@ -98,7 +97,7 @@ fn insert_string_places_cursor_at_the_end() {
     buffer.insert_string("34".into(), None);
 
     // Assert
-    let s: String = buffer.rope.into();
+    let s: String = buffer.borrow_rope().into();
     assert_eq!(s, "12345");
 
     cursor_assert! {
@@ -821,7 +820,7 @@ fn selecting_likely_edit_locations_works_on_wrapped_with_braces_example() {
 
         buffer.select_char_type_grouping(p, ReplaceOrAdd::Replace);
 
-        let c = buffer.cursors.first();
+        let c = buffer.borrow_cursors().first();
 
         ranges.push((c.get_highlight_position(), c.get_position()))
     }

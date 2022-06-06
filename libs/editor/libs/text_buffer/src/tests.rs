@@ -686,25 +686,29 @@ fn adding_a_cursor_inside_a_highlight_does_not_change_the_selection() {
 
     macro_rules! selection_is_unchanged {
         (p right) => {
+            let cs = buffer.borrow_cursors();
+
             assert_eq!(
                 1,
-                buffer.cursors.len(),
+                cs.len(),
                 "A cursor didn't get merged: {:#?}",
-                &buffer.cursors
+                cs
             );
-            let c = buffer.cursors.first();
+            let c = cs.first();
 
             assert_eq!(c.get_position(), pos! {l 0 o 7});
             assert_eq!(c.get_highlight_position_or_position(), pos! {l 0 o 1});
         };
         (p left) => {
+            let cs = buffer.borrow_cursors();
+
             assert_eq!(
                 1,
-                buffer.cursors.len(),
+                cs.len(),
                 "A cursor didn't get merged: {:#?}",
-                &buffer.cursors
+                cs
             );
-            let c = buffer.cursors.first();
+            let c = cs.first();
 
             assert_eq!(c.get_position(), pos! {l 0 o 1});
             assert_eq!(c.get_highlight_position_or_position(), pos! {l 0 o 7});
@@ -881,7 +885,7 @@ fn inserting_then_deleting_preserves_editedness_on_this_found_example() {
     const EXPECTED_DEGUG_STR: &str = r#"TextBuffer { rope: ["\u{2028}"], cursors: Cursors { cursors: Vec1([cur!{l 0 o 0}]) }, history: [], history_index: 0, unedited: ["\u{2028}"], scroll: slxy!(0, 0) }"#;
 
     let mut buffer: TextBuffer = d!();
-    buffer.rope = r!("\u{2028}");
+    buffer.rope = c_r!("\u{2028}");
     buffer.set_unedited();
     if all_selected(&buffer) {
         buffer.set_cursors(d!());
@@ -898,8 +902,8 @@ fn inserting_then_deleting_preserves_editedness_on_this_found_example() {
 #[test]
 fn inserting_then_deleting_preserves_editedness_on_this_found_asciified_example() {
     let mut buffer: TextBuffer = d!();
-    buffer.rope = r!("a");
-    buffer.set_cursors(curs!(buffer.rope, cur!{l 0 o 0 h l 1 o 0}));
+    buffer.rope = c_r!("a");
+    buffer.set_cursors(curs!(buffer.borrow_rope(), cur!{l 0 o 0 h l 1 o 0}));
     buffer.set_unedited();
     if all_selected(&buffer) {
         buffer.set_cursors(d!());
@@ -917,8 +921,8 @@ fn inserting_then_deleting_preserves_editedness_on_this_found_asciified_example_
     u!{TestEdit}
 
     let mut buffer: TextBuffer = d!();
-    buffer.rope = r!("a");
-    buffer.set_cursors(curs!(buffer.rope, cur!{l 0 o 0 h l 1 o 0}));
+    buffer.rope = c_r!("a");
+    buffer.set_cursors(curs!(buffer.borrow_rope(), cur!{l 0 o 0 h l 1 o 0}));
     buffer.set_unedited();
     if all_selected(&buffer) {
         buffer.set_cursors(d!());
