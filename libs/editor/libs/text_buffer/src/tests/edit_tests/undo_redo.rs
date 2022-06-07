@@ -1127,3 +1127,50 @@ fn works_in_this_simple_found_case() {
     assert_text_buffer_eq_ignoring_history!(buffer, buffer_before_1);
     assert_eq!(buffer.borrow_rope().to_string(), "");
 }
+
+#[test]
+#[ignore = "Implement after showing history length in the status bar"]
+fn works_as_expected_for_a_small_edit_count_in_this_set_of_examples() {
+    const SMALL: u8 = 4;
+    const PAST_SMALL: u8 = SMALL + 2;
+    let mut buffer: TextBuffer<{SMALL as usize}> = d!();
+
+    for i in 1..=SMALL {
+        buffer.insert(std::char::from_digit(i as _, 10).unwrap(), None);
+    }
+
+    // precondition
+    assert_eq!(buffer.borrow_rope().to_string(), "1234");
+
+    for _ in 0..SMALL {
+        buffer.undo(None);
+    }
+
+    for i in 1..=PAST_SMALL {
+        buffer.insert(std::char::from_digit(i as _, 10).unwrap(), None);
+    }
+
+    // precondition
+    assert_eq!(buffer.borrow_rope().to_string(), "123456");
+
+    for _ in 0..SMALL {
+        buffer.undo(None);
+    }
+
+    assert_eq!(buffer.borrow_rope().to_string(), "12");
+    assert_eq!(buffer.editedness(), Editedness::Edited);
+
+    // Undo with no history left is a no-op.
+    // TODO Should we maybe announce that the history was truncated?
+    // What about just showing how many undos are left in the status bar?
+    buffer.undo(None);
+
+    assert_eq!(buffer.borrow_rope().to_string(), "12");
+    assert_eq!(buffer.editedness(), Editedness::Edited);
+
+    for _ in 0..SMALL {
+        buffer.redo(None);
+    }
+
+    assert_eq!(buffer.borrow_rope().to_string(), "123456");
+}

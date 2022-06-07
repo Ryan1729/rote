@@ -24,15 +24,16 @@ mod history {
     use edit::{Change, Edit, change};
     use super::{EditedTransition, Editedness};
     use macros::u;
-    
+
+    pub const DEFAULT_EDIT_COUNT: usize = 4096;
 
     #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
-    pub struct History {
+    pub struct History<const EDIT_COUNT: usize = DEFAULT_EDIT_COUNT> {
         edits: VecDeque<Edit>,
         index: usize,
     }
 
-    impl History {
+    impl <const EDIT_COUNT: usize> History<EDIT_COUNT> {
         pub fn redo(
             &mut self,
             callback: impl FnOnce(&Edit) -> Change<Editedness>
@@ -143,27 +144,31 @@ use history::{History, NavOutcome as HistoryNavOutcome};
 
 /// Not `Eq` because of the `ScrollXY` field.
 #[derive(Clone, Debug, PartialEq)]
-pub struct TextBuffer {
+pub struct TextBuffer<
+    const EDIT_COUNT: usize = {history::DEFAULT_EDIT_COUNT}
+> {
     /// We keep the `CursoredRope` private, and only allow non-mut borrows
     /// so we know that the history contains all the changes made
     /// to the rope.
     rope: CursoredRope,
-    history: History,
+    history: History<EDIT_COUNT>,
     unedited: Rope,
     pub scroll: ScrollXY,
 }
 
-d!(for TextBuffer: {
-    let rope: Rope = d!();
-    TextBuffer {
-        unedited: rope.clone(),
-        rope: rope.into(),
-        history: d!(),
-        scroll: d!(),
+impl <const EDIT_COUNT: usize> Default for TextBuffer<EDIT_COUNT> {
+    fn default() -> Self {
+        let rope: Rope = d!();
+        TextBuffer {
+            unedited: rope.clone(),
+            rope: rope.into(),
+            history: d!(),
+            scroll: d!(),
+        }
     }
-});
+}
 
-impl TextBuffer {
+impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
     #[perf_viz::record]
     pub fn non_rope_hash<H: std::hash::Hasher>(&self, state: &mut H) {
         use std::hash::Hash;
@@ -214,7 +219,7 @@ pub enum ScrollAdjustSpec {
     Direct(ScrollXY)
 }
 
-impl TextBuffer {
+impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
     #[must_use]
     pub fn borrow_rope(&self) -> &Rope {
         self.rope.borrow_rope()
@@ -417,7 +422,7 @@ macro_rules! ppel {
     }
 }
 
-impl TextBuffer {
+impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
     #[perf_viz::record]
     pub fn insert(&mut self, c: char, listener: ppel!()) -> PossibleEditedTransition {
         dbg!("\n\n\ninsert\n\n\n");
@@ -791,7 +796,7 @@ pub enum Editedness {
     Unedited
 }
 
-impl TextBuffer {
+impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
     pub fn editedness(&self) -> Editedness {
         editedness(&self.unedited, self.rope.borrow_rope())
     }
@@ -812,7 +817,7 @@ fn editedness(unedited: &Rope, current: &Rope) -> Editedness {
     }
 }
 
-impl TextBuffer {
+impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
     pub fn redo(&mut self, listener: ppel!()) -> HistoryNavOutcome {
         let old_editedness = self.editedness();
 
@@ -853,7 +858,7 @@ impl TextBuffer {
 // View rendering
 //
 
-impl TextBuffer {
+impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
     pub fn in_bounds<P: Borrow<Position>>(&self, position: P) -> bool {
         in_cursor_bounds(self.borrow_rope(), position)
     }
