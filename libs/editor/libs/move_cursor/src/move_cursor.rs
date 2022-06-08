@@ -192,6 +192,7 @@ fn move_to_rope_end(rope: &Rope, cursor: &mut Cursor, action: SetPositionAction)
     move_to(rope, cursor, last_position(rope), action)
 }
 
+#[must_use]
 pub fn get_previous_selection_point(rope: &Rope, position: Position) -> Option<Position> {
     get_previous_position(rope, position, OffsetKind::SelectionPoint)
 }
@@ -242,6 +243,7 @@ fn move_to_previous_likely_edit_location(
     )
 }
 
+#[must_use]
 pub fn get_next_selection_point(rope: &Rope, position: Position) -> Option<Position> {
     get_next_position(rope, position, OffsetKind::SelectionPoint)
 }
@@ -336,6 +338,7 @@ lazy_static! {
     ];
 }
 
+#[derive(Clone, Copy)]
 enum IncludeStringLength {
     No,
     Yes,

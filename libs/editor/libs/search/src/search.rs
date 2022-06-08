@@ -45,7 +45,7 @@ impl SearchResults {
         let old_range = self.ranges.get(self.current_range);
         let overlapping_range = old_range.map(|(old_start, old_end)| {
             let mut overlapping_range = None;
-            for (new_start, new_end) in new.ranges.iter() {
+            for (new_start, new_end) in &new.ranges {
                 if (old_start <= new_start && new_start <= old_end)
                 || (old_start <= new_end && new_end <= old_end) {
                     overlapping_range = Some((new_start, new_end));
@@ -58,14 +58,15 @@ impl SearchResults {
 
         // We want to keep the current place whenever it would still be accurate.
         if overlapping_range.is_some() {
-            new.current_range = self.current_range
+            new.current_range = self.current_range;
         }
 
-        *self = new
+        *self = new;
     }
 
     // TODO write a test that fails when we add a new field that isn't counted here.
     // A compile-time assert would be preferable, of course.
+    #[must_use]
     pub fn size_in_bytes(&self) -> usize {
         use core::mem;
         mem::size_of_val(&self.needle) +
@@ -79,6 +80,7 @@ impl SearchResults {
 
 /// A `haystack_range` of `None` means use the whole haystack. AKA no limit.
 /// A `max_needed` of `None` means return all the results. AKA no limit.
+#[must_use]
 pub fn get_ranges(
     needle: RopeSlice,
     haystack: &Rope,
@@ -113,6 +115,7 @@ pub fn get_ranges(
 }
 
 // TODO benchmark with previous version used in tests
+#[must_use]
 fn get_ranges_impl(
     needle: RopeSlice,
     haystack: RopeSlice,
@@ -172,8 +175,16 @@ fn get_ranges_impl(
     max_suffix!(max_suffix_ge, >);
 
     let mut output = Vec::new();
-    let needle_len = needle.len_chars().0 as isize;
-    let haystack_len = haystack.len_chars().0 as isize;
+
+    let needle_len = match isize::try_from(needle.len_chars().0) {
+        Ok(nl) => nl,
+        Err(_) => return output,
+    };
+    let haystack_len = match isize::try_from(haystack.len_chars().0) {
+        Ok(hl) => hl,
+        Err(_) => return output,
+    };
+
     macro_rules! push {
         ($start_offset: expr) => {
             let start_offset = $start_offset as usize;
