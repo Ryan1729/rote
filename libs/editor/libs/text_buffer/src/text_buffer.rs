@@ -71,13 +71,21 @@ mod history {
             self.index += 1;
         }
 
-        #[cfg(any(test, feature = "pub_arb"))]
+        pub fn index(&self) -> usize {
+            self.index
+        }
+
         pub fn len(&self) -> usize {
             self.edits.len()
         }
 
         pub fn is_empty(&self) -> bool {
             self.edits.is_empty()
+        }
+
+        // TODO enforce this limit once we are sure it is a good enough size.
+        pub fn max_len(&self) -> usize {
+            EDIT_COUNT
         }
 
         pub fn clear(&mut self) {
@@ -851,6 +859,22 @@ impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
 
     pub fn clear_history(&mut self) {
         self.history.clear();
+    }
+}
+
+pub struct HistoryStats {
+    pub index: usize,
+    pub len: usize,
+    pub max_len: usize,
+}
+
+impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
+    pub fn history_stats(&self) -> HistoryStats {
+        HistoryStats {
+            index: self.history.index(),
+            len: self.history.len(),
+            max_len: self.history.max_len(),
+        }
     }
 }
 

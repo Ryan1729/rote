@@ -90,6 +90,24 @@ pub fn render(
             )
         );
     
+        let cursors = buffer.borrow_cursors();
+        let cursors_len = cursors.len();
+        let _cannot_actually_fail = write!(
+            chars,
+            " {}",
+            if cursors.len() == 1 {
+                "c".to_string()
+            } else {
+                format!("cs({})", cursors_len)
+            }
+        );
+
+        {
+            let text_buffer::HistoryStats{ index, len, max_len }
+                = buffer.history_stats();
+            let _cannot_actually_fail = write!(chars, " {index} of {len}/{max_len}");
+        }
+
         // debugging
         let _cannot_actually_fail = write!(chars, "  ? t{} s{}", text_char_dim, scroll);
     
