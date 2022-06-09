@@ -794,7 +794,6 @@ dependencies = [
  "pub_arb_non_neg_f32",
  "pub_arb_platform_types",
  "pub_arb_pos_f32",
- "pub_arb_pos_f32_trunc",
  "pub_arb_std",
  "pub_arb_text_buffer",
  "search",
@@ -1748,14 +1747,12 @@ dependencies = [
  "panic_safe_rope",
  "perf_viz",
  "pos_f32",
- "pos_f32_trunc",
  "proptest",
  "pub_arb_abs",
  "pub_arb_f32_0_1",
  "pub_arb_g_i",
  "pub_arb_non_neg_f32",
  "pub_arb_pos_f32",
- "pub_arb_pos_f32_trunc",
  "pub_arb_std",
  "screen_space",
  "text_pos",
@@ -1767,16 +1764,6 @@ name = "pos_f32"
 version = "0.1.0"
 dependencies = [
  "macros",
- "proptest",
-]
-
-[[package]]
-name = "pos_f32_trunc"
-version = "0.1.0"
-dependencies = [
- "macros",
- "non_neg_f32",
- "pos_f32",
  "proptest",
 ]
 
@@ -1912,13 +1899,6 @@ name = "pub_arb_pos_f32"
 version = "0.1.0"
 dependencies = [
  "pos_f32",
-]
-
-[[package]]
-name = "pub_arb_pos_f32_trunc"
-version = "0.1.0"
-dependencies = [
- "pos_f32_trunc",
 ]
 
 [[package]]

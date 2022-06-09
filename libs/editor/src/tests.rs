@@ -101,7 +101,6 @@ mod arb {
         index_from_parts as g_i_index_from_parts
     };
     pub use pub_arb_pos_f32::{pos_f32};
-    pub use pub_arb_pos_f32_trunc::{pos_f32_trunc};
     pub use pub_arb_non_neg_f32::{non_neg_f32};
     pub use pub_arb_platform_types::{
         menu_mode,

@@ -2,7 +2,6 @@ use macros::{fmt_debug, fmt_display, dbg, u};
 use text_pos::{CharOffset, Position};
 pub use non_neg_f32::{NonNegF32, non_neg_f32};
 pub use pos_f32::{PosF32, pos_f32};
-pub use pos_f32_trunc::{PosF32Trunc, pos_f32_trunc};
 pub use f32_0_1::{F32_0_1, f32_0_1};
 pub use abs::{abs_pos, abs_length};
 pub use screen_space::*;
