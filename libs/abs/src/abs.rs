@@ -4,11 +4,11 @@
 //! * `Ratio`, a type which allows scaling Length values.
 #![deny(unconditional_recursion)]
 use macros::{
-    fmt_debug, 
+    fmt_debug,
     fmt_display,
-    add_assign, 
-    sub_assign, 
-    mul_assign, 
+    add_assign,
+    sub_assign,
+    mul_assign,
     div_assign,
     u
 };

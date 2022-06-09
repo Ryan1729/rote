@@ -159,9 +159,13 @@ mod text_layouts {
             // not that we don't display them.
             // TODO test this.
             let to_skip = -(caret.1 - min_y) / line_height;
+            // The allow is here instead of above the `as` because of
+            // "error[E0658]: attributes on expressions are experimental"
+            #[allow(clippy::cast_possible_truncation)]
             let to_skip: u16 = if to_skip > 65535.0 {
                 65535
             } else if to_skip >= 0.0 {
+                // We just checked if it was too high
                 to_skip as u16
             } else {
                 // NaN ends up here
@@ -264,6 +268,7 @@ impl <'font> State<'font> {
         let (t_w, t_h) = self.glyph_brush.texture_dimensions();
         self.glyph_brush.resize_texture(t_w, t_h);
     }
+    #[must_use]
     pub fn texture_dimensions(&self) -> (u32, u32) {
         self.glyph_brush.texture_dimensions()
     }
@@ -273,6 +278,7 @@ impl <'font> State<'font> {
     }
 
     #[perf_viz::record]
+    #[must_use]
     pub fn render_vertices<Update, Resize>(
         &mut self,
         text_or_rects: &[TextOrRect],
@@ -347,7 +353,7 @@ impl <'font> State<'font> {
                     perf_viz::start_record!("Text");
                     let colour = *colour;
                     let section = Section {
-                        text: &text,
+                        text,
                         scale: get_scale(*size, self.hidpi_factor),
                         screen_position: rect.min.into(),
                         bounds: rect.max.into(),
@@ -411,6 +417,7 @@ impl <'font> State<'font> {
         }
     }
 
+    #[must_use]
     pub fn get_char_dims(&self, text_sizes: &[f32]) -> CharDims {
         // We currently assume there is exactly one font used.
         let font = &self.glyph_brush.fonts()[0];
