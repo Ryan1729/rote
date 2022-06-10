@@ -6,6 +6,7 @@ use std::{
     hash::{Hash, Hasher},
     mem,
 };
+use gl_layer_types::{Dimensions, U24};
 
 mod section;
 
@@ -442,7 +443,10 @@ where
                     Err(_) => {
                         let (width, height) = dimensions(&self.texture_cache);
                         return Err(BrushError::TextureTooSmall {
-                            suggested: (width * 2, height * 2),
+                            suggested: (
+                                U24::from_u32_saturating(u32::from(width) * 2),
+                                U24::from_u32_saturating(u32::from(height) * 2),
+                            ),
                         });
                     }
                 }
@@ -505,14 +509,10 @@ where
     }
 
     /// Rebuilds the logical texture cache with new dimensions. Should be avoided if possible.
-    ///
-    /// # Example
-    ///
-    pub fn resize_texture(&mut self, new_width: u32, new_height: u32) {
+    pub fn resize_texture(&mut self, dimensions: Dimensions) {
         rasterizer::resize_texture(
             &mut self.texture_cache,
-            new_width,
-            new_height,
+            dimensions,
         );
 
         self.text_hash = <_>::default();
@@ -522,7 +522,7 @@ where
 
     /// Returns the logical texture cache pixel dimensions `(width, height)`.
     #[must_use]
-    pub fn texture_dimensions(&self) -> (u32, u32) {
+    pub fn texture_dimensions(&self) -> Dimensions {
         dimensions(&self.texture_cache)
     }
 
@@ -601,7 +601,7 @@ pub enum BrushError {
     /// Texture is too small to cache queued glyphs
     ///
     /// A larger suggested size is included.
-    TextureTooSmall { suggested: (u32, u32) },
+    TextureTooSmall { suggested: Dimensions },
 }
 impl fmt::Display for BrushError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

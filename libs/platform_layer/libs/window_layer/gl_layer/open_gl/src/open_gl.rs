@@ -5,7 +5,7 @@ use std::{ffi::CString, mem, ptr, str};
 use gl33::{*, global_loader::*};
 pub use gl33::global_loader::load_global_gl;
 
-use gl_layer_types::{DEPTH_MIN, DEPTH_MAX, Vertex, VERTEX_SPEC, Res};
+use gl_layer_types::{DEPTH_MIN, DEPTH_MAX, Dimensions, Vertex, VERTEX_SPEC, Res, U24};
 
 use macros::{invariants_checked};
 
@@ -51,6 +51,12 @@ impl From<u32> for GLsizei {
                 { n as _ }
             }
         )
+    }
+}
+
+impl From<U24> for GLsizei {
+    fn from(n: U24) -> Self {
+        Self(n.into())
     }
 }
 
@@ -117,7 +123,7 @@ impl State {
     // nul char.
     pub unsafe fn new(
         clear_colour: [f32; 4], // the clear colour currently flashes up on exit.
-        (width, height): (impl Into<GLsizei>, impl Into<GLsizei>),
+        dimensions: Dimensions,
         load_fn: &LoadFn<'_>,
     ) -> Res<Self> {
         // Load the OpenGL function pointers
@@ -127,7 +133,7 @@ impl State {
 
         Self::new_inner(
             clear_colour,
-            (width, height),
+            dimensions,
         )
     }
 }
@@ -149,7 +155,7 @@ impl State {
     #[inline]
     fn new_inner(
         clear_colour: [f32; 4], // the clear colour currently flashes up on exit.
-        (width, height): (impl Into<GLsizei>, impl Into<GLsizei>),
+        (width, height): Dimensions,
     ) -> Res<Self> {
         // We don't care if GL constants wrap. They only care about the bits.
         #[allow(clippy::cast_possible_wrap)]
@@ -166,8 +172,8 @@ impl State {
         let mut v_buffer_o = 0;
         let mut glyph_texture = 0;
     
-        let width = width.into();
-        let height = height.into();
+        let width = GLsizei::from(width);
+        let height = GLsizei::from(height);
 
         // SAFETY: We've set up the OpenGL function pointers correctly.
         // We'll refer to the above as "Note 1".
@@ -360,27 +366,28 @@ impl State {
     }
 
     pub fn update_texture(
-        x: GLuint, 
-        y: GLuint, 
-        w: impl Into<GLsizei>,
-        h: impl Into<GLsizei>, 
+        x: U24,
+        y: U24,
+        w: U24,
+        h: U24,
         tex_data: &[u8]
     ) {
         // These must be within bounds of the GPU texture, which implies they must 
         // be positive. If they are not within bounds then a `GL_INVALID_VALUE` 
         // error will be generated, which should trigger the below assert, if it
         // is enabled.
-        #[allow(clippy::cast_possible_wrap)]
-        let (x, y) = (x as GLint, y as GLint);
+        let (x, y) = (GLsizei::from(x), GLsizei::from(y));
+        let (w, h) = (GLsizei::from(w), GLsizei::from(h));
+        
         // SAFETY: See Note 1.
         unsafe {
             glTexSubImage2D(
                 GL_TEXTURE_2D,
                 0,
-                x,
-                y,
-                w.into().0,
-                h.into().0,
+                x.0,
+                y.0,
+                w.0,
+                h.0,
                 GL_RED,
                 GL_UNSIGNED_BYTE,
                 tex_data.as_ptr().cast(),
@@ -390,10 +397,12 @@ impl State {
     }
 
     pub fn resize_texture(
-        new_width: impl Into<GLsizei>,
-        new_height: impl Into<GLsizei>,
+        (new_width, new_height): Dimensions,
     ) {
-        let (new_width, new_height) = (new_width.into().0, new_height.into().0);
+        let (new_width, new_height) = (
+            GLsizei::from(new_width).0,
+            GLsizei::from(new_height).0
+        );
 
         // SAFETY: See Note 1.
         unsafe {

@@ -7,13 +7,30 @@
 // So, it's probably slower. Slower, and a more cumbersome internal implementation 
 // just for the sake of a byte in something we don't expect to have many instances of
 // sure sounds like a lose to me.
-#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct U24(u32);
 
+impl core::fmt::Display for U24 {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 impl U24 {
+    pub const MAX: U24 = U24(0x00FF_FFFF);
+
     #[must_use]
     pub fn from_u32_masked(n: u32) -> U24 {
-        U24(n & 0x00FF_FFFF)
+        U24(n & U24::MAX.0)
+    }
+
+    #[must_use]
+    pub fn from_u32_saturating(n: u32) -> U24 {
+        U24(if n >= U24::MAX.0 {
+            U24::MAX.0
+        } else {
+            n
+        })
     }
 }
 
@@ -28,5 +45,13 @@ impl From<U24> for f32 {
 impl From<U24> for u32 {
     fn from(U24(n): U24) -> u32 {
         n
+    }
+}
+
+impl From<U24> for i32 {
+    // We ensure elsewhere that `n` is below `i32::MAX`.
+    #[allow(clippy::cast_possible_wrap)]
+    fn from(U24(n): U24) -> i32 {
+        n as i32
     }
 }

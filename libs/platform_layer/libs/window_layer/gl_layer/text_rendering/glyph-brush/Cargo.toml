@@ -15,6 +15,7 @@ path = "./src/glyph_brush.rs"
 [dependencies]
 #rasterizer = { path = "../rasterizer", features = ["glyph_brush_draw_cache"] }
 rasterizer = { path = "../rasterizer", features = ["rusttype"] }
+gl_layer_types = { path = "../../gl_layer_types" }
 fast_hash = { path = "../../../../../../fast_hash" }
 perf_viz = { path = "../../../../../../perf_viz" }
 if_changed = { path = "../../../../../../if_changed" }

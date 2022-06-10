@@ -3,6 +3,8 @@
 #[cfg(not(any(feature = "rusttype", feature = "glyph_brush_draw_cache")))]
 compile_error!("Either feature \"rusttype\" or \"glyph_brush_draw_cache\" must be enabled for this crate.");
 
+use gl_layer_types::{Dimensions, U24};
+
 /// RGBA `[0, 1]` colour data.
 pub type Colour = [f32; 4];
 
@@ -29,7 +31,7 @@ pub use per_backend::*;
 //
 #[cfg(feature = "rusttype")]
 mod per_backend {
-    use crate::{Colour, Coords};
+    use crate::{Colour, Coords, Dimensions, U24};
 
     pub use rusttype::{
         Font, PositionedGlyph as Glyph, GlyphId,
@@ -40,7 +42,12 @@ mod per_backend {
 
     use rusttype::gpu_cache;
 
-    pub type TextureRect = U32Rect;
+    pub struct TextureRect {
+        pub x: U24,
+        pub y: U24,
+        pub w: U24,
+        pub h: U24,
+    }
 
     pub struct Cache<'font>{
         cache: gpu_cache::Cache<'font>,
@@ -68,15 +75,32 @@ mod per_backend {
     pub fn cache_queued<'font, UpdateTexture>(
         cache: &mut Cache<'font>,
         _: &[Font],
-        update_texture: UpdateTexture
+        mut update_texture: UpdateTexture
     ) -> Result<CachedBy, CacheWriteErr>
     where for <'r> UpdateTexture: FnMut(TextureRect, &'r [u8]) {
-        cache.cache.cache_queued(update_texture)
+        cache.cache.cache_queued(|t_r, bytes| {
+            macros::invariant_assert!(t_r.min.x <= U24::MAX);
+            macros::invariant_assert!(t_r.min.y <= U24::MAX);
+            macros::invariant_assert!(t_r.max.x <= U24::MAX);
+            macros::invariant_assert!(t_r.max.y <= U24::MAX);
+            update_texture(
+                TextureRect {
+                    x: U24::from_u32_saturating(t_r.min.x),
+                    y: U24::from_u32_saturating(t_r.min.y),
+                    w: U24::from_u32_saturating(t_r.width()),
+                    h: U24::from_u32_saturating(t_r.height()),
+                },
+                bytes,
+            )
+        })
     }
 
     #[must_use]
-    pub fn dimensions(cache: &Cache<'_>) -> (u32, u32) {
-        cache.cache.dimensions()
+    pub fn dimensions(cache: &Cache<'_>) -> Dimensions {
+        let (w, h) = cache.cache.dimensions();
+        macros::invariant_assert!(w <= U24::MAX);
+        macros::invariant_assert!(h <= U24::MAX);
+        (U24::from_u32_saturating(w), U24::from_u32_saturating(h))
     }
 
     /// # Errors
@@ -112,18 +136,16 @@ mod per_backend {
 
     pub fn resize_texture(
         cache: &mut Cache<'_>,
-        new_width: u32,
-        new_height: u32,
+        (new_width, new_height): Dimensions,
     ) {
         cache.cache
             .to_builder()
-            .dimensions(new_width, new_height)
+            .dimensions(new_width.into(), new_height.into())
             .rebuild(&mut cache.cache);
     }
 
     pub type Point = rusttype::Point<f32>;
     pub type Rect = rusttype::Rect<f32>;
-    type U32Rect = rusttype::Rect<u32>;
 
     #[derive(Clone, Debug)]
     pub struct CalculatedGlyph<'font> {

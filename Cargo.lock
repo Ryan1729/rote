@@ -1104,6 +1104,7 @@ name = "glyph_brush"
 version = "0.6.3"
 dependencies = [
  "fast_hash",
+ "gl_layer_types",
  "if_changed",
  "perf_viz",
  "rasterizer",
@@ -2056,7 +2057,9 @@ dependencies = [
 name = "rasterizer"
 version = "0.1.0"
 dependencies = [
+ "gl_layer_types",
  "glyph_brush_draw_cache",
+ "macros",
  "rusttype 0.8.3",
 ]
 

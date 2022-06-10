@@ -15,7 +15,8 @@ pub use gl_layer::{
     TextLayout,
     TextOrRect,
     TextSpec,
-    VisualSpec
+    U24,
+    VisualSpec,
 };
 pub use glutin_wrapper::{
     window::{
@@ -235,7 +236,10 @@ fn render_inner<'font>(
     gl_layer::render(
         state,
         text_or_rects,
-        (dimensions.width as _, dimensions.height as _)
+        (
+            U24::from_u32_saturating(dimensions.width),
+            U24::from_u32_saturating(dimensions.height)
+        )
     )?;
 
     perf_viz::start_record!("swap_buffers");
@@ -302,7 +306,10 @@ impl Fns<'_, '_, '_, '_, '_, '_> {
         gl_layer::set_dimensions(
             &mut self.gl_state,
             scale_factor,
-            (dimensions.width.trunc_to_u32(), dimensions.height.trunc_to_u32()),
+            (
+                U24::from_u32_saturating(dimensions.width.trunc_to_u32()),
+                U24::from_u32_saturating(dimensions.height.trunc_to_u32())
+            ),
         );
     }
 
@@ -471,7 +478,10 @@ impl <A> State<'static, A> {
                             gl_layer::set_dimensions(
                                 &mut gl_state,
                                 hidpi_factor,
-                                (dimensions.width as _, dimensions.height as _),
+                                (
+                                    U24::from_u32_saturating(dimensions.width),
+                                    U24::from_u32_saturating(dimensions.height)
+                                ),
                             );
 
                             pass_down!(
@@ -493,7 +503,10 @@ impl <A> State<'static, A> {
                             gl_layer::set_dimensions(
                                 &mut gl_state,
                                 hidpi_factor as _,
-                                (dimensions.width as _, dimensions.height as _),
+                                (
+                                    U24::from_u32_saturating(dimensions.width),
+                                    U24::from_u32_saturating(dimensions.height)
+                                ),
                             );
 
                             pass_down!(

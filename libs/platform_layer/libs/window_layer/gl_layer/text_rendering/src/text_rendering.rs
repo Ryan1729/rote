@@ -3,7 +3,7 @@ use screen_space::{
     CharDim,
     char_dim, ssr,
 };
-use gl_layer_types::{Vertex, VertexStruct, set_alpha, TextOrRect, Res, U24};
+use gl_layer_types::{Dimensions, Vertex, VertexStruct, set_alpha, TextOrRect, Res};
 
 #[allow(unused_imports)]
 use macros::{d, dbg};
@@ -265,16 +265,17 @@ impl <'font> State<'font> {
     
         // if we don't reset the cache like this then we render a stretched
         // version of the text on window resize.
-        let (t_w, t_h) = self.glyph_brush.texture_dimensions();
-        self.glyph_brush.resize_texture(t_w, t_h);
+        self.glyph_brush.resize_texture(
+            self.glyph_brush.texture_dimensions()
+        );
     }
     #[must_use]
-    pub fn texture_dimensions(&self) -> (u32, u32) {
+    pub fn texture_dimensions(&self) -> Dimensions {
         self.glyph_brush.texture_dimensions()
     }
 
-    pub(crate) fn resize_texture(&mut self, new_width: u32, new_height: u32) {
-        self.glyph_brush.resize_texture(new_width, new_height);
+    pub(crate) fn resize_texture(&mut self, dimensions: Dimensions) {
+        self.glyph_brush.resize_texture(dimensions);
     }
 
     #[perf_viz::record]
@@ -282,13 +283,13 @@ impl <'font> State<'font> {
     pub fn render_vertices<Update, Resize>(
         &mut self,
         text_or_rects: &[TextOrRect],
-        dimensions: (U24, U24),
+        dimensions: Dimensions,
         update_texture: Update,
         mut resize_texture: Resize,
     ) -> Option<Vec<Vertex>>
     where
         for <'r> Update: FnMut(TextureRect, &'r [u8]) + Copy,
-        Resize: FnMut(u32, u32) + Copy,
+        Resize: FnMut(Dimensions) + Copy,
     {
         use TextOrRect::*;
 
@@ -410,10 +411,10 @@ impl <'font> State<'font> {
             match brush_action {
                 Ok(BrushAction::Draw(verticies)) => return Some(verticies),
                 Ok(BrushAction::ReDraw) => return None,
-                Err(BrushError::TextureTooSmall { suggested: (new_width, new_height), .. }) => {
+                Err(BrushError::TextureTooSmall { suggested, .. }) => {
                     perf_viz::record_guard!("TextureTooSmall");
-                    resize_texture(new_width, new_height);
-                    self.resize_texture(new_width, new_height);
+                    resize_texture(suggested);
+                    self.resize_texture(suggested);
                 },
             }
         }

@@ -10,3 +10,5 @@ path = "./src/rasterizer.rs"
 [dependencies]
 rusttype = { version = "0.8.3", features = ["gpu_cache"], optional = true }
 glyph_brush_draw_cache = { version = "0.1.1", optional = true }
+gl_layer_types = { path = "../../gl_layer_types" }
+macros = { path = "../../../../../../macros" }
