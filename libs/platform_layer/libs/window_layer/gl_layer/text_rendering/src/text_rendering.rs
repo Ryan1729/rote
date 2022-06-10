@@ -3,7 +3,7 @@ use screen_space::{
     CharDim,
     char_dim, ssr,
 };
-use gl_layer_types::{Vertex, VertexStruct, set_alpha, TextOrRect, Res};
+use gl_layer_types::{Vertex, VertexStruct, set_alpha, TextOrRect, Res, U24};
 
 #[allow(unused_imports)]
 use macros::{d, dbg};
@@ -282,7 +282,7 @@ impl <'font> State<'font> {
     pub fn render_vertices<Update, Resize>(
         &mut self,
         text_or_rects: &[TextOrRect],
-        dimensions: (u32, u32),
+        dimensions: (U24, U24),
         update_texture: Update,
         mut resize_texture: Resize,
     ) -> Option<Vec<Vertex>>
@@ -398,7 +398,9 @@ impl <'font> State<'font> {
         loop {
             let brush_action = self.glyph_brush.process_queued(
                 update_texture,
-                to_vertex_maker((dimensions.0 as f32, dimensions.1 as f32)),
+                to_vertex_maker(
+                    (dimensions.0.into(), dimensions.1.into())
+                ),
                 Some(AdditionalRects {
                     set_alpha,
                     rect_specs: rect_specs.clone(), // clone needed since we loop sometimes.

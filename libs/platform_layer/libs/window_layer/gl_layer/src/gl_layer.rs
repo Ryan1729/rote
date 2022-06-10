@@ -80,7 +80,7 @@ pub fn render(
 
     let replacement_vertices = state.text_rendering.render_vertices(
         &text_or_rects,
-        dimensions,
+        (U24::from_u32_masked(dimensions.0), U24::from_u32_masked(dimensions.1)),
         |rect: text_rendering::TextureRect, tex_data: &_| {
             // Update part of gpu texture with new glyph alpha values
             open_gl::State::update_texture(

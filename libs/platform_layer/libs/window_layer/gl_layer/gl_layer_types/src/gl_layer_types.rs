@@ -1,6 +1,9 @@
 use platform_types::{ScreenSpaceRect, ScrollXY};
 use macros::{d};
 
+mod u24;
+pub use u24::U24;
+
 use std::borrow::Cow;
 
 pub type Res<T> = Result<T, Box<dyn std::error::Error>>;
