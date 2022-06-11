@@ -886,7 +886,7 @@ fn inserting_then_deleting_preserves_editedness_in_this_minimal_example() {
 
 #[test]
 fn inserting_then_deleting_preserves_editedness_on_this_found_example() {
-    const EXPECTED_DEGUG_STR: &str = r#"TextBuffer { rope: CursoredRope { rope: ["\u{2028}"], cursors: Cursors { cursors: Vec1([cur!{l 0 o 0}]) } }, history: History { edits: [], index: 0 }, unedited: ["\u{2028}"], scroll: slxy!(0, 0) }"#;
+    const EXPECTED_DEGUG_STR: &str = r#"TextBuffer { rope: CursoredRope { rope: ["\u{2028}"], cursors: Cursors { cursors: [cur!{l 0 o 0}] } }, history: History { edits: [], index: 0 }, unedited: ["\u{2028}"], scroll: slxy!(0, 0) }"#;
 
     let mut buffer: TextBuffer = d!();
     buffer.rope = c_r!("\u{2028}");
