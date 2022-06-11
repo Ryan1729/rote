@@ -34,6 +34,12 @@ impl U24 {
     }
 }
 
+impl From<u16> for U24 {
+    fn from(n: u16) -> U24 {
+        U24(n as u32)
+    }
+}
+
 impl From<U24> for f32 {
     // See documentation of `U24` for why this is okay.
     #[allow(clippy::cast_precision_loss)]

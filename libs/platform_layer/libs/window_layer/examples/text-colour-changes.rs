@@ -2,7 +2,7 @@
 /// the colour of text, when changed from one colour to another and back again, would get stuck,
 /// and it would not change when it was expected to.
 use window_layer::{ColouredText, TextLayout, TextOrRect, TextSpec, VisualSpec};
-use screen_space::{ScreenSpaceRect, ScreenSpaceXY, ssxy};
+use screen_space::{ScreenSpaceRect, ssxy};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     const TEXT_SIZE: f32 = 128.0;

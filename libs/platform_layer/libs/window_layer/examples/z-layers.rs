@@ -3,7 +3,7 @@
 /// are silly things. Besides, this should be a nice simple example of how to setup a simple
 /// scene with this crate.
 use window_layer::{TextLayout, TextOrRect, TextSpec, VisualSpec};
-use screen_space::{ScreenSpaceRect, ScreenSpaceXY, ssxy};
+use screen_space::{ScreenSpaceRect, ssxy};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     const TEXT_SIZE: f32 = 128.0;

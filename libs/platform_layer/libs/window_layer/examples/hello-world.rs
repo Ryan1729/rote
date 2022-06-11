@@ -1,7 +1,7 @@
 /// This is meant to be the smallest reasonable example, and perhaps a template
 /// for other examples/applications.
 use window_layer::{TextLayout, TextOrRect, TextSpec, VisualSpec};
-use screen_space::{ScreenSpaceRect, ScreenSpaceXY, ssxy};
+use screen_space::{ScreenSpaceRect, ssxy};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     const TEXT_SIZE: f32 = 16.0;
