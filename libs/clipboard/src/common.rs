@@ -16,6 +16,7 @@ limitations under the License.
 
 use std::error::Error;
 
+#[cfg(target_os="macos")]
 pub fn err(s: &str) -> Box<dyn Error> {
     Box::<dyn Error + Send + Sync>::from(s)
 }
