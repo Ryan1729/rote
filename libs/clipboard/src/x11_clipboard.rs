@@ -17,10 +17,10 @@ limitations under the License.
 use std::error::Error;
 use std::time::Duration;
 use std::marker::PhantomData;
-use common::*;
-use x11_clipboard_crate::Atoms;
-use x11_clipboard_crate::Clipboard as X11Clipboard;
-use x11_clipboard_crate::xcb::xproto::Atom;
+use crate::common::*;
+use crate::x11_clipboard_crate::Atoms;
+use crate::x11_clipboard_crate::Clipboard as X11Clipboard;
+use crate::x11_clipboard_crate::xcb::xproto::Atom;
 
 pub trait Selection {
     fn atom(atoms: &Atoms) -> Atom;

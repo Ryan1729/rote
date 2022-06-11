@@ -16,7 +16,7 @@ limitations under the License.
 
 use clipboard_win::{get_clipboard_string, set_clipboard_string};
 
-use common::ClipboardProvider;
+use crate::common::ClipboardProvider;
 use std::error::Error;
 
 pub struct WindowsClipboardContext;
