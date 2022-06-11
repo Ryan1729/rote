@@ -1,79 +1,12 @@
 use window_layer::{ModifiersState, KeyCode};
-use macros::{d, dbg, ord, u};
+use macros::{d, ord, u};
 use platform_types::{screen_positioning::*, abs, g_i, Input, Cmd, EditedTransition, TimeSpan, BufferLabel, BufferName};
 
 use std::collections::{VecDeque, BTreeMap};
 use std::path::PathBuf;
 use std::cmp::min;
 
-mod clipboard_layer {
-    use super::dbg;
-    pub use clipboard::ClipboardProvider;
-    use shared::Res;
-    use macros::fmt_debug;
-
-
-    /// This enum exists so we can do dynamic dispatch on `ClipboardProvider` instances even though
-    /// the trait requires `Sized`. The reason  we want to do that, is so that if we try to run this
-    /// on a platform where `clipboard::ClipboardContext::new` retirns an `Err` we can continue
-    /// operation, just without system clipboard support.
-    pub enum Clipboard {
-        System(clipboard::ClipboardContext),
-        Fallback(clipboard::nop_clipboard::NopClipboardContext),
-    }
-
-    fmt_debug!(for Clipboard: c in "{}", {
-        use Clipboard::*;
-        match c {
-            System(_) => {
-                "System(_)"
-            },
-            Fallback(_) => {
-                "Fallback(_)"
-            },
-        }
-    });
-
-    impl clipboard::ClipboardProvider for Clipboard {
-        fn new() -> Res<Self> {
-            let result: Result<
-                clipboard::ClipboardContext,
-                clipboard::nop_clipboard::NopClipboardContext,
-            > = clipboard::ClipboardContext::new().map_err(|err| {
-                eprintln!("System clipboard not supported. {}", err);
-                // `NopClipboardContext::new` always returns an `Ok`
-                clipboard::nop_clipboard::NopClipboardContext::new().unwrap()
-            });
-
-            let output = match result {
-                Ok(ctx) => Clipboard::System(ctx),
-                Err(ctx) => Clipboard::Fallback(ctx),
-            };
-
-            // `get_clipboard` currently relies on this neer returning `Err`.
-            Ok(output)
-        }
-        fn get_contents(&mut self) -> Res<String> {
-            match self {
-                Clipboard::System(ctx) => ctx.get_contents(),
-                Clipboard::Fallback(ctx) => ctx.get_contents(),
-            }
-        }
-        fn set_contents(&mut self, s: String) -> Res<()> {
-            dbg!(format!("copied: {:?}", s));
-            match self {
-                Clipboard::System(ctx) => ctx.set_contents(s),
-                Clipboard::Fallback(ctx) => ctx.set_contents(s),
-            }
-        }
-    }
-
-    pub fn get_clipboard() -> Clipboard {
-        // As you can see in the implementation of the `new` method, it always returns `Ok`
-        Clipboard::new().unwrap()
-    }
-}
-pub use clipboard_layer::{get_clipboard, Clipboard, ClipboardProvider};
+pub use clipboard::clipboard_layer::{get_clipboard, Clipboard, ClipboardProvider};
 
 // Parts of RunState that represent externally chosen, absolute dimensions of things,
 // including the window, from which the sizes of several UI elements are derived.
