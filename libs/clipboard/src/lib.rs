@@ -29,96 +29,104 @@ extern crate objc_id;
 extern crate objc_foundation;
 
 mod common;
-pub use crate::common::ClipboardProvider;
+use crate::common::ClipboardProvider;
 
 #[cfg(all(unix, not(any(target_os="macos", target_os="android", target_os="emscripten"))))]
-pub mod x11_clipboard;
+mod x11_clipboard;
 
 #[cfg(windows)]
-pub mod windows_clipboard;
+mod windows_clipboard;
 
 #[cfg(target_os="macos")]
-pub mod osx_clipboard;
+mod osx_clipboard;
 
-pub mod nop_clipboard;
+mod nop_clipboard;
 
 #[cfg(all(unix, not(any(target_os="macos", target_os="android", target_os="emscripten"))))]
-pub type ClipboardContext = x11_clipboard::X11ClipboardContext;
+type ClipboardContext = x11_clipboard::X11ClipboardContext;
 #[cfg(windows)]
-pub type ClipboardContext = windows_clipboard::WindowsClipboardContext;
+type ClipboardContext = windows_clipboard::WindowsClipboardContext;
 #[cfg(target_os="macos")]
-pub type ClipboardContext = osx_clipboard::OSXClipboardContext;
+type ClipboardContext = osx_clipboard::OSXClipboardContext;
 #[cfg(target_os="android")]
-pub type ClipboardContext = nop_clipboard::NopClipboardContext; // TODO: implement AndroidClipboardContext (see #52)
+type ClipboardContext = nop_clipboard::NopClipboardContext; // TODO: implement AndroidClipboardContext (see #52)
 #[cfg(not(any(unix, windows, target_os="macos", target_os="android", target_os="emscripten")))]
-pub type ClipboardContext = nop_clipboard::NopClipboardContext;
+type ClipboardContext = nop_clipboard::NopClipboardContext;
 
-pub mod clipboard_layer {
-    use crate as clipboard;
-    pub use crate::common::ClipboardProvider;
-    use std::error::Error;
+use std::error::Error;
 
-    /// This enum exists so we can do dynamic dispatch on `ClipboardProvider` instances even though
-    /// the trait requires `Sized`. The reason  we want to do that, is so that if we try to run this
-    /// on a platform where `clipboard::ClipboardContext::new` retirns an `Err` we can continue
-    /// operation, just without system clipboard support.
-    pub enum Clipboard {
-        System(clipboard::ClipboardContext),
-        Fallback(clipboard::nop_clipboard::NopClipboardContext),
-    }
+/// This enum exists so we can do dynamic dispatch on `ClipboardProvider` 
+/// instances even though the trait requires `Sized`. The reason  we want to do
+/// that, is so that if we try to run this on a platform where 
+/// `ClipboardContext::new` returns an `Err` we can continue operation, just 
+/// without system clipboard support.
+pub enum Clipboard {
+    System(ClipboardContext),
+    Fallback(nop_clipboard::NopClipboardContext),
+}
 
-    impl core::fmt::Debug for Clipboard {
-        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-            use Clipboard::*;
-            write!(f, "{}", match self {
-                System(_) => {
-                    "System(_)"
-                },
-                Fallback(_) => {
-                    "Fallback(_)"
-                },
-            })
-        }
-    }
-
-    impl clipboard::ClipboardProvider for Clipboard {
-        fn new() -> Result<Self, Box<dyn Error>> {
-            let result: Result<
-                clipboard::ClipboardContext,
-                clipboard::nop_clipboard::NopClipboardContext,
-            > = clipboard::ClipboardContext::new().map_err(|err| {
-                eprintln!("System clipboard not supported. {}", err);
-                // `NopClipboardContext::new` always returns an `Ok`
-                clipboard::nop_clipboard::NopClipboardContext::new().unwrap()
-            });
-
-            let output = match result {
-                Ok(ctx) => Clipboard::System(ctx),
-                Err(ctx) => Clipboard::Fallback(ctx),
-            };
-
-            // `get_clipboard` currently relies on this neer returning `Err`.
-            Ok(output)
-        }
-        fn get_contents(&mut self) -> Result<String, Box<dyn Error>> {
-            match self {
-                Clipboard::System(ctx) => ctx.get_contents(),
-                Clipboard::Fallback(ctx) => ctx.get_contents(),
-            }
-        }
-        fn set_contents(&mut self, s: String) -> Result<(), Box<dyn Error>> {
-            match self {
-                Clipboard::System(ctx) => ctx.set_contents(s),
-                Clipboard::Fallback(ctx) => ctx.set_contents(s),
-            }
-        }
-    }
-
-    pub fn get_clipboard() -> Clipboard {
-        // As you can see in the implementation of the `new` method, it always returns `Ok`
-        Clipboard::new().unwrap()
+impl core::fmt::Debug for Clipboard {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        use Clipboard::*;
+        write!(f, "{}", match self {
+            System(_) => {
+                "System(_)"
+            },
+            Fallback(_) => {
+                "Fallback(_)"
+            },
+        })
     }
 }
+
+pub fn get_clipboard() -> Clipboard {
+    // As you can see in the implementation of the `new` method, it always returns `Ok`
+    Clipboard::new().unwrap()
+}
+
+impl Clipboard {
+    pub fn get(&mut self) -> Result<String, Box<dyn Error>> {
+        self.get_contents()
+    }
+
+    pub fn set(&mut self, s: String) -> Result<(), Box<dyn Error>> {
+        self.set_contents(s)
+    }
+}
+
+impl ClipboardProvider for Clipboard {
+    fn new() -> Result<Self, Box<dyn Error>> {
+        let result: Result<
+            ClipboardContext,
+            nop_clipboard::NopClipboardContext,
+        > = ClipboardContext::new().map_err(|err| {
+            eprintln!("System clipboard not supported. {}", err);
+            // `NopClipboardContext::new` always returns an `Ok`
+            nop_clipboard::NopClipboardContext::new().unwrap()
+        });
+
+        let output = match result {
+            Ok(ctx) => Clipboard::System(ctx),
+            Err(ctx) => Clipboard::Fallback(ctx),
+        };
+
+        // `get_clipboard` currently relies on this neer returning `Err`.
+        Ok(output)
+    }
+    fn get_contents(&mut self) -> Result<String, Box<dyn Error>> {
+        match self {
+            Clipboard::System(ctx) => ctx.get_contents(),
+            Clipboard::Fallback(ctx) => ctx.get_contents(),
+        }
+    }
+    fn set_contents(&mut self, s: String) -> Result<(), Box<dyn Error>> {
+        match self {
+            Clipboard::System(ctx) => ctx.set_contents(s),
+            Clipboard::Fallback(ctx) => ctx.set_contents(s),
+        }
+    }
+}
+
 
 #[test]
 fn test_clipboard() {

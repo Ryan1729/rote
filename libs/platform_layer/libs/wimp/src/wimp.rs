@@ -11,7 +11,7 @@ use std::{
     time::Duration,
 };
 use wimp_render::{get_find_replace_info, FindReplaceInfo, get_go_to_position_info, GoToPositionInfo, ViewOutput, ViewAction};
-use wimp_types::{ui, ui::{PhysicalButtonState, Navigation}, transform_at, BufferStatus, BufferStatusTransition, CustomEvent, get_clipboard, ClipboardProvider, Dimensions, LabelledCommand, RunConsts, RunState, MenuMode, Pids, PidKind, EditorThreadInput, ViewRunState, DebugMenuState, DpiFactor};
+use wimp_types::{ui, ui::{PhysicalButtonState, Navigation}, transform_at, BufferStatus, BufferStatusTransition, CustomEvent, get_clipboard, Dimensions, LabelledCommand, RunConsts, RunState, MenuMode, Pids, PidKind, EditorThreadInput, ViewRunState, DebugMenuState, DpiFactor};
 use macros::{d, dbg, u};
 use platform_types::{screen_positioning::screen_to_text_box, *};
 use shared::{Res};
@@ -1118,7 +1118,7 @@ pub fn run(
                 call_u_and_r!(state, Input::NewScratchBuffer(None));
             }]
             [CTRL, V, "Paste.", state {
-                call_u_and_r!(state, Input::Paste(state.clipboard.get_contents().ok()));
+                call_u_and_r!(state, Input::Paste(state.clipboard.get().ok()));
             }]
             [CTRL, W, "Close tab.", r_s {
                 match v_s!(r_s).view.current_buffer_id() {
@@ -1608,7 +1608,7 @@ pub fn run(
                         if let Some(cmd) = r_s.cmds.pop_front() {
                             match cmd {
                                 Cmd::SetClipboard(s) => {
-                                    if let Err(err) = r_s.clipboard.set_contents(s) {
+                                    if let Err(err) = r_s.clipboard.set(s) {
                                         handle_platform_error!(r_s, err);
                                     }
                                 }

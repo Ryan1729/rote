@@ -6,7 +6,7 @@ use std::collections::{VecDeque, BTreeMap};
 use std::path::PathBuf;
 use std::cmp::min;
 
-pub use clipboard::clipboard_layer::{get_clipboard, Clipboard, ClipboardProvider};
+pub use clipboard::{get_clipboard, Clipboard};
 
 // Parts of RunState that represent externally chosen, absolute dimensions of things,
 // including the window, from which the sizes of several UI elements are derived.
