@@ -41,7 +41,7 @@ extra-prints = ["shared/extra-prints", "wimp_render/extra-prints"]
 print-raw-input = []
 
 [dev-dependencies]
-criterion = "0.2"
+criterion = "0.3"
 editor = { path = "../../../editor" }
 
 [[bench]]
