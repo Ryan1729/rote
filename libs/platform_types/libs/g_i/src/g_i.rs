@@ -745,7 +745,9 @@ mod selectable_vec1 {
                             .map(|i2| (i1, i2))
                     }) {
     
-                    if let Ok(moved_val) = self.elements.try_remove(i1) {
+                    if let Some(moved_val) = (i1 < self.elements.len())
+                        .then(|| self.elements.remove(i1).ok())
+                        .and_then(|x| x) {
                         self.elements.insert(i2, moved_val);
     
                         self.index_state.moved_to_or_ignore(index1, index2);
@@ -772,7 +774,9 @@ mod selectable_vec1 {
         pub fn remove_if_present(&mut self, index: Index) -> Option<A> {
             let output = if index < self.len() {
                 index.get(self.index_state).and_then(|i| {
-                    let output = self.elements.try_remove(i).ok();
+                    let output = (i < self.elements.len())
+                        .then(|| self.elements.remove(i).ok())
+                        .and_then(|x| x);
     
                     if output.is_some() {
                         // No reason to update the index state if we didn't remove anything.
@@ -816,7 +820,7 @@ mod selectable_vec1 {
         where
             F: FnMut(&B) -> A {
             
-            let _ = self.elements.try_truncate(1);
+            let _ = self.elements.truncate(1);
 
             *self.elements.first_mut() = mapper(other.elements.first());
             
@@ -836,7 +840,7 @@ mod selectable_vec1 {
         where
             F: FnMut(&B, IndexPart) -> A {
             
-            let _ = self.elements.try_truncate(1);
+            let _ = self.elements.truncate(1);
 
             let mut index_part = IndexPart::default();
 
