@@ -14,7 +14,7 @@ perf_viz = { path = "../../../perf_viz" }
 platform_types = { path = "../../../platform_types" }
 shared = { path = "../shared" }
 window_layer = { path = "../window_layer" }
-clipboard = "0.5.0"
+clipboard = { path = "../../../clipboard" }
 libc = { version = "0.2.125", optional = true }
 
 [dev-dependencies]
