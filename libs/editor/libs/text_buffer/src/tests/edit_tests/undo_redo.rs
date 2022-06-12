@@ -1129,7 +1129,6 @@ fn works_in_this_simple_found_case() {
 }
 
 #[test]
-#[ignore = "Implement after showing history length in the status bar"]
 fn works_as_expected_for_a_small_edit_count_in_this_set_of_examples() {
     const SMALL: u8 = 4;
     const PAST_SMALL: u8 = SMALL + 2;
@@ -1161,8 +1160,6 @@ fn works_as_expected_for_a_small_edit_count_in_this_set_of_examples() {
     assert_eq!(buffer.editedness(), Editedness::Edited);
 
     // Undo with no history left is a no-op.
-    // TODO Should we maybe announce that the history was truncated?
-    // What about just showing how many undos are left in the status bar?
     buffer.undo(None);
 
     assert_eq!(buffer.borrow_rope().to_string(), "12");
@@ -1173,4 +1170,27 @@ fn works_as_expected_for_a_small_edit_count_in_this_set_of_examples() {
     }
 
     assert_eq!(buffer.borrow_rope().to_string(), "123456");
+
+    // Redo with no edits left is a no-op.
+    buffer.redo(None);
+
+    assert_eq!(buffer.borrow_rope().to_string(), "123456");
+
+    for i in (1..=PAST_SMALL).rev() {
+        buffer.insert(std::char::from_digit(i as _, 10).unwrap(), None);
+    }
+
+    assert_eq!(buffer.borrow_rope().to_string(), "123456654321");
+
+    for _ in 0..SMALL {
+        buffer.undo(None);
+    }
+
+    assert_eq!(buffer.borrow_rope().to_string(), "12345665");
+    assert_eq!(buffer.editedness(), Editedness::Edited);
+
+    buffer.undo(None);
+
+    assert_eq!(buffer.borrow_rope().to_string(), "12345665");
+    assert_eq!(buffer.editedness(), Editedness::Edited);
 }

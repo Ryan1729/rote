@@ -67,8 +67,14 @@ mod history {
 
         pub fn record_edit(&mut self, edit: Edit) {
             self.edits.truncate(self.index);
+            if self.edits.len() < self.max_len() {
+                self.index += 1;
+            } else {
+                // This makes the current index point to the empty space after the
+                // newest edit. So we don't need to adjust the index here.
+                self.edits.pop_front();
+            }
             self.edits.push_back(edit);
-            self.index += 1;
         }
 
         pub fn index(&self) -> usize {
