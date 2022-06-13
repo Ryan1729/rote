@@ -164,8 +164,8 @@ impl State {
         const LINEAR: GLint = GL_LINEAR.0 as _;
 
         // Create GLSL shaders
-        let vs = compile_shader(include_str!("shader/vert.glsl"), GL_VERTEX_SHADER)?;
-        let fs = compile_shader(include_str!("shader/frag.glsl"), GL_FRAGMENT_SHADER)?;
+        let vs = compile_shader(include_str!("shader/vert.glsl"), ShaderType::Vertex)?;
+        let fs = compile_shader(include_str!("shader/frag.glsl"), ShaderType::Fragment)?;
         let program = link_program(vs, fs)?;
 
         let mut v_array_o = 0;
@@ -516,34 +516,56 @@ fn gl_err_to_str(err: GLenum) -> &'static str {
     }
 }
 
-fn compile_shader(src: &str, ty: GLenum) -> Res<GLuint> {
-    let shader;
+enum ShaderType {
+    Vertex,
+    Fragment,
+}
+
+fn compile_shader(src: &str, s_t: ShaderType) -> Res<GLuint> {
+    let ty = match s_t {
+        ShaderType::Vertex => GL_VERTEX_SHADER,
+        ShaderType::Fragment => GL_FRAGMENT_SHADER,
+    };
+    // SAFETY: See Note 1.
+    // Also, we ensure that `ty` is a valid input to `glCreateShader` above.
+    let shader = unsafe { glCreateShader(ty) };
+    
+    // Attempt to compile the shader
+    let c_str = CString::new(src.as_bytes())?;
+    let string_array: [*const u8; 1] = [(&c_str.as_ptr()).cast()];
+    // SAFETY: See Note 1.
+    // Also, we ensure that the string is nul-terminated above.
     unsafe {
-        shader = glCreateShader(ty);
-        // Attempt to compile the shader
-        let c_str = CString::new(src.as_bytes())?;
-        let string_array: [*const u8; 1] = [(&c_str.as_ptr()).cast()];
         glShaderSource(shader, 1, string_array.as_ptr(), ptr::null());
         glCompileShader(shader);
+    }
 
-        // Get the compile status
-        let mut status = false as _;
+    // Get the compile status
+    let mut status = i32::from(false);
+    // SAFETY: See Note 1.
+    unsafe {
         glGetShaderiv(shader, GL_COMPILE_STATUS, &mut status);
+    }
 
-        // Fail on error
-        if status != true as _ {
-            let mut len = 0;
-            glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &mut len);
-            let mut buf = Vec::with_capacity(len as usize);
+    // Fail on error
+    if status != i32::from(true) {
+        let mut len = 0;
+        // SAFETY: See Note 1.
+        unsafe { glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &mut len); }
+        let mut buf = Vec::with_capacity(len as usize);
+        // TODO: This seems fishy. Test with this code path with shader syntax errors.
+        unsafe {
             buf.set_len((len as usize) - 1); // subtract 1 to skip the trailing null character
+        }
+        unsafe { 
             glGetShaderInfoLog(
                 shader,
                 len,
                 ptr::null_mut(),
                 buf.as_mut_ptr() as *mut u8,
             );
-            return Err(std::str::from_utf8(&buf)?.into());
         }
+        return Err(std::str::from_utf8(&buf)?.into());
     }
     Ok(shader)
 }
