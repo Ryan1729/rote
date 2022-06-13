@@ -268,11 +268,13 @@ pub struct Fns<'running, 'gl, 'font, 'control, 'loop_helper, 'context> {
 
 impl Fns<'_, '_, '_, '_, '_, '_> {
     pub fn quit(&mut self) {
-        *self.running = false;
+        if *self.running {
+            *self.running = false;
+    
+            gl_layer::cleanup(self.gl_state);
+        }
 
-        let _ = gl_layer::cleanup(&self.gl_state);
-
-        *self.control_flow = ControlFlow::Exit;
+        *self.control_flow = ControlFlow::Exit;    
     }
 
     pub fn dimensions(&self) -> Dimensions {

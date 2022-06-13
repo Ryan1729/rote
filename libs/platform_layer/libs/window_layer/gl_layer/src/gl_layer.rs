@@ -104,6 +104,6 @@ pub fn render(
 
 pub fn cleanup(
     state: &State,
-) -> Res<()> {
+) {
     state.open_gl.cleanup()
 }

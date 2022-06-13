@@ -115,7 +115,7 @@ pub struct State {
 
 impl State {
     /// # Safety
-    /// The passed `load_fn` must always return accurate function pointer 
+    /// The passed `load_fn` must always return accurate function pointer
     /// values, or null on failure.
     /// # Errors
     /// Returns an `Err` if the shaders cannot be compiled or linked.
@@ -127,7 +127,7 @@ impl State {
         load_fn: &LoadFn<'_>,
     ) -> Res<Self> {
         // Load the OpenGL function pointers
-        // SAFETY: The passed `load_fn` must always return accurate function pointer 
+        // SAFETY: The passed `load_fn` must always return accurate function pointer
         // values, or null on failure.
         /*unsafe {*/load_global_gl(load_fn); /*}*/
 
@@ -162,16 +162,16 @@ impl State {
         const CLAMP_TO_EDGE: GLint = GL_CLAMP_TO_EDGE.0 as _;
         #[allow(clippy::cast_possible_wrap)]
         const LINEAR: GLint = GL_LINEAR.0 as _;
-    
+
         // Create GLSL shaders
         let vs = compile_shader(include_str!("shader/vert.glsl"), GL_VERTEX_SHADER)?;
         let fs = compile_shader(include_str!("shader/frag.glsl"), GL_FRAGMENT_SHADER)?;
         let program = link_program(vs, fs)?;
-    
+
         let mut v_array_o = 0;
         let mut v_buffer_o = 0;
         let mut glyph_texture = 0;
-    
+
         let width = GLsizei::from(width);
         let height = GLsizei::from(height);
 
@@ -181,26 +181,26 @@ impl State {
             // Create Vertex Array Object
             glGenVertexArrays(1, &mut v_array_o);
             glBindVertexArray(v_array_o);
-    
+
             // Create a Vertex Buffer Object
             glGenBuffers(1, &mut v_buffer_o);
             glBindBuffer(GL_ARRAY_BUFFER, v_buffer_o);
-    
+
             // Enable depth testing so we can occlude things while sending them down in any order
             glEnable(GL_DEPTH_TEST);
             glDepthRange(DEPTH_MIN.into(), DEPTH_MAX.into());
-    
+
             // Create a texture for the glyphs
             // The texture holds 1 byte per pixel as alpha data
             glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
             glGenTextures(1, &mut glyph_texture);
             glBindTexture(GL_TEXTURE_2D, glyph_texture);
-            
+
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, CLAMP_TO_EDGE);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, CLAMP_TO_EDGE);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, LINEAR);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, LINEAR);
-            
+
             glTexImage2D(
                 GL_TEXTURE_2D,
                 0,
@@ -224,7 +224,7 @@ impl State {
                 CString::new("out_color")?.as_ptr().cast()
             );
         }
-        
+
         // Specify the layout of the vertex data
         let mut offset = 0;
         for (v_field, float_count) in &VERTEX_SPEC {
@@ -243,13 +243,13 @@ impl State {
             if attr < 0 {
                 return Err(format!("{} GetAttribLocation -> {}", v_field, attr).into());
             }
-            
+
 
             // We just checked if it was negative
             #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
             let attr = attr as GLuint;
-            
-            // SAFETY: We have confirmed that `attr` is an atrribute location, not 
+
+            // SAFETY: We have confirmed that `attr` is an atrribute location, not
             // an error sentinel. See also Note 1.
             unsafe {
                 glVertexAttribPointer(
@@ -271,14 +271,14 @@ impl State {
         unsafe {
             glEnable(GL_BLEND);
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    
+
             // We specifically do *not* enable `FRAMEBUFFER_SRGB` because we currently are passing
             // sRGB colours into the shader, rather than linear colours, so the extra linear to sRGB
             // conversion that this setting would apply, would make our colours too bright. If we want
             // to do colour blends in the shader, we'll need to enable this and convert our input
             // colours to linear ourselves.
             //glEnable(glFRAMEBUFFER_SRGB);
-    
+
             glClearColor(
                 clear_colour[0],
                 clear_colour[1],
@@ -286,10 +286,10 @@ impl State {
                 clear_colour[3],
             );
         }
-    
+
         let vertex_count = GLsizei(0);
         let vertex_max = vertex_count;
-    
+
         Ok(State {
             vertex_count,
             vertex_max,
@@ -340,9 +340,8 @@ impl State {
             .map(From::from)
             .unwrap_or(GLsizei::MAX);
 
-        let size = GLsizeiptr::from(
-            vertex_count.0 as isize * mem::size_of::<Vertex>() as isize
-        ).0;
+        let size = GLsizeiptr::from(vertex_count.0 as isize).0
+        * GLsizeiptr::from(mem::size_of::<Vertex>()).0;
 
         // SAFETY: We've set up the OpenGL stuff correctly.
         unsafe {
@@ -372,13 +371,13 @@ impl State {
         h: U24,
         tex_data: &[u8]
     ) {
-        // These must be within bounds of the GPU texture, which implies they must 
-        // be positive. If they are not within bounds then a `GL_INVALID_VALUE` 
+        // These must be within bounds of the GPU texture, which implies they must
+        // be positive. If they are not within bounds then a `GL_INVALID_VALUE`
         // error will be generated, which should trigger the below assert, if it
         // is enabled.
         let (x, y) = (GLsizei::from(x), GLsizei::from(y));
         let (w, h) = (GLsizei::from(w), GLsizei::from(h));
-        
+
         // SAFETY: See Note 1.
         unsafe {
             glTexSubImage2D(
@@ -454,16 +453,18 @@ impl State {
             glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, self.vertex_count.0);
         }
         perf_viz::end_record!("glClear & glDrawArraysInstanced");
-    
+
         //See comment in above "time-render" check.
         if cfg!(feature = "time-render") {
             perf_viz::record_guard!("query Finish");
             let query_ids = &mut self.query_ids;
             let mut time_elapsed = 0;
+
+            // SAFETY: See Note 1.
             unsafe {
                 glEndQuery(GL_TIME_ELAPSED);
                 glGetQueryObjectiv(query_ids[0], GL_QUERY_RESULT, &mut time_elapsed);
-                glDeleteQueries(1, query_ids.as_ptr() as _);
+                glDeleteQueries(1, query_ids.as_ptr().cast());
             }
         } else {
             perf_viz::record_guard!("glFinish");
@@ -476,7 +477,7 @@ impl State {
 
     pub fn cleanup(
         &self,
-    ) -> Res<()> {
+    ) {
         let &State {
             program,
             fs,
@@ -486,7 +487,7 @@ impl State {
             glyph_texture,
             ..
         } = self;
-        
+
         // SAFETY: See Note 1.
         // Also, we ensure that the state values are always values that were
         // generated by OpenGL.
@@ -498,8 +499,6 @@ impl State {
             glDeleteVertexArrays(1, &v_array_o);
             glDeleteTextures(1, &glyph_texture);
         }
-    
-        Ok(())
     }
 }
 
