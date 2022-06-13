@@ -91,7 +91,7 @@ mod per_backend {
                     h: U24::from_u32_saturating(t_r.height()),
                 },
                 bytes,
-            )
+            );
         })
     }
 

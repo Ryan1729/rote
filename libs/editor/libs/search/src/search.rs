@@ -243,9 +243,13 @@ fn get_ranges_impl(
     /* Searching */
     let period_matches = {
         let mut start_chars = needle.chars();
-        let mut period_chars = needle.chars().skip(period as usize);
+        let mut period_chars = needle.chars()
+            .skip(match usize::try_from(period) {
+                Ok(period) => period,
+                Err(_) => return output,
+            });
         let mut matches = true;
-        for _ in 0..(ell + 1) {
+        for _ in 0..=ell {
             match (start_chars.next(), period_chars.next()) {
                 (Some(e1), Some(e2)) if e1 == e2 => {}
                 (None, None) => {}

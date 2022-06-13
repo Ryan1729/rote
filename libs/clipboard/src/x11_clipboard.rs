@@ -42,16 +42,16 @@ impl Selection for Clipboard {
     }
 }
 
-pub struct X11ClipboardContext<S = Clipboard>(X11Clipboard, PhantomData<S>)
+pub struct Context<S = Clipboard>(X11Clipboard, PhantomData<S>)
 where
     S: Selection;
 
-impl<S> ClipboardProvider for X11ClipboardContext<S>
+impl<S> ClipboardProvider for Context<S>
 where
     S: Selection,
 {
-    fn new() -> Result<X11ClipboardContext<S>, Box<dyn Error>> {
-        Ok(X11ClipboardContext(X11Clipboard::new()?, PhantomData))
+    fn new() -> Result<Context<S>, Box<dyn Error>> {
+        Ok(Context(X11Clipboard::new()?, PhantomData))
     }
 
     fn get_contents(&mut self) -> Result<String, Box<dyn Error>> {

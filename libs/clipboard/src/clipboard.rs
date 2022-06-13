@@ -43,15 +43,15 @@ mod osx_clipboard;
 mod nop_clipboard;
 
 #[cfg(all(unix, not(any(target_os="macos", target_os="android", target_os="emscripten"))))]
-type ClipboardContext = x11_clipboard::X11ClipboardContext;
+type ClipboardContext = x11_clipboard::Context;
 #[cfg(windows)]
-type ClipboardContext = windows_clipboard::WindowsClipboardContext;
+type ClipboardContext = windows_clipboard::Context;
 #[cfg(target_os="macos")]
-type ClipboardContext = osx_clipboard::OSXClipboardContext;
+type ClipboardContext = osx_clipboard::Context;
 #[cfg(target_os="android")]
-type ClipboardContext = nop_clipboard::NopClipboardContext; // TODO: implement AndroidClipboardContext (see #52)
+type ClipboardContext = nop_clipboard::Context; // TODO: implement AndroidClipboardContext (see #52)
 #[cfg(not(any(unix, windows, target_os="macos", target_os="android", target_os="emscripten")))]
-type ClipboardContext = nop_clipboard::NopClipboardContext;
+type ClipboardContext = nop_clipboard::Context;
 
 use std::error::Error;
 
@@ -62,7 +62,7 @@ use std::error::Error;
 /// without system clipboard support.
 pub enum Clipboard {
     System(ClipboardContext),
-    Fallback(nop_clipboard::NopClipboardContext),
+    Fallback(nop_clipboard::Context),
 }
 
 impl core::fmt::Debug for Clipboard {
@@ -79,16 +79,31 @@ impl core::fmt::Debug for Clipboard {
     }
 }
 
+#[must_use]
 pub fn get_clipboard() -> Clipboard {
-    // As you can see in the implementation of the `new` method, it always returns `Ok`
-    Clipboard::new().unwrap()
+    let result: Result<
+        ClipboardContext,
+        nop_clipboard::Context,
+    > = ClipboardContext::new().map_err(|err| {
+        eprintln!("System clipboard not supported. {}", err);
+        nop_clipboard::Context
+    });
+
+    match result {
+        Ok(ctx) => Clipboard::System(ctx),
+        Err(ctx) => Clipboard::Fallback(ctx),
+    }
 }
 
 impl Clipboard {
+    /// # Errors
+    /// Returns the errors that the platform specific implementation does.
     pub fn get(&mut self) -> Result<String, Box<dyn Error>> {
         self.get_contents()
     }
 
+    /// # Errors
+    /// Returns the errors that the platform specific implementation does.
     pub fn set(&mut self, s: String) -> Result<(), Box<dyn Error>> {
         self.set_contents(s)
     }
@@ -96,22 +111,7 @@ impl Clipboard {
 
 impl ClipboardProvider for Clipboard {
     fn new() -> Result<Self, Box<dyn Error>> {
-        let result: Result<
-            ClipboardContext,
-            nop_clipboard::NopClipboardContext,
-        > = ClipboardContext::new().map_err(|err| {
-            eprintln!("System clipboard not supported. {}", err);
-            // `NopClipboardContext::new` always returns an `Ok`
-            nop_clipboard::NopClipboardContext::new().unwrap()
-        });
-
-        let output = match result {
-            Ok(ctx) => Clipboard::System(ctx),
-            Err(ctx) => Clipboard::Fallback(ctx),
-        };
-
-        // `get_clipboard` currently relies on this neer returning `Err`.
-        Ok(output)
+        Ok(get_clipboard())
     }
     fn get_contents(&mut self) -> Result<String, Box<dyn Error>> {
         match self {

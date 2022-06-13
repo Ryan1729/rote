@@ -161,7 +161,7 @@ mod text_layouts {
             let to_skip = -(caret.1 - min_y) / line_height;
             // The allow is here instead of above the `as` because of
             // "error[E0658]: attributes on expressions are experimental"
-            #[allow(clippy::cast_possible_truncation)]
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
             let to_skip: u16 = if to_skip > 65535.0 {
                 65535
             } else if to_skip >= 0.0 {
@@ -382,7 +382,7 @@ impl <'font> State<'font> {
                         z: z_to_f32(*z),
                         text: text.iter().map(|ColouredText { text, colour }| {
                             SectionText {
-                                text: &text,
+                                text,
                                 colour: *colour,
                             }
                         }).collect(),
@@ -455,6 +455,8 @@ pub(crate) type CharDims = Vec<CharDim>;
 pub const FONT_BYTES: &[u8] = include_bytes!("./fonts/FiraCode-Retina.ttf");
 pub const FONT_LICENSE: &str = include_str!("./fonts/LICENSE");
 
+/// # Errors
+/// Fails if the embedded font bytes are invalid.
 pub fn new(hidpi_factor: f32) -> Res<State<'static>> {
     let font = Font::from_bytes(FONT_BYTES)?;
 
@@ -758,7 +760,7 @@ mod unbounded {
                         }
                     }
     
-                    let glyph = new_glyph(&self.font, c, self.scale, d!());
+                    let glyph = new_glyph(self.font, c, self.scale, d!());
     
                     let c_len = c.len_utf8();
                     let mut linebreak = next_break.filter(|b| b.offset() == byte_index + c_len);

@@ -36,7 +36,7 @@ impl U24 {
 
 impl From<u16> for U24 {
     fn from(n: u16) -> U24 {
-        U24(n as u32)
+        U24(u32::from(n))
     }
 }
 

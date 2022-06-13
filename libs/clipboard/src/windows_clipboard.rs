@@ -19,11 +19,11 @@ use clipboard_win::{get_clipboard_string, set_clipboard_string};
 use crate::common::ClipboardProvider;
 use std::error::Error;
 
-pub struct WindowsClipboardContext;
+pub struct Context;
 
-impl ClipboardProvider for WindowsClipboardContext {
+impl ClipboardProvider for Context {
     fn new() -> Result<Self, Box<dyn Error>> {
-        Ok(WindowsClipboardContext)
+        Ok(Context)
     }
     fn get_contents(&mut self) -> Result<String, Box<dyn Error>> {
         Ok(get_clipboard_string()?)

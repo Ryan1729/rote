@@ -17,11 +17,11 @@ limitations under the License.
 use crate::common::ClipboardProvider;
 use std::error::Error;
 
-pub struct NopClipboardContext;
+pub struct Context;
 
-impl ClipboardProvider for NopClipboardContext {
-    fn new() -> Result<NopClipboardContext, Box<dyn Error>> {
-        Ok(NopClipboardContext)
+impl ClipboardProvider for Context {
+    fn new() -> Result<Context, Box<dyn Error>> {
+        Ok(Context)
     }
     fn get_contents(&mut self) -> Result<String, Box<dyn Error>> {
         println!("Attempting to get the contents of the clipboard, which hasn't yet been \

@@ -420,10 +420,12 @@ pub fn to_absolute_offset(
     cursor.state = d!();}
 
 // utils
+#[must_use]
 fn nth_line_count(rope: &Rope, n: usize) -> Option<CharOffset> {
     rope.lines().nth(n).map(|l| l.len_chars())
 }
 
+#[must_use]
 pub fn last_position(rope: &Rope) -> Option<Position> {
     rope.lines()
         .map(|l| l.len_chars())
@@ -433,6 +435,7 @@ pub fn last_position(rope: &Rope) -> Option<Position> {
 }
 
 #[perf_viz::record]
+#[must_use]
 pub fn backward<P>(rope: &Rope, position: P) -> Option<Position>
 where
     P: Borrow<Position>,
@@ -463,6 +466,7 @@ where
 }
 
 #[perf_viz::record]
+#[must_use]
 pub fn forward<P>(rope: &Rope, position: P) -> Option<Position>
 where
     P: Borrow<Position>,
@@ -488,6 +492,7 @@ where
 
 #[allow(dead_code)]
 #[perf_viz::record]
+#[must_use]
 pub fn backward_n<P>(rope: &Rope, position: P, n: usize) -> Option<Position>
 where
     P: Borrow<Position>,
@@ -502,6 +507,7 @@ where
 
 #[allow(dead_code)]
 #[perf_viz::record]
+#[must_use]
 pub fn forward_n<P>(rope: &Rope, position: P, n: usize) -> Option<Position>
 where
     P: Borrow<Position>,
