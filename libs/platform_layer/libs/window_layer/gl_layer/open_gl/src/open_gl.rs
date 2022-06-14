@@ -3,7 +3,7 @@
 use std::{ffi::CString, mem, ptr, str};
 
 use gl33::{*, global_loader::*};
-pub use gl33::global_loader::load_global_gl;
+use gl33::global_loader::load_global_gl;
 
 use gl_layer_types::{DEPTH_MIN, DEPTH_MAX, Dimensions, Vertex, VERTEX_SPEC, Res, U24};
 
@@ -526,9 +526,11 @@ fn compile_shader(src: &str, s_t: ShaderType) -> Res<GLuint> {
         ShaderType::Vertex => GL_VERTEX_SHADER,
         ShaderType::Fragment => GL_FRAGMENT_SHADER,
     };
-    // SAFETY: See Note 1.
-    // Also, we ensure that `ty` is a valid input to `glCreateShader` above.
-    let shader = unsafe { glCreateShader(ty) };
+    // We ensure that `ty` is a valid input to `glCreateShader`, above.
+    let shader = glCreateShader(ty);
+    if shader == 0 {
+        return Err(format!("glCreateShader failed").into());
+    }
     
     // Attempt to compile the shader
     let c_str = CString::new(src.as_bytes())?;
