@@ -127,11 +127,10 @@ where 'title: 'title
     // "The passed `load_fn` must always return accurate function pointer 
     // values, or null on failure."
     let gl_state = unsafe { gl_layer::init(
-            hidpi_factor,
-            clear,
-            load_fn,
-        )?
-    };
+        hidpi_factor,
+        clear,
+        load_fn,
+    ) }?;
 
     Ok(State {
         gl_state,

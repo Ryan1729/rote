@@ -38,14 +38,13 @@ fn init_inner<'load_fn>(
 
     Ok(
         State {
-            
             open_gl: unsafe { 
                 open_gl::State::new(
                     clear_colour,
                     text_rendering_state.texture_dimensions(),
                     load_fn
-                )?
-            },
+                )
+            }?,
             text_rendering: text_rendering_state,
         }
     )

@@ -307,12 +307,42 @@ pub fn run(
     const HIDPI_MINIMUM: ScaleFactor = HIDPI_INCREMENT_BY;
     const HIDPI_DEFAULT: ScaleFactor = 1.;
 
+    macro_rules! remove_lock_file {
+        ($running_lock_path: ident) => {
+            let running_lock_path_string =
+                $running_lock_path.to_string_lossy().to_string();
+            match std::fs::remove_file(
+                running_lock_path
+            ) {
+                Ok(()) => {
+                    println!(
+                        "Deleted {} successfully",
+                        running_lock_path_string
+                    );
+                }
+                Err(err) => {
+                    println!(
+                        "Could not delete {}. You may need to do so manually later.",
+                        running_lock_path_string
+                    );
+                    eprintln!("{}", err);
+                }
+            };
+        }
+    }
+
     let window_state: window_layer::State<'_, CustomEvent> =
-        window_layer::init::<'_, '_, CustomEvent>(
+        match window_layer::init::<'_, '_, CustomEvent>(
             hidpi_factor_override.unwrap_or(HIDPI_DEFAULT),
             wimp_render::TEXT_BACKGROUND_COLOUR,
             title.into(),
-        )?;
+        ) {
+            Ok(s) => s,
+            Err(e) => {
+                remove_lock_file!(running_lock_path);
+                return Err(e)
+            },
+        };
 
     let event_proxy = window_layer::create_event_proxy(&window_state);
 
@@ -367,25 +397,7 @@ pub fn run(
                         use PathMailboxThread::*;
                         match message {
                             Quit => {
-                                let running_lock_path_string =
-                                    running_lock_path.to_string_lossy().to_string();
-                                match std::fs::remove_file(
-                                    running_lock_path
-                                ) {
-                                    Ok(()) => {
-                                        println!(
-                                            "Deleted {} successfully",
-                                            running_lock_path_string
-                                        );
-                                    }
-                                    Err(err) => {
-                                        println!(
-                                            "Could not delete {}. You may need to do so manually later.",
-                                            running_lock_path_string
-                                        );
-                                        eprintln!("{}", err);
-                                    }
-                                };
+                                remove_lock_file!(running_lock_path);
                                 return
                             },
                         }
