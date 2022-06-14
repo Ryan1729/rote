@@ -554,11 +554,8 @@ fn compile_shader(src: &str, s_t: ShaderType) -> Res<GLuint> {
         let mut len = 0;
         // SAFETY: See Note 1.
         unsafe { glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &mut len); }
-        let mut buf = Vec::with_capacity(len as usize);
-        // TODO: This seems fishy. Test with this code path with shader syntax errors.
-        unsafe {
-            buf.set_len((len as usize) - 1); // subtract 1 to skip the trailing null character
-        }
+        let mut buf = vec![0; len as usize];
+        // SAFETY: See Note 1.
         unsafe { 
             glGetShaderInfoLog(
                 shader,
@@ -567,6 +564,8 @@ fn compile_shader(src: &str, s_t: ShaderType) -> Res<GLuint> {
                 buf.as_mut_ptr() as *mut u8,
             );
         }
+        // Pop off nul-terminator, if any data at all.
+        buf.pop();
         return Err(std::str::from_utf8(&buf)?.into());
     }
     Ok(shader)
