@@ -1,5 +1,61 @@
 ## TODO
 
+* when a tab is switched to, any fullscreen menus should be hidden
+    * currently this is not true if keyboard shortcuts are used. We should make sure
+    the menus will be hidden when we do the numeric tab jumping, as well.
+
+* make auto-tab-scroll happen when a new tab is created
+    * fix auto-scroll drifting as the amount of tabs increases.
+        * a specific undesirable case:
+            * If you mash Ctrl-t, then eventually the new tab is invisible
+
+* fix the CRLF/\r\n display issues, or at least figure out a performant way to display control pictures
+    * Specifically, the thing where comments ending in CRLF (or at least something weird at the ends)
+    make the lines not line up
+
+* make auto-tab-scroll happen when a tab is switched to with the keyboard
+
+* make some way to jump to tab a given tab, say by making numbers appear on tabs when
+holding down modifiers
+    * We'll probably want to make "making the current tab visible when changing to it"
+     work, before doing this.
+
+* as part of making the state of the editor more observable, when holding down
+modifier keys, indicate what pressing non-modifiers will do.
+    * Where should this go on the screen? Are we realy going to want a bunch of text
+    to appear over top of everything when we tap the ctrl key?
+        * we could make it fade in, after say an entire second of holding it.
+    * Maybe do the numeric tab jumping one first, and see how we feel about this afterwards.
+
+* if multiple things are copied with multiple cursors then if they are pasted with the same number of cursors then
+    they should be pasted separately
+    * given the numbers are selected by three cursors represented by "|"
+        1|  copy then paste should be 11 not 1123
+        2|                            22     2123
+        3|                            33     3123
+
+* Make Esc pick only one of the mulitple cursors to keep and remove that one's selection if there is one.
+
+* make Ctrl-D show the new cursors
+    * First it should loop around properly.
+    * We want to show whichever cursor was added this time, so I guess add a parameter to `try_to_show_cursors_on`?
+
+* make Ctrl-D match cursor's direction with the initial selection
+    * "[abc|]" repesents a selection of "abc" with the cursor at the larger of the two positions
+    * current: [abc|] abc abc => [abc|] [|abc] abc
+    * desired: [abc|] abc abc => [abc|] [abc|] abc
+    * also desired: [|abc] abc abc => [|abc] [|abc] abc
+
+* Ctrl-E to toggle single line comments
+  * could probably reuse tab insertion/deletion code.
+
+* Try making an "AST mode" that highlights smaller pieces of text, making highlighting large files more tractable.
+    * On save we'd write out a text file based on our AST-ishg thing.
+    * As a first step, each function or other top level thing can have its own buffer.
+        * Need way to insert a new one between two other ones.
+        * Need way to delete one.
+        * Navigation from function to function.
+
 * Pull out re-usable UI component from the file switcher and use it to fix the wimp menu.
 
 * run NFD in a separate process, (N.B. not a the same thing as a thread) so that
@@ -40,70 +96,17 @@
             * Abandon treesitter and.or highlighting in general
         * Leaning towards "Make that case into an error tab instead of a panic"
 
-* Try making an "AST mode" that highlights smaller pieces of text, making highlighting large files more tractable.
-    * On save we'd write out a text file based on our AST-ishg thing.
-    * As a first step, each function or other top level thing can have its own buffer.
-        * Need way to insert a new one between two other ones.
-        * Need way to delete one.
-        * Navigation from function to function.
-
-
 * Prove the perf issues are not related to stray logs by making all logs go through an l! macro which also tracks how many bytes were logged in a way that we can show while the app is running.
     * ln! for logging with a newline may make sense.
-
-* Make an unsaved change to a file survive multiple restarts without needing to touch
-    it each time.
-    * maybe make accidentally closed tabs recoverable?
-        * or add confirmation dialog on closing them?
-            * maybe have a tab-saftey we can turn off temporairly for when we want to
-            close multiple tabs?
-    * an intial testing procedure:
-        * type into a new scratch buffer
-        * close the program
-        * open the program (check if typed stuff is stil there)
-        * close the program again
-        * open the program again (check if typed stuff is stil there)
-    * a second testing procedure
-        the previous procedure in a non-scratch buffer. Say "text/not_checked_in.txt"
-
-* make auto-tab-scroll happen when a new tab is created
-    * fix auto-scroll drifting as the amount of tabs increases.
-        * a specific undesirable case:
-            * If you mash Ctrl-t, then eventually the new tab is invisible
-
-* fix the CRLF/\r\n display issues, or at least figure out a performant way to display control pictures
-    * Specifically, the thing where comments ending in CRLF (or at least something weird at the ends)
-    make the lines not line up
-
-* make auto-tab-scroll happen when a tab is switched to with the keyboard
-
-* when a tab is switched to, any fullscreen menus should be hidden
-    * currently this is not true if keyboard shortcuts are used. We should make sure
-    the menus will be hidden when we do the numeric tab jumping, as well.
-
-* make some way to jump to tab a given tab, say by making numbers appear on tabs when
-holding down modifiers
-    * We'll probably want to make "making the current tab visible when changing to it"
-     work, before doing this.
 
 * on windows, consider closing the console after flags are handled, unless a debug flag
     is passed to keep it open.
 
-* as part of making the state of the editor more observable, when holding down
-modifier keys, indicate what pressing non-modifiers will do.
-    * Where should this go on the screen? Are we realy going to want a bunch of text
-    to appear over top of everything when we tap the ctrl key?
-        * we could make it fade in, after say an entire second of holding it.
-    * Maybe do the numeric tab jumping one first, and see how we feel about this afterwards.
-
-* if multiple things are copied with multiple cursors then if they are pasted with the same number of cursors then
-    they should be pasted separately
-    * given the numbers are selected by three cursors represented by "|"
-        1|  copy then paste should be 11 not 1123
-        2|                            22     2123
-        3|                            33     3123
-
-* Make Esc pick only one of the mulitple cursors to keep and remove that one's selection if there is one.
+* I find myself doubting whether putting the keyboard menu selection in the ui::Id was a good idea.
+    * if nothing else, it seems like it would be nice to have the scroll state of the command menu stick around,
+        given we have a way to reset the scroll, similarly to the text buffer itself.
+        * why not the same keyboard shortcut? There is precedent for that in the tab scroll.
+    * So, add fields to the ui::State for the file-switcher state and the command menu state.
 
 * Write a test that ensures that undo/redo produces the expected spans
     * Has this been an issue? That is, have we observed any buggy undoing, lately?
@@ -117,27 +120,7 @@ files open, or just when the editor has been open a long time
         statistics like maximum, mean, median and mode.
     * This might have been the O(m log n) operations we used to be doing, but removed in 6bc726a1.
 
-* I find myself doubting whether putting the keyboard menu selection in the ui::Id was a good idea.
-    * if nothing else, it seems like it would be nice to have the scroll state of the command menu stick around,
-        given we have a way to reset the scroll, similarly to the text buffer itself.
-        * why not the same keyboard shortcut? There is precedent for that in the tab scroll.
-    * So, add fields to the ui::State for the file-switcher state and the command menu state.
-
-* get both command menu and file switcher menus scrolling
-    * file switcher 90% works, but the code is ugly.
-
-* make Ctrl-D show the new cursors
-    * First it should loop around properly.
-    * We want to show whichever cursor was added this time, so I guess add a parameter to `try_to_show_cursors_on`?
-
-* make Ctrl-D match cursor's direction with the initial selection
-    * "[abc|]" repesents a selection of "abc" with the cursor at the larger of the two positions
-    * current: [abc|] abc abc => [abc|] [|abc] abc
-    * desired: [abc|] abc abc => [abc|] [abc|] abc
-    * also desired: [|abc] abc abc => [|abc] [|abc] abc
-
-* Ctrl-E to toggle single line comments
-  * could probably reuse tab insertion/deletion code.
+* get both command menu and file switcher menus scrolling with the mouse wheel
 
 * prompt to reload files when they are changed on disk by an external program
     * for example, `git`.
