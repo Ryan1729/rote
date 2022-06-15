@@ -516,6 +516,7 @@ fn gl_err_to_str(err: GLenum) -> &'static str {
     }
 }
 
+#[derive(Clone, Copy)]
 enum ShaderType {
     Vertex,
     Fragment,
@@ -529,7 +530,7 @@ fn compile_shader(src: &str, s_t: ShaderType) -> Res<GLuint> {
     // We ensure that `ty` is a valid input to `glCreateShader`, above.
     let shader = glCreateShader(ty);
     if shader == 0 {
-        return Err(format!("glCreateShader failed").into());
+        return Err("glCreateShader failed".into());
     }
     
     // Attempt to compile the shader
@@ -554,14 +555,14 @@ fn compile_shader(src: &str, s_t: ShaderType) -> Res<GLuint> {
         let mut len = 0;
         // SAFETY: See Note 1.
         unsafe { glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &mut len); }
-        let mut buf = vec![0; len as usize];
+        let mut buf = vec![0; len.try_into()?];
         // SAFETY: See Note 1.
         unsafe { 
             glGetShaderInfoLog(
                 shader,
                 len,
                 ptr::null_mut(),
-                buf.as_mut_ptr() as *mut u8,
+                buf.as_mut_ptr().cast(),
             );
         }
         // Pop off nul-terminator, if any data at all.
@@ -572,29 +573,35 @@ fn compile_shader(src: &str, s_t: ShaderType) -> Res<GLuint> {
 }
 
 fn link_program(vs: GLuint, fs: GLuint) -> Res<GLuint> {
-    unsafe {
-        let program = glCreateProgram();
-        glAttachShader(program, vs);
-        glAttachShader(program, fs);
-        glLinkProgram(program);
-        // Get the link status
-        let mut status = false as _;
-        glGetProgramiv(program, GL_LINK_STATUS, &mut status);
+    let program = glCreateProgram();
+    glAttachShader(program, vs);
+    glAttachShader(program, fs);
+    glLinkProgram(program);
 
-        // Fail on error
-        if status != true as _ {
-            let mut len: GLint = 0;
-            glGetProgramiv(program, GL_INFO_LOG_LENGTH, &mut len);
-            let mut buf = Vec::with_capacity(len as usize);
-            buf.set_len((len as usize) - 1); // subtract 1 to skip the trailing null character
+    // Get the link status
+    let mut status = i32::from(false);
+    // SAFETY: See Note 1.
+    unsafe {
+        glGetProgramiv(program, GL_LINK_STATUS, &mut status);
+    }
+    // Fail on error
+    if status != i32::from(true) {
+        let mut len = 0;
+        // SAFETY: See Note 1.
+        unsafe { glGetProgramiv(program, GL_INFO_LOG_LENGTH, &mut len); }
+        let mut buf = vec![0; len.try_into()?];
+        // SAFETY: See Note 1.
+        unsafe { 
             glGetProgramInfoLog(
                 program,
                 len,
                 ptr::null_mut(),
-                buf.as_mut_ptr() as *mut u8,
+                buf.as_mut_ptr().cast(),
             );
-            return Err(std::str::from_utf8(&buf)?.into());
         }
-        Ok(program)
+        // Pop off nul-terminator, if any data at all.
+        buf.pop();
+        return Err(std::str::from_utf8(&buf)?.into());
     }
+    Ok(program)
 }

@@ -15,6 +15,9 @@ pub use text_rendering::FONT_LICENSE;
 /// # Safety
 /// The passed `load_fn` must always return accurate function pointer 
 /// values, or null on failure.
+/// # Errors
+/// Returns `Err` if errors occur during the text rendering or Open GL
+/// initialization.
 pub unsafe fn init<'load_fn>(
     hidpi_factor: f32,
     clear_colour: [f32; 4],
@@ -38,7 +41,11 @@ fn init_inner<'load_fn>(
 
     Ok(
         State {
-            open_gl: unsafe { 
+            open_gl: 
+            // SAFETY:
+            // The passed `load_fn` must always return accurate function pointer 
+            // values, or null on failure.
+            unsafe { 
                 open_gl::State::new(
                     clear_colour,
                     text_rendering_state.texture_dimensions(),
@@ -50,6 +57,7 @@ fn init_inner<'load_fn>(
     )
 }
 
+#[must_use]
 pub fn get_char_dims(state: &State, text_sizes: &[f32]) -> Vec<CharDim> {
     state.text_rendering.get_char_dims(text_sizes)
 }
@@ -65,7 +73,7 @@ pub fn render(
     state: &mut State,
     text_or_rects: &[TextOrRect],
     dimensions: Dimensions,
-) -> Res<()> {
+) {
     state.open_gl.begin_frame();
 
     let resize_texture = |(new_width, new_height): Dimensions| {
@@ -76,7 +84,7 @@ pub fn render(
     };
 
     let replacement_vertices = state.text_rendering.render_vertices(
-        &text_or_rects,
+        text_or_rects,
         dimensions,
         |rect: text_rendering::TextureRect, tex_data: &_| {
             // Update part of gpu texture with new glyph alpha values
@@ -97,12 +105,10 @@ pub fn render(
     }
 
     state.open_gl.end_frame();
-
-    Ok(())
 }
 
 pub fn cleanup(
     state: &State,
 ) {
-    state.open_gl.cleanup()
+    state.open_gl.cleanup();
 }

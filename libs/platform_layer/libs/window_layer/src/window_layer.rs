@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 use std::sync::MutexGuard;
 
-/// See https://stackoverflow.com/a/71945606
+/// See [here](https://stackoverflow.com/a/71945606).
 type PhantomUnsend = PhantomData<MutexGuard<'static, ()>>;
 
 pub use screen_space::{abs, CharDim, ScreenSpaceXY, ssxy};
@@ -41,7 +41,11 @@ pub use glutin_wrapper::{
 use glutin_wrapper::{dpi, event_loop::ControlFlow};
 pub use std::time::Duration;
 
+#[must_use]
 pub fn initial_dt(target_rate: Option<RatePerSecond>) -> Duration {
+    // This value only affects the first frame, and probably will only be used for
+    // visual stuff anyway.
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     Duration::from_nanos((
         (1.0 / target_rate.unwrap_or(DEFAULT_TARGET_RATE)) * 1_000_000_000.0
     ) as u64)
@@ -50,6 +54,8 @@ pub fn initial_dt(target_rate: Option<RatePerSecond>) -> Duration {
 pub type RGBA = [f32; 4];
 
 /// The clear colour currently flashes up on exit.
+/// # Errors
+/// Returns `Err` if the underlying windowing and/or graphics library calls do.
 pub fn init<'font, 'title, CustomEvent>(
     hidpi_factor: ScaleFactor,
     clear: RGBA,
@@ -88,7 +94,7 @@ where 'title: 'title
             &events,
         )?;
     let context =
-        // SAFTEY: A quote from the glutin docs on `make_current`
+        // SAFETY: A quote from the glutin docs on `make_current`
         // > In OpenGl, only a single context can be current in a thread at a time.
         // > Making a new context current will make the old one not current.
         // > Contexts can only be sent to different threads if they are not current.
@@ -100,31 +106,31 @@ where 'title: 'title
         unsafe { context.make_current() }
             .map_err(|(_, e)| e)?;
 
-    let load_fn = &|symbol| {
+    let load_fn = &|symbol: *const u8| {
+        let symbol = symbol.cast();
         // SAFETY: The underlying library has promised to pass us a nul
         // terminated pointer.
-        let cstr = unsafe { std::ffi::CStr::from_ptr(symbol as _) };
+        let cstr = unsafe { std::ffi::CStr::from_ptr(symbol) };
 
         if let Ok(s) = cstr.to_str() {
             // The glutin docs say the following:
             // "Returns the address of an OpenGL function."
             // Given there are no qualifiers there, it seems like we can
             // assume that if we have a context then this call should work.
-            context.get_proc_address(s) as _
+            context.get_proc_address(s).cast()
         } else {
-            // This case is not expected to happen, but the underlying 
+            // This case is not expected to happen, but the underlying
             // library is specifically documented to not expect this to
-            // panic, and instead expects a null pointer on errors, so 
+            // panic, and instead expects a null pointer on errors, so
             // we'll return that if this case ever happens.
-
             std::ptr::null()
         }
     };
 
     // SAFETY:
-    // In the below closure, we avoid panicking to uphold the documented safety 
+    // In the below closure, we avoid panicking to uphold the documented safety
     // invariant:
-    // "The passed `load_fn` must always return accurate function pointer 
+    // "The passed `load_fn` must always return accurate function pointer
     // values, or null on failure."
     let gl_state = unsafe { gl_layer::init(
         hidpi_factor,
@@ -202,6 +208,7 @@ fn converting_to_local_dimensions_returns_the_expected_result_in_this_example() 
     assert_eq!(f32::from(dimensions.height), height as f32);
 }
 
+#[must_use]
 pub fn dimensions<A>(
     state: &State<'_, A>,
 ) -> Dimensions {
@@ -209,17 +216,6 @@ pub fn dimensions<A>(
         .window()
         .inner_size()
         .into()
-}
-
-pub fn render(
-    state: &mut State,
-    text_or_rects: &[TextOrRect],
-) -> Result<(), Box<dyn std::error::Error>> {
-    render_inner(
-        &mut state.gl_state,
-        &state.context,
-        text_or_rects,
-    )
 }
 
 fn render_inner<'font>(
@@ -239,7 +235,7 @@ fn render_inner<'font>(
             U24::from_u32_saturating(dimensions.width),
             U24::from_u32_saturating(dimensions.height)
         )
-    )?;
+    );
 
     perf_viz::start_record!("swap_buffers");
     context.swap_buffers()?;
@@ -269,34 +265,39 @@ impl Fns<'_, '_, '_, '_, '_, '_> {
     pub fn quit(&mut self) {
         if *self.running {
             *self.running = false;
-    
+
             gl_layer::cleanup(self.gl_state);
         }
 
-        *self.control_flow = ControlFlow::Exit;    
+        *self.control_flow = ControlFlow::Exit;
     }
 
+    #[must_use]
     pub fn dimensions(&self) -> Dimensions {
         self.dimensions
     }
 
+    #[must_use]
     pub fn report_rate(&mut self) -> Option<RatePerSecond> {
         self.loop_helper.report_rate()
     }
 
+    /// # Errors
+    /// Returns `Err` if the underlying windowing and/or graphics library calls do.
     pub fn render(&mut self, text_or_rects: &[TextOrRect]) -> Result<(), Box<dyn std::error::Error>> {
         render_inner(
-            &mut self.gl_state,
-            &self.context,
+            self.gl_state,
+            self.context,
             text_or_rects,
         )
     }
 
+    #[must_use]
     pub fn get_char_dims(
         &self,
         text_sizes: &[f32],
     ) -> Vec<CharDim> {
-        gl_layer::get_char_dims(&self.gl_state, text_sizes)
+        gl_layer::get_char_dims(self.gl_state, text_sizes)
     }
 
     pub fn set_dimensions(
@@ -305,7 +306,7 @@ impl Fns<'_, '_, '_, '_, '_, '_> {
         dimensions: Dimensions
     ) {
         gl_layer::set_dimensions(
-            &mut self.gl_state,
+            self.gl_state,
             scale_factor,
             (
                 U24::from_u32_saturating(dimensions.width.trunc_to_u32()),
@@ -332,6 +333,7 @@ impl Fns<'_, '_, '_, '_, '_, '_> {
         self.context.window().set_title(title);
     }
 
+    #[must_use]
     pub fn is_focused(&self) -> bool {
         self.is_focused
     }
@@ -475,7 +477,14 @@ impl <A> State<'static, A> {
                             scale_factor,
                             ..
                         } => {
-                            hidpi_factor = scale_factor as _;
+                            // We don't need this to be totally accurate, just close
+                            // enough that the  UI is comfortably usable. And this
+                            // value is unlikely to fall into the range that would
+                            // be truncated, anyway.
+                            #[allow(clippy::cast_possible_truncation)]
+                            let scale_factor = scale_factor as _;
+                            hidpi_factor = scale_factor;
+
                             gl_layer::set_dimensions(
                                 &mut gl_state,
                                 hidpi_factor,
@@ -493,7 +502,7 @@ impl <A> State<'static, A> {
                             is_focused = window_is_focused;
                             pass_down!(
                                 Event::Focused(is_focused)
-                            )
+                            );
                         },
                         WindowEvent::ReceivedCharacter(c) => pass_down!(
                             Event::ReceivedCharacter(c)
@@ -544,15 +553,23 @@ impl <A> State<'static, A> {
                         WindowEvent::CursorMoved {
                             position,
                             ..
-                        } => pass_down!(
-                            Event::CursorMoved {
-                                position: ssxy!{
-                                    position.x as f32,
-                                    position.y as f32,
-                                },
-                                modifiers
-                            }
-                        ),
+                        } => {
+                            // We don't need this to be totally accurate,
+                            // just close enough that the  UI is comfortably
+                            // usable. And this value is unlikely to fall
+                            // into the range that would be truncated,
+                            // anyway.
+                            #[allow(clippy::cast_possible_truncation)]
+                            let x = position.x as f32;
+                            #[allow(clippy::cast_possible_truncation)]
+                            let y = position.y as f32;
+                            pass_down!(
+                                Event::CursorMoved {
+                                    position: ssxy!{x, y},
+                                    modifiers
+                                }
+                            )
+                        },
                         _ => {}
                     }
                 },

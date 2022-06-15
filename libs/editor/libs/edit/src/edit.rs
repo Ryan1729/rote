@@ -74,7 +74,11 @@ type EditSpec = (RangeEdits, CursorPlacementSpec);
 /// `Rope`. Then the (potentially) modified cursors and another copy of the `original_cursors`
 /// are wrapped up along with the returned `RangeEdit`s into the Edit.
 #[perf_viz::record]
-fn get_edit<F>(original_rope: &Rope, original_cursors: &Cursors, mut mapper: F) -> Edit
+fn get_edit<F>(
+    original_rope: &Rope,
+    original_cursors: &Cursors,
+    mut mapper: F
+) -> Edit
 where
     F: FnMut(&Cursor, &mut Rope, usize) -> EditSpec,
 {
@@ -96,20 +100,6 @@ where
     });
     perf_viz::end_record!("range_edits");
 
-    construct_edit(
-        cloned_rope,
-        original_cursors,
-        specs,
-        range_edits
-    )
-}
-
-fn construct_edit(
-    updated_rope: Rope,
-    original_cursors: &Cursors,
-    specs: Vec<CursorPlacementSpec>,
-    range_edits: Vec1<RangeEdits>
-) -> Edit {
     perf_viz::record_guard!("construct result");
 
     // We need the cursors to be sorted in reverse order, so our `range_edits` 
@@ -133,40 +123,41 @@ fn construct_edit(
 
         // This is only correct if the `offset` doesn't have the sign bit set.
         // Plus overflow and so forth, but these are probably 64 bits so who cares?
-        let mut signed_offset = offset.0 as isize + total_delta;
+        let mut signed_offset = offset.0.try_into()
+            .ok()
+            .and_then(|o: isize| o.checked_add(total_delta))
+            .unwrap_or_default();
         match post_delta_shift {
             PostDeltaShift::None => {}
             PostDeltaShift::Left => {
                 signed_offset -= 1;
             }
         }
-        let o = AbsoluteCharOffset(if signed_offset > 0 {
-            signed_offset as usize
-        } else {
-            0
-        });
+        let o = AbsoluteCharOffset(
+            usize::try_from(signed_offset).unwrap_or_default()
+        );
 
         let cursor = &mut cloned_cursors[i];
 
         let action = SetPositionAction::ClearHighlight;
         match special_handling {
             SpecialHandling::None => {
-                move_cursor::to_absolute_offset(&updated_rope, cursor, o, action);
+                move_cursor::to_absolute_offset(&cloned_rope, cursor, o, action);
             }
             SpecialHandling::HighlightOnLeftShiftedLeftBy(len) => {
-                move_cursor::to_absolute_offset(&updated_rope, cursor, o, action);
+                move_cursor::to_absolute_offset(&cloned_rope, cursor, o, action);
                 if let Some(h) = o
                     .checked_sub(len)
-                    .and_then(|o| char_offset_to_pos(&updated_rope, o))
+                    .and_then(|o| char_offset_to_pos(&cloned_rope, o))
                 {
                     cursor.set_highlight_position(h);
                 }
             }
             SpecialHandling::HighlightOnRightPositionShiftedLeftBy(len) => {
                 let p = o.checked_sub(len).unwrap_or_default();
-                move_cursor::to_absolute_offset(&updated_rope, cursor, p, action);
+                move_cursor::to_absolute_offset(&cloned_rope, cursor, p, action);
                 let h =
-                    char_offset_to_pos(&updated_rope, o).unwrap_or_else(|| cursor.get_position());
+                    char_offset_to_pos(&cloned_rope, o).unwrap_or_else(|| cursor.get_position());
                 cursor.set_highlight_position(h);
             }
         }
@@ -175,7 +166,7 @@ fn construct_edit(
     Edit {
         range_edits,
         cursors: Change {
-            new: Cursors::new(&updated_rope, cloned_cursors),
+            new: Cursors::new(&cloned_rope, cloned_cursors),
             old: original_cursors.clone(),
         },
     }
@@ -190,7 +181,7 @@ fn get_standard_insert_range_edits(
 ) -> (RangeEdits, CursorPlacementSpec) {
     let insert_option = rope.insert(offset, &chars);
     if cfg!(feature = "invariant-checking") {
-        insert_option.expect(&format!("offset {offset} was invalid!"));
+        insert_option.unwrap_or_else(|| panic!("offset {offset} was invalid!"));
     }
 
     let range = AbsoluteCharOffsetRange::new(offset, offset + char_count);
@@ -210,7 +201,10 @@ fn get_standard_insert_range_edits(
             ..d!()
         },
         CursorPlacementSpec {
-            offset: pos_to_char_offset(&rope, &cursor.get_position()).unwrap_or_default(),
+            offset: pos_to_char_offset(
+                rope,
+                &cursor.get_position()
+            ).unwrap_or_default(),
             delta: char_count as isize,
             post_delta_shift,
             ..d!()
