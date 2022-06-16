@@ -878,7 +878,11 @@ pub mod ui {
     /// pass in and return the number of clicks to fix that, or this could simply be
     /// called multiple times per frame (once for each click).
     #[perf_viz::record]
-    pub fn do_button_logic(ui: &mut ui::State, id: ui::Id, rect: ScreenSpaceRect) -> DoButtonResult {
+    pub fn do_button_logic(
+        ui: &mut ui::State,
+        id: ui::Id,
+        rect: ScreenSpaceRect
+    ) -> DoButtonResult {
         use ButtonState::*;
         let mut clicked = false;
 

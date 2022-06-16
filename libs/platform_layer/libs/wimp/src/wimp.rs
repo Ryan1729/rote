@@ -1517,7 +1517,8 @@ pub fn run(
                     button: MouseButton::Left,
                     state: ElementState::Pressed,
                     modifiers,
-                } // allow things like Shift-Alt-Click
+                } // Allow things like Shift-Alt-Click as plain click, but disallow
+                  // Super-Shift-Alt-Click.
                 if (!modifiers).intersects(!CTRL) => {
                     v_s!().ui.left_mouse_state = PhysicalButtonState::PressedThisFrame;
 

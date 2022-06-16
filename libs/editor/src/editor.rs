@@ -955,6 +955,8 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             dbg!(&state.buffers);
             dbg!(&state.view.buffers);
             state.buffers.adjust_selection(adjustment);
+
+            close_menu_if_any!();
         }
         SelectBuffer(id) => {
             state.set_id(id);

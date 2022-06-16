@@ -1,9 +1,5 @@
 ## TODO
 
-* when a tab is switched to, any fullscreen menus should be hidden
-    * currently this is not true if keyboard shortcuts are used. We should make sure
-    the menus will be hidden when we do the numeric tab jumping, as well.
-
 * make auto-tab-scroll happen when a new tab is created
     * fix auto-scroll drifting as the amount of tabs increases.
         * a specific undesirable case:
