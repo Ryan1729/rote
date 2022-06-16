@@ -458,7 +458,8 @@ pub const FONT_LICENSE: &str = include_str!("./fonts/LICENSE");
 /// # Errors
 /// Fails if the embedded font bytes are invalid.
 pub fn new(hidpi_factor: f32) -> Res<State<'static>> {
-    let font = Font::from_bytes(FONT_BYTES)?;
+    let font = Font::try_from_bytes(FONT_BYTES)
+        .ok_or_else(|| "embedded font was invalid")?;
 
     Ok(
         State {

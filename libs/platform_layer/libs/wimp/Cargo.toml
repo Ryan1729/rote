@@ -17,7 +17,6 @@ if_changed = { path = "../../../if_changed" }
 perf_viz = { path = "../../../perf_viz" }
 perf_viz_proc_macro = { path = "../../../perf_viz/libs/perf_viz_proc_macro" }
 window_layer = { path = "../window_layer" }
-full_rusttype = { version = "0.7.5", features = ["gpu_cache"], package = "rusttype" }
 edited_storage = { path = "../edited_storage" }
 shared = { path = "../shared" }
 wimp_render = { path = "../wimp_render" }
