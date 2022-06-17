@@ -5,32 +5,18 @@
         * a specific undesirable case:
             * If you mash Ctrl-t, then eventually the new tab is invisible
 
-* fix the CRLF/\r\n display issues, or at least figure out a performant way to display control pictures
-    * Specifically, the thing where comments ending in CRLF (or at least something weird at the ends)
-    make the lines not line up
-
 * make auto-tab-scroll happen when a tab is switched to with the keyboard
 
-* make some way to jump to tab a given tab, say by making numbers appear on tabs when
-holding down modifiers
-    * We'll probably want to make "making the current tab visible when changing to it"
-     work, before doing this.
-
-* as part of making the state of the editor more observable, when holding down
-modifier keys, indicate what pressing non-modifiers will do.
-    * Where should this go on the screen? Are we realy going to want a bunch of text
-    to appear over top of everything when we tap the ctrl key?
-        * we could make it fade in, after say an entire second of holding it.
-    * Maybe do the numeric tab jumping one first, and see how we feel about this afterwards.
-
-* if multiple things are copied with multiple cursors then if they are pasted with the same number of cursors then
-    they should be pasted separately
-    * given the numbers are selected by three cursors represented by "|"
-        1|  copy then paste should be 11 not 1123
-        2|                            22     2123
-        3|                            33     3123
-
 * Make Esc pick only one of the mulitple cursors to keep and remove that one's selection if there is one.
+    * Also, scroll to that cursor.
+        * We should probably pick one that is on screen of possible.
+            * Make a function that measures the amount that we'd need to scroll in 
+              order to scroll to each cursor and pick the smallest one.
+                * The real cursor scrolling can just be calling that function and 
+                  then doing the move.
+
+* Ctrl-E to toggle single line comments
+  * could probably reuse tab insertion/deletion code.
 
 * make Ctrl-D show the new cursors
     * First it should loop around properly.
@@ -42,8 +28,55 @@ modifier keys, indicate what pressing non-modifiers will do.
     * desired: [abc|] abc abc => [abc|] [abc|] abc
     * also desired: [|abc] abc abc => [|abc] [|abc] abc
 
-* Ctrl-E to toggle single line comments
-  * could probably reuse tab insertion/deletion code.
+* if multiple things are copied with multiple cursors then if they are pasted with the same number of cursors then
+    they should be pasted separately
+    * given the numbers are selected by three cursors represented by "|"
+        1|  copy then paste should be 11 not 1123
+        2|                            22     2123
+        3|                            33     3123
+    * Is this still reproducable? I do distinctly remember pasing and having things reversed
+      sometimes, recently though.
+        * could have a shortcut to flip the order if we want to. Maybe rotating.
+
+* make some way to jump to tab a given tab, say by making numbers appear on tabs when
+holding down modifiers
+    * We'll probably want to make "making the current tab visible when changing to it"
+     work, before doing this.
+
+* fix the CRLF/\r\n display issues, or at least figure out a performant way to display control pictures
+    * Specifically, the thing where comments ending in CRLF (or at least something weird at the ends)
+    make the lines not line up
+
+* as part of making the state of the editor more observable, when holding down
+modifier keys, indicate what pressing non-modifiers will do.
+    * Where should this go on the screen? Are we realy going to want a bunch of text
+    to appear over top of everything when we tap the ctrl key?
+        * we could make it fade in, after say an entire second of holding it.
+    * Maybe do the numeric tab jumping one first, and see how we feel about this afterwards.
+
+* prompt to reload files when they are changed on disk by an external program
+    * for example, `git`.
+    * I guess on linux we want to use `inotify`? Is there a cross-platform lib for this?
+
+* fix Ctrl-Left/Right acting weird around unicode characters
+    * for example, try using Ctrl-Left/Right on the folowing line
+        * U+2261 ≡ "IDENTICAL TO"
+        * as of this writing, placing the cursor after the "L" then pressing Ctrl-Left does puts you *after* the I.
+    * possible proptest: for any set of characters and cursor position Ctrl-Left then Ctrl-Right then Ctrl-Left should put you in the same spot you were in after the first Ctrl-Left
+        * also with Left and Right swapped
+    * possible proptest: given you are not on either the first or final line, then Ctrl-Left should always move you at least one character back and Ctrl-Right should move you one character Right.
+
+* fix Ctrl-F not looping properly
+    * repro
+        * scroll to bottom of multi-screen-length file
+        * search for something that is known to be near the top.
+        * observe that you are not jumped to the beginning of the file.
+
+
+* Ctrl, and up and down arrow keys to swap the current line with the one above it.
+    * If mulktiple lines are selected, swap all of them
+    * maybe Ctrl-Alt-Up/Down to swap pased on parse?
+        * move smallest entire node that encompasses selection
 
 * Try making an "AST mode" that highlights smaller pieces of text, making highlighting large files more tractable.
     * On save we'd write out a text file based on our AST-ishg thing.
@@ -52,7 +85,40 @@ modifier keys, indicate what pressing non-modifiers will do.
         * Need way to delete one.
         * Navigation from function to function.
 
+* add code folding
+    * Ctrl-. to collapse largest uncollapsed region by cursor(s)
+    * Ctrl-Shift-. to uncollapse smallest uncollapsed region by cursor(s)
+    * maybe Logo-(Shift-). to do full collapse/uncollapse?
+    * also a way to do it with mouse?
+
+* Add a more advanced high-level code manipulation: Extract function
+    * user perspective:
+        * select an expression
+        * press the key combo (Ctrl-Alt-M is traditional)
+        * the selected code is converted to a function call to a new function with a default name. Say "funcName"
+        * the "funcName" function is created with the appropriate parameters, with a good guess at good names.
+        * the user's cursor is jumped to the name of the function but the call is also selected so you can rename it by just typing
+    * steps to approach a working system (these can become tests):
+        * select some code. press key combo
+            * return something different if there main expression is selected/can be inferred from selection
+        * given a selected expression, produce function call
+            * example that takes 0 params and returns nothing
+            * examples that take n params and return nothing
+            * examples that take 0 params and return m things
+            * examples that take n params and return m things
+        * given a selected expression, produce function denifition
+            * example that takes 0 params and returns nothing
+            * examples that take n params and return nothing
+            * examples that take 0 params and return m things
+            * examples that take n params and return m things
+        * given a selected expression, produce function call and definition and place them appropriately
+            * in the outermost scope of the innermost module
+        * do the above but also set/check that the cursors are in the right spots.
+
 * Pull out re-usable UI component from the file switcher and use it to fix the wimp menu.
+
+* on windows, consider closing the console after flags are handled, unless a debug flag
+    is passed to keep it open.
 
 * run NFD in a separate process, (N.B. not a the same thing as a thread) so that
   aborts in the file dialog do not cause the whole program to be aborted!
@@ -95,15 +161,6 @@ modifier keys, indicate what pressing non-modifiers will do.
 * Prove the perf issues are not related to stray logs by making all logs go through an l! macro which also tracks how many bytes were logged in a way that we can show while the app is running.
     * ln! for logging with a newline may make sense.
 
-* on windows, consider closing the console after flags are handled, unless a debug flag
-    is passed to keep it open.
-
-* I find myself doubting whether putting the keyboard menu selection in the ui::Id was a good idea.
-    * if nothing else, it seems like it would be nice to have the scroll state of the command menu stick around,
-        given we have a way to reset the scroll, similarly to the text buffer itself.
-        * why not the same keyboard shortcut? There is precedent for that in the tab scroll.
-    * So, add fields to the ui::State for the file-switcher state and the command menu state.
-
 * Write a test that ensures that undo/redo produces the expected spans
     * Has this been an issue? That is, have we observed any buggy undoing, lately?
 
@@ -118,23 +175,11 @@ files open, or just when the editor has been open a long time
 
 * get both command menu and file switcher menus scrolling with the mouse wheel
 
-* prompt to reload files when they are changed on disk by an external program
-    * for example, `git`.
-    * I guess on linux we want to use `inotify`? Is there a cross-platform lib for this?
-
-* add code folding
-    * Ctrl-. to collapse largest uncollapsed region by cursor(s)
-    * Ctrl-Shift-. to uncollapse smallest uncollapsed region by cursor(s)
-    * maybe Logo-(Shift-). to do full collapse/uncollapse?
-    * also a way to do it with mouse?
-
-* fix Ctrl-Left/Right acting weird around unicode characters
-    * for example, try using Ctrl-Left/Right on the folowing line
-        * U+2261 ≡ "IDENTICAL TO"
-        * as of this writing, placing the cursor after the "L" then pressing Ctrl-Left does puts you *after* the I.
-    * possible proptest: for any set of characters and cursor position Ctrl-Left then Ctrl-Right then Ctrl-Left should put you in the same spot you were in after the first Ctrl-Left
-        * also with Left and Right swapped
-    * possible proptest: given you are not on either the first or final line, then Ctrl-Left should always move you at least one character back and Ctrl-Right should move you one character Right.
+* I find myself doubting whether putting the keyboard menu selection in the ui::Id was a good idea.
+    * if nothing else, it seems like it would be nice to have the scroll state of the command menu stick around,
+        given we have a way to reset the scroll, similarly to the text buffer itself.
+        * why not the same keyboard shortcut? There is precedent for that in the tab scroll.
+    * So, add fields to the ui::State for the file-switcher state and the command menu state.
 
 * report the time the editor thread took to render the previous view. Maybe a rolling average too?
     * how do linux load averages work? Would something like that make sense here?
@@ -142,40 +187,11 @@ files open, or just when the editor has been open a long time
         * that doesn't fit into our current text and rectangles setup.
             * What about a histogram?
             * Or maybe just draw tall thin rects
+    * We've since added this ti the title bar. Do we need more than that?
 
 * fix slowness that shows up when selecting things with the mouse
     * seems to have appeared when the parsing started so we could probably just start caching
     previous trees, or actually complete the TODO to edit the tree with each keyboard edit.
-
-* fix Ctrl-F not looping properly
-    * repro
-        * scroll to bottom of multi-screen-length file
-        * search for something that is known to be near the top.
-        * observe that you are not jumped to the beginning of the file.
-
-* Add a more advanced high-level code manipulation: Extract function
-    * user perspective:
-        * select an expression
-        * press the key combo (Ctrl-Alt-M is traditional)
-        * the selected code is converted to a function call to a new function with a default name. Say "funcName"
-        * the "funcName" function is created with the appropriate parameters, with a good guess at good names.
-        * the user's cursor is jumped to the name of the function but the call is also selected so you can rename it by just typing
-    * steps to approach a working system (these can become tests):
-        * select some code. press key combo
-            * return something different if there main expression is selected/can be inferred from selection
-        * given a selected expression, produce function call
-            * example that takes 0 params and returns nothing
-            * examples that take n params and return nothing
-            * examples that take 0 params and return m things
-            * examples that take n params and return m things
-        * given a selected expression, produce function denifition
-            * example that takes 0 params and returns nothing
-            * examples that take n params and return nothing
-            * examples that take 0 params and return m things
-            * examples that take n params and return m things
-        * given a selected expression, produce function call and definition and place them appropriately
-            * in the outermost scope of the innermost module
-        * do the above but also set/check that the cursors are in the right spots.
 
 * refresh search spans on tab-in/out
     * Should be all edits really; are there other ones we missed? We should only need to put the refresh in one place.
@@ -203,14 +219,10 @@ files open, or just when the editor has been open a long time
         and then make the relevant generator avoid any cases that really cannot happen? That would hopefully
         identify the problem, at least.
     * We've now done some corrections to the generational indexes. This may actually be fixed.
+    * I've seen this again since writing the previous commment.
 
 * soft focus follows mouse on menus?
     * if the cursor is on the main text when, for example, the find menu is up, then the main text should be scrolled, not the find box.
-
-* Ctrl, and up and down arrow keys to swap the current line with the one above it.
-    * If mulktiple lines are selected, swap all of them
-    * maybe Ctrl-Alt-Up/Down to swap pased on parse?
-        * move smallest entire node that encompasses selection
 
 * Ctrl-shift-f to open a within current project folder search
   * implies some way to know what the project is. Options:
