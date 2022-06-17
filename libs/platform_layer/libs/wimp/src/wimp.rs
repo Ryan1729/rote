@@ -637,7 +637,7 @@ pub fn run(
     }
 
     enum EditorThreadOutput {
-        Rendered((View, Cmd, LoadBufferViewsResult)),
+        Rendered((View, Cmd, Cmd, LoadBufferViewsResult)),
         Pid(u32)
     }
 
@@ -659,10 +659,53 @@ pub fn run(
                     u!{EditorThreadInput}
 
                     macro_rules! call_update_and_render_and_possibly_quit {
-                        ($input: expr) => {
+                        ($input: expr) => {{
                             let input = $input;
                             let was_quit = Input::Quit == input;
-                            let (v, c) = (update_and_render)(input);
+
+                            let should_make_active_tab_visible = match input {
+                                Input::None
+                                | Input::Quit
+                                | Input::Insert(..)
+                                | Input::Delete
+                                | Input::DeleteLines
+                                | Input::ScrollVertically(..)
+                                | Input::ScrollHorizontally(..)
+                                | Input::MoveAllCursors(..)
+                                | Input::ExtendSelectionForAllCursors(..)
+                                | Input::SelectAll
+                                | Input::SetCursor(..)
+                                | Input::DragCursors(..)
+                                | Input::SelectCharTypeGrouping(..)
+                                | Input::ExtendSelectionWithSearch
+                                | Input::Undo
+                                | Input::Redo
+                                | Input::Cut
+                                | Input::Copy
+                                | Input::Paste(..)
+                                | Input::InsertNumbersAtCursors
+                                | Input::TabIn
+                                | Input::TabOut
+                                | Input::StripTrailingWhitespace
+                                | Input::NextLanguage
+                                | Input::PreviousLanguage => false,
+                                Input::CloseMenuIfAny
+                                | Input::ResetScroll
+                                | Input::SetSizeDependents(..)
+                                | Input::SavedAs(..)
+                                | Input::AddOrSelectBuffer(..)
+                                | Input::AddOrSelectBufferThenGoTo(..)
+                                | Input::NewScratchBuffer(..)
+                                | Input::AdjustBufferSelection(..)
+                                | Input::SelectBuffer(..)
+                                | Input::OpenOrSelectBuffer(..)
+                                | Input::CloseBuffer(..)
+                                | Input::SetMenuMode(..)
+                                | Input::SubmitForm
+                                | Input::ShowError(..) => true,
+                            };
+
+                            let (v, c1) = (update_and_render)(input);
                             let (_i, label) = v.current_text_index_and_buffer_label();
                             let visible_buffer_name: BufferName = label.name.clone();
 
@@ -673,13 +716,19 @@ pub fn run(
 
                             let result = results.pop().unwrap();
 
+                            let c2 = if should_make_active_tab_visible {
+                                Cmd::MakeActiveTabVisible
+                            } else {
+                                Cmd::None
+                            };
+
                             let _hope_it_gets_there = editor_out_sink.send(
-                                EditorThreadOutput::Rendered((v, c, result))
+                                EditorThreadOutput::Rendered((v, c1, c2, result))
                             );
                             if was_quit {
                                 return;
                             }
-                        }
+                        }}
                     }
 
                     match editor_input {
@@ -791,19 +840,19 @@ pub fn run(
             ($input:expr) => {
                 call_u_and_r!(r_s, $input)
             };
-            ($vars: ident, $input:expr) => {
-                call_u_and_r!(&mut v_s!($vars).ui, &$vars.editor_in_sink, $input)
-            };
-            ($ui: expr, $editor_in_sink: expr, $input: expr) => {{
+            ($vars: ident, $input:expr) => {{
+                let editor_in_sink = &$vars.editor_in_sink;
                 let input = $input;
+
                 if cfg!(feature = "skip-updating-editor-thread") {
                     if let Input::Quit = &input {
-                        let _hope_it_gets_there = $editor_in_sink.send(
+                        let _hope_it_gets_there = editor_in_sink.send(
                             EditorThreadInput::Render(input)
                         );
                     }
                 } else {
-                    let ui: &mut ui::State = $ui;
+                    let ui: &mut ui::State = &mut v_s!($vars).ui;
+
                     ui.note_interaction();
                     let send_through = match ui.keyboard.hot {
                         ui::Id::TaggedListSelection(
@@ -833,7 +882,7 @@ pub fn run(
                     };
 
                     if send_through {
-                        let _hope_it_gets_there = $editor_in_sink.send(
+                        let _hope_it_gets_there = editor_in_sink.send(
                             EditorThreadInput::Render(input)
                         );
                     }
@@ -1553,7 +1602,7 @@ pub fn run(
 
                     for _ in 0..EVENTS_PER_FRAME {
                         match editor_out_source.try_recv() {
-                            Ok(EditorThreadOutput::Rendered((v, c, result))) => {
+                            Ok(EditorThreadOutput::Rendered((v, c1, c2, result))) => {
                                 debug_assert!(result.is_ok());
                                 v_s!().debug_menu_state.editor_buffers_size_in_bytes
                                     = v.stats.editor_buffers_size_in_bytes;
@@ -1568,7 +1617,12 @@ pub fn run(
                                     );
                                 }
 
-                                r_s.cmds.push_back(c);
+                                if c1 != Cmd::None {
+                                    r_s.cmds.push_back(c1);
+                                }
+                                if c2 != Cmd::None {
+                                    r_s.cmds.push_back(c2);
+                                }
                             }
                             Ok(EditorThreadOutput::Pid(pid)) => {
                                 v_s!().debug_menu_state.pids.editor = pid;
@@ -1626,6 +1680,13 @@ pub fn run(
                                     }
                                 }
                                 Cmd::LoadFile(path) => load_file!(path),
+                                Cmd::MakeActiveTabVisible => {
+                                    wimp_render::make_active_tab_visible(
+                                        &mut v_s!(r_s).ui,
+                                        &v_s!(r_s).view,
+                                        v_s!(r_s).dimensions
+                                    );
+                                },
                                 Cmd::None => {}
                             }
                         } else {
@@ -1783,8 +1844,7 @@ pub fn run(
                             transition
                         );
                         call_u_and_r!(
-                            &mut v_s!().ui,
-                            r_s.editor_in_sink,
+                            r_s,
                             Input::SavedAs(index, path.to_path_buf())
                         );
                     },

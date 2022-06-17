@@ -714,11 +714,12 @@ macro_rules! bvd {
 /// Short form of "Command".
 /// This is for telling the platform layer that it should do something in addition to
 /// rendering the view.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Cmd {
     None,
     SetClipboard(String),
     LoadFile(PathBuf),
+    MakeActiveTabVisible,
 }
 
 d!(for Cmd : Cmd::None);
