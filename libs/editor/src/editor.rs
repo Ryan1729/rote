@@ -794,8 +794,12 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
     match input {
         Input::None => {}
         Quit => {}
-        CloseMenuIfAny => {
+        CloseMenuIfAny
+        /*TODO rename to Escape*/ => {
             close_menu_if_any!();
+            text_buffer_call!(sync b, _l {
+                b.collapse_cursors(state.font_info.text_char_dim, state.buffer_xywh)
+            })
         }
         Insert(c) => text_buffer_call!(sync b, l {
             mark_edited_transition!(current, b.insert(c, l));

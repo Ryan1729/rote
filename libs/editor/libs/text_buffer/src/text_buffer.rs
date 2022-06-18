@@ -774,6 +774,27 @@ impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
         }
     }
 
+    pub fn collapse_cursors(&mut self, char_dim: CharDim, text_box_xywh: TextBoxXYWH) {
+        let rect = text_box_xywh.into();
+
+        let mut cursor_index = 0;
+        for (i, c) in self.rope.borrow_cursors().iter().enumerate() {
+            let screen_xy = position_to_screen_space(
+                c.get_position(),
+                char_dim,
+                self.scroll,
+                text_box_xywh.xy,
+            );
+
+            if inside_rect(screen_xy, rect) {
+                cursor_index = i;
+                break
+            }
+        }
+        
+        self.rope.collapse_cursors_to(cursor_index);
+    }
+
     // some of these are convenience methods for tests
     #[cfg(test)]
     fn set_cursors(&mut self, new: Cursors) {

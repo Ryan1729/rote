@@ -10,7 +10,7 @@ pub enum SetPositionAction {
 }
 d!(for SetPositionAction: SetPositionAction::ClearHighlight);
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Cursor {
     // These are private so we can make sure whether to clear highlight or not 
     // is considered on each mutation of `position. And we can use a state we 

@@ -1053,6 +1053,10 @@ mod cursored_rope {
             (self.rope, self.cursors)
         }
 
+        pub fn collapse_cursors_to(&mut self, cursor_index: usize) {
+            self.cursors.collapse_to(cursor_index);
+        }
+
         pub fn set_cursors(&mut self, cursors: Cursors) {
             set_cursors(&self.rope, &mut self.cursors, cursors)
         }

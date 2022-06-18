@@ -2,7 +2,7 @@
 use core::cmp::{max, min};
 use editor_types::{Cursor, SetPositionAction};
 use panic_safe_rope::{Rope};
-use vec1::{Vec1};
+use vec1::{Vec1, vec1};
 use macros::{d};
 use rope_pos::{clamp_position, offset_pair};
 
@@ -198,6 +198,12 @@ impl Cursors {
     pub fn reset_states(&mut self) {
         for c in self.cursors.iter_mut() {
             c.state = d!();
+        }
+    }
+
+    pub fn collapse_to(&mut self, index: usize) {
+        if let Some(c) = self.cursors.get(index) {
+            self.cursors = vec1![c.clone()];
         }
     }
 
