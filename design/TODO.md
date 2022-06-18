@@ -1,12 +1,5 @@
 ## TODO
 
-* make auto-tab-scroll happen when a new tab is created
-    * fix auto-scroll drifting as the amount of tabs increases.
-        * a specific undesirable case:
-            * If you mash Ctrl-t, then eventually the new tab is invisible
-
-* make auto-tab-scroll happen when a tab is switched to with the keyboard
-
 * Make Esc pick only one of the mulitple cursors to keep and remove that one's selection if there is one.
     * Also, scroll to that cursor.
         * We should probably pick one that is on screen of possible.
