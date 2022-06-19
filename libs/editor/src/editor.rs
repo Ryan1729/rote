@@ -794,12 +794,19 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
     match input {
         Input::None => {}
         Quit => {}
-        CloseMenuIfAny
-        /*TODO rename to Escape*/ => {
-            close_menu_if_any!();
-            text_buffer_call!(sync b, _l {
-                b.collapse_cursors(state.font_info.text_char_dim, state.buffer_xywh)
-            })
+        Escape => {
+            if state.menu_mode == MenuMode::Hidden {
+                // Note that we only want to collapse cursors if the menu is already
+                // closed.
+                text_buffer_call!(sync b, _l {
+                    b.collapse_cursors(
+                        state.font_info.text_char_dim,
+                        state.buffer_xywh
+                    )
+                })
+            } else {
+                close_menu_if_any!();
+            }
         }
         Insert(c) => text_buffer_call!(sync b, l {
             mark_edited_transition!(current, b.insert(c, l));

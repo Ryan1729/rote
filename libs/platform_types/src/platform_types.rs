@@ -57,7 +57,8 @@ pub enum ReplaceOrAdd {
 pub enum Input {
     None,
     Quit,
-    CloseMenuIfAny,
+    /// Escape Menus, etc., not quitting the program.
+    Escape,
     Insert(char),
     Delete,
     DeleteLines,

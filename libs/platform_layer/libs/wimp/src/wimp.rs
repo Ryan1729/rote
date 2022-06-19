@@ -689,7 +689,7 @@ pub fn run(
                                 | Input::StripTrailingWhitespace
                                 | Input::NextLanguage
                                 | Input::PreviousLanguage => false,
-                                Input::CloseMenuIfAny
+                                Input::Escape
                                 | Input::ResetScroll
                                 | Input::SetSizeDependents(..)
                                 | Input::SavedAs(..)
@@ -1071,7 +1071,7 @@ pub fn run(
                         font_info: None,
                     })
                 ));
-                call_u_and_r!(r_s, Input::CloseMenuIfAny);
+                call_u_and_r!(r_s, Input::Escape);
             }]
             [empty, F1, "Delete lines.", r_s {
                 call_u_and_r!(r_s, Input::DeleteLines);
@@ -1191,7 +1191,7 @@ pub fn run(
                         call_u_and_r!(r_s, Input::CloseBuffer(index));
                     }
                     _ => {
-                        call_u_and_r!(r_s, Input::CloseMenuIfAny);
+                        call_u_and_r!(r_s, Input::Escape);
                     }
                 }
             }]
