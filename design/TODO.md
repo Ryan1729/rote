@@ -1,13 +1,5 @@
 ## TODO
 
-* Make Esc pick only one of the mulitple cursors to keep and remove that one's selection if there is one.
-    * Also, scroll to that cursor.
-        * We should probably pick one that is on screen of possible.
-            * Make a function that measures the amount that we'd need to scroll in 
-              order to scroll to each cursor and pick the smallest one.
-                * The real cursor scrolling can just be calling that function and 
-                  then doing the move.
-
 * Ctrl-E to toggle single line comments
   * could probably reuse tab insertion/deletion code.
 
