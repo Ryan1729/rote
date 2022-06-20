@@ -835,7 +835,7 @@ fn apply_edit(
         );
     }
 
-    edit::apply(rope, edit);
+    rope.apply(edit);
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

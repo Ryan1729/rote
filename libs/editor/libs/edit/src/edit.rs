@@ -8,18 +8,6 @@ use rope_pos::{AbsoluteCharOffsetRange, char_offset_to_pos, final_non_newline_of
 
 use std::cmp::{min, max};
 
-pub fn apply(rope: &mut CursoredRope, edit: &Edit) {
-    // we assume that the edits are in the proper order so we won't mess up our indexes with our
-    // own inserts and removals. I'm not positive that there being a single order that works
-    // is possible for all possible edits, but in practice I think the edits we will actually
-    // produce will work out. The tests should tell us if we're wrong!
-    for range_edit in edit.range_edits.iter() {
-        rope.apply(range_edit);
-    }
-
-    rope.set_cursors(edit.cursors.new.clone());
-}
-
 #[derive(Debug)]
 enum SpecialHandling {
     None,
@@ -1048,7 +1036,7 @@ impl RC for (&Rope, &Cursors) {
 mod cursored_rope {
     use cursors::{Cursors, set_cursors};
     use panic_safe_rope::Rope;
-    use crate::{RangeEdit, RangeEdits, RC};
+    use crate::{RangeEdit, Edit, RC};
 
     /// We keep the fields private so we can ensure that the cursors are always 
     /// within the rope's bounds.
@@ -1073,7 +1061,9 @@ mod cursored_rope {
             rope: Rope,
             cursors: Cursors,
         ) -> Self {
-            Self { rope, cursors }
+            let mut output = CursoredRope::from(rope);
+            set_cursors(&output.rope, &mut output.cursors, cursors);
+            output
         }
 
         #[cfg(any(test, feature = "pub_arb"))]
@@ -1113,25 +1103,33 @@ mod cursored_rope {
             self.cursors = Cursors::new(&self.rope, cursors);
         }
 
-        pub fn apply(&mut self, edits: &RangeEdits) {
-            if let Some(RangeEdit { range, .. }) = edits.delete_range {
-                let remove_option = self.rope.remove(range.range());
-                if cfg!(feature = "invariant-checking") {
-                    let range = range.range();
-                    remove_option.expect(&format!("range {range:?} was invalid!"));
+        pub fn apply(&mut self, edit: &Edit) {
+            // we assume that the edits are in the proper order so we won't mess up our indexes with our
+            // own inserts and removals. I'm not positive that there being a single order that works
+            // is possible for all possible edits, but in practice I think the edits we will actually
+            // produce will work out. The tests should tell us if we're wrong!
+            for range_edits in edit.range_edits.iter() {
+                if let Some(RangeEdit { range, .. }) = range_edits.delete_range {
+                    let remove_option = self.rope.remove(range.range());
+                    if cfg!(feature = "invariant-checking") {
+                        let range = range.range();
+                        remove_option.expect(&format!("range {range:?} was invalid!"));
+                    }
+                }
+        
+                if let Some(RangeEdit {
+                    ref chars, range, ..
+                }) = range_edits.insert_range
+                {
+                    let offset = range.min();
+                    let insert_option = self.rope.insert(offset, chars);
+                    if cfg!(feature = "invariant-checking") {
+                        insert_option.expect(&format!("offset {offset} was invalid!"));
+                    }
                 }
             }
-    
-            if let Some(RangeEdit {
-                ref chars, range, ..
-            }) = edits.insert_range
-            {
-                let offset = range.min();
-                let insert_option = self.rope.insert(offset, chars);
-                if cfg!(feature = "invariant-checking") {
-                    insert_option.expect(&format!("offset {offset} was invalid!"));
-                }
-            }
+        
+            self.set_cursors(edit.cursors.new.clone());
         }
     }
 
