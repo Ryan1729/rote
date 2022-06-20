@@ -89,6 +89,7 @@ pub enum Input {
     AdjustBufferSelection(SelectionAdjustment),
     NextLanguage,
     PreviousLanguage,
+    ToggleSingleLineComments,
     SelectBuffer(BufferId),
     OpenOrSelectBuffer(PathBuf),
     CloseBuffer(g_i::Index),

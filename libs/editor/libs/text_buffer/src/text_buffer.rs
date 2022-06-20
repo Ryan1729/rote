@@ -19,143 +19,6 @@ use std::{
     borrow::Borrow,
 };
 
-mod history {
-    use std::collections::VecDeque;
-    use edit::{Change, Edit, change};
-    use super::{EditedTransition, Editedness};
-    use macros::u;
-
-    pub const DEFAULT_EDIT_COUNT: usize = 4096;
-
-    #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
-    pub struct History<const EDIT_COUNT: usize = DEFAULT_EDIT_COUNT> {
-        edits: VecDeque<Edit>,
-        index: usize,
-    }
-
-    impl <const EDIT_COUNT: usize> History<EDIT_COUNT> {
-        pub fn redo(
-            &mut self,
-            callback: impl FnOnce(&Edit) -> Change<Editedness>
-        ) -> NavOutcome {
-            if let Some(edit) = self.edits.get(self.index) {
-                self.index += 1;
-    
-                callback(edit).into()
-            } else {
-                NavOutcome::RanOutOfHistory
-            }
-        }
-
-        pub fn undo(
-            &mut self,
-            callback: impl FnOnce(&Edit) -> Change<Editedness>
-        ) -> NavOutcome {
-            let opt = self.index.checked_sub(1)
-                .and_then(|new_index|
-                    self.edits.get(new_index).map(|e| (new_index, e))
-                );
-
-            if let Some((new_index, edit)) = opt {
-                self.index = new_index;
-    
-                callback(&!edit).into()
-            } else {
-                NavOutcome::RanOutOfHistory
-            }
-        }
-
-        pub fn record_edit(&mut self, edit: Edit) {
-            self.edits.truncate(self.index);
-            if self.edits.len() < self.max_len() {
-                self.index += 1;
-            } else {
-                // This makes the current index point to the empty space after the
-                // newest edit. So we don't need to adjust the index here.
-                self.edits.pop_front();
-            }
-            self.edits.push_back(edit);
-        }
-
-        pub fn index(&self) -> usize {
-            self.index
-        }
-
-        pub fn len(&self) -> usize {
-            self.edits.len()
-        }
-
-        pub fn is_empty(&self) -> bool {
-            self.edits.is_empty()
-        }
-
-        // TODO enforce this limit once we are sure it is a good enough size.
-        pub fn max_len(&self) -> usize {
-            EDIT_COUNT
-        }
-
-        pub fn clear(&mut self) {
-            self.edits.clear();
-            self.index = 0;
-        }
-
-        pub fn size_in_bytes(&self) -> usize {
-            let mut output = 0;
-            // TODO Does this take long enough that we should memoize this method?
-            // Maybe caching further upstream would be better?
-            for edit in self.edits.iter() {
-                output += edit.size_in_bytes();
-            }
-    
-            output += (
-                self.edits.capacity() -
-                // Don't double count the struct bytes from the `edit.size_in_bytes()`
-                // calls above.
-                self.edits.len()
-            ) * core::mem::size_of::<Edit>();
-            output += core::mem::size_of_val(&self.index);
-
-            output
-        }
-    }
-
-    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-    pub enum NavOutcome {
-        NoTransition,
-        Transition(EditedTransition),
-        RanOutOfHistory,
-    }
-    
-    impl From<Change<Editedness>> for NavOutcome {
-        fn from(c: Change<Editedness>) -> Self {
-            u!{NavOutcome, Editedness, EditedTransition}
-            match c {
-                change!(Edited, Edited) | change!(Unedited, Unedited) => NoTransition,
-                change!(Edited, Unedited) => Transition(ToUnedited),
-                change!(Unedited, Edited) => Transition(ToEdited),
-            }
-        }
-    }
-    
-    impl From<NavOutcome> for Option<EditedTransition> {
-        fn from(hno: NavOutcome) -> Self {
-            u!{NavOutcome}
-            match hno {
-                RanOutOfHistory | NoTransition => None,
-                Transition(t) => Some(t)
-            }
-        }
-    }
-    
-    impl NavOutcome {
-        pub fn ran_out_of_history(&self) -> bool {
-            u!{NavOutcome}
-            matches!(self, RanOutOfHistory)
-        }
-    }
-}
-use history::{History, NavOutcome as HistoryNavOutcome};
-
 /// Not `Eq` because of the `ScrollXY` field.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TextBuffer<
@@ -435,6 +298,143 @@ macro_rules! ppel {
         $crate::PossibleParserEditListener<'_, '_>
     }
 }
+
+mod history {
+    use std::collections::VecDeque;
+    use edit::{Change, Edit, change};
+    use super::{EditedTransition, Editedness};
+    use macros::u;
+
+    pub const DEFAULT_EDIT_COUNT: usize = 4096;
+
+    #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+    pub struct History<const EDIT_COUNT: usize = DEFAULT_EDIT_COUNT> {
+        edits: VecDeque<Edit>,
+        index: usize,
+    }
+
+    impl <const EDIT_COUNT: usize> History<EDIT_COUNT> {
+        pub fn redo(
+            &mut self,
+            callback: impl FnOnce(&Edit) -> Change<Editedness>
+        ) -> NavOutcome {
+            if let Some(edit) = self.edits.get(self.index) {
+                self.index += 1;
+    
+                callback(edit).into()
+            } else {
+                NavOutcome::RanOutOfHistory
+            }
+        }
+
+        pub fn undo(
+            &mut self,
+            callback: impl FnOnce(&Edit) -> Change<Editedness>
+        ) -> NavOutcome {
+            let opt = self.index.checked_sub(1)
+                .and_then(|new_index|
+                    self.edits.get(new_index).map(|e| (new_index, e))
+                );
+
+            if let Some((new_index, edit)) = opt {
+                self.index = new_index;
+    
+                callback(&!edit).into()
+            } else {
+                NavOutcome::RanOutOfHistory
+            }
+        }
+
+        pub fn record_edit(&mut self, edit: Edit) {
+            self.edits.truncate(self.index);
+            if self.edits.len() < self.max_len() {
+                self.index += 1;
+            } else {
+                // This makes the current index point to the empty space after the
+                // newest edit. So we don't need to adjust the index here.
+                self.edits.pop_front();
+            }
+            self.edits.push_back(edit);
+        }
+
+        pub fn index(&self) -> usize {
+            self.index
+        }
+
+        pub fn len(&self) -> usize {
+            self.edits.len()
+        }
+
+        pub fn is_empty(&self) -> bool {
+            self.edits.is_empty()
+        }
+
+        // TODO enforce this limit once we are sure it is a good enough size.
+        pub fn max_len(&self) -> usize {
+            EDIT_COUNT
+        }
+
+        pub fn clear(&mut self) {
+            self.edits.clear();
+            self.index = 0;
+        }
+
+        pub fn size_in_bytes(&self) -> usize {
+            let mut output = 0;
+            // TODO Does this take long enough that we should memoize this method?
+            // Maybe caching further upstream would be better?
+            for edit in self.edits.iter() {
+                output += edit.size_in_bytes();
+            }
+    
+            output += (
+                self.edits.capacity() -
+                // Don't double count the struct bytes from the `edit.size_in_bytes()`
+                // calls above.
+                self.edits.len()
+            ) * core::mem::size_of::<Edit>();
+            output += core::mem::size_of_val(&self.index);
+
+            output
+        }
+    }
+
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    pub enum NavOutcome {
+        NoTransition,
+        Transition(EditedTransition),
+        RanOutOfHistory,
+    }
+    
+    impl From<Change<Editedness>> for NavOutcome {
+        fn from(c: Change<Editedness>) -> Self {
+            u!{NavOutcome, Editedness, EditedTransition}
+            match c {
+                change!(Edited, Edited) | change!(Unedited, Unedited) => NoTransition,
+                change!(Edited, Unedited) => Transition(ToUnedited),
+                change!(Unedited, Edited) => Transition(ToEdited),
+            }
+        }
+    }
+    
+    impl From<NavOutcome> for Option<EditedTransition> {
+        fn from(hno: NavOutcome) -> Self {
+            u!{NavOutcome}
+            match hno {
+                RanOutOfHistory | NoTransition => None,
+                Transition(t) => Some(t)
+            }
+        }
+    }
+    
+    impl NavOutcome {
+        pub fn ran_out_of_history(&self) -> bool {
+            u!{NavOutcome}
+            matches!(self, RanOutOfHistory)
+        }
+    }
+}
+use history::{History, NavOutcome as HistoryNavOutcome};
 
 impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
     #[perf_viz::record]
@@ -752,6 +752,19 @@ impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
     pub fn strip_trailing_whitespace(&mut self, listener: PossibleParserEditListener) -> PossibleEditedTransition {
         self.record_edit(
             edit::get_strip_trailing_whitespace_edit(&self.rope),
+            listener,
+        )
+    }
+
+    pub fn toggle_single_line_comments(&mut self, listener: PossibleParserEditListener) -> PossibleEditedTransition {
+        // At some point we may want to support languages with different comment
+        // syntaxes. At that point we have at least two options here:
+        // * Have this method require a `ParserKind`.
+        // * Change `PossibleParserEditListener` to always contain a `ParserKind`.
+        // Given a suffient number of methods that care about the `ParserKind`,
+        // the second option seems like it may become attractive.
+        self.record_edit(
+            edit::get_toggle_single_line_comments_edit(&self.rope),
             listener,
         )
     }

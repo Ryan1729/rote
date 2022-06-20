@@ -688,7 +688,8 @@ pub fn run(
                                 | Input::TabOut
                                 | Input::StripTrailingWhitespace
                                 | Input::NextLanguage
-                                | Input::PreviousLanguage => false,
+                                | Input::PreviousLanguage
+                                | Input::ToggleSingleLineComments => false,
                                 Input::Escape
                                 | Input::ResetScroll
                                 | Input::SetSizeDependents(..)
@@ -1137,6 +1138,9 @@ pub fn run(
             [CTRL, D, "Extend selection with search.", state {
                 call_u_and_r!(state, Input::ExtendSelectionWithSearch)
             }]
+            [CTRL, E, "Toggle Single-Line Comments", state {
+                call_u_and_r!(state, Input::ToggleSingleLineComments)
+            }]
             [CTRL, F, "Find/Replace in current file.", r_s {
                 switch_menu_mode!(r_s, MenuMode::FindReplace(FindReplaceMode::CurrentFile));
             }]
@@ -1465,6 +1469,7 @@ pub fn run(
                     if c != '\u{1}'    // "start of heading" (sent with Ctrl-a)
                     && c != '\u{3}'    // "end of text" (sent with Ctrl-c)
                     && c != '\u{4}'    // "end of transmission" (sent with Ctrl-d)
+                    && c != '\u{5}'    // "enquiry" (sent with Ctrl-e)
                     && c != '\u{6}'    // "acknowledge" (sent with Ctrl-f)
                     && c != '\u{7}'    // bell (sent with Ctrl-g)
                     && c != '\u{8}'    // backspace (sent with Ctrl-h)

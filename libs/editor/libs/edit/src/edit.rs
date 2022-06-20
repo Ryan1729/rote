@@ -612,6 +612,34 @@ fn strip_trailing_whitespace_step(
     }
 }
 
+pub fn get_toggle_single_line_comments_edit(rc: impl RC) -> Edit {
+    let (original_rope, original_cursors) = rc.rc();
+
+    // Producing this boolean does do some work that needs to be re-done in the
+    // subsequent calls. So, if this turns out to be a bottleneck then we can
+    // take the time to write more code that preserves that work. However, this
+    // part being a bottleneck seems unlikely.
+    if all_selected_lines_have_leading_comments(original_rope, original_cursors) {
+        std::dbg!("remove");
+    } else {
+        std::dbg!("add");
+    }
+
+    // A placeholder edit
+    get_edit(
+        original_rope,
+        original_cursors,
+        |_, _, _| { d!() }
+    )
+}
+
+fn all_selected_lines_have_leading_comments(
+    _rope: &Rope, 
+    _cursors: &Cursors,
+) -> bool {
+    std::dbg!("TODO");
+    false
+}
 struct RelativeSelected {
     line_end: CharOffset, // Before newline if any
     slice_end: CharOffset, // Including newline if any

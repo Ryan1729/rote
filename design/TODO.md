@@ -3,6 +3,8 @@
 * Ctrl-E to toggle single line comments
   * could probably reuse tab insertion/deletion code.
 
+* F3 to toggle case of selections
+
 * make Ctrl-D show the new cursors
     * First it should loop around properly.
     * We want to show whichever cursor was added this time, so I guess add a parameter to `try_to_show_cursors_on`?
