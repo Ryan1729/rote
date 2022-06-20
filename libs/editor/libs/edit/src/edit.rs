@@ -90,9 +90,9 @@ where
 
     perf_viz::record_guard!("construct result");
 
-    // We need the cursors to be sorted in reverse order, so our `range_edits` 
-    // are in the right order, so we can go backwards when we apply them, so 
-    // our indexes don't get messed up by our own inserts and deletes. 
+    // We need the cursors to be sorted in reverse order, so our `range_edits`
+    // are in the right order, so we can go backwards when we apply them, so
+    // our indexes don't get messed up by our own inserts and deletes.
     // The Cursors type is expected to maintain this ordering.
     let mut cloned_cursors = original_cursors.get_cloned_cursors();
 
@@ -309,11 +309,11 @@ pub fn extend_cursor_to_cover_line(c: &mut Cursor, rope: &Rope) {
     let max_line = max(position.line, highlight_position.line) + 1;
 
     let has_no_next_line = rope.len_lines().0 <= max_line;
-    
+
     if has_no_next_line {
         if let Some((previous_line, last_non_newline_offset)) = min_line
             .checked_sub(1)
-            .and_then(|i| 
+            .and_then(|i|
                 rope.line(LineIndex(i))
                     .map(final_non_newline_offset_for_rope_line)
                     .map(|o| (i, o.0))
@@ -465,7 +465,7 @@ pub fn get_tab_in_edit(rc: impl RC) -> Edit {
 
                     if let Some(s) = highlighted_line_after_whitespace.as_str_if_no_allocation_needed() {
                         chars.push_str(s);
-                    } else { 
+                    } else {
                         for c in highlighted_line_after_whitespace.chars() {
                             chars.push(c);
                         }
@@ -535,7 +535,7 @@ fn tab_out_step(
     if let Some(sliced_line) = line.slice(delete_count..slice_end) {
         if let Some(s) = sliced_line.as_str_if_no_allocation_needed() {
             chars.push_str(s);
-        } else { 
+        } else {
             for c in sliced_line.chars() {
                 chars.push(c);
             }
@@ -543,7 +543,7 @@ fn tab_out_step(
     }
 }
 
-/// returns an edit that if applied will delete the non-line-ending whitespace at the 
+/// returns an edit that if applied will delete the non-line-ending whitespace at the
 /// end of each line in the buffer, if there is any.
 pub fn get_strip_trailing_whitespace_edit(
     rc: impl RC
@@ -581,7 +581,7 @@ fn strip_trailing_whitespace_step(
     if let Some(sliced_line) = line.slice(CharOffset(0)..strip_after) {
         if let Some(s) = sliced_line.as_str_if_no_allocation_needed() {
             chars.push_str(s);
-        } else { 
+        } else {
             for c in sliced_line.chars() {
                 chars.push(c);
             }
@@ -622,7 +622,7 @@ pub fn get_toggle_single_line_comments_edit(rc: impl RC) -> Edit {
 }
 
 fn all_selected_lines_have_leading_comments(
-    _rope: &Rope, 
+    _rope: &Rope,
     _cursors: &Cursors,
 ) -> bool {
     std::dbg!("TODO");
@@ -655,7 +655,7 @@ fn get_line_slicing_edit(
                     return d!()
                 ));
                 let selected_max = selected_range.max();
-                
+
                 // a range extending the selected range to the leading edges of the relevant lines.
                 let leading_line_edge_range = {
                     let first_line_index = line_indicies[0];
@@ -793,14 +793,14 @@ impl Edit {
         let new_cursors = self.cursors.new.borrow_cursors();
 
         let len = self.range_edits.len();
-        
+
         if i >= len {
             return None;
         }
-        
+
         let old = old_cursors.get(i);
         let new = new_cursors.get(i);
-        
+
         Some(
             (Change {old, new}, &self.range_edits[i])
         )
@@ -811,7 +811,7 @@ impl Edit {
     #[perf_viz::record]
     pub fn size_in_bytes(&self) -> usize {
         use core::mem;
-        
+
         let mut output = 0;
 
         for edit in self.range_edits.iter() {
@@ -973,7 +973,7 @@ macro_rules! change {
     };
 }
 
-/// returns a `RangeEdit` representing the deletion. and the relevant cursor 
+/// returns a `RangeEdit` representing the deletion. and the relevant cursor
 /// positioning info
 fn delete_within_range(
     rope: &mut Rope,
@@ -1038,7 +1038,7 @@ mod cursored_rope {
     use panic_safe_rope::Rope;
     use crate::{RangeEdit, Edit, RC};
 
-    /// We keep the fields private so we can ensure that the cursors are always 
+    /// We keep the fields private so we can ensure that the cursors are always
     /// within the rope's bounds.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct CursoredRope {
@@ -1055,7 +1055,7 @@ mod cursored_rope {
             }
         }
     }
-    
+
     impl CursoredRope {
         pub fn new(
             rope: Rope,
@@ -1116,7 +1116,7 @@ mod cursored_rope {
                         remove_option.expect(&format!("range {range:?} was invalid!"));
                     }
                 }
-        
+
                 if let Some(RangeEdit {
                     ref chars, range, ..
                 }) = range_edits.insert_range
@@ -1128,7 +1128,7 @@ mod cursored_rope {
                     }
                 }
             }
-        
+
             self.set_cursors(edit.cursors.new.clone());
         }
     }
@@ -1150,7 +1150,7 @@ pub mod tests {
     mod strip_trailing_whitespace_step_returns_the_expected_result {
         use crate::*;
 
-        // Short for assert. We can be this brief becasue this is specific to this 
+        // Short for assert. We can be this brief becasue this is specific to this
         // module
         macro_rules! a {
             ($from: literal $to: literal) => {
@@ -1162,13 +1162,13 @@ pub mod tests {
                     slice_end: line.len_chars(),
                 };
                 let mut chars = String::new();
-    
+
                 strip_trailing_whitespace_step(
                     line,
                     rel_sel,
                     &mut chars,
                 );
-                
+
                 assert_eq!(chars, $to);
             }
         }
