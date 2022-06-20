@@ -60,7 +60,7 @@ fn parsers_rust_to_c_abort_does_not_happen() {
         rope,
         cursors
     );
-    edit::apply(&mut rope, &insert_edit);
+    rope.apply(&insert_edit);
 
     // As of this writing, the abort happens after this.
     // uncomment this for a demonstation:

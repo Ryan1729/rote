@@ -1033,7 +1033,7 @@ mod strip_trailing_whitespace_preserves_line_count {
         let inserted_chars = &stw_edit.range_edits().first().insert_range.as_ref().unwrap().chars;
         assert_eq!(inserted_chars, "a\n\nb\n");
 
-        edit::apply(&mut buffer.rope, &stw_edit);
+        buffer.rope.apply(&stw_edit);
 
         assert_eq!(buffer.borrow_rope().len_lines(), line_count, "line_count mismatch");
     }
