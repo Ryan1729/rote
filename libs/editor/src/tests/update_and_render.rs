@@ -241,7 +241,7 @@ fn places_the_cursor_correctly_after_inserting_after_a_find_between_two_other_ch
 
     update_and_render(&mut state, SetMenuMode(FindReplace(CurrentFile)));
     update_and_render(&mut state, SubmitForm);
-    update_and_render(&mut state, CloseMenuIfAny);
+    update_and_render(&mut state, Escape);
 
     assert_eq!(state.menu_mode, MenuMode::Hidden);
 

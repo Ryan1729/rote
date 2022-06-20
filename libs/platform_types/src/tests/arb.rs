@@ -510,7 +510,7 @@ arb_enum!{
     pub fn input() -> Input {
         None => Just(None),
         Quit => Just(Quit),
-        CloseMenuIfAny => Just(CloseMenuIfAny),
+        Escape => Just(Escape),
         Insert(_) => insert(),
         Delete => Just(Delete),
         DeleteLines => Just(DeleteLines),
@@ -546,6 +546,7 @@ arb_enum!{
         NextLanguage => Just(NextLanguage),
         PreviousLanguage => Just(PreviousLanguage),
         SelectBuffer(_) => buffer_id().prop_map(SelectBuffer),
+        ToggleSingleLineComments => Just(ToggleSingleLineComments),
         OpenOrSelectBuffer(_) => path_buf().prop_map(OpenOrSelectBuffer),
         CloseBuffer(_) => close_buffer(),
         SetMenuMode(_) => menu_mode().prop_map(SetMenuMode),
