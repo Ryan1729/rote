@@ -47,19 +47,20 @@ fn parsers_rust_to_c_abort_does_not_happen() {
     // Here we simulate the user switching languages
     parser_kind = C(Extra);
 
-    let insert_edit = edit::get_insert_edit((&rope, &cursors), |_| "\n".to_owned());
+    let mut rope = edit::CursoredRope::new(
+        rope,
+        cursors
+    );
+
+    let insert_edit = edit::get_insert_edit(&rope, |_| "\n".to_owned());
 
     parsers.acknowledge_edit(
         &buffer_name,
         parser_kind,
         &insert_edit,
-        &rope
+        rope.borrow_rope()
     );
 
-    let mut rope = edit::CursoredRope::new(
-        rope,
-        cursors
-    );
     rope.apply(&insert_edit);
 
     // As of this writing, the abort happens after this.

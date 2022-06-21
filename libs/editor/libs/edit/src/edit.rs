@@ -4,7 +4,7 @@ use editor_types::{Cursor, SetPositionAction, cur};
 use macros::{CheckedSub, d, some_or, dbg};
 use panic_safe_rope::{is_linebreak_char, LineIndex, Rope, RopeSliceTrait, RopeLine};
 use platform_types::*;
-use rope_pos::{AbsoluteCharOffsetRange, char_offset_to_pos, final_non_newline_offset_for_rope_line, get_first_non_white_space_offset_in_range, get_last_non_white_space_offset_in_range, offset_pair, pos_to_char_offset};
+use rope_pos::{AbsoluteCharOffsetRange, char_offset_to_pos, final_non_newline_offset_for_rope_line, get_first_non_white_space_offset_in_range, get_last_non_white_space_offset_in_range, pos_to_char_offset};
 
 use std::cmp::{min, max};
 
@@ -18,7 +18,7 @@ d!(for SpecialHandling: SpecialHandling::None);
 
 fn get_special_handling(
     original_rope: &Rope,
-    cursor: &Cursor,
+    cursor: Cursor,
     highlight_length: usize,
 ) -> SpecialHandling {
     dbg!(&original_rope);
@@ -63,25 +63,20 @@ type EditSpec = (RangeEdits, CursorPlacementSpec);
 /// are wrapped up along with the returned `RangeEdit`s into the Edit.
 #[perf_viz::record]
 fn get_edit<F>(
-    original_rope: &Rope,
-    original_cursors: &Cursors,
+    rope: &CursoredRope,
     mut mapper: F
 ) -> Edit
 where
-    F: FnMut(&Cursor, &mut Rope, usize) -> EditSpec,
+    F: FnMut(CursorInfo, &mut Rope) -> EditSpec,
 {
     perf_viz::start_record!("init cloning");
-    let mut cloned_rope = original_rope.clone();
+    let mut cloned_rope = rope.borrow_rope().clone();
     perf_viz::end_record!("init cloning");
 
-    // the index needs to account for the order being from the high positions
-    // to the low positions.
     perf_viz::start_record!("range_edits");
-    let mut index = original_cursors.len();
-    let mut specs = Vec::with_capacity(index);
-    let range_edits = original_cursors.mapped_ref(|c| {
-        index -= 1;
-        let (edits, spec) = mapper(c, &mut cloned_rope, index);
+    let mut specs = Vec::with_capacity(rope.borrow_cursors().len());
+    let range_edits = rope.map_cursor_infos(|info| {
+        let (edits, spec) = mapper(info, &mut cloned_rope);
 
         specs.push(spec);
         edits
@@ -94,7 +89,7 @@ where
     // are in the right order, so we can go backwards when we apply them, so
     // our indexes don't get messed up by our own inserts and deletes.
     // The Cursors type is expected to maintain this ordering.
-    let mut cloned_cursors = original_cursors.get_cloned_cursors();
+    let mut cloned_cursors = rope.borrow_cursors().get_cloned_cursors();
 
     let mut total_delta: isize = 0;
     for (
@@ -155,14 +150,14 @@ where
         range_edits,
         cursors: Change {
             new: Cursors::new(&cloned_rope, cloned_cursors),
-            old: original_cursors.clone(),
+            old: rope.borrow_cursors().clone(),
         },
     }
 }
 
 fn get_standard_insert_range_edits(
     rope: &mut Rope,
-    cursor: &Cursor,
+    cursor: Cursor,
     offset: AbsoluteCharOffset,
     chars: String,
     char_count: usize, //we take this as a param to support it being a const.
@@ -204,58 +199,60 @@ fn get_standard_insert_range_edits(
 /// there is one, inserts the given string at each of the cursors.
 #[perf_viz::record]
 pub fn get_insert_edit<F>(
-    rc: impl RC,
+    rope: &CursoredRope,
     get_string: F
 ) -> Edit
 where
     F: Fn(usize) -> String,
 {
-    let (original_rope, original_cursors) = rc.rc();
-
     get_edit(
-        original_rope,
-        original_cursors,
-        |cursor, rope, index| match offset_pair(original_rope, cursor) {
-            (Some(o), highlight) if highlight.is_none() || Some(o) == highlight => {
-                let s = get_string(index);
-                let char_count = s.chars().count();
-                get_standard_insert_range_edits(rope, cursor, o, s, char_count)
-            }
-            (Some(o1), Some(o2)) => {
-                let s = get_string(index);
-
+        rope,
+        |cursor_info, rope| {
+            let s = get_string(cursor_info.index);
+            let char_count = s.chars().count();
+            let o = cursor_info.offset;
+            if let Some(highlight) = cursor_info.highlight_offset {
                 let (range_edit, delete_offset, delete_delta) = delete_within_range(
                     rope,
-                    AbsoluteCharOffsetRange::new(o1, o2)
+                    AbsoluteCharOffsetRange::new(o, highlight)
                 );
 
-                let min = range_edit.range.min();
-                let char_count = s.chars().count();
-
-                let mut edits = get_standard_insert_range_edits(rope, cursor, min, s, char_count);
+                let mut edits = get_standard_insert_range_edits(
+                    rope,
+                    cursor_info.cursor,
+                    range_edit.range.min(),
+                    s,
+                    char_count
+                );
 
                 edits.0.delete_range = Some(range_edit);
                 edits.1.offset = delete_offset;
                 edits.1.delta += delete_delta;
 
                 edits
+            } else {
+                get_standard_insert_range_edits(
+                    rope,
+                    cursor_info.cursor,
+                    o,
+                    s,
+                    char_count
+                )
             }
-            _ => d!(),
         },
     )
 }
 
 /// Returns an edit that, if applied, deletes the highlighted region at each cursor if there is one.
 /// Otherwise the applying the edit will delete a single character at each cursor.
-pub fn get_delete_edit(rc: impl RC) -> Edit {
-    let (original_rope, original_cursors) = rc.rc();
-
-    get_edit(original_rope, original_cursors, |cursor, rope, _| {
-        let offsets = offset_pair(original_rope, cursor);
-        match offsets {
-            (Some(o), None) if o > 0 => {
+#[must_use]
+pub fn get_delete_edit(rope: &CursoredRope) -> Edit {
+    get_edit(rope, |cursor_info, rope| {
+        let o = cursor_info.offset;
+        match cursor_info.highlight_offset {
+            None if o > 0 => {
                 let delete_offset_range = AbsoluteCharOffsetRange::new(o - 1, o);
-                let chars = copy_string(&rope, delete_offset_range);
+                let chars = copy_string(rope, delete_offset_range);
                 let remove_option = rope.remove(delete_offset_range.range());
                 if cfg!(feature = "invariant-checking") {
                     remove_option.expect(&format!("delete offset {delete_offset_range:?} was invalid!"));
@@ -278,10 +275,10 @@ pub fn get_delete_edit(rc: impl RC) -> Edit {
                     },
                 )
             }
-            (Some(o1), Some(o2)) if o1 > 0 || o2 > 0 => {
+            Some(o2) if o > 0 || o2 > 0 => {
                 let (range_edit, delete_offset, delete_delta) = delete_within_range(
                     rope,
-                    AbsoluteCharOffsetRange::new(o1, o2)
+                    AbsoluteCharOffsetRange::new(o, o2)
                 );
 
                 (
@@ -327,15 +324,18 @@ pub fn extend_cursor_to_cover_line(c: &mut Cursor, rope: &Rope) {
 }
 
 /// Returns an edit that, if applied, deletes the line(s) each cursor intersects with.
-pub fn get_delete_lines_edit(rc: impl RC) -> Edit {
-    let (original_rope, original_cursors) = rc.rc();
+pub fn get_delete_lines_edit(rope: &CursoredRope) -> Edit {
+    let (original_rope, original_cursors) = rope.rc();
 
     let mut extended_cursors = original_cursors.get_cloned_cursors();
     for c in extended_cursors.iter_mut() {
         extend_cursor_to_cover_line(c, original_rope);
     }
 
-    let mut edit = get_delete_edit((original_rope, &Cursors::new(original_rope, extended_cursors)));
+    let mut edit = get_delete_edit(
+        // TODO Avoid this clone, maybe by making `get_delete_edit` generic?
+        &CursoredRope::new_vec1(original_rope.clone(), extended_cursors)
+    );
 
     edit.cursors.old = original_cursors.clone();
 
@@ -344,14 +344,11 @@ pub fn get_delete_lines_edit(rc: impl RC) -> Edit {
 
 /// returns an edit that if applied will delete the highlighted region at each cursor if there is
 /// one, and which does nothing otherwise.
-pub fn get_cut_edit(rc: impl RC) -> Edit {
-    let (original_rope, original_cursors) = rc.rc();
-
-    get_edit(original_rope, original_cursors, |cursor, rope, _| {
-        let offsets = offset_pair(original_rope, cursor);
-
-        match offsets {
-            (Some(o1), Some(o2)) if o1 > 0 || o2 > 0 => {
+pub fn get_cut_edit(rope: &CursoredRope) -> Edit {
+    get_edit(rope, |cursor_info, rope| {
+        let o1 = cursor_info.offset;
+        if let Some(o2) = cursor_info.highlight_offset {
+            if o1 > 0 || o2 > 0 {
                 let (range_edit, delete_offset, delete_delta) = delete_within_range(
                     rope,
                     AbsoluteCharOffsetRange::new(o1, o2)
@@ -368,17 +365,17 @@ pub fn get_cut_edit(rc: impl RC) -> Edit {
                         ..d!()
                     },
                 )
+            } else {
+                d!()
             }
-            (Some(o), None) => {
-                (
-                    d!(),
-                    CursorPlacementSpec {
-                        offset: o,
-                        ..d!()
-                    },
-                )
-            }
-            _ => d!(),
+        } else {
+            (
+                d!(),
+                CursorPlacementSpec {
+                    offset: o1,
+                    ..d!()
+                },
+            )
         }
     })
 }
@@ -388,23 +385,16 @@ pub const TAB_STR_CHAR: char = ' ';
 pub const TAB_STR_CHAR_COUNT: usize = 4; // this isn't const (yet?) TAB_STR.chars().count();
 
 #[perf_viz::record]
-pub fn get_tab_in_edit(rc: impl RC) -> Edit {
-    let (original_rope, original_cursors) = rc.rc();
+pub fn get_tab_in_edit(rope: &CursoredRope) -> Edit {
+    let original_rope = rope.borrow_rope();
 
     get_edit(
-        original_rope,
-        original_cursors,
-        |cursor, rope, _| match offset_pair(original_rope, cursor) {
-            (Some(o), highlight) if highlight.is_none() || Some(o) == highlight => {
-                get_standard_insert_range_edits(
-                    rope,
-                    cursor,
-                    o,
-                    TAB_STR.to_owned(),
-                    TAB_STR_CHAR_COUNT,
-                )
-            }
-            (Some(o1), Some(o2)) => {
+        rope,
+        |cursor_info, rope| {
+            let cursor = cursor_info.cursor;
+            let o1 = cursor_info.offset;
+
+            if let Some(o2) = cursor_info.highlight_offset {
                 let range = AbsoluteCharOffsetRange::new(o1, o2);
 
                 let mut chars = String::with_capacity(range.max().0 - range.min().0);
@@ -503,18 +493,22 @@ pub fn get_tab_in_edit(rc: impl RC) -> Edit {
                 edits.1.special_handling = special_handling;
 
                 dbg!(edits)
+            } else {
+                get_standard_insert_range_edits(
+                    rope,
+                    cursor,
+                    o1,
+                    TAB_STR.to_owned(),
+                    TAB_STR_CHAR_COUNT,
+                )
             }
-            _ => d!(),
         },
     )
 }
 
-pub fn get_tab_out_edit(rc: impl RC) -> Edit {
-    let (original_rope, original_cursors) = rc.rc();
-
+pub fn get_tab_out_edit(rope: &CursoredRope) -> Edit {
     get_line_slicing_edit(
-        original_rope,
-        original_cursors,
+        rope,
         tab_out_step,
     )
 }
@@ -546,13 +540,10 @@ fn tab_out_step(
 /// returns an edit that if applied will delete the non-line-ending whitespace at the
 /// end of each line in the buffer, if there is any.
 pub fn get_strip_trailing_whitespace_edit(
-    rc: impl RC
+    rope: &CursoredRope,
 ) -> Edit {
-    let (original_rope, original_cursors) = rc.rc();
-
     get_line_slicing_edit(
-        original_rope,
-        original_cursors,
+        rope,
         strip_trailing_whitespace_step,
     )
 }
@@ -600,8 +591,8 @@ fn strip_trailing_whitespace_step(
     }
 }
 
-pub fn get_toggle_single_line_comments_edit(rc: impl RC) -> Edit {
-    let (original_rope, original_cursors) = rc.rc();
+pub fn get_toggle_single_line_comments_edit(rope: &CursoredRope) -> Edit {
+    let (original_rope, original_cursors) = rope.rc();
 
     // Producing this boolean does do some work that needs to be re-done in the
     // subsequent calls. So, if this turns out to be a bottleneck then we can
@@ -615,9 +606,8 @@ pub fn get_toggle_single_line_comments_edit(rc: impl RC) -> Edit {
 
     // A placeholder edit
     get_edit(
-        original_rope,
-        original_cursors,
-        |_, _, _| { d!() }
+        rope,
+        |_, _| { d!() }
     )
 }
 
@@ -639,84 +629,80 @@ struct RelativeSelected {
 type LineSlicingEditStep = fn(RopeLine, RelativeSelected, &mut String);
 
 fn get_line_slicing_edit(
-    original_rope: &Rope,
-    original_cursors: &Cursors,
+    rope: &CursoredRope,
     step: LineSlicingEditStep,
 ) -> Edit {
     get_edit(
-        original_rope,
-        original_cursors,
-        |cursor, rope, _| match offset_pair(original_rope, cursor) {
-            (Some(o1), offset2) => {
-                let o2 = offset2.unwrap_or(o1);
-                let selected_range = AbsoluteCharOffsetRange::new(o1, o2);
-                let line_indicies = dbg!(some_or!(
-                    line_indicies_touched_by(rope, selected_range),
-                    return d!()
-                ));
-                let selected_max = selected_range.max();
+        rope,
+        |cursor_info, rope| {
+            let o1 = cursor_info.offset;
+            let o2 = cursor_info.highlight_offset.unwrap_or(o1);
+            let selected_range = AbsoluteCharOffsetRange::new(o1, o2);
+            let line_indicies = dbg!(some_or!(
+                line_indicies_touched_by(rope, selected_range),
+                return d!()
+            ));
+            let selected_max = selected_range.max();
 
-                // a range extending the selected range to the leading edges of the relevant lines.
-                let leading_line_edge_range = {
-                    let first_line_index = line_indicies[0];
+            // a range extending the selected range to the leading edges of the relevant lines.
+            let leading_line_edge_range = {
+                let first_line_index = line_indicies[0];
 
-                    AbsoluteCharOffsetRange::new(
-                        some_or!(rope.line_to_char(first_line_index), return d!()),
-                        selected_max,
-                    )
+                AbsoluteCharOffsetRange::new(
+                    some_or!(rope.line_to_char(first_line_index), return d!()),
+                    selected_max,
+                )
+            };
+
+            let mut chars = String::with_capacity(leading_line_edge_range.max().0 - leading_line_edge_range.min().0);
+
+            let last_line_indicies_index = line_indicies.len() - 1;
+
+            for (i, index) in line_indicies.into_iter().enumerate() {
+                let line = some_or!(rope.line(index), continue);
+
+                let should_include_entire_end_of_line = dbg!(i != last_line_indicies_index);
+
+                let (line_end, slice_end) = if should_include_entire_end_of_line {
+                    (final_non_newline_offset_for_rope_line(line), line.len_chars())
+                } else {
+                    let first_char_of_line: AbsoluteCharOffset = some_or!(
+                        rope.line_to_char(index),
+                        continue
+                    );
+                    let end_of_selection_on_line: CharOffset = selected_max - first_char_of_line;
+                    dbg!(end_of_selection_on_line, end_of_selection_on_line)
                 };
 
-                let mut chars = String::with_capacity(leading_line_edge_range.max().0 - leading_line_edge_range.min().0);
+                dbg!(
+                    &line,
+                    line_end,
+                    slice_end,
+                    &mut chars
+                );
 
-                let last_line_indicies_index = line_indicies.len() - 1;
-
-                for (i, index) in line_indicies.into_iter().enumerate() {
-                    let line = some_or!(rope.line(index), continue);
-
-                    let should_include_entire_end_of_line = dbg!(i != last_line_indicies_index);
-
-                    let (line_end, slice_end) = if should_include_entire_end_of_line {
-                        (final_non_newline_offset_for_rope_line(line), line.len_chars())
-                    } else {
-                        let first_char_of_line: AbsoluteCharOffset = some_or!(
-                            rope.line_to_char(index),
-                            continue
-                        );
-                        let end_of_selection_on_line: CharOffset = selected_max - first_char_of_line;
-                        dbg!(end_of_selection_on_line, end_of_selection_on_line)
-                    };
-
-                    dbg!(
-                        &line,
+                step(
+                    line,
+                    RelativeSelected {
                         line_end,
                         slice_end,
-                        &mut chars
-                    );
-
-                    step(
-                        line,
-                        RelativeSelected {
-                            line_end,
-                            slice_end,
-                        },
-                        &mut chars
-                    );
-                }
-
-                replace_in_range(
-                    cursor,
-                    rope,
-                    leading_line_edge_range,
-                    chars
-                )
+                    },
+                    &mut chars
+                );
             }
-            _ => d!(),
+
+            replace_in_range(
+                cursor_info.cursor,
+                rope,
+                leading_line_edge_range,
+                chars
+            )
         },
     )
 }
 
 fn replace_in_range(
-    cursor: &Cursor,
+    cursor: Cursor,
     rope: &mut Rope,
     range: AbsoluteCharOffsetRange,
     chars: String
@@ -1035,6 +1021,8 @@ impl RC for (&Rope, &Cursors) {
 
 mod cursored_rope {
     use cursors::{Cursors, set_cursors};
+    use editor_types::{Cursor};
+    use platform_types::{AbsoluteCharOffset, Vec1};
     use panic_safe_rope::Rope;
     use crate::{RangeEdit, Edit, RC};
 
@@ -1063,6 +1051,19 @@ mod cursored_rope {
         ) -> Self {
             let mut output = CursoredRope::from(rope);
             set_cursors(&output.rope, &mut output.cursors, cursors);
+            output
+        }
+
+        pub fn new_vec1(
+            rope: Rope,
+            cursor_vec1: Vec1<Cursor>,
+        ) -> Self {
+            let mut output = CursoredRope::from(rope);
+            set_cursors(
+                &output.rope,
+                &mut output.cursors,
+                Cursors::new(&output.rope, cursor_vec1)
+            );
             output
         }
 
@@ -1131,6 +1132,39 @@ mod cursored_rope {
 
             self.set_cursors(edit.cursors.new.clone());
         }
+
+        pub fn map_cursor_infos<A, F>(&self, mut mapper: F) -> Vec1<A>
+        where
+            F: FnMut(CursorInfo) -> A
+        {
+            use rope_pos::pos_to_char_offset;
+
+            // The index needs to account for the order being from the high 
+            // positions to the low positions.
+            let mut index = self.cursors.len();
+
+            self.cursors.mapped_ref(|&cursor| {
+                index -= 1;
+                mapper(CursorInfo {
+                    cursor,
+                    index,
+                    offset: pos_to_char_offset(&self.rope, &cursor.get_position())
+                        // Since we maintain that the cursors are in bounds,
+                        // this should never actually be `None`
+                        .unwrap_or_default(),
+                    highlight_offset: cursor.get_highlight_position()
+                        .and_then(|p| pos_to_char_offset(&self.rope, &p))
+                })
+            })
+            
+        }
+    }
+
+    pub struct CursorInfo {
+        pub cursor: Cursor,
+        pub index: usize,
+        pub offset: AbsoluteCharOffset,
+        pub highlight_offset: Option<AbsoluteCharOffset>,
     }
 
     impl RC for &CursoredRope {
@@ -1139,7 +1173,7 @@ mod cursored_rope {
         }
     }
 }
-pub use cursored_rope::CursoredRope;
+pub use cursored_rope::{CursoredRope, CursorInfo};
 
 #[cfg(any(test, feature = "pub_arb"))]
 pub mod tests {
