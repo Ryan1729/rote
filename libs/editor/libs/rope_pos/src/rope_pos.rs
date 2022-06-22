@@ -48,6 +48,11 @@ mod absolute_char_offset_range {
         }
 
         #[must_use]
+        pub fn is_empty(&self) -> bool {
+            self.min == self.max
+        }
+
+        #[must_use]
         #[allow(dead_code)]
         pub fn add_to_min<A>(&self, min: A) -> Self
         where
