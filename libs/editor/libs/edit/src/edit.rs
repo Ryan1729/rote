@@ -644,15 +644,37 @@ pub fn get_toggle_single_line_comments_edit(rope: &CursoredRope) -> Edit {
     // part being a bottleneck seems unlikely.
     if all_selected_lines_have_leading_comments(rope) {
         std::dbg!("remove");
-    } else {
-        std::dbg!("add");
-    }
 
-    // A placeholder edit
-    get_edit(
-        rope,
-        |_, _| { d!() }
-    )
+        // A placeholder edit
+        get_edit(
+            rope,
+            |_, _| { d!() }
+        )
+    } else {
+        const COMMENT_STR: &str = "//";
+
+        fn append(s: &mut String, count: usize) {
+            if count >= COMMENT_STR.len() {
+                for i in 0..count {
+                    s.push(
+                        if i < count - COMMENT_STR.len() {
+                            ' '
+                        } else {
+                            '/'
+                        }
+                    );
+                }
+            }
+        }
+
+        get_insert_prefix_edit(
+            rope,
+            PrefixSpec {
+                append,
+                prefix: COMMENT_STR.to_owned().into(),
+            }
+        )
+    }
 }
 
 fn all_selected_lines_have_leading_comments(
