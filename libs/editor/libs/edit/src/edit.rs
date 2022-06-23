@@ -159,19 +159,20 @@ fn get_standard_insert_range_edits(
     rope: &mut Rope,
     cursor: Cursor,
     offset: AbsoluteCharOffset,
-    chars: String,
-    char_count: usize, //we take this as a param to support it being a const.
+    chars: CountedString,
 ) -> (RangeEdits, CursorPlacementSpec) {
-    let insert_option = rope.insert(offset, &chars);
+    let insert_option = rope.insert(offset, &chars.chars);
     if cfg!(feature = "invariant-checking") {
         insert_option.unwrap_or_else(|| panic!("offset {offset} was invalid!"));
     }
 
-    let range = AbsoluteCharOffsetRange::new(offset, offset + char_count);
+    let range = AbsoluteCharOffsetRange::new(offset, offset + chars.count);
 
     let mut post_delta_shift = d!();
-    if chars.starts_with('\n') {
-        if let Some(char_before_insert) = offset.checked_sub_one().and_then(|o| rope.char(o)) {
+    if chars.chars.starts_with('\n') {
+        if let Some(char_before_insert) = offset
+            .checked_sub_one()
+            .and_then(|o| rope.char(o)) {
             if char_before_insert == '\r' {
                 post_delta_shift = PostDeltaShift::Left;
             }
@@ -180,7 +181,7 @@ fn get_standard_insert_range_edits(
 
     (
         RangeEdits {
-            insert_range: Some(RangeEdit { chars, range }),
+            insert_range: Some(RangeEdit { chars: chars.chars, range }),
             ..d!()
         },
         CursorPlacementSpec {
@@ -188,7 +189,7 @@ fn get_standard_insert_range_edits(
                 rope,
                 &cursor.get_position()
             ).unwrap_or_default(),
-            delta: char_count as isize,
+            delta: chars.count as isize,
             post_delta_shift,
             ..d!()
         },
@@ -208,8 +209,7 @@ where
     get_edit(
         rope,
         |cursor_info, rope| {
-            let s = get_string(cursor_info.index);
-            let char_count = s.chars().count();
+            let s = CountedString::from(get_string(cursor_info.index));
             let selected_range = cursor_info.selected_range();
 
             if selected_range.is_empty() {
@@ -218,7 +218,6 @@ where
                     cursor_info.cursor,
                     cursor_info.offset,
                     s,
-                    char_count
                 )
             } else {
                 let (range_edit, delete_offset, delete_delta) = delete_within_range(
@@ -231,7 +230,6 @@ where
                     cursor_info.cursor,
                     range_edit.range.min(),
                     s,
-                    char_count
                 );
 
                 edits.0.delete_range = Some(range_edit);
@@ -385,8 +383,30 @@ pub const TAB_STR: &str = "    "; //four spaces
 pub const TAB_STR_CHAR: char = ' ';
 pub const TAB_STR_CHAR_COUNT: usize = 4; // this isn't const (yet?) TAB_STR.chars().count();
 
-#[perf_viz::record]
-pub fn get_tab_in_edit(rope: &CursoredRope) -> Edit {
+struct PrefixSpec {
+    append: fn (&mut String, usize),
+    prefix: CountedString,
+}
+
+#[derive(Clone)]
+struct CountedString {
+    chars: String,
+    count: usize,
+}
+
+impl From<String> for CountedString {
+    fn from(chars: String) -> Self {
+        Self {
+            count: chars.chars().count(),
+            chars,
+        }
+    }
+}
+
+fn get_insert_prefix_edit(
+    rope: &CursoredRope,
+    spec: PrefixSpec,
+) -> Edit {
     let original_rope = rope.borrow_rope();
 
     get_edit(
@@ -400,15 +420,14 @@ pub fn get_tab_in_edit(rope: &CursoredRope) -> Edit {
                     rope,
                     cursor,
                     cursor_info.offset,
-                    TAB_STR.to_owned(),
-                    TAB_STR_CHAR_COUNT,
+                    spec.prefix.clone(),
                 )
             } else {
                 let mut chars = String::with_capacity(range.max().0 - range.min().0);
 
                 let line_indicies = some_or!(line_indicies_touched_by(rope, range), return d!());
 
-                let mut tab_insert_count = 0;
+                let mut appended_count = 0;
                 let last_line_index = line_indicies.len() - 1;
                 for (i, index) in line_indicies.into_iter().enumerate() {
                     let line = some_or!(rope.line(index), continue);
@@ -439,20 +458,26 @@ pub fn get_tab_in_edit(rope: &CursoredRope) -> Edit {
                         highlight_end_for_line,
                     );
 
-                    let end = previous_offset.0 + TAB_STR_CHAR_COUNT;
+                    let end = previous_offset.0 + spec.prefix.count;
                     dbg!(start, end);
-                    for _ in start..end {
-                        chars.push(TAB_STR_CHAR);
-                    }
-                    tab_insert_count += 1;
 
-                    let o = first_highlighted_non_white_space_offset.unwrap_or(relative_line_end);
+                    let append_count = end.saturating_sub(start);
+                    (spec.append)(&mut chars, append_count);
+                    // TODO if we don't trust the spec to actually append that
+                    // amount, then calculate the actual length difference.
+                    appended_count += append_count;
+
+                    let o = first_highlighted_non_white_space_offset.unwrap_or(
+                        relative_line_end
+                    );
 
                     let should_include_newlline =
-                        highlight_end_for_line != relative_line_end || i != last_line_index;
+                        highlight_end_for_line != relative_line_end
+                        || i != last_line_index;
 
                     let slice_end =
-                        if highlight_end_for_line >= relative_line_end && should_include_newlline {
+                        if highlight_end_for_line >= relative_line_end
+                        && should_include_newlline {
                             line.len_chars()
                         } else {
                             highlight_end_for_line
@@ -460,7 +485,9 @@ pub fn get_tab_in_edit(rope: &CursoredRope) -> Edit {
                     let highlighted_line_after_whitespace =
                         some_or!(line.slice(o..slice_end), continue);
 
-                    if let Some(s) = highlighted_line_after_whitespace.as_str_if_no_allocation_needed() {
+                    if let Some(s) =
+                        highlighted_line_after_whitespace
+                        .as_str_if_no_allocation_needed() {
                         chars.push_str(s);
                     } else {
                         for c in highlighted_line_after_whitespace.chars() {
@@ -469,19 +496,23 @@ pub fn get_tab_in_edit(rope: &CursoredRope) -> Edit {
                     }
                 }
 
-                let (range_edit, delete_offset, delete_delta) = delete_within_range(rope, range);
+                let (range_edit, delete_offset, delete_delta) = delete_within_range(
+                    rope,
+                    range
+                );
 
                 let range = range_edit
                     .range
-                    .add_to_max(TAB_STR_CHAR_COUNT * tab_insert_count);
+                    .add_to_max(appended_count);
 
-                let char_count = chars.chars().count();
+                let chars = CountedString::from(chars);
+                let char_count = chars.count;
                 dbg!(char_count);
 
                 let special_handling = get_special_handling(
                     &original_rope,
                     cursor,
-                    char_count.saturating_sub(TAB_STR_CHAR_COUNT),
+                    char_count.saturating_sub(spec.prefix.count),
                 );
 
                 let min = range.min();
@@ -491,7 +522,6 @@ pub fn get_tab_in_edit(rope: &CursoredRope) -> Edit {
                     cursor,
                     min,
                     chars,
-                    char_count,
                 );
 
                 edits.0.delete_range = Some(range_edit);
@@ -502,6 +532,23 @@ pub fn get_tab_in_edit(rope: &CursoredRope) -> Edit {
                 dbg!(edits)
             }
         },
+    )
+}
+
+#[perf_viz::record]
+pub fn get_tab_in_edit(rope: &CursoredRope) -> Edit {
+    fn append(s: &mut String, count: usize) {
+        for _ in 0..count {
+            s.push(TAB_STR_CHAR);
+        }
+    }
+
+    get_insert_prefix_edit(
+        rope,
+        PrefixSpec {
+            append,
+            prefix: TAB_STR.to_owned().into(),
+        }
     )
 }
 
