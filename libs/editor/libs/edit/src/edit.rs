@@ -485,15 +485,7 @@ fn get_insert_prefix_edit(
                     let highlighted_line_after_whitespace =
                         some_or!(line.slice(o..slice_end), continue);
 
-                    if let Some(s) =
-                        highlighted_line_after_whitespace
-                        .as_str_if_no_allocation_needed() {
-                        chars.push_str(s);
-                    } else {
-                        for c in highlighted_line_after_whitespace.chars() {
-                            chars.push(c);
-                        }
-                    }
+                    push_slice(&mut chars, highlighted_line_after_whitespace);
                 }
 
                 let (range_edit, delete_offset, delete_delta) = delete_within_range(
@@ -573,13 +565,7 @@ fn tab_out_step(
     );
 
     if let Some(sliced_line) = line.slice(delete_count..slice_end) {
-        if let Some(s) = sliced_line.as_str_if_no_allocation_needed() {
-            chars.push_str(s);
-        } else {
-            for c in sliced_line.chars() {
-                chars.push(c);
-            }
-        }
+        push_slice(chars, sliced_line);
     }
 }
 
@@ -616,13 +602,7 @@ fn strip_trailing_whitespace_step(
 
     dbg!(last_non_white_space_offset, last_non_white_space_offset.unwrap_or(line_end), strip_after);
     if let Some(sliced_line) = line.slice(CharOffset(0)..strip_after) {
-        if let Some(s) = sliced_line.as_str_if_no_allocation_needed() {
-            chars.push_str(s);
-        } else {
-            for c in sliced_line.chars() {
-                chars.push(c);
-            }
-        }
+        push_slice(chars, sliced_line);
     }
 
     // TODO It strikes me that this condition can probably be less complicated
@@ -638,21 +618,36 @@ fn strip_trailing_whitespace_step(
 }
 
 pub fn get_toggle_single_line_comments_edit(rope: &CursoredRope) -> Edit {
+    const COMMENT_STR: &str = "//";
+
     // Producing this boolean does do some work that needs to be re-done in the
     // subsequent calls. So, if this turns out to be a bottleneck then we can
     // take the time to write more code that preserves that work. However, this
     // part being a bottleneck seems unlikely.
     if all_selected_lines_have_leading_comments(rope) {
-        std::dbg!("remove");
+        fn step(
+            line: RopeLine,
+            RelativeSelected{ line_end, slice_end }: RelativeSelected,
+            chars: &mut String,
+        ) {
+            let first_non_white_space_offset: Option<CharOffset> =
+                get_first_non_white_space_offset_in_range(line, d!()..=line_end);
 
-        // A placeholder edit
-        get_edit(
-            rope,
-            |_, _| { d!() }
-        )
+            let comment_start = first_non_white_space_offset.unwrap_or(line_end);
+
+            if let Some(sliced_line) = line.slice(..comment_start) {
+                push_slice(chars, sliced_line);
+
+                if let Some(sliced_line) = line.slice(
+                    (comment_start + COMMENT_STR.len())..slice_end
+                ) {
+                    push_slice(chars, sliced_line);
+                }
+            }
+        }
+
+        get_line_slicing_edit(rope, step)
     } else {
-        const COMMENT_STR: &str = "//";
-
         fn append(s: &mut String, count: usize) {
             if count >= COMMENT_STR.len() {
                 for i in 0..count {
@@ -1360,6 +1355,19 @@ pub mod tests {
         #[test]
         fn on_a_line_with_two_non_white_space_then_4_trailing_spaces_no_nl() {
             a!("ab    " "ab");
+        }
+    }
+}
+
+fn push_slice(
+    chars: &mut String,
+    slice: RopeSlice
+) {
+    if let Some(s) = slice.as_str_if_no_allocation_needed() {
+        chars.push_str(s);
+    } else {
+        for c in slice.chars() {
+            chars.push(c);
         }
     }
 }
