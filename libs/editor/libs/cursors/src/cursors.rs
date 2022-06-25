@@ -122,7 +122,7 @@ impl Cursors {
 
     fn merge_overlaps_once(cursors: &mut Vec1<Cursor>) {
         let mut keepers: Vec<Cursor> = Vec::with_capacity(cursors.len());
-        for cursor in cursors.iter() {
+        for &cursor in cursors.iter() {
             if let Some(last) = keepers.last_mut() {
                 use std::cmp::Ordering::*;
 
@@ -135,7 +135,7 @@ impl Cursors {
                 macro_rules! get_tuple {
                     ($cursor: ident) => {{
                         let p = $cursor.get_position();
-                        let h = $cursor.get_highlight_position().unwrap_or(p.clone());
+                        let h = $cursor.get_highlight_position().unwrap_or(p);
                         match p.cmp(&h) {
                             o @ (Less | Equal) => (p, h, o),
                             Greater => (h, p, Greater),
@@ -146,8 +146,8 @@ impl Cursors {
                 // We intuitively expect something called `c1` to be <= `c2`. Or at least the
                 // opposite is counter-intuitive. Because the Vec1 should be in reverse order,
                 // we swap the order here.
-                let c1: Cursor = cursor.clone();
-                let c2: Cursor = (*last).clone();
+                let c1: Cursor = cursor;
+                let c2: Cursor = *last;
 
                 match (get_tuple!(c1), get_tuple!(c2)) {
                     ((c1_min, c1_max, c1_ordering), (c2_min, c2_max, c2_ordering))
@@ -181,10 +181,10 @@ impl Cursors {
                             }
                         }
                     }
-                    _ => keepers.push(cursor.clone()),
+                    _ => keepers.push(cursor),
                 }
             } else {
-                keepers.push(cursor.clone());
+                keepers.push(cursor);
             }
         }
 
@@ -202,8 +202,8 @@ impl Cursors {
     }
 
     pub fn collapse_to(&mut self, index: usize) {
-        if let Some(c) = self.cursors.get(index) {
-            self.cursors = vec1![c.clone()];
+        if let Some(&c) = self.cursors.get(index) {
+            self.cursors = vec1![c];
         }
     }
 

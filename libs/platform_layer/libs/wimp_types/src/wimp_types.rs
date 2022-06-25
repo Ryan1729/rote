@@ -355,38 +355,38 @@ impl DebugMenuState {
         output.clear();
 
         // TODO human readable size
-        let _cannot_actually_fail = write!(
+        let _cannot_actually_fail = writeln!(
             output,
-            "buffers bytes: {}\n",
+            "buffers bytes: {}",
             self.editor_buffers_size_in_bytes,
         );
 
         output.push_str(&self.startup_description);
         output.push('\n');
 
-        let _cannot_actually_fail = write!(
+        let _cannot_actually_fail = writeln!(
             output,
-            "last {} DPI factors:\n",
+            "last {} DPI factors:",
             self.last_hidpi_factors.len(),
         );
 
         for factor in &self.last_hidpi_factors {
-            let _cannot_actually_fail = write!(
+            let _cannot_actually_fail = writeln!(
                 output,
-                "{}\n",
+                "{}",
                 factor,
             );
         }
 
-        let _cannot_actually_fail = write!(
+        let _cannot_actually_fail = writeln!(
             output,
-            "window: {}\n",
+            "window: {}",
             self.window,
         );
 
-        let _cannot_actually_fail = write!(
+        let _cannot_actually_fail = writeln!(
             output,
-            "{}\nin {}?: {}\n",
+            "{}\nin {}?: {}",
             self.mouse_pos,
             self.status_line_rect,
             inside_rect(self.mouse_pos, self.status_line_rect)
@@ -1030,7 +1030,7 @@ pub fn transform_status(status: BufferStatus, transition: BufferStatusTransition
     match (status, transition) {
         (_, Edit) => EditedAndUnSaved,
         (_, Save) | (Unedited, SaveTemp) => Unedited,
-        (EditedAndUnSaved, SaveTemp) | (EditedAndSaved, SaveTemp) => EditedAndSaved,
+        (EditedAndUnSaved | EditedAndSaved, SaveTemp) => EditedAndSaved,
     }
 }
 

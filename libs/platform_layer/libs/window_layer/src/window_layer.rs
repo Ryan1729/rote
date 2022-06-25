@@ -568,7 +568,7 @@ impl <A> State<'static, A> {
                                     position: ssxy!{x, y},
                                     modifiers
                                 }
-                            )
+                            );
                         },
                         _ => {}
                     }

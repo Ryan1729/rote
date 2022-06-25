@@ -189,7 +189,7 @@ fn get_standard_insert_range_edits(
                 rope,
                 &cursor.get_position()
             ).unwrap_or_default(),
-            delta: chars.count as isize,
+            delta: isize::try_from(chars.count).unwrap_or_default(),
             post_delta_shift,
             ..d!()
         },
@@ -253,9 +253,11 @@ pub fn get_delete_edit(rope: &CursoredRope) -> Edit {
                 let delete_offset_range = AbsoluteCharOffsetRange::new(o - 1, o);
                 let chars = copy_string(rope, delete_offset_range);
                 let remove_option = rope.remove(delete_offset_range.range());
-                if cfg!(feature = "invariant-checking") {
-                    remove_option.expect(&format!("delete offset {delete_offset_range:?} was invalid!"));
-                }
+                macros::invariant_assert!(
+                    remove_option.is_some(),
+                    "delete offset {delete_offset_range:?} was invalid!"
+                );
+                let _ = remove_option;
 
                 let min = delete_offset_range.min();
                 let max = delete_offset_range.max();
@@ -689,11 +691,9 @@ fn all_selected_lines_have_leading_comments(
             while let Some(c) = chars.next()  {
                 if c.is_whitespace() { continue }
 
-                if c == '/' {
-                    if Some('/') == chars.next() {
-                        // Yes, we have a leading comment on this line.
-                        break
-                    }
+                if c == '/' && Some('/') == chars.next() {
+                    // Yes, we have a leading comment on this line.
+                    break
                 }
 
                 return false;
