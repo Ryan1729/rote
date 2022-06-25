@@ -1,8 +1,5 @@
 ## TODO
 
-* Ctrl-E to toggle single line comments
-  * could probably reuse tab insertion/deletion code.
-
 * F3 to toggle case of selections
 
 * make Ctrl-D show the new cursors
