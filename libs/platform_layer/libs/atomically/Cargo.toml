@@ -1,0 +1,10 @@
+[package]
+name = "atomically"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+path = "src/atomically.rs"
+
+[dependencies]
+atomicwrites = "0.3"

@@ -7,6 +7,7 @@
 
 use std::{
     collections::VecDeque,
+    io::Write,
     path::{PathBuf},
     time::Duration,
 };
@@ -176,34 +177,27 @@ pub fn run(
     }?;
 
     let running_lock_path = data_dir.join("running.lock");
-    use atomicwrites::{AtomicFile, OverwriteBehavior};
+    use atomically::Overwrites;
     let previous_instance_is_running = {
-        let file = AtomicFile::new_with_tmpdir(
+        let res = atomically::write(
             &running_lock_path,
-            OverwriteBehavior::DisallowOverwrite,
-            &data_dir
+            Overwrites::Disallow,
+            |f| {
+                // In some sense it doesn't matter what we write here, but it seems like it
+                // would be nice for it to be different each time it is written.
+                use std::time::{SystemTime, UNIX_EPOCH};
+                let thing_to_write = match SystemTime::now().duration_since(UNIX_EPOCH) {
+                    Ok(duration) => format!("{}\n", duration.as_nanos()),
+                    Err(e) => format!("-{}\n", e.duration().as_nanos()),
+                };
+    
+                f.write_all(thing_to_write.as_bytes())
+            }
         );
-
-        let res = file.write(|f| {
-            // In some sense it doesn't matter what we write here, but it seems like it
-            // would be nice for it to be different each time it is written.
-            use std::time::{SystemTime, UNIX_EPOCH};
-            let thing_to_write = match SystemTime::now().duration_since(UNIX_EPOCH) {
-                Ok(duration) => format!("{}\n", duration.as_nanos()),
-                Err(e) => format!("-{}\n", e.duration().as_nanos()),
-            };
-
-            use std::io::Write;
-            f.write_all(thing_to_write.as_bytes())
-        });
 
         match res {
             Ok(()) => false,
-            Err(
-                atomicwrites::Error::Internal(io_error)
-            ) | Err(
-                atomicwrites::Error::User(io_error)
-            ) if io_error.kind() == std::io::ErrorKind::AlreadyExists =>  {
+            Err(io_error) if io_error.kind() == std::io::ErrorKind::AlreadyExists =>  {
                 true
             },
             Err(_) => { return res.map_err(From::from); }
@@ -271,16 +265,13 @@ pub fn run(
                     path_list
                 };
 
-                let file = AtomicFile::new_with_tmpdir(
+                atomically::write(
                     &path_mailbox_path,
-                    OverwriteBehavior::AllowOverwrite,
-                    &data_dir
-                );
-
-                file.write(|f| {
-                    use std::io::Write;
-                    f.write_all(path_list.as_bytes())
-                }).map_err(From::from)
+                    Overwrites::Allow,
+                    |f| {
+                        f.write_all(path_list.as_bytes())
+                    }
+                ).map_err(From::from)
             };
 
             let res = inner(path_mailbox_path);
@@ -308,9 +299,11 @@ pub fn run(
     const HIDPI_DEFAULT: ScaleFactor = 1.;
 
     macro_rules! remove_lock_file {
-        ($running_lock_path: ident) => {
+        ($running_lock_path: expr) => {
+            let running_lock_path = $running_lock_path;
+
             let running_lock_path_string =
-                $running_lock_path.to_string_lossy().to_string();
+                running_lock_path.to_string_lossy().to_string();
             match std::fs::remove_file(
                 running_lock_path
             ) {
@@ -355,88 +348,117 @@ pub fn run(
     let mut pids = Pids::default();
     pids.window = std::process::id();
 
-    // into the path mailbox thread
-    let (path_mailbox_in_sink, path_mailbox_in_source) = channel();
+    mod path_mailbox {
+        use std::path::PathBuf;
+        use std::sync::mpsc::{channel, Sender};
+        use std::thread::JoinHandle;
+        use std::time::Duration;
+        use window_layer::EventLoopProxy;
+        use wimp_types::{CustomEvent, PidKind};
 
-    #[derive(Debug)]
-    enum PathMailboxThread {
-        Quit,
-    }
+        #[derive(Debug)]
+        pub enum Thread {
+            Quit,
+        }
 
-    let mut path_mailbox_join_handle = Some({
-        let running_lock_path = running_lock_path.clone();
-        let path_mailbox_path = path_mailbox_path.clone();
-        let proxy = event_proxy.clone();
+        pub struct Paths {
+            pub running_lock: PathBuf,
+            pub mailbox: PathBuf,
+        }
 
-        std::thread::Builder::new()
-            .name("path_mailbox".to_string())
-            .spawn(move || {
-                {
-                    let _hope_it_gets_there = proxy.send_event(CustomEvent::Pid(
-                        PidKind::PathMailbox,
-                        std::process::id()
-                    ));
-                }
-                // If we got an error we should still keep this thread going
-                // in case the error is temporary.
-                macro_rules! continue_if_err {
-                    ($result: expr) => {
-                        match $result {
-                            Ok(x) => {x},
-                            Err(_) => {
-                                continue;
+        pub fn start_thread(
+            paths: Paths,
+            proxy: EventLoopProxy<CustomEvent>,
+        ) -> (Sender<Thread>, JoinHandle<()>) {
+            // into the path mailbox thread
+            let (in_sink, in_source) = channel();
+        
+            let join_handle = {
+                std::thread::Builder::new()
+                    .name("path_mailbox".to_string())
+                    .spawn(move || {
+                        {
+                            let _hope_it_gets_there = proxy.send_event(
+                                CustomEvent::Pid(
+                                    PidKind::PathMailbox,
+                                    std::process::id()
+                                )
+                            );
+                        }
+                        // If we got an error we should still keep this thread going
+                        // in case the error is temporary.
+                        macro_rules! continue_if_err {
+                            ($result: expr) => {
+                                match $result {
+                                    Ok(x) => {x},
+                                    Err(_) => {
+                                        continue;
+                                    }
+                                }
                             }
                         }
-                    }
-                }
+        
+                        loop {
+                            std::thread::sleep(Duration::from_millis(50));
+        
+                            if let Ok(message) = in_source.try_recv() {
+                                use Thread::*;
+                                match message {
+                                    Quit => {
+                                        remove_lock_file!(paths.running_lock);
+                                        return
+                                    },
+                                }
+                            }
+        
+                            let path_mailbox_string = continue_if_err!(
+                                std::fs::read_to_string(
+                                    &paths.mailbox
+                                )
+                            );
 
-                loop {
-                    std::thread::sleep(Duration::from_millis(50));
+                            // We want to replace the file with a blank one.
+                            // Not writing anything to the file achieves this.
+                            continue_if_err!(
+                                atomically::write(
+                                    &paths.mailbox,
+                                    atomically::Overwrites::Allow,
+                                    |_| Ok(())
+                                )
+                            );
 
-                    if let Ok(message) = path_mailbox_in_source.try_recv() {
-                        use PathMailboxThread::*;
-                        match message {
-                            Quit => {
-                                remove_lock_file!(running_lock_path);
-                                return
-                            },
+                            for line in path_mailbox_string.lines() {
+                                let _hope_it_gets_there =
+                                    proxy.send_event(CustomEvent::OpenFile(
+                                        // We don't know the CWD of the instance that put
+                                        // this in the mailbox, so it does not make sense
+                                        // to canonicalize this path ourselves. The code
+                                        // putting the line in here must do that.
+                                        // ... That said, it's convenient to fuse the
+                                        // canonicalization and position parsing, so any
+                                        // canonicalizing that happens shouldn't hurt,
+                                        // given the path is canonical already.
+                                        std::path::PathBuf::from(line)
+                                    ));
+                            }
                         }
-                    }
+                    })
+                    .expect("Could not start path_mailbox thread!")
+            };
 
-                    let path_mailbox_string = continue_if_err!(
-                        std::fs::read_to_string(
-                            &path_mailbox_path
-                        )
-                    );
+            (in_sink, join_handle)
+        }
+    }
 
-                    let file = AtomicFile::new_with_tmpdir(
-                        &path_mailbox_path,
-                        OverwriteBehavior::AllowOverwrite,
-                        &data_dir
-                    );
-
-                    // We want to replace the file with a blank one.
-                    // Not writing anything to the file achieves this.
-                    continue_if_err!(file.write::<(), (), _>(|_| Ok(())));
-
-                    for line in path_mailbox_string.lines() {
-                        let _hope_it_gets_there =
-                            proxy.send_event(CustomEvent::OpenFile(
-                                // We don't know the CWD of the instance that put
-                                // this in the mailbox, so it does not make sense
-                                // to canonicalize this path ourselves. The code
-                                // putting the line in here must do that.
-                                // ... That said, it's convenient to fuse the
-                                // canonicalization and position parsing, so any
-                                // canonicalizing that happens shouldn't hurt,
-                                // given the path is canonical already.
-                                std::path::PathBuf::from(line)
-                            ));
-                    }
-                }
-            })
-            .expect("Could not start path_mailbox thread!")
-    });
+    let (path_mailbox_in_sink, path_mailbox_join_handle)
+        = path_mailbox::start_thread(
+            path_mailbox::Paths {
+                running_lock: running_lock_path.into(),
+                mailbox: path_mailbox_path.into(),
+            },
+            event_proxy.clone(),
+        );
+    let mut path_mailbox_join_handle = Some(path_mailbox_join_handle);
 
     // into the edited files thread
     let (edited_files_in_sink, edited_files_in_source) = channel();
@@ -1336,7 +1358,7 @@ pub fn run(
                     perf_viz::end_record!("main loop");
                     call_u_and_r!(Input::Quit);
                     let _hope_it_gets_there = edited_files_in_sink.send(EditedFilesThread::Quit);
-                    let _hope_it_gets_there = path_mailbox_in_sink.send(PathMailboxThread::Quit);
+                    let _hope_it_gets_there = path_mailbox_in_sink.send(path_mailbox::Thread::Quit);
 
                     // If we got here, we assume that we've sent a Quit input to the editor thread so it will stop.
                     match editor_join_handle.take() {

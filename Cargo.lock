@@ -71,6 +71,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "atomically"
+version = "0.1.0"
+dependencies = [
+ "atomicwrites",
+]
+
+[[package]]
 name = "atomicwrites"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2701,7 +2708,7 @@ dependencies = [
 name = "wimp"
 version = "0.0.1"
 dependencies = [
- "atomicwrites",
+ "atomically",
  "criterion",
  "directories",
  "edited_storage",
