@@ -59,7 +59,7 @@ mod view {
     use macros::{d};
     use super::ui; // Your app's written in Electron? Shoulda used Super UI.
     use super::g_i;
-    pub use platform_types::{CursorView, BufferName, BufferViewData, FileSwitcherView, FindReplaceView, GoToPositionView, MenuMode, MenuView, IndexedEditedTransition};
+    use platform_types::{CursorView, BufferViewData, MenuView, IndexedEditedTransition};
 
     #[derive(Clone, Copy, Debug, PartialEq)]
     pub enum FindReplaceMode {
@@ -309,7 +309,7 @@ mod view {
         output
     }
 }
-pub use view::{View, LocalMenuView, MenuMode, WimpMenuMode, MenuView, WimpMenuView, FindReplaceMode};
+pub use view::{View, LocalMenuView, WimpMenuMode, WimpMenuView, FindReplaceMode};
 
 #[derive(Copy, Clone, Debug, Default)]
 /// Process Ids for the different threads. As of this writing, only used to display

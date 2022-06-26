@@ -271,7 +271,11 @@ pub fn get_delete_edit(rope: &CursoredRope) -> Edit {
                     },
                     CursorPlacementSpec {
                         offset: max,
-                        delta: min.0 as isize - max.0 as isize,
+                        delta: isize::try_from(min.0)
+                            .and_then(|min|
+                                isize::try_from(max.0)
+                                    .map(|max| min - max)
+                            ).unwrap_or_default(),
                         ..d!()
                     },
                 )
@@ -325,6 +329,7 @@ pub fn extend_cursor_to_cover_line(c: &mut Cursor, rope: &Rope) {
 }
 
 /// Returns an edit that, if applied, deletes the line(s) each cursor intersects with.
+#[must_use]
 pub fn get_delete_lines_edit(rope: &CursoredRope) -> Edit {
     let (original_rope, original_cursors) = rope.rc();
 
@@ -345,6 +350,7 @@ pub fn get_delete_lines_edit(rope: &CursoredRope) -> Edit {
 
 /// returns an edit that if applied will delete the highlighted region at each cursor if there is
 /// one, and which does nothing otherwise.
+#[must_use]
 pub fn get_cut_edit(rope: &CursoredRope) -> Edit {
     get_edit(rope, |cursor_info, rope| {
         let o1 = cursor_info.offset;
@@ -405,6 +411,7 @@ impl From<String> for CountedString {
     }
 }
 
+#[must_use]
 fn get_insert_prefix_edit(
     rope: &CursoredRope,
     spec: PrefixSpec,
@@ -530,6 +537,7 @@ fn get_insert_prefix_edit(
 }
 
 #[perf_viz::record]
+#[must_use]
 pub fn get_tab_in_edit(rope: &CursoredRope) -> Edit {
     fn append(s: &mut String, count: usize) {
         for _ in 0..count {
@@ -546,79 +554,82 @@ pub fn get_tab_in_edit(rope: &CursoredRope) -> Edit {
     )
 }
 
+#[must_use]
 pub fn get_tab_out_edit(rope: &CursoredRope) -> Edit {
+    fn tab_out_step(
+        line: RopeLine,
+        RelativeSelected{ line_end, slice_end }: RelativeSelected,
+        chars: &mut String,
+    ) {
+        let first_non_white_space_offset: Option<CharOffset> =
+            get_first_non_white_space_offset_in_range(line, d!()..=line_end);
+    
+        let delete_count = min(
+            first_non_white_space_offset.unwrap_or(line_end),
+            CharOffset(TAB_STR_CHAR_COUNT),
+        );
+    
+        if let Some(sliced_line) = line.slice(delete_count..slice_end) {
+            push_slice(chars, sliced_line);
+        }
+    }
+
     get_line_slicing_edit(
         rope,
         tab_out_step,
     )
 }
 
-fn tab_out_step(
-    line: RopeLine,
-    RelativeSelected{ line_end, slice_end }: RelativeSelected,
-    chars: &mut String,
-) {
-    let first_non_white_space_offset: Option<CharOffset> =
-        get_first_non_white_space_offset_in_range(line, d!()..=line_end);
-
-    let delete_count = min(
-        first_non_white_space_offset.unwrap_or(line_end),
-        CharOffset(TAB_STR_CHAR_COUNT),
-    );
-
-    if let Some(sliced_line) = line.slice(delete_count..slice_end) {
-        push_slice(chars, sliced_line);
-    }
-}
-
 /// returns an edit that if applied will delete the non-line-ending whitespace at the
 /// end of each line in the buffer, if there is any.
+#[must_use]
 pub fn get_strip_trailing_whitespace_edit(
     rope: &CursoredRope,
 ) -> Edit {
+    fn strip_trailing_whitespace_step(
+        line: RopeLine,
+        RelativeSelected{ line_end, slice_end }: RelativeSelected,
+        chars: &mut String,
+    ) {
+        if slice_end == CharOffset(0) {
+            return
+        }
+    
+        dbg!(line, line_end, slice_end);
+        let last_non_white_space_offset: Option<CharOffset> =
+            get_last_non_white_space_offset_in_range(line, d!()..=line_end)
+            // We add one so we keep the final non-whitespace
+            .map(|CharOffset(o)| CharOffset(o.saturating_add(1)));
+    
+        let strip_after = min(
+            last_non_white_space_offset.unwrap_or(CharOffset(0)),
+            slice_end,
+        );
+    
+        dbg!(last_non_white_space_offset, last_non_white_space_offset.unwrap_or(line_end), strip_after);
+        if let Some(sliced_line) = line.slice(CharOffset(0)..strip_after) {
+            push_slice(chars, sliced_line);
+        }
+    
+        // TODO It strikes me that this condition can probably be less complicated
+        if chars.ends_with(is_linebreak_char) && strip_after != CharOffset(0) {
+            return;
+        }
+    
+        if let Some(last_char) = dbg!(line.chars_at_end().prev()) {
+            if is_linebreak_char(last_char) {
+                chars.push('\n');
+            }
+        }
+    }
+
     get_line_slicing_edit(
         rope,
         strip_trailing_whitespace_step,
     )
 }
 
-fn strip_trailing_whitespace_step(
-    line: RopeLine,
-    RelativeSelected{ line_end, slice_end }: RelativeSelected,
-    chars: &mut String,
-) {
-    if slice_end == CharOffset(0) {
-        return
-    }
-
-    dbg!(line, line_end, slice_end);
-    let last_non_white_space_offset: Option<CharOffset> =
-        get_last_non_white_space_offset_in_range(line, d!()..=line_end)
-        // We add one so we keep the final non-whitespace
-        .map(|CharOffset(o)| CharOffset(o.saturating_add(1)));
-
-    let strip_after = min(
-        last_non_white_space_offset.unwrap_or(CharOffset(0)),
-        slice_end,
-    );
-
-    dbg!(last_non_white_space_offset, last_non_white_space_offset.unwrap_or(line_end), strip_after);
-    if let Some(sliced_line) = line.slice(CharOffset(0)..strip_after) {
-        push_slice(chars, sliced_line);
-    }
-
-    // TODO It strikes me that this condition can probably be less complicated
-    if chars.ends_with(is_linebreak_char) && strip_after != CharOffset(0) {
-        return;
-    }
-
-    if let Some(last_char) = dbg!(line.chars_at_end().prev()) {
-        if is_linebreak_char(last_char) {
-            chars.push('\n');
-        }
-    }
-}
-
+#[must_use]
 pub fn get_toggle_single_line_comments_edit(rope: &CursoredRope) -> Edit {
     const COMMENT_STR: &str = "//";
 
@@ -627,7 +638,7 @@ pub fn get_toggle_single_line_comments_edit(rope: &CursoredRope) -> Edit {
     // take the time to write more code that preserves that work. However, this
     // part being a bottleneck seems unlikely.
     if all_selected_lines_have_leading_comments(rope) {
-        fn step(
+        fn remove_leading_comments_step(
             line: RopeLine,
             RelativeSelected{ line_end, slice_end }: RelativeSelected,
             chars: &mut String,
@@ -648,7 +659,7 @@ pub fn get_toggle_single_line_comments_edit(rope: &CursoredRope) -> Edit {
             }
         }
 
-        get_line_slicing_edit(rope, step)
+        get_line_slicing_edit(rope, remove_leading_comments_step)
     } else {
         fn append(s: &mut String, count: usize) {
             if count >= COMMENT_STR.len() {
@@ -674,6 +685,7 @@ pub fn get_toggle_single_line_comments_edit(rope: &CursoredRope) -> Edit {
     }
 }
 
+#[must_use]
 fn all_selected_lines_have_leading_comments(
     c_r: &CursoredRope
 ) -> bool {

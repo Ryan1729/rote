@@ -1,6 +1,6 @@
 #![deny(bindings_with_variant_name, unused)]
 use window_layer::{ColouredText, MulticolourTextSpec, TextLayout, TextOrRect, TextSpec, VisualSpec};
-use wimp_types::{CommandsMap, LocalMenuView, View, WimpMenuMode, MenuView, WimpMenuView, FindReplaceMode, ui_id, ui, ui::{ButtonState}, BufferStatus, CommandKey, Dimensions, RunConsts, ViewRunState, ui::{ListSelection, ListSelectionWindowSize}, command_keys};
+use wimp_types::{CommandsMap, LocalMenuView, View, WimpMenuMode, WimpMenuView, FindReplaceMode, ui_id, ui, ui::{ButtonState}, BufferStatus, CommandKey, Dimensions, RunConsts, ViewRunState, ui::{ListSelection, ListSelectionWindowSize}, command_keys};
 use macros::{c, d, dbg, invariant_assert, u};
 use platform_types::{
     *,
@@ -15,6 +15,7 @@ use platform_types::{
     CursorState,
     Highlight,
     HighlightKind,
+    MenuView,
     Input,
     sswh,
     ssr,
