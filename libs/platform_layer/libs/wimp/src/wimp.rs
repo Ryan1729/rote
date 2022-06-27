@@ -12,8 +12,8 @@ use std::{
     time::Duration,
 };
 use wimp_render::{get_find_replace_info, FindReplaceInfo, get_go_to_position_info, GoToPositionInfo, ViewOutput, ViewAction};
-use wimp_types::{ui, ui::{PhysicalButtonState, Navigation}, transform_at, BufferStatus, BufferStatusTransition, CustomEvent, get_clipboard, Dimensions, LabelledCommand, RunConsts, RunState, Pids, PidKind, EditorThreadInput, ViewRunState, DebugMenuState, DpiFactor};
-use macros::{d, dbg, u};
+use wimp_types::{ui, ui::{PhysicalButtonState, Navigation}, transform_at, BufferStatus, BufferStatusTransition, CustomEvent, get_clipboard, Dimensions, LabelledCommand, RunConsts, RunState, Pids, PidKind, EditorThreadInput, EditedFilesThread, ViewRunState, DebugMenuState, DpiFactor};
+use macros::{d, dbg};
 use platform_types::{screen_positioning::screen_to_text_box, *};
 use shared::{Res};
 use edited_storage::{canonicalize, load_tab, load_previous_tabs, LoadedTab};
@@ -360,12 +360,6 @@ pub fn run(
     // out of the edited files thread
     let (edited_files_out_sink, edited_files_out_source) = channel();
 
-    #[derive(Debug)]
-    enum EditedFilesThread {
-        Quit,
-        Buffers(g_i::State, Vec<edited_storage::BufferInfo>),
-    }
-
     let mut edited_files_join_handle = Some({
         let edited_files_dir = edited_files_dir_buf.clone();
         let edited_files_index_path = edited_files_index_path_buf.clone();
@@ -425,10 +419,199 @@ pub fn run(
             .expect("Could not start edited_files thread!")
     });
 
-    // into the editor thread
-    let (editor_in_sink, editor_in_source) = channel();
-    // out of the editor thread
-    let (editor_out_sink, editor_out_source) = channel();
+    mod editor_thread {
+        use macros::u;
+        use platform_types::{BufferName, Cmd, EditorAPI, Input, LoadBufferViewsResult, View};
+        use std::sync::mpsc::{channel, Sender, Receiver};
+        use std::thread::JoinHandle;
+        use wimp_types::{BufferInfo, BufferStatusTransition, CustomEvent, EditedFilesThread, EditorThreadInput};
+        use window_layer::EventLoopProxy;
+
+        pub enum Output {
+            Rendered((View, Cmd, Cmd, LoadBufferViewsResult)),
+            Pid(u32)
+        }
+
+        pub fn start(
+            editor_api: EditorAPI,
+            proxy: EventLoopProxy<CustomEvent>,
+            edited_files_in_sink: Sender<EditedFilesThread>,
+        ) -> (Sender<EditorThreadInput>, Receiver<Output>, JoinHandle<()>) {
+            // into the editor thread
+            let (editor_in_sink, editor_in_source) = channel();
+            // out of the editor thread
+            let (editor_out_sink, editor_out_source) = channel();
+        
+            let editor_join_handle = std::thread::Builder::new()
+                .name("editor".to_string())
+                .spawn(move || {
+                    let EditorAPI {update_and_render, load_buffer_views}
+                        = editor_api;
+                    {
+                        let _hope_it_gets_there = editor_out_sink.send(
+                            Output::Pid(std::process::id())
+                        );
+                    }
+    
+                    while let Ok(editor_input) = editor_in_source.recv() {
+                        u!{EditorThreadInput}
+    
+                        macro_rules! call_update_and_render_and_possibly_quit {
+                            ($input: expr) => {{
+                                let input = $input;
+                                let was_quit = Input::Quit == input;
+    
+                                let should_make_active_tab_visible = match input {
+                                    Input::None
+                                    | Input::Quit
+                                    | Input::Insert(..)
+                                    | Input::Delete
+                                    | Input::DeleteLines
+                                    | Input::ScrollVertically(..)
+                                    | Input::ScrollHorizontally(..)
+                                    | Input::MoveAllCursors(..)
+                                    | Input::ExtendSelectionForAllCursors(..)
+                                    | Input::SelectAll
+                                    | Input::SetCursor(..)
+                                    | Input::DragCursors(..)
+                                    | Input::SelectCharTypeGrouping(..)
+                                    | Input::ExtendSelectionWithSearch
+                                    | Input::Undo
+                                    | Input::Redo
+                                    | Input::Cut
+                                    | Input::Copy
+                                    | Input::Paste(..)
+                                    | Input::InsertNumbersAtCursors
+                                    | Input::TabIn
+                                    | Input::TabOut
+                                    | Input::StripTrailingWhitespace
+                                    | Input::NextLanguage
+                                    | Input::PreviousLanguage
+                                    | Input::ToggleSingleLineComments => false,
+                                    Input::Escape
+                                    | Input::ResetScroll
+                                    | Input::SetSizeDependents(..)
+                                    | Input::SavedAs(..)
+                                    | Input::AddOrSelectBuffer(..)
+                                    | Input::AddOrSelectBufferThenGoTo(..)
+                                    | Input::NewScratchBuffer(..)
+                                    | Input::AdjustBufferSelection(..)
+                                    | Input::SelectBuffer(..)
+                                    | Input::OpenOrSelectBuffer(..)
+                                    | Input::CloseBuffer(..)
+                                    | Input::SetMenuMode(..)
+                                    | Input::SubmitForm
+                                    | Input::ShowError(..) => true,
+                                };
+    
+                                let (v, c1) = (update_and_render)(input);
+                                let (_i, label) = v.current_text_index_and_buffer_label();
+                                let visible_buffer_name: BufferName = label.name.clone();
+    
+                                let mut results = (load_buffer_views)(&[visible_buffer_name]);
+    
+                                // TODO: could pass and return Vec1 to avoid this.
+                                debug_assert_eq!(results.len(), 1);
+    
+                                let result = results.pop().unwrap();
+    
+                                let c2 = if should_make_active_tab_visible {
+                                    Cmd::MakeActiveTabVisible
+                                } else {
+                                    Cmd::None
+                                };
+    
+                                let _hope_it_gets_there = editor_out_sink.send(
+                                    Output::Rendered((v, c1, c2, result))
+                                );
+                                if was_quit {
+                                    return;
+                                }
+                            }}
+                        }
+    
+                        match editor_input {
+                            Render(input) => {
+                                call_update_and_render_and_possibly_quit!(
+                                    input
+                                );
+                            },
+                            SaveBuffers(index_state, names, mut statuses) => {
+                                debug_assert_eq!(names.len(), statuses.len());
+                                let mut infos = Vec::with_capacity(names.len());
+    
+                                let mut buffers = (load_buffer_views)(&names);
+    
+                                debug_assert_eq!(statuses.len(), buffers.len());
+    
+                                while let (Some(result), Some(status)) = (
+                                    buffers.pop(),
+                                    statuses.pop()
+                                ) {
+                                    match result {
+                                        Ok(bv) => {
+                                            infos.push(BufferInfo {
+                                                name: bv.label.name.clone(),
+                                                name_string: bv.label.name_string.clone(),
+                                                chars: bv.data.chars,
+                                                status,
+                                            });
+                                        },
+                                        Err(err) => {
+                                            let _hope_it_gets_there = proxy.send_event(
+                                                CustomEvent::EditedBufferError(
+                                                    err
+                                                )
+                                            );
+                                        },
+                                    }
+                                }
+    
+                                let _hope_it_gets_there = edited_files_in_sink.send(
+                                    EditedFilesThread::Buffers(
+                                        index_state,
+                                        infos
+                                    )
+                                );
+                            }
+                            SaveToDisk(path, label, index) => {
+                                let mut results = (load_buffer_views)(
+                                    &[label.name]
+                                );
+    
+                                // TODO: could pass and return Vec1 to avoid this.
+                                debug_assert_eq!(results.len(), 1);
+    
+                                let result = results.pop().unwrap();
+    
+                                match result.and_then(|b|
+                                    std::fs::write(&path, b.data.chars)
+                                        .map_err(|e| e.to_string())
+                                ) {
+                                    Ok(_) => {
+                                        let _hope_that_gets_there = proxy.send_event(
+                                            CustomEvent::MarkBufferStatusTransition(
+                                                path,
+                                                index,
+                                                BufferStatusTransition::Save,
+                                            )
+                                        );
+                                    }
+                                    Err(err) => {
+                                        call_update_and_render_and_possibly_quit!(
+                                            Input::ShowError(err)
+                                        );
+                                    }
+                                }
+                            },
+                        }
+                    }
+                })
+                .expect("Could not start editor thread!");
+
+            (editor_in_sink, editor_out_source, editor_join_handle)
+        }
+    }
 
     let loaded_tabs = {
         let mut previous_tabs = load_previous_tabs(&edited_files_dir_buf, &edited_files_index_path_buf);
@@ -468,9 +651,7 @@ pub fn run(
         }};
     }
 
-    let mut r_s = {
-        let editor_in_sink = editor_in_sink.clone();
-
+    let (mut r_s, editor_in_sink, editor_out_source, mut editor_join_handle) = {
         let char_dims = window_layer::get_char_dims(
             &window_state,
             &wimp_render::TEXT_SIZES,
@@ -490,6 +671,13 @@ pub fn run(
             get_non_font_size_dependents_input!(d!(), dimensions)
         );
 
+        let (editor_in_sink, editor_out_source, editor_join_handle)
+            = editor_thread::start(
+                editor_api,
+                event_proxy.clone(),
+                edited_files_in_sink.clone(),
+            );
+
         let mut cmds = VecDeque::with_capacity(EVENTS_PER_FRAME);
         cmds.push_back(c);
 
@@ -507,32 +695,37 @@ pub fn run(
 
         view.update(v, d!());
 
-        RunState {
-            view_state: ViewRunState {
-                view,
-                ui,
-                buffer_status_map,
-                dimensions,
-                debug_menu_state: DebugMenuState {
-                    preallocated_scratch: String::with_capacity(1024),
-                    startup_description,
-                    pids,
-                    editor_buffers_size_in_bytes,
-                    last_hidpi_factors: [
-                        resolved_hidpi_factor,
-                        0.,
-                        0.,
-                        0.,
-                    ],
-                    ..d!()
+        (
+            RunState {
+                view_state: ViewRunState {
+                    view,
+                    ui,
+                    buffer_status_map,
+                    dimensions,
+                    debug_menu_state: DebugMenuState {
+                        preallocated_scratch: String::with_capacity(1024),
+                        startup_description,
+                        pids,
+                        editor_buffers_size_in_bytes,
+                        last_hidpi_factors: [
+                            resolved_hidpi_factor,
+                            0.,
+                            0.,
+                            0.,
+                        ],
+                        ..d!()
+                    },
+                    stats: d!(),
                 },
-                stats: d!(),
+                cmds,
+                clipboard,
+                editor_in_sink: editor_in_sink.clone(),
+                event_proxy: event_proxy.clone(),
             },
-            cmds,
-            clipboard,
             editor_in_sink,
-            event_proxy: event_proxy.clone(),
-        }
+            editor_out_source,
+            Some(editor_join_handle)
+        )
     };
 
     macro_rules! get_hidpi_factor {
@@ -552,182 +745,6 @@ pub fn run(
             $r_s.view_state
         };
     }
-
-    enum EditorThreadOutput {
-        Rendered((View, Cmd, Cmd, LoadBufferViewsResult)),
-        Pid(u32)
-    }
-
-    let mut editor_join_handle = Some({
-        let proxy = event_proxy.clone();
-        let edited_files_in_sink = edited_files_in_sink.clone();
-
-        std::thread::Builder::new()
-            .name("editor".to_string())
-            .spawn(move || {
-                let EditorAPI {update_and_render, load_buffer_views} = editor_api;
-                {
-                    let _hope_it_gets_there = editor_out_sink.send(
-                        EditorThreadOutput::Pid(std::process::id())
-                    );
-                }
-
-                while let Ok(editor_input) = editor_in_source.recv() {
-                    u!{EditorThreadInput}
-
-                    macro_rules! call_update_and_render_and_possibly_quit {
-                        ($input: expr) => {{
-                            let input = $input;
-                            let was_quit = Input::Quit == input;
-
-                            let should_make_active_tab_visible = match input {
-                                Input::None
-                                | Input::Quit
-                                | Input::Insert(..)
-                                | Input::Delete
-                                | Input::DeleteLines
-                                | Input::ScrollVertically(..)
-                                | Input::ScrollHorizontally(..)
-                                | Input::MoveAllCursors(..)
-                                | Input::ExtendSelectionForAllCursors(..)
-                                | Input::SelectAll
-                                | Input::SetCursor(..)
-                                | Input::DragCursors(..)
-                                | Input::SelectCharTypeGrouping(..)
-                                | Input::ExtendSelectionWithSearch
-                                | Input::Undo
-                                | Input::Redo
-                                | Input::Cut
-                                | Input::Copy
-                                | Input::Paste(..)
-                                | Input::InsertNumbersAtCursors
-                                | Input::TabIn
-                                | Input::TabOut
-                                | Input::StripTrailingWhitespace
-                                | Input::NextLanguage
-                                | Input::PreviousLanguage
-                                | Input::ToggleSingleLineComments => false,
-                                Input::Escape
-                                | Input::ResetScroll
-                                | Input::SetSizeDependents(..)
-                                | Input::SavedAs(..)
-                                | Input::AddOrSelectBuffer(..)
-                                | Input::AddOrSelectBufferThenGoTo(..)
-                                | Input::NewScratchBuffer(..)
-                                | Input::AdjustBufferSelection(..)
-                                | Input::SelectBuffer(..)
-                                | Input::OpenOrSelectBuffer(..)
-                                | Input::CloseBuffer(..)
-                                | Input::SetMenuMode(..)
-                                | Input::SubmitForm
-                                | Input::ShowError(..) => true,
-                            };
-
-                            let (v, c1) = (update_and_render)(input);
-                            let (_i, label) = v.current_text_index_and_buffer_label();
-                            let visible_buffer_name: BufferName = label.name.clone();
-
-                            let mut results = (load_buffer_views)(&[visible_buffer_name]);
-
-                            // TODO: could pass and return Vec1 to avoid this.
-                            debug_assert_eq!(results.len(), 1);
-
-                            let result = results.pop().unwrap();
-
-                            let c2 = if should_make_active_tab_visible {
-                                Cmd::MakeActiveTabVisible
-                            } else {
-                                Cmd::None
-                            };
-
-                            let _hope_it_gets_there = editor_out_sink.send(
-                                EditorThreadOutput::Rendered((v, c1, c2, result))
-                            );
-                            if was_quit {
-                                return;
-                            }
-                        }}
-                    }
-
-                    match editor_input {
-                        Render(input) => {
-                            call_update_and_render_and_possibly_quit!(
-                                input
-                            );
-                        },
-                        SaveBuffers(index_state, names, mut statuses) => {
-                            debug_assert_eq!(names.len(), statuses.len());
-                            let mut infos = Vec::with_capacity(names.len());
-
-                            let mut buffers = (load_buffer_views)(&names);
-
-                            debug_assert_eq!(statuses.len(), buffers.len());
-
-                            while let (Some(result), Some(status)) = (
-                                buffers.pop(),
-                                statuses.pop()
-                            ) {
-                                match result {
-                                    Ok(bv) => {
-                                        infos.push(edited_storage::BufferInfo {
-                                            name: bv.label.name.clone(),
-                                            name_string: bv.label.name_string.clone(),
-                                            chars: bv.data.chars,
-                                            status,
-                                        });
-                                    },
-                                    Err(err) => {
-                                        let _hope_it_gets_there = proxy.send_event(
-                                            CustomEvent::EditedBufferError(
-                                                err
-                                            )
-                                        );
-                                    },
-                                }
-                            }
-
-                            let _hope_it_gets_there = edited_files_in_sink.send(
-                                EditedFilesThread::Buffers(
-                                    index_state,
-                                    infos
-                                )
-                            );
-                        }
-                        SaveToDisk(path, label, index) => {
-                            let mut results = (load_buffer_views)(
-                                &[label.name]
-                            );
-
-                            // TODO: could pass and return Vec1 to avoid this.
-                            debug_assert_eq!(results.len(), 1);
-
-                            let result = results.pop().unwrap();
-
-                            match result.and_then(|b|
-                                std::fs::write(&path, b.data.chars)
-                                    .map_err(|e| e.to_string())
-                            ) {
-                                Ok(_) => {
-                                    let _hope_that_gets_there = proxy.send_event(
-                                        CustomEvent::MarkBufferStatusTransition(
-                                            path,
-                                            index,
-                                            BufferStatusTransition::Save,
-                                        )
-                                    );
-                                }
-                                Err(err) => {
-                                    call_update_and_render_and_possibly_quit!(
-                                        Input::ShowError(err)
-                                    );
-                                }
-                            }
-                        },
-                    }
-                }
-            })
-            .expect("Could not start editor thread!")
-    });
 
     // If you didn't click on the same symbol, counting that as a double click seems like it
     // would be annoying.
@@ -1524,7 +1541,7 @@ pub fn run(
 
                     for _ in 0..EVENTS_PER_FRAME {
                         match editor_out_source.try_recv() {
-                            Ok(EditorThreadOutput::Rendered((v, c1, c2, result))) => {
+                            Ok(editor_thread::Output::Rendered((v, c1, c2, result))) => {
                                 debug_assert!(result.is_ok());
                                 v_s!().debug_menu_state.editor_buffers_size_in_bytes
                                     = v.stats.editor_buffers_size_in_bytes;
@@ -1546,7 +1563,7 @@ pub fn run(
                                     r_s.cmds.push_back(c2);
                                 }
                             }
-                            Ok(EditorThreadOutput::Pid(pid)) => {
+                            Ok(editor_thread::Output::Pid(pid)) => {
                                 v_s!().debug_menu_state.pids.editor = pid;
                             }
                             Err(_) => break,

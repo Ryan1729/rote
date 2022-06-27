@@ -1,19 +1,13 @@
 #![deny(clippy::float_arithmetic)]
 use platform_types::*;
 
+// TODO eliminate this dependency
 use rand::{thread_rng, Rng};
-use wimp_types::{BufferStatus, BufferStatusTransition};
+
+use wimp_types::{BufferInfo, BufferStatus, BufferStatusTransition};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use macros::{d, fmt_display};
-
-#[derive(Debug)]
-pub struct BufferInfo {
-    pub name: BufferName,
-    pub name_string: String,
-    pub chars: String,
-    pub status: BufferStatus,
-}
 
 fn get_names_to_uuid(edited_files_index_path: &Path) -> HashMap<BufferName, u128> {
     let index_string = std::fs::read_to_string(edited_files_index_path).unwrap_or_default();

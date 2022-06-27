@@ -32,6 +32,20 @@ impl Default for Dimensions {
     }
 }
 
+#[derive(Debug)]
+pub struct BufferInfo {
+    pub name: BufferName,
+    pub name_string: String,
+    pub chars: String,
+    pub status: BufferStatus,
+}
+
+#[derive(Debug)]
+pub enum EditedFilesThread {
+    Quit,
+    Buffers(g_i::State, Vec<BufferInfo>),
+}
+
 pub type PID = u32;
 
 #[derive(Clone, Debug)]
