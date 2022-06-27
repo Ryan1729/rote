@@ -298,30 +298,26 @@ pub fn run(
     const HIDPI_MINIMUM: ScaleFactor = HIDPI_INCREMENT_BY;
     const HIDPI_DEFAULT: ScaleFactor = 1.;
 
-    macro_rules! remove_lock_file {
-        ($running_lock_path: expr) => {
-            let running_lock_path = $running_lock_path;
-
-            let running_lock_path_string =
-                running_lock_path.to_string_lossy().to_string();
-            match std::fs::remove_file(
-                running_lock_path
-            ) {
-                Ok(()) => {
-                    println!(
-                        "Deleted {} successfully",
-                        running_lock_path_string
-                    );
-                }
-                Err(err) => {
-                    println!(
-                        "Could not delete {}. You may need to do so manually later.",
-                        running_lock_path_string
-                    );
-                    eprintln!("{}", err);
-                }
-            };
-        }
+    fn on_shutdown(running_lock_path: PathBuf) {
+        let running_lock_path_string =
+            running_lock_path.to_string_lossy().to_string();
+        match std::fs::remove_file(
+            running_lock_path
+        ) {
+            Ok(()) => {
+                println!(
+                    "Deleted {} successfully",
+                    running_lock_path_string
+                );
+            }
+            Err(err) => {
+                println!(
+                    "Could not delete {}. You may need to do so manually later.",
+                    running_lock_path_string
+                );
+                eprintln!("{}", err);
+            }
+        };
     }
 
     let window_state: window_layer::State<'_, CustomEvent> =
@@ -332,7 +328,7 @@ pub fn run(
         ) {
             Ok(s) => s,
             Err(e) => {
-                remove_lock_file!(running_lock_path);
+                on_shutdown(running_lock_path);
                 return Err(e)
             },
         };
@@ -369,6 +365,7 @@ pub fn run(
         pub fn start_thread(
             paths: Paths,
             proxy: EventLoopProxy<CustomEvent>,
+            on_shutdown: fn(PathBuf),
         ) -> (Sender<Thread>, JoinHandle<()>) {
             // into the path mailbox thread
             let (in_sink, in_source) = channel();
@@ -405,7 +402,7 @@ pub fn run(
                                 use Thread::*;
                                 match message {
                                     Quit => {
-                                        remove_lock_file!(paths.running_lock);
+                                        (on_shutdown)(paths.running_lock);
                                         return
                                     },
                                 }
@@ -457,6 +454,7 @@ pub fn run(
                 mailbox: path_mailbox_path.into(),
             },
             event_proxy.clone(),
+            on_shutdown,
         );
     let mut path_mailbox_join_handle = Some(path_mailbox_join_handle);
 
