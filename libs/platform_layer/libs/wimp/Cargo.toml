@@ -11,6 +11,7 @@ path = "./src/wimp.rs"
 
 [dependencies]
 atomically = { path = "../atomically" }
+editor_thread = { path = "../editor_thread" }
 file_chooser = { path = "../file_chooser" }
 macros = { path = "../../../macros" }
 path_mailbox = { path = "../path_mailbox" }

@@ -684,6 +684,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "editor_thread"
+version = "0.1.0"
+dependencies = [
+ "macros",
+ "platform_types",
+ "wimp_types",
+ "window_layer",
+]
+
+[[package]]
 name = "editor_types"
 version = "0.1.0"
 dependencies = [
@@ -2722,6 +2732,7 @@ dependencies = [
  "directories",
  "edited_storage",
  "editor",
+ "editor_thread",
  "file_chooser",
  "if_changed",
  "macros",
