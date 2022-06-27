@@ -1,0 +1,12 @@
+[package]
+name = "path_mailbox"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+path = "src/path_mailbox.rs"
+
+[dependencies]
+atomically = { path = "../atomically" }
+wimp_types = { path = "../wimp_types" }
+window_layer = { path = "../window_layer" }

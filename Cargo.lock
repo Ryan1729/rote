@@ -1579,6 +1579,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "path_mailbox"
+version = "0.1.0"
+dependencies = [
+ "atomically",
+ "wimp_types",
+ "window_layer",
+]
+
+[[package]]
 name = "paths"
 version = "0.1.0"
 
@@ -2716,6 +2725,7 @@ dependencies = [
  "file_chooser",
  "if_changed",
  "macros",
+ "path_mailbox",
  "perf_viz",
  "perf_viz_proc_macro",
  "platform_types",

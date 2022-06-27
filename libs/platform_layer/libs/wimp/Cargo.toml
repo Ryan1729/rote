@@ -12,16 +12,17 @@ path = "./src/wimp.rs"
 [dependencies]
 atomically = { path = "../atomically" }
 file_chooser = { path = "../file_chooser" }
-platform_types = { path = "../../../platform_types" }
 macros = { path = "../../../macros" }
+path_mailbox = { path = "../path_mailbox" }
+platform_types = { path = "../../../platform_types" }
 if_changed = { path = "../../../if_changed" }
 perf_viz = { path = "../../../perf_viz" }
 perf_viz_proc_macro = { path = "../../../perf_viz/libs/perf_viz_proc_macro" }
-window_layer = { path = "../window_layer" }
 edited_storage = { path = "../edited_storage" }
 shared = { path = "../shared" }
 wimp_render = { path = "../wimp_render" }
 wimp_types = { path = "../wimp_types" }
+window_layer = { path = "../window_layer" }
 spin_sleep = "0.3"
 directories = "2.0"
 
