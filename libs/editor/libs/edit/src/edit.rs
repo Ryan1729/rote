@@ -580,49 +580,50 @@ pub fn get_tab_out_edit(rope: &CursoredRope) -> Edit {
     )
 }
 
+// This is exposed outside of its usage scope so tests can see it.
+fn strip_trailing_whitespace_step(
+    line: RopeLine,
+    RelativeSelected{ line_end, slice_end }: RelativeSelected,
+    chars: &mut String,
+) {
+    if slice_end == CharOffset(0) {
+        return
+    }
+
+    dbg!(line, line_end, slice_end);
+    let last_non_white_space_offset: Option<CharOffset> =
+        get_last_non_white_space_offset_in_range(line, d!()..=line_end)
+        // We add one so we keep the final non-whitespace
+        .map(|CharOffset(o)| CharOffset(o.saturating_add(1)));
+
+    let strip_after = min(
+        last_non_white_space_offset.unwrap_or(CharOffset(0)),
+        slice_end,
+    );
+
+    dbg!(last_non_white_space_offset, last_non_white_space_offset.unwrap_or(line_end), strip_after);
+    if let Some(sliced_line) = line.slice(CharOffset(0)..strip_after) {
+        push_slice(chars, sliced_line);
+    }
+
+    // TODO It strikes me that this condition can probably be less complicated
+    if chars.ends_with(is_linebreak_char) && strip_after != CharOffset(0) {
+        return;
+    }
+
+    if let Some(last_char) = dbg!(line.chars_at_end().prev()) {
+        if is_linebreak_char(last_char) {
+            chars.push('\n');
+        }
+    }
+}
+
 /// returns an edit that if applied will delete the non-line-ending whitespace at the
 /// end of each line in the buffer, if there is any.
 #[must_use]
 pub fn get_strip_trailing_whitespace_edit(
     rope: &CursoredRope,
 ) -> Edit {
-    fn strip_trailing_whitespace_step(
-        line: RopeLine,
-        RelativeSelected{ line_end, slice_end }: RelativeSelected,
-        chars: &mut String,
-    ) {
-        if slice_end == CharOffset(0) {
-            return
-        }
-    
-        dbg!(line, line_end, slice_end);
-        let last_non_white_space_offset: Option<CharOffset> =
-            get_last_non_white_space_offset_in_range(line, d!()..=line_end)
-            // We add one so we keep the final non-whitespace
-            .map(|CharOffset(o)| CharOffset(o.saturating_add(1)));
-    
-        let strip_after = min(
-            last_non_white_space_offset.unwrap_or(CharOffset(0)),
-            slice_end,
-        );
-    
-        dbg!(last_non_white_space_offset, last_non_white_space_offset.unwrap_or(line_end), strip_after);
-        if let Some(sliced_line) = line.slice(CharOffset(0)..strip_after) {
-            push_slice(chars, sliced_line);
-        }
-    
-        // TODO It strikes me that this condition can probably be less complicated
-        if chars.ends_with(is_linebreak_char) && strip_after != CharOffset(0) {
-            return;
-        }
-    
-        if let Some(last_char) = dbg!(line.chars_at_end().prev()) {
-            if is_linebreak_char(last_char) {
-                chars.push('\n');
-            }
-        }
-    }
-
     get_line_slicing_edit(
         rope,
         strip_trailing_whitespace_step,
