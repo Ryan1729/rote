@@ -414,7 +414,7 @@ impl From<String> for CountedString {
 #[must_use]
 fn get_insert_prefix_edit(
     rope: &CursoredRope,
-    spec: PrefixSpec,
+    spec: &PrefixSpec,
 ) -> Edit {
     let original_rope = rope.borrow_rope();
 
@@ -511,7 +511,7 @@ fn get_insert_prefix_edit(
                 dbg!(char_count);
 
                 let special_handling = get_special_handling(
-                    &original_rope,
+                    original_rope,
                     cursor,
                     char_count.saturating_sub(spec.prefix.count),
                 );
@@ -547,7 +547,7 @@ pub fn get_tab_in_edit(rope: &CursoredRope) -> Edit {
 
     get_insert_prefix_edit(
         rope,
-        PrefixSpec {
+        &PrefixSpec {
             append,
             prefix: TAB_STR.to_owned().into(),
         }
@@ -678,7 +678,7 @@ pub fn get_toggle_single_line_comments_edit(rope: &CursoredRope) -> Edit {
 
         get_insert_prefix_edit(
             rope,
-            PrefixSpec {
+            &PrefixSpec {
                 append,
                 prefix: COMMENT_STR.to_owned().into(),
             }
@@ -805,13 +805,15 @@ fn replace_in_range(
 ) -> EditSpec {
     let char_count = chars.chars().count();
 
-    let special_handling = get_special_handling(&rope, cursor, char_count);
+    let special_handling = get_special_handling(rope, cursor, char_count);
 
     let (delete_edit, delete_offset, delete_delta) = dbg!(delete_within_range(rope, range));
 
     // AKA `-delete_delta - char_count`.
     // Doing it like this avoids some overflow cases
-    let char_delete_count = (-(delete_delta + char_count as isize)) as usize;
+    let char_delete_count = usize::try_from(
+        -(delete_delta + char_count as isize)
+    ).unwrap_or(0);
 
     let insert_edit_range = some_or!(
         range.checked_sub_from_max(char_delete_count),

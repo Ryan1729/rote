@@ -1,6 +1,6 @@
 #![deny(bindings_with_variant_name, unused)]
 use window_layer::{ColouredText, MulticolourTextSpec, TextLayout, TextOrRect, TextSpec, VisualSpec};
-use wimp_types::{CommandsMap, LocalMenuView, View, WimpMenuMode, WimpMenuView, FindReplaceMode, ui_id, ui, ui::{ButtonState}, BufferStatus, CommandKey, Dimensions, RunConsts, ViewRunState, ui::{ListSelection, ListSelectionWindowSize}, command_keys};
+use wimp_types::{CommandsMap, LocalMenu, View, WimpMenuMode, WimpMenu, FindReplaceMode, ui_id, ui, ui::{ButtonState}, BufferStatus, CommandKey, Dimensions, RunConsts, ViewRunState, ui::{ListSelection, ListSelectionWindowSize}, command_keys};
 use macros::{c, d, dbg, invariant_assert, u};
 use platform_types::{
     *,
@@ -360,7 +360,7 @@ pub fn view<'view>(
 
     perf_viz::start_record!("render view.menu()");
     match view.menu() {
-        WimpMenuView { local_menu: &None, platform_menu } => {
+        WimpMenu { local_menu: &None, platform_menu } => {
             match platform_menu {
                 MenuView::None => {}
                 MenuView::FindReplace(FindReplaceView {
@@ -503,15 +503,15 @@ pub fn view<'view>(
                 }
             }
         }
-        WimpMenuView { local_menu: Some(local_menu), .. } => {
+        WimpMenu { local_menu: Some(local_menu), .. } => {
             match local_menu {
-                LocalMenuView::Command => {
+                LocalMenu::Command => {
                     render_command_menu(
                         &mut pen!(),
                         commands,
                     );
                 }
-                LocalMenuView::Debug => {
+                LocalMenu::Debug => {
                     let DebugMenuInfo {
                         outer_rect,
                         first_button_rect,

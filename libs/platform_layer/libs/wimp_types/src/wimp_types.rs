@@ -93,23 +93,24 @@ mod view {
     d!(for WimpMenuMode: WimpMenuMode::Hidden);
 
     #[derive(Clone, Debug)]
-    pub enum LocalMenuView {
+    pub enum LocalMenu {
         Command,
         Debug,
     }
 
     #[derive(Clone, Debug)]
-    pub struct WimpMenuView<'view> {
+    pub struct WimpMenu<'view> {
         pub platform_menu: &'view MenuView,
-        pub local_menu: &'view Option<LocalMenuView>,
+        pub local_menu: &'view Option<LocalMenu>,
     }
 
-    impl WimpMenuView<'_> {
+    impl WimpMenu<'_> {
+        #[must_use]
         pub fn get_mode(&self) -> WimpMenuMode {
             match self.local_menu {
-                Some(LocalMenuView::Command) => WimpMenuMode::Command,
-                Some(LocalMenuView::Debug) => WimpMenuMode::Debug,
-                None => self.platform_menu.get_mode().clone().into()
+                Some(LocalMenu::Command) => WimpMenuMode::Command,
+                Some(LocalMenu::Debug) => WimpMenuMode::Debug,
+                None => self.platform_menu.get_mode().into()
             }
         }
     }
@@ -146,14 +147,14 @@ mod view {
     #[derive(Default, Debug)]
     // This struct hides the platform::View, but allows borrowing the buffers
     // disjointly, which helps rustc figure out some ownership things.
-    pub struct BuffersView {
+    pub struct Buffers {
         // We want to hide the `platform_types::View` from the rest of the code
-        // because we had a bug when LocalMenuView was introduced that hiding
+        // because we had a bug when LocalMenu was introduced that hiding
         // the `platform_types::View` prevents.
         platform_view: platform_types::View
     }
 
-    impl BuffersView {
+    impl Buffers {
         pub fn buffer_iter(&self) -> impl Iterator<Item = (g_i::Index, &platform_types::BufferLabel)> {
             self.platform_view.buffers.iter_with_indexes()
         }
@@ -161,15 +162,15 @@ mod view {
 
     #[derive(Default, Debug)]
     pub struct View {
-        pub buffers: BuffersView,
-        pub local_menu: Option<LocalMenuView>,
-        pub scratch: ViewScratch,
+        pub buffers: Buffers,
+        pub local_menu: Option<LocalMenu>,
+        pub scratch: Scratch,
     }
 
     // TODO Maybe replace this with a bump allocated arena that is cleared each
     // render?
     #[derive(Clone, Default, Debug, PartialEq)]
-    pub struct ViewScratch {
+    pub struct Scratch {
         pub buffer_view_data: BufferViewData
     }
 
@@ -204,14 +205,14 @@ mod view {
         pub fn toggle_command_menu(&mut self) {
             toggle_impl!{
                 self,
-                LocalMenuView::Command,
+                LocalMenu::Command,
             }
         }
 
         pub fn toggle_debug_menu(&mut self) {
             toggle_impl!{
                 self,
-                LocalMenuView::Debug,
+                LocalMenu::Debug,
             }
         }
 
@@ -230,6 +231,7 @@ mod view {
             self.buffers.platform_view.edited_transitions.clone().into_iter()
         }
 
+        #[must_use]
         #[perf_viz::record]
         pub fn buffers_count(&self) -> g_i::Length {
             self.buffers.platform_view.buffers.len()
@@ -239,6 +241,7 @@ mod view {
             self.buffers.buffer_iter()
         }
 
+        #[must_use]
         fn get_selected_cursors(&self) -> Option<&[CursorView]> {
             if self.local_menu.is_none() {
                 return self.buffers.platform_view.get_selected_cursors();
@@ -246,54 +249,66 @@ mod view {
             None
         }
 
+        #[must_use]
         pub fn get_navigation(&self) -> Option<ui::Navigation> {
             self.get_selected_cursors()
                 .map(navigation_from_cursors)
         }
 
+        #[must_use]
         pub fn current_buffer_kind(&self) -> platform_types::BufferIdKind {
             self.buffers.platform_view.current_buffer_kind
         }
 
+        #[must_use]
         pub fn current_buffer_id(&self) -> platform_types::BufferId {
             self.buffers.platform_view.current_buffer_id()
         }
 
+        #[must_use]
         pub fn current_text_index(&self) -> g_i::Index {
             self.buffers.platform_view.current_text_index()
         }
 
+        #[must_use]
         pub fn current_text_index_and_buffer_label(&self) -> (g_i::Index, &platform_types::BufferLabel) {
             self.buffers.platform_view.current_text_index_and_buffer_label()
         }
 
+        #[must_use]
         pub fn get_buffer_label(&self, index: g_i::Index) -> Option<&platform_types::BufferLabel> {
             self.buffers.platform_view.get_buffer_label(index)
         }
 
+        #[must_use]
         pub fn current_path(&self) -> Option<std::path::PathBuf> {
             self.buffers.platform_view.current_path()
         }
 
+        #[must_use]
         pub fn stats(&self) -> &platform_types::ViewStats {
             &self.buffers.platform_view.stats
         }
 
-        pub fn menu(&self) -> WimpMenuView {
-            WimpMenuView {
+        #[must_use]
+        pub fn menu(&self) -> WimpMenu {
+            WimpMenu {
                 platform_menu: &self.buffers.platform_view.menu,
                 local_menu: &self.local_menu,
             }
         }
 
+        #[must_use]
         pub fn menu_mode(&self) -> WimpMenuMode {
             self.menu().get_mode()
         }
 
+        #[must_use]
         pub fn status_line(&self) -> &platform_types::StatusLineView {
             &self.buffers.platform_view.status_line
         }
 
+        #[must_use]
         pub fn index_state(&self) -> g_i::State {
             self.buffers.platform_view.buffers.index_state()
         }
@@ -323,7 +338,7 @@ mod view {
         output
     }
 }
-pub use view::{View, LocalMenuView, WimpMenuMode, WimpMenuView, FindReplaceMode};
+pub use view::{View, LocalMenu, WimpMenuMode, WimpMenu, FindReplaceMode};
 
 #[derive(Copy, Clone, Debug, Default)]
 /// Process Ids for the different threads. As of this writing, only used to display
@@ -474,7 +489,7 @@ impl DebugMenuState {
     }
 }
 
-/// The subset of RunState that is relevant to rendering the view.
+/// The subset of `RunState` that is relevant to rendering the view.
 #[derive(Debug, Default)]
 pub struct ViewRunState {
     pub view: View,
@@ -507,14 +522,17 @@ pub mod command_keys {
     pub const ALT: ModifiersState = ModifiersState::ALT;
     pub const LOGO: ModifiersState = ModifiersState::LOGO;
 
+    #[must_use]
     pub fn command_menu() -> CommandKey {
         (ModifiersState::empty(), KeyCode::Apps)
     }
 
+    #[must_use]
     pub fn debug_menu() -> CommandKey {
         (CTRL | SHIFT, KeyCode::Slash)
     }
 
+    #[must_use]
     pub fn add_run_state_snapshot() -> CommandKey {
         (CTRL | SHIFT, KeyCode::F1)
     }
@@ -568,6 +586,8 @@ pub mod ui {
 
     // This is probably excessive size-wise. We can make this smaller if there is a
     // noticable perf impact but given this goes on the stack, that seems unlikely?
+    // TODO Try `Box`ing `Data`, and measure the difference.
+    #[allow(clippy::large_enum_variant)]
     #[derive(Clone, Copy, Ord, PartialOrd, PartialEq, Eq)]
     pub enum Id {
         /// The generic data variant. Used when the data's sizes are not known ahead of time
@@ -583,7 +603,7 @@ pub mod ui {
 
                 'outer: for n in data.iter() {
                     let bytes = n.to_be_bytes();
-                    for &byte in bytes.iter() {
+                    for &byte in &bytes {
                         if byte == 0 {
                             break 'outer;
                         }
@@ -604,6 +624,7 @@ pub mod ui {
     });
 
     impl Id {
+        #[must_use]
         pub const fn new(id: Data) -> Self {
             Id::Data(id)
         }
@@ -623,6 +644,7 @@ pub mod ui {
     pub type ListSelectionWindowSize = core::num::NonZeroUsize;
 
     impl ListSelection {
+        #[must_use]
         pub fn move_up(self) -> Self {
             let index = self.index.saturating_sub(1);
             Self {
@@ -631,6 +653,7 @@ pub mod ui {
             }
         }
 
+        #[must_use]
         pub fn move_down(self, window_size: ListSelectionWindowSize, length: usize) -> Self {
             let index = self.index.saturating_add(1);
 
@@ -687,6 +710,7 @@ pub mod ui {
             }
         }
 
+        #[must_use]
         pub fn is_pressed(&self) -> bool {
             match *self {
                 Self::ReleasedThisFrame | Self::Released => false,
@@ -744,6 +768,8 @@ pub mod ui {
                 self.fade_alpha_accumulator = self.fade_alpha_accumulator.rem_euclid(2.0);
             }
         }
+
+        #[must_use]
         pub fn get_fade_alpha(&self) -> f32 {
             if self.fade_solid_override_accumulator > 0.0 {
                 1.0

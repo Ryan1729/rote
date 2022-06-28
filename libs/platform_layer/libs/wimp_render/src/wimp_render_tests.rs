@@ -637,14 +637,14 @@ fn rendering_the_command_menu_causes_the_keyboard_focus_to_be_set() {
 
     assert!(!matches!(
         vrs.view.menu(),
-        WimpMenuView { local_menu: Some(LocalMenuView::Command), .. },
+        WimpMenu { local_menu: Some(LocalMenu::Command), .. },
     ));
 
     vrs.view.toggle_command_menu();
 
     assert!(matches!(
         vrs.view.menu(),
-        WimpMenuView { local_menu: Some(LocalMenuView::Command), .. },
+        WimpMenu { local_menu: Some(LocalMenu::Command), .. },
     ));
 
     assert!(!matches!(

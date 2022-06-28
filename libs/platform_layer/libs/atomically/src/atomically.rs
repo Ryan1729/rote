@@ -13,6 +13,9 @@ impl From<Overwrites> for atomicwrites::OverwriteBehavior {
     }
 }
 
+/// # Errors
+/// Returns an `Err` if there was either an `Err` returned from the writer,
+/// or an error happened when writing/renaming the temp file.
 pub fn write(
     path: impl AsRef<std::path::Path>,
     overwrite: Overwrites,
@@ -37,7 +40,7 @@ pub fn write(
     );
 
     file.write(writer).map_err(|err| match err {
-        atomicwrites::Error::Internal(e) => e,
-        atomicwrites::Error::User(e) => e,
+        atomicwrites::Error::Internal(e)
+        | atomicwrites::Error::User(e) => e,
     })
 }
