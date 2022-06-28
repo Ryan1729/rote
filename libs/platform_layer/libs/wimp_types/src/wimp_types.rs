@@ -751,9 +751,10 @@ pub mod ui {
         pub fn note_interaction(&mut self) {
             self.fade_solid_override_accumulator = 1.5;
         }
+
         #[perf_viz::record]
         pub fn add_dt(&mut self, dt: std::time::Duration) {
-            let offset = ((dt.as_millis() as u64 as f32) / 1000.0) * 1.5;
+            let offset = dt.as_secs_f32() * 1.5;
 
             if self.fade_solid_override_accumulator > 0.0 {
                 self.fade_solid_override_accumulator -= offset;
