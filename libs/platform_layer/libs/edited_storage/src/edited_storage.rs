@@ -23,6 +23,8 @@ fn get_names_to_uuid(edited_files_index_path: &Path) -> HashMap<BufferName, u128
     names_to_uuid
 }
 
+/// # Errors
+/// This returns an error if there is an issue writing to the passed in paths.
 pub fn store_buffers(
     edited_files_dir: &Path,
     edited_files_index_path: &Path,
@@ -41,11 +43,11 @@ pub fn store_buffers(
 
     for (i, info) in all_buffers.into_iter().enumerate() {
         let filename = if let Some(uuid) = names_to_uuid.get(&info.name) {
-            get_path(info.name_string, uuid)
+            get_path(&info.name_string, uuid)
         } else {
             let uuid: u128 = rng.gen();
 
-            let path = get_path(info.name_string, &uuid);
+            let path = get_path(&info.name_string, &uuid);
 
             // we don't expect to read this again in the same
             // loop, but it should be saved back to disk for
@@ -75,7 +77,9 @@ pub fn store_buffers(
         result.push((index, BufferStatusTransition::SaveTemp));
     }
 
-    let mut index_string = String::with_capacity(names_to_uuid.len() * INDEX_LINE_LENGTH_ESTIMATE);
+    let mut index_string = String::with_capacity(
+        names_to_uuid.len() * INDEX_LINE_LENGTH_ESTIMATE
+    );
 
     for (k, v) in names_to_uuid {
         serialize(&k, v, &mut index_string);
@@ -97,7 +101,7 @@ pub enum CanonicalizeErrorKind {
 fmt_display!{
     for CanonicalizeErrorKind: match kind {
         IO(e) => e.to_string(),
-        Str(s) => s.to_string(),
+        Str(s) => (*s).to_string(),
     }
 }
 
@@ -108,6 +112,7 @@ pub struct CanonicalizeError {
 }
 
 impl CanonicalizeError {
+    #[must_use]
     pub fn io(last_path_tried: PathBuf, error: std::io::Error) -> Self {
         Self {
             kind: CanonicalizeErrorKind::IO(error),
@@ -115,6 +120,7 @@ impl CanonicalizeError {
         }
     }
 
+    #[must_use]
     pub fn str(last_path_tried: PathBuf, error: &'static str) -> Self {
         Self {
             kind: CanonicalizeErrorKind::Str(error),
@@ -135,16 +141,18 @@ pub struct CanonicalPath {
 }
 
 impl <'path> CanonicalPath {
+    #[must_use]
     pub fn to_string_lossy(&'path self) -> std::borrow::Cow<'path, str> {
+        use std::borrow::Cow::{Borrowed, Owned};
+
         if let Some(position) = self.position {
             if let Some(os_str) = self.path.file_name() {
                 let mut file_name = os_str.to_owned();
-                file_name.push::<String>(format!(":{}", position.line).into());
+                file_name.push::<String>(format!(":{}", position.line));
 
                 let adjusted_path = self.path.with_file_name(file_name);
                 let cow = adjusted_path.to_string_lossy();
 
-                use std::borrow::Cow::{Borrowed, Owned};
                 return match cow {
                     Borrowed(s) => Owned(s.to_owned()),
                     Owned(s) => Owned(s)
@@ -156,7 +164,12 @@ impl <'path> CanonicalPath {
     }
 }
 
-pub fn canonicalize<P: AsRef<Path>>(p: P) -> Result<CanonicalPath, CanonicalizeError> {
+/// # Errors
+/// Retruns an error if the path cannot be parsed correctly, or the 
+/// `Path::canocicalize` call fails.
+pub fn canonicalize<P: AsRef<Path>>(
+    p: P
+) -> Result<CanonicalPath, CanonicalizeError> {
     let path = p.as_ref();
 
     path.file_name()
@@ -180,7 +193,7 @@ pub fn canonicalize<P: AsRef<Path>>(p: P) -> Result<CanonicalPath, CanonicalizeE
                         position,
                     }
                 })
-                .map_err(|e| CanonicalizeError::io(adjusted_path.to_owned(), e))
+                .map_err(|e| CanonicalizeError::io(adjusted_path.clone(), e))
         })
         // If the path is not valid unicode or whatever, then we just try
         // it as is.
@@ -202,6 +215,7 @@ pub struct LoadedTab {
     pub position: Option<Position>,
 }
 
+#[must_use]
 pub fn load_previous_tabs(
     edited_files_dir: &Path,
     edited_files_index_path: &Path,
@@ -215,7 +229,7 @@ pub fn load_previous_tabs(
     pairs.sort();
 
     for (name, uuid) in pairs {
-        let path = edited_files_dir.join(get_path(name.to_string(), &uuid));
+        let path = edited_files_dir.join(get_path(&name.to_string(), &uuid));
 
         if let Ok(tab) = load_tab_with_name(path, name) {
             result.push(tab);
@@ -224,6 +238,8 @@ pub fn load_previous_tabs(
     result
 }
 
+/// # Errors
+/// This returns an error if the path cannot be read.
 pub fn load_tab(canonical_path: CanonicalPath) -> Result<LoadedTab, std::io::Error>{
     std::fs::read_to_string(&canonical_path.path)
         .map(|data| {
@@ -244,7 +260,7 @@ fn load_tab_with_name<P: AsRef<Path>>(path: P, name: BufferName) -> std::io::Res
     })
 }
 
-fn get_path(buffer_name: String, uuid: &u128) -> PathBuf {
+fn get_path(buffer_name: &str, uuid: &u128) -> PathBuf {
     let slug = buffer_name.replace(|c: char| !c.is_ascii_alphabetic(), "_");
 
     PathBuf::from(format!("{}_{:032x}", slug, uuid))

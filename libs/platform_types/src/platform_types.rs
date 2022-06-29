@@ -736,6 +736,7 @@ pub type LoadBufferViewsResult = Result<BufferView, LoadBufferViewError>;
 
 pub type LoadBufferViews = fn(&[BufferName]) -> Vec<LoadBufferViewsResult>;
 
+#[derive(Copy, Clone)]
 pub struct EditorAPI {
     pub update_and_render: UpdateAndRender,
     pub load_buffer_views: LoadBufferViews,

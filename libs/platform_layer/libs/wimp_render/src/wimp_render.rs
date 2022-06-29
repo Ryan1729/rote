@@ -136,6 +136,7 @@ const TAB_BACKGROUND_COLOUR: Colour = palette![cyan];
 const TAB_TEXT_COLOUR: Colour = palette![white];
 
 #[derive(Clone, Debug, PartialEq)]
+#[must_use]
 pub enum ViewAction {
     None,
     Input(Input),
@@ -151,6 +152,7 @@ impl ViewAction {
         }
     }
 
+    #[must_use]
     pub fn is_none(&self) -> bool {
         matches!(self, ViewAction::None)
     }
@@ -202,6 +204,10 @@ pub fn view<'view>(
     }: &RunConsts,
     dt: std::time::Duration,
 ) -> ViewOutput<'view> {
+    const PER_BUFFER_TEXT_OR_RECT_ESTIMATE: usize =
+        4   // 2-4 per tab, usually 2
+    ;
+
     *stats = d!();
     ui.frame_init(&view);
 
@@ -218,9 +224,6 @@ pub fn view<'view>(
         ..
     } = dimensions.font;
 
-    const PER_BUFFER_TEXT_OR_RECT_ESTIMATE: usize =
-        4   // 2-4 per tab, usually 2
-    ;
     ui.add_dt(dt);
 
     let buffer_count: usize = view.buffers_count().into();
@@ -949,13 +952,6 @@ fn render_file_switcher_menu<'view>(
     current_rect.max.y += vertical_shift;
     current_rect.max.y += list_bottom_margin;
 
-    fn get_result_id(selection: ListSelection) -> ui::Id {
-        ui::Id::TaggedListSelection(
-            ui::Tag::FileSwitcherResults,
-            selection
-        )
-    }
-
     let selection = navigated_result.unwrap_or_default();
 
     // TODO Is the reset bug caused by not calling set_next_hot on the skipped ones?
@@ -964,6 +960,13 @@ fn render_file_switcher_menu<'view>(
         .skip(selection.window_start)
         .take(window_size.get())
     {
+        fn get_result_id(selection: ListSelection) -> ui::Id {
+            ui::Id::TaggedListSelection(
+                ui::Tag::FileSwitcherResults,
+                selection
+            )
+        }
+
         let path_text = result.to_str().unwrap_or("Non-UTF8 Path");
         let rect = shrink_by(current_rect, list_margin);
 
@@ -1624,6 +1627,8 @@ fn get_tab_spaced_rect(
     }
 }
 
+// The names are meant to be paired across `x` and `y` in this case.
+#[allow(clippy::similar_names)]
 fn enlarge_by(
     ssr!(min_x, min_y, max_x, max_y): ScreenSpaceRect,
     enlarge_amount: Spacing,
@@ -1642,6 +1647,8 @@ fn enlarge_by(
     )
 }
 
+// The names are meant to be paired across `x` and `y` in this case.
+#[allow(clippy::similar_names)]
 fn shrink_by(
     ssr!(min_x, min_y, max_x, max_y): ScreenSpaceRect,
     shrink_amount: Spacing,

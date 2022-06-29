@@ -791,7 +791,7 @@ fn get_line_slicing_edit(
                 cursor_info.cursor,
                 rope,
                 leading_line_edge_range,
-                chars
+                chars.into()
             )
         },
     )
@@ -801,18 +801,22 @@ fn replace_in_range(
     cursor: Cursor,
     rope: &mut Rope,
     range: AbsoluteCharOffsetRange,
-    chars: String
+    chars: CountedString
 ) -> EditSpec {
-    let char_count = chars.chars().count();
+    let char_count = chars.count;
 
     let special_handling = get_special_handling(rope, cursor, char_count);
 
     let (delete_edit, delete_offset, delete_delta) = dbg!(delete_within_range(rope, range));
 
+    let char_count = isize::try_from(char_count).unwrap_or(0);
     // AKA `-delete_delta - char_count`.
-    // Doing it like this avoids some overflow cases
+    // Doing it like this avoids some overflow cases. If we do somehow hit those
+    // cases, then we just don't perform some enormous delete, which seems better
+    // than a crash. But at the same time, it seems like such an unlikely case that
+    // passing `Result`s around wouldn't be worth it.
     let char_delete_count = usize::try_from(
-        -(delete_delta + char_count as isize)
+        -(delete_delta + char_count)
     ).unwrap_or(0);
 
     let insert_edit_range = some_or!(
@@ -821,16 +825,16 @@ fn replace_in_range(
     );
 
     let insert_range = delete_edit.range.min();
-    let insert_option = rope.insert(insert_range, &chars);
+    let insert_option = rope.insert(insert_range, &chars.chars);
     if cfg!(feature = "invariant-checking") {
-        insert_option.expect(
-            &format!("offset {insert_range} was invalid!")
+        insert_option.unwrap_or_else(
+            || panic!("offset {insert_range} was invalid!")
         );
     }
 
     dbg!(
         RangeEdits {
-            insert_range: Some(RangeEdit { chars, range: insert_edit_range }),
+            insert_range: Some(RangeEdit { chars: chars.chars, range: insert_edit_range }),
             delete_range: Some(delete_edit),
         },
         CursorPlacementSpec {
@@ -852,26 +856,30 @@ pub struct Edit {
 }
 
 impl Edit {
+    #[must_use]
     pub fn range_edits(&self) -> &Vec1<RangeEdits> {
         &self.range_edits
     }
 
+    #[must_use]
     pub fn cursors(&self) -> &Change<Cursors> {
         &self.cursors
     }
 
+    #[must_use]
     pub fn selected(&self) -> Vec<String> {
         let mut strings = Vec::with_capacity(self.range_edits.len());
 
         for range_edit in self.range_edits.iter() {
             if let Some(RangeEdit { chars, .. }) = &range_edit.delete_range {
-                strings.push(chars.to_owned());
+                strings.push(chars.clone());
             }
         }
 
         strings
     }
 
+    #[must_use]
     pub fn read_at(&self, i: usize) -> Option<(Change<Option<&Cursor>>, &RangeEdits)> {
         let old_cursors = self.cursors.old.borrow_cursors();
         let new_cursors = self.cursors.new.borrow_cursors();
@@ -893,6 +901,7 @@ impl Edit {
     // TODO write a test that fails when we add a new field that isn't counted here.
     // A compile-time assert would be preferable, of course.
     #[perf_viz::record]
+    #[must_use]
     pub fn size_in_bytes(&self) -> usize {
         use core::mem;
 
@@ -961,6 +970,7 @@ pub struct RangeEdit {
 impl RangeEdit {
     // TODO write a test that fails when we add a new field that isn't counted here.
     // A compile-time assert would be preferable, of course.
+    #[must_use]
     pub fn size_in_bytes(&self) -> usize {
         use core::mem;
 
@@ -985,6 +995,7 @@ pub struct RangeEdits {
 impl RangeEdits {
     // TODO write a test that fails when we add a new field that isn't counted here.
     // A compile-time assert would be preferable, of course.
+    #[must_use]
     pub fn size_in_bytes(&self) -> usize {
         use core::mem;
 
@@ -1068,7 +1079,7 @@ fn delete_within_range(
     let remove_option = rope.remove(range.range());
     if cfg!(feature = "invariant-checking") {
         let range = range.range();
-        remove_option.expect(&format!("range {range:?} was invalid!"));
+        remove_option.unwrap_or_else(|| panic!("range {range:?} was invalid!"));
     }
 
     let min = range.min();
@@ -1076,10 +1087,12 @@ fn delete_within_range(
     (
         RangeEdit { chars, range },
         max,
-        min.0 as isize - max.0 as isize,
+        isize::try_from(min.0).unwrap_or(0)
+        - isize::try_from(max.0).unwrap_or(0),
     )
 }
 
+#[must_use]
 pub fn line_indicies_touched_by(
     rope: &Rope,
     range: AbsoluteCharOffsetRange,
@@ -1097,6 +1110,7 @@ pub fn line_indicies_touched_by(
     Some(output)
 }
 
+#[must_use]
 pub fn copy_string(rope: &Rope, range: AbsoluteCharOffsetRange) -> String {
     rope.slice(range.range())
         .map(|slice| {
@@ -1144,6 +1158,7 @@ mod cursored_rope {
     }
 
     impl CursoredRope {
+        #[must_use]
         pub fn new(
             rope: Rope,
             cursors: Cursors,
@@ -1153,6 +1168,7 @@ mod cursored_rope {
             output
         }
 
+        #[must_use]
         pub fn new_vec1(
             rope: Rope,
             cursor_vec1: Vec1<Cursor>,
@@ -1167,6 +1183,7 @@ mod cursored_rope {
         }
 
         #[cfg(any(test, feature = "pub_arb"))]
+        #[must_use]
         pub fn split(self) -> (Rope, Cursors) {
             (self.rope, self.cursors)
         }
@@ -1176,23 +1193,26 @@ mod cursored_rope {
         }
 
         pub fn set_cursors(&mut self, cursors: Cursors) {
-            set_cursors(&self.rope, &mut self.cursors, cursors)
+            set_cursors(&self.rope, &mut self.cursors, cursors);
         }
 
+        #[must_use]
         pub fn borrow_rope(&self) -> &Rope {
             &self.rope
         }
 
+        #[must_use]
         pub fn borrow_cursors(&self) -> &Cursors {
             &self.cursors
         }
 
+        #[must_use]
         pub fn borrow_tuple(&self) -> (&Rope, &Cursors) {
             (&self.rope, &self.cursors)
         }
 
         pub fn reset_cursor_states(&mut self) {
-            self.cursors.reset_states()
+            self.cursors.reset_states();
         }
 
         #[cfg(any(test, feature = "pub_arb"))]
@@ -1211,10 +1231,12 @@ mod cursored_rope {
             for range_edits in edit.range_edits.iter() {
                 if let Some(RangeEdit { range, .. }) = range_edits.delete_range {
                     let remove_option = self.rope.remove(range.range());
-                    if cfg!(feature = "invariant-checking") {
-                        let range = range.range();
-                        remove_option.expect(&format!("range {range:?} was invalid!"));
-                    }
+                    macros::invariant_assert!(
+                        remove_option.is_some(),
+                        "range {:?} was invalid!",
+                        range.range()
+                    );
+                    let _ = remove_option;
                 }
 
                 if let Some(RangeEdit {
@@ -1232,6 +1254,7 @@ mod cursored_rope {
             self.set_cursors(edit.cursors.new.clone());
         }
 
+        #[must_use]
         pub fn map_cursor_infos<A, F>(&self, mut mapper: F) -> Vec1<A>
         where
             F: FnMut(CursorInfo) -> A
@@ -1289,6 +1312,7 @@ mod cursored_rope {
 
     impl CursorInfo {
         /// This may be an empty range, (`min == max`).
+        #[must_use]
         pub fn selected_range(&self) -> AbsoluteCharOffsetRange {
             AbsoluteCharOffsetRange::new(
                 self.offset,

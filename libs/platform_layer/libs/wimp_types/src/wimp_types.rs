@@ -800,7 +800,7 @@ pub mod ui {
         pub fn frame_init(&mut self, view: &View) {
             match self.keyboard.hot {
                 ui::Id::TaggedListSelection(..) => {},
-                _ => {
+                ui::Id::Data(..) => {
                     match view.menu().get_mode() {
                         WimpMenuMode::FileSwitcher => {
                             if let Some(Navigation::Down) = view.get_navigation() {
@@ -988,9 +988,10 @@ pub mod ui {
     d!(for Navigation: Navigation::None);
 }
 
-/// This macro creates a ui::Id based on the expression passed in and the location of the invocation
-/// in the file. This implies it may assign the same id to multiple `id` invocations inside another
-/// macro. A suggested fix for that is to pass down the needed ids from outside that macro.
+/// This macro creates a `ui::Id` based on the expression passed in and the location
+/// of the invocation in the file. This implies it may assign the same id to
+/// multiple `id` invocations inside another macro. A suggested fix for that is to
+/// pass down the needed ids from outside that macro.
 #[macro_export]
 macro_rules! ui_id {
     () => {{
@@ -1065,7 +1066,11 @@ impl From<EditedTransition> for BufferStatusTransition {
     }
 }
 
-pub fn transform_status(status: BufferStatus, transition: BufferStatusTransition) -> BufferStatus {
+#[must_use]
+pub fn transform_status(
+    status: BufferStatus,
+    transition: BufferStatusTransition
+) -> BufferStatus {
     u!{BufferStatus}
     u!{BufferStatusTransition}
     match (status, transition) {
@@ -1083,7 +1088,7 @@ pub fn transform_at(
 ) {
     let previous = map
         .get(index_state, index)
-        .cloned()
+        .copied()
         .unwrap_or_default();
 
     map.insert(

@@ -6,11 +6,18 @@ use platform_types::{BufferName, Cmd, EditorAPI, Input, LoadBufferViewsResult, V
 use wimp_types::{BufferInfo, BufferStatusTransition, CustomEvent, EditedFilesThread, EditorThreadInput};
 use window_layer::EventLoopProxy;
 
+// I suspect we wouldn't notice the difference if we were to box this, and this way
+// has fewer moving parts.
+// TODO Actually try boxing this and measure the difference.
+#[allow(clippy::large_enum_variant)]
 pub enum Output {
     Rendered((View, Cmd, Cmd, LoadBufferViewsResult)),
     Pid(u32)
 }
 
+/// # Panics
+/// This fn panics if the `load_buffer_views` field of `EditorAPI` doesn't always 
+/// return a `Vec` of at least length one when passed a length one slice.
 pub fn start(
     editor_api: EditorAPI,
     proxy: EventLoopProxy<CustomEvent>,
