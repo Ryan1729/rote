@@ -339,19 +339,19 @@ impl Parsers {
     ) -> Spans {
         if cfg!(feature = "skip_parsing") {
             return query::plaintext_spans_for(to_parse);
-        } else {
-            match self.get_spans_result(
-                to_parse,
-                buffer_name,
-                kind,
-            ) {
-                Ok(spans) => spans,
-                Err((to_parse, err)) => {
-                    // TODO: Propagate error to the editor view so it can be 
-                    // displayed to the user.
-                    eprintln!("{}", err);
-                    query::plaintext_spans_for(to_parse)
-                }
+        }
+
+        match self.get_spans_result(
+            to_parse,
+            buffer_name,
+            kind,
+        ) {
+            Ok(spans) => spans,
+            Err((to_parse, err)) => {
+                // TODO: Propagate error to the editor view so it can be 
+                // displayed to the user.
+                eprintln!("{}", err);
+                query::plaintext_spans_for(to_parse)
             }
         }
     }
@@ -391,7 +391,6 @@ impl Parsers {
         edit: &Edit,
         rope: &Rope
     ) {
-        dbg!("acknowledge_edit");
         use Parsers::*;
         self.attempt_init();
 
@@ -617,7 +616,6 @@ impl InitializedParsers {
         buffer_name: &BufferName,
         kind: ParserKind,
     ) -> SpansResult<'to_parse> {
-        dbg!("get_spans");
         use ParserKind::*;
         match kind {
             Plaintext => {
@@ -1125,13 +1123,13 @@ mod query {
     
         // TODO maybe test this in isolation from the tree-sitter query stuff.
         let mut receive_match = |m: Match| {
-            let node = m.capture.node;
-            let kind = span_kind_from_match(m);
-        
             struct PotentialSpanView {
                 one_past_end: usize,
                 kind: SpanKind,
             }
+
+            let node = m.capture.node;
+            let kind = span_kind_from_match(m);
 
             macro_rules! get_prev {
                 () => {

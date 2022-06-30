@@ -1245,9 +1245,11 @@ mod cursored_rope {
                 {
                     let offset = range.min();
                     let insert_option = self.rope.insert(offset, chars);
-                    if cfg!(feature = "invariant-checking") {
-                        insert_option.expect(&format!("offset {offset} was invalid!"));
-                    }
+                    macros::invariant_assert!(
+                        insert_option.is_some(),
+                        "offset {offset} was invalid!"
+                    );
+                    let _ = insert_option;
                 }
             }
 
