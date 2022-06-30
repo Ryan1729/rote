@@ -652,7 +652,7 @@ fn rendering_the_command_menu_causes_the_keyboard_focus_to_be_set() {
         ui::Id::TaggedListSelection(ui::Tag::CommandMenu, ..),
     ));
 
-    view(&mut vrs, &d!(), d!());
+    let _ = view(&mut vrs, &d!(), d!());
 
     assert!(matches!(
         vrs.ui.keyboard.hot,
@@ -662,7 +662,7 @@ fn rendering_the_command_menu_causes_the_keyboard_focus_to_be_set() {
 
 #[test]
 fn view_does_not_panic_with_empty_input() {
-    view(&mut d!(), &d!(), d!());
+    let _ = view(&mut d!(), &d!(), d!());
 
     // If we got here, the test passes.
     assert!(true);
