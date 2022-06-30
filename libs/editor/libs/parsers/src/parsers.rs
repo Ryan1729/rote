@@ -110,8 +110,7 @@ impl Iterator for ParserKind {
             Rust(style) => {
                 Some(
                     style.next()
-                        .map(Rust)
-                        .unwrap_or_else(|| C(d!()))
+                        .map_or_else(|| C(d!()), Rust)
                 )
             },
             C(style) => {
@@ -135,15 +134,13 @@ impl DoubleEndedIterator for ParserKind {
             Rust(style) => {
                 Some(
                     style.next_back()
-                        .map(Rust)
-                        .unwrap_or_else(|| Plaintext)
+                        .map_or_else(|| Plaintext, C)
                 )
             },
             C(style) => {
                 Some(
                     style.next_back()
-                        .map(C)
-                        .unwrap_or_else(|| Rust(Style::LAST))
+                        .map_or_else(|| Rust(Style::LAST), Rust)
                 )
             }
         }.map(|p| {
@@ -153,6 +150,7 @@ impl DoubleEndedIterator for ParserKind {
     }
 }
 impl ParserKind {
+    #[must_use]
     pub fn default_from_name(name: &BufferName) -> Self {
         u!{ParserKind}
         match name.get_extension_or_empty() {
@@ -162,6 +160,7 @@ impl ParserKind {
         }
     }
 
+    #[must_use]
     fn to_ts_name(self) -> Option<TSName> {
         match self {
             Self::Rust(_) => Some(TSName::Rust),
@@ -183,6 +182,7 @@ enum TSName {
 const TS_NAME_COUNT: usize = 2;
 
 impl TSName {
+    #[must_use]
     const fn to_index(self) -> usize {
         match self {
             Self::Rust => 0,

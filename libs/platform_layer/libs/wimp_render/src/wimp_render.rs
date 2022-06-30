@@ -183,6 +183,7 @@ impl From<Option<CommandKey>> for ViewAction {
 }
 
 #[derive(Clone, Default, Debug)]
+#[must_use]
 pub struct ViewOutput<'view> {
     pub text_or_rects: Vec<TextOrRect<'view>>,
     pub action: ViewAction,
@@ -209,7 +210,7 @@ pub fn view<'view>(
     ;
 
     *stats = d!();
-    ui.frame_init(&view);
+    ui.frame_init(view);
 
     stats.latest_view_function_time_span = TimeSpan::start();
 
@@ -246,7 +247,7 @@ pub fn view<'view>(
     let UpperPositionInfo {
         edit_y,
         ..
-    } = upper_position_info(&tab_char_dim);
+    } = upper_position_info(tab_char_dim);
 
     perf_viz::start_record!("fill text_or_rects");
 
@@ -269,7 +270,7 @@ pub fn view<'view>(
             padding,
             margin,
             rect,
-        } = get_tab_spaced_rect(&ui, *tab_char_dim, i, tab_count, width);
+        } = get_tab_spaced_rect(ui, *tab_char_dim, i, tab_count, width);
         if rect.min.x > width {
             break;
         }
@@ -297,7 +298,7 @@ pub fn view<'view>(
                         view.index_state(),
                         index,
                     )
-                    .cloned()
+                    .copied()
                     .unwrap_or_default()
                 {
                     BufferStatus::Unedited => None,
@@ -316,7 +317,7 @@ pub fn view<'view>(
             action = ViewAction::Input(Input::SelectBuffer(b_id!(
                 BufferIdKind::Text,
                 index
-            )))
+            )));
         }
     }
     perf_viz::end_record!("render Tabs");
@@ -539,7 +540,7 @@ pub fn view<'view>(
                         &mut pen!(),
                         ui_id!(),
                         first_button_rect,
-                        &commands,
+                        commands,
                         &command_keys::add_run_state_snapshot(),
                     );
 
@@ -671,7 +672,7 @@ pub fn view<'view>(
     //
     perf_viz::start_record!("Recolouring");
     if !ui.window_is_focused {
-        for t_or_r in text_or_rects.iter_mut() {
+        for t_or_r in &mut text_or_rects {
             u!{TextOrRect}
             match t_or_r {
                 Rect(ref mut spec) => {
