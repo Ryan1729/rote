@@ -73,7 +73,8 @@ pub fn start(
                             | Input::StripTrailingWhitespace
                             | Input::NextLanguage
                             | Input::PreviousLanguage
-                            | Input::ToggleSingleLineComments => false,
+                            | Input::ToggleSingleLineComments
+                            | Input::ToggleCase => false,
                             Input::Escape
                             | Input::ResetScroll
                             | Input::SetSizeDependents(..)

@@ -17,6 +17,11 @@
     * desired: [abc|] abc abc => [abc|] [abc|] abc
     * also desired: [|abc] abc abc => [|abc] [|abc] abc
 
+* Ctrl-Alt-D duplicate line
+
+* Ctrl-Alt-Shift-D select all
+    * Call the Ctrl-D code until it doesn't find any more matches.
+
 * if multiple things are copied with multiple cursors then if they are pasted with the same number of cursors then
     they should be pasted separately
     * given the numbers are selected by three cursors represented by "|"

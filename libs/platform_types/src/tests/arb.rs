@@ -547,6 +547,7 @@ arb_enum!{
         PreviousLanguage => Just(PreviousLanguage),
         SelectBuffer(_) => buffer_id().prop_map(SelectBuffer),
         ToggleSingleLineComments => Just(ToggleSingleLineComments),
+        ToggleCase => Just(ToggleCase),
         OpenOrSelectBuffer(_) => path_buf().prop_map(OpenOrSelectBuffer),
         CloseBuffer(_) => close_buffer(),
         SetMenuMode(_) => menu_mode().prop_map(SetMenuMode),

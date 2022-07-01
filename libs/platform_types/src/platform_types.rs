@@ -90,6 +90,7 @@ pub enum Input {
     NextLanguage,
     PreviousLanguage,
     ToggleSingleLineComments,
+    ToggleCase,
     SelectBuffer(BufferId),
     OpenOrSelectBuffer(PathBuf),
     CloseBuffer(g_i::Index),

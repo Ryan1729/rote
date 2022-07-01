@@ -769,6 +769,13 @@ impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
         )
     }
 
+    pub fn toggle_case(&mut self, listener: PossibleParserEditListener) -> PossibleEditedTransition {
+        self.record_edit(
+            edit::get_toggle_case_edit(&self.rope),
+            listener,
+        )
+    }
+
     #[perf_viz::record]
     fn record_edit(&mut self, edit: Edit, listener: PossibleParserEditListener) -> PossibleEditedTransition {
         u!{Editedness, EditedTransition}

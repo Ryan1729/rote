@@ -801,13 +801,14 @@ fn replace_in_range(
     cursor: Cursor,
     rope: &mut Rope,
     range: AbsoluteCharOffsetRange,
-    chars: CountedString
+    replace_with: CountedString
 ) -> EditSpec {
-    let char_count = chars.count;
+    let char_count = replace_with.count;
 
     let special_handling = get_special_handling(rope, cursor, char_count);
 
-    let (delete_edit, delete_offset, delete_delta) = dbg!(delete_within_range(rope, range));
+    let (delete_edit, delete_offset, delete_delta)
+        = dbg!(delete_within_range(rope, range));
 
     let char_count = isize::try_from(char_count).unwrap_or(0);
     // AKA `-delete_delta - char_count`.
@@ -825,7 +826,7 @@ fn replace_in_range(
     );
 
     let insert_range = delete_edit.range.min();
-    let insert_option = rope.insert(insert_range, &chars.chars);
+    let insert_option = rope.insert(insert_range, &replace_with.chars);
     if cfg!(feature = "invariant-checking") {
         insert_option.unwrap_or_else(
             || panic!("offset {insert_range} was invalid!")
@@ -834,7 +835,10 @@ fn replace_in_range(
 
     dbg!(
         RangeEdits {
-            insert_range: Some(RangeEdit { chars: chars.chars, range: insert_edit_range }),
+            insert_range: Some(RangeEdit { 
+                chars: replace_with.chars,
+                range: insert_edit_range
+            }),
             delete_range: Some(delete_edit),
         },
         CursorPlacementSpec {
@@ -846,6 +850,49 @@ fn replace_in_range(
     )
 }
 
+pub fn get_toggle_case_edit(
+    rope: &CursoredRope,
+) -> Edit {
+    get_edit(
+        rope,
+        |cursor_info, rope| {
+            let selected_range = cursor_info.selected_range();
+
+            if let Some(slice) = rope.slice(selected_range) {
+                if slice.len_bytes() == 0 {
+                    return d!();
+                }
+
+                // TODO does this panic or return an empty iterator if the selection
+                // is empty?.
+                let mut chars_at_end = slice.chars_at_end();
+
+                // `CamelCase` to `lowercase` seems more desireable than `CamelCase` to
+                // `ALLCAPS`. So make `lowercase` happen first, by decising base on the
+                // last character.
+                let mut mapper: fn(&char) -> char = char::to_ascii_lowercase;
+                if let Some(c) = chars_at_end.prev() {
+                    if c.is_ascii_lowercase() {
+                        mapper = char::to_ascii_uppercase;
+                    }
+                }
+                let mut chars = String::with_capacity(selected_range.len());
+                for c in slice.chars() {
+                    chars.push(mapper(&c));
+                }
+    
+                replace_in_range(
+                    cursor_info.cursor,
+                    rope,
+                    selected_range,
+                    chars.into()
+                )
+            } else {
+                d!()
+            }
+        },
+    )
+}
 
 /// The length of `range_edits` must be greater than or equal to the length of the
 /// two `Vec1`s in `cursors`. This is because we assume this is the case in `read_at`

@@ -1067,6 +1067,11 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                 mark_edited_transition!(current, b.toggle_single_line_comments(l));
             });
         }
+        ToggleCase => {
+            text_buffer_call!(sync b, l {
+                mark_edited_transition!(current, b.toggle_case(l));
+            });
+        }
         SubmitForm => match state.current_buffer_kind {
             BufferIdKind::None | BufferIdKind::Text => {}
             BufferIdKind::Find => match state.find_replace_mode() {

@@ -48,6 +48,11 @@ mod absolute_char_offset_range {
         }
 
         #[must_use]
+        pub fn len(&self) -> usize {
+            self.max.0 - self.min.0
+        }
+
+        #[must_use]
         pub fn is_empty(&self) -> bool {
             self.min == self.max
         }
@@ -106,6 +111,16 @@ mod absolute_char_offset_range {
             self.max
                 .checked_sub(max)
                 .map(|max| Self::new(self.min, max))
+        }
+    }
+
+    impl std::ops::RangeBounds<AbsoluteCharOffset> for AbsoluteCharOffsetRange {
+        fn start_bound(&self) -> std::ops::Bound<&AbsoluteCharOffset> {
+            std::ops::Bound::Included(&self.min)
+        }
+
+        fn end_bound(&self) -> std::ops::Bound<&AbsoluteCharOffset> {
+            std::ops::Bound::Included(&self.max)
         }
     }
 }
