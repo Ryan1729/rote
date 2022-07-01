@@ -497,6 +497,11 @@ proptest! {
     fn undo_redo_works_with_heavy_delete_lines_regarding_ropes((edits, index) in arb::test_edits_and_index(SOME_AMOUNT, TestEditSpec::DeleteLinesHeavy)) {
         undo_redo_works_on_these_edits_and_index_regarding_ropes(edits, index);
     }
+
+    #[test]
+    fn undo_redo_works_on_toggle_case_heavy_edits_regarding_ropes((edits, index) in arb::test_edits_and_index(SOME_AMOUNT, TestEditSpec::ToggleCaseHeavy)) {
+        undo_redo_works_on_these_edits_and_index_regarding_ropes(edits, index);
+    }
 }
 
 #[test]
@@ -517,6 +522,14 @@ fn undo_redo_works_on_this_set_of_edits() {
             TestEdit::Insert('a'),
             TestEdit::Insert('\n'),
         ],
+        0,
+    );
+}
+
+#[test]
+fn undo_redo_works_on_this_toggle_case_set_of_edits() {
+    undo_redo_works_on_these_edits_and_index_regarding_ropes(
+        vec![TestEdit::InsertNumbersAtCursors, TestEdit::ToggleCase, TestEdit::ToggleCase],
         0,
     );
 }

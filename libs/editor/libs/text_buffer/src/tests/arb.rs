@@ -174,6 +174,7 @@ pub enum TestEdit {
     TabIn,
     TabOut,
     StripTrailingWhitespace,
+    ToggleCase,
 }
 
 pub type CountNumber = usize;
@@ -261,6 +262,7 @@ impl TestEdit {
             TabIn => { buffer.tab_in(None); },
             TabOut => { buffer.tab_out(None); },
             StripTrailingWhitespace => { buffer.strip_trailing_whitespace(None); },
+            ToggleCase => { buffer.toggle_case(None); },
         };
     }
 
@@ -393,6 +395,9 @@ impl TestEdit {
             StripTrailingWhitespace => {
                 todo!("Will I ever even care about this one?");
             }
+            ToggleCase => {
+                // This should not affect the counts.
+            }
         }
         Self::apply_ref(buffer, edit);
     }
@@ -407,7 +412,8 @@ impl TestEdit {
                 false
             }
             Insert(_) | InsertString(_) | Delete | DeleteLines | Cut 
-            | InsertNumbersAtCursors | TabIn | TabOut | StripTrailingWhitespace => {
+            | InsertNumbersAtCursors | TabIn | TabOut | StripTrailingWhitespace 
+            | ToggleCase => {
                 true
             }
         }
@@ -500,6 +506,15 @@ pub fn test_edit_delete_lines_heavy() -> impl Strategy<Value = TestEdit> {
     ]
 }
 
+pub fn test_edit_toggle_case_heavy() -> impl Strategy<Value = TestEdit> {
+    use TestEdit::*;
+    prop_oneof![
+        9 => Just(ToggleCase),
+        5 => test_edit_selection_changes(), // Make sure there can be selections
+        1 => test_edit()
+    ]
+}
+
 // Generates only cursor movement and selection edits. Intended for use as a part of larger
 pub fn test_edit_selection_changes() -> impl Strategy<Value = TestEdit> {
     use TestEdit::*;
@@ -535,6 +550,7 @@ pub enum TestEditSpec {
     DeleteAndTabInOutHeavy,
     SelectionChanges,
     DeleteLinesHeavy,
+    ToggleCaseHeavy,
 }
 
 pub fn test_edits(max_len: usize, spec: TestEditSpec) -> impl Strategy<Value = Vec<TestEdit>> {
@@ -549,6 +565,7 @@ pub fn test_edits(max_len: usize, spec: TestEditSpec) -> impl Strategy<Value = V
             DeleteAndTabInOutHeavy => test_edit_delete_and_tab_in_out_heavy().boxed(),
             SelectionChanges => test_edit_selection_changes().boxed(),
             DeleteLinesHeavy => test_edit_delete_lines_heavy().boxed(),
+            ToggleCaseHeavy => test_edit_toggle_case_heavy().boxed(),
         },
         0..max_len,
     )
