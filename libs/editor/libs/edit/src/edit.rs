@@ -563,12 +563,12 @@ pub fn get_tab_out_edit(rope: &CursoredRope) -> Edit {
     ) {
         let first_non_white_space_offset: Option<CharOffset> =
             get_first_non_white_space_offset_in_range(line, d!()..=line_end);
-    
+
         let delete_count = min(
             first_non_white_space_offset.unwrap_or(line_end),
             CharOffset(TAB_STR_CHAR_COUNT),
         );
-    
+
         if let Some(sliced_line) = line.slice(delete_count..slice_end) {
             push_slice(chars, sliced_line);
         }
@@ -835,7 +835,7 @@ fn replace_in_range(
 
     dbg!(
         RangeEdits {
-            insert_range: Some(RangeEdit { 
+            insert_range: Some(RangeEdit {
                 chars: replace_with.chars,
                 range: insert_edit_range
             }),
@@ -859,12 +859,6 @@ pub fn get_toggle_case_edit(
             let selected_range = cursor_info.selected_range();
 
             if let Some(slice) = rope.slice(selected_range) {
-                if slice.len_bytes() == 0 {
-                    return d!();
-                }
-
-                // TODO does this panic or return an empty iterator if the selection
-                // is empty?.
                 let mut chars_at_end = slice.chars_at_end();
 
                 // `CamelCase` to `lowercase` seems more desireable than `CamelCase` to
@@ -880,7 +874,7 @@ pub fn get_toggle_case_edit(
                 for c in slice.chars() {
                     chars.push(mapper(&c));
                 }
-    
+
                 replace_in_range(
                     cursor_info.cursor,
                     rope,
