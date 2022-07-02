@@ -349,6 +349,19 @@ fn delete_lines_deletes_everything_in_this_reduced_two_line_case() {
 }
 
 #[test]
+fn delete_lines_deletes_everything_in_this_extend_selection_with_search_case() {
+    let mut buffer = t_b!("@\n@\n@", vec1![cur!{l 2 o 0 h l 2 o 1}]);
+
+    buffer.extend_selection_with_search();
+    buffer.extend_selection_with_search();
+    buffer.extend_selection_with_search();
+
+    buffer.delete_lines(None);
+
+    assert_eq!(buffer.borrow_rope().len_chars(), 0, "got {:?}", buffer.borrow_rope());
+}
+
+#[test]
 fn get_first_non_white_space_offset_in_range_works_on_these_examples() {
     let rope = r!("\n \n 1\n  \n  2\n0\n1 \n2  \n333   \n");
 
