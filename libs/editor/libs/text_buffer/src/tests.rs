@@ -444,8 +444,8 @@ fn cursor_vec1_maintains_invariants(rope: &Rope, cursors: &Vec1<Cursor>) -> u8 {
 // meta
 #[test]
 fn cursor_vec1_maintains_invariants_detects_invariant_violations() {
-    // I just want some rope large enough for all the tests that precede the reope requirement for
-    // creating cursors to be in bounds.
+    // I just want some rope large enough for all the tests that precede the rope
+    // requirement for creating cursors to be in bounds.
     let rope = r!(format!(
         "{0}{0}{0}{0}{0}{0}{0}{0}{0}{0}{0}",
         "01234567890\n"
@@ -520,16 +520,9 @@ fn cursors_maintains_invariants(rope: &Rope, cursors: &Cursors) -> u8 {
     cursor_vec1_maintains_invariants(rope, cursors.borrow_cursors())
 }
 
-macro_rules! assert_cursor_invarints_maintained {
-    ($buffer: expr) => {{
-        let buffer = &$buffer;
-        let (rope, cursors) = (buffer.borrow_rope(), buffer.borrow_cursors());
-
-        assert_cursor_invarints_maintained!(rope, cursors)
-    }};
-    ($rope: expr, $cursors: expr) => {{
-        let flags = cursors_maintains_invariants(&$rope, &$cursors);
-
+macro_rules! flags_assert {
+    ($flags: expr) => {
+        let flags = $flags;
         assert_eq!(
             0,
             flags,
@@ -550,6 +543,18 @@ macro_rules! assert_cursor_invarints_maintained {
                 ""
             }
         )
+    }
+}
+
+macro_rules! assert_cursor_invarints_maintained {
+    ($buffer: expr) => {{
+        let buffer = &$buffer;
+        let (rope, cursors) = (buffer.borrow_rope(), buffer.borrow_cursors());
+
+        assert_cursor_invarints_maintained!(rope, cursors)
+    }};
+    ($rope: expr, $cursors: expr) => {{
+        flags_assert!(cursors_maintains_invariants(&$rope, &$cursors));
     }};
 }
 
@@ -643,6 +648,72 @@ fn cursors_new_maintains_invariants_on_this_new_out_of_order_example() {
             ]
         )
     );
+}
+
+#[test]
+fn cursors_new_maintains_invariants_on_this_u2028_out_of_order_example() {
+    let rope = r!("\u{2028}");
+    assert_cursor_invarints_maintained!(
+        rope,
+        std::dbg!(Cursors::new(
+            &rope,
+            vec1![
+                cur!{l 0 o 5},
+                cur!{l 1 o 1 h l 0 o 1},
+            ]
+        ))
+    );
+}
+
+#[test]
+fn cursors_new_maintains_invariants_on_this_u2028_out_of_order_example_reduction() {
+    let rope = r!("\u{2028}");
+    let cursors = std::dbg!(Cursors::new(
+        &rope,
+        vec1![
+            cur!{l 0 o 5},
+            cur!{l 1 o 1 h l 0 o 1},
+        ]
+    ));
+
+    let flags = {
+        use std::cmp::Ordering;
+        let spans = cursors.borrow_cursors()
+            .mapped_ref(|c| {
+                let p = c.get_position();
+                let h = c.get_highlight_position_or_position();
+    
+                (std::cmp::min(p, h), std::cmp::max(p, h))
+            })
+            .into_vec();
+        //
+        // Ordering check
+        //
+        let mut output = 0;
+    
+        for window in spans.windows(2) {
+            if let &[(later_min, later_max), (earlier_min, earlier_max)] = window {
+                match earlier_min
+                    .cmp(&later_min)
+                    .then_with(|| earlier_max.cmp(&later_max))
+                {
+                    Ordering::Less => {}
+                    Ordering::Equal => {
+                        output |= HAS_OVERLAPS;
+                    }
+                    Ordering::Greater => {
+                        output |= OUT_OF_ORDER;
+                    }
+                }
+            } else {
+                unreachable!();
+            }
+        }
+    
+        output
+    };
+    
+    flags_assert!(flags);
 }
 
 #[test]
