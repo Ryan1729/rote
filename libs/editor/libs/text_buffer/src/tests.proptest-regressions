@@ -7,3 +7,4 @@
 cc 74610aa9899e1f5b1dae82738cc117d458a2dc48610004d7aca5f1670ede1be5 # shrinks to buffer = TextBuffer { rope: [], cursors: Cursors { cursors: Vec1([cur!{l 0 o 0}]) }, history: [], history_index: 0 }, edits = [Delete, Delete, Delete, MoveAllCursors(Up), MoveAllCursors(Up), Delete, TabOut]
 cc 79b173ebb4c9673555145fd77d6d627849b1eaf5953d5df5575210ee51a59677 # shrinks to ch1 = 'Ⴭ', ch2 = 'a', ch3 = '\u{2028}', ch4 = 'A'
 cc a04e9319bc6180d7d3bac2ccb24436653ae24761fe5738c572b0942381ed8ac4 # shrinks to buffer = TextBuffer { rope: ["\u{2028}"], cursors: Cursors { cursors: Vec1([cur!{l 0 o 0 h l 1 o 0}]) }, history: [], history_index: 0, unedited: [], scroll: slxy!(0, 0) }, ch = '\u{b}'
+cc cbcbda1a0e0e84038817d02a8e69fbb2318ed09a7b001e8870b3be35746b9219 # shrinks to rope = ["\u{2028}"], vec1_of_cursors = [cur!{l 0 o 5 s_o 0}, cur!{l 1 o 1 h l 0 o 1 s_o 0}]
