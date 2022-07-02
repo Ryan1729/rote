@@ -120,7 +120,7 @@ mod absolute_char_offset_range {
         }
 
         fn end_bound(&self) -> std::ops::Bound<&AbsoluteCharOffset> {
-            std::ops::Bound::Included(&self.max)
+            std::ops::Bound::Excluded(&self.max)
         }
     }
 }
