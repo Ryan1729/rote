@@ -1,7 +1,5 @@
 ## TODO
 
-* F3 to toggle case of selections
-
 * make Ctrl-D show the new cursors
     * First it should loop around properly.
         * repro
