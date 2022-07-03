@@ -32,7 +32,6 @@ ord!(for Cursor: c, other in {
 
     let other_min = std::cmp::min(other.position, other.highlight_position);
     let other_max = std::cmp::max(other.position, other.highlight_position);
-
     min.cmp(&other_min)
         .then_with(|| max.cmp(&other_max))
         .then_with(|| c.sticky_offset.cmp(&other.sticky_offset))

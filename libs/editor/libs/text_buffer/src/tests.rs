@@ -655,13 +655,13 @@ fn cursors_new_maintains_invariants_on_this_u2028_out_of_order_example() {
     let rope = r!("\u{2028}");
     assert_cursor_invarints_maintained!(
         rope,
-        std::dbg!(Cursors::new(
+        Cursors::new(
             &rope,
             vec1![
                 cur!{l 0 o 5},
                 cur!{l 1 o 1 h l 0 o 1},
             ]
-        ))
+        )
     );
 }
 

@@ -27,8 +27,25 @@ impl Cursors {
     /// rope's bounds.
     #[must_use]
     pub fn new(rope: &Rope, mut cursors: Vec1<Cursor>) -> Self {
-        cursors.sort();
-        cursors.reverse();
+        use std::cmp::Reverse;
+        use editor_types::Position;
+        use panic_safe_rope::LineIndex;
+
+        // This pre-clamping is needed to make the sorting work as expected in
+        // particular cases where the cursor is (somehow) past the end of the line.
+        for c in cursors.iter_mut() {
+            let pos = c.get_position();
+
+            if let Some(line) = rope.line(LineIndex(pos.line)) {
+                use panic_safe_rope::RopeSliceTrait;
+                let final_offset = line.len_chars();
+                if pos.offset > final_offset {
+                    c.set_position(Position{ offset: final_offset, ..pos });
+                }
+            }
+        }
+
+        cursors.sort_by_key(|w| Reverse(*w));
 
         Self::clamp_vec_to_rope(&mut cursors, rope);
 
