@@ -1,1 +1,2 @@
 *.proptest-regressions
+libs/editor/libs/text_buffer/src/tests/edit_tests/test-text*
