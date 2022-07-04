@@ -60,12 +60,12 @@ impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
     pub fn rope_hash<H: std::hash::Hasher>(&self, state: &mut H) {
         use std::hash::Hash;
         for c in self.borrow_rope().chunks() {
-            c.hash(state);    
+            c.hash(state);
         }
 
         // TODO is it worth it to have a third hash level?
         for c in self.unedited.chunks() {
-            c.hash(state);    
+            c.hash(state);
         }
     }
 
@@ -132,8 +132,8 @@ impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
     ) -> VisibilityAttemptResult {
         u!{ScrollAdjustSpec, VisibilityAttemptResult};
 
-        let scroll = &mut self.scroll; 
-        
+        let scroll = &mut self.scroll;
+
         match spec {
             Direct(s) => {
                 *scroll = s;
@@ -161,7 +161,7 @@ impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
                     0.0,
                     y_ratio,
                 );
-            
+
                 let mut attempt_result;
                 attempt_result = attempt_to_make_xy_visible(
                     scroll,
@@ -169,7 +169,7 @@ impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
                     apron,
                     text_space,
                 );
-            
+
                 if attempt_result != Succeeded {
                     attempt_result = attempt_to_make_xy_visible(
                         scroll,
@@ -320,7 +320,7 @@ mod history {
         ) -> NavOutcome {
             if let Some(edit) = self.edits.get(self.index) {
                 self.index += 1;
-    
+
                 callback(edit).into()
             } else {
                 NavOutcome::RanOutOfHistory
@@ -338,7 +338,7 @@ mod history {
 
             if let Some((new_index, edit)) = opt {
                 self.index = new_index;
-    
+
                 callback(&!edit).into()
             } else {
                 NavOutcome::RanOutOfHistory
@@ -386,7 +386,7 @@ mod history {
             for edit in self.edits.iter() {
                 output += edit.size_in_bytes();
             }
-    
+
             output += (
                 self.edits.capacity() -
                 // Don't double count the struct bytes from the `edit.size_in_bytes()`
@@ -405,7 +405,7 @@ mod history {
         Transition(EditedTransition),
         RanOutOfHistory,
     }
-    
+
     impl From<Change<Editedness>> for NavOutcome {
         fn from(c: Change<Editedness>) -> Self {
             u!{NavOutcome, Editedness, EditedTransition}
@@ -416,7 +416,7 @@ mod history {
             }
         }
     }
-    
+
     impl From<NavOutcome> for Option<EditedTransition> {
         fn from(hno: NavOutcome) -> Self {
             u!{NavOutcome}
@@ -426,7 +426,7 @@ mod history {
             }
         }
     }
-    
+
     impl NavOutcome {
         pub fn ran_out_of_history(&self) -> bool {
             u!{NavOutcome}
@@ -650,7 +650,7 @@ impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
 
     pub fn extend_selection_with_search(&mut self) {
         // We use this to specify what mutation to do after the loop since the
-        // borrow checker can't currently figure out that it would be fine to 
+        // borrow checker can't currently figure out that it would be fine to
         // mutate the rope inside the loop, if we return right afterwards. :/
         enum Mutation {
             Nop,
@@ -680,7 +680,7 @@ impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
                                 mutation = Mutation::SetCursors(cs);
                                 break
                             },
-                            // TODO bubble up an error to the user? Does this 
+                            // TODO bubble up an error to the user? Does this
                             // actually happen in practice?
                             NewCursorsOutcome::InvalidPosition => return,
                             NewCursorsOutcome::AlreadyPresent => {
@@ -744,7 +744,8 @@ impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
             &change.into(),
             // Since we know that this edit only involves cursors, we know the
             // parsers won't care about it.
-            None,        );
+            None,
+        );
     }
 
     pub fn tab_in(&mut self, listener: PossibleParserEditListener) -> PossibleEditedTransition {
@@ -823,7 +824,7 @@ impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
                 break
             }
         }
-        
+
         self.rope.collapse_cursors_to(cursor_index);
     }
 
