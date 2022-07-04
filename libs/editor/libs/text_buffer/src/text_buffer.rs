@@ -235,7 +235,7 @@ fn next_instance_of_selected(rope: &Rope, cursor: &Cursor) -> Option<(Position, 
     match offset_pair(rope, cursor) {
         (Some(p_offset), Some(h_offset)) => {
             let range = AbsoluteCharOffsetRange::new(p_offset, h_offset);
-            let selected_text = rope.slice(range.range())?;
+            let selected_text = rope.slice(range)?;
 
             search::get_ranges(
                 selected_text,
@@ -533,7 +533,11 @@ impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
         cursor: C,
         replace_or_add: ReplaceOrAdd
     ) {
-        if let Some(cursors) = self.get_new_cursors(cursor, replace_or_add) {
+        if let NewCursorsOutcome::Success(cursors) = get_new_cursors(
+            &self.rope,
+            cursor,
+            replace_or_add
+        ) {
             self.apply_cursor_only_edit(cursors);
         }
     }
@@ -541,40 +545,6 @@ impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
     pub fn select_all(&mut self) {
         self.set_cursor(pos! {}, ReplaceOrAdd::Replace);
         self.extend_selection_for_all_cursors(Move::ToBufferEnd);
-    }
-
-    fn get_new_cursors<C: Into<Cursor>>(
-        &self,
-        cursor: C,
-        replace_or_add: ReplaceOrAdd,
-    ) -> Option<Vec1<Cursor>> {
-        let unclamped_cursor = cursor.into();
-
-        let cursor: Option<Cursor> = match (
-            nearest_valid_position_on_same_line(
-                self.borrow_rope(),
-                unclamped_cursor.get_position()
-            ),
-            unclamped_cursor
-                .get_highlight_position()
-                .and_then(|h| nearest_valid_position_on_same_line(
-                    self.borrow_rope(),
-                    h
-                )),
-        ) {
-            (Some(p), Some(h)) => Some((p, h).into()),
-            (Some(p), None) => Some(p.into()),
-            (None, _) => None,
-        };
-
-        cursor.map(|c| match replace_or_add {
-            ReplaceOrAdd::Replace => Vec1::new(c),
-            ReplaceOrAdd::Add => {
-                let mut cursors = self.get_cloned_cursors();
-                cursors.push(c);
-                cursors
-            }
-        })
     }
 
     fn get_cloned_cursors(&self) -> Vec1<Cursor> {
@@ -620,11 +590,16 @@ impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
     ///
     /// If it helps, you can think of it as "select_word" if the cursor is on a word, and other
     /// stuff otherwise
-    pub fn select_char_type_grouping(        &mut self,
+    pub fn select_char_type_grouping(
+        &mut self,
         position: Position,
         replace_or_add: ReplaceOrAdd,
     ) {
-        if let Some(mut new) = self.get_new_cursors(position, replace_or_add) {
+        if let NewCursorsOutcome::Success(mut new) = get_new_cursors(
+            &self.rope,
+            position,
+            replace_or_add
+        ) {
             let c = new.last_mut();
 
             let rope = &self.borrow_rope();
@@ -674,19 +649,56 @@ impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
     }
 
     pub fn extend_selection_with_search(&mut self) {
-        let cursor = self.borrow_cursors().first().clone();
-        match cursor.get_highlight_position() {
-            Option::None => {
-                self.select_char_type_grouping(
-                    cursor.get_position(),
-                    ReplaceOrAdd::Add
-                );
-            }
-            Some(_) => {
-                if let Some(pair) = next_instance_of_selected(self.borrow_rope(), &cursor) {
-                    self.set_cursor(pair, ReplaceOrAdd::Add);
+        // We use this to specify what mutation to do after the loop since the
+        // borrow checker can't currently figure out that it would be fine to 
+        // mutate the rope inside the loop, if we return right afterwards. :/
+        enum Mutation {
+            Nop,
+            Select(Position),
+            SetCursors(Vec1<Cursor>),
+        }
+
+        let mut mutation = Mutation::Nop;
+
+        for cursor in self.rope.borrow_cursors().iter() {
+            match cursor.get_highlight_position() {
+                Option::None => {
+                    mutation = Mutation::Select(cursor.get_position());
+                    break
+                }
+                Some(_) => {
+                    if let Some(pos_pair) = next_instance_of_selected(
+                        self.borrow_rope(),
+                        cursor
+                    ) {
+                        match get_new_cursors(
+                            &self.rope,
+                            pos_pair,
+                            ReplaceOrAdd::Add,
+                        ) {
+                            NewCursorsOutcome::Success(cs) => {
+                                mutation = Mutation::SetCursors(cs);
+                                break
+                            },
+                            // TODO bubble up an error to the user? Does this 
+                            // actually happen in practice?
+                            NewCursorsOutcome::InvalidPosition => return,
+                            NewCursorsOutcome::AlreadyPresent => {
+                                // Try the next cursor, if any.
+                            },
+                        }
+                    }
                 }
             }
+        }
+
+        match mutation {
+            Mutation::Nop => {},
+            Mutation::Select(position) => self.select_char_type_grouping(
+                position,
+                ReplaceOrAdd::Add
+            ),
+            Mutation::SetCursors(cs) => self.apply_cursor_only_edit(cs),
         }
     }
 
@@ -825,6 +837,53 @@ impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
     fn set_cursors_from_vec1(&mut self, cursors: Vec1<Cursor>) {
         self.rope.set_cursors_from_vec1(cursors);
     }
+}
+
+enum NewCursorsOutcome {
+    Success(Vec1<Cursor>),
+    InvalidPosition,
+    AlreadyPresent,
+}
+
+fn get_new_cursors<C: Into<Cursor>>(
+    rope: &CursoredRope,
+    cursor: C,
+    replace_or_add: ReplaceOrAdd,
+) -> NewCursorsOutcome {
+    let unclamped_cursor = cursor.into();
+
+    let cursor: Cursor = match (
+        nearest_valid_position_on_same_line(
+            rope.borrow_rope(),
+            unclamped_cursor.get_position()
+        ),
+        unclamped_cursor
+            .get_highlight_position()
+            .and_then(|h| nearest_valid_position_on_same_line(
+                rope.borrow_rope(),
+                h
+            )),
+    ) {
+        (Some(p), Some(h)) => (p, h).into(),
+        (Some(p), None) => p.into(),
+        (None, _) => return NewCursorsOutcome::InvalidPosition,
+    };
+
+    NewCursorsOutcome::Success(match replace_or_add {
+        ReplaceOrAdd::Replace => Vec1::new(cursor),
+        ReplaceOrAdd::Add => {
+            let mut cursors = rope.borrow_cursors().get_cloned_cursors();
+
+            for c in &cursors {
+                if c == &cursor {
+                    return NewCursorsOutcome::AlreadyPresent;
+                }
+            }
+            cursors.push(cursor);
+
+            cursors
+        }
+    })
 }
 
 #[perf_viz::record]
