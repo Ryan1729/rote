@@ -1,8 +1,5 @@
 ## TODO
 
-* make Ctrl-D show the new cursors
-    * We want to show whichever cursor was added this time, so I guess add a parameter to `try_to_show_cursors_on`?
-
 * make Ctrl-D match cursor's direction with the initial selection
     * "[abc|]" repesents a selection of "abc" with the cursor at the larger of the two positions
     * current: [abc|] abc abc => [abc|] [|abc] abc

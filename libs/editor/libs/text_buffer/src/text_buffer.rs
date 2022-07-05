@@ -30,6 +30,8 @@ pub struct TextBuffer<
     rope: CursoredRope,
     history: History<EDIT_COUNT>,
     unedited: Rope,
+    // TODO The scroll stuff is kinda unrelated to everything else. Consider moving
+    // it out of this struct.
     pub scroll: ScrollXY,
 }
 
@@ -91,8 +93,14 @@ impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
 }
 
 #[derive(Clone, Copy, Debug)]
+pub struct SizeInfo {
+    pub char_dim: CharDim, 
+    pub xywh: TextBoxXYWH,
+}
+
+#[derive(Clone, Copy, Debug)]
 pub enum ScrollAdjustSpec {
-    Calculate(CharDim, TextBoxXYWH),
+    Calculate(SizeInfo, Position),
     Direct(ScrollXY)
 }
 
@@ -139,9 +147,9 @@ impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
                 *scroll = s;
                 Succeeded
             }
-            Calculate(char_dim, xywh) => {
+            Calculate(SizeInfo { char_dim, xywh}, position) => {
                 let text_space = position_to_text_space(
-                    dbg!(self.rope.borrow_cursors().last().get_position()),
+                    position,
                     char_dim
                 );
 
@@ -648,14 +656,18 @@ impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
         );
     }
 
-    pub fn extend_selection_with_search(&mut self) {
+    pub fn extend_selection_with_search(
+        &mut self,
+        // Needed in order to scroll
+        size_info: SizeInfo
+    ) {
         // We use this to specify what mutation to do after the loop since the
         // borrow checker can't currently figure out that it would be fine to
         // mutate the rope inside the loop, if we return right afterwards. :/
         enum Mutation {
             Nop,
             Select(Position),
-            SetCursors(Vec1<Cursor>),
+            SetCursors(Vec1<Cursor>, Position),
         }
 
         let mut mutation = Mutation::Nop;
@@ -671,13 +683,18 @@ impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
                         self.borrow_rope(),
                         cursor
                     ) {
+                        let new_cursor = Cursor::from(pos_pair);
+
                         match get_new_cursors(
                             &self.rope,
-                            pos_pair,
+                            new_cursor,
                             ReplaceOrAdd::Add,
                         ) {
                             NewCursorsOutcome::Success(cs) => {
-                                mutation = Mutation::SetCursors(cs);
+                                mutation = Mutation::SetCursors(
+                                    cs,
+                                    new_cursor.get_position(),
+                                );
                                 break
                             },
                             // TODO bubble up an error to the user? Does this
@@ -694,11 +711,23 @@ impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
 
         match mutation {
             Mutation::Nop => {},
-            Mutation::Select(position) => self.select_char_type_grouping(
-                position,
-                ReplaceOrAdd::Add
-            ),
-            Mutation::SetCursors(cs) => self.apply_cursor_only_edit(cs),
+            Mutation::Select(position) => {
+                self.select_char_type_grouping(
+                    position,
+                    ReplaceOrAdd::Add
+                );
+
+                self.try_to_show_cursors_on(
+                    ScrollAdjustSpec::Calculate(size_info, position)
+                );
+            },
+            Mutation::SetCursors(cs, position) => {
+                self.apply_cursor_only_edit(cs);
+
+                self.try_to_show_cursors_on(
+                    ScrollAdjustSpec::Calculate(size_info, position)
+                );
+            },
         }
     }
 

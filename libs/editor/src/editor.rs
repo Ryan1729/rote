@@ -14,6 +14,7 @@ use text_buffer::{
     PossibleEditedTransition,
     ScrollAdjustSpec,
     TextBuffer,
+    SizeInfo,
     ppel,
 };
 
@@ -433,9 +434,10 @@ impl State {
         }
     }
 
-    fn try_to_show_cursors_on(&mut self, kind: BufferIdKind) -> Option<()> {
+    fn size_info(&self, kind: BufferIdKind) -> Option<SizeInfo> {
         u!{BufferIdKind}
-        let buffer = get_text_buffer_mut!(self, kind)?;
+        let char_dim = State::char_dim_for_buffer_kind(&self.font_info, kind);
+
         let xywh = match kind {
             None => return Option::None,
             Text => self.buffer_xywh,
@@ -445,9 +447,19 @@ impl State {
             GoToPosition => self.go_to_position_xywh,
         };
 
-        let char_dim = State::char_dim_for_buffer_kind(&self.font_info, kind);
+        Some(SizeInfo{ char_dim, xywh })
+    }
 
-        let attempt_result = buffer.try_to_show_cursors_on(ScrollAdjustSpec::Calculate(char_dim, xywh));
+    fn try_to_show_cursors_on(&mut self, kind: BufferIdKind) -> Option<()> {
+        let size_info = self.size_info(kind)?;
+        let buffer = get_text_buffer_mut!(self, kind)?;
+
+        let attempt_result = buffer.try_to_show_cursors_on(
+            ScrollAdjustSpec::Calculate(
+                size_info,
+                buffer.borrow_cursors().last().get_position()
+            )
+        );
         match attempt_result {
             VisibilityAttemptResult::Succeeded => Some(()),
             // TODO remove VisibilityAttemptResult once we are sure we don't need it.
@@ -901,7 +913,11 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
             })
         }
         ExtendSelectionWithSearch => {
-            text_buffer_call!(b.extend_selection_with_search());
+            if let Some(size_info) = state.size_info(state.current_buffer_kind) {
+                text_buffer_call!(b.extend_selection_with_search(
+                    size_info
+                ));
+            }
         }
         SavedAs(buffer_index, path) => {
             if let Some(()) = state.buffers.saved_as(buffer_index, path) {
