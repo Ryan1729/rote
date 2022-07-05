@@ -352,9 +352,14 @@ fn delete_lines_deletes_everything_in_this_reduced_two_line_case() {
 fn delete_lines_deletes_everything_in_this_extend_selection_with_search_case() {
     let mut buffer = t_b!("@\n@\n@", vec1![cur!{l 2 o 0 h l 2 o 1}]);
 
-    buffer.extend_selection_with_search();
-    buffer.extend_selection_with_search();
-    buffer.extend_selection_with_search();
+    let size_info = SizeInfo {
+        char_dim: d!(),
+        xywh: d!(),
+    };
+
+    buffer.extend_selection_with_search(size_info);
+    buffer.extend_selection_with_search(size_info);
+    buffer.extend_selection_with_search(size_info);
 
     buffer.delete_lines(None);
 
