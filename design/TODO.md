@@ -1,14 +1,8 @@
 ## TODO
 
-* make Ctrl-D match cursor's direction with the initial selection
-    * "[abc|]" repesents a selection of "abc" with the cursor at the larger of the two positions
-    * current: [abc|] abc abc => [abc|] [|abc] abc
-    * desired: [abc|] abc abc => [abc|] [abc|] abc
-    * also desired: [|abc] abc abc => [|abc] [|abc] abc
-
 * Ctrl-Alt-D duplicate line
 
-* Ctrl-Alt-Shift-D select all
+* Ctrl-Alt-Shift-D select all via search
     * Call the Ctrl-D code until it doesn't find any more matches.
 
 * if multiple things are copied with multiple cursors then if they are pasted with the same number of cursors then
@@ -17,18 +11,67 @@
         1|  copy then paste should be 11 not 1123
         2|                            22     2123
         3|                            33     3123
-    * Is this still reproducable? I do distinctly remember pasing and having things reversed
+    * Is this still reproducable? I do distinctly remember pasting and having things reversed
       sometimes, recently though.
         * could have a shortcut to flip the order if we want to. Maybe rotating.
-
-* make some way to jump to tab a given tab, say by making numbers appear on tabs when
-holding down modifiers
-    * We'll probably want to make "making the current tab visible when changing to it"
-     work, before doing this.
 
 * fix the CRLF/\r\n display issues, or at least figure out a performant way to display control pictures
     * Specifically, the thing where comments ending in CRLF (or at least something weird at the ends)
     make the lines not line up
+
+* when tabbing in (and out I guess?) insert, (/remove?) extra tab strs automatically depending on the surrounding text.
+    * given these lines
+    ```
+            {
+    to tab
+            }
+    ```
+    selecting `to tab` and pressing tab should result in something like this:
+    ```
+            {
+                to tab
+            }
+    ```
+    since that is the likely desired result.
+    This might also be acceptable and closer to correct in more cases
+    ```
+            {
+            to tab
+            }
+    ```
+    The following is a case where we would expect the second behaviour
+    ```
+        {
+            a = 1;
+    to tab
+            a += 1;
+        }
+    ```
+    That is, we want
+    ```
+        {
+            a = 1;
+            to tab
+            a += 1;
+        }
+    ```
+    not
+    ```
+        {
+            a = 1;
+                to tab
+            a += 1;
+        }
+    ```
+
+* make Ctrl-D match cursor's direction with the initial selection
+    * "[abc|]" repesents a selection of "abc" with the cursor at the larger of the two positions
+    * current: [abc|] abc abc => [abc|] [|abc] abc
+    * desired: [abc|] abc abc => [abc|] [abc|] abc
+    * also desired: [|abc] abc abc => [|abc] [|abc] abc
+
+* make some way to jump to tab a given tab, say by making numbers appear on tabs when
+holding down modifiers
 
 * as part of making the state of the editor more observable, when holding down
 modifier keys, indicate what pressing non-modifiers will do.
@@ -36,10 +79,6 @@ modifier keys, indicate what pressing non-modifiers will do.
     to appear over top of everything when we tap the ctrl key?
         * we could make it fade in, after say an entire second of holding it.
     * Maybe do the numeric tab jumping one first, and see how we feel about this afterwards.
-
-* prompt to reload files when they are changed on disk by an external program
-    * for example, `git`.
-    * I guess on linux we want to use `inotify`? Is there a cross-platform lib for this?
 
 * fix Ctrl-Left/Right acting weird around unicode characters
     * for example, try using Ctrl-Left/Right on the folowing line
@@ -49,12 +88,21 @@ modifier keys, indicate what pressing non-modifiers will do.
         * also with Left and Right swapped
     * possible proptest: given you are not on either the first or final line, then Ctrl-Left should always move you at least one character back and Ctrl-Right should move you one character Right.
 
+* visual feedback on copy
+    * as in, copy-paste
+    * so say have the selection rectangle shrink towards the cursor?
+    * display what is in the copy buffer somewhere
+        * In the "?" menu?
+
 * fix Ctrl-F not looping properly
     * repro
         * scroll to bottom of multi-screen-length file
         * search for something that is known to be near the top.
         * observe that you are not jumped to the beginning of the file.
 
+* prompt to reload files when they are changed on disk by an external program
+    * for example, `git`.
+    * I guess on linux we want to use `inotify`? Is there a cross-platform lib for this?
 
 * Ctrl, and up and down arrow keys to swap the current line with the one above it.
     * If mulktiple lines are selected, swap all of them
@@ -98,10 +146,25 @@ modifier keys, indicate what pressing non-modifiers will do.
             * in the outermost scope of the innermost module
         * do the above but also set/check that the cursors are in the right spots.
 
-* Pull out re-usable UI component from the file switcher and use it to fix the wimp menu.
+* Show keyboard shortcut on command menu buttons.
+    * I guess it's best to statically allcate the strings?
+
+* get both command menu and file switcher menus scrolling with the mouse wheel
 
 * on windows, consider closing the console after flags are handled, unless a debug flag
     is passed to keep it open.
+
+* prevent "No buffer selected" when re-opening already opened file
+    * seems fixed?
+    * this still happens but only after extended usage apparently.
+        * Okay, we can try running a proptest over the relevant code.
+    * the Ctrl-P menu is also capable of provoking this FWIW
+    * I suspect an issue with the generational indexes based on nothing but intuition.
+    * Does it make sense to make a proptest that claims that you can never get to the "No buffer selected" state,
+        and then make the relevant generator avoid any cases that really cannot happen? That would hopefully
+        identify the problem, at least.
+    * We've now done some corrections to the generational indexes. This may actually be fixed.
+    * I've seen this again since writing the previous commment.
 
 * run NFD in a separate process, (N.B. not a the same thing as a thread) so that
   aborts in the file dialog do not cause the whole program to be aborted!
@@ -156,8 +219,6 @@ files open, or just when the editor has been open a long time
         statistics like maximum, mean, median and mode.
     * This might have been the O(m log n) operations we used to be doing, but removed in 6bc726a1.
 
-* get both command menu and file switcher menus scrolling with the mouse wheel
-
 * I find myself doubting whether putting the keyboard menu selection in the ui::Id was a good idea.
     * if nothing else, it seems like it would be nice to have the scroll state of the command menu stick around,
         given we have a way to reset the scroll, similarly to the text buffer itself.
@@ -170,11 +231,12 @@ files open, or just when the editor has been open a long time
         * that doesn't fit into our current text and rectangles setup.
             * What about a histogram?
             * Or maybe just draw tall thin rects
-    * We've since added this ti the title bar. Do we need more than that?
+    * We've since added this to the title bar. Do we need more than that?
 
 * fix slowness that shows up when selecting things with the mouse
     * seems to have appeared when the parsing started so we could probably just start caching
     previous trees, or actually complete the TODO to edit the tree with each keyboard edit.
+    * Is this still reproducable? Did we complete the "edit the tree" TODO mentioned above?
 
 * refresh search spans on tab-in/out
     * Should be all edits really; are there other ones we missed? We should only need to put the refresh in one place.
@@ -192,17 +254,7 @@ files open, or just when the editor has been open a long time
         * macro snippet
     * we'll add fleshed out requirements above this in the file
 
-* prevent "No buffer selected" when re-opening already opened file
-    * seems fixed?
-    * this still happens but only after extended usage apparently.
-        * Okay, we can try running a proptest over the relevant code.
-    * the Ctrl-P menu is also capable of provoking this FWIW
-    * I suspect an issue with the generational indexes based on nothing but intuition.
-    * Does it make sense to make a proptest that claims that you can never get to the "No buffer selected" state,
-        and then make the relevant generator avoid any cases that really cannot happen? That would hopefully
-        identify the problem, at least.
-    * We've now done some corrections to the generational indexes. This may actually be fixed.
-    * I've seen this again since writing the previous commment.
+* Do some compile-time profiling so I can see what is taking so long to compile and either pull that into a crate (meaning it is compiled less often) or change it in some way to make it compile faster
 
 * soft focus follows mouse on menus?
     * if the cursor is on the main text when, for example, the find menu is up, then the main text should be scrolled, not the find box.
@@ -223,54 +275,7 @@ files open, or just when the editor has been open a long time
   * draw a different thing (dotted line?) if there is no matching brace found.
   * jump to matching brace?
 
-* when tabbing in (and out I guess?) insert, (/remove?) extra tab strs automatically depending on the surrounding text.
-    * given these lines
-    ```
-            {
-    to tab
-            }
-    ```
-    selecting `to tab` and pressing tab should result in something like this:
-    ```
-            {
-                to tab
-            }
-    ```
-    since that is the likely desired result.
-    This might also be acceptable and closer to correct in more cases
-    ```
-            {
-            to tab
-            }
-    ```
-    The following is a case where we would expect the second behaviour
-    ```
-        {
-            a = 1;
-    to tab
-            a += 1;
-        }
-    ```
-    That is, we want
-    ```
-        {
-            a = 1;
-            to tab
-            a += 1;
-        }
-    ```
-    not
-    ```
-        {
-            a = 1;
-                to tab
-            a += 1;
-        }
-    ```
-
 * similar logic to the above auto-tabbing should be used to add in tabs when enter is pressed.
-
-* Do some compile-time profiling so I can see what is taking so long to compile and either pull that into a crate (meaning it is compiled less often) or change it in some way to make it compile faster
 
 * have some way to see what whitespace, (including line endings) is in a file.
     * see if we can get conditionally transforming ascii into the control pictures block fast enough
@@ -294,10 +299,9 @@ files open, or just when the editor has been open a long time
 
 * update highlights after edits change the text
 
-* visual feedback on copy
-    * as in, copy-paste
-    * so say have the selection rectangle shrink towards the cursor?
-    * display what is in the copy buffer somewhere
+* allow switching between search modes with mouse
+
+* replace for all find modes
 
 * make internal states clearer
   * whether buffer is selected or not (is cursor blinking enough?)
@@ -346,10 +350,6 @@ files open, or just when the editor has been open a long time
     * allow dragging tabs outside the window to detach them.
     * allow dragging tabs inside a window to reattach them.
 
-* allow switching between search modes with mouse
-
-* replace for all find modes
-
 * allow opening a new file through the OS GUI
     * if rote is already running then should it open a separate instance or open the file in the running instance?
         * we would like it to work as a git commit/rebase TODO file editor, so maybe we'd want a cli switch to decide?
@@ -371,7 +371,6 @@ files open, or just when the editor has been open a long time
       * right click menu like in browsers?
   * Ctrl-shift-t to restore last tab
     * We would want a fixed buffer of history like for undo/redo and clipboard history.
-
 
 * don't allow scrolling emptyness into view?
   * for tabs?
@@ -423,7 +422,9 @@ files open, or just when the editor has been open a long time
   * options
     * Undo/redo fence
     * stuff it into one edit
+        * AKA make edits into a monoid?
     * make `Edit` contain a `Vec` of edits
+        * Don't like this one, as it requires an additional allocation.
 
 * Allow manipulating a single cursor on its own
   * store `cursor_index` per buffer
