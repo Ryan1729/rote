@@ -175,6 +175,7 @@ pub enum TestEdit {
     TabOut,
     StripTrailingWhitespace,
     ToggleCase,
+    DuplicateLines,
 }
 
 pub type CountNumber = usize;
@@ -263,6 +264,7 @@ impl TestEdit {
             TabOut => { buffer.tab_out(None); },
             StripTrailingWhitespace => { buffer.strip_trailing_whitespace(None); },
             ToggleCase => { buffer.toggle_case(None); },
+            DuplicateLines => { buffer.duplicate_lines(None); },
         };
     }
 
@@ -393,10 +395,54 @@ impl TestEdit {
                 *counts = clone_counts;
             },
             StripTrailingWhitespace => {
-                todo!("Will I ever even care about this one?");
+                todo!("Have not accurately updated the counts for StripTrailingWhitespace");
             }
             ToggleCase => {
-                // This should not affect the counts.
+                todo!("Have not accurately updated the counts for ToggleCase");
+            },
+            DuplicateLines => {
+                todo!("Have not accurately updated the counts for DuplicateLines");
+                // This versions has a bug
+                /*
+                if buffer.is_empty() {
+                    increment_char(
+                        counts,
+                        '\n'
+                    );
+                } else {
+                    let mut cursor_vec = buffer.borrow_cursors().get_cloned_cursors();
+                    for c in cursor_vec.iter_mut() {
+                        edit::extend_cursor_to_cover_line(c, buffer.borrow_rope());
+                    }
+    
+                    let cursors = Cursors::new(buffer.borrow_rope(), cursor_vec);
+                    for cur in cursors.iter() {
+                        let offsets = offset_pair(buffer.borrow_rope(), &cur);
+                        match offsets {
+                            (Some(_o), None) => {
+                                // The line must be empty, except for the newline
+                                increment_char(
+                                    counts,
+                                    '\n'
+                                );                                
+                            }
+                            (Some(o1), Some(o2)) => {
+                                let s = edit::copy_string(
+                                    buffer.borrow_rope(),
+                                    AbsoluteCharOffsetRange::new(o1, o2)
+                                );
+                                if !s.ends_with('\n') {
+                                    increment_char(
+                                        counts,
+                                        '\n'
+                                    );
+                                }
+                                increment_string(counts, &s);
+                            }
+                            _ => {},
+                        }        
+                    }
+                }*/
             }
         }
         Self::apply_ref(buffer, edit);
@@ -413,7 +459,7 @@ impl TestEdit {
             }
             Insert(_) | InsertString(_) | Delete | DeleteLines | Cut 
             | InsertNumbersAtCursors | TabIn | TabOut | StripTrailingWhitespace 
-            | ToggleCase => {
+            | ToggleCase | DuplicateLines => {
                 true
             }
         }
@@ -450,6 +496,9 @@ pub fn test_edit() -> impl Strategy<Value = TestEdit> {
         Just(InsertNumbersAtCursors),
         Just(TabIn),
         Just(TabOut),
+        //Just(StripTrailingWhitespace),
+        //Just(ToggleCase),
+        //Just(DuplicateLines),
     ]
 }
 
