@@ -888,6 +888,51 @@ pub fn get_toggle_case_edit(
     )
 }
 
+pub fn get_duplicate_lines_edit(
+    rope: &CursoredRope,
+) -> Edit {
+    get_edit(
+        rope,
+        |cursor_info, rope| {
+            let selected_range = cursor_info.selected_range();
+            let line_indicies = dbg!(some_or!(
+                line_indicies_touched_by(rope, selected_range),
+                return d!()
+            ));
+
+            let mut insert_offset = some_or!(
+                line_indicies.get(0)
+                    .and_then(|&first_line_index| rope.line_to_char(first_line_index)),
+                return d!()
+            );
+
+            let mut s = String::with_capacity(selected_range.len());
+            for index in line_indicies {
+                if let Some(line) = rope.line(index)
+                    .and_then(|line| line.slice(..)) {
+                    push_slice(&mut s, line);
+
+                    insert_offset += line.len_chars();
+                }
+            }
+
+            // If the selected area didn't end with a newline, we need to add one at
+            // the beginning of the characters we will insert, so we don't end up
+            // adding the characters at the end of the same line we started on.
+            if !s.ends_with('\n') {
+                s.insert(0, '\n');
+            }
+
+            get_standard_insert_range_edits(
+                rope,
+                cursor_info.cursor,
+                insert_offset,
+                s.into(),
+            )
+        },
+    )
+}
+
 /// The length of `range_edits` must be greater than or equal to the length of the
 /// two `Vec1`s in `cursors`. This is because we assume this is the case in `read_at`
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]

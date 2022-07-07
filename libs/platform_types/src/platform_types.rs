@@ -91,6 +91,7 @@ pub enum Input {
     PreviousLanguage,
     ToggleSingleLineComments,
     ToggleCase,
+    DuplicateLines,
     SelectBuffer(BufferId),
     OpenOrSelectBuffer(PathBuf),
     CloseBuffer(g_i::Index),

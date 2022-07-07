@@ -535,9 +535,6 @@ pub fn run(
     };
 
     macro_rules! get_hidpi_factor {
-        () => {
-            get_hidpi_factor!(r_s)
-        };
         ($r_s: expr) => {
             v_s!($r_s).dimensions.hidpi_factor_override.unwrap_or(v_s!($r_s).dimensions.current_hidpi_factor)
         };
@@ -684,9 +681,6 @@ pub fn run(
         };
 
         macro_rules! register_command {
-            ($modifiers: expr, $main_key: ident, $label: literal, $(_)? $code: block) => {
-                register_command!($modifiers, $main_key, $label, _unused_identifier $code)
-            };
             ($modifiers: expr, $main_key: ident, $label: literal, $r_s: ident $code: block) => {{
                 register_command!($modifiers, $main_key, $label, $r_s, _unused_identifier $code)
             }};
@@ -761,9 +755,6 @@ pub fn run(
         }
 
         macro_rules! switch_menu_mode {
-            ($mode: expr) => {
-                switch_menu_mode!(r_s, $mode)
-            };
             ($r_s: expr, $mode: expr) => {
                 let r_s = $r_s;
                 let mode: MenuMode = $mode;
@@ -973,6 +964,9 @@ pub fn run(
             }]
             [CTRL | ALT, Key0, "Insert sequential numbers at cursors.", state {
                 call_u_and_r!(state, Input::InsertNumbersAtCursors);
+            }]
+            [CTRL | ALT, D, "Duplicate Lines", state {
+                call_u_and_r!(state, Input::DuplicateLines);
             }]
             [CTRL | ALT, L, "Switch document parsing to next language.", state {
                 call_u_and_r!(state, Input::NextLanguage);

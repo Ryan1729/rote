@@ -1,7 +1,5 @@
 ## TODO
 
-* Ctrl-Alt-D duplicate line
-
 * Ctrl-Alt-Shift-D select all via search
     * Call the Ctrl-D code until it doesn't find any more matches.
 

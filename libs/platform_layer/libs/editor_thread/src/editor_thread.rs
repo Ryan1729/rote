@@ -74,7 +74,8 @@ pub fn start(
                             | Input::NextLanguage
                             | Input::PreviousLanguage
                             | Input::ToggleSingleLineComments
-                            | Input::ToggleCase => false,
+                            | Input::ToggleCase
+                            | Input::DuplicateLines => false,
                             Input::Escape
                             | Input::ResetScroll
                             | Input::SetSizeDependents(..)

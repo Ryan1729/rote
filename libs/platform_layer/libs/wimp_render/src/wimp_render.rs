@@ -91,6 +91,7 @@ macro_rules! grey_scale_bright {
     }};
 }
 
+#[allow(unused)]
 macro_rules! palette {
   (black $($tokens:tt)*) => {   c![0x22 as f32 / 255.0, 0x22 as f32 / 255.0, 0x22 as f32 / 255.0 $($tokens)*] };
   (red $($tokens:tt)*) => {     c![0xde as f32 / 255.0, 0x49 as f32 / 255.0, 0x49 as f32 / 255.0 $($tokens)*] };
