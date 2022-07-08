@@ -971,6 +971,9 @@ pub fn run(
             [CTRL | ALT, L, "Switch document parsing to next language.", state {
                 call_u_and_r!(state, Input::NextLanguage);
             }]
+            [CTRL | ALT | SHIFT, D, "Extend selection maximally with search.", state {
+                call_u_and_r!(state, Input::ExtendSelectionMaximallyWithSearch);
+            }]
             [CTRL | ALT | SHIFT, L, "Switch document parsing to previous language.", state {
                 call_u_and_r!(state, Input::PreviousLanguage);
             }]

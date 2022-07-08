@@ -73,6 +73,7 @@ pub enum Input {
     DragCursors(TextBoxSpaceXY),
     SelectCharTypeGrouping(TextBoxSpaceXY, ReplaceOrAdd),
     ExtendSelectionWithSearch,
+    ExtendSelectionMaximallyWithSearch,
     SavedAs(g_i::Index, PathBuf),
     Undo,
     Redo,

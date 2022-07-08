@@ -919,6 +919,13 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                 ));
             }
         }
+        ExtendSelectionMaximallyWithSearch => {
+            if let Some(size_info) = state.size_info(state.current_buffer_kind) {
+                text_buffer_call!(b.extend_selection_maximally_with_search(
+                    size_info
+                ));
+            }
+        }
         SavedAs(buffer_index, path) => {
             if let Some(()) = state.buffers.saved_as(buffer_index, path) {
                 mark_edited_transition!(buffer_index, ToUnedited);

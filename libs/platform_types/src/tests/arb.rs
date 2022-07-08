@@ -529,6 +529,7 @@ arb_enum!{
         SelectCharTypeGrouping(_, _) => (text_box_space_xy(), replace_or_add())
             .prop_map(|(xy, r_or_add)| SelectCharTypeGrouping(xy, r_or_add)),
         ExtendSelectionWithSearch => Just(ExtendSelectionWithSearch),
+        ExtendSelectionMaximallyWithSearch => Just(ExtendSelectionMaximallyWithSearch),
         SavedAs(_, _) => saved_as(),
         Undo => Just(Undo),
         Redo => Just(Redo),

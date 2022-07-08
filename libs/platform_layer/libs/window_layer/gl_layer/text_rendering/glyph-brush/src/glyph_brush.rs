@@ -53,7 +53,6 @@ pub trait GlyphPositioner: Hash {
     ) -> Vec<CalculatedGlyph<'font>>;
 }
 
-
 /// A hash of `Section` data
 type SectionHash = u64;
 

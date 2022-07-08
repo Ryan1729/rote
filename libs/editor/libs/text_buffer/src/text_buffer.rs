@@ -104,6 +104,11 @@ pub enum ScrollAdjustSpec {
     Direct(ScrollXY)
 }
 
+pub enum UpdatedCursors {
+    No,
+    Yes
+}
+
 impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
     #[must_use]
     pub fn borrow_rope(&self) -> &Rope {
@@ -664,6 +669,7 @@ impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
         // We use this to specify what mutation to do after the loop since the
         // borrow checker can't currently figure out that it would be fine to
         // mutate the rope inside the loop, if we return right afterwards. :/
+        #[derive(Debug)]
         enum Mutation {
             Nop,
             Select(Position),
@@ -731,6 +737,23 @@ impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
         }
     }
 
+    pub fn extend_selection_maximally_with_search(
+        &mut self,
+        // Needed in order to scroll
+        size_info: SizeInfo
+    ) {
+        loop {
+            // TODO Could have this re-use the allocation across loop iterations.
+            let prev_cursors = self.rope.borrow_cursors().clone();
+
+            self.extend_selection_with_search(size_info);
+
+            if &prev_cursors == self.rope.borrow_cursors() {
+                break
+            }
+        }
+    }
+
     fn move_cursors(&mut self, spec: CursorMoveSpec, r#move: Move) -> Option<()> {
         let mut new = self.get_cloned_cursors();
 
@@ -755,15 +778,24 @@ impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
         Some(())
     }
 
-    /// It is important that all edits that only involve cursor changes go through here
-    /// This is because they require special handling regarding undo/redo.
     fn apply_cursor_only_edit(
         &mut self,
         new: Vec1<Cursor>,
     ) {
+        self.apply_cursor_only_edit_cursors(
+            Cursors::new(self.rope.borrow_rope(), new)
+        );
+    }
+
+    /// It is important that all edits that only involve cursor changes go through 
+    /// here. This is because they require special handling regarding undo/redo.
+    fn apply_cursor_only_edit_cursors(
+        &mut self,
+        new: Cursors,
+    ) {
         let change = edit::Change {
             old: self.rope.borrow_cursors().clone(),
-            new: Cursors::new(self.rope.borrow_rope(), new),
+            new,
         };
 
         // We don't record cursor movements for undo purposes

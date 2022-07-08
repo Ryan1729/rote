@@ -62,6 +62,7 @@ pub fn start(
                             | Input::DragCursors(..)
                             | Input::SelectCharTypeGrouping(..)
                             | Input::ExtendSelectionWithSearch
+                            | Input::ExtendSelectionMaximallyWithSearch
                             | Input::Undo
                             | Input::Redo
                             | Input::Cut
