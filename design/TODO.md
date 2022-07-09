@@ -1,16 +1,5 @@
 ## TODO
 
-* if multiple things are copied with multiple cursors then if they are pasted with the same number of cursors then
-    they should be pasted separately
-    * given the numbers are selected by three cursors represented by "|"
-        1|  copy then paste should be 11 not 1123
-        2|                            22     2123
-        3|                            33     3123
-    * Is this still reproducable? I do distinctly remember pasting and having things reversed
-      sometimes, recently though.
-        * could have a shortcut to flip the order if we want to. Maybe rotating.
-        * Copy and paste seems to act properly, but cut and paste flips it.
-
 * fix the CRLF/\r\n display issues, or at least figure out a performant way to display control pictures
     * Specifically, the thing where comments ending in CRLF (or at least something weird at the ends)
     make the lines not line up
@@ -403,6 +392,10 @@ files open, or just when the editor has been open a long time
   * If a file in the history does not exist any more, and a file with a name which is a short Levenstein distance away is opened, prompt to use the old history and change the key in the stored file.
     * should we just hash the content instead?
     * "Never prompt for this file pair" seems  extraneous. Is there a case where we ever not want it checked?
+
+* A shortcut to flip the order of the top of the clipboard history if it is a 
+  multiple one. 
+    * Maybe one for rotating the order too. 1,2,3 -> 3,1,2
 
 * handle tab key properly
   * Remaining Features:

@@ -962,6 +962,11 @@ impl Edit {
             }
         }
 
+        // The range edits are in reverse order, so they line up with the cursors.
+        // The users of this method should not need to care about that, so reverse
+        // the order now.
+        strings.reverse();
+
         strings
     }
 

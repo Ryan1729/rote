@@ -140,6 +140,7 @@ mod clipboard_history {
     impl ClipboardHistory {
         pub fn cut(&mut self, buffer: &mut TextBuffer, listener: ppel!()) -> (Option<String>, PossibleEditedTransition) {
             let (selections, transition) = buffer.cut_selections(listener);
+
             let joined_selections = self.push_and_join_into_option(selections);
 
             (joined_selections, transition)
