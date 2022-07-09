@@ -9,6 +9,7 @@
     * Is this still reproducable? I do distinctly remember pasting and having things reversed
       sometimes, recently though.
         * could have a shortcut to flip the order if we want to. Maybe rotating.
+        * Copy and paste seems to act properly, but cut and paste flips it.
 
 * fix the CRLF/\r\n display issues, or at least figure out a performant way to display control pictures
     * Specifically, the thing where comments ending in CRLF (or at least something weird at the ends)
