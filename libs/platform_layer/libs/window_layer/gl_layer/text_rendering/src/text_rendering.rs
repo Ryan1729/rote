@@ -750,7 +750,7 @@ mod unbounded {
                     next_break,
                 } = self.part_info.as_mut().unwrap();
     
-                if let Some((byte_index, c)) = info_chars.next() {
+                if let Some((byte_index, mut c)) = info_chars.next() {
                     if next_break.is_none() || next_break.unwrap().offset() <= byte_index {
                         loop {
                             let next = linebreaks.next();
@@ -761,6 +761,18 @@ mod unbounded {
                         }
                     }
     
+                    // Set ascii control characters to control pictures,
+                    // besides `'\n'`. TODO make this switchable at runtime?
+                    {
+                        // TODO comfirm this compiles to a conditional move.
+                        let mask = if c.is_ascii_control() && c != '\n' {
+                            0x2400
+                        } else {
+                            0
+                        };
+                        c = char::from_u32((c as u32) | mask)?;
+                    }
+
                     let glyph = new_glyph(self.font, c, self.scale, d!());
     
                     let c_len = c.len_utf8();

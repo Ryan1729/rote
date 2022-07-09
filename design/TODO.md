@@ -1,10 +1,5 @@
 ## TODO
 
-* fix the CRLF/\r\n display issues, or at least figure out a performant way to display control pictures
-    * Specifically, the thing where comments ending in CRLF (or at least something weird at the ends)
-    make the lines not line up
-
-
 * when tabbing in (and out I guess?) insert, (/remove?) extra tab strs automatically depending on the surrounding text.
     * given these lines
     ```
