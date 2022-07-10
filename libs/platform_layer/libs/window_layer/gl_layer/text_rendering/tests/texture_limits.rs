@@ -35,27 +35,72 @@ fn rendering_all_the_characters_in_the_font_do_not_cause_the_texture_to_get_too_
     
     let all_chars = all_chars();
 
-    state.render_vertices(
-        &TEXT_SIZES.map(|size| {
-            TextOrRect::Text(TextSpec {
-                text: &all_chars,
-                size,
-                layout: TextLayout::Unbounded,
-                spec: VisualSpec {
-                    rect: ssr!(0., 0., f32::INFINITY, f32::INFINITY),
-                    ..<_>::default()
+    let sizes = &TEXT_SIZES.map(|size| {
+        TextOrRect::Text(TextSpec {
+            text: &all_chars,
+            size,
+            layout: TextLayout::Unbounded,
+            spec: VisualSpec {
+                rect: ssr!(0., 0., f32::INFINITY, f32::INFINITY),
+                ..<_>::default()
+            }
+        })
+    });
+
+    let dimensions = (U24::MAX, U24::MAX);
+
+    if cfg!(feature = "dump-all-characters-texture") {
+        use std::io::Write;
+        const SIZE: usize = MAX_TEXTURE_SIZE as usize * 2;
+
+        let mut buffer = vec![
+            0u8;
+            SIZE * SIZE * 3
+        ];
+
+        state.render_vertices(
+            sizes,
+            dimensions,
+            |rect, bytes| {
+                let mut bytes_i = 0;
+                let (w, h) = (u32::from(rect.w), u32::from(rect.h));
+
+                for y in u32::from(rect.y)..u32::from(rect.y) + h {
+                    for x in u32::from(rect.x)..u32::from(rect.x) + w {
+                        let byte = bytes[bytes_i];
+                        bytes_i += 1;
+
+                        let i = (y * SIZE as u32 * 3 + x * 3) as usize;
+
+                        buffer[i] = byte;
+                        buffer[i + 1] = byte;
+                        buffer[i + 2] = byte;
+                    }
                 }
-            })
-        }),
-        (U24::MAX, U24::MAX),
-        |_, _| {},
-        |(_, _)| {},
-    ).unwrap();
+
+                assert_eq!(bytes_i, bytes.len());
+            },
+            |(_, _)| {},
+        ).unwrap();
+
+        let mut output = Vec::with_capacity(buffer.len() + 24);
+        writeln!(&mut output, "P6\n{SIZE} {SIZE} 255").unwrap();
+        output.extend(buffer);
+
+        std::fs::write("all-characters-texture.ppm", &output).unwrap();
+    } else {
+        state.render_vertices(
+            sizes,
+            dimensions,
+            |_, _| {},
+            |(_, _)| {}
+        ).unwrap();
+    };
 
     {
         let (w, h) = state.texture_dimensions();
-        assert!(w <= MAX_TEXTURE_SIZE.into());
-        assert!(h <= MAX_TEXTURE_SIZE.into());
+        assert!(w <= MAX_TEXTURE_SIZE.into(), "({w}, {h})");
+        assert!(h <= MAX_TEXTURE_SIZE.into(), "({w}, {h})");
     }
 }
 

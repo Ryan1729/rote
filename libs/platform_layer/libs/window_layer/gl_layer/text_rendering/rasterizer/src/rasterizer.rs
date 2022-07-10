@@ -42,6 +42,7 @@ mod per_backend {
 
     use rusttype::gpu_cache;
 
+    #[derive(Clone, Copy, Debug)]
     pub struct TextureRect {
         pub x: U24,
         pub y: U24,

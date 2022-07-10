@@ -284,12 +284,12 @@ impl <'font> State<'font> {
         &mut self,
         text_or_rects: &[TextOrRect],
         dimensions: Dimensions,
-        update_texture: Update,
+        mut update_texture: Update,
         mut resize_texture: Resize,
     ) -> Option<Vec<Vertex>>
     where
-        for <'r> Update: FnMut(TextureRect, &'r [u8]) + Copy,
-        Resize: FnMut(Dimensions) + Copy,
+        for <'r> Update: FnMut(TextureRect, &'r [u8]),
+        Resize: FnMut(Dimensions),
     {
         use TextOrRect::*;
 
@@ -398,7 +398,7 @@ impl <'font> State<'font> {
 
         loop {
             let brush_action = self.glyph_brush.process_queued(
-                update_texture,
+                &mut update_texture,
                 to_vertex_maker(
                     (dimensions.0.into(), dimensions.1.into())
                 ),
