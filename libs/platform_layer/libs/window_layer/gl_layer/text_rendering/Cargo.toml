@@ -24,6 +24,7 @@ proptest = "0.10"
 pub_arb_std = { path = "../../../../../pub_arb/std"}
 
 [features]
-default = []
-# Only affects tests
+default = ["show-control-pictures"]
+show-control-pictures = []
+# Feature below this only affect tests
 dump-all-characters-texture = []

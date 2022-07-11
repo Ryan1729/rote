@@ -750,7 +750,13 @@ mod unbounded {
                     next_break,
                 } = self.part_info.as_mut().unwrap();
     
-                if let Some((byte_index, mut c)) = info_chars.next() {
+                if let Some((byte_index, c)) = info_chars.next() {
+                    // This makes it cleaner to disable the additional
+                    // "show-control-pictures" feature code that is below this
+                    // assignment statement.
+                    #[cfg(feature = "show-control-pictures")]
+                    let mut c = c;
+
                     if next_break.is_none() || next_break.unwrap().offset() <= byte_index {
                         loop {
                             let next = linebreaks.next();
@@ -763,6 +769,7 @@ mod unbounded {
     
                     // Set ascii control characters to control pictures,
                     // besides `'\n'`. TODO make this switchable at runtime?
+                    #[cfg(feature = "show-control-pictures")]
                     {
                         // TODO comfirm this compiles to a conditional move.
                         let mask = if c.is_ascii_control() && c != '\n' {
