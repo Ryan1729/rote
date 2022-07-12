@@ -542,7 +542,7 @@ pub fn view<'view>(
                         ui_id!(),
                         first_button_rect,
                         commands,
-                        &command_keys::add_run_state_snapshot(),
+                        command_keys::add_run_state_snapshot(),
                     );
 
                     y += vertical_shift;
@@ -647,7 +647,7 @@ pub fn view<'view>(
             z: STATUS_Z,
             ..d!()
         },
-        &command_keys::debug_menu(),
+        command_keys::debug_menu(),
     );
 
 
@@ -664,7 +664,7 @@ pub fn view<'view>(
             z: STATUS_Z,
             ..d!()
         },
-        &command_keys::command_menu()
+        command_keys::command_menu()
     );
     perf_viz::end_record!("Status line");
 
@@ -683,8 +683,8 @@ pub fn view<'view>(
                     spec.spec.colour = grey_scale_bright!(spec.spec.colour);
                 },
                 MulticolourText(ref mut spec) => {
-                    for ColouredText { ref mut colour, .. } in spec.text.iter_mut() {
-                        *colour = grey_scale_bright!(*colour)
+                    for ColouredText { ref mut colour, .. } in &mut spec.text {
+                        *colour = grey_scale_bright!(*colour);
                     }
                 }
             }
@@ -723,7 +723,7 @@ fn rect_command_button (
     id: ui::Id,
     rect: ScreenSpaceRect,
     commands: &CommandsMap,
-    command_key: &CommandKey,
+    command_key: CommandKey,
 ) {
     let Dimensions {
         window: window_layer::Dimensions{ height, .. },
@@ -731,7 +731,7 @@ fn rect_command_button (
     } = pen.dimensions;
     let SpacingAllSpec { margin, .. } = get_menu_spacing(height);
 
-    let cmd_option = commands.get(command_key);
+    let cmd_option = commands.get(&command_key);
     invariant_assert!(cmd_option.is_some(), "{:?} has no command associated with it!", command_key);
 
     if let Some(cmd) = cmd_option {
@@ -757,22 +757,25 @@ fn outline_command_button<'view> (
     pen: &mut Pen<'view, '_>,
     id: ui::Id,
     spec: OutlineButtonSpec<'view>,
-    command_key: &CommandKey,
+    command_key: CommandKey,
 ) {
     if do_outline_button(
         pen,
         id,
         spec,
     ) {
-        *pen.action = ViewAction::Command(*command_key);
+        *pen.action = ViewAction::Command(command_key);
     }
 }
 
 use window_layer::abs::{Length, Ratio};
 
-const DEFAULT_LIST_WINDOW_SIZE: ListSelectionWindowSize = 
-    // SAFETY: We didn't pass 0.
-    unsafe { ListSelectionWindowSize::new_unchecked(5) };
+const DEFAULT_LIST_WINDOW_SIZE: ListSelectionWindowSize
+    = {
+        // SAFETY: 
+        // We didn't pass 0.
+        unsafe { ListSelectionWindowSize::new_unchecked(5) }
+    };
 
 fn calculate_window_size(
     window_height: Length,
@@ -1080,7 +1083,7 @@ fn render_command_menu(
 
     let selection = navigated_result.unwrap_or_default();
 
-    for (result_index, result) in results.iter()
+    for (result_index, &result) in results.iter()
         .enumerate()
         .skip(selection.window_start)
         .take(window_size.get())

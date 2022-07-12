@@ -850,6 +850,7 @@ fn replace_in_range(
     )
 }
 
+#[must_use]
 pub fn get_toggle_case_edit(
     rope: &CursoredRope,
 ) -> Edit {
@@ -888,6 +889,7 @@ pub fn get_toggle_case_edit(
     )
 }
 
+#[must_use]
 pub fn get_duplicate_lines_edit(
     rope: &CursoredRope,
 ) -> Edit {

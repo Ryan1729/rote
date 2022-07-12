@@ -130,6 +130,7 @@ pub struct Spans {
 /// This macro asserts that the passes `$spans`, (either a `Spans` or a
 /// `Vec<SpanView>`) satisifies the invaraints that the Spans type ensures.
 #[macro_export]
+#[allow(clippy::module_name_repetitions)]
 macro_rules! spans_assert {
     ($spans: expr) => {
         spans_assert!($spans, "");

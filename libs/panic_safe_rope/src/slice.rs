@@ -358,14 +358,14 @@ impl<'slice> std::cmp::PartialEq<RopeSlice<'slice>> for str {
     }
 }
 
-impl<'rope, 'slice> std::cmp::PartialEq<String> for RopeSlice<'slice> {
+impl<'slice> std::cmp::PartialEq<String> for RopeSlice<'slice> {
     #[inline]
     fn eq(&self, other: &String) -> bool {
         self.rope_slice.eq(other)
     }
 }
 
-impl<'rope, 'slice> std::cmp::PartialEq<RopeSlice<'slice>> for String {
+impl<'slice> std::cmp::PartialEq<RopeSlice<'slice>> for String {
     #[inline]
     fn eq(&self, other: &RopeSlice<'slice>) -> bool {
         self.eq(&other.rope_slice)
@@ -618,14 +618,14 @@ impl<'slice> std::cmp::PartialEq<RopeLine<'slice>> for str {
     }
 }
 
-impl<'rope, 'slice> std::cmp::PartialEq<String> for RopeLine<'slice> {
+impl<'slice> std::cmp::PartialEq<String> for RopeLine<'slice> {
     #[inline]
     fn eq(&self, other: &String) -> bool {
         self.0.rope_slice.eq(other)
     }
 }
 
-impl<'rope, 'slice> std::cmp::PartialEq<RopeLine<'slice>> for String {
+impl<'slice> std::cmp::PartialEq<RopeLine<'slice>> for String {
     #[inline]
     fn eq(&self, other: &RopeLine<'slice>) -> bool {
         self.eq(&other.0.rope_slice)

@@ -32,7 +32,7 @@ fmt_display!(
     for Style: match s {
         Extra => "extra",
         Basic => "basic",
-        TreeDepth => "tree-depth" 
+        TreeDepth => "tree-depth"
     }
 );
 
@@ -243,7 +243,7 @@ fmt_display!(
         Initialized(i_p) => {
             format!("{:?}", i_p)
         },
-        FailedToInitialize(InitializationError(e)) => e.to_owned(),
+        FailedToInitialize(InitializationError(e)) => e.clone(),
     }
 );
 
@@ -338,7 +338,7 @@ impl Parsers {
         kind: ParserKind
     ) -> Spans {
         if cfg!(feature = "skip_parsing") {
-            return query::plaintext_spans_for(to_parse);
+            return query::plaintext_spans_for(&to_parse);
         }
 
         match self.get_spans_result(
@@ -348,14 +348,17 @@ impl Parsers {
         ) {
             Ok(spans) => spans,
             Err((to_parse, err)) => {
-                // TODO: Propagate error to the editor view so it can be 
+                // TODO: Propagate error to the editor view so it can be
                 // displayed to the user.
                 eprintln!("{}", err);
-                query::plaintext_spans_for(to_parse)
+                query::plaintext_spans_for(&to_parse)
             }
         }
     }
 
+    /// # Errors
+    /// This returns an `Err` if the parsers could not be initializd, or there is an
+    /// internal error from the underlying c library.
     pub fn get_spans_result<'to_parse>(
         &mut self,
         to_parse: ToParse<'to_parse>,
@@ -380,7 +383,7 @@ impl Parsers {
         }
     }
 
-    /// This method should be called whenever the ToParse associated with a buffer
+    /// This method should be called whenever the `ToParse` associated with a buffer
     /// is changed, so that we can update the stored parse tree. Updating the parse
     /// tree like this enables significant optimizations.
     #[perf_viz::record]
@@ -418,8 +421,8 @@ impl Parsers {
                                 Change{ old, new },
                                 RangeEdits{ delete_range, insert_range }
                             ) = some_or!(edit.read_at(i), cont!());
-                        
-                            let (start_byte, old_end_byte, new_end_byte) = 
+
+                            let (start_byte, old_end_byte, new_end_byte) =
                             match dbg!(delete_range, insert_range) {
                                 (Some(del_range), Some(ins_range)) => {
                                     let del_start_byte = rope.char_to_byte(
@@ -433,7 +436,7 @@ impl Parsers {
                                     );
                                     let ins_end_byte = ins_start_byte
                                         .map(|b| b + ins_range.chars.len());
-    
+
                                     debug_assert_eq!(
                                         del_start_byte,
                                         ins_start_byte
@@ -453,10 +456,10 @@ impl Parsers {
                                     let start_byte = rope.char_to_byte(
                                         ins_range.range.min()
                                     );
-    
+
                                     let end_byte = start_byte
                                         .map(|b| b + ins_range.chars.len());
-    
+
                                     dbg!(rope, ins_range.range.max(), end_byte);
                                     (start_byte, start_byte, end_byte)
                                 }
@@ -467,25 +470,25 @@ impl Parsers {
                                     continue
                                 },
                             };
-    
+
                             let start_byte = some_or!(start_byte, cont!()).0;
                             let old_end_byte = some_or!(old_end_byte, cont!()).0;
                             let new_end_byte = some_or!(new_end_byte, cont!()).0;
-    
+
                             let (start_pos, old_end_pos, new_end_pos) = match (old, new) {
                                 (Some(old), Some(new)) => {
                                     let old_pos = old.get_position();
                                     let old_h_pos = old.get_highlight_position_or_position();
                                     let old_min = min(old_pos, old_h_pos);
                                     let old_end_pos = max(old_pos, old_h_pos);
-            
+
                                     let new_pos = new.get_position();
                                     let new_h_pos = new.get_highlight_position_or_position();
                                     let new_min = min(new_pos, new_h_pos);
                                     let new_end_pos = max(new_pos, new_h_pos);
-            
+
                                     let start_pos = min(old_min, new_min);
-    
+
                                     (start_pos, old_end_pos, new_end_pos)
                                 },
                                 (Some(old), None) => {
@@ -493,9 +496,9 @@ impl Parsers {
                                     let old_h_pos = old.get_highlight_position_or_position();
                                     let old_min = min(old_pos, old_h_pos);
                                     let old_end_pos = max(old_pos, old_h_pos);
-    
+
                                     let start_pos = old_min;
-    
+
                                     (start_pos, old_end_pos, start_pos)
                                 },
                                 (None, Some(new)) => {
@@ -503,9 +506,9 @@ impl Parsers {
                                     let new_h_pos = new.get_highlight_position_or_position();
                                     let new_min = min(new_pos, new_h_pos);
                                     let new_end_pos = max(new_pos, new_h_pos);
-            
+
                                     let start_pos = new_min;
-    
+
                                     (start_pos, start_pos, new_end_pos)
                                 },
                                 (None, None) => cont!(),
@@ -515,15 +518,15 @@ impl Parsers {
                                 start_byte,
                                 old_end_byte,
                                 new_end_byte,
-                                start_position: Point{ 
+                                start_position: Point{
                                     row: start_pos.line,
                                     column: start_pos.offset.0
                                 },
-                                old_end_position: Point{ 
+                                old_end_position: Point{
                                     row: old_end_pos.line,
                                     column: old_end_pos.offset.0
                                 },
-                                new_end_position: Point{ 
+                                new_end_position: Point{
                                     row: new_end_pos.line,
                                     column: new_end_pos.offset.0
                                 },
@@ -563,7 +566,7 @@ fn get_or_init_buffer_state<'map>(
     parser_map: &'map mut ParserMap,
     buffer_name: &BufferName,
     parser_kind: ParserKind,
-    langs: &ByTSName<Language>, 
+    langs: &ByTSName<Language>,
 ) -> &'map mut BufferState {
     u!{ParserKind}
     let buffer_state = parser_map
@@ -593,11 +596,11 @@ fn get_or_init_buffer_state<'map>(
         Some(name) => {
             // We can assume that `set_language` will return `Ok` because we should
             // have already tried it once in `InitializedParsers::new`
-            let _res = buffer_state.parser.set_language(
+            let res = buffer_state.parser.set_language(
                 btsn!(name, langs)
             );
             debug_assert!(
-                _res.is_ok(),
+                res.is_ok(),
                 "Failed to set language for {}",
                 parser_kind
             );
@@ -619,7 +622,7 @@ impl InitializedParsers {
         use ParserKind::*;
         match kind {
             Plaintext => {
-                Ok(query::plaintext_spans_for(to_parse))
+                Ok(query::plaintext_spans_for(&to_parse))
             }
             Rust(style) => {
                 self.get_spans_with_ts_name(
@@ -658,7 +661,7 @@ impl InitializedParsers {
             kind,
             &self.languages,
         );
-        
+
         perf_viz::start_record!("hash for caching");
         let fresh_hash = hash_to_parse(&to_parse);
         perf_viz::end_record!("hash for caching");
@@ -666,8 +669,8 @@ impl InitializedParsers {
         // This was written right after this caching was introduced.
         //
         // If this still seems too slow, one thing we could try is iterating
-        // through with the tree cursor in whatever way is fastest, and 
-        // sorting at the end, since we're still sorting as it is. This 
+        // through with the tree cursor in whatever way is fastest, and
+        // sorting at the end, since we're still sorting as it is. This
         // assumes that de don't actually need depth first traversal, which
         // is somewhat uncertain.
         //
@@ -678,7 +681,7 @@ impl InitializedParsers {
         // we'd also have to figure out how to signal to the client that
         // `update_and_render` should be called again.
         //
-        
+
         if let Some(CachedSpans{ spans, hash, .. }) = state.spans.as_ref() {
             if *hash == fresh_hash {
                 return Ok(spans.clone());
@@ -713,7 +716,7 @@ impl InitializedParsers {
         // * The timeout set with Parser::set_timeout_micros expired
         // * The cancellation flag set with Parser::set_cancellation_flag was flipped
 
-        // Given that if we got here the language should be set, we don't 
+        // Given that if we got here the language should be set, we don't
         // currently set a timeout, and, we don't currently cancel parses,
         // this assert should not ever fail.
         debug_assert!(state.tree.is_some(), "parse failed");
@@ -788,7 +791,7 @@ fn after_calling_get_spans_with_ts_name_then_get_or_init_buffer_state_returns_a_
             style,
             ts_name
         );
-    
+
         {
             let state = get_or_init_buffer_state(
                 &mut parsers.parser_map,
@@ -796,7 +799,7 @@ fn after_calling_get_spans_with_ts_name_then_get_or_init_buffer_state_returns_a_
                 kind,
                 &parsers.languages,
             );
-    
+
             assert!(state.spans.is_some());
         }
     }
@@ -830,7 +833,7 @@ fn after_calling_get_spans_with_ts_name_then_get_or_init_buffer_state_returns_a_
             style,
             ts_name
         );
-    
+
         {
             let state = get_or_init_buffer_state(
                 &mut parsers.parser_map,
@@ -838,11 +841,11 @@ fn after_calling_get_spans_with_ts_name_then_get_or_init_buffer_state_returns_a_
                 kind,
                 &parsers.languages,
             );
-    
+
             assert!(state.spans.is_some());
 
             let fresh_hash = hash_to_parse(&to_parse);
-        
+
             let mut hit_cache = false;
             if let Some(CachedSpans{ hash, .. }) = state.spans.as_ref() {
                 if *hash == fresh_hash {
@@ -932,15 +935,15 @@ fn after_calling_get_spans_with_ts_name_then_get_or_init_buffer_state_returns_a_
     assert!(buffer_state.spans.is_some(), "reduction");
 }
 
-fn hash_to_parse<'to_parse>(to_parse: &ToParse<'to_parse>) -> u64 {
+fn hash_to_parse(to_parse: &ToParse<'_>) -> u64 {
     use core::hash::{Hash, Hasher};
-    
+
     let mut hasher: fast_hash::Hasher = d!();
     to_parse.hash(&mut hasher);
     hasher.finish()
 }
 
-extern "C" { 
+extern "C" {
     fn tree_sitter_rust() -> Language;
     fn tree_sitter_c() -> Language;
 }
@@ -974,6 +977,7 @@ impl InitializedParsers {
         let languages = map_to_by_ts_name!{name {
             let index = name.to_index();
             let lang_fn = LANG_FNS[index];
+            // SAFETY: This should only be unsafe because it is an extern function.
             let lang = unsafe { lang_fn() };
 
             let mut first: BufferState = d!();
@@ -982,7 +986,7 @@ impl InitializedParsers {
             first.parser.set_language(
                 lang
             )?;
-    
+
             parser_map.insert(d!(), first);
 
             lang
@@ -998,8 +1002,8 @@ impl InitializedParsers {
 
         Ok(InitializedParsers {
             parser_map,
-            languages,
             basic_queries,
+            languages,
         })
     }
 }
@@ -1069,7 +1073,7 @@ mod query {
         capture: QueryCapture<'capture>
     }
 
-    fn rust_basic_span_kind_from_match(Match {    
+    fn rust_basic_span_kind_from_match(Match {
         pattern_index,
         capture: _
     } : Match) -> SpanKind {
@@ -1079,18 +1083,18 @@ mod query {
             _ => SpanKind::PLAIN,
         }
     }
-    
+
     fn get_spans_capacity(to_parse: &str) -> usize {
         const AVERAGE_BYTES_PER_TOKEN: usize = 4;
         to_parse.len() / AVERAGE_BYTES_PER_TOKEN
     }
 
     #[perf_viz::record]
-    pub(crate) fn plaintext_spans_for(s: ToParse<'_>) -> Spans {
+    pub(crate) fn plaintext_spans_for(s: &ToParse<'_>) -> Spans {
         Spans::from(vec![plaintext_end_span_for(s)])
     }
-    
-    fn plaintext_end_span_for(s: ToParse<'_>) -> SpanView {
+
+    fn plaintext_end_span_for(s: &ToParse<'_>) -> SpanView {
         sv!(i s.len(), k PLAIN)
     }
 
@@ -1108,7 +1112,7 @@ mod query {
             rust_basic_span_kind_from_match,
         )
     }
-    
+
     fn spans_for_inner<'to_parse>(
         tree: &Tree,
         query: &Query,
@@ -1118,9 +1122,9 @@ mod query {
         let mut spans = Vec::with_capacity(get_spans_capacity(
             to_parse
         ));
-    
+
         let mut span_stack: Vec<SpanView> = Vec::with_capacity(16);
-    
+
         // TODO maybe test this in isolation from the tree-sitter query stuff.
         let mut receive_match = |m: Match| {
             struct PotentialSpanView {
@@ -1142,24 +1146,24 @@ mod query {
                     })
                 }
             }
-        
+
             if get_prev!().one_past_end <= node.start_byte() {
                 if let Some(s) = span_stack.pop() {
                     spans.push(s);
                 }
             }
-        
+
             spans.push(SpanView {
                 one_past_end: ByteIndex(node.start_byte()),
                 kind: get_prev!().kind,
             });
-        
+
             span_stack.push(SpanView {
                 one_past_end: ByteIndex(node.end_byte()),
                 kind,
             });
         };
-    
+
         let mut query_cursor = QueryCursor::new();
 
         let text_callback = |n: Node| {
@@ -1181,13 +1185,13 @@ mod query {
                 });
             }
         }
-    
+
         while let Some(s) = span_stack.pop() {
             spans.push(s);
         }
-    
+
         cap_off_spans(&mut spans, ByteIndex(to_parse.len()));
-    
+
         // TODO there is probably a clever way to change the above code so this line,
         // and the associted O(n log n) running time, is unnecessary.
         spans.sort_by(|s1, s2|{
@@ -1195,7 +1199,7 @@ mod query {
         });
 
         filter_spans(&mut spans);
-    
+
         Spans::from(spans)
     }
 
@@ -1204,8 +1208,7 @@ mod query {
         // that already covers the end is there then we shouldn't bother.
 
         if spans.last()
-            .map(|s| s.one_past_end < to_parse_byte_len)
-            .unwrap_or(true) 
+            .map_or(true, |s| s.one_past_end < to_parse_byte_len)
         {
             spans.push(SpanView {
                 one_past_end: to_parse_byte_len,
@@ -1213,11 +1216,11 @@ mod query {
             });
         }
     }
-    
+
     #[perf_viz::record]
-    pub(crate) fn totally_classified_spans_for<'to_parse>(
+    pub(crate) fn totally_classified_spans_for(
         tree: &Tree,
-        to_parse: &'to_parse str,
+        to_parse: &str,
     ) -> Spans {
         totally_classified_spans_for_inner(
             tree,
@@ -1226,26 +1229,26 @@ mod query {
         )
     }
 
-    fn totally_classified_spans_for_inner<'to_parse>(
+    fn totally_classified_spans_for_inner(
         tree: &Tree,
-        to_parse: &'to_parse str,
+        to_parse: &str,
         span_kind_from_node: fn(Node) -> SpanKindSpec,
     ) -> Spans {
         let mut spans = Vec::with_capacity(get_spans_capacity(
             to_parse
         ));
-    
+
         let mut drop_until_end_byte = None;
-    
+
         perf_viz::start_record!("DepthFirst::new(tree)");
         for node in nodes_from_tree(tree) {
             perf_viz::record_guard!("for (_, node) in DepthFirst::new(tree) body");
             use SpanKindSpec::*;
-    
+
             perf_viz::start_record!("node.end_byte()");
             let one_past_end = ByteIndex(node.end_byte());
             perf_viz::end_record!("node.end_byte()");
-    
+
             {
                 perf_viz::record_guard!("set drop_until_end_byte or continue");
                 if let Some(end_byte) = drop_until_end_byte {
@@ -1256,7 +1259,7 @@ mod query {
                     }
                 }
             }
-    
+
             perf_viz::start_record!("spans.push match");
             match span_kind_from_node(node) {
                 DropNode => {}
@@ -1268,7 +1271,7 @@ mod query {
                 }
                 KindAndDropBelow(kind) => {
                     drop_until_end_byte = Some(one_past_end);
-    
+
                     spans.push(SpanView {
                         one_past_end,
                         kind,
@@ -1278,7 +1281,7 @@ mod query {
             perf_viz::end_record!("spans.push match");
         }
         perf_viz::end_record!("DepthFirst::new(tree)");
-    
+
         cap_off_spans(&mut spans, ByteIndex(to_parse.len()));
 
         perf_viz::start_record!("spans.sort_by");
@@ -1287,9 +1290,9 @@ mod query {
             s1.one_past_end.cmp(&s2.one_past_end)
         });
         perf_viz::end_record!("spans.sort_by");
-    
+
         filter_spans(&mut spans);
-    
+
         spans.into()
     }
 
@@ -1308,20 +1311,20 @@ mod query {
     fn nodes_from_tree(tree: &Tree) -> Vec<Node> {
         DepthFirst::new(tree).map(|(_, node)| node).collect::<Vec<_>>()
     }
-    
+
     type Depth = u8;
-    
+
     #[perf_viz::record]
-    pub(crate) fn tree_depth_spans_for<'to_parse>(
+    pub(crate) fn tree_depth_spans_for(
         tree: &Tree,
-        to_parse: &'to_parse str,
+        to_parse: &str,
     ) -> Spans {
         let mut spans = Vec::with_capacity(get_spans_capacity(
             to_parse
         ));
-    
+
         tree_depth_extract_sorted(tree, &mut spans);
-    
+
         cap_off_spans(&mut spans, ByteIndex(to_parse.len()));
 
         let len = spans.len();
@@ -1329,10 +1332,10 @@ mod query {
             filter_spans(&mut spans);
             return spans.into();
         }
-    
+
         // scan backwards getting rid of the ones that are overlapped.
         let mut prev_max = ByteIndex::default();
-    
+
         for i in (0..(spans.len() - 1)).rev() {
             if spans[i].one_past_end > prev_max {
                 prev_max = spans[i].one_past_end;
@@ -1342,16 +1345,16 @@ mod query {
                 && spans[i].one_past_end >= prev_max {
                     spans.remove(i);
                 }
-    
+
                 prev_max = spans[i].one_past_end;
             }
         }
-        
+
         filter_spans(&mut spans);
-        
+
         spans.into()
     }
-    
+
     fn tree_depth_extract_sorted(
         tree: &Tree,
         spans: &mut Vec<SpanView>,
@@ -1362,7 +1365,7 @@ mod query {
                 kind: sk!(depth),
                 one_past_end: new_end_byte_index
             };
-    
+
             if let Some(previous) = spans.pop() {
                 if previous.one_past_end >= new_end_byte_index {
                     spans.push(new);
@@ -1377,20 +1380,20 @@ mod query {
                 spans.push(new);
             }
         }
-    
+
         // TODO there is probably a clever way to change the above loop so this line,
         // and the associted O(n log n) running time, is unnecessary.
         spans.sort_by(|s1, s2|{
             s1.one_past_end.cmp(&s2.one_past_end)
         });
     }
-    
+
     struct DepthFirst<'tree> {
         depth: Depth,
         cursor: TreeCursor<'tree>,
         done: bool,
     }
-    
+
     impl <'tree> DepthFirst<'tree> {
         fn new(tree: &'tree Tree) -> Self {
             DepthFirst {
@@ -1400,7 +1403,7 @@ mod query {
             }
         }
     }
-    
+
     impl <'tree> Iterator for DepthFirst<'tree> {
         type Item = (Depth, Node<'tree>);
 
@@ -1444,23 +1447,23 @@ mod query {
                     }
                 }
             }
-    
+
             output
         }
     }
-    
+
     #[perf_viz::record]
     fn filter_spans(spans: &mut Vec<SpanView>) {
         dedup_by_end_byte_keeping_last(spans);
         dedup_by_kind_keeping_last(spans);
-        
+
         for i in (0..spans.len()).rev() {
             if spans[i].one_past_end == 0 {
                 spans.remove(i);
             }
         }
     }
-    
+
     fn dedup_by_kind_keeping_last(spans: &mut Vec<SpanView>) {
         let mut write = 0;
         for i in 0..spans.len() {
@@ -1470,10 +1473,10 @@ mod query {
             }
             spans[write] = spans[i];
         }
-    
+
         spans.truncate(write + 1);
     }
-    
+
     fn dedup_by_end_byte_keeping_last(spans: &mut Vec<SpanView>) {
         let mut write = 0;
         for i in 0..spans.len() {
@@ -1483,7 +1486,7 @@ mod query {
             }
             spans[write] = spans[i];
         }
-    
+
         spans.truncate(write + 1);
     }
 
@@ -1491,11 +1494,11 @@ mod query {
     fn recursive_dbg(node: Option<Node>) {
         recursive_dbg_helper(node, 0)
     }
-    
+
     fn recursive_dbg_helper(node: Option<Node>, mut depth: Depth) {
         if let Some(n) = node {
             dbg!((depth, n));
-    
+
             depth += 1;
             for i in 0..n.child_count() {
                 dbg!(i);
@@ -1503,7 +1506,7 @@ mod query {
             }
         }
     }
-    
+
     #[allow(unused_macros)]
     macro_rules! recursive_dbg_code {
         (rust $code: expr) => {

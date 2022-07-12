@@ -477,9 +477,7 @@ impl DebugMenuState {
                 }
 
                 output.push_str(field_name);
-                output.push_str(" PID: ");
-                output.push_str(&format!("{}", self.pids.$field_name));
-                output.push('\n');
+                let _cannot_actually_fail = writeln!(output, " PID: {}", self.pids.$field_name);
             }}
         }
 

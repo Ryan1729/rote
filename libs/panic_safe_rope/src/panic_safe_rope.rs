@@ -590,7 +590,7 @@ impl std::cmp::PartialEq<Rope> for str {
     }
 }
 
-impl<'a> std::cmp::PartialEq<String> for Rope {
+impl std::cmp::PartialEq<String> for Rope {
     #[inline]
     #[perf_viz::record]
     fn eq(&self, other: &String) -> bool {
@@ -598,7 +598,7 @@ impl<'a> std::cmp::PartialEq<String> for Rope {
     }
 }
 
-impl<'a> std::cmp::PartialEq<Rope> for String {
+impl std::cmp::PartialEq<Rope> for String {
     #[inline]
     #[perf_viz::record]
     fn eq(&self, other: &Rope) -> bool {
