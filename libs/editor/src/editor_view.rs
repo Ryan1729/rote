@@ -77,7 +77,7 @@ pub fn render(
         let _cannot_actually_fail = write!(
             chars,
             "{}/{}",
-            buffers.current_index_part().saturating_add(1).to_string(),
+            buffers.current_index_part().saturating_add(1),
             usize::from(buffers.len())
         );
     
@@ -156,11 +156,11 @@ pub fn render(
             MenuMode::FindReplace(mode) => MenuView::FindReplace(FindReplaceView {
                 mode,
                 find: text_buffer_to_buffer_view_data(
-                    &find,
+                    find,
                     FIND_REPLACE_AVERAGE_SELECTION_LINES_ESTIMATE,
                 ),
                 replace: text_buffer_to_buffer_view_data(
-                    &replace,
+                    replace,
                     FIND_REPLACE_AVERAGE_SELECTION_LINES_ESTIMATE,
                 ),
                 result_count: search_results.ranges.len(),
@@ -169,7 +169,7 @@ pub fn render(
                 const FILE_SEARCH_SELECTION_LINES_ESTIMATE: usize = 1;
                 MenuView::FileSwitcher(FileSwitcherView {
                     search: text_buffer_to_buffer_view_data(
-                        &file_switcher,
+                        file_switcher,
                         FILE_SEARCH_SELECTION_LINES_ESTIMATE,
                     ),
                     results: file_switcher_results.clone(),
@@ -181,7 +181,7 @@ pub fn render(
                 
                 MenuView::GoToPosition(GoToPositionView {
                     go_to_position: text_buffer_to_buffer_view_data(
-                        &go_to_position,
+                        go_to_position,
                         GO_TO_POSITION_SELECTION_LINES_ESTIMATE,
                     ),
                 })

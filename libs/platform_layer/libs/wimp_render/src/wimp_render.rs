@@ -789,7 +789,7 @@ fn calculate_window_size(
     ListSelectionWindowSize::new(
         (usable_height / Ratio::from(vertical_shift.trunc_to_u32() as usize))
             .trunc_to_u32() as usize
-    ).unwrap_or_else(|| DEFAULT_LIST_WINDOW_SIZE)
+    ).unwrap_or(DEFAULT_LIST_WINDOW_SIZE)
 }
 
 fn render_file_switcher_menu<'view>(
@@ -871,7 +871,7 @@ fn render_file_switcher_menu<'view>(
                     vertical_shift,
                 ).get()
             )
-    ).unwrap_or_else(|| DEFAULT_LIST_WINDOW_SIZE);
+    ).unwrap_or(DEFAULT_LIST_WINDOW_SIZE);
 
     let mut navigated_result = None;
 
@@ -993,7 +993,7 @@ fn render_file_switcher_menu<'view>(
             pen,
             result_id,
             OutlineButtonSpec {
-                text: &path_text,
+                text: path_text,
                 size: TAB_SIZE,
                 char_dim: tab_char_dim,
                 layout: TextLayout::Unbounded,
@@ -1003,7 +1003,7 @@ fn render_file_switcher_menu<'view>(
                 ..d!()
             },
         ) {
-            *pen.action = ViewAction::Input(Input::OpenOrSelectBuffer(result.to_owned()));
+            *pen.action = ViewAction::Input(Input::OpenOrSelectBuffer(result.clone()));
         }
         current_rect.min.y += vertical_shift;
         current_rect.max.y += vertical_shift;
@@ -1033,7 +1033,7 @@ fn render_command_menu(
     let window_size = calculate_window_size(pen.dimensions.window.height, vertical_shift);
 
     let mut navigated_result = None;
-    let results: Vec<CommandKey> = commands.keys().cloned().collect();
+    let results: Vec<CommandKey> = commands.keys().copied().collect();
 
     if pen.action.is_none() {
         u!{ui::Navigation}
@@ -1074,7 +1074,7 @@ fn render_command_menu(
                 {
                     *pen.action = results
                         .get(selection.index)
-                        .cloned()
+                        .copied()
                         .into();
                 }
             }
@@ -1104,7 +1104,7 @@ fn render_command_menu(
             pen,
             result_id,
             current_rect,
-            &commands,
+            commands,
             result,
         );
 
@@ -1113,6 +1113,7 @@ fn render_command_menu(
     }
 }
 
+#[derive(Clone, Copy)]
 enum TextBoxColour {
     FromSpans,
     Single(Colour),
@@ -1230,7 +1231,7 @@ fn text_box_view<'view>(
             perf_viz::record_guard!("de-roping for colourization");
             match text_colour {
                 TextBoxColour::FromSpans => colourize(
-                    &chars,
+                    chars,
                     spans
                 ),
                 TextBoxColour::Single(colour) => {
@@ -1299,9 +1300,9 @@ fn text_box_view<'view>(
     );
 }
 
-pub fn make_active_tab_visible<'view>(
+pub fn make_active_tab_visible(
     ui: &mut ui::State,
-    view: &'view View,
+    view: &View,
     Dimensions {
         font: FontInfo { tab_char_dim, .. },
         window: window_layer::Dimensions{ width: window_width, .. },
@@ -1310,7 +1311,13 @@ pub fn make_active_tab_visible<'view>(
 ) -> Option<()> {
     let target_index_or_max: usize = view.current_text_index().into();
     let tab_count = view.buffers_count().into();
-    let tab_layout = get_tab_spaced_rect(&ui, tab_char_dim, 0, tab_count, window_width);
+    let tab_layout = get_tab_spaced_rect(
+        ui,
+        tab_char_dim,
+        0,
+        tab_count,
+        window_width
+    );
     let tab_width = tab_layout.width();
 
     make_nth_tab_visible_if_present(ui, target_index_or_max, tab_width, window_width);
@@ -1518,6 +1525,7 @@ pub const SEPARATOR_LINE_THICKNESS: abs::Length = abs::Length::TWO;
 pub const TEXT_SIZES: [f32; 4] = [TEXT_SIZE, STATUS_SIZE, TAB_SIZE, FIND_REPLACE_SIZE];
 pub const SCROLL_MULTIPLIER: f32 = TEXT_SIZE * 3.0;
 
+#[must_use]
 pub fn get_font_info(char_dims: &[CharDim]) -> FontInfo {
     debug_assert!(
         char_dims.len() >= TEXT_SIZES.len(),
@@ -1560,31 +1568,30 @@ pub enum Spacing {
     Horizontal(abs::Length),
     Vertical(abs::Length),
     Axis(abs::Length, abs::Length),
-    LeftTopRightBottom(abs::Length, abs::Length, abs::Length, abs::Length),
+    LeftTopRightBottom(Lrtb),
 }
 d!(for Spacing: Spacing::All(d!()));
 
-/// LRTB is short for `LeftTopRightBottom`. This represents what the values of a spacing would be
+/// Lrtb is short for `LeftTopRightBottom`. This represents what the values of a spacing would be
 /// if the spacing was the `LeftTopRightBottom` variant.
-struct LRTB {
-    l: abs::Length,
-    r: abs::Length,
-    t: abs::Length,
-    b: abs::Length,
+#[derive(Clone, Copy)]
+pub struct Lrtb {
+    pub l: abs::Length,
+    pub r: abs::Length,
+    pub t: abs::Length,
+    pub b: abs::Length,
 }
 
 impl Spacing {
-    fn into_ltrb(self) -> LRTB {
+    fn into_ltrb(self) -> Lrtb {
         u!{Spacing}
-        let (l, t, r, b) = match self {
-            All(n) => (n, n, n, n),
-            Horizontal(n) => (n, d!(), n, d!()),
-            Vertical(n) => (d!(), n, d!(), n),
-            Axis(x, y) => (x, y, x, y),
-            LeftTopRightBottom(l, t, r, b) => (l, t, r, b),
-        };
-
-        LRTB { l, t, r, b }
+        match self {
+            All(n) => Lrtb { l: n, r: n, t: n, b: n },
+            Horizontal(x) => Lrtb { l: x, r: x, t: d!(), b: d!() },
+            Vertical(y) => Lrtb { l: d!(), r: d!(), t: y, b: y },
+            Axis(x, y) => Lrtb { l: x, r: x, t: y, b: y },
+            LeftTopRightBottom(lrtb) => lrtb,
+        }
     }
 }
 struct SpacedRect {
@@ -1638,7 +1645,7 @@ fn enlarge_by(
     ssr!(min_x, min_y, max_x, max_y): ScreenSpaceRect,
     enlarge_amount: Spacing,
 ) -> ScreenSpaceRect {
-    let LRTB {
+    let Lrtb {
         l: min_x_e,
         t: min_y_e,
         r: max_x_e,
@@ -1658,7 +1665,7 @@ fn shrink_by(
     ssr!(min_x, min_y, max_x, max_y): ScreenSpaceRect,
     shrink_amount: Spacing,
 ) -> ScreenSpaceRect {
-    let LRTB {
+    let Lrtb {
         l: min_x_s,
         t: min_y_s,
         r: max_x_s,
@@ -1672,6 +1679,7 @@ fn shrink_by(
     )
 }
 
+#[must_use]
 pub fn get_inner_text_rect(text: &str, char_dim: CharDim, rect: ScreenSpaceRect) -> ScreenSpaceRect {
     let text_w = abs::Ratio::from(text.chars().count()) * char_dim.w;
 
@@ -1711,6 +1719,7 @@ fn upper_position_info(tab_char_dim: &CharDim) -> UpperPositionInfo {
 }
 
 /// A specification for spacing around something, containing values suitable for passing to `Spacing::All`.
+#[must_use]
 struct SpacingAllSpec {
     margin: abs::Length,
     padding: abs::Length,
@@ -1745,6 +1754,7 @@ fn get_menu_spacing(height: abs::Length) -> SpacingAllSpec {
     }
 }
 
+#[must_use]
 pub struct FindReplaceInfo {
     pub margin: Spacing,
     pub padding: Spacing,
@@ -1829,6 +1839,7 @@ pub fn get_find_replace_info(
     }
 }
 
+#[must_use]
 pub struct FileSwitcherInfo {
     pub margin: Spacing,
     pub padding: Spacing,
@@ -1901,6 +1912,7 @@ pub fn get_file_switcher_info(
     }
 }
 
+#[must_use]
 pub struct GoToPositionInfo {
     pub margin: Spacing,
     pub padding: Spacing,
@@ -1967,6 +1979,7 @@ pub fn get_go_to_position_info(
     }
 }
 
+#[must_use]
 pub struct CommandMenuInfo {
     pub margin: Spacing,
     pub padding: Spacing,
@@ -2023,6 +2036,7 @@ pub fn get_command_menu_info(
 }
 
 // If we end up with a third menu like this and CommandMenu, merge the infos.
+#[must_use]
 pub struct DebugMenuInfo {
     pub margin: Spacing,
     pub padding: Spacing,
@@ -2077,6 +2091,7 @@ pub fn get_debug_menu_info(
 }
 
 /// Info for making a rect that completely covers the text area.
+#[must_use]
 pub struct CoverTextAreaInfo {
     pub margin: abs::Length,
     pub padding: abs::Length,
@@ -2128,6 +2143,7 @@ fn get_full_width_ssr<
     ssr!(0.0, top_y.into(), width.into(), bottom_y.into())
 }
 
+#[must_use]
 pub fn get_edit_buffer_xywh(
     mode: WimpMenuMode,
     dimensions: Dimensions,
@@ -2157,6 +2173,7 @@ pub fn get_edit_buffer_xywh(
     }
 }
 
+#[must_use]
 pub fn get_current_buffer_rect(
     current_buffer_kind: BufferIdKind,
     mode: WimpMenuMode,
@@ -2174,6 +2191,7 @@ pub fn get_current_buffer_rect(
 }
 
 /// This function determines whether the mouse cursor should use the text selection icon or not.
+#[must_use]
 pub fn should_show_text_cursor(
     xy: ScreenSpaceXY,
     mode: WimpMenuMode,
@@ -2215,6 +2233,7 @@ pub fn should_show_text_cursor(
     }
 }
 
+#[must_use]
 pub fn inside_tab_area(
     ScreenSpaceXY { x: _, y }: ScreenSpaceXY,
     FontInfo {

@@ -1,5 +1,5 @@
-/// This module was originally created to make sure every change to the current index went 
-/// through a single path so we could more easily track down a bug where the index was 
+/// This module was originally created to make sure every change to the current index went
+/// through a single path so we could more easily track down a bug where the index was
 /// improperly set.
 use editor_types::{Cursor};
 use g_i::{SelectableVec1};
@@ -65,7 +65,10 @@ impl <I: Into<TextBuffer> + Into<String>> From<(BufferName, I)> for EditorBuffer
 }
 
 impl EditorBuffer {
-    pub fn new<I: Into<TextBuffer> + Into<String>>(name: BufferName, s: I) -> Self {
+    pub fn new<I>(name: BufferName, s: I) -> Self
+    where
+        I: Into<TextBuffer> + Into<String>
+    {
         let text_buffer = create_text_buffer(&name, s);
         Self {
             name,
@@ -119,8 +122,9 @@ impl EditorBuffer {
                 .get(self.search_results.current_range)
             {
                 let c: Cursor = pair.into();
-                self                    .text_buffer
-                    .set_cursor(c, ReplaceOrAdd::Replace);            
+                self
+                    .text_buffer
+                    .set_cursor(c, ReplaceOrAdd::Replace);
             }
         }
     }
@@ -142,7 +146,7 @@ impl EditorBuffer {
 
         output += self.search_results.size_in_bytes();
 
-        // ParserKind seems like it will probably always be on the stack, 
+        // ParserKind seems like it will probably always be on the stack,
         // meaning `size_of_val` be accurate.
         output += core::mem::size_of_val(&self.parser_kind);
 
@@ -153,7 +157,7 @@ impl EditorBuffer {
 /// The collection of files opened for editing, and/or in-memory scratch buffers.
 /// Guaranteed to have at least one buffer in it at all times.
 #[derive(Clone, Default, PartialEq)]
-pub struct EditorBuffers {    
+pub struct EditorBuffers {
     buffers: SelectableVec1<EditorBuffer>,
     last_non_rope_hash: u64,
     last_full_hash: Option<u64>,
@@ -209,11 +213,11 @@ impl EditorBuffers {
     #[perf_viz::record]
     pub fn should_render_buffer_views(&mut self) -> bool {
         use core::hash::{Hasher};
-    
+
         if cfg!(feature = "no-cache") {
             return true;
         }
-        
+
         let mut hasher: fast_hash::Hasher = d!();
         self.non_rope_hash(&mut hasher);
         let new_non_rope_hash = hasher.finish();
@@ -224,7 +228,7 @@ impl EditorBuffers {
             let output = new_full_hash != self.last_full_hash;
 
             self.last_full_hash = new_full_hash;
-            
+
             output
         } else {
             self.last_non_rope_hash = new_non_rope_hash;
@@ -304,9 +308,9 @@ impl EditorBuffers {
         if let Some(index) = self.index_with_name(&name) {
             self.set_current_index(index);
             dbg!();
-            // Without a special case here for the first scratch buffer, if we type 
+            // Without a special case here for the first scratch buffer, if we type
             // something into it, it does not get retained across editor restarts.
-            if name == d!() && usize::from(self.buffers.len()) <= 1 
+            if name == d!() && usize::from(self.buffers.len()) <= 1
             {
                 dbg!();
                 let buffer = &mut self.get_current_buffer_mut().text_buffer;
@@ -370,11 +374,14 @@ impl EditorBuffers {
     }
 }
 
-fn create_text_buffer<I: Into<TextBuffer> + Into<String>>(name: &BufferName, s: I) -> TextBuffer {
+fn create_text_buffer<I>(name: &BufferName, s: I) -> TextBuffer
+where
+    I: Into<TextBuffer> + Into<String>
+{
     u!{BufferName}
     match name {
-        // If this gets any more complicated, consider making BufferName, (or at 
-        // least an enum indicating the variant,) a required parameter to make a 
+        // If this gets any more complicated, consider making BufferName, (or at
+        // least an enum indicating the variant,) a required parameter to make a
         // `TextBuffer` and let that crate handle this.
         Scratch(_) => {
             // We want the buffer to consider the empty string to be the
@@ -384,7 +391,7 @@ fn create_text_buffer<I: Into<TextBuffer> + Into<String>>(name: &BufferName, s: 
             buffer.insert_string(s.into(), None);
             // We do not want to be able to undo to a blank state though.
             buffer.clear_history();
-            // After creating a new buffer we expect the cursors to be at the 
+            // After creating a new buffer we expect the cursors to be at the
             // beginning.
             buffer.move_all_cursors(Move::ToBufferStart);
 
@@ -407,7 +414,7 @@ pub mod tests {
         use pub_arb_platform_types::{
             BufferNameSpec,
             buffer_name_with_spec,
-            position, 
+            position,
             selectable_vec1,
         };
         use proptest::prelude::{prop_compose, Just, any};
@@ -417,8 +424,8 @@ pub mod tests {
                 needle in ".*",
                 ranges_vec in vec((position(), position()), 1..max_len),
             )(
-                needle in Just(needle), 
-                current_range in 0..=(ranges_vec.len() - 1), 
+                needle in Just(needle),
+                current_range in 0..=(ranges_vec.len() - 1),
                 ranges in Just(ranges_vec)
             ) -> SearchResults {
                 SearchResults {

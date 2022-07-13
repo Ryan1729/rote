@@ -1492,7 +1492,7 @@ mod query {
 
     #[allow(dead_code)]
     fn recursive_dbg(node: Option<Node>) {
-        recursive_dbg_helper(node, 0)
+        recursive_dbg_helper(node, 0);
     }
 
     fn recursive_dbg_helper(node: Option<Node>, mut depth: Depth) {

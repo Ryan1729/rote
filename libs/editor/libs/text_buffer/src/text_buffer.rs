@@ -74,6 +74,7 @@ impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
     // TODO write a test that fails when we add a new field that isn't counted here.
     // A compile-time assert would be preferable, of course.
     #[perf_viz::record]
+    #[must_use]
     pub fn size_in_bytes(&self) -> usize {
         use core::mem;
 
@@ -81,11 +82,11 @@ impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
 
         let rope = self.borrow_rope();
         output += mem::size_of_val(rope);
-        output += usize::from(rope.len_bytes().0);
+        output += rope.len_bytes().0;
         output += self.borrow_cursors().size_in_bytes();
         output += self.history.size_in_bytes();
         output += mem::size_of_val(&self.unedited);
-        output += usize::from(self.unedited.len_bytes().0);
+        output += self.unedited.len_bytes().0;
         output += mem::size_of_val(&self.scroll);
 
         output
@@ -132,7 +133,7 @@ impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
 
     #[must_use]
     pub fn borrow_cursors(&self) -> &Cursors {
-        &self.rope.borrow_cursors()
+        self.rope.borrow_cursors()
     }
 
     pub fn reset_cursor_states(&mut self) {
@@ -271,16 +272,19 @@ fn next_instance_of_selected(rope: &Rope, cursor: &Cursor) -> Option<(Position, 
     }
 }
 
+#[derive(Clone, Copy)]
 enum AllOrOne {
     All,
     Index(usize),
 }
 
+#[derive(Clone, Copy)]
 enum MoveOrSelect {
     Move,
     Select,
 }
 
+#[derive(Clone, Copy)]
 struct CursorMoveSpec {
     what: MoveOrSelect,
     how_many: AllOrOne,
@@ -360,7 +364,7 @@ mod history {
 
         pub fn record_edit(&mut self, edit: Edit) {
             self.edits.truncate(self.index);
-            if self.edits.len() < self.max_len() {
+            if self.edits.len() < EDIT_COUNT {
                 self.index += 1;
             } else {
                 // This makes the current index point to the empty space after the
@@ -382,11 +386,6 @@ mod history {
             self.edits.is_empty()
         }
 
-        // TODO enforce this limit once we are sure it is a good enough size.
-        pub fn max_len(&self) -> usize {
-            EDIT_COUNT
-        }
-
         pub fn clear(&mut self) {
             self.edits.clear();
             self.index = 0;
@@ -396,7 +395,7 @@ mod history {
             let mut output = 0;
             // TODO Does this take long enough that we should memoize this method?
             // Maybe caching further upstream would be better?
-            for edit in self.edits.iter() {
+            for edit in &self.edits {
                 output += edit.size_in_bytes();
             }
 
@@ -441,7 +440,7 @@ mod history {
     }
 
     impl NavOutcome {
-        pub fn ran_out_of_history(&self) -> bool {
+        pub fn ran_out_of_history(self) -> bool {
             u!{NavOutcome}
             matches!(self, RanOutOfHistory)
         }
@@ -463,7 +462,7 @@ impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
         listener: ppel!()
     ) -> PossibleEditedTransition {
         let o = self.record_edit(
-            edit::get_insert_edit(&self.rope, |_| s.clone()),
+            edit::get_insert_edit(&self.rope, move |_| s.clone()),
             listener
         );
         dbg!(&self);
@@ -520,6 +519,7 @@ impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
         );
     }
 
+    #[must_use]
     pub fn copy_selections(&self) -> Vec<String> {
         let mut selections = self.get_selections_and_cut_edit().0;
 
@@ -580,6 +580,7 @@ impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
         }
     }
 
+    #[must_use]
     pub fn xy_to_position(
         &self,
         char_dim: CharDim,
@@ -599,9 +600,9 @@ impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
     /// * Word characters, as defined by the `regex` crate
     /// * Whitspace characters, again as defined by the `regex` crate
     /// * everything else, which we will call "Punctuation"
-    /// (see get_offsets in move_cursor.rs for details)
+    /// (see `get_offsets` in `move_cursor.rs` for details)
     ///
-    /// If it helps, you can think of it as "select_word" if the cursor is on a word, and other
+    /// If it helps, you can think of it as "`select_word`" if the cursor is on a word, and other
     /// stuff otherwise
     pub fn select_char_type_grouping(
         &mut self,
@@ -765,11 +766,11 @@ impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
         match spec.how_many {
             AllOrOne::All => {
                 for cursor in new.iter_mut() {
-                    action(&self.borrow_rope(), cursor, r#move);
+                    action(self.borrow_rope(), cursor, r#move);
                 }
             }
             AllOrOne::Index(index) => {
-                action(&self.borrow_rope(), new.get_mut(index)?, r#move);
+                action(self.borrow_rope(), new.get_mut(index)?, r#move);
             }
         };
 
@@ -980,6 +981,7 @@ pub enum Editedness {
 }
 
 impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
+    #[must_use]
     pub fn editedness(&self) -> Editedness {
         editedness(&self.unedited, self.rope.borrow_rope())
     }
@@ -1027,6 +1029,7 @@ impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
         })
     }
 
+    #[must_use]
     pub fn has_no_edits(&self) -> bool {
         debug_assert_eq!(self.editedness(), Editedness::Unedited);
         self.history.is_empty()
@@ -1044,11 +1047,12 @@ pub struct HistoryStats {
 }
 
 impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
+    #[must_use]
     pub fn history_stats(&self) -> HistoryStats {
         HistoryStats {
             index: self.history.index(),
             len: self.history.len(),
-            max_len: self.history.max_len(),
+            max_len: EDIT_COUNT,
         }
     }
 }
