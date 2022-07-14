@@ -179,8 +179,44 @@ pub enum TestEdit {
 }
 
 pub type CountNumber = usize;
+pub type CountMap = HashMap<char, CountNumber>;
+pub type Laxity = u32;
 
-pub type Counts = HashMap<char, CountNumber>;
+#[derive(Debug, Default, Eq, PartialEq)]
+pub struct Counts {
+    map: CountMap,
+    laxity: Laxity,
+}
+
+impl From<CountMap> for Counts {
+    fn from(map: CountMap) -> Self {
+        Self {
+            map,
+            ..<_>::default()
+        }
+    }
+}
+
+impl Counts {
+    pub fn get(&self, c: &char) -> Option<&CountNumber> {
+        self.map.get(c)
+    }
+
+    pub fn keys(&self) -> std::collections::hash_map::Keys<'_, char, CountNumber> {
+        self.map.keys()
+    }
+
+    pub fn entry(&mut self, c: char) -> std::collections::hash_map::Entry<'_, char, CountNumber> {
+        self.map.entry(c)
+    }
+
+    pub fn retain<F>(&mut self, f: F)
+    where
+        F: FnMut(&char, &mut CountNumber) -> bool
+    {
+        self.map.retain(f)
+    }
+}
 
 pub fn get_counts(buffer: &TextBuffer) -> Counts {
     let mut output = HashMap::with_capacity(buffer.len());
@@ -190,7 +226,7 @@ pub fn get_counts(buffer: &TextBuffer) -> Counts {
         *count += 1;
     }
 
-    output
+    output.into()
 }
 
 pub fn increment_char_by(counts: &mut Counts, c: char, amount: CountNumber) {
