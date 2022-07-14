@@ -287,7 +287,7 @@ impl TestEdit {
                         decrement_string(counts, &s);
                     }
                     _ => {},
-                }        
+                }
             }
         }
 
@@ -330,7 +330,7 @@ impl TestEdit {
             TabIn => {
                 let selections: Vec<_> = buffer.borrow_cursors()
                     .iter()
-                    .map(|cur| 
+                    .map(|cur|
                         match offset_pair(buffer.borrow_rope(), &cur) {
                             (Some(o1), Some(o2)) => {
                                 let range = AbsoluteCharOffsetRange::new(o1, o2);
@@ -342,9 +342,9 @@ impl TestEdit {
 
                 for selection in selections {
                     let line_count: CountNumber = selection.len_lines().0;
-    
+
                     increment_char_by(
-                        counts, 
+                        counts,
                         edit::TAB_STR_CHAR,
                         line_count * edit::TAB_STR_CHAR_COUNT
                     );
@@ -357,7 +357,7 @@ impl TestEdit {
                                     edit::TAB_STR_CHAR
                                 );
                                 decrement_char(
-                                    counts, 
+                                    counts,
                                     c
                                 )
                             } else {
@@ -374,7 +374,7 @@ impl TestEdit {
                 let clone_counts = get_counts(&clone);
 
                 // We don't want any non-whitespace characters to be changed
-                let key_set: std::collections::HashSet<&char> = 
+                let key_set: std::collections::HashSet<&char> =
                     clone_counts.keys()
                     .chain(counts.keys())
                     .collect();
@@ -414,7 +414,7 @@ impl TestEdit {
                     for c in cursor_vec.iter_mut() {
                         edit::extend_cursor_to_cover_line(c, buffer.borrow_rope());
                     }
-    
+
                     let cursors = Cursors::new(buffer.borrow_rope(), cursor_vec);
                     for cur in cursors.iter() {
                         let offsets = offset_pair(buffer.borrow_rope(), &cur);
@@ -424,7 +424,7 @@ impl TestEdit {
                                 increment_char(
                                     counts,
                                     '\n'
-                                );                                
+                                );
                             }
                             (Some(o1), Some(o2)) => {
                                 let s = edit::copy_string(
@@ -440,7 +440,7 @@ impl TestEdit {
                                 increment_string(counts, &s);
                             }
                             _ => {},
-                        }        
+                        }
                     }
                 }*/
             }
@@ -451,14 +451,14 @@ impl TestEdit {
     pub fn is_recordable(&self) -> bool {
         use TestEdit::*;
         match *self {
-            SelectCharTypeGrouping(_, _) | MoveAllCursors(_) 
-            | ExtendSelectionForAllCursors(_) | MoveCursors(_, _) 
+            SelectCharTypeGrouping(_, _) | MoveAllCursors(_)
+            | ExtendSelectionForAllCursors(_) | MoveCursors(_, _)
             | ExtendSelection(_, _) | SetCursor(_, _) | DragCursors(_)
             | SelectAll => {
                 false
             }
-            Insert(_) | InsertString(_) | Delete | DeleteLines | Cut 
-            | InsertNumbersAtCursors | TabIn | TabOut | StripTrailingWhitespace 
+            Insert(_) | InsertString(_) | Delete | DeleteLines | Cut
+            | InsertNumbersAtCursors | TabIn | TabOut | StripTrailingWhitespace
             | ToggleCase | DuplicateLines => {
                 true
             }
@@ -633,7 +633,8 @@ prop_compose! {
 
 prop_compose! {
     pub fn text_buffer_and_test_edits(max_len: usize, spec: TestEditSpec)
-        (buffer in text_buffer_with_valid_cursors(), edits in test_edits(max_len, spec))         -> (TextBuffer, Vec<TestEdit>) {
+        (buffer in text_buffer_with_valid_cursors(), edits in test_edits(max_len, spec))
+         -> (TextBuffer, Vec<TestEdit>) {
         (buffer, edits)
     }
 }
