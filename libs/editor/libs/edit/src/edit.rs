@@ -328,6 +328,30 @@ pub fn extend_cursor_to_cover_line(c: &mut Cursor, rope: &Rope) {
     *c = dbg!(cur!{pos!{l min_line, o 0}, pos!{l max_line, o 0}});
 }
 
+#[test]
+fn extend_cursor_to_cover_line_extends_as_expected_on_this_empty_second_line_example() {
+    let rope = Rope::from("abc\n");
+
+    let expected = cur!{l 0 o 0 h l 1 o 0};
+
+    for mut cursor in [cur!{l 0 o 0}, cur!{l 0 o 1}, cur!{l 0 o 2}, cur!{l 0 o 3}] {
+        extend_cursor_to_cover_line(&mut cursor, &rope);
+
+        assert_eq!(cursor, expected);
+    }
+}
+
+#[test]
+fn extend_cursor_to_cover_line_extends_as_expected_on_this_two_line_example() {
+    let rope = Rope::from("abc\ndef");
+
+    let mut cursor = cur!{l 1 o 1};
+
+    extend_cursor_to_cover_line(&mut cursor, &rope);
+
+    assert_eq!(cursor, cur!{l 0 o 3 h l 2 o 0});
+}
+
 /// Returns an edit that, if applied, deletes the line(s) each cursor intersects with.
 #[must_use]
 pub fn get_delete_lines_edit(rope: &CursoredRope) -> Edit {
@@ -893,6 +917,8 @@ pub fn get_toggle_case_edit(
 pub fn get_duplicate_lines_edit(
     rope: &CursoredRope,
 ) -> Edit {
+    let mut seen_indicies = std::collections::HashSet::new();
+
     get_edit(
         rope,
         |cursor_info, rope| {
@@ -908,8 +934,14 @@ pub fn get_duplicate_lines_edit(
                 return d!()
             );
 
+            std::dbg!(&line_indicies);
             let mut s = String::with_capacity(selected_range.len());
             for index in line_indicies {
+                if seen_indicies.contains(&index) {
+                    continue;
+                }
+                seen_indicies.insert(index);
+
                 if let Some(line) = rope.line(index)
                     .and_then(|line| line.slice(..)) {
                     push_slice(&mut s, line);
@@ -918,10 +950,12 @@ pub fn get_duplicate_lines_edit(
                 }
             }
 
+            let ends_with_newline_or_is_empty
+                = s.chars().last().map(is_linebreak_char).unwrap_or(true);
             // If the selected area didn't end with a newline, we need to add one at
             // the beginning of the characters we will insert, so we don't end up
             // adding the characters at the end of the same line we started on.
-            if !s.ends_with('\n') {
+            if !ends_with_newline_or_is_empty {
                 s.insert(0, '\n');
             }
 

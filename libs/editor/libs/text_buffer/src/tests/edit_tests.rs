@@ -1731,6 +1731,16 @@ fn does_not_lose_characters_in_this_reduced_two_space_then_zero_delete_then_tab_
 }
 
 #[test]
+fn does_not_lose_characters_in_this_duplicate_lines_case() {
+    use TestEdit::*;
+    use ReplaceOrAdd::*;
+    does_not_lose_characters_on(
+        t_b!(" "),
+        [SetCursor(pos!{l 0 o 1}, Add), DuplicateLines]
+    );
+}
+
+#[test]
 fn tab_in_does_what_is_expected_with_this_selection() {
     use ReplaceOrAdd::*;
     let mut buffer = t_b!(" 0");

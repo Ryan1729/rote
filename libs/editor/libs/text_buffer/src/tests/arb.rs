@@ -437,18 +437,23 @@ impl TestEdit {
                 todo!("Have not accurately updated the counts for ToggleCase");
             },
             DuplicateLines => {
-                todo!("Have not accurately updated the counts for DuplicateLines");
-                // This versions has a bug
-                /*
                 if buffer.is_empty() {
-                    increment_char(
-                        counts,
-                        '\n'
-                    );
+
                 } else {
+                    fn extend_cursor_to_same_lines(c: &mut Cursor) {
+                        use core::cmp::{min, max};
+                        let position = c.get_position();
+                        let highlight_position = c.get_highlight_position_or_position();
+
+                        let min_line = min(position.line, highlight_position.line);
+                        let max_line = max(position.line, highlight_position.line) + 1;
+
+                        *c = cur!{pos!{l min_line, o 0}, pos!{l max_line, o 0}};
+                    }
+
                     let mut cursor_vec = buffer.borrow_cursors().get_cloned_cursors();
                     for c in cursor_vec.iter_mut() {
-                        edit::extend_cursor_to_cover_line(c, buffer.borrow_rope());
+                        extend_cursor_to_same_lines(c);
                     }
 
                     let cursors = Cursors::new(buffer.borrow_rope(), cursor_vec);
@@ -467,7 +472,12 @@ impl TestEdit {
                                     buffer.borrow_rope(),
                                     AbsoluteCharOffsetRange::new(o1, o2)
                                 );
-                                if !s.ends_with('\n') {
+                                let ends_with_newline_or_is_empty
+                                    = s.chars()
+                                    .last()
+                                    .map(is_linebreak_char)
+                                    .unwrap_or(true);
+                                if !ends_with_newline_or_is_empty {
                                     increment_char(
                                         counts,
                                         '\n'
@@ -478,7 +488,7 @@ impl TestEdit {
                             _ => {},
                         }
                     }
-                }*/
+                }
             }
         }
         Self::apply_ref(buffer, edit);
@@ -534,7 +544,7 @@ pub fn test_edit() -> impl Strategy<Value = TestEdit> {
         Just(TabOut),
         //Just(StripTrailingWhitespace),
         //Just(ToggleCase),
-        //Just(DuplicateLines),
+        Just(DuplicateLines),
     ]
 }
 

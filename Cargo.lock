@@ -631,6 +631,7 @@ version = "0.1.0"
 dependencies = [
  "cursors",
  "editor_types",
+ "is_linebreak_char",
  "macros",
  "move_cursor",
  "panic_safe_rope",

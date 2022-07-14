@@ -13,6 +13,9 @@ path = "../cursors"
 [dependencies.editor_types]
 path = "../editor_types"
 
+[dependencies.is_linebreak_char]
+path = "../../../is_linebreak_char"
+
 [dependencies.macros]
 path = "../../../macros"
 
