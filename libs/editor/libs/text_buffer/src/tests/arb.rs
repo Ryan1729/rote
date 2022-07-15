@@ -438,7 +438,7 @@ impl TestEdit {
             },
             DuplicateLines => {
                 if buffer.is_empty() {
-
+                    // No change to counts
                 } else {
                     fn extend_cursor_to_same_lines(c: &mut Cursor) {
                         use core::cmp::{min, max};
@@ -459,13 +459,10 @@ impl TestEdit {
                     let cursors = Cursors::new(buffer.borrow_rope(), cursor_vec);
                     for cur in cursors.iter() {
                         let offsets = offset_pair(buffer.borrow_rope(), &cur);
+                        std::dbg!(&offsets);
                         match offsets {
                             (Some(_o), None) => {
-                                // The line must be empty, except for the newline
-                                increment_char(
-                                    counts,
-                                    '\n'
-                                );
+                                // No change to counts
                             }
                             (Some(o1), Some(o2)) => {
                                 let s = edit::copy_string(

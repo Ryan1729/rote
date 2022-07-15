@@ -934,7 +934,6 @@ pub fn get_duplicate_lines_edit(
                 return d!()
             );
 
-            std::dbg!(&line_indicies);
             let mut s = String::with_capacity(selected_range.len());
             for index in line_indicies {
                 if seen_indicies.contains(&index) {
