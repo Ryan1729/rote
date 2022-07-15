@@ -1787,6 +1787,56 @@ fn does_not_lose_characters_in_this_unicode_toggle_case_tab_out_case() {
 }
 
 #[test]
+fn does_not_lose_characters_in_this_unicode_toggle_case_case() {
+    use TestEdit::*;
+    use Move::*;
+    let mut buffer = t_b!("a\u{119da}");
+    buffer.select_all();
+
+    {
+        // TODO move to separate test, or delete.
+        let mut buffer = buffer.clone();
+        let mut counts = get_counts(&buffer);
+        TestEdit::apply_with_counts(&mut buffer, &mut counts, &ToggleCase);
+        std::dbg!(&counts);
+        assert_eq!(buffer.borrow_rope(), Rope::from("A\u{119da}"));
+    }
+
+    does_not_lose_characters_on(
+        buffer,
+        [ToggleCase]
+    );
+}
+
+#[test]
+fn toggle_case_does_what_is_expected_with_this_unicode_selection() {
+    use TestEdit::*;
+    use Move::*;
+    let mut buffer = t_b!("a\u{119da}");
+    buffer.select_all();
+
+    // TODO move to separate test, or delete.
+    let mut counts = get_counts(&buffer);
+    TestEdit::apply_with_counts(&mut buffer, &mut counts, &ToggleCase);
+    std::dbg!(&counts);
+    assert_eq!(buffer.borrow_rope(), Rope::from("A\u{119da}"));
+}
+
+#[test]
+fn toggle_case_does_what_is_expected_with_this_ascii_selection() {
+    use TestEdit::*;
+    use Move::*;
+    let mut buffer = t_b!("a1");
+    buffer.select_all();
+
+    // TODO move to separate test, or delete.
+    let mut counts = get_counts(&buffer);
+    TestEdit::apply_with_counts(&mut buffer, &mut counts, &ToggleCase);
+    std::dbg!(&counts);
+    assert_eq!(buffer.borrow_rope(), Rope::from("A1"));
+}
+
+#[test]
 fn tab_in_does_what_is_expected_with_this_selection() {
     use ReplaceOrAdd::*;
     let mut buffer = t_b!(" 0");

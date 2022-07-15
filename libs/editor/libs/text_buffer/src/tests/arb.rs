@@ -446,10 +446,12 @@ impl TestEdit {
                 }
             },
             TabOut => {
+                std::dbg!(get_counts(&buffer));
                 //TODO do something better than this tautology
                 let mut clone = deep_clone(&buffer);
                 clone.tab_out(None);
                 let clone_counts = get_counts(&clone);
+                std::dbg!(&buffer, &clone_counts);
 
                 // We don't want any non-whitespace characters to be changed
                 let key_set: std::collections::HashSet<&char> =
@@ -483,6 +485,7 @@ impl TestEdit {
                 counts.laxity |= IGNORE_NON_ASCII;
 
                 let mut selections = buffer.copy_selections();
+                std::dbg!(&selections);
                 for selection in &mut selections {
                     selection.retain(|c| c.is_ascii_alphabetic());
                 }
