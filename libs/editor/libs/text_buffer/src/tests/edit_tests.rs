@@ -1376,7 +1376,7 @@ fn does_not_lose_characters_on<TestEdits: Borrow<[TestEdit]>>(
 
     counts.retain(|_, v| *v != 0);
 
-    assert_eq!(get_counts(&buffer), counts);
+    counts_assert!(buffer, counts);
 }
 
 proptest! {
@@ -1449,7 +1449,7 @@ fn does_not_lose_characters_in_this_reduced_generated_case() {
 
     counts.retain(|_, v| *v != 0);
 
-    assert_eq!(get_counts(&buffer), counts);
+    counts_assert!(buffer, counts);
 }
 
 #[test]
@@ -1493,7 +1493,7 @@ fn does_not_lose_characters_in_this_reduced_extend_selection_case() {
 
     counts.retain(|_, v| *v != 0);
 
-    assert_eq!(get_counts(&buffer), counts);
+    counts_assert!(buffer, counts);
 }
 
 #[test]
@@ -1515,7 +1515,7 @@ fn does_not_lose_characters_in_this_further_reduced_extend_selection_case() {
 
     counts.retain(|_, v| *v != 0);
 
-    assert_eq!(get_counts(&buffer), counts);
+    counts_assert!(buffer, counts);
 }
 
 #[test]
@@ -1587,7 +1587,7 @@ fn does_not_lose_characters_in_this_reduced_more_complicated_delete_lines_case()
 
     counts.retain(|_, v| *v != 0);
 
-    assert_eq!(get_counts(&buffer), counts);
+    counts_assert!(buffer, counts);
 }
 
 #[test]
@@ -1608,7 +1608,7 @@ fn does_not_lose_characters_in_this_further_reduced_more_complicated_delete_line
 
     counts.retain(|_, v| *v != 0);
 
-    assert_eq!(get_counts(&buffer), counts);
+    counts_assert!(buffer, counts);
 }
 
 #[test]
@@ -1652,7 +1652,7 @@ fn does_not_lose_characters_in_this_reduced_tab_in_case() {
 
     counts.retain(|_, v| *v != 0);
 
-    assert_eq!(get_counts(&buffer), counts);
+    counts_assert!(buffer, counts);
 }
 
 
@@ -1727,7 +1727,7 @@ fn does_not_lose_characters_in_this_reduced_two_space_then_zero_delete_then_tab_
 
     counts.retain(|_, v| *v != 0);
 
-    assert_eq!(get_counts(&buffer), counts);
+    counts_assert!(buffer, counts);
 }
 
 #[test]
@@ -1869,7 +1869,7 @@ fn does_not_lose_characters_in_this_tab_out_then_in_case() {
     dbg!(&counts);
     counts.retain(|_, v| *v != 0);
 
-    assert_eq!(get_counts(&buffer), counts);
+    counts_assert!(buffer, counts);
 }
 
 #[test]
@@ -1926,7 +1926,7 @@ fn does_not_lose_characters_in_this_two_wide_selection_tab_in_case() {
 
     counts.retain(|_, v| *v != 0);
 
-    assert_eq!(get_counts(&buffer), counts);
+    counts_assert!(buffer, counts);
 }
 
 #[test]
@@ -1948,7 +1948,7 @@ fn does_not_lose_characters_in_this_two_tab_in_case() {
     dbg!(&counts);
     counts.retain(|_, v| *v != 0);
 
-    assert_eq!(get_counts(&buffer), counts);
+    counts_assert!(buffer, counts);
 }
 
 #[test]

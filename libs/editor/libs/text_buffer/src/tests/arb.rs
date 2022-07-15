@@ -182,10 +182,44 @@ pub type CountNumber = usize;
 pub type CountMap = HashMap<char, CountNumber>;
 pub type Laxity = u32;
 
-#[derive(Debug, Default, Eq, PartialEq)]
+const IGNORE_WHITESPACE: Laxity = 0b1;
+
+#[derive(Debug, Default)]
 pub struct Counts {
     map: CountMap,
     laxity: Laxity,
+}
+
+#[macro_export]
+macro_rules! counts_assert {
+    ($buffer: expr, $expected: expr) => {
+        let actual_counts = $crate::tests::edit_tests::get_counts(&$buffer);
+        let expected_counts = $expected;
+        assert!(
+            expected_counts.expectations_met_by(&actual_counts.map()),
+            "{expected_counts:?} not met by {actual_counts:?}"
+        );
+    }
+}
+
+impl Counts {
+    pub fn expectations_met_by(&self, actual: &CountMap) -> bool {
+        if self.laxity == 0 {
+            &self.map == actual
+        } else {
+            let mut expected = self.map.clone();
+            let mut actual = actual.clone();
+
+            if self.laxity & IGNORE_WHITESPACE != 0 {
+                expected.retain(|c, _| !c.is_whitespace());
+                actual.retain(|c, _| !c.is_whitespace());
+            } else {
+                panic!("unhandled laxity flag. {:b}", self.laxity);
+            }
+
+            expected == actual
+        }
+    }
 }
 
 impl From<CountMap> for Counts {
@@ -215,6 +249,10 @@ impl Counts {
         F: FnMut(&char, &mut CountNumber) -> bool
     {
         self.map.retain(f)
+    }
+
+    pub fn map(&self) -> &CountMap {
+        &self.map
     }
 }
 
@@ -431,7 +469,9 @@ impl TestEdit {
                 *counts = clone_counts;
             },
             StripTrailingWhitespace => {
-                todo!("Have not accurately updated the counts for StripTrailingWhitespace");
+                // It doesn't seem worth it at this time to track the exact amount
+                // of whitespace to remove.
+                counts.laxity |= IGNORE_WHITESPACE;
             }
             ToggleCase => {
                 todo!("Have not accurately updated the counts for ToggleCase");
@@ -539,7 +579,7 @@ pub fn test_edit() -> impl Strategy<Value = TestEdit> {
         Just(InsertNumbersAtCursors),
         Just(TabIn),
         Just(TabOut),
-        //Just(StripTrailingWhitespace),
+        Just(StripTrailingWhitespace),
         //Just(ToggleCase),
         Just(DuplicateLines),
     ]
