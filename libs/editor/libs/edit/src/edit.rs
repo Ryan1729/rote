@@ -890,9 +890,12 @@ pub fn get_toggle_case_edit(
                 // `ALLCAPS`. So make `lowercase` happen first, by decising base on the
                 // last character.
                 let mut mapper: fn(&char) -> char = char::to_ascii_lowercase;
-                if let Some(c) = chars_at_end.prev() {
-                    if c.is_ascii_lowercase() {
-                        mapper = char::to_ascii_uppercase;
+                while let Some(c) = chars_at_end.prev() {
+                    if c.is_ascii_alphabetic() {
+                        if c.is_ascii_lowercase() {
+                            mapper = char::to_ascii_uppercase;
+                        }
+                        break
                     }
                 }
                 let mut chars = String::with_capacity(selected_range.len());
