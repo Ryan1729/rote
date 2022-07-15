@@ -183,6 +183,7 @@ pub type CountMap = HashMap<char, CountNumber>;
 pub type Laxity = u32;
 
 const IGNORE_WHITESPACE: Laxity = 0b1;
+const IGNORE_NON_ASCII: Laxity  = 0b10;
 
 #[derive(Debug, Default)]
 pub struct Counts {
@@ -213,6 +214,9 @@ impl Counts {
             if self.laxity & IGNORE_WHITESPACE != 0 {
                 expected.retain(|c, _| !c.is_whitespace());
                 actual.retain(|c, _| !c.is_whitespace());
+            } else if self.laxity & IGNORE_NON_ASCII != 0 {
+                expected.retain(|c, _| !c.is_ascii());
+                actual.retain(|c, _| !c.is_ascii());
             } else {
                 panic!("unhandled laxity flag. {:b}", self.laxity);
             }
@@ -459,7 +463,7 @@ impl TestEdit {
                             (Some(0), None)|(None, Some(0)) => true,
                             (clone_count, count) => clone_count == count
                         },
-                        "key.is_whitespace(): {:?}\n clone_counts.get(key): {:?}\n counts.get(key): {:?}",
+                        "key: {key}\n key.is_whitespace(): {:?}\n clone_counts.get(key): {:?}\n counts.get(key): {:?}\n",
                         key.is_whitespace(),
                         clone_counts.get(key),
                         counts.get(key)
@@ -474,7 +478,26 @@ impl TestEdit {
                 counts.laxity |= IGNORE_WHITESPACE;
             }
             ToggleCase => {
-                todo!("Have not accurately updated the counts for ToggleCase");
+                // We do not care thgat much about what happens to non-ASCII 
+                // characters regarding case.
+                counts.laxity |= IGNORE_NON_ASCII;
+
+                let mut selections = buffer.copy_selections();
+                for selection in &mut selections {
+                    selection.retain(|c| c.is_ascii_alphabetic());
+                }
+                decrement_strings(counts, &selections);
+
+                for selection in &mut selections {
+                    if let Some(last) = selection.chars().last() {
+                        if last.is_ascii_uppercase() {
+                            selection.make_ascii_lowercase();
+                        } else {
+                            selection.make_ascii_uppercase();
+                        }
+                    }
+                }
+                increment_strings(counts, &selections);
             },
             DuplicateLines => {
                 if buffer.is_empty() {
@@ -580,7 +603,7 @@ pub fn test_edit() -> impl Strategy<Value = TestEdit> {
         Just(TabIn),
         Just(TabOut),
         Just(StripTrailingWhitespace),
-        //Just(ToggleCase),
+        Just(ToggleCase),
         Just(DuplicateLines),
     ]
 }

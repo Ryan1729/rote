@@ -1751,6 +1751,42 @@ fn does_not_lose_characters_in_this_duplicate_lines_vertical_tab_case() {
 }
 
 #[test]
+fn does_not_lose_characters_in_this_toggle_case_case() {
+    use TestEdit::*;
+    use Move::*;
+    does_not_lose_characters_on(
+        t_b!("abc"),
+        [ToggleCase]
+    );
+}
+
+#[test]
+fn does_not_lose_characters_in_this_toggle_case_tab_out_case() {
+    use TestEdit::*;
+    use Move::*;
+    let mut buffer = t_b!("abc");
+    buffer.select_all();
+
+    does_not_lose_characters_on(
+        buffer,
+        [ToggleCase, TabOut]
+    );
+}
+
+#[test]
+fn does_not_lose_characters_in_this_unicode_toggle_case_tab_out_case() {
+    use TestEdit::*;
+    use Move::*;
+    let mut buffer = t_b!("a\u{119da}");
+    buffer.select_all();
+
+    does_not_lose_characters_on(
+        buffer,
+        [ToggleCase, TabOut]
+    );
+}
+
+#[test]
 fn tab_in_does_what_is_expected_with_this_selection() {
     use ReplaceOrAdd::*;
     let mut buffer = t_b!(" 0");

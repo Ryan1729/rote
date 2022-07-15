@@ -24,3 +24,4 @@ cc 7ff4476d223a8ccfab493335730b43f98b306a70083753dc93b44193023e34bd # shrinks to
 cc ab2cb21868979d84050767e18565b5178787a7e8dc4df6afcd99b9999d36eaeb # shrinks to (edits, index) = ([TabIn, Insert('\t'), TabOut], 0)
 cc b47690a37f151e3d5e63bacaabbf90b1fc910d4641c5ecf81c08a14314aecacd # shrinks to (edits, index) = ([TabIn, Insert('¥'), TabOut], 0)
 cc c9126563057b3a4a06a8863c8840ba75f1fed703507239a77f70047ed2363d0d # shrinks to (edits, index) = ([Delete, MoveAllCursors(Up)], 0)
+cc 49bed96a5eddba94c1a3313fde7d703a5856ba1b9d2f425f148b715a28fed586 # shrinks to (edits, index) = ([InsertString("+\r\u{3e7ae}/�I\u{b}"), SetCursor(pos!{l 0 o 16}, Add), StripTrailingWhitespace], 0)
