@@ -953,7 +953,7 @@ pub fn get_duplicate_lines_edit(
             }
 
             let ends_with_newline_or_is_empty
-                = s.chars().last().map(is_linebreak_char).unwrap_or(true);
+                = s.chars().last().map_or(true, is_linebreak_char);
             // If the selected area didn't end with a newline, we need to add one at
             // the beginning of the characters we will insert, so we don't end up
             // adding the characters at the end of the same line we started on.

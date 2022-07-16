@@ -50,19 +50,16 @@ mod clipboard_history {
                     };
 
                     for c in single.chars() {
-                        match c {
-                            '\n' => {
-                                str_index += 1;
-                                multi_chars = match strings.get(str_index) {
-                                    None => return false,
-                                    Some(s) => s.chars(),
-                                };
-                            }
-                            _ => {
-                                let next_char = multi_chars.next();
-                                if next_char != Some(c) {
-                                    return false;
-                                }
+                        if c == '\n' {
+                            str_index += 1;
+                            multi_chars = match strings.get(str_index) {
+                                None => return false,
+                                Some(s) => s.chars(),
+                            };
+                        } else {
+                            let next_char = multi_chars.next();
+                            if next_char != Some(c) {
+                                return false;
                             }
                         }
                     }
@@ -157,13 +154,13 @@ mod clipboard_history {
             let mut output = None;
 
             if let Some(s) = possible_string {
-                self.push_if_does_not_match_top(Entry::Single(s))
+                self.push_if_does_not_match_top(Entry::Single(s));
             }
 
             if let Some(entry) = self.entries.get(self.index) {
                 use Entry::*;
                 output = match entry {
-                    Single(ref s) => buffer.insert_string(s.to_owned(), listener),
+                    Single(ref s) => buffer.insert_string(s.clone(), listener),
                     Multiple(ref strings) => {
                         let cursor_count = buffer.borrow_cursors().len();
                         let len = strings.len();
@@ -172,11 +169,11 @@ mod clipboard_history {
                             buffer.insert_at_each_cursor(
                                 // We just checked the len matches the cursor count
                                 // so this should never panic.
-                                |index| strings[index].to_owned(),
+                                |index| strings[index].clone(),
                                 listener
                             )
                         } else {
-                            buffer.insert_string(strings.join("\n").to_owned(), listener)
+                            buffer.insert_string(strings.join("\n"), listener)
                         }
                     }
                 };
@@ -203,7 +200,7 @@ mod clipboard_history {
 
                         output.push_str(s);
 
-                        self.push_if_does_not_match_top(Entry::Single(s.to_owned()));
+                        self.push_if_does_not_match_top(Entry::Single(s.clone()));
 
                         sep = "\n";
                     }
@@ -373,8 +370,7 @@ fn direct_scroll_from(r#move: Move) -> Option<ScrollXY> {
         ToBufferEnd |
         ToNextLikelyEditLocation |
         Left |
-        ToPreviousLikelyEditLocation => None,
-        // TODO ensure this move always results in the scroll y being 0.
+        ToPreviousLikelyEditLocation |
         ToLineStart => None,
         ToBufferStart => {
             Some(d!())

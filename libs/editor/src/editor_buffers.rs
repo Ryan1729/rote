@@ -71,8 +71,8 @@ impl EditorBuffer {
     {
         let text_buffer = create_text_buffer(&name, s);
         Self {
-            name,
             text_buffer,
+            name,
             ..d!()
         }
     }

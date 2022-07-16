@@ -20,6 +20,11 @@
 #    by an iterator being copy. I also don't think my usual coding patterns would 
 #    result in errors with `Copy` iterators. I reserve the right to change my mind
 #    later, after being bit by it, if that ever happens.
+# items-after-statements triggers even if a const is introduced after statement that 
+#    does not use the constant. I personally find putting the constant directly above
+#    its first use to be easier to read, since I don;t need to go look back at what 
+#    the value of the constant is.
+# trait-duplication-in-bounds seems to currently be producing false positives.
 
 cargo clippy --color=always "$@" -- -D clippy::pedantic \
     -A clippy::enum-glob-use \
@@ -27,5 +32,7 @@ cargo clippy --color=always "$@" -- -D clippy::pedantic \
     -A clippy::wildcard-imports \
     -A clippy::too-many-lines \
     -A clippy::copy-iterator \
+    -A clippy::items-after-statements \
+    -A clippy::trait-duplication-in-bounds \
     -D clippy::missing_safety_doc \
     -D clippy::undocumented_unsafe_blocks \

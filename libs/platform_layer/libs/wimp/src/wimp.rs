@@ -18,6 +18,8 @@ use platform_types::{screen_positioning::screen_to_text_box, *};
 use shared::{Res};
 use edited_storage::{canonicalize, load_tab, load_previous_tabs, LoadedTab};
 
+/// # Errors
+/// Returns an error if there is an error before the eventloop has started.
 #[perf_viz::record]
 pub fn run(
     editor_api: EditorAPI
@@ -60,7 +62,7 @@ pub fn run(
             HELP => {
                 let accepted_args = [VERSION, HELP, DATA_DIR_OVERRIDE, HIDPI_OVERRIDE, LICENSE, FILE];
                 println!("accepted args: ");
-                for arg in accepted_args.iter() {
+                for arg in &accepted_args {
                     print!("    {}", arg);
                     if *arg == DATA_DIR_OVERRIDE {
                         print!(" <data directory path>");
@@ -71,7 +73,7 @@ pub fn run(
                     if *arg == FILE {
                         print!(" <path of file to open>");
                     }
-                    println!()
+                    println!();
                 }
                 std::process::exit(0)
             }
@@ -90,7 +92,7 @@ pub fn run(
                 })?)
                 .map(PathBuf::from);
 
-                data_dir = data_dir.map(|dd| dd.canonicalize().unwrap_or_else(|_| dd.into()));
+                data_dir = data_dir.map(|dd| dd.canonicalize().unwrap_or(dd));
             }
             HIDPI_OVERRIDE => {
                 hidpi_factor_override = Some(args.next().ok_or_else(|| {
@@ -101,8 +103,7 @@ pub fn run(
                 })?)
                 .and_then(|s| {
                     use std::str::FromStr;
-                    f64::from_str(&s)
-                        .map(|x| x as window_layer::ScaleFactor)
+                    window_layer::ScaleFactor::from_str(&s)
                         .ok()
                 });
             }
@@ -233,20 +234,9 @@ pub fn run(
                         .create(true)
                         .open(&path_mailbox_path)?;
 
-                    // This size calculation is copied from `initial_buffer_size`
-                    // function in rust's std::fs module, including the following
-                    // comment:
-                    // Allocate one extra byte so the buffer doesn't need to grow before the
-                    // final `read` call at the end of the file.  Don't worry about `usize`
-                    // overflow because reading will fail regardless in that case.
-                    let previous_size = path_mailbox.metadata()
-                        .map(|m| m.len() as usize + 1)
-                        .unwrap_or(0);
-                    let additional_size_estimate = path_count * 256;
-
-                    let mut path_list = String::with_capacity(
-                        previous_size + additional_size_estimate
-                    );
+                    // `read_to_string` apparently already reads the file metadata
+                    // to figure out how much to reserve. TODO: confirm this.
+                    let mut path_list = String::new();
 
                     use std::io::Read;
                     path_mailbox.read_to_string(&mut path_list)?;
@@ -259,7 +249,7 @@ pub fn run(
                         // TODO: is there a reasonable way to avoid these extra
                         // allocations?
                         let _write_on_string_cannot_fail =
-                            write!(&mut path_list, "{}\n", p.to_string_lossy());
+                            writeln!(&mut path_list, "{}", p.to_string_lossy());
                     }
 
                     path_list
@@ -276,14 +266,11 @@ pub fn run(
 
             let res = inner(path_mailbox_path);
 
-            match res {
-                Ok(()) => {
-                    println!("Seems like we were able to write to the mailbox.");
-                },
-                Err(_) => {
-                    println!("Mailbox write failed.");
-                    return res;
-                }
+            if let Ok(()) = res {
+                println!("Seems like we were able to write to the mailbox.");
+            } else {
+                println!("Mailbox write failed.");
+                return res;
             }
         }
 
@@ -341,14 +328,14 @@ pub fn run(
 
     use std::sync::mpsc::{channel};
 
-    let mut pids = Pids::default();
-    pids.window = std::process::id();
+
+    let pids = Pids { window: std::process::id(), ..d!() };
 
     let (path_mailbox_in_sink, path_mailbox_join_handle)
         = path_mailbox::start_thread(
             path_mailbox::Paths {
-                running_lock: running_lock_path.into(),
-                mailbox: path_mailbox_path.into(),
+                running_lock: running_lock_path,
+                mailbox: path_mailbox_path,
             },
             event_proxy.clone(),
             on_shutdown,
@@ -526,7 +513,7 @@ pub fn run(
                 cmds,
                 clipboard,
                 editor_in_sink: editor_in_sink.clone(),
-                event_proxy: event_proxy.clone(),
+                event_proxy,
             },
             editor_in_sink,
             editor_out_source,
