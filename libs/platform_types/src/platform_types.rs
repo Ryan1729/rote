@@ -479,7 +479,7 @@ impl MenuView {
 pub fn kind_editable_during_mode(kind: BufferIdKind, menu_mode: MenuMode) -> bool {
     u!{MenuMode}
     match (kind, menu_mode) {
-        // We want this to be true for `Text` always since it would be completely 
+        // We want this to be true for `Text` always since it would be completely
         // reasonable behaviour for a different client to always show the text
         // buffers.
         (BufferIdKind::Text, _)
@@ -698,7 +698,7 @@ pub struct BufferViewData {
     pub highlights: Vec<Highlight>,
     pub spans: Spans,
 }
- 
+
 fmt_debug!(collapse default for BufferViewData: me {
      blank_if_default!(chars, me.chars == Rope::default());
      blank_if_default!(scroll);
@@ -801,7 +801,7 @@ pub struct ViewStats {
 impl ViewStats {
     /// Since our current needs only require it, we currently expect only one layer
     /// of start and ends.
-    // TODO track this and just skip the current one or set durations to 0 or 
+    // TODO track this and just skip the current one or set durations to 0 or
     // something?
     pub fn start_parse_duration_saturating(&mut self) {
         if (self.current_parse_length as usize) < PARSE_TIME_SPAN_COUNT {
@@ -826,7 +826,7 @@ impl ViewStats {
 
     #[must_use]
     fn last_index(&self) -> Option<usize> {
-        if self.current_parse_length > 0 
+        if self.current_parse_length > 0
         && (self.current_parse_length as usize) <= PARSE_TIME_SPAN_COUNT {
             Some(self.current_parse_length as usize - 1)
         } else {

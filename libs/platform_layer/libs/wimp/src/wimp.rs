@@ -796,7 +796,7 @@ pub fn run(
                 call_u_and_r!(r_s, Input::DeleteLines);
             }]
             [empty, F3, "Toggle Case", state {
-                call_u_and_r!(state, Input::ToggleCase)
+                call_u_and_r!(state, Input::ToggleCase);
             }]
             [empty, F5, "Strip trailing whitepace", r_s {
                 call_u_and_r!(r_s, Input::StripTrailingWhitespace);
@@ -826,16 +826,16 @@ pub fn run(
                 call_u_and_r!(r_s, Input::TabIn);
             }]
             [CTRL, Home, "Move cursors to start.", state {
-                call_u_and_r!(state, Input::MoveAllCursors(Move::ToBufferStart))
+                call_u_and_r!(state, Input::MoveAllCursors(Move::ToBufferStart));
             }]
             [CTRL, End, "Move cursors to end.", state {
-                call_u_and_r!(state, Input::MoveAllCursors(Move::ToBufferEnd))
+                call_u_and_r!(state, Input::MoveAllCursors(Move::ToBufferEnd));
             }]
             [CTRL, Left, "Move cursors to previous likely edit location.", state {
-                call_u_and_r!(state, Input::MoveAllCursors(Move::ToPreviousLikelyEditLocation))
+                call_u_and_r!(state, Input::MoveAllCursors(Move::ToPreviousLikelyEditLocation));
             }]
             [CTRL, Right, "Move cursors to next likely edit location.", state {
-                call_u_and_r!(state, Input::MoveAllCursors(Move::ToNextLikelyEditLocation))
+                call_u_and_r!(state, Input::MoveAllCursors(Move::ToNextLikelyEditLocation));
             }]
             [CTRL, Key0, "Reset scroll (context sensitive).", r_s {
                 let ui = &mut v_s!(r_s).ui;
@@ -851,16 +851,16 @@ pub fn run(
                 }
             }]
             [CTRL, A, "Select all.", state {
-                call_u_and_r!(state, Input::SelectAll)
+                call_u_and_r!(state, Input::SelectAll);
             }]
             [CTRL, C, "Copy.", state {
-                call_u_and_r!(state, Input::Copy)
+                call_u_and_r!(state, Input::Copy);
             }]
             [CTRL, D, "Extend selection with search.", state {
-                call_u_and_r!(state, Input::ExtendSelectionWithSearch)
+                call_u_and_r!(state, Input::ExtendSelectionWithSearch);
             }]
             [CTRL, E, "Toggle Single-Line Comments", state {
-                call_u_and_r!(state, Input::ToggleSingleLineComments)
+                call_u_and_r!(state, Input::ToggleSingleLineComments);
             }]
             [CTRL, F, "Find/Replace in current file.", r_s {
                 switch_menu_mode!(r_s, MenuMode::FindReplace(FindReplaceMode::CurrentFile));

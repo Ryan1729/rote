@@ -379,6 +379,7 @@ fn direct_scroll_from(r#move: Move) -> Option<ScrollXY> {
 }
 
 impl State {
+    #[must_use]
     pub fn new() -> State {
         d!()
     }
@@ -404,6 +405,7 @@ impl State {
         }
     }
 
+    #[must_use]
     fn next_scratch_buffer_number(&self) -> u32 {
         let mut output = 0;
         for b in self.buffers.iter() {
@@ -431,6 +433,7 @@ impl State {
         }
     }
 
+    #[must_use]
     fn size_info(&self, kind: BufferIdKind) -> Option<SizeInfo> {
         u!{BufferIdKind}
         let char_dim = State::char_dim_for_buffer_kind(&self.font_info, kind);
@@ -438,9 +441,9 @@ impl State {
         let xywh = match kind {
             None => return Option::None,
             Text => self.buffer_xywh,
-            Find => self.find_xywh,
+            Find 
+            | FileSwitcher => self.find_xywh,
             Replace => self.replace_xywh,
-            FileSwitcher => self.find_xywh, // TODO customize
             GoToPosition => self.go_to_position_xywh,
         };
 
@@ -511,6 +514,7 @@ impl State {
     }
 }
 
+#[must_use]
 pub fn new() -> State {
     d!()
 }
@@ -555,6 +559,8 @@ macro_rules! set_if_present {
     };
 }
 
+/// # Errors
+/// Returns an error if a buffer coressponding to `buffer_name` cannot be found.
 pub fn load_buffer_view(
     State {
         ref buffers,
@@ -565,7 +571,7 @@ pub fn load_buffer_view(
     buffer_name: &BufferName
 ) -> Result<BufferView, LoadBufferViewError> {
     buffers
-        .index_with_name(&buffer_name)
+        .index_with_name(buffer_name)
         .ok_or_else(||
             format!(
                 "Could not find index for buffer named \"{}\" in {} buffers",
@@ -801,8 +807,8 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
 
     u!{Input}
     match input {
-        Input::None => {}
-        Quit => {}
+        Input::None
+        | Quit => {}
         Escape => {
             if state.menu_mode == MenuMode::Hidden {
                 // Note that we only want to collapse cursors if the menu is already
@@ -811,8 +817,8 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                     b.collapse_cursors(
                         state.font_info.text_char_dim,
                         state.buffer_xywh
-                    )
-                })
+                    );
+                });
             } else {
                 close_menu_if_any!();
             }

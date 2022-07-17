@@ -20,7 +20,7 @@ type PosInner = i64;
 pub struct Pos(PosInner);
 
 fmt_debug!(
-    for Pos: Pos(bits) in "{} ({})", 
+    for Pos: Pos(bits) in "{} ({})",
     Pos(*bits).to_string(),
     bits
 );
@@ -33,7 +33,7 @@ fn lossy_to_f64(bits: i64) -> f64 {
 }
 
 fmt_display!(
-    for Pos: Pos(bits) in "{}{}", 
+    for Pos: Pos(bits) in "{}{}",
     bits >> Pos::SCALE_BIT_COUNT,
     (lossy_to_f64(*bits))
     .to_string().trim_start_matches('0')
@@ -256,7 +256,7 @@ impl Add<Pos> for f32 {
 
     fn add(self, other: Pos) -> Pos {
         Pos::from(self) + other
-        
+
     }
 }
 
@@ -337,7 +337,7 @@ impl Length {
     pub const ONE_TWENTY_EIGHT: Length = Length(Pos::ONE_TWENTY_EIGHT);
     pub const TWO_FIFTY_SIX: Length = Length(Pos::TWO_FIFTY_SIX);
     pub const MAX: Length = Length(Pos::MAX);
-    
+
     #[must_use]
     pub fn new_saturating(p: Pos) -> Self {
         if p < Self::MIN.0 {
@@ -387,7 +387,7 @@ impl Length {
                     i64::from(payload.saturating_add(1))
                 )
         } else if payload > Ratio::ZERO_BITS {
-            self.to_bits() 
+            self.to_bits()
                 // -1 maps to 2, -2 maps to 3
                 / i64::from((-payload).saturating_add(1))
         } else {
@@ -511,7 +511,7 @@ impl Add<Pos> for Length {
 
     fn add(self, other: Pos) -> Pos {
         Pos::from(self) + other
-        
+
     }
 }
 
@@ -555,11 +555,11 @@ type RatioBits = i32;
 
 /// Ratio allows scaling a `Length` by a restricted set of values.
 #[derive(Copy, Clone, Debug)]
-// Internal details: 
+// Internal details:
 //  0 means 1/1
 //  1 means 2/1
 // -1 means 1/2
-// 
+//
 pub struct Ratio(RatioBits);
 
 impl Ratio {
