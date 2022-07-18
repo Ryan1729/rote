@@ -10,7 +10,7 @@ use proptest::collection::vec;
 use proptest::num::f32;
 use proptest::prelude::{prop_compose, any, Strategy};
 use pub_arb_std::{path_buf, f32::usual};
-use pub_arb_abs::{abs_pos, abs_pos_quarter, abs_length};
+use pub_arb_abs::{abs_pos, abs_pos_quarter, abs_length, abs_vector, abs_vector_quarter};
 use pub_arb_f32_0_1::{f32_0_1};
 use pub_arb_pos_f32::{pos_f32};
 
@@ -30,12 +30,12 @@ pub fn char_dim() -> impl Strategy<Value = CharDim> {
 }
 
 pub fn scroll_xy() -> impl Strategy<Value = ScrollXY> {
-    let spec = abs_pos();
+    let spec = abs_vector();
     (spec, spec).prop_map(|(x, y)| slxy!{ x, y })
 }
 
 pub fn scroll_xy_quarter() -> impl Strategy<Value = ScrollXY> {
-    let spec = abs_pos_quarter();
+    let spec = abs_vector_quarter();
     (spec, spec).prop_map(|(x, y)| ScrollXY { x, y })
 }
 
@@ -491,7 +491,7 @@ pub fn scrollable_screen() -> impl Strategy<Value = ScrollableScreen> {
 }
 
 pub fn plausible_scrollable_screen() -> impl Strategy<Value = ScrollableScreen> {
-    let a_p = abs_pos();
+    let a_p = abs_vector();
     let p_a_p = abs_length();
     (a_p, a_p, p_a_p, p_a_p).prop_map(|(x, y, w, h)| ScrollableScreen {
         scroll: ScrollXY { x, y },
@@ -515,8 +515,8 @@ arb_enum!{
         Delete => Just(Delete),
         DeleteLines => Just(DeleteLines),
         ResetScroll => Just(ResetScroll),
-        ScrollVertically(_) => usual().prop_map(ScrollVertically),
-        ScrollHorizontally(_) => usual().prop_map(ScrollHorizontally),
+        ScrollVertically(_) => usual().prop_map(|f| ScrollVertically(abs::Vector::from(f))),
+        ScrollHorizontally(_) => usual().prop_map(|f| ScrollHorizontally(abs::Vector::from(f))),
         SetSizeDependents(_) => size_dependents()
             .prop_map(Box::new)
             .prop_map(SetSizeDependents),

@@ -10,7 +10,7 @@ use proptest::{
 };
 
 mod arb {
-    pub use pub_arb_abs::{abs_pos, abs_length};
+    pub use pub_arb_abs::{abs_pos, abs_length, abs_vector};
 }
 
 #[test]
@@ -158,19 +158,19 @@ fn center_within_centers_this_no_edge_cases_example_properly() {
     );
 }
 
-fn left_edge(tab_scroll: abs::Pos, target_index: usize, tab_width: abs::Length) -> abs::Pos {
+fn left_edge(tab_scroll: abs::Vector, target_index: usize, tab_width: abs::Length) -> abs::Vector {
     unscrolled_tab_left_edge(target_index, tab_width) - tab_scroll
 }
 
-fn right_edge(tab_scroll: abs::Pos, target_index: usize, tab_width: abs::Length) -> abs::Pos {
+fn right_edge(tab_scroll: abs::Vector, target_index: usize, tab_width: abs::Length) -> abs::Vector {
     unscrolled_tab_right_edge(target_index, tab_width) - tab_scroll
 }
 
-fn is_tab_left_edge_visible(tab_scroll: abs::Pos, target_index: usize, tab_width: abs::Length) -> bool {
+fn is_tab_left_edge_visible(tab_scroll: abs::Vector, target_index: usize, tab_width: abs::Length) -> bool {
     left_edge(tab_scroll, target_index, tab_width) >= 0.0
 }
 
-fn is_tab_right_edge_visible(tab_scroll: abs::Pos, target_index: usize, tab_width: abs::Length, screen_width: abs::Length) -> bool {
+fn is_tab_right_edge_visible(tab_scroll: abs::Vector, target_index: usize, tab_width: abs::Length, screen_width: abs::Length) -> bool {
     right_edge(tab_scroll, target_index, tab_width) <= screen_width
 }
 
@@ -220,8 +220,8 @@ macro_rules! tab_as_visible_as_possible_assert {
         let left_e = left_edge(tab_scroll, target_index, tab_width);
         let right_e = right_edge(tab_scroll, target_index, tab_width);
 
-        let screen_left_edge = abs::Pos::ZERO;
-        let screen_right_edge = abs::Pos::from(screen_width);
+        let screen_left_edge = abs::Vector::ZERO;
+        let screen_right_edge = abs::Vector::from(screen_width);
 
         let clipped_left_e = max(screen_left_edge, min(left_e, screen_right_edge));
         let clipped_right_e = max(screen_left_edge, min(right_e, screen_right_edge));
@@ -252,7 +252,7 @@ const SOME_SCREEN_WIDTH: abs::Length = abs::Length::TWO_FIFTY_SIX;
 
 #[derive(Debug, Default)]
 struct MakeNthTabVisibleSpec {
-    tab_scroll: abs::Pos,
+    tab_scroll: abs::Vector,
     target_index: usize,
     tab_width: abs::Length,
     screen_width: abs::Length,
@@ -262,7 +262,7 @@ prop_compose! {
     fn arb_make_nth_tab_visible_spec()
         (
             tab_count in 1..64usize,
-            tab_scroll in arb::abs_pos(),
+            tab_scroll in arb::abs_vector(),
             tab_width in arb::abs_length(),
         )
         (
@@ -285,12 +285,13 @@ prop_compose! {
             }
         } else {
             use std::cmp::min;
-            let max_reasonable = abs::Pos::TWO_TO_THE_TWENTY_THREE;
+            let max_reasonable_vector = abs::Vector::TWO_TO_THE_TWENTY_THREE;
+            let max_reasonable_length = abs::Pos::TWO_TO_THE_TWENTY_THREE.into();
             MakeNthTabVisibleSpec {
-                tab_scroll: min(tab_scroll, max_reasonable),
+                tab_scroll: min(tab_scroll, max_reasonable_vector),
                 target_index,
-                tab_width: min(tab_width, max_reasonable.into()),
-                screen_width: min(screen_width, max_reasonable.into()),
+                tab_width: min(tab_width, max_reasonable_length),
+                screen_width: min(screen_width, max_reasonable_length),
             }
         }
     }
@@ -398,7 +399,7 @@ fn make_nth_tab_visible_if_present_works_on_this_generated_three_tab_example() {
 #[test]
 fn make_nth_tab_visible_if_present_works_on_this_wide_generated_example() {
     make_nth_tab_visible_if_present_works_on(MakeNthTabVisibleSpec {
-        tab_scroll: abs::Pos::from_bits(-6851472033972278267),
+        tab_scroll: abs::Vector::from_bits(-6851472033972278267),
         tab_width: abs::Length::from_bits(28640120287913559),
         screen_width: abs::Length::from_bits(28640120287913559),
         ..d!()
@@ -410,7 +411,7 @@ fn make_nth_tab_visible_if_present_works_on_this_wide_generated_example_reductio
     let tab_width = abs::Length::from_bits(0x10_0000_0002);
     let screen_width = tab_width;
     let target_index = 0;
-    let tab_scroll = abs::Pos::from_bits(0x1_0000_0000);
+    let tab_scroll = abs::Vector::from_bits(0x1_0000_0000);
 
     let mut ui = ui::State { tab_scroll, ..d!() };
 
@@ -429,7 +430,7 @@ fn make_nth_tab_visible_if_present_works_on_this_wide_generated_example_reductio
 #[test]
 fn make_nth_tab_visible_if_present_works_on_this_negative_scroll_example() {
     make_nth_tab_visible_if_present_works_on(MakeNthTabVisibleSpec {
-        tab_scroll: abs::Pos::from_f32(-2.),
+        tab_scroll: abs::Vector::from(-2.),
         tab_width: SOME_SCREEN_WIDTH,
         screen_width: SOME_SCREEN_WIDTH,
         ..d!()

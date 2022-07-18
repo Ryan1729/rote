@@ -66,6 +66,51 @@ pub mod arb {
 
     #[derive(Clone, Copy, Debug)]
     #[must_use = "strategies do nothing unless used"]
+    struct VectorStrat(Kind);
+
+    struct VectorValueTree(Kind, <i64::Any as Strategy>::Tree);
+
+    impl ValueTree for VectorValueTree {
+        type Value = Vector;
+        fn current(&self) -> Self::Value {
+            let pos = Pos::from_bits(self.1.current());
+
+            Vector(
+                match self.0 {
+                    Kind::Full => pos,
+                    Kind::Quarter => Pos(pos.0 / 4),
+                }.abs()
+            )
+        }
+        fn simplify(&mut self) -> bool {
+            self.1.simplify()
+        }
+        fn complicate(&mut self) -> bool {
+            self.1.complicate()
+        }
+    }
+
+    impl Strategy for VectorStrat {
+        type Tree = VectorValueTree;
+        type Value = Vector;
+
+        fn new_tree(&self, runner: &mut TestRunner) -> NewTree<Self> {
+            i64::ANY
+                .new_tree(runner)
+                .map(|t| VectorValueTree(self.0, t))
+        }
+    }
+
+    pub fn abs_vector() -> impl Strategy<Value = Vector> + Copy {
+        VectorStrat(Kind::Full)
+    }
+
+    pub fn abs_vector_quarter() -> impl Strategy<Value = Vector> + Copy {
+        VectorStrat(Kind::Quarter)
+    }
+
+    #[derive(Clone, Copy, Debug)]
+    #[must_use = "strategies do nothing unless used"]
     struct LengthStrat(Kind);
 
     struct LengthValueTree(Kind, <i64::Any as Strategy>::Tree);
@@ -226,7 +271,7 @@ proptest!{
     fn subtracting_default_is_identity(
         pos in arb::abs_pos(),
     ) {
-        let actual = pos - Pos::default();
+        let actual = pos - Vector::default();
         assert_eq!(actual, pos);
     }
 }

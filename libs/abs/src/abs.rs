@@ -352,6 +352,54 @@ impl From<Length> for Vector {
     }
 }
 
+impl PartialEq<f32> for Vector {
+    fn eq(&self, other: &f32) -> bool {
+        self.0 == Pos::from_f32(*other)
+    }
+}
+
+impl PartialOrd<f32> for Vector {
+    fn partial_cmp(&self, other: &f32) -> Option<std::cmp::Ordering> {
+        self.partial_cmp(&Vector::from(*other))
+    }
+}
+
+impl PartialEq<Vector> for f32 {
+    fn eq(&self, other: &Vector) -> bool {
+        Pos::from_f32(*self) == other.0
+    }
+}
+
+impl PartialOrd<Vector> for f32 {
+    fn partial_cmp(&self, other: &Vector) -> Option<std::cmp::Ordering> {
+        Vector::from(*self).partial_cmp(other)
+    }
+}
+
+impl PartialEq<Length> for Vector {
+    fn eq(&self, other: &Length) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl PartialOrd<Length> for Vector {
+    fn partial_cmp(&self, other: &Length) -> Option<std::cmp::Ordering> {
+        self.partial_cmp(&Vector::from(*other))
+    }
+}
+
+impl PartialEq<Vector> for Length {
+    fn eq(&self, other: &Vector) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl PartialOrd<Vector> for Length {
+    fn partial_cmp(&self, other: &Vector) -> Option<std::cmp::Ordering> {
+        Vector::from(*self).partial_cmp(other)
+    }
+}
+
 impl Add<Vector> for Pos {
     type Output = Pos;
 
@@ -379,6 +427,24 @@ impl Add<Vector> for Vector {
 }
 
 add_assign!(<Vector> for Vector);
+
+impl Add<Length> for Vector {
+    type Output = Vector;
+
+    fn add(self, other: Length) -> Self::Output {
+        Vector(self.0 + other)
+    }
+}
+
+add_assign!(<Length> for Vector);
+
+impl Add<Vector> for Length {
+    type Output = Vector;
+
+    fn add(self, other: Vector) -> Self::Output {
+        Vector(self.0 + other)
+    }
+}
 
 impl Sub<Vector> for Pos {
     type Output = Pos;
@@ -409,6 +475,25 @@ impl Sub<Length> for Vector {
 }
 
 sub_assign!(<Length> for Vector);
+
+impl Vector {
+    pub const ZERO: Self = Self(Pos::ZERO);
+    pub const ONE: Self = Self(Pos::ONE);
+
+    pub const TWO_TO_THE_TWENTY_THREE: Self = Self(Pos::TWO_TO_THE_TWENTY_THREE);
+    pub const MAX: Self = Self(Pos::MAX);
+
+    #[must_use]
+    pub fn from_bits(bits: i64) -> Self {
+        Self(Pos::from_bits(bits))
+    }
+
+    #[allow(unused)]
+    #[must_use]
+    const fn to_bits(self) -> i64 {
+        (self.0).0
+    }
+}
 
 /// A type that represents the length of something, which since negative lengths
 // do not make sense, can never be negative. Has the same maximum values as `Pos`
