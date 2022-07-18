@@ -1328,17 +1328,15 @@ pub fn make_active_tab_visible(
 fn unscrolled_tab_left_edge(
     target_index: usize,
     tab_width: abs::Length,
-) -> abs::Pos {
-    abs::Pos::from(
-        abs::Ratio::from(target_index) * tab_width
-    )
+) -> abs::Vector {
+    abs::Vector::from(abs::Ratio::from(target_index) * tab_width)
 }
 
 fn unscrolled_tab_right_edge(
     target_index: usize,
     tab_width: abs::Length,
-) -> abs::Pos {
-    unscrolled_tab_left_edge(target_index + 1, tab_width)
+) -> abs::Vector {
+    abs::Vector::from(unscrolled_tab_left_edge(target_index + 1, tab_width))
 }
 
 fn make_nth_tab_visible_if_present(
@@ -1352,7 +1350,7 @@ fn make_nth_tab_visible_if_present(
     if tab_width >= screen_width {
         let to_make_visible = unscrolled_tab_left_edge(target_index, tab_width);
 
-        ui.tab_scroll = to_make_visible;
+        ui.tab_scroll = to_make_visible.into();
         return
     }
 
@@ -1360,7 +1358,7 @@ fn make_nth_tab_visible_if_present(
 
     let to_make_visible =
         unscrolled_tab_left_edge(target_index, tab_width)
-        + tab_width.halve();
+        + abs::Vector::from(tab_width.halve());
 
     attempt_to_make_line_space_pos_visible(
         &mut ui.tab_scroll,
@@ -1628,14 +1626,18 @@ fn get_tab_spaced_rect(
     };
     let tab_padding = tab_w * TAB_PADDING_RATIO;
     let tab_margin = tab_w * TAB_MARGIN_RATIO;
+    let padding_vector = abs::Vector::from(tab_padding);
 
-    let min_x: abs::Pos = unscrolled_tab_left_edge(tab_index, tab_w) + tab_padding - ui.tab_scroll;
-    let max_x: abs::Pos = unscrolled_tab_right_edge(tab_index, tab_w) - tab_padding - ui.tab_scroll;
+    // TODO needing to add zero is suspect.
+    let zero = abs::Pos::default();
+
+    let min_x: abs::Pos = zero + unscrolled_tab_left_edge(tab_index, tab_w) + padding_vector - ui.tab_scroll;
+    let max_x: abs::Pos = zero + unscrolled_tab_right_edge(tab_index, tab_w) - padding_vector - ui.tab_scroll;
 
     SpacedRect {
         padding: Spacing::Axis(tab_padding, tab_v_padding),
         margin: Spacing::Axis(tab_margin, tab_v_margin),
-        rect: ssr!(min_x, tab_y, max_x, edit_y - tab_y),
+        rect: ssr!(min_x, tab_y, max_x, zero + (edit_y - tab_y)),
     }
 }
 
@@ -2168,7 +2170,7 @@ pub fn get_edit_buffer_xywh(
         xy: tbxy!{ abs::Pos::ZERO, y },
         wh: ScreenSpaceWH {
             w: width,
-            h: abs::Length::from(max_y - y),
+            h: abs::Length::from_vector_saturating(max_y - y),
         },
     }
 }

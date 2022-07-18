@@ -289,14 +289,12 @@ impl Add<Pos> for Pos {
 add_assign!(<Pos> for Pos);
 
 impl Sub<Pos> for Pos {
-    type Output = Pos;
+    type Output = Vector;
 
     fn sub(self, other: Pos) -> Self::Output {
-        Pos::from_bits(self.0.saturating_sub(other.0))
+        Vector(Pos::from_bits(self.0.saturating_sub(other.0)))
     }
 }
-
-sub_assign!(<Pos> for Pos);
 
 impl Neg for Pos {
     type Output = Pos;
@@ -348,6 +346,12 @@ impl From<Vector> for f32 {
     }
 }
 
+impl From<Length> for Vector {
+    fn from(l: Length) -> Self {
+        Self(l.0)
+    }
+}
+
 impl Add<Vector> for Pos {
     type Output = Pos;
 
@@ -366,6 +370,16 @@ impl Add<Pos> for Vector {
     }
 }
 
+impl Add<Vector> for Vector {
+    type Output = Vector;
+
+    fn add(self, other: Vector) -> Self::Output {
+        Vector(self.0 + other)
+    }
+}
+
+add_assign!(<Vector> for Vector);
+
 impl Sub<Vector> for Pos {
     type Output = Pos;
 
@@ -375,6 +389,26 @@ impl Sub<Vector> for Pos {
 }
 
 sub_assign!(<Vector> for Pos);
+
+impl Sub<Vector> for Vector {
+    type Output = Vector;
+
+    fn sub(self, other: Vector) -> Self::Output {
+        Vector(self.0 - other)
+    }
+}
+
+sub_assign!(<Vector> for Vector);
+
+impl Sub<Length> for Vector {
+    type Output = Vector;
+
+    fn sub(self, other: Length) -> Self::Output {
+        Vector(self.0 - other)
+    }
+}
+
+sub_assign!(<Length> for Vector);
 
 /// A type that represents the length of something, which since negative lengths
 // do not make sense, can never be negative. Has the same maximum values as `Pos`
@@ -490,6 +524,11 @@ impl Length {
     const fn to_bits(self) -> i64 {
         (self.0).0
     }
+
+    #[must_use]
+    pub fn from_vector_saturating(vector: Vector) -> Self {
+        Self::new_saturating(vector.0)
+    }
 }
 
 #[macro_export]
@@ -585,19 +624,11 @@ impl Sub<Length> for Pos {
     type Output = Pos;
 
     fn sub(self, other: Length) -> Pos {
-        self - other.0
+        Pos(self.0.saturating_sub(other.0.0))
     }
 }
 
 sub_assign!(<Length> for Pos);
-
-impl Sub<Pos> for Length {
-    type Output = Pos;
-
-    fn sub(self, other: Pos) -> Pos {
-        self.0 - other
-    }
-}
 
 impl Add<Length> for Length {
     type Output = Length;
@@ -613,9 +644,11 @@ impl Sub<Length> for Length {
     type Output = Length;
 
     fn sub(self, other: Length) -> Self::Output {
-        Length::new_saturating(self.0 - other.0)
+        Length::new_saturating(self.0 - other)
     }
 }
+
+sub_assign!(<Length> for Length);
 
 type RatioBits = i32;
 

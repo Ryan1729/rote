@@ -116,8 +116,8 @@ macro_rules! sswh {
     // Initialization
     //
     ($w: literal $(,)? $h: literal $(,)?) => {
-        $crate::ScreenSpaceWH { 
-            w: $w.into(), 
+        $crate::ScreenSpaceWH {
+            w: $w.into(),
             h: $h.into()
         }
     };
@@ -125,7 +125,7 @@ macro_rules! sswh {
         $crate::ScreenSpaceWH { w: $w, h: $h }
     };
     ($w: expr, $h: expr $(,)?) => {
-        $crate::ScreenSpaceWH { 
+        $crate::ScreenSpaceWH {
             w: $w.into(),
             h: $h.into()
         }
@@ -147,8 +147,8 @@ impl From<ScreenSpaceWH> for (f32, f32) {
 impl From<ScreenSpaceRect> for ScreenSpaceWH {
     fn from(ssr!(min_x, min_y, max_x, max_y): ScreenSpaceRect) -> Self {
         sswh!(
-            abs::Length::new_saturating(max_x - min_x),
-            abs::Length::new_saturating(max_y - min_y)
+            abs::Length::from_vector_saturating(max_x - min_x),
+            abs::Length::from_vector_saturating(max_y - min_y)
         )
     }
 }
@@ -181,14 +181,15 @@ pub fn clamp_within(
     } else {
         // NaN ends up here
     };
-    if rect.max.y > max_y {        rect.max.y = max_y;
+    if rect.max.y > max_y {
+        rect.max.y = max_y;
     } else {
         // NaN ends up here
     };
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Hash)]
-/// The dimensions of a character, in screen-space. This is very similar to 
+/// The dimensions of a character, in screen-space. This is very similar to
 /// `ScreenSpaceWH`, but it's nice for it to be harder to mixup generic screen
 /// dimensions and Character dimensions.
 // Plus since `CharDim` came before `ScreenSpaceWH` less code has to change if we keep `CharDim`
@@ -383,11 +384,11 @@ impl ScreenSpaceRect {
 
     #[must_use]
     pub fn width(&self) -> abs::Length {
-        (self.max.x - self.min.x).into()
+        abs::Length::from_vector_saturating(self.max.x - self.min.x)
     }
     #[must_use]
     pub fn height(&self) -> abs::Length {
-        (self.max.y - self.min.y).into()
+        abs::Length::from_vector_saturating(self.max.y - self.min.y)
     }
 
     #[must_use]

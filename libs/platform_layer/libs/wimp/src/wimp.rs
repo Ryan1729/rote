@@ -554,8 +554,10 @@ pub fn run(
         macro_rules! mouse_within_radius {
             () => {{
                 let mouse_pos = &v_s!().ui.mouse_pos;
-                abs::Pos::abs(&(last_click_x - mouse_pos.x)) <= mouse_epsilon_radius
-                    && abs::Pos::abs(&(last_click_y - mouse_pos.y)) <= mouse_epsilon_radius
+                // TODO needing to add zero is suspect.
+                let zero = abs::Pos::default();
+                abs::Pos::abs(&(last_click_x - zero + mouse_pos.x)) <= mouse_epsilon_radius
+                    && abs::Pos::abs(&(last_click_y - zero + mouse_pos.y)) <= mouse_epsilon_radius
             }};
         }
 

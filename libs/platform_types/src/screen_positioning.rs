@@ -158,7 +158,9 @@ impl std::ops::Sub<TextBoxXY> for ScreenSpaceXY {
     type Output = TextBoxSpaceXY;
 
     fn sub(self, other: TextBoxXY) -> TextBoxSpaceXY {
-        tbsxy!(self.x - other.x, self.y - other.y)
+        let zero = abs::Pos::default();
+        // TODO Needing this addition here seems suspect.
+        tbsxy!(zero + (self.x - other.x), zero + (self.y - other.y))
     }
 }
 
@@ -272,8 +274,8 @@ pub use _tsxywh as tsxywh;
 /// the bottom left corner is `(0.0, height)`. In other words, the x-axis point right, the y-axis
 /// points down.
 pub struct ScrollXY {
-    pub x: abs::Pos,
-    pub y: abs::Pos,
+    pub x: abs::Vector,
+    pub y: abs::Vector,
 }
 
 fmt_debug!(for ScrollXY: ScrollXY {x, y} in "slxy!({}, {})", x, y);
@@ -310,8 +312,8 @@ macro_rules! _slxy {
 }
 pub use _slxy as slxy;
 
-impl MapElements<abs::Pos> for ScrollXY {
-    fn map_elements(&self, mapper: &impl Fn(abs::Pos) -> abs::Pos) -> Self {
+impl MapElements<abs::Vector> for ScrollXY {
+    fn map_elements(&self, mapper: &impl Fn(abs::Vector) -> abs::Vector) -> Self {
         Self {
             x: mapper(self.x),
             y: mapper(self.y),
@@ -651,7 +653,7 @@ pub fn attempt_to_make_xy_visible(
 /// and `visible` means within `line_min` to `line_min + w`, given `scroll` is
 /// added to `to_make_visible`.
 pub fn attempt_to_make_line_space_pos_visible(
-    scroll: &mut abs::Pos,
+    scroll: &mut abs::Vector,
     (line_min, w): (abs::Pos, abs::Length),
     apron_min_ratio: F32_0_1,
     apron_max_ratio: F32_0_1,
@@ -666,7 +668,7 @@ pub fn attempt_to_make_line_space_pos_visible(
 
     // In screen space
     let min: abs::Pos = left_w + line_min;
-    let max: abs::Pos = abs::Pos::from(w) - right_w + line_min;
+    let max: abs::Pos = abs::Vector::from(w) - right_w + line_min;
 
     // "Why do we assign to_make_visible to scroll?":
     // let to_make_visible = tmv
@@ -679,10 +681,12 @@ pub fn attempt_to_make_line_space_pos_visible(
     // therefore setting scroll to the value of tmv places the point
     // at the top left corner of the text box. We make further adjustments as needed.
 
+    // TODO does subtracting `abs::Pos::default()` here indicate incorrect type
+    // assignemts here?
     if to_make_visible_screen_space < min {
-        *scroll = to_make_visible - left_w;
+        *scroll = (to_make_visible - left_w) - abs::Pos::default();
     } else if to_make_visible_screen_space >= max {
-        *scroll = to_make_visible - (w - right_w);
+        *scroll = (to_make_visible - (w - right_w)) - abs::Pos::default();
     } else {
         // leave it alone
     }

@@ -728,7 +728,7 @@ pub mod ui {
         pub mouse_pos: ScreenSpaceXY,
         pub left_mouse_state: PhysicalButtonState,
         pub enter_key_state: PhysicalButtonState,
-        pub tab_scroll: abs::Pos,
+        pub tab_scroll: abs::Vector,
         pub file_switcher_pos: ListPosition,
         pub command_menu_pos: ListPosition,
         /// This is should be in the range [0.0, 2.0]. This needs the extra space to repesent the down
