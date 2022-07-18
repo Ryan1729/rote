@@ -310,6 +310,72 @@ impl Neg for Pos {
     }
 }
 
+/// A type that represents the displacement of a `Pos`. Has the same ragnge of
+/// values as `Pos`.
+#[derive(Clone, Copy, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Vector(Pos);
+
+fmt_debug!(
+    for Vector: Vector(pos) in "{:?}",
+    pos
+);
+fmt_display!(
+    for Vector: Vector(pos) in "{}",
+    pos
+);
+
+impl From<u32> for Vector {
+    fn from(n: u32) -> Self {
+        Vector(Pos::from(n))
+    }
+}
+
+impl From<f32> for Vector {
+    fn from(f: f32) -> Self {
+        Vector(Pos::from_f32(f))
+    }
+}
+
+impl From<&Vector> for f32 {
+    fn from(v: &Vector) -> Self {
+        From::from(*v)
+    }
+}
+
+impl From<Vector> for f32 {
+    fn from(v: Vector) -> Self {
+        v.0.to_f32_lossy()
+    }
+}
+
+impl Add<Vector> for Pos {
+    type Output = Pos;
+
+    fn add(self, other: Vector) -> Pos {
+        Pos::from_bits(self.0.saturating_add(other.0.0))
+    }
+}
+
+add_assign!(<Vector> for Pos);
+
+impl Add<Pos> for Vector {
+    type Output = Pos;
+
+    fn add(self, other: Pos) -> Pos {
+        Pos::from_bits(self.0.0.saturating_add(other.0))
+    }
+}
+
+impl Sub<Vector> for Pos {
+    type Output = Pos;
+
+    fn sub(self, other: Vector) -> Pos {
+        Pos::from_bits(self.0.saturating_sub(other.0.0))
+    }
+}
+
+sub_assign!(<Vector> for Pos);
+
 /// A type that represents the length of something, which since negative lengths
 // do not make sense, can never be negative. Has the same maximum values as `Pos`
 #[derive(Clone, Copy, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]

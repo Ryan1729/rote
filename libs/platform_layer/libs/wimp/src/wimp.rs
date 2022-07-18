@@ -1247,7 +1247,7 @@ pub fn run(
                     modifiers,
                 } if modifiers.is_empty() => {
                     let ui = &mut v_s!().ui;
-                    let scroll_y = y * wimp_render::SCROLL_MULTIPLIER;
+                    let scroll_y = abs::Vector::from(y * wimp_render::SCROLL_MULTIPLIER);
                     if wimp_render::inside_tab_area(ui.mouse_pos, v_s!().dimensions.font) {
                         ui.tab_scroll -= scroll_y;
                     } else {
@@ -1259,7 +1259,7 @@ pub fn run(
                     modifiers,
                 } if modifiers == SHIFT => {
                     let ui = &mut v_s!().ui;
-                    let scroll_y = y * wimp_render::SCROLL_MULTIPLIER;
+                    let scroll_y = abs::Vector::from(y * wimp_render::SCROLL_MULTIPLIER);
                     if wimp_render::inside_tab_area(ui.mouse_pos, v_s!().dimensions.font) {
                         ui.tab_scroll -= scroll_y;
                     } else {
