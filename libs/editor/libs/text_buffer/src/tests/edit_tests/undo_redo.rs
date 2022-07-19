@@ -1064,7 +1064,61 @@ proptest! {
 }
 
 #[test]
-fn does_not_allow_applying_stale_redos_in_this_case() {
+fn does_not_allow_applying_stale_redos_in_this_generated_case() {
+    use TestEdit::*;
+    let edits = [
+        InsertString("+\r\u{3e7ae}/�I\u{b}".to_string()),
+        SetCursor(pos!{l 0 o 16}, ReplaceOrAdd::Add),
+        StripTrailingWhitespace
+    ];
+    does_not_allow_applying_stale_redos_on(edits, 0);
+}
+
+#[test]
+fn does_not_allow_applying_stale_redos_in_this_reduced_generated_case() {
+    use TestEdit::*;
+    let edits = [
+        InsertString("+\r\u{3e7ae}/�I\u{b}".to_string()),
+        SetCursor(pos!{l 0 o 1}, ReplaceOrAdd::Add),
+        StripTrailingWhitespace
+    ];
+    does_not_allow_applying_stale_redos_on(edits, 0);
+}
+
+#[test]
+fn does_not_allow_applying_stale_redos_in_this_reduced_generated_case_reduction() {
+    use TestEdit::*;
+    use ReplaceOrAdd::*;
+
+    let initial_buffer: TextBuffer = d!();
+    let mut buffer: TextBuffer = deep_clone(&initial_buffer);
+
+    TestEdit::apply(&mut buffer, InsertString("+\r\u{3e7ae}/�I\u{b}".to_string()));
+    {
+        let mut expected = t_b!("+\r\u{3e7ae}/�I\u{b}");
+        TestEdit::apply(&mut expected, SetCursor(pos!{l 2 o 0}, Replace));
+        assert_text_buffer_eq_ignoring_history!(buffer, expected);
+    }
+
+    TestEdit::apply(&mut buffer, SetCursor(pos!{l 0 o 1}, ReplaceOrAdd::Add));
+    TestEdit::apply(&mut buffer, StripTrailingWhitespace);
+    {
+        // TODO: make a
+        // "strip_trailing_whitespace_does_not_incease_the_amount_of_characters"
+        // proptest, and add this case as a static example.
+        let expected = t_b!("+\r\u{3e7ae}/�I\u{b}");
+        assert_text_buffer_eq_ignoring_history!(buffer, expected);
+    }
+
+    buffer.undo(None);
+    buffer.undo(None);
+    buffer.undo(None);
+
+    assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
+}
+
+#[test]
+fn does_not_allow_applying_stale_redos_in_this_sequential_case() {
     let mut buffer: TextBuffer = d!();
 
     TestEdit::apply(&mut buffer, TestEdit::Insert('1'));
