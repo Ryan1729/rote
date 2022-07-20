@@ -271,6 +271,20 @@ pub fn get_counts(buffer: &TextBuffer) -> Counts {
     output.into()
 }
 
+pub fn get_normalized_newline_counts(buffer: &TextBuffer) -> Counts {
+    let mut output = HashMap::with_capacity(buffer.len());
+
+    for mut c in buffer.borrow_rope().chars() {
+        if is_linebreak_char(c) {
+            c = '\n';
+        }
+        let count = output.entry(c).or_insert(0);
+        *count += 1;
+    }
+
+    output.into()
+}
+
 pub fn increment_char_by(counts: &mut Counts, c: char, amount: CountNumber) {
     let count = counts.entry(c).or_insert(0);
     *count += amount;
