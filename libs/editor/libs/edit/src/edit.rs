@@ -607,7 +607,7 @@ pub fn get_tab_out_edit(rope: &CursoredRope) -> Edit {
 // This is exposed outside of its usage scope so tests can see it.
 fn strip_trailing_whitespace_step(
     line: RopeLine,
-    RelativeSelected{ line_end, slice_end }: RelativeSelected,
+    RelativeSelected { line_end, slice_end }: RelativeSelected,
     chars: &mut String,
 ) {
     if slice_end == CharOffset(0) {
@@ -636,7 +636,13 @@ fn strip_trailing_whitespace_step(
     }
 
     if let Some(last_char) = dbg!(line.chars_at_end().prev()) {
-        if is_linebreak_char(last_char) {
+        if is_linebreak_char(last_char)
+        // AKA the newline was included in the selection
+        && true//line_end == slice_end 
+        // TODO  ^^^^^^^^^^^^^^^^^^^^^ This doesn't work. I think we need more 
+        // information to be added to RelativeSelected
+        {
+            std::dbg!(&chars, line_end, slice_end);
             chars.push('\n');
         }
     }
