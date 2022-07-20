@@ -2196,6 +2196,39 @@ fn get_tab_out_edit_returns_the_right_chars_in_this_ascii_case() {
     );
 }
 
+#[test]
+fn get_strip_trailing_whitespace_edit_pruduces_the_expected_edit_in_this_generated_case() {
+    let mut buffer = t_b!("+\r\u{3e7ae}/�I\u{b}");
+    buffer.set_cursor(cur!{l 0 o 1}, ReplaceOrAdd::Add);
+
+    let rope = buffer.borrow_rope();
+    let expected_edit = edit_from_pieces(
+        vec1![
+            RangeEdits {
+                insert_range: None,
+                delete_range: None,
+            },
+        ],
+        Change {
+            old: curs!{
+                rope,
+                cur!{l 0 o 0},
+                cur!{l 0 o 1},
+            },
+            new: curs!{
+                rope,
+                cur!{l 0 o 0},
+                cur!{l 0 o 1},
+            },
+        },
+    );
+    let actual_edit = get_strip_trailing_whitespace_edit(
+        buffer.borrow_cursored_rope()
+    );
+
+    assert_eq!(actual_edit, expected_edit);
+}
+
 fn delete_lines_deletes_the_expected_amount_of_lines_on(mut buffer: TextBuffer) {
     let initial_line_count = buffer.borrow_rope().len_lines();
 
@@ -2342,60 +2375,6 @@ mod strip_trailing_whitespace_does_not_increase_the_amount_of_characters {
         let mut buffer = t_b!("+\r\u{3e7ae}/�I\u{b}");
         buffer.set_cursor(cur!{l 0 o 1}, ReplaceOrAdd::Add);
         on(buffer);
-    }
-
-    #[test]
-    fn on_this_complex_generated_example_reduction() {
-        let mut buffer = t_b!("+\r\u{3e7ae}/�I\u{b}");
-        buffer.set_cursor(cur!{l 0 o 1}, ReplaceOrAdd::Add);
-        
-        let initial_string = String::from(&buffer);
-        let initial_counts = get_normalized_newline_counts(&buffer);
-
-        let rope = buffer.borrow_rope();
-        let expected_edit = edit_from_pieces(
-            vec1![
-                RangeEdits {
-                    insert_range: None,
-                    delete_range: None,
-                },
-            ],
-            Change {
-                old: curs!{
-                    rope,
-                    cur!{l 0 o 0},
-                    cur!{l 0 o 1},
-                },
-                new: curs!{
-                    rope,
-                    cur!{l 0 o 0},
-                    cur!{l 0 o 1},
-                },
-            },
-        );
-        let actual_edit = get_strip_trailing_whitespace_edit(
-            buffer.borrow_cursored_rope()
-        );
-
-        assert_eq!(actual_edit, expected_edit);
-
-        buffer.strip_trailing_whitespace(None);
-
-        let final_counts = get_normalized_newline_counts(&buffer);
-
-        let initial_count = initial_counts.get(&'\n').unwrap();
-        let final_count = final_counts.get(&'\n').unwrap();
-        assert!(
-            initial_count >= final_count,
-            r#"final count for linebreak characters was {final_count},
-            which is more than the initial count of {initial_count}
-            initial:
-            {initial_string:?}
-            final:
-            {:?}
-            "#,
-            String::from(&buffer)
-        );
     }
 }
 
