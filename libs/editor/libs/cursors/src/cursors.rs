@@ -18,7 +18,7 @@ pub struct Cursors {
 #[macro_export]
 macro_rules! curs {
     ($rope: expr, $($cursor_elements: expr),+ $(,)?) => (
-        Cursors::new(&$rope, vec1![$($cursor_elements)+])
+        Cursors::new(&$rope, vec1![$($cursor_elements),+])
     );
 }
 

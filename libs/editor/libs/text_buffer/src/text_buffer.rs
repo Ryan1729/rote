@@ -111,6 +111,12 @@ pub enum UpdatedCursors {
 }
 
 impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
+    #[cfg(test)]
+    #[must_use]
+    pub fn borrow_cursored_rope(&self) -> &CursoredRope {
+        &self.rope
+    }
+
     #[must_use]
     pub fn borrow_rope(&self) -> &Rope {
         self.rope.borrow_rope()
