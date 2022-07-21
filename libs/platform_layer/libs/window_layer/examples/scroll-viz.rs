@@ -239,14 +239,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 modifiers,
                 ..
             } if modifiers.is_empty() => {
-                scroll_xy.y += y * 16.0;
+                scroll_xy.y += abs::Vector::from(y * 16.0);
             }
             Event::MouseWheel {
                 delta: MouseScrollDelta::LineDelta(_, y),
                 modifiers,
                 ..
             } if modifiers.shift() => {
-                scroll_xy.x += y * 16.0;
+                scroll_xy.x += abs::Vector::from(y * 16.0);
             }
             _ => {}
         }
