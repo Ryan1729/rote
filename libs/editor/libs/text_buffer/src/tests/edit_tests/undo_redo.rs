@@ -1103,7 +1103,9 @@ fn does_not_allow_applying_stale_redos_in_this_reduced_generated_case_reduction(
     TestEdit::apply(&mut buffer, SetCursor(pos!{l 0 o 1}, ReplaceOrAdd::Add));
     TestEdit::apply(&mut buffer, StripTrailingWhitespace);
     {
-        let expected = t_b!("+\r\u{3e7ae}/�I\u{b}");
+        let mut expected = t_b!("+\r\u{3e7ae}/�I\u{b}");
+        TestEdit::apply(&mut expected, SetCursor(pos!{l 2 o 0}, Replace));
+        TestEdit::apply(&mut expected, SetCursor(pos!{l 0 o 1}, ReplaceOrAdd::Add));
         assert_text_buffer_eq_ignoring_history!(buffer, expected);
     }
 

@@ -1960,7 +1960,7 @@ fn does_not_lose_characters_in_this_tab_out_then_in_case() {
 }
 
 #[test]
-fn get_cut_edit_returns_an_edit_with_the_right_selection_in_this_tab_out_case() {
+fn get_selections_and_cut_edit_returns_an_edit_with_the_right_selection_in_this_tab_out_case() {
     use TestEdit::*;
     use ReplaceOrAdd::*;
     let mut buffer = t_b!("!\u{2000}");
@@ -1972,13 +1972,13 @@ fn get_cut_edit_returns_an_edit_with_the_right_selection_in_this_tab_out_case() 
 
     TestEdit::apply(&mut buffer, TabOut);
 
-    let cut_edit = get_cut_edit(&buffer.rope);
+    let (selected, _) = edit::get_selections_and_cut_edit(&buffer.rope);
 
-    assert_eq!(cut_edit.selected(), vec!["!"]);
+    assert_eq!(selected, vec!["!"]);
 }
 
 #[test]
-fn get_tab_out_edit_returns_an_edit_with_the_right_selection_in_this_case() {
+fn get_tab_out_edit_produces_the_correct_rope_in_this_case() {
     use ReplaceOrAdd::*;
     let mut buffer = t_b!("!\u{2000}");
 
@@ -1987,8 +1987,6 @@ fn get_tab_out_edit_returns_an_edit_with_the_right_selection_in_this_case() {
     buffer.set_cursor(cursor, Replace);
 
     let edit = get_tab_out_edit(&buffer.rope);
-
-    assert_eq!(edit.selected(), vec!["!"]);
 
     apply_edit(&mut buffer.rope, dbg!(&edit), None);
 
@@ -2170,10 +2168,12 @@ fn get_tab_out_edit_returns_the_right_chars_in_this_unicode_case() {
     let range_edit = edit.range_edits().first().clone();
 
     // tab out here should not cause any changes to the chars
-    assert_eq!(
-        range_edit.insert_range.unwrap().chars,
-        range_edit.delete_range.unwrap().chars
-    );
+    if range_edit.insert_range != range_edit.delete_range {
+        assert_eq!(
+            range_edit.insert_range.unwrap().chars,
+            range_edit.delete_range.unwrap().chars
+        );
+    }
 }
 
 #[test]
@@ -2190,10 +2190,12 @@ fn get_tab_out_edit_returns_the_right_chars_in_this_ascii_case() {
     let range_edit = edit.range_edits().first().clone();
 
     // tab out here should not cause any changes to the chars
-    assert_eq!(
-        range_edit.insert_range.unwrap().chars,
-        range_edit.delete_range.unwrap().chars
-    );
+    if range_edit.insert_range != range_edit.delete_range {
+        assert_eq!(
+            range_edit.insert_range.unwrap().chars,
+            range_edit.delete_range.unwrap().chars
+        );
+    }
 }
 
 #[test]
@@ -2203,12 +2205,7 @@ fn get_strip_trailing_whitespace_edit_pruduces_the_expected_edit_in_this_generat
 
     let rope = buffer.borrow_rope();
     let expected_edit = edit_from_pieces(
-        vec1![
-            RangeEdits {
-                insert_range: None,
-                delete_range: None,
-            },
-        ],
+        vec1![d!(), d!()],
         Change {
             old: curs!{
                 rope,

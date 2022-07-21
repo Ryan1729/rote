@@ -140,7 +140,8 @@ where
                 let p = o.checked_sub(len).unwrap_or_default();
                 move_cursor::to_absolute_offset(&cloned_rope, cursor, p, action);
                 let h =
-                    char_offset_to_pos(&cloned_rope, o).unwrap_or_else(|| cursor.get_position());
+                    char_offset_to_pos(&cloned_rope, o)
+                    .unwrap_or_else(|| cursor.get_position());
                 cursor.set_highlight_position(h);
             }
         }
@@ -411,6 +412,32 @@ pub fn get_cut_edit(rope: &CursoredRope) -> Edit {
     })
 }
 
+#[must_use]
+pub fn get_selections_and_cut_edit(rope: &CursoredRope) -> (Vec<String>, Edit) {
+    let edit = get_cut_edit(rope);
+
+    // As of this writing, we only care about getting selections from cut edits.
+    // We've recently marked for consideration the idea of normalizing `RangeEdits`
+    // to the default value when the edits would not do anything. This makes getting
+    // selections from arbitrary edits not work. So we've moved the selections code
+    // in here, hpoing that we do not end up wanting the selections in cases where
+    // creating a cut edit as well woould be an issue.
+    let mut selected = Vec::with_capacity(edit.range_edits.len());
+
+    for range_edit in edit.range_edits.iter() {
+        if let Some(RangeEdit { chars, .. }) = &range_edit.delete_range {
+            selected.push(chars.clone());
+        }
+    }
+
+    // The range edits are in reverse order, so they line up with the cursors.
+    // The users of this method should not need to care about that, so reverse
+    // the order now.
+    selected.reverse();
+
+    (selected, edit)
+}
+
 pub const TAB_STR: &str = "    "; //four spaces
 pub const TAB_STR_CHAR: char = ' ';
 pub const TAB_STR_CHAR_COUNT: usize = 4; // this isn't const (yet?) TAB_STR.chars().count();
@@ -578,22 +605,32 @@ pub fn get_tab_in_edit(rope: &CursoredRope) -> Edit {
     )
 }
 
+struct LineEnds {
+    before_break_if_selected: CharOffset,
+    after_break_if_selected: CharOffset,
+    after_break: CharOffset,
+}
+
 #[must_use]
 pub fn get_tab_out_edit(rope: &CursoredRope) -> Edit {
     fn tab_out_step(
         line: RopeLine,
-        RelativeSelected{ line_end, slice_end }: RelativeSelected,
+        LineEnds { 
+            before_break_if_selected,
+            after_break_if_selected,
+            ..
+        }: LineEnds,
         chars: &mut String,
     ) {
         let first_non_white_space_offset: Option<CharOffset> =
-            get_first_non_white_space_offset_in_range(line, d!()..=line_end);
+            get_first_non_white_space_offset_in_range(line, d!()..=before_break_if_selected);
 
         let delete_count = min(
-            first_non_white_space_offset.unwrap_or(line_end),
+            first_non_white_space_offset.unwrap_or(before_break_if_selected),
             CharOffset(TAB_STR_CHAR_COUNT),
         );
 
-        if let Some(sliced_line) = line.slice(delete_count..slice_end) {
+        if let Some(sliced_line) = line.slice(delete_count..after_break_if_selected) {
             push_slice(chars, sliced_line);
         }
     }
@@ -607,25 +644,31 @@ pub fn get_tab_out_edit(rope: &CursoredRope) -> Edit {
 // This is exposed outside of its usage scope so tests can see it.
 fn strip_trailing_whitespace_step(
     line: RopeLine,
-    RelativeSelected { line_end, slice_end }: RelativeSelected,
+    LineEnds { 
+        before_break_if_selected,
+        after_break_if_selected,
+        after_break,
+    }: LineEnds,
     chars: &mut String,
 ) {
-    if slice_end == CharOffset(0) {
+    if after_break_if_selected == CharOffset(0) {
         return
     }
 
-    dbg!(line, line_end, slice_end);
+    dbg!(line, before_break_if_selected, after_break_if_selected);
     let last_non_white_space_offset: Option<CharOffset> =
-        get_last_non_white_space_offset_in_range(line, d!()..=line_end)
+        get_last_non_white_space_offset_in_range(
+            line,
+            d!()..=before_break_if_selected
+        )
         // We add one so we keep the final non-whitespace
         .map(|CharOffset(o)| CharOffset(o.saturating_add(1)));
 
     let strip_after = min(
         last_non_white_space_offset.unwrap_or(CharOffset(0)),
-        slice_end,
+        after_break_if_selected,
     );
 
-    dbg!(last_non_white_space_offset, last_non_white_space_offset.unwrap_or(line_end), strip_after);
     if let Some(sliced_line) = line.slice(CharOffset(0)..strip_after) {
         push_slice(chars, sliced_line);
     }
@@ -638,11 +681,8 @@ fn strip_trailing_whitespace_step(
     if let Some(last_char) = dbg!(line.chars_at_end().prev()) {
         if is_linebreak_char(last_char)
         // AKA the newline was included in the selection
-        && true//line_end == slice_end 
-        // TODO  ^^^^^^^^^^^^^^^^^^^^^ This doesn't work. I think we need more 
-        // information to be added to RelativeSelected
+        && after_break_if_selected == after_break
         {
-            std::dbg!(&chars, line_end, slice_end);
             chars.push('\n');
         }
     }
@@ -671,19 +711,23 @@ pub fn get_toggle_single_line_comments_edit(rope: &CursoredRope) -> Edit {
     if all_selected_lines_have_leading_comments(rope) {
         fn remove_leading_comments_step(
             line: RopeLine,
-            RelativeSelected{ line_end, slice_end }: RelativeSelected,
+            LineEnds { 
+                before_break_if_selected,
+                after_break_if_selected,
+                ..
+            }: LineEnds,
             chars: &mut String,
         ) {
             let first_non_white_space_offset: Option<CharOffset> =
-                get_first_non_white_space_offset_in_range(line, d!()..=line_end);
+                get_first_non_white_space_offset_in_range(line, d!()..=before_break_if_selected);
 
-            let comment_start = first_non_white_space_offset.unwrap_or(line_end);
+            let comment_start = first_non_white_space_offset.unwrap_or(before_break_if_selected);
 
             if let Some(sliced_line) = line.slice(..comment_start) {
                 push_slice(chars, sliced_line);
 
                 if let Some(sliced_line) = line.slice(
-                    (comment_start + COMMENT_STR.len())..slice_end
+                    (comment_start + COMMENT_STR.len())..after_break_if_selected
                 ) {
                     push_slice(chars, sliced_line);
                 }
@@ -746,15 +790,11 @@ fn all_selected_lines_have_leading_comments(
 
     true
 }
-struct RelativeSelected {
-    line_end: CharOffset, // Before newline if any
-    slice_end: CharOffset, // Including newline if any
-}
 
 /// We expect the step to push the characters that are NOT deleted onto the string
 /// Yes this is a slightly awkward API, but I think it is the least awkward of the
 /// considered possibilities.
-type LineSlicingEditStep = fn(RopeLine, RelativeSelected, &mut String);
+type LineSlicingEditStep = fn(RopeLine, LineEnds, &mut String);
 
 fn get_line_slicing_edit(
     rope: &CursoredRope,
@@ -787,31 +827,39 @@ fn get_line_slicing_edit(
             for (i, index) in line_indicies.into_iter().enumerate() {
                 let line = some_or!(rope.line(index), continue);
 
-                let should_include_entire_end_of_line = dbg!(i != last_line_indicies_index);
+                let should_include_entire_end_of_line
+                    = i != last_line_indicies_index;
 
-                let (line_end, slice_end) = if should_include_entire_end_of_line {
-                    (final_non_newline_offset_for_rope_line(line), line.len_chars())
+                let (
+                    before_break_if_selected,
+                    after_break_if_selected,
+                    after_break,
+                ) = if should_include_entire_end_of_line {
+                    (
+                        final_non_newline_offset_for_rope_line(line),
+                        line.len_chars(),
+                        line.len_chars(),
+                    )
                 } else {
                     let first_char_of_line: AbsoluteCharOffset = some_or!(
                         rope.line_to_char(index),
                         continue
                     );
                     let end_of_selection_on_line: CharOffset = selected_max - first_char_of_line;
-                    dbg!(end_of_selection_on_line, end_of_selection_on_line)
-                };
 
-                dbg!(
-                    &line,
-                    line_end,
-                    slice_end,
-                    &mut chars
-                );
+                    (
+                        end_of_selection_on_line,
+                        end_of_selection_on_line,
+                        line.len_chars(),
+                    )
+                };
 
                 step(
                     line,
-                    RelativeSelected {
-                        line_end,
-                        slice_end,
+                    LineEnds {
+                        before_break_if_selected,
+                        after_break_if_selected,
+                        after_break,
                     },
                     &mut chars
                 );
@@ -863,14 +911,23 @@ fn replace_in_range(
         );
     }
 
-    dbg!(
-        RangeEdits {
-            insert_range: Some(RangeEdit {
-                chars: replace_with.chars,
-                range: insert_edit_range
-            }),
-            delete_range: Some(delete_edit),
-        },
+    let mut edits = RangeEdits {
+        insert_range: Some(RangeEdit {
+            chars: replace_with.chars,
+            range: insert_edit_range
+        }),
+        delete_range: Some(delete_edit),
+    };
+
+    // TODO: Could probably detect this earlier and avoid allocations in that case.
+    // Also, it may make sense to ensure this transform is always done when 
+    // constructing a `RangeEdits` instance.
+    if edits.insert_range == edits.delete_range {
+        edits = d!();
+    }
+
+    (
+        edits,
         CursorPlacementSpec {
             offset: delete_offset,
             delta: char_count as isize + delete_delta,
@@ -994,24 +1051,6 @@ impl Edit {
     #[must_use]
     pub fn cursors(&self) -> &Change<Cursors> {
         &self.cursors
-    }
-
-    #[must_use]
-    pub fn selected(&self) -> Vec<String> {
-        let mut strings = Vec::with_capacity(self.range_edits.len());
-
-        for range_edit in self.range_edits.iter() {
-            if let Some(RangeEdit { chars, .. }) = &range_edit.delete_range {
-                strings.push(chars.clone());
-            }
-        }
-
-        // The range edits are in reverse order, so they line up with the cursors.
-        // The users of this method should not need to care about that, so reverse
-        // the order now.
-        strings.reverse();
-
-        strings
     }
 
     #[must_use]
@@ -1482,9 +1521,10 @@ pub mod tests {
                 let rope = Rope::from($from);
 
                 let line: RopeLine = rope.line(LineIndex::default()).unwrap();
-                let rel_sel = RelativeSelected {
-                    line_end: final_non_newline_offset_for_rope_line(line),
-                    slice_end: line.len_chars(),
+                let rel_sel = LineEnds { 
+                    before_break_if_selected: final_non_newline_offset_for_rope_line(line),
+                    after_break_if_selected: line.len_chars(),
+                    after_break: line.len_chars(),
                 };
                 let mut chars = String::new();
 

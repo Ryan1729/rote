@@ -527,7 +527,7 @@ impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
 
     #[must_use]
     pub fn copy_selections(&self) -> Vec<String> {
-        let mut selections = self.get_selections_and_cut_edit().0;
+        let mut selections = edit::get_selections_and_cut_edit(&self.rope).0;
 
         selections.reverse();
 
@@ -535,15 +535,9 @@ impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
     }
 
     pub fn cut_selections(&mut self, listener: ppel!()) -> (Vec<String>, PossibleEditedTransition) {
-        let (strings, edit) = self.get_selections_and_cut_edit();
+        let (strings, edit) = edit::get_selections_and_cut_edit(&self.rope);
 
         (strings, self.record_edit(edit, listener))
-    }
-
-    fn get_selections_and_cut_edit(&self) -> (Vec<String>, Edit) {
-        let edit = edit::get_cut_edit(&self.rope);
-
-        (edit.selected(), edit)
     }
 
     #[perf_viz::record]
