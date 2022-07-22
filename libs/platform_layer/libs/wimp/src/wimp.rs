@@ -1491,7 +1491,12 @@ pub fn run(
                             "{: >6.3} ms",
                             {
                                 let mut total = 0.0;
-                                for span in editor_stats.latest_parse_time_spans.iter() {
+
+                                // For this display, we want some fewer decimal 
+                                // places, and so are fine with some precision loss.
+                                #[allow(clippy::cast_precision_loss)]
+
+                                for span in &editor_stats.latest_parse_time_spans {
                                     use TimeSpan::*;
                                     match span {
                                         NotStarted | Started(_) => {},
@@ -1560,7 +1565,7 @@ pub fn run(
                             save_to_disk!(
                                 r_s,
                                 p,
-                                label.to_owned(),
+                                label.clone(),
                                 index
                             );
                         }
@@ -1579,7 +1584,7 @@ pub fn run(
                         );
                         call_u_and_r!(
                             r_s,
-                            Input::SavedAs(index, path.to_path_buf())
+                            Input::SavedAs(index, path)
                         );
                     },
                     CustomEvent::SendBuffersToBeSaved => {
@@ -1597,7 +1602,7 @@ pub fn run(
                             statuses.push(
                                 buffer_status_map
                                     .get(index_state, i)
-                                    .cloned()
+                                    .copied()
                                     .unwrap_or_default()
                             );
                         }

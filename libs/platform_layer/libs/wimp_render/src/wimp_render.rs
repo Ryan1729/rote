@@ -1336,7 +1336,7 @@ fn unscrolled_tab_right_edge(
     target_index: usize,
     tab_width: abs::Length,
 ) -> abs::Vector {
-    abs::Vector::from(unscrolled_tab_left_edge(target_index + 1, tab_width))
+    unscrolled_tab_left_edge(target_index + 1, tab_width)
 }
 
 fn make_nth_tab_visible_if_present(
@@ -1348,9 +1348,7 @@ fn make_nth_tab_visible_if_present(
     // This was written to fix a suddenly failing proptest. Maybe a simpler
     // overall solution without this special case exists?
     if tab_width >= screen_width {
-        let to_make_visible = unscrolled_tab_left_edge(target_index, tab_width);
-
-        ui.tab_scroll = to_make_visible.into();
+        ui.tab_scroll = unscrolled_tab_left_edge(target_index, tab_width);
         return
     }
 

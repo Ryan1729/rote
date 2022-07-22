@@ -901,7 +901,7 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                 // `Input::SetCursors` input, so there will be only one cursor. But it seems like
                 // we might as well just do it to all the cursors
                 b.drag_cursors(position);
-            })
+            });
         }
         SelectCharTypeGrouping(xy, replace_or_add) => {
             let char_dim = state.get_current_char_dim();
@@ -912,8 +912,8 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                         xy,
                     ),
                     replace_or_add
-                )
-            })
+                );
+            });
         }
         ExtendSelectionWithSearch => {
             if let Some(size_info) = state.size_info(state.current_buffer_kind) {
