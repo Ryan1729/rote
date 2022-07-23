@@ -272,7 +272,16 @@ fn next_instance_of_selected(rope: &Rope, cursor: &Cursor) -> Option<(Position, 
                     std::num::NonZeroUsize::new(1),
                 )
                 .pop()
-            })
+            }).map(
+                |(min, max)| {
+                    // We want to match the previous cursor's direction.
+                    if p_offset > h_offset {
+                        (max, min)
+                    } else {
+                        (min, max)
+                    }
+                }
+            )
         }
         _ => None,
     }

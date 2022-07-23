@@ -45,12 +45,6 @@
         }
     ```
 
-* make Ctrl-D match cursor's direction with the initial selection
-    * "[abc|]" repesents a selection of "abc" with the cursor at the larger of the two positions
-    * current: [abc|] abc abc => [abc|] [|abc] abc
-    * desired: [abc|] abc abc => [abc|] [abc|] abc
-    * also desired: [|abc] abc abc => [|abc] [|abc] abc
-
 * make some way to jump to tab a given tab, say by making numbers appear on tabs when
 holding down modifiers
 
