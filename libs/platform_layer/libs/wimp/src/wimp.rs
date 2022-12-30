@@ -800,6 +800,20 @@ pub fn run(
             [empty, F3, "Toggle Case", state {
                 call_u_and_r!(state, Input::ToggleCase);
             }]
+            [CTRL, F4, "Close tab.", r_s {
+                match v_s!(r_s).view.current_buffer_id() {
+                    BufferId {
+                        kind: BufferIdKind::Text,
+                        index,
+                        ..
+                    } => {
+                        call_u_and_r!(r_s, Input::CloseBuffer(index));
+                    }
+                    _ => {
+                        call_u_and_r!(r_s, Input::Escape);
+                    }
+                }
+            }]
             [empty, F5, "Strip trailing whitepace", r_s {
                 call_u_and_r!(r_s, Input::StripTrailingWhitespace);
             }]
@@ -907,20 +921,6 @@ pub fn run(
             }]
             [CTRL, V, "Paste.", state {
                 call_u_and_r!(state, Input::Paste(state.clipboard.get().ok()));
-            }]
-            [CTRL, W, "Close tab.", r_s {
-                match v_s!(r_s).view.current_buffer_id() {
-                    BufferId {
-                        kind: BufferIdKind::Text,
-                        index,
-                        ..
-                    } => {
-                        call_u_and_r!(r_s, Input::CloseBuffer(index));
-                    }
-                    _ => {
-                        call_u_and_r!(r_s, Input::Escape);
-                    }
-                }
             }]
             [CTRL, X, "Cut.", state {
                 call_u_and_r!(state, Input::Cut);
