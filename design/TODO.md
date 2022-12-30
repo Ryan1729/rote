@@ -1,5 +1,8 @@
 ## TODO
 
+* Got this panic:
+    * thread 'main' panicked at 'slice had incorrect index!', libs/platform_types/./src/spans.rs:285:22
+
 * when tabbing in (and out I guess?) insert, (/remove?) extra tab strs automatically depending on the surrounding text.
     * given these lines
     ```
