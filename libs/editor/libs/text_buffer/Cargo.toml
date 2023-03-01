@@ -63,5 +63,5 @@ pub_arb_vec1 = { path = "../../../pub_arb/vec1" }
 
 [features]
 default = []
-extra-prints = []
+extra-prints = ["edit/extra-prints"]
 pub_arb = ["proptest", "pretty_assertions", "pub_arb_cursors", "pub_arb_edit", "pub_arb_std", "pub_arb_text_pos", "pub_arb_vec1"]

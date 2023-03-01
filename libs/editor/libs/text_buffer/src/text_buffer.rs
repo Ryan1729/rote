@@ -871,13 +871,11 @@ impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
     fn record_edit(&mut self, edit: Edit, listener: PossibleParserEditListener) -> PossibleEditedTransition {
         u!{Editedness, EditedTransition}
         let old_editedness = self.editedness();
-        dbg!(old_editedness);
 
         apply_edit(&mut self.rope, &edit, listener);
 
         self.history.record_edit(edit);
 
-        dbg!(self.editedness());
         match change!(old_editedness, self.editedness()) {
             change!(Edited, Edited) | change!(Unedited, Unedited) => None,
             change!(Edited, Unedited) => Some(ToUnedited),
@@ -1003,7 +1001,6 @@ impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
 fn editedness(unedited: &Rope, current: &Rope) -> Editedness {
     u!{Editedness}
 
-    dbg!(unedited, current);
     if unedited == current {
         Unedited
     } else {

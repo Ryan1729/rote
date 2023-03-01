@@ -8,13 +8,13 @@ use rope_pos::{AbsoluteCharOffsetRange, char_offset_to_pos, final_non_newline_of
 
 use std::cmp::{min, max};
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 enum SpecialHandling {
+    #[default]
     None,
     HighlightOnLeftShiftedLeftBy(usize),
     HighlightOnRightPositionShiftedLeftBy(usize),
 }
-d!(for SpecialHandling: SpecialHandling::None);
 
 fn get_special_handling(
     original_rope: &Rope,
@@ -442,8 +442,16 @@ pub const TAB_STR: &str = "    "; //four spaces
 pub const TAB_STR_CHAR: char = ' ';
 pub const TAB_STR_CHAR_COUNT: usize = 4; // this isn't const (yet?) TAB_STR.chars().count();
 
+struct PrefixAppendView<'rope> {
+    count: usize,
+    #[allow(unused)]
+    rope: &'rope Rope,
+    #[allow(unused)]
+    cursor: Cursor,
+}
+
 struct PrefixSpec {
-    append: fn (&mut String, usize),
+    append: fn (&mut String, PrefixAppendView),
     prefix: CountedString,
 }
 
@@ -459,6 +467,32 @@ impl From<String> for CountedString {
             count: chars.chars().count(),
             chars,
         }
+    }
+}
+
+trait CharPush {
+    fn push_str(&mut self, s: &str);
+    fn push(&mut self, c: char);
+}
+
+impl CharPush for String {
+    fn push_str(&mut self, s: &str) {
+        String::push_str(self, s);
+    }
+    fn push(&mut self, c: char) {
+        String::push(self, c);
+    }
+}
+
+impl CharPush for CountedString {
+    fn push_str(&mut self, s: &str) {
+        for c in s.chars() {
+            self.push(c);
+        }
+    }
+    fn push(&mut self, c: char) {
+        self.chars.push(c);
+        self.count += 1;
     }
 }
 
@@ -519,10 +553,18 @@ fn get_insert_prefix_edit(
                     );
 
                     let end = previous_offset.0 + spec.prefix.count;
-                    dbg!(start, end);
 
                     let append_count = end.saturating_sub(start);
-                    (spec.append)(&mut chars, append_count);
+                    dbg!(start, end, append_count);
+
+                    (spec.append)(
+                        &mut chars,
+                        PrefixAppendView {
+                            count: append_count,
+                            rope,
+                            cursor,
+                        }
+                    );
                     // TODO if we don't trust the spec to actually append that
                     // amount, then calculate the actual length difference.
                     appended_count += append_count;
@@ -590,8 +632,8 @@ fn get_insert_prefix_edit(
 #[perf_viz::record]
 #[must_use]
 pub fn get_tab_in_edit(rope: &CursoredRope) -> Edit {
-    fn append(s: &mut String, count: usize) {
-        for _ in 0..count {
+    fn append(s: &mut String, view: PrefixAppendView) {
+        for _ in 0..view.count {
             s.push(TAB_STR_CHAR);
         }
     }
@@ -615,7 +657,7 @@ struct LineEnds {
 pub fn get_tab_out_edit(rope: &CursoredRope) -> Edit {
     fn tab_out_step(
         line: RopeLine,
-        LineEnds { 
+        LineEnds {
             before_break_if_selected,
             after_break_if_selected,
             ..
@@ -644,7 +686,7 @@ pub fn get_tab_out_edit(rope: &CursoredRope) -> Edit {
 // This is exposed outside of its usage scope so tests can see it.
 fn strip_trailing_whitespace_step(
     line: RopeLine,
-    LineEnds { 
+    LineEnds {
         before_break_if_selected,
         after_break_if_selected,
         after_break,
@@ -711,7 +753,7 @@ pub fn get_toggle_single_line_comments_edit(rope: &CursoredRope) -> Edit {
     if all_selected_lines_have_leading_comments(rope) {
         fn remove_leading_comments_step(
             line: RopeLine,
-            LineEnds { 
+            LineEnds {
                 before_break_if_selected,
                 after_break_if_selected,
                 ..
@@ -736,7 +778,8 @@ pub fn get_toggle_single_line_comments_edit(rope: &CursoredRope) -> Edit {
 
         get_line_slicing_edit(rope, remove_leading_comments_step)
     } else {
-        fn append(s: &mut String, count: usize) {
+        fn append(s: &mut String, view: PrefixAppendView) {
+            let count = view.count;
             if count >= COMMENT_STR.len() {
                 for i in 0..count {
                     s.push(
@@ -920,7 +963,7 @@ fn replace_in_range(
     };
 
     // TODO: Could probably detect this earlier and avoid allocations in that case.
-    // Also, it may make sense to ensure this transform is always done when 
+    // Also, it may make sense to ensure this transform is always done when
     // constructing a `RangeEdits` instance.
     if edits.insert_range == edits.delete_range {
         edits = d!();
@@ -1521,7 +1564,7 @@ pub mod tests {
                 let rope = Rope::from($from);
 
                 let line: RopeLine = rope.line(LineIndex::default()).unwrap();
-                let rel_sel = LineEnds { 
+                let rel_sel = LineEnds {
                     before_break_if_selected: final_non_newline_offset_for_rope_line(line),
                     after_break_if_selected: line.len_chars(),
                     after_break: line.len_chars(),
@@ -1576,7 +1619,7 @@ pub mod tests {
 }
 
 fn push_slice(
-    chars: &mut String,
+    chars: &mut impl CharPush,
     slice: RopeSlice
 ) {
     if let Some(s) = slice.as_str_if_no_allocation_needed() {
