@@ -443,7 +443,6 @@ pub const TAB_STR_CHAR: char = ' ';
 pub const TAB_STR_CHAR_COUNT: usize = 4; // this isn't const (yet?) TAB_STR.chars().count();
 
 struct PrefixAppendView<'rope> {
-    count: usize,
     #[allow(unused)]
     rope: &'rope Rope,
     #[allow(unused)]
@@ -451,8 +450,7 @@ struct PrefixAppendView<'rope> {
 }
 
 struct PrefixSpec {
-    append: fn (&mut String, PrefixAppendView),
-    prefix: CountedString,
+    append: fn (&mut CountedString, PrefixAppendView),
 }
 
 #[derive(Clone)]
@@ -510,18 +508,33 @@ fn get_insert_prefix_edit(
             let cursor = cursor_info.cursor;
 
             if range.is_empty() {
+                let mut chars = CountedString::from(
+                    String::with_capacity(16)
+                );
+
+                (spec.append)(
+                    &mut chars,
+                    PrefixAppendView {
+                        rope,
+                        cursor,
+                    }
+                );
+
                 get_standard_insert_range_edits(
                     rope,
                     cursor,
                     cursor_info.offset,
-                    spec.prefix.clone(),
+                    chars,
                 )
             } else {
-                let mut chars = String::with_capacity(range.max().0 - range.min().0);
+                let mut chars = CountedString::from(
+                    String::with_capacity(range.max().0 - range.min().0)
+                );
 
                 let line_indicies = some_or!(line_indicies_touched_by(rope, range), return d!());
 
                 let mut appended_count = 0;
+                let mut apparent_prefix_count = 0;
                 let last_line_index = line_indicies.len() - 1;
                 for (i, index) in line_indicies.into_iter().enumerate() {
                     let line = some_or!(rope.line(index), continue);
@@ -552,22 +565,28 @@ fn get_insert_prefix_edit(
                         highlight_end_for_line,
                     );
 
-                    let end = previous_offset.0 + spec.prefix.count;
+                    let end = previous_offset.0;
 
-                    let append_count = end.saturating_sub(start);
-                    dbg!(start, end, append_count);
+                    let spaces_append_count = end.saturating_sub(start);
 
+                    for _ in 0..spaces_append_count {
+                        chars.push(' ');
+                    }
+                    appended_count += spaces_append_count;
+
+                    let before_count = chars.count;
                     (spec.append)(
                         &mut chars,
                         PrefixAppendView {
-                            count: append_count,
                             rope,
                             cursor,
                         }
                     );
-                    // TODO if we don't trust the spec to actually append that
-                    // amount, then calculate the actual length difference.
-                    appended_count += append_count;
+                    let after_count = chars.count;
+
+                    apparent_prefix_count =
+                        after_count.saturating_sub(before_count);
+                    appended_count += apparent_prefix_count;
 
                     let o = first_highlighted_non_white_space_offset.unwrap_or(
                         relative_line_end
@@ -599,14 +618,13 @@ fn get_insert_prefix_edit(
                     .range
                     .add_to_max(appended_count);
 
-                let chars = CountedString::from(chars);
                 let char_count = chars.count;
                 dbg!(char_count);
 
                 let special_handling = get_special_handling(
                     original_rope,
                     cursor,
-                    char_count.saturating_sub(spec.prefix.count),
+                    char_count.saturating_sub(apparent_prefix_count),
                 );
 
                 let min = range.min();
@@ -632,17 +650,14 @@ fn get_insert_prefix_edit(
 #[perf_viz::record]
 #[must_use]
 pub fn get_tab_in_edit(rope: &CursoredRope) -> Edit {
-    fn append(s: &mut String, view: PrefixAppendView) {
-        for _ in 0..view.count {
-            s.push(TAB_STR_CHAR);
-        }
+    fn append(s: &mut CountedString, _: PrefixAppendView) {
+        s.push_str(TAB_STR);
     }
 
     get_insert_prefix_edit(
         rope,
         &PrefixSpec {
             append,
-            prefix: TAB_STR.to_owned().into(),
         }
     )
 }
@@ -778,26 +793,14 @@ pub fn get_toggle_single_line_comments_edit(rope: &CursoredRope) -> Edit {
 
         get_line_slicing_edit(rope, remove_leading_comments_step)
     } else {
-        fn append(s: &mut String, view: PrefixAppendView) {
-            let count = view.count;
-            if count >= COMMENT_STR.len() {
-                for i in 0..count {
-                    s.push(
-                        if i < count - COMMENT_STR.len() {
-                            ' '
-                        } else {
-                            '/'
-                        }
-                    );
-                }
-            }
+        fn append(s: &mut CountedString, _: PrefixAppendView) {
+            s.push_str(COMMENT_STR);
         }
 
         get_insert_prefix_edit(
             rope,
             &PrefixSpec {
                 append,
-                prefix: COMMENT_STR.to_owned().into(),
             }
         )
     }
