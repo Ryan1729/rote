@@ -92,6 +92,7 @@ pub enum Input {
     PreviousLanguage,
     ToggleSingleLineComments,
     ToggleCase,
+    AutoIndentSelection,
     DuplicateLines,
     SelectBuffer(BufferId),
     OpenOrSelectBuffer(PathBuf),

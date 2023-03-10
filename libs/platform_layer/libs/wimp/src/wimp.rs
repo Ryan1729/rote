@@ -797,6 +797,9 @@ pub fn run(
             [empty, F1, "Delete lines.", r_s {
                 call_u_and_r!(r_s, Input::DeleteLines);
             }]
+            [empty, F2, "Auto-Indent Selection", state {
+                call_u_and_r!(state, Input::AutoIndentSelection);
+            }]
             [empty, F3, "Toggle Case", state {
                 call_u_and_r!(state, Input::ToggleCase);
             }]

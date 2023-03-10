@@ -379,6 +379,16 @@ impl Rope {
     }
 
     #[must_use]
+    /// Returns `None` if `line_break_idx` is out of bounds (i.e. `line_break_idx > len_lines()`).
+    #[inline]
+    #[perf_viz::record]
+    pub fn lines_at_reversed(&self, line_break_idx: usize) -> Option<Lines> {
+        macros::some_if!(
+            line_break_idx <= self.len_lines() => self.rope.lines_at(line_break_idx).reversed().map(to_rope_line)
+        )
+    }
+
+    #[must_use]
     #[inline]
     #[perf_viz::record]
     pub fn chunks(&self) -> ropey::iter::Chunks {

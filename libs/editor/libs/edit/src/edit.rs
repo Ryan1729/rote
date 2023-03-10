@@ -758,6 +758,88 @@ pub fn get_strip_trailing_whitespace_edit(
 }
 
 #[must_use]
+pub fn get_auto_indent_selection_add_if_needed_edit(rope: &CursoredRope) -> Edit {
+    fn append(s: &mut CountedString, pav: PrefixAppendView) {
+        let mut delta = desired_indent_delta(pav.rope, pav.cursor);
+        while delta > 0 {
+            s.push(' ');
+            delta -= 1;
+        }
+    }
+
+    get_insert_prefix_edit(
+        rope,
+        &PrefixSpec {
+            append,
+        }
+    )
+}
+
+#[must_use]
+pub fn get_auto_indent_selection_remove_if_needed_edit(rope: &CursoredRope) -> Edit {
+    // TODO make API that makes expressing a change to a line that depends on the
+    // surrounding lines simple. (maybe change `get_line_slicing_edit` to have 
+    // access to the rope?)
+    // Then use it to actually implement this part.
+    fn f(_: RopeLine, _: LineEnds, _: &mut String) {}
+    get_line_slicing_edit(rope, f)
+}
+
+type IndentDelta = isize;
+type IndentPoint = isize;
+
+fn desired_indent_delta(rope: &Rope, cursor: Cursor) -> IndentDelta {
+    macro_rules! indent_of {
+        ($line: ident) => ({
+            let mut indent = 0;
+            for c in $line.chars() {
+                if c != ' ' { break }
+                indent += 1;
+            }
+            indent
+        })
+    }
+
+    let Some(mut lines) = rope.lines_at_reversed(cursor.get_position().line) else {
+        return 0;
+    };
+
+    let Some(current_line) = lines.next() else {
+        return 0;
+    };
+
+    let current_indent: IndentPoint = indent_of!(current_line);
+    
+    while let Some(line) = lines.next() {
+        let line_indent: IndentPoint = indent_of!(line);
+        if line_indent > current_indent {
+            // Found line on same level.
+            return line_indent.saturating_sub(current_indent);
+        } else if line_indent < current_indent {
+            let offset = final_non_newline_offset_for_rope_line(line);
+            if let Some(last_char) = line.chars_at(offset)
+                .and_then(|mut cs| cs.next()) {
+                if last_char == '{' 
+                || last_char == '[' 
+                || last_char == '('
+                // For python-likes (or really long rust types, I guess?)
+                || last_char == ':' {
+                    // Found a line that introduces a new indent level
+                    return TAB_STR_CHAR_COUNT as _;
+                }
+            }
+            // Seems too indented right now.
+            return current_indent.saturating_sub(line_indent);
+        } else {
+            // Need more info to decide
+        }
+    }
+
+    // Stick with the indent of all the above lines
+    0
+}
+
+#[must_use]
 pub fn get_toggle_single_line_comments_edit(rope: &CursoredRope) -> Edit {
     const COMMENT_STR: &str = "//";
 

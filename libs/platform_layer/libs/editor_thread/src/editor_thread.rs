@@ -16,7 +16,7 @@ pub enum Output {
 }
 
 /// # Panics
-/// This fn panics if the `load_buffer_views` field of `EditorAPI` doesn't always 
+/// This fn panics if the `load_buffer_views` field of `EditorAPI` doesn't always
 /// return a `Vec` of at least length one when passed a length one slice.
 pub fn start(
     editor_api: EditorAPI,
@@ -76,6 +76,7 @@ pub fn start(
                             | Input::PreviousLanguage
                             | Input::ToggleSingleLineComments
                             | Input::ToggleCase
+                            | Input::AutoIndentSelection
                             | Input::DuplicateLines => false,
                             Input::Escape
                             | Input::ResetScroll

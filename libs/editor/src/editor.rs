@@ -1098,6 +1098,11 @@ pub fn update_and_render(state: &mut State, input: Input) -> UpdateAndRenderOutp
                 mark_edited_transition!(current, b.toggle_case(l));
             });
         }
+        AutoIndentSelection => {
+            text_buffer_call!(sync b, l {
+                mark_edited_transition!(current, b.auto_indent_selection(l));
+            });
+        }
         DuplicateLines => {
             text_buffer_call!(sync b, l {
                 mark_edited_transition!(current, b.duplicate_lines(l));
