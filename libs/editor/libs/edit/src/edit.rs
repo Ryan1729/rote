@@ -781,8 +781,20 @@ pub fn get_auto_indent_selection_remove_if_needed_edit(rope: &CursoredRope) -> E
     // surrounding lines simple. (maybe change `get_line_slicing_edit` to have 
     // access to the rope?)
     // Then use it to actually implement this part.
-    fn f(_: RopeLine, _: LineEnds, _: &mut String) {}
-    get_line_slicing_edit(rope, f)
+    //fn f(
+        //line: RopeLine,
+        //LineEnds {
+            //after_break,
+            //..
+        //}: LineEnds,
+        //chars: &mut String
+    //) {
+        //if let Some(sliced_line) = line.slice(..after_break) {
+            //push_slice(chars, sliced_line);
+        //}
+    //}
+//    get_line_slicing_edit(rope, f)
+    get_line_slicing_edit(rope, strip_trailing_whitespace_step)
 }
 
 type IndentDelta = isize;

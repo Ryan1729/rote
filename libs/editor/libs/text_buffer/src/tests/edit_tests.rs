@@ -2037,6 +2037,40 @@ fn does_not_lose_characters_in_this_two_tab_in_case() {
 }
 
 #[test]
+fn does_not_lose_characters_in_this_no_insert_auto_indent_case() {
+    use TestEdit::*;
+    does_not_lose_characters_on(
+        t_b!("123"),
+        [AutoIndentSelection]
+    );
+}
+
+
+#[test]
+fn does_not_lose_characters_in_this_basic_auto_indent_case() {
+    use TestEdit::*;
+    does_not_lose_characters_on(
+        t_b!(""),
+        [Insert('a'), AutoIndentSelection]
+    );
+}
+
+#[test]
+fn does_not_lose_characters_in_this_basic_auto_indent_case_reduction() {
+    use TestEdit::*;
+    let initial_buffer = t_b!("");
+    let mut counts = get_counts(&initial_buffer);
+    let mut buffer = deep_clone(&initial_buffer);
+
+    TestEdit::apply_with_counts(&mut buffer, &mut counts, &Insert('a'));
+    TestEdit::apply_with_counts(&mut buffer, &mut counts, &AutoIndentSelection);
+
+    counts.retain(|_, v| *v != 0);
+
+    counts_assert!(buffer, counts);
+}
+
+#[test]
 fn copy_selections_returns_what_is_expected_in_this_two_tab_in_case() {
     use TestEdit::*;
     use ReplaceOrAdd::*;
@@ -2049,6 +2083,21 @@ fn copy_selections_returns_what_is_expected_in_this_two_tab_in_case() {
     TestEdit::apply(&mut buffer, TabIn);
 
     assert_eq!(buffer.copy_selections(), vec!["A"]);
+}
+
+
+#[test]
+fn auto_indent_returns_what_is_expected_in_this_basic_case() {
+    use TestEdit::*;
+    use ReplaceOrAdd::*;
+    let mut buffer = t_b!("");
+
+    TestEdit::apply(&mut buffer, Insert('a'));
+    assert_eq!(buffer.borrow_rope(), r!["a"]);
+
+    TestEdit::apply(&mut buffer, AutoIndentSelection);
+
+    assert_eq!(buffer.borrow_rope(), r!["a"]);
 }
 
 proptest!{

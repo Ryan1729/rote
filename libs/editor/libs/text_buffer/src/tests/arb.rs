@@ -176,6 +176,7 @@ pub enum TestEdit {
     StripTrailingWhitespace,
     ToggleCase,
     DuplicateLines,
+    AutoIndentSelection,
 }
 
 pub type CountNumber = usize;
@@ -357,6 +358,7 @@ impl TestEdit {
             StripTrailingWhitespace => { buffer.strip_trailing_whitespace(None); },
             ToggleCase => { buffer.toggle_case(None); },
             DuplicateLines => { buffer.duplicate_lines(None); },
+            AutoIndentSelection => { buffer.auto_indent_selection(None); },
         };
     }
 
@@ -566,6 +568,11 @@ impl TestEdit {
                         }
                     }
                 }
+            },
+            AutoIndentSelection => {
+                // It doesn't seem worth it at this time to track the exact amount
+                // of whitespace add/remove.
+                counts.laxity |= IGNORE_WHITESPACE;
             }
         }
         Self::apply_ref(buffer, edit);
@@ -582,7 +589,7 @@ impl TestEdit {
             }
             Insert(_) | InsertString(_) | Delete | DeleteLines | Cut
             | InsertNumbersAtCursors | TabIn | TabOut | StripTrailingWhitespace
-            | ToggleCase | DuplicateLines => {
+            | ToggleCase | DuplicateLines | AutoIndentSelection => {
                 true
             }
         }
@@ -622,6 +629,7 @@ pub fn test_edit() -> impl Strategy<Value = TestEdit> {
         Just(StripTrailingWhitespace),
         Just(ToggleCase),
         Just(DuplicateLines),
+        Just(AutoIndentSelection),
     ]
 }
 
