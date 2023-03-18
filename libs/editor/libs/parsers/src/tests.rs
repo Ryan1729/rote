@@ -1,7 +1,9 @@
 use super::*;
 
-// This test demonstrates what I believe is a bug in tree-sitter. We have an 
-// attempted workaround, in `parsers.rs` but if this test starts passing in the 
+use platform_types::BorrowRope;
+
+// This test demonstrates what I believe is a bug in tree-sitter. We have an
+// attempted workaround, in `parsers.rs` but if this test starts passing in the
 // future, we should be able to stop ignoring, and/or delete this test.
 #[ignore]
 #[test]

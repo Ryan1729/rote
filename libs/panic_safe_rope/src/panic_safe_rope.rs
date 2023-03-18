@@ -648,5 +648,10 @@ impl std::cmp::PartialOrd<Rope> for Rope {
     }
 }
 
+pub trait BorrowRope {
+    #[must_use]
+    fn borrow_rope(&self) -> &Rope;
+}
+
 #[cfg(test)]
 mod tests;

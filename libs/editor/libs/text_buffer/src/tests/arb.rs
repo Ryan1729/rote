@@ -1,11 +1,11 @@
 // This module is inside `tests`
 use super::*;
 
+pub use text_buffer_testing::arb::*;
+
 use panic_safe_rope::{LineIndex};
 
 use rope_pos::is_linebreak_char;
-
-use std::collections::HashMap;
 
 pub use pub_arb_cursors::{
     all_but_end_cursors_for_rope,
@@ -18,25 +18,6 @@ pub use pub_arb_cursors::{
 pub use pub_arb_edit::absolute_char_offset;
 pub use pub_arb_text_pos::{pos};
 pub use pub_arb_vec1::{vec1};
-
-// TODO move all `arb` fns in here
-prop_compose! {
-    pub fn rope()(s in any::<String>()) -> Rope {
-        r!(s)
-    }
-}
-
-prop_compose! {
-    pub fn all_space_rope()(s in "[ \n]*") -> Rope {
-        r!(s)
-    }
-}
-
-prop_compose! {
-    pub fn non_0_to_9_char_rope()(s in "[^0-9]*") -> Rope {
-        r!(s)
-    }
-}
 
 fn to_text_buffer((cursors, rope): (Cursors, Rope)) -> TextBuffer {
     let mut text_buffer: TextBuffer = d!();
@@ -155,184 +136,8 @@ pub fn text_buffer_with_many_valid_cursors_and_no_0_to_9_chars(
     })
 }
 
-#[derive(Debug, Clone)]
-pub enum TestEdit {
-    Insert(char),
-    InsertString(String),
-    Delete,
-    DeleteLines,
-    MoveAllCursors(Move),
-    ExtendSelectionForAllCursors(Move),
-    MoveCursors(usize, Move),
-    ExtendSelection(usize, Move),
-    SetCursor(Position, ReplaceOrAdd),
-    DragCursors(Position),
-    SelectCharTypeGrouping(Position, ReplaceOrAdd),
-    SelectAll,
-    Cut,
-    InsertNumbersAtCursors,
-    TabIn,
-    TabOut,
-    StripTrailingWhitespace,
-    ToggleCase,
-    DuplicateLines,
-    AutoIndentSelection,
-}
-
-pub type CountNumber = usize;
-pub type CountMap = HashMap<char, CountNumber>;
-pub type Laxity = u32;
-
-const IGNORE_WHITESPACE: Laxity = 0b1;
-const IGNORE_NON_ASCII: Laxity  = 0b10;
-
-#[derive(Debug, Default)]
-pub struct Counts {
-    map: CountMap,
-    laxity: Laxity,
-}
-
-#[macro_export]
-macro_rules! counts_assert {
-    ($buffer: expr, $expected: expr) => {
-        let actual_counts = $crate::tests::edit_tests::get_counts(&$buffer);
-        let expected_counts = $expected;
-        assert!(
-            expected_counts.expectations_met_by(&actual_counts.map()),
-            "{expected_counts:?} not met by {actual_counts:?}"
-        );
-    }
-}
-
-impl Counts {
-    pub fn expectations_met_by(&self, actual: &CountMap) -> bool {
-        if self.laxity == 0 {
-            &self.map == actual
-        } else {
-            let mut expected = self.map.clone();
-            let mut actual = actual.clone();
-
-            if self.laxity & IGNORE_WHITESPACE != 0 {
-                expected.retain(|c, _| !c.is_whitespace());
-                actual.retain(|c, _| !c.is_whitespace());
-            } else if self.laxity & IGNORE_NON_ASCII != 0 {
-                expected.retain(|c, _| !c.is_ascii());
-                actual.retain(|c, _| !c.is_ascii());
-            } else {
-                panic!("unhandled laxity flag. {:b}", self.laxity);
-            }
-
-            expected == actual
-        }
-    }
-}
-
-impl From<CountMap> for Counts {
-    fn from(map: CountMap) -> Self {
-        Self {
-            map,
-            ..<_>::default()
-        }
-    }
-}
-
-impl Counts {
-    pub fn get(&self, c: &char) -> Option<&CountNumber> {
-        self.map.get(c)
-    }
-
-    pub fn keys(&self) -> std::collections::hash_map::Keys<'_, char, CountNumber> {
-        self.map.keys()
-    }
-
-    pub fn entry(&mut self, c: char) -> std::collections::hash_map::Entry<'_, char, CountNumber> {
-        self.map.entry(c)
-    }
-
-    pub fn retain<F>(&mut self, f: F)
-    where
-        F: FnMut(&char, &mut CountNumber) -> bool
-    {
-        self.map.retain(f)
-    }
-
-    pub fn map(&self) -> &CountMap {
-        &self.map
-    }
-}
-
-pub fn get_counts(buffer: &TextBuffer) -> Counts {
-    let mut output = HashMap::with_capacity(buffer.len());
-
-    for c in buffer.borrow_rope().chars() {
-        let count = output.entry(c).or_insert(0);
-        *count += 1;
-    }
-
-    output.into()
-}
-
-pub fn get_normalized_newline_counts(buffer: &TextBuffer) -> Counts {
-    let mut output = HashMap::with_capacity(buffer.len());
-
-    for mut c in buffer.borrow_rope().chars() {
-        if is_linebreak_char(c) {
-            c = '\n';
-        }
-        let count = output.entry(c).or_insert(0);
-        *count += 1;
-    }
-
-    output.into()
-}
-
-pub fn increment_char_by(counts: &mut Counts, c: char, amount: CountNumber) {
-    let count = counts.entry(c).or_insert(0);
-    *count += amount;
-}
-
-pub fn decrement_char_by(counts: &mut Counts, c: char, amount: CountNumber) {
-    let count = counts.entry(c).or_insert(0);
-    *count = (*count).saturating_sub(amount);
-}
-
-pub fn increment_char(counts: &mut Counts, c: char) {
-    increment_char_by(counts, c, 1);
-}
-
-pub fn decrement_char(counts: &mut Counts, c: char) {
-    decrement_char_by(counts, c, 1);
-}
-
-pub fn increment_string(counts: &mut Counts, s: &str) {
-    for c in s.chars() {
-        increment_char(counts, c);
-    }
-}
-
-pub fn decrement_string(counts: &mut Counts, s: &str) {
-    for c in s.chars() {
-        decrement_char(counts, c);
-    }
-}
-
-pub fn increment_strings(counts: &mut Counts, strs: &Vec<String>) {
-    for s in strs.iter() {
-        increment_string(counts, s);
-    }
-}
-
-pub fn decrement_strings(counts: &mut Counts, strs: &Vec<String>) {
-    for s in strs.iter() {
-        decrement_string(counts, s);
-    }
-}
-
-impl TestEdit {
-    pub fn apply(buffer: &mut TextBuffer, edit: TestEdit) {
-        Self::apply_ref(buffer, &edit);
-    }
-    pub fn apply_ref(buffer: &mut TextBuffer, edit: &TestEdit) {
+impl TestEditApply for &mut TextBuffer {
+    fn apply_ref(buffer: Self, edit: &TestEdit) {
         use TestEdit::*;
         match edit {
             Insert(c) => { buffer.insert(*c, None); },
@@ -364,7 +169,7 @@ impl TestEdit {
 
     // TODO: can we use the ppel!() type, that was created for other reasons, to
     // do this instead? We'd need to make ppel!() into a trait I suppose.
-    pub fn apply_with_counts(buffer: &mut TextBuffer, counts: &mut Counts, edit: &TestEdit) {
+    fn apply_with_counts(buffer: Self, counts: &mut Counts, edit: &TestEdit) {
         fn apply_delete_edit(counts: &mut Counts, buffer: &TextBuffer, cursors_vec: Vec1<Cursor>) {
             let cursors = Cursors::new(buffer.borrow_rope(), cursors_vec);
             for cur in cursors.iter() {
@@ -462,7 +267,6 @@ impl TestEdit {
                 }
             },
             TabOut => {
-                std::dbg!(get_counts(&buffer));
                 //TODO do something better than this tautology
                 let mut clone = deep_clone(&buffer);
                 clone.tab_out(None);
@@ -576,23 +380,6 @@ impl TestEdit {
             }
         }
         Self::apply_ref(buffer, edit);
-    }
-
-    pub fn is_recordable(&self) -> bool {
-        use TestEdit::*;
-        match *self {
-            SelectCharTypeGrouping(_, _) | MoveAllCursors(_)
-            | ExtendSelectionForAllCursors(_) | MoveCursors(_, _)
-            | ExtendSelection(_, _) | SetCursor(_, _) | DragCursors(_)
-            | SelectAll => {
-                false
-            }
-            Insert(_) | InsertString(_) | Delete | DeleteLines | Cut
-            | InsertNumbersAtCursors | TabIn | TabOut | StripTrailingWhitespace
-            | ToggleCase | DuplicateLines | AutoIndentSelection => {
-                true
-            }
-        }
     }
 }
 

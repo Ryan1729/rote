@@ -4,7 +4,7 @@ use edit::{Change, CursoredRope, Edit, change};
 use editor_types::{Cursor, SetPositionAction};
 use macros::{d, dbg, u};
 use move_cursor::{forward, get_next_selection_point, get_previous_selection_point};
-use panic_safe_rope::{ByteIndex, Rope, RopeSlice};
+use panic_safe_rope::{BorrowRope, ByteIndex, Rope, RopeSlice};
 use parsers::{Parsers, ParserKind};
 use platform_types::{*, screen_positioning::*};
 use rope_pos::{
@@ -44,6 +44,24 @@ impl <const EDIT_COUNT: usize> Default for TextBuffer<EDIT_COUNT> {
             history: d!(),
             scroll: d!(),
         }
+    }
+}
+
+impl <const EDIT_COUNT: usize> BorrowRope for &mut TextBuffer<EDIT_COUNT> {
+    fn borrow_rope(&self) -> &Rope {
+        self.rope.borrow_rope()
+    }
+}
+
+impl <const EDIT_COUNT: usize> BorrowRope for &TextBuffer<EDIT_COUNT> {
+    fn borrow_rope(&self) -> &Rope {
+        self.rope.borrow_rope()
+    }
+}
+
+impl <const EDIT_COUNT: usize> BorrowRope for TextBuffer<EDIT_COUNT> {
+    fn borrow_rope(&self) -> &Rope {
+        self.rope.borrow_rope()
     }
 }
 
@@ -245,11 +263,12 @@ impl <'t_b> From<&'t_b TextBuffer> for RopeSlice<'t_b> {
     }
 }
 
-impl <'t_b> From<&'t_b mut TextBuffer> for RopeSlice<'t_b> {
-    fn from(t_b: &'t_b mut TextBuffer) -> Self {
-        t_b.borrow_rope().full_slice()
-    }
-}
+// Not used, had weird borrowck error.
+//impl <'t_b> From<&'t_b mut TextBuffer> for RopeSlice<'t_b> {
+    //fn from(t_b: &'t_b mut TextBuffer) -> Self {
+        //t_b.borrow_rope().full_slice()
+    //}
+//}
 
 fn next_instance_of_selected(rope: &Rope, cursor: &Cursor) -> Option<(Position, Position)> {
     match offset_pair(rope, cursor) {

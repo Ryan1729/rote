@@ -1,6 +1,9 @@
+#![cfg_attr(not(feature = "pub_arb"), allow(unused))]
+
 use super::*;
 use cursors::curs;
-use arb::get_counts;
+use arb::{get_counts, Counts};
+use text_buffer_testing::counts_assert;
 use edit::{
     TAB_STR_CHAR_COUNT,
     RangeEdit,

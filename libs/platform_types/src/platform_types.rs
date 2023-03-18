@@ -8,7 +8,7 @@ use std::{
 };
 
 pub use vec1::{vec1, Vec1};
-pub use panic_safe_rope::{Rope, RopeSlice, RopeSliceTrait, ByteIndex};
+pub use panic_safe_rope::{BorrowRope, Rope, RopeSlice, RopeSliceTrait, ByteIndex};
 pub use text_pos::*;
 
 pub mod floating_point;

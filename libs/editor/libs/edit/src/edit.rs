@@ -2,7 +2,7 @@
 use cursors::Cursors;
 use editor_types::{Cursor, SetPositionAction, cur};
 use macros::{CheckedSub, d, some_or, dbg};
-use panic_safe_rope::{is_linebreak_char, LineIndex, Rope, RopeSliceTrait, RopeLine};
+use panic_safe_rope::{is_linebreak_char, BorrowRope, LineIndex, Rope, RopeSliceTrait, RopeLine};
 use platform_types::*;
 use rope_pos::{AbsoluteCharOffsetRange, char_offset_to_pos, final_non_newline_offset_for_rope_line, get_first_non_white_space_offset_in_range, get_last_non_white_space_offset_in_range, pos_to_char_offset};
 
@@ -1449,7 +1449,7 @@ mod cursored_rope {
     use cursors::{Cursors, set_cursors};
     use editor_types::{Cursor};
     use platform_types::{AbsoluteCharOffset, Vec1};
-    use panic_safe_rope::Rope;
+    use panic_safe_rope::{BorrowRope, Rope};
     use rope_pos::AbsoluteCharOffsetRange;
     use crate::{RangeEdit, Edit, RC};
 
@@ -1459,6 +1459,13 @@ mod cursored_rope {
     pub struct CursoredRope {
         rope: Rope,
         cursors: Cursors,
+    }
+
+    impl BorrowRope for CursoredRope {
+        #[must_use]
+        fn borrow_rope(&self) -> &Rope {
+            &self.rope
+        }
     }
 
     impl <R: Into<Rope>> From<R> for CursoredRope {
@@ -1508,11 +1515,6 @@ mod cursored_rope {
 
         pub fn set_cursors(&mut self, cursors: Cursors) {
             set_cursors(&self.rope, &mut self.cursors, cursors);
-        }
-
-        #[must_use]
-        pub fn borrow_rope(&self) -> &Rope {
-            &self.rope
         }
 
         #[must_use]

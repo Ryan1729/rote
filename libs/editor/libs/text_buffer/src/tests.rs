@@ -5,7 +5,7 @@
 #![deny(array_into_iter)]
 use super::{cursor_assert, r, *};
 
-use arb::TestEdit;
+use arb::{TestEdit, SOME_AMOUNT};
 use move_cursor::last_position;
 use editor_types::{cur};
 use cursors::curs;
@@ -15,17 +15,8 @@ use platform_types::{pos, CursorState, vec1};
 use pretty_assertions::assert_eq;
 use proptest::prelude::*;
 use proptest::{collection, option, prop_compose, proptest};
-use std::fmt::Debug;
 
 use pub_arb_std::non_line_break_char;
-
-/// This is expected to be used where the amount does not really matter, except that it must be
-/// enough that the behaviour we want to test has enough space.
-/// Code that assumes this is > 1 is known to exist as of this writing.
-pub const SOME_AMOUNT: usize = 16;
-/// This is expected to be used where the amount does not really matter, except that it must be
-/// greater than `SOME_AMOUNT` so that out-of-bounds checks, etc. get tested.
-pub const MORE_THAN_SOME_AMOUNT: usize = 24;
 
 /// This macro is meant to make it easier to copy-paste proptest failing proptest inputs into
 /// their oun test. With this macro, only the `!` character needs to be added after copying an
@@ -91,13 +82,6 @@ prop_compose! {
     (offset in 0..=rope.len_chars().0, (r, p) in (Just(rope), Just(pos))) -> (Rope, Position, AbsoluteCharOffset) {
         (r, p, AbsoluteCharOffset(offset))
     }
-}
-
-fn arb_cursor_state() -> impl Strategy<Value = CursorState> {
-    prop_oneof![
-        Just(CursorState::None),
-        arb_move().prop_map(CursorState::PressedAgainstWall),
-    ]
 }
 
 #[test]
@@ -228,21 +212,6 @@ fn clamp_position_works_on_this_example() {
     let rope = r!("\n1234567890");
     let p = pos! {l 0 o 10};
     assert_eq!(clamp_position(&rope, p), pos! {l 0 o 0});
-}
-
-fn arb_move() -> impl Strategy<Value = Move> {
-    prop_oneof![
-        Just(Move::Up),
-        Just(Move::Down),
-        Just(Move::Left),
-        Just(Move::Right),
-        Just(Move::ToLineStart),
-        Just(Move::ToLineEnd),
-        Just(Move::ToBufferStart),
-        Just(Move::ToBufferEnd),
-        Just(Move::ToPreviousLikelyEditLocation),
-        Just(Move::ToNextLikelyEditLocation),
-    ]
 }
 
 prop_compose! {
@@ -682,7 +651,7 @@ fn cursors_new_maintains_invariants_on_this_u2028_out_of_order_example_reduction
             .mapped_ref(|c| {
                 let p = c.get_position();
                 let h = c.get_highlight_position_or_position();
-    
+
                 (std::cmp::min(p, h), std::cmp::max(p, h))
             })
             .into_vec();
@@ -690,7 +659,7 @@ fn cursors_new_maintains_invariants_on_this_u2028_out_of_order_example_reduction
         // Ordering check
         //
         let mut output = 0;
-    
+
         for window in spans.windows(2) {
             if let &[(later_min, later_max), (earlier_min, earlier_max)] = window {
                 match earlier_min
@@ -709,10 +678,10 @@ fn cursors_new_maintains_invariants_on_this_u2028_out_of_order_example_reduction
                 unreachable!();
             }
         }
-    
+
         output
     };
-    
+
     flags_assert!(flags);
 }
 
@@ -871,11 +840,11 @@ proptest!{
     ) {
         // Arrange
         let mut buffer = t_b!("");
-    
+
         buffer.insert(ch1, None);
         buffer.insert(ch2, None);
         buffer.insert(ch3, None);
-    
+
         buffer.move_all_cursors(Move::Left);
         buffer.extend_selection_for_all_cursors(Move::Left);
 
@@ -887,10 +856,10 @@ proptest!{
 
         let cursor = single_cursor(&buffer);
         assert_eq!(cursor, cur!{l 0 o 3});
-    
+
         // Act
         buffer.insert(ch4, None);
-    
+
         // Assert
         let cursor = single_cursor(&buffer);
         assert_eq!(cursor, cur!{l 0 o 4});
@@ -924,7 +893,7 @@ fn all_selected(buffer: &TextBuffer) -> bool {
     if let Some(last_pos) = last_position(buffer.borrow_rope()) {
         buffer.borrow_cursors().first() == &cur!{pos! {}, last_pos}
     } else {
-        // We expect this will only happen when there are no lines. 
+        // We expect this will only happen when there are no lines.
         // So all the characters would be selected, since there are none.
         true
     }
