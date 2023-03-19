@@ -9,7 +9,6 @@ path = "./src/g_i.rs"
 
 [dependencies]
 move_mod = { path = "../move_mod" }
-mut_methods = { path = "./libs/mut_methods" }
 proptest = { version = "0.10", optional = true }
 arb_macros = { path = "../../../arb_macros", optional = true }
 fast_hash = { path = "../../../fast_hash", optional = true }

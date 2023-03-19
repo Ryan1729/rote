@@ -420,9 +420,9 @@ macro_rules! svec1 {
     }
 }
 
-/// This module exists so we can be sure that only the methods that mutate
-/// SelectableVec1 can change its fields.
-#[mut_methods::mut_methods]
+/// This module exists becasue we had a proc macro that we use to make sure that only 
+/// the methods that mutate SelectableVec1 can change its fields. But it didn't seem
+/// to be worth the compile time in the end.
 mod selectable_vec1 {
     use macros::{d, u, some_or, SaturatingAdd, SaturatingSub};
     use crate::{Vec1, Length, Index, IndexPart, State, SelectionAdjustment, SelectionMove};

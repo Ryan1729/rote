@@ -773,14 +773,6 @@ proptest!{
     }
 }
 
-#[test]
-fn all_the_mut_methods_are_at_least_claimed_to_be_tested() {
-    assert_eq!(
-        MutMethodSpec::<i32>::method_names(),
-        super::selectable_vec1::MUT_METHODS.to_vec()
-    );
-}
-
 proptest!{
     #[test]
     fn calling_replace_with_mapped_after_each_mut_method_call_allows_indexes_from_the_first_s_vec1_to_be_used_on_the_second(

@@ -805,7 +805,6 @@ dependencies = [
  "fast_hash",
  "macros",
  "move_mod",
- "mut_methods",
  "perf_viz",
  "proptest",
  "vec1 0.1.0",
@@ -1302,14 +1301,6 @@ name = "move_mod"
 version = "0.1.0"
 dependencies = [
  "macros",
-]
-
-[[package]]
-name = "mut_methods"
-version = "0.1.0"
-dependencies = [
- "quote 1.0.18",
- "syn 1.0.96",
 ]
 
 [[package]]
@@ -2095,7 +2086,7 @@ dependencies = [
 
 [[package]]
 name = "rote"
-version = "0.2.331"
+version = "0.2.332"
 dependencies = [
  "editor",
  "lazy_static 1.4.0",
