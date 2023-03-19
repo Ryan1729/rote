@@ -1059,6 +1059,47 @@ mod strip_trailing_whitespace_preserves_line_count {
 
         assert_eq!(buffer.borrow_rope().len_lines(), line_count, "line_count mismatch");
     }
+
+    #[test]
+    fn on_this_minimal_example() {
+        let mut buffer = t_b!("");
+        buffer.set_cursors_from_vec1(vec1![cur!{}]);
+        on(buffer);
+    }
+
+    #[test]
+    fn on_these_on_disk_examples() {
+        macro_rules! header { () => {"strip_trailing_whitespace_preserves_line_count"} }
+        macro_rules! path { () => {concat!("./test_data/", header!())} }
+        let data = include_str!(path!());
+        let mut lines = data.lines();
+
+        let Some(header!()) = lines.next() else {
+            panic!(
+                "Expected first line of {}, (relative to {}) to be {}",
+                path!(),
+                file!(),
+                header!()
+            );
+        };
+
+        //let re: Regex = Regex::new(r#"t_b!\("(.*)"\) cur!\{(.*)\}"#)
+            //.expect("Regex should be valid");
+//
+        //for line in lines {
+            //if line.is_empty() { continue; }
+            //// TODO Support comments?
+            //let captures = re.captures(line)
+                //.expect("All non-empty lines should have tests");
+//
+            //let mut buffer = t_b!(unescape::str(captures[1]));
+            //let cursor = Cursor::from_str(captures[2])
+                //.expect("All Cursors should be valid");
+            //buffer.set_cursors_from_vec1(vec1![cursor]);
+//
+            //on(buffer);
+        //}
+    }
 }
 
 fn get_code_like_example() -> TextBuffer {

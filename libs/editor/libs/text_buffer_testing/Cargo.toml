@@ -5,6 +5,7 @@ edition = "2021"
 
 [lib]
 path = "./src/text_buffer_testing.rs"
+doctest = false
 
 [dependencies.panic_safe_rope]
 path = "../../../panic_safe_rope"
