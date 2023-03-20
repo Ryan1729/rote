@@ -2086,7 +2086,7 @@ dependencies = [
 
 [[package]]
 name = "rote"
-version = "0.2.332"
+version = "0.2.333"
 dependencies = [
  "editor",
  "lazy_static 1.4.0",
@@ -2360,6 +2360,7 @@ dependencies = [
  "pub_arb_std",
  "pub_arb_text_pos",
  "pub_arb_vec1",
+ "regex",
  "rope_pos",
  "search",
  "text_buffer_testing",

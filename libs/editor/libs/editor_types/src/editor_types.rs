@@ -1,6 +1,7 @@
 use macros::{d, fmt_debug, fmt_display, format_if, ord};
-pub use platform_types::{AbsoluteCharOffset, CharOffset, CursorState, Position};
+pub use platform_types::{AbsoluteCharOffset, CharOffset, CursorState, Position, pos};
 use std::borrow::Borrow;
+use core::str::FromStr;
 
 #[derive(Clone, Copy, Debug)]
 pub enum SetPositionAction {
@@ -150,6 +151,119 @@ macro_rules! cur {
     () => {
         Cursor::new(pos! {})
     };
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum CursorParseError {
+    NumberParseError,
+    EndOfStr,
+    Unhandled
+}
+
+impl FromStr for Cursor {
+    type Err = CursorParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        use CursorParseError::*;
+        if s.is_empty() { return Ok(cur!{}) }
+
+        #[derive(Clone, Copy, Debug)]
+        enum State {
+            L,
+            LNum,
+            O,
+            ONum,
+            H,
+        }
+
+        let mut l = 0;
+        let mut o = 0;
+        let mut state = State::L;
+        let mut chars = s.chars();
+        loop {
+            state = match (state, chars.next()) {
+                (State::L, Some('l')) => State::LNum,
+                (State::LNum, Some(' ')) => State::LNum,
+                (State::LNum, Some(ch @ '0'..='9')) => {
+                    let mut byte_arr = [0; 16];
+                    let mut i = 0;
+                    byte_arr[i] = ch as u32 as u8;
+                    i += 1;
+
+                    loop {
+                        match chars.next() {
+                            Some(c @ '0'..='9') => {
+                                byte_arr[i] = c as u32 as u8;
+                                i += 1;
+                            },
+                            Some(' ') => {
+                                l = core::str::from_utf8(dbg!(&byte_arr[..i]))
+                                    .map_err(|_| NumberParseError)
+                                    .and_then(|s| 
+                                        FromStr::from_str(s)
+                                            .map_err(|_| NumberParseError)
+                                    )
+                                    ?;
+                                break State::O;
+                            },
+                            Some(_) => return Err(Unhandled),
+                            None => return Err(EndOfStr)
+                        }
+                    }
+                },
+                (State::O, Some('o')) => State::ONum,
+                (State::ONum, Some(' ')) => State::ONum,
+                (State::ONum, Some(ch @ '0'..='9')) => {
+                    let mut byte_arr = [0; 16];
+                    let mut i = 0;
+                    byte_arr[i] = ch as u32 as u8;
+                    i += 1;
+
+                    loop {
+                        match chars.next() {
+                            Some(c @ '0'..='9') => {
+                                byte_arr[i] = c as u32 as u8;
+                                i += 1;
+                            },
+                            Some(' ') | None => {
+                                o = core::str::from_utf8(&byte_arr[..i])
+                                    .map_err(|_| NumberParseError)
+                                    .and_then(|s| 
+                                        FromStr::from_str(s)
+                                            .map_err(|_| NumberParseError)
+                                    )
+                                    ?;
+                                break State::H;
+                            },
+                            Some(_) => return Err(Unhandled),
+                        }
+                    }
+                },
+                (State::H, None) => return Ok(cur!{pos!{l l, o o}}),
+                (_, Some(_)) => return Err(Unhandled),
+                (_, None) => return Err(EndOfStr),
+            };
+        }
+    }
+}
+
+#[test]
+fn from_str_works_on_these_examples() {
+    assert_eq!(
+        Cursor::from_str(""),
+        Ok(cur!{})
+    );
+
+    assert_eq!(
+        Cursor::from_str("l 1 o 2"),
+        Ok(cur!{l 1 o 2})
+    );
+
+    //assert_eq!(
+        //Cursor::from_str("l 1 o 2 h l 3 o 3"),
+        //Ok(cur!{l 1 o 2 h l 3 o 3})
+    //);
 }
 
 fmt_display! {

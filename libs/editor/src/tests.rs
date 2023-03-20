@@ -4,6 +4,17 @@ use platform_types::pos;
 
 use editor_types::{cur, Cursor};
 use macros::{u};
+macro_rules! t_b {
+    ($s:expr) => {{
+        let t: TextBuffer = $s.into();
+        t
+    }};
+    ($s:expr, $cursors: expr) => {{
+        let mut t: TextBuffer = $s.into();
+        t.set_cursors_from_vec1($cursors);
+        t
+    }};
+}
 use proptest::prelude::{proptest, prop_oneof, ProptestConfig};
 
 use pub_arb_std::non_line_break_char;
@@ -318,7 +329,7 @@ fn the_right_spans_are_set_after_typing_fn_below_this_fn_def() {
 
     let parser_kind = Rust(Extra);
 
-    let mut text_buffer = TextBuffer::from("fn foo() {}\n");
+    let mut text_buffer = t_b!("fn foo() {}\n");
 
     text_buffer.move_all_cursors(Move::ToBufferEnd);
 
@@ -451,7 +462,7 @@ fn the_right_spans_are_set_after_typing_fn_below_this_fn_def_reduction() {
 
     let parser_kind = Rust(Extra);
 
-    let mut text_buffer = TextBuffer::from("fn foo() {}\n");
+    let mut text_buffer = t_b!("fn foo() {}\n");
 
     text_buffer.move_all_cursors(Move::ToBufferEnd);
 
@@ -546,7 +557,7 @@ fn the_right_spans_are_set_after_typing_fn_below_this_fn_def_reduction_parsers_i
 
     let parser_kind = Rust(Extra);
 
-    let mut text_buffer = TextBuffer::from("");
+    let mut text_buffer = t_b!("");
 
     text_buffer.insert('\n', Some(text_buffer::ParserEditListener {
         buffer_name: &buffer_name,
@@ -566,7 +577,7 @@ fn get_spans_on_an_empty_string_returns_ok() {
 
     let parser_kind = Rust(Extra);
 
-    let text_buffer = TextBuffer::from("");
+    let text_buffer = t_b!("");
 
     parsers.get_spans_result(
         text_buffer.borrow_rope().into(),
@@ -583,7 +594,7 @@ fn rust_to_c_abort_does_not_happen() {
 
     let mut parsers = Parsers::default();
 
-    let mut text_buffer = TextBuffer::from(r#"int main() {
+    let mut text_buffer = t_b!(r#"int main() {
     return strlen('d'); "";
 }"#);
 

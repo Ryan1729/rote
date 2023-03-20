@@ -223,7 +223,7 @@ impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
     }
 }
 
-impl From<String> for TextBuffer {
+impl <const EDIT_COUNT: usize> From<String> for TextBuffer<EDIT_COUNT> {
     fn from(s: String) -> Self {
         let mut output: Self = d!();
 
@@ -234,7 +234,7 @@ impl From<String> for TextBuffer {
     }
 }
 
-impl From<&str> for TextBuffer {
+impl <const EDIT_COUNT: usize> From<&str> for TextBuffer<EDIT_COUNT> {
     fn from(s: &str) -> Self {
         let mut output: Self = d!();
 
@@ -242,6 +242,12 @@ impl From<&str> for TextBuffer {
         output.set_unedited();
 
         output
+    }
+}
+
+impl <'c_s, const EDIT_COUNT: usize> From<std::borrow::Cow<'c_s, str>> for TextBuffer<EDIT_COUNT> {
+    fn from(c_s: std::borrow::Cow<'c_s, str>) -> Self {
+        String::from(c_s).into()
     }
 }
 

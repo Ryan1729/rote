@@ -3,7 +3,8 @@
 use super::*;
 use cursors::curs;
 use arb::{get_counts, Counts};
-use text_buffer_testing::counts_assert;
+use regex::Regex;
+use text_buffer_testing::{counts_assert, unescape};
 use edit::{
     TAB_STR_CHAR_COUNT,
     RangeEdit,
@@ -37,7 +38,7 @@ use rope_pos::{
     get_first_non_white_space_offset_in_range,
     get_last_non_white_space_offset_in_range
 };
-
+use core::str::FromStr;
 use pretty_assertions::assert_eq;
 use proptest::prelude::*;
 use proptest::{option, prop_compose, proptest};
@@ -1083,22 +1084,22 @@ mod strip_trailing_whitespace_preserves_line_count {
             );
         };
 
-        //let re: Regex = Regex::new(r#"t_b!\("(.*)"\) cur!\{(.*)\}"#)
-            //.expect("Regex should be valid");
-//
-        //for line in lines {
-            //if line.is_empty() { continue; }
-            //// TODO Support comments?
-            //let captures = re.captures(line)
-                //.expect("All non-empty lines should have tests");
-//
-            //let mut buffer = t_b!(unescape::str(captures[1]));
-            //let cursor = Cursor::from_str(captures[2])
-                //.expect("All Cursors should be valid");
-            //buffer.set_cursors_from_vec1(vec1![cursor]);
-//
-            //on(buffer);
-        //}
+        let re: Regex = Regex::new(r#"t_b!\("(.*)"\) cur!\{(.*)\}"#)
+            .expect("Regex should be valid");
+
+        for line in lines {
+            if line.is_empty() { continue; }
+            // TODO Support comments?
+            let captures = re.captures(line)
+                .expect("All non-empty lines should have tests");
+
+            let mut buffer = t_b!(unescape::str(&captures[1]));
+            let cursor = Cursor::from_str(&captures[2])
+                .expect("All Cursors should be valid");
+            buffer.set_cursors_from_vec1(vec1![cursor]);
+
+            on(buffer);
+        }
     }
 }
 

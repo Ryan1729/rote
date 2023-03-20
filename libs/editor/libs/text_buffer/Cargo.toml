@@ -52,10 +52,12 @@ pub_arb_edit = { path = "../../../pub_arb/edit", optional = true }
 pub_arb_std = { path = "../../../pub_arb/std", optional = true }
 pub_arb_text_pos = { path = "../../../pub_arb/text_pos", optional = true }
 pub_arb_vec1 = { path = "../../../pub_arb/vec1", optional = true }
+regex = { version = "1", optional = true }
 
 [dev-dependencies]
 proptest = "0.10"
 pretty_assertions = "0.6.1"
+regex = "1"
 text_buffer_testing = { path = "../text_buffer_testing" }
 pub_arb_cursors = { path = "../../../pub_arb/cursors" }
 pub_arb_edit = { path = "../../../pub_arb/edit" }
@@ -66,4 +68,4 @@ pub_arb_vec1 = { path = "../../../pub_arb/vec1" }
 [features]
 default = []
 extra-prints = ["edit/extra-prints"]
-pub_arb = ["text_buffer_testing", "proptest", "pretty_assertions", "pub_arb_cursors", "pub_arb_edit", "pub_arb_std", "pub_arb_text_pos", "pub_arb_vec1"]
+pub_arb = ["regex", "text_buffer_testing", "proptest", "pretty_assertions", "pub_arb_cursors", "pub_arb_edit", "pub_arb_std", "pub_arb_text_pos", "pub_arb_vec1"]
