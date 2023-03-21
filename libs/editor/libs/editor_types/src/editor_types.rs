@@ -13,8 +13,8 @@ d!(for SetPositionAction: SetPositionAction::ClearHighlight);
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Cursor {
-    // These are private so we can make sure whether to clear highlight or not 
-    // is considered on each mutation of `position. And we can use a state we 
+    // These are private so we can make sure whether to clear highlight or not
+    // is considered on each mutation of `position. And we can use a state we
     // don't otherwise want,
     // `highlight_position == Some(position)` to represent a state we do:
     // `highlight_position == None`.
@@ -26,7 +26,7 @@ pub struct Cursor {
 
 ord!(for Cursor: c, other in {
     // We don't really have a preferred ordering for ranges with the same start and
-    // end. So we treat two cursors where one's position is the other's 
+    // end. So we treat two cursors where one's position is the other's
     // highlight_position and vice-versa as equal.
     let min = std::cmp::min(c.position, c.highlight_position);
     let max = std::cmp::max(c.position, c.highlight_position);
@@ -175,10 +175,16 @@ impl FromStr for Cursor {
             O,
             ONum,
             H,
+            HL,
+            HLNum,
+            HO,
+            HONum,
         }
 
         let mut l = 0;
         let mut o = 0;
+        let mut h_l = 0;
+        let h_o;
         let mut state = State::L;
         let mut chars = s.chars();
         loop {
@@ -198,9 +204,9 @@ impl FromStr for Cursor {
                                 i += 1;
                             },
                             Some(' ') => {
-                                l = core::str::from_utf8(dbg!(&byte_arr[..i]))
+                                l = core::str::from_utf8(&byte_arr[..i])
                                     .map_err(|_| NumberParseError)
-                                    .and_then(|s| 
+                                    .and_then(|s|
                                         FromStr::from_str(s)
                                             .map_err(|_| NumberParseError)
                                     )
@@ -229,7 +235,7 @@ impl FromStr for Cursor {
                             Some(' ') | None => {
                                 o = core::str::from_utf8(&byte_arr[..i])
                                     .map_err(|_| NumberParseError)
-                                    .and_then(|s| 
+                                    .and_then(|s|
                                         FromStr::from_str(s)
                                             .map_err(|_| NumberParseError)
                                     )
@@ -241,6 +247,66 @@ impl FromStr for Cursor {
                     }
                 },
                 (State::H, None) => return Ok(cur!{pos!{l l, o o}}),
+                (State::H, Some(' ')) => State::H,
+                (State::H, Some('h')) => State::HL,
+                (State::HL, Some(' ')) => State::HL,
+                (State::HL, Some('l')) => State::HLNum,
+                (State::HLNum, Some(' ')) => State::HLNum,
+                (State::HLNum, Some(ch @ '0'..='9')) => {
+                    let mut byte_arr = [0; 16];
+                    let mut i = 0;
+                    byte_arr[i] = ch as u32 as u8;
+                    i += 1;
+
+                    loop {
+                        match chars.next() {
+                            Some(c @ '0'..='9') => {
+                                byte_arr[i] = c as u32 as u8;
+                                i += 1;
+                            },
+                            Some(' ') => {
+                                h_l = core::str::from_utf8(&byte_arr[..i])
+                                    .map_err(|_| NumberParseError)
+                                    .and_then(|s|
+                                        FromStr::from_str(s)
+                                            .map_err(|_| NumberParseError)
+                                    )
+                                    ?;
+                                break State::HO;
+                            },
+                            Some(_) => return Err(Unhandled),
+                            None => return Err(EndOfStr)
+                        }
+                    }
+                },
+                (State::HO, Some('o')) => State::HONum,
+                (State::HONum, Some(' ')) => State::HONum,
+                (State::HONum, Some(ch @ '0'..='9')) => {
+                    let mut byte_arr = [0; 16];
+                    let mut i = 0;
+                    byte_arr[i] = ch as u32 as u8;
+                    i += 1;
+
+                    loop {
+                        match chars.next() {
+                            Some(c @ '0'..='9') => {
+                                byte_arr[i] = c as u32 as u8;
+                                i += 1;
+                            },
+                            Some(' ') | None => {
+                                h_o = core::str::from_utf8(&byte_arr[..i])
+                                    .map_err(|_| NumberParseError)
+                                    .and_then(|s|
+                                        FromStr::from_str(s)
+                                            .map_err(|_| NumberParseError)
+                                    )
+                                    ?;
+                                return Ok(cur!{pos!{l l, o o}, pos!{l h_l, o h_o}})
+                            },
+                            Some(_) => return Err(Unhandled),
+                        }
+                    }
+                },
                 (_, Some(_)) => return Err(Unhandled),
                 (_, None) => return Err(EndOfStr),
             };
@@ -260,10 +326,10 @@ fn from_str_works_on_these_examples() {
         Ok(cur!{l 1 o 2})
     );
 
-    //assert_eq!(
-        //Cursor::from_str("l 1 o 2 h l 3 o 3"),
-        //Ok(cur!{l 1 o 2 h l 3 o 3})
-    //);
+    assert_eq!(
+        Cursor::from_str("l 1 o 2 h l 3 o 4"),
+        Ok(cur!{l 1 o 2 h l 3 o 4})
+    );
 }
 
 fmt_display! {
@@ -286,9 +352,9 @@ fmt_debug!(for Cursor : Cursor {
         position.line,
         position.offset,
         format_if!(
-            highlight_position != position, 
-            " h l {} o {}", 
-            highlight_position.line,  
+            highlight_position != position,
+            " h l {} o {}",
+            highlight_position.line,
             highlight_position.offset
         ),
         format_if!(

@@ -1,19 +1,17 @@
 use proptest::{
     arbitrary::any,
     collection,
-    option,
     prop_compose,
     prop_oneof,
-    proptest,
     prelude::{Just, Strategy}
 };
 
-use panic_safe_rope::{BorrowRope, ByteIndex, LineIndex, Rope, RopeSlice};
+use panic_safe_rope::{BorrowRope, Rope};
 
 use rope_pos::is_linebreak_char;
 
 use std::collections::HashMap;
-use platform_types::{*, screen_positioning::*};
+use platform_types::*;
 
 pub use pub_arb_cursors::{
     all_but_end_cursors_for_rope,
