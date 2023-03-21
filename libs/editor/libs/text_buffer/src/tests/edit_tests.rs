@@ -974,77 +974,6 @@ mod strip_trailing_whitespace_preserves_line_count {
     }
 
     #[test]
-    fn on_this_found_example() {
-        let mut buffer = t_b!("\u{2029}");
-        buffer.set_cursors_from_vec1(vec1![cur!{l 1 o 0 h l 0 o 0}]);
-
-        on(buffer);
-    }
-
-    #[test]
-    fn on_this_found_asciified_example() {
-        let mut buffer = t_b!("\r");
-        buffer.set_cursors_from_vec1(vec1![cur!{l 1 o 0 h l 0 o 0}]);
-
-        on(buffer);
-    }
-
-    #[test]
-    fn on_this_blank_line_between_example() {
-        let mut buffer = t_b!("a    \n     \nb    ");
-        buffer.set_cursors_from_vec1(vec1![cur!{l 0 o 0 h l 2 o 5}]);
-
-        on(buffer);
-    }
-
-    #[test]
-    fn on_this_blank_line_between_example_reduction() {
-        let mut buffer = t_b!("a    \n     \nb    ");
-        buffer.set_cursors_from_vec1(vec1![cur!{l 0 o 0 h l 2 o 5}]);
-
-        let line_count = buffer.borrow_rope().len_lines();
-
-        let stw_edit = edit::get_strip_trailing_whitespace_edit(&buffer.rope);
-
-        let inserted_chars = &stw_edit.range_edits().first().insert_range.as_ref().unwrap().chars;
-
-        let actual = inserted_chars.lines().count();
-        assert_eq!(actual, line_count.0, "{:?} has the wrong number of lines", inserted_chars);
-    }
-
-    #[test]
-    fn on_this_blank_line_before_example() {
-        let mut buffer = t_b!("     \nb    ");
-        buffer.set_cursors_from_vec1(vec1![cur!{l 0 o 0 h l 1 o 5}]);
-
-        on(buffer);
-    }
-
-    #[test]
-    fn on_this_blank_line_after_example() {
-        let mut buffer = t_b!("a    \n     ");
-        buffer.set_cursors_from_vec1(vec1![cur!{l 0 o 0 h l 1 o 5}]);
-
-        on(buffer);
-    }
-
-    #[test]
-    fn on_this_blank_line_example() {
-        let mut buffer = t_b!("     \n");
-        buffer.set_cursors_from_vec1(vec1![cur!{l 0 o 0 h l 1 o 0}]);
-
-        on(buffer);
-    }
-
-    #[test]
-    fn on_this_multiline_trailing_newline_partial_select_example() {
-        let mut buffer = t_b!("a    \n     \nb    \nnon-selected\n");
-        buffer.set_cursors_from_vec1(vec1![cur!{l 0 o 0 h l 3 o 0}]);
-
-        on(buffer);
-    }
-
-    #[test]
     fn on_this_multiline_trailing_newline_partial_select_example_reduction() {
         let mut buffer = t_b!("a    \n     \nb    \nnon-selected\n");
         buffer.set_cursors_from_vec1(vec1![cur!{l 0 o 0 h l 3 o 0}]);
@@ -1089,7 +1018,7 @@ mod strip_trailing_whitespace_preserves_line_count {
 
         for line in lines {
             if line.is_empty() { continue; }
-            // TODO Support comments?
+
             let captures = re.captures(line)
                 .expect("All non-empty lines should have tests");
 

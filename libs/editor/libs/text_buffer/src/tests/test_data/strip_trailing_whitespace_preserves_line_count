@@ -1,1 +1,8 @@
 strip_trailing_whitespace_preserves_line_count
+t_b!("\u{2029}") cur!{l 1 o 0 h l 0 o 0} # found_example
+t_b!("\r") cur!{l 1 o 0 h l 0 o 0} # found_asciified_example
+t_b!("a    \n     \nb    ") cur!{l 0 o 0 h l 2 o 5} # blank_line_between_example
+t_b!("     \nb    ") cur!{l 0 o 0 h l 1 o 5} # blank_line_before_example
+t_b!("a    \n     ") cur!{l 0 o 0 h l 1 o 5} # blank_line_after_example
+t_b!("     \n") cur!{l 0 o 0 h l 1 o 0} # blank_line_example
+t_b!("a    \n     \nb    \nnon-selected\n") cur!{l 0 o 0 h l 3 o 0} # multiline_trailing_newline_partial_select_example
