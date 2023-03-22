@@ -10,4 +10,4 @@ path = "./src/unicode_segmentation.rs"
 [dependencies]
 
 [dependencies.perf_viz]
-path = "../../../perf_viz"
+path = "../perf_viz"

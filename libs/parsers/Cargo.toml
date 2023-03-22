@@ -17,23 +17,23 @@ tree-sitter = "0.17.1"
 path = "../edit"
 
 [dependencies.fast_hash]
-path = "../../../fast_hash"
+path = "../fast_hash"
 optional = true
 
 [dependencies.macros]
-path = "../../../macros"
+path = "../macros"
 
 [dependencies.perf_viz]
-path = "../../../perf_viz"
+path = "../perf_viz"
 
 [dependencies.platform_types]
-path = "../../../platform_types"
+path = "../platform_types"
 
 [dev-dependencies]
 proptest = "0.10"
 
 [dev-dependencies.pub_arb_rust_code]
-path = "../../../pub_arb/rust_code"
+path = "../pub_arb/rust_code"
 
 [features]
 default = ["fast_hash"]

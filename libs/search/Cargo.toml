@@ -10,13 +10,13 @@ path= "./src/search.rs"
 [dependencies]
 
 [dependencies.macros]
-path = "../../../macros"
+path = "../macros"
 
 [dependencies.panic_safe_rope]
-path = "../../../panic_safe_rope"
+path = "../panic_safe_rope"
 
 [dependencies.perf_viz]
-path = "../../../perf_viz"
+path = "../perf_viz"
 
 [dependencies.editor_types]
 path = "../editor_types"

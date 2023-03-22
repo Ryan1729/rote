@@ -10,7 +10,7 @@ path = "./src/editor.rs"
 [dependencies]
 
 [dependencies.editor_types]
-path = "libs/editor_types"
+path = "../editor_types"
 
 [dependencies.fast_hash]
 path = "../fast_hash"
@@ -34,16 +34,16 @@ path = "../platform_types"
 path = "../macros"
 
 [dependencies.parsers]
-path = "libs/parsers"
+path = "../parsers"
 
 [dependencies.paths]
-path = "libs/paths"
+path = "../paths"
 
 [dependencies.search]
-path = "libs/search"
+path = "../search"
 
 [dependencies.text_buffer]
-path = "libs/text_buffer"
+path = "../text_buffer"
 
 [dependencies.vec1]
 path = "../vec1"

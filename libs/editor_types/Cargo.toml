@@ -10,10 +10,10 @@ path = "./src/editor_types.rs"
 [dependencies]
 
 [dependencies.macros]
-path = "../../../macros"
+path = "../macros"
 
 [dependencies.perf_viz]
-path = "../../../perf_viz"
+path = "../perf_viz"
 
 [dependencies.platform_types]
-path = "../../../platform_types"
+path = "../platform_types"

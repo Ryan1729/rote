@@ -15,16 +15,16 @@ lazy_static = "1.4.0"
 path = "../editor_types"
 
 [dependencies.macros]
-path = "../../../macros"
+path = "../macros"
 
 [dependencies.panic_safe_rope]
-path = "../../../panic_safe_rope"
+path = "../panic_safe_rope"
 
 [dependencies.perf_viz]
-path = "../../../perf_viz"
+path = "../perf_viz"
 
 [dependencies.platform_types]
-path = "../../../platform_types"
+path = "../platform_types"
 
 [dependencies.rope_pos]
 path = "../rope_pos"

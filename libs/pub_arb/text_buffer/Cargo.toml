@@ -8,4 +8,4 @@ edition = "2021"
 path = "./src/pub_arb_text_buffer.rs"
 
 [dependencies]
-text_buffer = { path = "../../editor/libs/text_buffer", features = ["pub_arb"] }
+text_buffer = { path = "../../text_buffer", features = ["pub_arb"] }
