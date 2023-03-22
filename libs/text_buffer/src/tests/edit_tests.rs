@@ -1001,7 +1001,9 @@ mod strip_trailing_whitespace_preserves_line_count {
     fn on_these_on_disk_examples() {
         macro_rules! header { () => {"strip_trailing_whitespace_preserves_line_count"} }
         macro_rules! path { () => {concat!("./test_data/", header!())} }
-        let data = include_str!(path!());
+
+        let data = std::fs::read_to_string(path!())
+            .expect(concat!("should have ", header!(), " test file"));
         let mut lines = data.lines();
 
         let Some(header!()) = lines.next() else {
