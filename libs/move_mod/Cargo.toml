@@ -8,4 +8,4 @@ edition = "2021"
 path = "./src/move_mod.rs"
 
 [dependencies]
-macros = { path = "../../../macros" }
+macros = { path = "../macros" }

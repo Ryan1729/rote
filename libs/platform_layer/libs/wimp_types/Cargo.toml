@@ -18,7 +18,7 @@ clipboard = { path = "../../../clipboard" }
 libc = { version = "0.2.125", optional = true }
 
 [dev-dependencies]
-proptest = "0.10"
+proptest = { package = "proptest_wrapper", path = "../../../proptest_wrapper" }
 
 [features]
 default = ["libc-getrusage"]

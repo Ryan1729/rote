@@ -1,0 +1,10 @@
+[package]
+name = "proptest_wrapper"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+path = "./src/proptest_wrapper.rs"
+
+[dependencies]
+proptest = "0.10"

@@ -17,7 +17,7 @@ path = "../platform_types"
 path = "../rope_pos"
 
 [dependencies]
-proptest = "0.10"
+proptest = { package = "proptest_wrapper", path = "../proptest_wrapper" }
 pretty_assertions = "0.6.1"
 pub_arb_cursors = { path = "../pub_arb/cursors" }
 pub_arb_edit = { path = "../pub_arb/edit" }

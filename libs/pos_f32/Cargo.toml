@@ -8,11 +8,11 @@ edition = "2021"
 path = "./src/pos_f32.rs"
 
 [dependencies]
-macros = { path = "../../../macros" }
-proptest = { version = "0.10", optional = true }
+macros = { path = "../macros" }
+proptest = { package = "proptest_wrapper", path = "../proptest_wrapper", optional = true }
 
 [dev-dependencies]
-proptest = "0.10"
+proptest = { package = "proptest_wrapper", path = "../proptest_wrapper" }
 
 [features]
 default = []

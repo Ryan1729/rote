@@ -30,7 +30,7 @@ path = "../perf_viz"
 path = "../platform_types"
 
 [dev-dependencies]
-proptest = "0.10"
+proptest = { package = "proptest_wrapper", path = "../proptest_wrapper" }
 
 [dev-dependencies.pub_arb_rust_code]
 path = "../pub_arb/rust_code"

@@ -10,5 +10,5 @@ path = "./src/pub_arb_pos_f32.rs"
 [dependencies]
 
 [dependencies.pos_f32]
-path = "../../platform_types/libs/pos_f32"
+path = "../../pos_f32"
 features = ["pub_arb"]

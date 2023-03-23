@@ -8,7 +8,7 @@ edition = "2021"
 path = "./src/pub_arb_rust_code.rs"
 
 [dependencies]
-proptest = "0.10"
+proptest = { package = "proptest_wrapper", path = "../../proptest_wrapper" }
 
 [dependencies.macros]
 path = "../../macros"

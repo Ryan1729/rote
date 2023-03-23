@@ -8,13 +8,13 @@ edition = "2021"
 path = "./src/f32_0_1.rs"
 
 [dependencies]
-macros = { path = "../../../macros" }
+macros = { path = "../macros" }
 non_neg_f32 = { path = "../non_neg_f32" }
 pos_f32 = { path = "../pos_f32" }
-proptest = { version = "0.10", optional = true }
+proptest = { package = "proptest_wrapper", path = "../proptest_wrapper", optional = true }
 
 [dev-dependencies]
-proptest = "0.10"
+proptest = { package = "proptest_wrapper", path = "../proptest_wrapper" }
 
 [features]
 default = []

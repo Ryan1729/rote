@@ -50,7 +50,7 @@ path = "../vec1"
 
 [dev-dependencies]
 criterion = "0.3"
-proptest = "0.10"
+proptest = { package = "proptest_wrapper", path = "../proptest_wrapper" }
 
 [dev-dependencies.arb_macros]
 path = "../arb_macros"

@@ -9,4 +9,4 @@ path = "./src/pub_arb_edit.rs"
 
 [dependencies]
 edit = { path = "../../edit", features = ["pub_arb"]}
-proptest = "0.10"
+proptest = { package = "proptest_wrapper", path = "../../proptest_wrapper" }

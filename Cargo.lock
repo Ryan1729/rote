@@ -24,7 +24,7 @@ version = "0.1.0"
 dependencies = [
  "macros",
  "perf_viz",
- "proptest",
+ "proptest_wrapper",
 ]
 
 [[package]]
@@ -55,7 +55,7 @@ dependencies = [
 name = "arb_macros"
 version = "0.1.0"
 dependencies = [
- "proptest",
+ "proptest_wrapper",
 ]
 
 [[package]]
@@ -534,7 +534,7 @@ dependencies = [
  "macros",
  "panic_safe_rope",
  "perf_viz",
- "proptest",
+ "proptest_wrapper",
  "pub_arb_platform_types",
  "pub_arb_text_pos",
  "pub_arb_vec1",
@@ -637,7 +637,7 @@ dependencies = [
  "panic_safe_rope",
  "perf_viz",
  "platform_types",
- "proptest",
+ "proptest_wrapper",
  "pub_arb_cursors",
  "pub_arb_vec1",
  "rope_pos",
@@ -650,7 +650,7 @@ version = "0.1.0"
 dependencies = [
  "macros",
  "platform_types",
- "proptest",
+ "proptest_wrapper",
  "rand",
  "wimp_types",
 ]
@@ -671,7 +671,7 @@ dependencies = [
  "perf_viz",
  "perf_viz_proc_macro",
  "platform_types",
- "proptest",
+ "proptest_wrapper",
  "pub_arb_abs",
  "pub_arb_g_i",
  "pub_arb_non_neg_f32",
@@ -716,7 +716,7 @@ dependencies = [
  "macros",
  "non_neg_f32",
  "pos_f32",
- "proptest",
+ "proptest_wrapper",
 ]
 
 [[package]]
@@ -806,7 +806,7 @@ dependencies = [
  "macros",
  "move_mod",
  "perf_viz",
- "proptest",
+ "proptest_wrapper",
  "vec1 0.1.0",
 ]
 
@@ -1385,7 +1385,7 @@ version = "0.1.0"
 dependencies = [
  "macros",
  "pos_f32",
- "proptest",
+ "proptest_wrapper",
 ]
 
 [[package]]
@@ -1535,7 +1535,7 @@ dependencies = [
  "is_linebreak_char",
  "macros",
  "perf_viz",
- "proptest",
+ "proptest_wrapper",
  "ropey",
  "text_pos",
 ]
@@ -1575,7 +1575,7 @@ dependencies = [
  "macros",
  "perf_viz",
  "platform_types",
- "proptest",
+ "proptest_wrapper",
  "pub_arb_rust_code",
  "tree-sitter",
 ]
@@ -1644,7 +1644,7 @@ dependencies = [
  "panic_safe_rope",
  "perf_viz",
  "pos_f32",
- "proptest",
+ "proptest_wrapper",
  "pub_arb_abs",
  "pub_arb_f32_0_1",
  "pub_arb_g_i",
@@ -1689,7 +1689,7 @@ name = "pos_f32"
 version = "0.1.0"
 dependencies = [
  "macros",
- "proptest",
+ "proptest_wrapper",
 ]
 
 [[package]]
@@ -1759,6 +1759,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "proptest_wrapper"
+version = "0.1.0"
+dependencies = [
+ "proptest",
+]
+
+[[package]]
 name = "pub_arb_abs"
 version = "0.1.0"
 dependencies = [
@@ -1770,7 +1777,7 @@ name = "pub_arb_cursors"
 version = "0.1.0"
 dependencies = [
  "cursors",
- "proptest",
+ "proptest_wrapper",
 ]
 
 [[package]]
@@ -1778,7 +1785,7 @@ name = "pub_arb_edit"
 version = "0.1.0"
 dependencies = [
  "edit",
- "proptest",
+ "proptest_wrapper",
 ]
 
 [[package]]
@@ -1793,7 +1800,7 @@ name = "pub_arb_g_i"
 version = "0.1.0"
 dependencies = [
  "g_i",
- "proptest",
+ "proptest_wrapper",
 ]
 
 [[package]]
@@ -1822,14 +1829,14 @@ name = "pub_arb_rust_code"
 version = "0.1.0"
 dependencies = [
  "macros",
- "proptest",
+ "proptest_wrapper",
 ]
 
 [[package]]
 name = "pub_arb_std"
 version = "0.1.0"
 dependencies = [
- "proptest",
+ "proptest_wrapper",
 ]
 
 [[package]]
@@ -1843,7 +1850,7 @@ dependencies = [
 name = "pub_arb_text_pos"
 version = "0.1.0"
 dependencies = [
- "proptest",
+ "proptest_wrapper",
  "text_pos",
 ]
 
@@ -1851,7 +1858,7 @@ dependencies = [
 name = "pub_arb_vec1"
 version = "0.1.0"
 dependencies = [
- "proptest",
+ "proptest_wrapper",
  "vec1 0.1.0",
 ]
 
@@ -2071,7 +2078,7 @@ dependencies = [
  "macros",
  "panic_safe_rope",
  "perf_viz",
- "proptest",
+ "proptest_wrapper",
 ]
 
 [[package]]
@@ -2181,7 +2188,7 @@ dependencies = [
  "macros",
  "panic_safe_rope",
  "perf_viz",
- "proptest",
+ "proptest_wrapper",
  "rope_pos",
 ]
 
@@ -2354,7 +2361,7 @@ dependencies = [
  "perf_viz",
  "platform_types",
  "pretty_assertions",
- "proptest",
+ "proptest_wrapper",
  "pub_arb_cursors",
  "pub_arb_edit",
  "pub_arb_std",
@@ -2373,7 +2380,7 @@ dependencies = [
  "panic_safe_rope",
  "platform_types",
  "pretty_assertions",
- "proptest",
+ "proptest_wrapper",
  "pub_arb_cursors",
  "pub_arb_edit",
  "pub_arb_std",
@@ -2387,7 +2394,7 @@ name = "text_pos"
 version = "0.1.0"
 dependencies = [
  "macros",
- "proptest",
+ "proptest_wrapper",
 ]
 
 [[package]]
@@ -2400,7 +2407,7 @@ dependencies = [
  "linebreak",
  "macros",
  "perf_viz",
- "proptest",
+ "proptest_wrapper",
  "pub_arb_std",
  "screen_space",
  "ttf-parser 0.15.1",
@@ -2520,7 +2527,7 @@ checksum = "fc72304796d0818e357ead4e000d19c9c174ab23dc11093ac919054d20a6a7fc"
 name = "vec1"
 version = "0.1.0"
 dependencies = [
- "proptest",
+ "proptest_wrapper",
  "vec1 1.8.0",
 ]
 
@@ -2765,7 +2772,7 @@ dependencies = [
  "macros",
  "perf_viz",
  "platform_types",
- "proptest",
+ "proptest_wrapper",
  "pub_arb_abs",
  "shared",
  "wimp_types",
@@ -2782,7 +2789,7 @@ dependencies = [
  "macros",
  "perf_viz",
  "platform_types",
- "proptest",
+ "proptest_wrapper",
  "shared",
  "window_layer",
 ]

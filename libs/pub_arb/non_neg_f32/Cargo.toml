@@ -10,5 +10,5 @@ path = "./src/pub_arb_non_neg_f32.rs"
 [dependencies]
 
 [dependencies.non_neg_f32]
-path = "../../platform_types/libs/non_neg_f32"
+path = "../../non_neg_f32"
 features = ["pub_arb"]

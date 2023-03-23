@@ -23,7 +23,7 @@ path = "../macros"
 path = "../perf_viz"
 
 [dev-dependencies]
-proptest = "0.10"
+proptest = { package = "proptest_wrapper", path = "../proptest_wrapper" }
 
 [features]
 default = []

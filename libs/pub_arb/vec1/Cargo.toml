@@ -9,4 +9,4 @@ path = "./src/pub_arb_vec1.rs"
 
 [dependencies]
 vec1 = { path = "../../../libs/vec1", features = ["pub_arb"]}
-proptest = "0.10"
+proptest = { package = "proptest_wrapper", path = "../../proptest_wrapper" }

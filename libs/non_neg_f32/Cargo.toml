@@ -9,11 +9,11 @@ path = "./src/non_neg_f32.rs"
 
 [dependencies]
 pos_f32 = { path = "../pos_f32" }
-macros = { path = "../../../macros" }
-proptest = { version = "0.10", optional = true }
+macros = { path = "../macros" }
+proptest = { package = "proptest_wrapper", path = "../proptest_wrapper", optional = true }
 
 [dev-dependencies]
-proptest = "0.10"
+proptest = { package = "proptest_wrapper", path = "../proptest_wrapper" }
 
 [features]
 default = []

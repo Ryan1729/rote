@@ -6,10 +6,10 @@ edition = "2021"
 
 [dependencies]
 vec1_external = { version = "1.4", package = "vec1" }
-proptest = { version = "0.10", optional = true }
+proptest = { package = "proptest_wrapper", path = "../proptest_wrapper", optional = true }
 
 [dev-dependencies]
-proptest = "0.10"
+proptest = { package = "proptest_wrapper", path = "../proptest_wrapper" }
 
 [features]
 default = []

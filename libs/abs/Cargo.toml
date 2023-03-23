@@ -10,10 +10,10 @@ path = "./src/abs.rs"
 [dependencies]
 macros = { path = "../macros" }
 perf_viz = { path = "../perf_viz" }
-proptest = { version = "0.10", optional = true }
+proptest = { package = "proptest_wrapper", path = "../proptest_wrapper", optional = true }
 
 [dev-dependencies]
-proptest = "0.10"
+proptest = { package = "proptest_wrapper", path = "../proptest_wrapper" }
 
 [features]
 default = []

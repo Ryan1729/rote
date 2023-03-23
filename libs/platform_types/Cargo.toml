@@ -10,17 +10,17 @@ path = "./src/platform_types.rs"
 [dependencies]
 vec1 = "1.4"
 abs = { path = "../abs" }
-f32_0_1 = { path = "./libs/f32_0_1" }
-g_i = { path = "./libs/g_i" }
+f32_0_1 = { path = "../f32_0_1" }
+g_i = { path = "../g_i" }
 panic_safe_rope = { path = "../panic_safe_rope" }
 perf_viz = { path = "../perf_viz" }
-pos_f32 = { path = "./libs/pos_f32" }
+pos_f32 = { path = "../pos_f32" }
 macros = { path = "../macros" }
-move_mod = { path = "./libs/move_mod" }
-non_neg_f32 = { path = "./libs/non_neg_f32" }
+move_mod = { path = "../move_mod" }
+non_neg_f32 = { path = "../non_neg_f32" }
 screen_space = { path = "../screen_space" }
 text_pos = { path = "../text_pos" }
-proptest = { version = "0.10", optional = true }
+proptest = { package = "proptest_wrapper", path = "../proptest_wrapper", optional = true }
 arb_macros = { path = "../arb_macros", optional = true }
 pub_arb_abs = { path = "../pub_arb/abs", optional = true }
 pub_arb_f32_0_1 = { path = "../pub_arb/f32_0_1", optional = true }
@@ -30,7 +30,7 @@ pub_arb_non_neg_f32 = { path = "../pub_arb/non_neg_f32", optional = true }
 pub_arb_std = { path = "../pub_arb/std", optional = true }
 
 [dev-dependencies]
-proptest = { version = "0.10" }
+proptest = { package = "proptest_wrapper", path = "../proptest_wrapper" }
 arb_macros = { path = "../arb_macros" }
 pub_arb_abs = { path = "../pub_arb/abs" }
 pub_arb_f32_0_1 = { path = "../pub_arb/f32_0_1" }

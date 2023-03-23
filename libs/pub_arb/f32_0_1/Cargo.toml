@@ -10,6 +10,6 @@ path = "./src/pub_arb_f32_0_1.rs"
 [dependencies]
 
 [dependencies.f32_0_1]
-path = "../../platform_types/libs/f32_0_1"
+path = "../../f32_0_1"
 features = ["pub_arb"]
 

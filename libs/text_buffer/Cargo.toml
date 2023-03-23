@@ -44,7 +44,7 @@ path = "../rope_pos"
 path = "../search"
 
 [dependencies]
-proptest = { version = "0.10", optional = true }
+proptest = { package = "proptest_wrapper", path = "../proptest_wrapper", optional = true }
 pretty_assertions = { version = "0.6.1", optional = true }
 text_buffer_testing = { path = "../text_buffer_testing", optional = true }
 pub_arb_cursors = { path = "../pub_arb/cursors", optional = true }
@@ -55,7 +55,7 @@ pub_arb_vec1 = { path = "../pub_arb/vec1", optional = true }
 regex = { version = "1", optional = true }
 
 [dev-dependencies]
-proptest = "0.10"
+proptest = { package = "proptest_wrapper", path = "../proptest_wrapper" }
 pretty_assertions = "0.6.1"
 regex = "1"
 text_buffer_testing = { path = "../text_buffer_testing" }
