@@ -7,4 +7,4 @@ edition = "2021"
 path = "./src/proptest_wrapper.rs"
 
 [dependencies]
-proptest = "0.10"
+proptest = "1.1.0"
