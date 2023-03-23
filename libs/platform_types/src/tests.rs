@@ -30,7 +30,7 @@ use crate::screen_positioning::{
     VisibilityAttemptResult,
 };
 use crate::{pos, screen_positioning::{apron, slxy, tbsxy, tbxy, tbxywh, tsxy}};
-use proptest::{prop_compose, proptest, num::f32, strategy::Strategy};
+use proptest::{prelude::{prop_compose, proptest, Strategy}, num::f32};
 
 prop_compose! {
     fn arb_pos(max_line: usize, max_offset: usize)

@@ -1,9 +1,7 @@
 use proptest::{
     arbitrary::any,
     collection,
-    prop_compose,
-    prop_oneof,
-    prelude::{Just, Strategy}
+    prelude::{prop_compose, prop_oneof, Just, Strategy}
 };
 
 use panic_safe_rope::{BorrowRope, Rope};
