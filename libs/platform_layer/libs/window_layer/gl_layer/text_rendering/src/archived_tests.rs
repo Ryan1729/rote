@@ -13,13 +13,13 @@ use glyph_brush::{
     intersects,
 };
 
-use proptest::prelude::{proptest};
+use proptest::{proptest};
 use pub_arb_std::{f32::{within_0_to_1, rounded_non_negative}};
 
 mod arb {
     use super::*;
     use proptest::collection::vec;
-    use proptest::prelude::{any, prop_compose, Just};
+    use proptest::{extra::*, prop_compose, Just};
 
     prop_compose!{
         pub fn positive_rect_i32()
@@ -44,7 +44,7 @@ mod arb {
 
     prop_compose!{
         pub fn section_geometry()
-        ([sx, sy, bx, by] in proptest::array::uniform4(any::<u32>()))
+        ([sx, sy, bx, by] in proptest::array::uniform4(any_u32()))
         -> SectionGeometry {
             SectionGeometry {
                 screen_position: (sx as f32, sy as f32),

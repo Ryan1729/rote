@@ -7,8 +7,8 @@ use super::ScrollableScreen;
 pub use pub_arb_g_i::{selection_adjustment, selectable_vec1};
 use arb_macros::{arb_enum};
 use proptest::collection::vec;
-use proptest::num::f32;
-use proptest::prelude::{prop_compose, any, Strategy};
+use proptest::f32;
+use proptest::{prop_compose, Strategy, any_u8 as any_span_kind_raw, extra::*};
 use pub_arb_std::{path_buf, f32::usual};
 use pub_arb_abs::{abs_pos, abs_pos_quarter, abs_length, abs_vector, abs_vector_quarter};
 use pub_arb_f32_0_1::{f32_0_1};
@@ -96,8 +96,8 @@ pub fn rounded_non_negative_screen_xy() -> impl Strategy<Value = ScreenSpaceXY> 
 
 prop_compose!{
     pub fn position()(
-        l in any::<usize>(),
-        o in any::<usize>(),
+        l in any_usize(),
+        o in any_usize(),
     ) -> Position {
         pos!(l l, o o)
     }
@@ -193,7 +193,7 @@ prop_compose!{
         mode in find_replace_mode(),
         find in buffer_view_data(),
         replace in buffer_view_data(),
-        result_count in any::<usize>(),
+        result_count in any_usize(),
     ) -> FindReplaceView {
         FindReplaceView {
             mode,
@@ -229,7 +229,7 @@ arb_enum!{
 
 prop_compose!{
     pub fn scratch_buffer_name()
-    (n in any::<u32>().prop_map(BufferName::Scratch)) -> BufferName {
+    (n in any_u32().prop_map(BufferName::Scratch)) -> BufferName {
         n
     }
 }
@@ -310,7 +310,7 @@ prop_compose!{
 
 prop_compose!{
     pub fn span_kind()(
-        kind in any::<SpanKindRaw>().prop_map(SpanKind::new)
+        kind in any_span_kind_raw().prop_map(SpanKind::new)
     ) -> SpanKind {
         kind
     }
@@ -318,7 +318,7 @@ prop_compose!{
 
 prop_compose!{
     pub fn span_view()(
-        one_past_end in any::<usize>(),
+        one_past_end in any_usize(),
         kind in span_kind(),
     ) -> SpanView {
         SpanView {
@@ -455,7 +455,7 @@ prop_compose!{
 
 /*prop_compose!{
     pub fn stats()(
-        (secs, nanos) in (any::<u64>(), any::<u32>()),
+        (secs, nanos) in (any_u64(), any_u32()),
     ) -> ViewStats {
         ViewStats {
             latest_render_duration: Duration::new(secs, nanos)
@@ -569,7 +569,7 @@ prop_compose!{
 
 prop_compose!{
     pub fn insert()
-    (input in any::<char>().prop_map(Input::Insert)) -> Input {
+    (input in any_char().prop_map(Input::Insert)) -> Input {
         input
     }
 }

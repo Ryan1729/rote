@@ -1,6 +1,6 @@
 /// This crate contains ways to create `proptest` `Strategy` implementations, for types in the rust standard library.
 
-use proptest::prelude::prop_compose;
+use proptest::prop_compose;
 
 prop_compose!{
     pub fn path_buf()(
@@ -30,15 +30,14 @@ prop_compose!{
 }
 
 pub mod f32 {
-    use proptest::num;
-    use proptest::prelude::prop_compose;
+    use proptest::prop_compose;
 
-    pub fn usual() -> num::f32::Any {
-        num::f32::POSITIVE | num::f32::NEGATIVE | num::f32::NORMAL | num::f32::ZERO
+    pub fn usual() -> proptest::f32::Any {
+        proptest::f32::POSITIVE | proptest::f32::NEGATIVE | proptest::f32::NORMAL | proptest::f32::ZERO
     }
 
     prop_compose!{
-        pub fn within_0_to_1()(f in num::f32::POSITIVE | num::f32::ZERO) -> f32 {
+        pub fn within_0_to_1()(f in proptest::f32::POSITIVE | proptest::f32::ZERO) -> f32 {
             if f > 1.0 {
                f / std::f32::MAX 
             } else {

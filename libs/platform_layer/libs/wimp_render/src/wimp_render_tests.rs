@@ -4,10 +4,7 @@ use platform_types::{bvd};
 
 use macros::{dbg, d};
 
-use proptest::{
-    prelude::{Just, Strategy},
-    prop_compose, proptest,
-};
+use proptest::{Just, Strategy, prop_compose, proptest,};
 
 mod arb {
     pub use pub_arb_abs::{abs_pos, abs_length, abs_vector};

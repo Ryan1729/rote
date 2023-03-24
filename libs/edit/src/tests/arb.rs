@@ -1,8 +1,5 @@
 use crate::{Change, Edit, CursoredRope};
-use proptest::{
-    option,
-    prelude::*,
-};
+use proptest::{option, prop_compose, Strategy};
 use cursors::Cursors;
 use vec1::{Vec1};
 use pub_arb_cursors::{valid_cursors_for_rope};

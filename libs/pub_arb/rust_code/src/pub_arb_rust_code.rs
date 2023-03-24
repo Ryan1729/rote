@@ -1,5 +1,5 @@
 use macros::{fmt_display};
-use proptest::prelude::*;
+use proptest::{extra::*, proptest, prop_compose, prop_oneof, Just, Strategy};
 use proptest::collection;
 
 const FUNCTION_SIZE_ESTIMATE: usize = 128 + PARAM_SIZE_ESTIMATE;
@@ -180,29 +180,29 @@ pub fn rust_primitive_type() -> impl Strategy<Value = RustPrimitiveType> {
 pub fn rust_primitive_type_string(p_t: RustPrimitiveType) -> impl Strategy<Value = String> {
     use RustPrimitiveType::*;
     match p_t {
-        Bool => any::<bool>().prop_map(|x| x.to_string()).boxed(),
-        U8 => any::<u8>().prop_map(|x| x.to_string()).boxed(),
-        U16 => any::<u16>().prop_map(|x| x.to_string()).boxed(),
-        U32 => any::<u32>().prop_map(|x| x.to_string()).boxed(),
-        U64 => any::<u64>().prop_map(|x| x.to_string()).boxed(),
-        U128 => any::<u128>().prop_map(|x| x.to_string()).boxed(),
-        Usize => any::<usize>().prop_map(|x| x.to_string()).boxed(),
-        I8 => any::<i8>().prop_map(|x| x.to_string()).boxed(),
-        I16 => any::<i16>().prop_map(|x| x.to_string()).boxed(),
-        I32 => any::<i32>().prop_map(|x| x.to_string()).boxed(),
-        I64 => any::<i64>().prop_map(|x| x.to_string()).boxed(),
-        I128 => any::<i128>().prop_map(|x| x.to_string()).boxed(),
-        Isize => any::<isize>().prop_map(|x| x.to_string()).boxed(),
-        F32 => any::<f32>().prop_map(|x| x.to_string()).boxed(),
-        F64 => any::<f64>().prop_map(|x| x.to_string()).boxed(),
+        Bool => any_bool().prop_map(|x| x.to_string()).boxed(),
+        U8 => any_u8().prop_map(|x| x.to_string()).boxed(),
+        U16 => any_u16().prop_map(|x| x.to_string()).boxed(),
+        U32 => any_u32().prop_map(|x| x.to_string()).boxed(),
+        U64 => any_u64().prop_map(|x| x.to_string()).boxed(),
+        U128 => any_u128().prop_map(|x| x.to_string()).boxed(),
+        Usize => any_usize().prop_map(|x| x.to_string()).boxed(),
+        I8 => any_i8().prop_map(|x| x.to_string()).boxed(),
+        I16 => any_i16().prop_map(|x| x.to_string()).boxed(),
+        I32 => any_i32().prop_map(|x| x.to_string()).boxed(),
+        I64 => any_i64().prop_map(|x| x.to_string()).boxed(),
+        I128 => any_i128().prop_map(|x| x.to_string()).boxed(),
+        Isize => any_isize().prop_map(|x| x.to_string()).boxed(),
+        F32 => any_f32().prop_map(|x| x.to_string()).boxed(),
+        F64 => any_f64().prop_map(|x| x.to_string()).boxed(),
         Char => rust_char_string().boxed(),
-        String => any::<std::string::String>().prop_map(|x| x.escape_unicode().collect()).boxed(),
+        String => any_string().prop_map(|x| x.escape_unicode().collect()).boxed(),
         Never => "!".boxed(),
     }
 }
 
 pub fn rust_char_string() -> impl Strategy<Value = String> {
-    any::<char>().prop_map(|x| x.escape_unicode().collect())
+    any_char().prop_map(|x| x.escape_unicode().collect())
 }
 
 proptest!{

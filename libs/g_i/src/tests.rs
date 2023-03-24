@@ -5,7 +5,9 @@
 use super::*;
 use proptest::{
     collection::vec,
-    prelude::{any, proptest, Just}
+    proptest,
+    Just,
+    extra::*,
 };
 use arb_macros::{arb_enum};
 use macros::{u};
@@ -180,7 +182,11 @@ impl <A: Clone> MutMethodSpec<A> {
 
 pub mod arb {
     use super::{*};
-    use proptest::prelude::{any, Strategy, prop_compose};
+    use proptest::{
+        Strategy,
+        prop_compose,
+        any_u32 as any_generation,
+    };
     use proptest::collection::vec;
 
     pub fn index_from_parts(generation: Generation, index: IndexPart) -> Index {
@@ -231,7 +237,7 @@ pub mod arb {
     }
 
     pub fn state(max_index: LengthSize) -> impl Strategy<Value = State> {
-        (any::<Generation>(), invalidation(max_index))
+        (any_generation(), invalidation(max_index))
             .prop_map(|(current, invalidation)| State {
                 current,
                 // invalidations other than the default are impossible
@@ -243,7 +249,7 @@ pub mod arb {
     }
 
     pub fn state_with_default_invalidation() -> impl Strategy<Value = State> {
-        any::<Generation>()
+        any_generation()
             .prop_map(move |current| State {
                 current,
                 invalidation: d!(),
@@ -268,7 +274,7 @@ pub mod arb {
 
     prop_compose!{
         pub fn vector_with_valid_index(max_len: LengthSize)
-            (vector in proptest::collection::vec(any::<i32>(), 1usize..(max_len as _)))
+            (vector in proptest::collection::vec(any_i32(), 1usize..(max_len as _)))
             (
                 (i, s) in state_with_index({ 
                     let len: LengthSize = vector.len().try_into().unwrap();
@@ -360,7 +366,7 @@ pub mod arb {
             SwapOrIgnore(_, _) => (index(max_index), index(max_index)).prop_map(|(i1, i2)| SwapOrIgnore(i1, i2)),
             CloseElement(_) => index(max_index).prop_map(CloseElement),
             AdjustSelection(_) => selection_adjustment().prop_map(AdjustSelection),
-            PushAndSelectNew(_) => any::<i32>().prop_map(PushAndSelectNew),
+            PushAndSelectNew(_) => any_i32().prop_map(PushAndSelectNew),
             ReplaceWithMapped(_) => replace_with_mapped(max_index),
             ReplaceWithMappedWithIndex(_) => replace_with_mapped_with_index(max_index),
         }
@@ -377,17 +383,17 @@ pub mod arb {
     }
 
     fn replace_with_shared(max_index: LengthSize) -> impl Strategy<Value = Vec1<i32>> {
-        any::<bool>().prop_flat_map(move |is_full| {
+        any_bool().prop_flat_map(move |is_full| {
             let m_i = max_index as usize;
 
             if is_full {
                 proptest::collection::vec(
-                    any::<i32>(),
+                    any_i32(),
                     m_i..=m_i,
                 )
             } else {
                 proptest::collection::vec(
-                    any::<i32>(),
+                    any_i32(),
                     1..=m_i,
                 )
             }
@@ -936,7 +942,7 @@ fn moving_indexes_never_causes_a_map_to_lose_elements_on(
 proptest!{
     #[test]
     fn moving_indexes_never_causes_a_map_to_lose_elements(
-        map in arb::map_of(any::<u8>(), 16),
+        map in arb::map_of(any_u8(), 16),
         index_pairs in vec((arb::index(16), arb::index(16)), 0..16),
     ) {
         moving_indexes_never_causes_a_map_to_lose_elements_on(

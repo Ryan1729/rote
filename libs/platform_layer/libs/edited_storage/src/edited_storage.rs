@@ -338,12 +338,12 @@ fn split_off_uuid_and_comma(s: &str) -> Option<(u128, &str)> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use proptest::{arbitrary::any, prop_oneof, proptest, strategy::Strategy};
+    use proptest::{prop_oneof, proptest, Strategy, extra::*};
 
     pub fn buffer_name() -> impl Strategy<Value = BufferName> {
         prop_oneof![
-            any::<u32>().prop_map(BufferName::Scratch),
-            any::<std::ffi::OsString>().prop_map(|s| {
+            any_u32().prop_map(BufferName::Scratch),
+            any_os_string().prop_map(|s| {
                 let s = if s.len() == 0 {
                     "empty-paths-are-invalid".into()
                 } else {
@@ -370,7 +370,7 @@ mod tests {
         #[test]
         fn serialize_then_deserialize_works(
             name in buffer_name(),
-            uuid in any::<u128>(),
+            uuid in any_u128(),
         ) {
             serialize_then_deserialize_works_on(name, uuid)
         }

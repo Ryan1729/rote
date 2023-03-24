@@ -1,10 +1,7 @@
 use super::*;
 use editor_types::{AbsoluteCharOffset};
 use panic_safe_rope::{RopeSliceTrait, LineIndex, CharOffset};
-use proptest::{
-    collection,
-    prelude::{Strategy, prop_compose}
-};
+use proptest::{collection, Strategy, prop_compose};
 use pub_arb_platform_types::{cursor_state};
 use pub_arb_text_pos::{char_offset, pos};
 use pub_arb_vec1::{vec1};

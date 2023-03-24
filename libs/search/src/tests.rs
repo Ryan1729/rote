@@ -3,7 +3,7 @@ use super::*;
 use proptest::proptest;
 
 mod arb {
-    use proptest::prelude::{Just, prop_compose};
+    use proptest::{Just, prop_compose};
 
     prop_compose! {
         pub fn needle_and_haystack()

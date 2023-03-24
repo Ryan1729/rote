@@ -15,13 +15,13 @@ macro_rules! t_b {
         t
     }};
 }
-use proptest::prelude::{proptest, prop_oneof, ProptestConfig};
+use proptest::{proptest, prop_oneof, ProptestConfig};
 
 use pub_arb_std::non_line_break_char;
 
 mod arb {
     use super::*;
-    use proptest::prelude::{prop_compose};
+    use proptest::{prop_compose};
 
     prop_compose!{
         pub fn state()(

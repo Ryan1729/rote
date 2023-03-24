@@ -3,7 +3,7 @@ pub mod arb {
     use super::*;
     use proptest::test_runner::{TestRunner};
     use proptest::strategy::{Strategy, NewTree, ValueTree};
-    use proptest::num::f32;
+    use proptest::f32;
 
     struct F32_0_1ValueTree(<f32::Any as Strategy>::Tree);
 

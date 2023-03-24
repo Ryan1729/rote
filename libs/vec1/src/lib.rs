@@ -7,7 +7,7 @@ pub mod tests {
         use super::*;
         use proptest::{
             collection,
-            prelude::{Strategy}
+            Strategy
         };
 
         pub fn vec1<D: core::fmt::Debug>(

@@ -8,9 +8,9 @@ macro_rules! arb_enum {
         }
     };
     ($vis: vis fn $fn_name: ident ($($param: ident : $type: ty),* $(,)?) -> $output: ty as $enum_path: path  {$($variant: pat => $strategy: expr),+ $(,)? }) => {
-        $vis fn $fn_name($($param : $type),*) -> impl proptest::prelude::Strategy<Value = $output> {
+        $vis fn $fn_name($($param : $type),*) -> impl proptest::Strategy<Value = $output> {
             use $enum_path::*;
-            use proptest::prelude::*;
+            use proptest::*;
 
             
             // If this compiles we produce them all
@@ -21,7 +21,7 @@ macro_rules! arb_enum {
                 }
             }
 
-            proptest::prelude::prop_oneof![
+            proptest::prop_oneof![
                 $($strategy),+
             ]
         }
@@ -40,7 +40,7 @@ fn arb_enum_works_on_this_no_args_example() {
         fn e() -> E
         {
             Single => Just(Single),
-            HasByte(_) => proptest::prelude::any::<u8>().prop_map(HasByte),
+            HasByte(_) => proptest::any_u8().prop_map(HasByte),
         }
     }
 
@@ -78,7 +78,7 @@ fn arb_enum_works_on_this_generic_no_args_example() {
         fn e() -> E<u8> as E
         {
             Single => Just(Single),
-            HasA(_) => proptest::prelude::any::<u8>().prop_map(HasA),
+            HasA(_) => proptest::any_u8().prop_map(HasA),
         }
     }
 

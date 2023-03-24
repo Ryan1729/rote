@@ -1,8 +1,4 @@
-use proptest::{
-    arbitrary::any,
-    collection,
-    prelude::{prop_compose, prop_oneof, Just, Strategy}
-};
+use proptest::{collection, prop_compose, prop_oneof, Just, Strategy, extra::*};
 
 use panic_safe_rope::{BorrowRope, Rope};
 
@@ -40,7 +36,7 @@ macro_rules! r {
 
 // TODO? move all `arb` fns in here?
 prop_compose! {
-    pub fn rope()(s in any::<String>()) -> Rope {
+    pub fn rope()(s in any_string()) -> Rope {
         r!(s)
     }
 }
@@ -316,7 +312,7 @@ pub fn test_edit() -> impl Strategy<Value = TestEdit> {
     prop_oneof![
         Just(Delete),
         Just(DeleteLines),
-        any::<char>().prop_map(Insert),
+        any_char().prop_map(Insert),
         ".*".prop_map(InsertString),
         arb_move().prop_map(MoveAllCursors),
         arb_move().prop_map(ExtendSelectionForAllCursors),
@@ -353,7 +349,7 @@ pub fn replace_or_add() -> impl Strategy<Value = ReplaceOrAdd> {
 }
 
 pub fn test_edit_insert() -> impl Strategy<Value = TestEdit> {
-    any::<char>().prop_map(TestEdit::Insert)
+    any_char().prop_map(TestEdit::Insert)
 }
 
 type Regex = &'static str;
@@ -479,7 +475,7 @@ prop_compose! {
 
 pub fn test_edit_select_something_vec() -> impl Strategy<Value = Vec<TestEdit>> {
     use TestEdit::*;
-    (any::<u8>(), any::<u8>()).prop_map(|(kind, amount)| {
+    (any_u8(), any_u8()).prop_map(|(kind, amount)| {
         macro_rules! header {
             ($($tokens:tt)*) => {
                 vec![

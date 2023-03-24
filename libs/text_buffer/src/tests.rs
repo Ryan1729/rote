@@ -13,8 +13,7 @@ use rope_pos::{char_offset_to_pos, clamp_position, OffsetPair};
 use panic_safe_rope::{RopeSliceTrait};
 use platform_types::{pos, CursorState, vec1};
 use pretty_assertions::assert_eq;
-use proptest::prelude::*;
-use proptest::{collection, option, prop_compose, proptest};
+use proptest::{any_char, collection, option, prop_compose, proptest, Just, Strategy};
 
 use pub_arb_std::non_line_break_char;
 
@@ -903,7 +902,7 @@ proptest!{
     #[test]
     fn inserting_then_deleting_preserves_editedness_unless_all_is_selected(
         mut buffer in arb::text_buffer_with_many_cursors(),
-        ch in any::<char>(),
+        ch in any_char(),
     ) {
         if all_selected(&buffer) {
             buffer.set_cursors(d!());
@@ -1024,8 +1023,8 @@ proptest!{
     #[test]
     fn calling_set_unedited_acts_as_expected_after_a_second_insertion(
         buffer in arb::text_buffer_with_many_cursors(),
-        ch1 in any::<char>(),
-        ch2 in any::<char>(),
+        ch1 in any_char(),
+        ch2 in any_char(),
     ) {
         calling_set_unedited_acts_as_expected_after_a_second_insertion_on(
             buffer,

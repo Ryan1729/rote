@@ -417,7 +417,7 @@ pub mod tests {
             position,
             selectable_vec1,
         };
-        use proptest::prelude::{prop_compose, Just, any};
+        use proptest::{prop_compose, Just, any_u64};
 
         prop_compose!{
             pub fn search_results(max_len: usize)(
@@ -439,8 +439,8 @@ pub mod tests {
         prop_compose!{
             pub fn editor_buffers()(
                 buffers in selectable_vec1(editor_buffer(), 16),
-                last_non_rope_hash in any::<u64>(),
-                last_full_hash in proptest::option::of(any::<u64>()),
+                last_non_rope_hash in any_u64(),
+                last_full_hash in proptest::option::of(any_u64()),
             ) -> EditorBuffers {
                 EditorBuffers {
                     buffers,
@@ -469,8 +469,8 @@ pub mod tests {
                 e2 in editor_buffer_with_spec(
                     BufferNameSpec::Scratch.into()
                 ),
-                last_non_rope_hash in any::<u64>(),
-                last_full_hash in proptest::option::of(any::<u64>()),
+                last_non_rope_hash in any_u64(),
+                last_full_hash in proptest::option::of(any_u64()),
             ) -> EditorBuffers {
                 EditorBuffers {
                     buffers: svec1!(e1, e2),
@@ -485,8 +485,8 @@ pub mod tests {
                 e2 in editor_buffer_with_spec(
                     BufferNameSpec::Scratch.into()
                 ),
-                last_non_rope_hash in any::<u64>(),
-                last_full_hash in proptest::option::of(any::<u64>()),
+                last_non_rope_hash in any_u64(),
+                last_full_hash in proptest::option::of(any_u64()),
             ) -> EditorBuffers {
                 let e1 = EditorBuffer {
                     name: BufferName::Path(".fakefile".into()),

@@ -52,15 +52,17 @@ impl macros::CheckedAdd for AbsoluteCharOffset {
 
 impl macros::SaturatingAdd<CharOffset> for AbsoluteCharOffset {
     type Output = AbsoluteCharOffset;
-    
+
     #[must_use]
     fn saturating_add(self, other: CharOffset) -> AbsoluteCharOffset {
         AbsoluteCharOffset(self.0.saturating_add(other.0))
     }
 }
 
-impl AbsoluteCharOffset {    /// Seems like 99% of the time we want to do a `checked_add` it's with one
-    pub fn checked_add_one(self) -> Option<Self> {        self.0.checked_add(1).map(AbsoluteCharOffset)
+impl AbsoluteCharOffset {
+    /// Seems like 99% of the time we want to do a `checked_add` it's with one
+    pub fn checked_add_one(self) -> Option<Self> {
+        self.0.checked_add(1).map(AbsoluteCharOffset)
     }
 }
 
@@ -223,7 +225,7 @@ pub mod tests {
     pub mod arb {
         use super::*;
         use proptest::{
-            prelude::{prop_compose}
+            prop_compose
         };
 
         prop_compose! {
@@ -231,7 +233,7 @@ pub mod tests {
                 CharOffset(offset)
             }
         }
-        
+
         prop_compose! {
             pub fn pos(max_line: usize, max_offset: usize)
             (line in 0..=max_line, offset in 0..=max_offset) -> Position {

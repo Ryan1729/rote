@@ -13,7 +13,7 @@ use proptest::proptest;
 const SOME_AMOUNT: usize = 16;
 
 mod arb {
-    use proptest::{collection, sample, prelude::{Strategy, any}};
+    use proptest::{any_sample_selector, collection, Strategy, Selector};
     pub use pub_arb_rust_code::rust_code;
 
     // TODO parse the /tree-sitter-rust/src/node-types.json file
@@ -33,7 +33,9 @@ mod arb {
     ];
 
     pub fn rust_node_type() -> impl Strategy<Value = String> {
-        any::<sample::Selector>().prop_map(|s| (*s.select(&RUST_NODE_TYPES)).to_owned())
+        let strat: proptest::SelectorStrategy = any_sample_selector();
+
+        strat.prop_map(|s: Selector| (*s.select(&RUST_NODE_TYPES)).to_owned())
     }
 
     pub fn query_source(max_size: usize) -> impl Strategy<Value = String> {

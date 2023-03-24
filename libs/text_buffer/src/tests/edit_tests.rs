@@ -38,11 +38,10 @@ use rope_pos::{
     get_first_non_white_space_offset_in_range,
     get_last_non_white_space_offset_in_range
 };
-use core::str::FromStr;
 use pretty_assertions::assert_eq;
-use proptest::prelude::*;
-use proptest::{option, prop_compose, proptest};
+use proptest::{option, prop_compose, proptest, extra::*};
 
+use core::str::FromStr;
 use std::{
     collections::HashSet,
     borrow::Borrow,

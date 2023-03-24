@@ -4,16 +4,15 @@
 
 use super::*;
 
-use proptest::prelude::{Strategy, proptest};
-use proptest::num;
+use proptest::{Strategy, proptest};
 
 use macros::{d};
 
 pub mod arb {
     use super::*;
     use proptest::test_runner::{TestRunner};
-    use proptest::strategy::{Strategy, NewTree, ValueTree};
-    use proptest::num::i64;
+    use proptest::{NewTree, ValueTree};
+    use proptest::i64;
 
     #[derive(Clone, Copy, Debug)]
     enum Kind {
@@ -289,7 +288,7 @@ proptest!{
 proptest!{
     #[test]
     fn b_space_to_a_with_defaults_is_identity_gen_float(
-        pos in proptest::num::f32::ANY,
+        pos in proptest::f32::ANY,
     ) {
         let actual = b_space_to_a(pos.into(), d!(), d!());
         assert_eq!(actual, Pos::from(pos));
@@ -387,7 +386,7 @@ fn f32_to_abs_pos_to_f32_does_not_change_the_signum_on(
 proptest!{
     #[test]
     fn f32_to_abs_pos_to_f32_does_not_change_the_signum(
-        f in proptest::num::f32::NORMAL,
+        f in proptest::f32::NORMAL,
     ) {
         f32_to_abs_pos_to_f32_does_not_change_the_signum_on(
             f
