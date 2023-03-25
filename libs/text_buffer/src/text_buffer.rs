@@ -958,6 +958,7 @@ impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
     }
 
     #[cfg(any(test, feature = "pub_arb"))]
+    #[allow(unused)] // False positives in some cfg configs.
     fn set_cursors_from_vec1(&mut self, cursors: Vec1<Cursor>) {
         self.rope.set_cursors_from_vec1(cursors);
     }

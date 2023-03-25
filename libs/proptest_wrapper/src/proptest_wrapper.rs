@@ -31,6 +31,8 @@ pub mod extra {
     use super::{CharStrategy, Selector, SelectorStrategy};
     use proptest::arbitrary::Arbitrary;
 
+    // TODO At least some of these seem to evaluate to public constants in the end.
+    // So let's expose these instead of going through the Arbitrary trait.
     pub fn any_bool() -> proptest::bool::Any {
         bool::arbitrary()
     }
