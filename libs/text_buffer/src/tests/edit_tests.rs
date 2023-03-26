@@ -23,8 +23,8 @@ use crate::{
     r,
     t_b,
     tests::{
-        arb::{TestEdit, TestEditSpec, *},
-        deep_clone, SOME_AMOUNT, *,
+        arb::{TestEdit, TestEditSpec, SOME_AMOUNT, *},
+        deep_clone, *,
     },
     TextBuffer,
 };
@@ -34,12 +34,12 @@ use macros::{some_or, dbg};
 use move_cursor::last_position;
 use platform_types::{CursorState, vec1};
 use pub_arb_edit::{edit_from_pieces, edit_range_edits_mut};
+use pretty_assertions::assert_eq;
+use proptest::{option, prop_compose, proptest, extra::*};
 use rope_pos::{
     get_first_non_white_space_offset_in_range,
     get_last_non_white_space_offset_in_range
 };
-use pretty_assertions::assert_eq;
-use proptest::{option, prop_compose, proptest, extra::*};
 
 use core::str::FromStr;
 use std::{
@@ -2401,6 +2401,3 @@ mod strip_trailing_whitespace_does_not_increase_the_amount_of_characters {
         on(buffer);
     }
 }
-
-mod included_files;
-mod undo_redo;

@@ -3,19 +3,12 @@
 #![cfg_attr(feature = "pub_arb", allow(unused_imports))]
 
 #![deny(array_into_iter)]
-use super::{cursor_assert, r, *};
+use super::{r, *};
 
-use arb::{TestEdit, SOME_AMOUNT};
-use move_cursor::last_position;
 use editor_types::{cur};
-use cursors::curs;
-use rope_pos::{char_offset_to_pos, clamp_position, OffsetPair};
 use panic_safe_rope::{RopeSliceTrait};
-use platform_types::{pos, CursorState, vec1};
-use pretty_assertions::assert_eq;
-use proptest::{any_char, collection, option, prop_compose, proptest, Just, Strategy};
-
-use pub_arb_std::non_line_break_char;
+use platform_types::{pos};
+use proptest::{any_char, collection, prop_compose, Just, Strategy};
 
 /// This macro is meant to make it easier to copy-paste proptest failing proptest inputs into
 /// their oun test. With this macro, only the `!` character needs to be added after copying an
@@ -85,10 +78,16 @@ prop_compose! {
 
 pub mod arb;
 #[cfg(feature = "uncategorized_tests")]
+/// TODO? catergorize these?
 mod uncategorized_tests;
 #[cfg(feature = "cursor_manipulation")]
 mod cursor_manipulation;
 #[cfg(feature = "edit_tests")]
+/// TODO? Not all edit tests are here now. So this could use a rename.
 mod edit_tests;
+#[cfg(feature = "included_files")]
+mod included_files;
+#[cfg(feature = "undo_redo")]
+mod undo_redo;
 #[cfg(feature = "inserting_then_deleting")]
 mod inserting_then_deleting;

@@ -1,6 +1,8 @@
 #![deny(dead_code, unused_variables)]
 
 use super::*;
+use arb::{TestEdit};
+use edit::TAB_STR_CHAR_COUNT;
 use macros::{dbg};
 use panic_safe_rope::LineIndex;
 use pretty_assertions::assert_eq;

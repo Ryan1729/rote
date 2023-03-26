@@ -1,6 +1,8 @@
 use super::*;
-use macros::dbg;
 
+use arb::{TestEdit, SOME_AMOUNT};
+use macros::dbg;
+use proptest::proptest;
 use pretty_assertions::assert_eq;
 
 macro_rules! buffer_str_assert_eq {

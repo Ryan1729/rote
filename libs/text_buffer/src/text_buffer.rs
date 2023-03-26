@@ -953,6 +953,7 @@ impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
 
     // some of these are convenience methods for tests
     #[cfg(test)]
+    #[allow(unused)] // False positives in some cfg configs.
     fn set_cursors(&mut self, new: Cursors) {
         self.rope.set_cursors(new);
     }

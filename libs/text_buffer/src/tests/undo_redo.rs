@@ -1,9 +1,10 @@
 use super::*;
 
+use arb::{TestEdit, TestEditSpec, SOME_AMOUNT, text_buffer_with_valid_cursors};
 use macros::{dbg};
 use crate::{assert_text_buffer_rope_eq, assert_text_buffer_eq_ignoring_history, char_to_string, t_b, InsertString, TextBuffer};
 use pretty_assertions::assert_eq;
-use proptest::{Just, Strategy};
+use proptest::{proptest, Just, Strategy};
 use pub_arb_edit::edit_with_cursors;
 
 use std::borrow::Borrow;

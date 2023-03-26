@@ -1,4 +1,13 @@
-use super::{*, assert_eq};
+use super::{*};
+
+use arb::{TestEdit, SOME_AMOUNT};
+use rope_pos::{char_offset_to_pos, clamp_position, OffsetPair};
+use macros::{u};
+use move_cursor::last_position;
+use cursors::curs;
+use pretty_assertions::assert_eq;
+use proptest::{proptest, option};
+use pub_arb_std::non_line_break_char;
 
 #[test]
 fn offset_at_end_of_line_works() {
