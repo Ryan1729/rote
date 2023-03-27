@@ -66,13 +66,15 @@ pub_arb_text_pos = { path = "../pub_arb/text_pos" }
 pub_arb_vec1 = { path = "../pub_arb/vec1" }
 
 [features]
-default = ["uncategorized_tests", "cursor_manipulation", "edit_tests", "included_files", "undo_redo", "inserting_then_deleting"]
+default = ["uncategorized_tests", "cursor_manipulation", "edit_tests", "strip_trailing_whitespace_does_not_increase_the_amount_of_characters", "does_not_lose_characters", "included_files", "undo_redo", "inserting_then_deleting"]
 extra-prints = ["edit/extra-prints"]
 pub_arb = ["regex", "text_buffer_testing", "proptest", "pretty_assertions", "pub_arb_cursors", "pub_arb_edit", "pub_arb_std", "pub_arb_text_pos", "pub_arb_vec1"]
 # enables tests becasue some take a long time to compile {
 uncategorized_tests = []
 cursor_manipulation = []
 edit_tests = []
+strip_trailing_whitespace_does_not_increase_the_amount_of_characters = []
+does_not_lose_characters = []
 included_files = []
 undo_redo = []
 inserting_then_deleting = []

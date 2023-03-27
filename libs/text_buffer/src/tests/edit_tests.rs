@@ -68,222 +68,225 @@ fn line_indicies_touched_by_counts_the_line_ahead_if_the_newline_is_included() {
     assert_eq!(line_indicies, expected);
 }
 
-// Non-breaking space =
-const NBSP: char = '\u{A0}';
-
-#[test]
-fn get_tab_in_edit_produces_the_expected_edit_from_this_buffer_with_different_leading_whitespace() {
-    let text = format!("0\n 1\n  2\n   3\n    4\n\n{0}\n{0}1\n {0}2\n", NBSP);
-
-    let mut buffer = t_b!(text.to_owned());
-    buffer.select_all();
-
-    let cursors = buffer.borrow_cursors();
-
-    let edit = get_tab_in_edit(&buffer.rope);
-
-    let expected = {
-        let new_chars =
-            "    0\n     1\n      2\n       3\n        4\n    \n     \n     1\n      2\n    "
-                .to_owned();
-
-        let new_rope = r!(new_chars);
-        let mut cursor = Cursor::new(last_position(&new_rope).unwrap());
-        cursor.set_highlight_position(Position {
-            offset: CharOffset(TAB_STR_CHAR_COUNT),
-            ..d!()
-        });
-
-        let insert_range = Some(RangeEdit {
-            range: AbsoluteCharOffsetRange::new(
-                d!(),
-                AbsoluteCharOffset(new_chars.chars().count()),
-            ),
-            chars: new_chars,
-        });
-
-        let delete_range = Some(RangeEdit {
-            range: AbsoluteCharOffsetRange::new(d!(), AbsoluteCharOffset(text.chars().count())),
-            chars: text,
-        });
-
-        edit_from_pieces(
-            Vec1::new(RangeEdits {
-                insert_range,
-                delete_range,
-            }),
-            Change {
-                new: Cursors::new(&new_rope, Vec1::new(cursor)),
-                old: (*cursors).clone(),
-            },
-        )
-    };
-
-    assert_eq!(edit, expected);
-}
-
-#[test]
-fn get_tab_in_edit_produces_the_expected_edit_with_multiple_cursors_in_this_buffer_with_different_leading_whitespace(
-) {
-    let text = format!("0\n 1\n  2\n   3\n    4\n\n{0}\n{0}1\n {0}2\n", NBSP);
-    let start_of_empty_line = pos! {l 5 o 0};
-
-    let mut buffer = t_b!(text.to_owned());
-    buffer.set_cursor(start_of_empty_line, ReplaceOrAdd::Add);
-    const RIGHT_COUNT: usize = 19;
-    for _ in 0..RIGHT_COUNT {
-        buffer.extend_selection_for_all_cursors(Move::Right);
-    }
-
-    //pre-condition
-    assert_eq!(
-        buffer.borrow_cursors(),
-        &Cursors::new(
-            buffer.borrow_rope(),
-            vec1![
-                cur! {
-                    l 9 o 0 h start_of_empty_line, ->|(Move::Right)
-                },
-                cur!(l 4 o 5 h l 0 o 0)
-            ]
-        )
-    );
-
-    let cursors = &buffer.borrow_cursors();
-
-    let edit = get_tab_in_edit(&buffer.rope);
-
-    let expected = {
-        // Many things here rely on the example text being ASCII.
-        const EXPECTED_TEXT: &'static str =
-            "    0\n     1\n      2\n       3\n        4\n    \n     \n     1\n      2\n    ";
-        const EXPECTED_CLEAVE_POINT: usize = RIGHT_COUNT + TAB_STR_CHAR_COUNT * 5;
-
-        let new_cursors = {
-            let expected_rope = r!(EXPECTED_TEXT.to_owned());
-            let mut first_cursor = Cursor::new(pos! {l 0, o TAB_STR_CHAR_COUNT});
-            let mut last_cursor = Cursor::new(start_of_empty_line);
-            for _ in 0..TAB_STR_CHAR_COUNT {
-                move_cursor::directly(&expected_rope, &mut last_cursor, Move::Right);
-            }
-
-            for _ in 0..EXPECTED_CLEAVE_POINT - TAB_STR_CHAR_COUNT {
-                move_cursor::and_extend_selection(&expected_rope, &mut first_cursor, Move::Right);
-                // we expect the last cursor to hit the end here.
-                move_cursor::and_extend_selection(&expected_rope, &mut last_cursor, Move::Right);
-            }
-            // but we don't actually want to require that
-            last_cursor.state = d!();
-
-            Cursors::new(
-                &expected_rope,
-                vec1![last_cursor.clone(), first_cursor.clone()],
-            )
-        };
-        dbg!(&new_cursors);
-        // precondition
-        assert_eq!(new_cursors.len(), 2);
-
-        let first_range_edits = {
-            let new_chars = (&EXPECTED_TEXT[..EXPECTED_CLEAVE_POINT]).to_owned();
-
+mod get_tab_in_edit_produces_the_expected {
+    use super::{*, assert_eq, dbg};
+    // Non-breaking space =
+    const NBSP: char = '\u{A0}';
+    
+    #[test]
+    fn edit_from_this_buffer_with_different_leading_whitespace() {
+        let text = format!("0\n 1\n  2\n   3\n    4\n\n{0}\n{0}1\n {0}2\n", NBSP);
+    
+        let mut buffer = t_b!(text.to_owned());
+        buffer.select_all();
+    
+        let cursors = buffer.borrow_cursors();
+    
+        let edit = get_tab_in_edit(&buffer.rope);
+    
+        let expected = {
+            let new_chars =
+                "    0\n     1\n      2\n       3\n        4\n    \n     \n     1\n      2\n    "
+                    .to_owned();
+    
+            let new_rope = r!(new_chars);
+            let mut cursor = Cursor::new(last_position(&new_rope).unwrap());
+            cursor.set_highlight_position(Position {
+                offset: CharOffset(TAB_STR_CHAR_COUNT),
+                ..d!()
+            });
+    
             let insert_range = Some(RangeEdit {
                 range: AbsoluteCharOffsetRange::new(
                     d!(),
-                    AbsoluteCharOffset(EXPECTED_CLEAVE_POINT),
+                    AbsoluteCharOffset(new_chars.chars().count()),
                 ),
                 chars: new_chars,
             });
-
+    
             let delete_range = Some(RangeEdit {
-                range: AbsoluteCharOffsetRange::new(d!(), AbsoluteCharOffset(RIGHT_COUNT)),
-                chars: (&text[..RIGHT_COUNT]).to_owned(),
+                range: AbsoluteCharOffsetRange::new(d!(), AbsoluteCharOffset(text.chars().count())),
+                chars: text,
             });
-            RangeEdits {
-                insert_range,
-                delete_range,
-            }
+    
+            edit_from_pieces(
+                Vec1::new(RangeEdits {
+                    insert_range,
+                    delete_range,
+                }),
+                Change {
+                    new: Cursors::new(&new_rope, Vec1::new(cursor)),
+                    old: (*cursors).clone(),
+                },
+            )
         };
-
-        let last_range_edits = {
-            const START_OF_SECOND_HIGHLIGHT: usize = RIGHT_COUNT + 1;
-            let chars = (&EXPECTED_TEXT[EXPECTED_CLEAVE_POINT + 1..]).to_owned();
-            let insert_range = Some(RangeEdit {
-                range: AbsoluteCharOffsetRange::new(
-                    AbsoluteCharOffset(START_OF_SECOND_HIGHLIGHT),
-                    AbsoluteCharOffset(START_OF_SECOND_HIGHLIGHT + chars.chars().count()),
-                ),
-                chars,
-            });
-
-            let delete_range = Some(RangeEdit {
-                range: AbsoluteCharOffsetRange::new(
-                    AbsoluteCharOffset(START_OF_SECOND_HIGHLIGHT),
-                    AbsoluteCharOffset(text.chars().count()),
-                ),
-                chars: (&text[START_OF_SECOND_HIGHLIGHT..]).to_owned(),
-            });
-            RangeEdits {
-                insert_range,
-                delete_range,
-            }
+    
+        assert_eq!(edit, expected);
+    }
+    
+    #[test]
+    fn edit_with_multiple_cursors_in_this_buffer_with_different_leading_whitespace(
+    ) {
+        let text = format!("0\n 1\n  2\n   3\n    4\n\n{0}\n{0}1\n {0}2\n", NBSP);
+        let start_of_empty_line = pos! {l 5 o 0};
+    
+        let mut buffer = t_b!(text.to_owned());
+        buffer.set_cursor(start_of_empty_line, ReplaceOrAdd::Add);
+        const RIGHT_COUNT: usize = 19;
+        for _ in 0..RIGHT_COUNT {
+            buffer.extend_selection_for_all_cursors(Move::Right);
+        }
+    
+        //pre-condition
+        assert_eq!(
+            buffer.borrow_cursors(),
+            &Cursors::new(
+                buffer.borrow_rope(),
+                vec1![
+                    cur! {
+                        l 9 o 0 h start_of_empty_line, ->|(Move::Right)
+                    },
+                    cur!(l 4 o 5 h l 0 o 0)
+                ]
+            )
+        );
+    
+        let cursors = &buffer.borrow_cursors();
+    
+        let edit = get_tab_in_edit(&buffer.rope);
+    
+        let expected = {
+            // Many things here rely on the example text being ASCII.
+            const EXPECTED_TEXT: &'static str =
+                "    0\n     1\n      2\n       3\n        4\n    \n     \n     1\n      2\n    ";
+            const EXPECTED_CLEAVE_POINT: usize = RIGHT_COUNT + TAB_STR_CHAR_COUNT * 5;
+    
+            let new_cursors = {
+                let expected_rope = r!(EXPECTED_TEXT.to_owned());
+                let mut first_cursor = Cursor::new(pos! {l 0, o TAB_STR_CHAR_COUNT});
+                let mut last_cursor = Cursor::new(start_of_empty_line);
+                for _ in 0..TAB_STR_CHAR_COUNT {
+                    move_cursor::directly(&expected_rope, &mut last_cursor, Move::Right);
+                }
+    
+                for _ in 0..EXPECTED_CLEAVE_POINT - TAB_STR_CHAR_COUNT {
+                    move_cursor::and_extend_selection(&expected_rope, &mut first_cursor, Move::Right);
+                    // we expect the last cursor to hit the end here.
+                    move_cursor::and_extend_selection(&expected_rope, &mut last_cursor, Move::Right);
+                }
+                // but we don't actually want to require that
+                last_cursor.state = d!();
+    
+                Cursors::new(
+                    &expected_rope,
+                    vec1![last_cursor.clone(), first_cursor.clone()],
+                )
+            };
+            dbg!(&new_cursors);
+            // precondition
+            assert_eq!(new_cursors.len(), 2);
+    
+            let first_range_edits = {
+                let new_chars = (&EXPECTED_TEXT[..EXPECTED_CLEAVE_POINT]).to_owned();
+    
+                let insert_range = Some(RangeEdit {
+                    range: AbsoluteCharOffsetRange::new(
+                        d!(),
+                        AbsoluteCharOffset(EXPECTED_CLEAVE_POINT),
+                    ),
+                    chars: new_chars,
+                });
+    
+                let delete_range = Some(RangeEdit {
+                    range: AbsoluteCharOffsetRange::new(d!(), AbsoluteCharOffset(RIGHT_COUNT)),
+                    chars: (&text[..RIGHT_COUNT]).to_owned(),
+                });
+                RangeEdits {
+                    insert_range,
+                    delete_range,
+                }
+            };
+    
+            let last_range_edits = {
+                const START_OF_SECOND_HIGHLIGHT: usize = RIGHT_COUNT + 1;
+                let chars = (&EXPECTED_TEXT[EXPECTED_CLEAVE_POINT + 1..]).to_owned();
+                let insert_range = Some(RangeEdit {
+                    range: AbsoluteCharOffsetRange::new(
+                        AbsoluteCharOffset(START_OF_SECOND_HIGHLIGHT),
+                        AbsoluteCharOffset(START_OF_SECOND_HIGHLIGHT + chars.chars().count()),
+                    ),
+                    chars,
+                });
+    
+                let delete_range = Some(RangeEdit {
+                    range: AbsoluteCharOffsetRange::new(
+                        AbsoluteCharOffset(START_OF_SECOND_HIGHLIGHT),
+                        AbsoluteCharOffset(text.chars().count()),
+                    ),
+                    chars: (&text[START_OF_SECOND_HIGHLIGHT..]).to_owned(),
+                });
+                RangeEdits {
+                    insert_range,
+                    delete_range,
+                }
+            };
+    
+            edit_from_pieces(
+                vec1![last_range_edits, first_range_edits],
+                Change {
+                    new: new_cursors,
+                    old: (*cursors).clone(),
+                },
+            )
         };
-
-        edit_from_pieces(
-            vec1![last_range_edits, first_range_edits],
-            Change {
-                new: new_cursors,
-                old: (*cursors).clone(),
-            },
-        )
-    };
-
-    assert_eq!(edit, expected);
-}
-
-#[test]
-fn get_tab_in_edit_produces_the_expected_change_when_two_cursors_are_on_the_same_line_in_this_case() {
-    let text = format!("0\n  2\n");
-
-    let mut buffer = t_b!(text.to_owned());
-    buffer.set_cursor(pos! {l 1 o 2}, ReplaceOrAdd::Add);
-    const RIGHT_COUNT: usize = 3;
-    for _ in 0..RIGHT_COUNT {
-        buffer.extend_selection_for_all_cursors(Move::Right);
+    
+        assert_eq!(edit, expected);
     }
-
-    let edit = get_tab_in_edit(&buffer.rope);
-
-    dbg!(&edit);
-
-    apply_edit(&mut buffer.rope, &edit, None);
-
-    let s: String = buffer.borrow_rope().into();
-    //2 + (2 * 4) = 10 ___1234567890
-    assert_eq!(s, "    0\n          2\n    ");
-}
-
-#[test]
-fn get_tab_in_edit_produces_the_expected_change_when_three_cursors_are_on_the_same_line_in_this_case() {
-    let text = format!("0\n       7\n");
-
-    let mut buffer = t_b!(text.to_owned());
-    buffer.set_cursor(pos! {l 1 o 2}, ReplaceOrAdd::Add);
-    buffer.set_cursor(pos! {l 1 o 6}, ReplaceOrAdd::Add);
-    const RIGHT_COUNT: usize = 3;
-    for _ in 0..RIGHT_COUNT {
-        buffer.extend_selection_for_all_cursors(Move::Right);
+    
+    #[test]
+    fn change_when_two_cursors_are_on_the_same_line_in_this_case() {
+        let text = format!("0\n  2\n");
+    
+        let mut buffer = t_b!(text.to_owned());
+        buffer.set_cursor(pos! {l 1 o 2}, ReplaceOrAdd::Add);
+        const RIGHT_COUNT: usize = 3;
+        for _ in 0..RIGHT_COUNT {
+            buffer.extend_selection_for_all_cursors(Move::Right);
+        }
+    
+        let edit = get_tab_in_edit(&buffer.rope);
+    
+        dbg!(&edit);
+    
+        apply_edit(&mut buffer.rope, &edit, None);
+    
+        let s: String = buffer.borrow_rope().into();
+        //2 + (2 * 4) = 10 ___1234567890
+        assert_eq!(s, "    0\n          2\n    ");
     }
-
-    let edit = get_tab_in_edit(&buffer.rope);
-
-    dbg!(&edit);
-
-    apply_edit(&mut buffer.rope, &edit, None);
-
-    let s: String = buffer.borrow_rope().into();
-    //7 + (3 * 4) = 19 ___1234567890123456789
-    assert_eq!(s, "    0\n                   7\n    ");
+    
+    #[test]
+    fn change_when_three_cursors_are_on_the_same_line_in_this_case() {
+        let text = format!("0\n       7\n");
+    
+        let mut buffer = t_b!(text.to_owned());
+        buffer.set_cursor(pos! {l 1 o 2}, ReplaceOrAdd::Add);
+        buffer.set_cursor(pos! {l 1 o 6}, ReplaceOrAdd::Add);
+        const RIGHT_COUNT: usize = 3;
+        for _ in 0..RIGHT_COUNT {
+            buffer.extend_selection_for_all_cursors(Move::Right);
+        }
+    
+        let edit = get_tab_in_edit(&buffer.rope);
+    
+        dbg!(&edit);
+    
+        apply_edit(&mut buffer.rope, &edit, None);
+    
+        let s: String = buffer.borrow_rope().into();
+        //7 + (3 * 4) = 19 ___1234567890123456789
+        assert_eq!(s, "    0\n                   7\n    ");
+    }
 }
 
 #[test]
@@ -529,92 +532,100 @@ fn get_last_non_white_space_offset_in_range_works_on_these_examples() {
     assert_eq!(lines.next(), None, "test all the cases!");
 }
 
-fn tab_in_preserves_line_count_on(mut buffer: TextBuffer) {
-    let line_count = buffer.borrow_rope().len_lines();
-
-    for i in 0..SOME_AMOUNT {
-        TestEdit::apply(&mut buffer, TestEdit::TabIn);
-
-        assert_eq!(line_count, buffer.borrow_rope().len_lines(), "iteration {}", i);
+mod tab_in_preserves_line_count {
+    use super::{*, assert_eq};
+    
+    fn on(mut buffer: TextBuffer) {
+        let line_count = buffer.borrow_rope().len_lines();
+    
+        for i in 0..SOME_AMOUNT {
+            TestEdit::apply(&mut buffer, TestEdit::TabIn);
+    
+            assert_eq!(line_count, buffer.borrow_rope().len_lines(), "iteration {}", i);
+        }
     }
-}
+    
+    proptest! {
+        #[test]
+        fn tab_in_preserves_line_count(
+            buffer in arb::text_buffer_with_many_cursors(),
+        ) {
+            on(buffer);
+        }
+    }
 
-proptest! {
     #[test]
-    fn tab_in_preserves_line_count(
-        buffer in arb::text_buffer_with_many_cursors(),
-    ) {
-        tab_in_preserves_line_count_on(buffer);
+    fn on_the_empty_rope() {
+        on(t_b!(""));
     }
 }
 
-#[test]
-fn tab_in_preserves_line_count_on_the_empty_rope() {
-    tab_in_preserves_line_count_on(t_b!(""));
-}
+mod tab_out_preserves_line_count {
+    use super::{*, assert_eq, dbg};
 
-fn tab_out_preserves_line_count_on(mut buffer: TextBuffer) {
-    let line_count = buffer.borrow_rope().len_lines();
-
-    for i in 0..SOME_AMOUNT {
-        TestEdit::apply(&mut buffer, TestEdit::TabOut);
-
-        assert_eq!(
-            line_count,
-            buffer.borrow_rope().len_lines(),
-            "iteration {}, rope: {:?}",
-            i,
-            buffer.rope
-        );
+    fn on(mut buffer: TextBuffer) {
+        let line_count = buffer.borrow_rope().len_lines();
+    
+        for i in 0..SOME_AMOUNT {
+            TestEdit::apply(&mut buffer, TestEdit::TabOut);
+    
+            assert_eq!(
+                line_count,
+                buffer.borrow_rope().len_lines(),
+                "iteration {}, rope: {:?}",
+                i,
+                buffer.rope
+            );
+        }
     }
-}
-
-proptest! {
+    
+    proptest! {
+        #[test]
+        fn tab_out_preserves_line_count(
+            buffer in arb::text_buffer_with_many_cursors(),
+        ) {
+            on(buffer);
+        }
+    }
+    
     #[test]
-    fn tab_out_preserves_line_count(
-        buffer in arb::text_buffer_with_many_cursors(),
-    ) {
-        tab_out_preserves_line_count_on(buffer);
+    fn on_the_empty_rope() {
+        on(t_b!(""));
     }
-}
-
-#[test]
-fn tab_out_preserves_line_count_on_the_empty_rope() {
-    tab_out_preserves_line_count_on(t_b!(""));
-}
-
-#[test]
-fn tab_out_preserves_line_count_on_this_generated_example() {
-    let mut buffer = t_b!("�<AGL");
-
-    buffer.set_cursors_from_vec1(vec1![
-        Cursor::new_with_highlight(pos! {l 1 o 4}, pos! {l 2 o 0}),
-        Cursor::new_with_highlight(pos! {l 1 o 3}, pos! {l 0 o 0})
-    ]);
-
-    tab_out_preserves_line_count_on(buffer);
-}
-
-#[test]
-fn tab_out_preserves_line_count_on_this_shorter_generated_example() {
-    let mut buffer = t_b!("\u{2028}");
-    buffer.set_cursors_from_vec1(vec1![Cursor::new_with_highlight(
-        pos! {l 0 o 0},
-        pos! {l 5 o 10}
-    )]);
-
-    tab_out_preserves_line_count_on(buffer);
-}
-
-#[test]
-fn tab_out_preserves_line_count_on_this_reduced_example() {
-    let mut buffer = t_b!("\n");
-    buffer.set_cursors_from_vec1(vec1![Cursor::new_with_highlight(
-        pos! {l 0 o 0},
-        pos! {l 3 o 0}
-    )]);
-
-    tab_out_preserves_line_count_on(buffer);
+    
+    #[test]
+    fn on_this_generated_example() {
+        let mut buffer = t_b!("�<AGL");
+    
+        buffer.set_cursors_from_vec1(vec1![
+            Cursor::new_with_highlight(pos! {l 1 o 4}, pos! {l 2 o 0}),
+            Cursor::new_with_highlight(pos! {l 1 o 3}, pos! {l 0 o 0})
+        ]);
+    
+        on(buffer);
+    }
+    
+    #[test]
+    fn on_this_shorter_generated_example() {
+        let mut buffer = t_b!("\u{2028}");
+        buffer.set_cursors_from_vec1(vec1![Cursor::new_with_highlight(
+            pos! {l 0 o 0},
+            pos! {l 5 o 10}
+        )]);
+    
+        on(buffer);
+    }
+    
+    #[test]
+    fn on_this_reduced_example() {
+        let mut buffer = t_b!("\n");
+        buffer.set_cursors_from_vec1(vec1![Cursor::new_with_highlight(
+            pos! {l 0 o 0},
+            pos! {l 3 o 0}
+        )]);
+    
+        on(buffer);
+    }
 }
 
 fn tab_in_then_tab_out_is_identity_on_regarding_ropes(initial_buffer: TextBuffer) {
@@ -875,60 +886,64 @@ proptest! {
     }
 }
 
-fn tab_out_preserves_non_white_space_on(mut buffer: TextBuffer) {
-    let expected: String = buffer.borrow_rope().chars()
-        .filter(|c| !c.is_whitespace()).collect();
+mod tab_out_preserves_non_white_space {
+    use super::{*, assert_eq, dbg};
 
-    for i in 0..SOME_AMOUNT {
-        TestEdit::apply(&mut buffer, TestEdit::TabOut);
-
-        let actual: String = buffer.borrow_rope().chars()
+    fn on(mut buffer: TextBuffer) {
+        let expected: String = buffer.borrow_rope().chars()
             .filter(|c| !c.is_whitespace()).collect();
-
-        assert_eq!(actual, expected, "iteration {}", i);
+    
+        for i in 0..SOME_AMOUNT {
+            TestEdit::apply(&mut buffer, TestEdit::TabOut);
+    
+            let actual: String = buffer.borrow_rope().chars()
+                .filter(|c| !c.is_whitespace()).collect();
+    
+            assert_eq!(actual, expected, "iteration {}", i);
+        }
     }
-}
-
-proptest! {
+    
+    proptest! {
+        #[test]
+        fn tab_out_preserves_non_white_space(
+            buffer in arb::text_buffer_with_many_cursors(),
+        ) {
+            on(buffer);
+        }
+    }
+    
     #[test]
-    fn tab_out_preserves_non_white_space(
-        buffer in arb::text_buffer_with_many_cursors(),
-    ) {
-        tab_out_preserves_non_white_space_on(buffer);
+    fn on_this_generated_example() {
+        let mut buffer = t_b!(" 2b");
+        buffer.set_cursors_from_vec1(vec1![
+            Cursor::new(pos! {l 2 o 0}),
+            Cursor::new_with_highlight(pos! {l 1 o 24}, pos! {l 0 o 1})
+        ]);
+    
+        on(buffer);
     }
-}
-
-#[test]
-fn tab_out_preserves_non_white_space_on_this_generated_example() {
-    let mut buffer = t_b!(" 2b");
-    buffer.set_cursors_from_vec1(vec1![
-        Cursor::new(pos! {l 2 o 0}),
-        Cursor::new_with_highlight(pos! {l 1 o 24}, pos! {l 0 o 1})
-    ]);
-
-    tab_out_preserves_non_white_space_on(buffer);
-}
-
-#[test]
-fn tab_out_preserves_non_white_space_on_this_reduced_example() {
-    let mut buffer = t_b!(" 2b");
-    buffer.set_cursors_from_vec1(vec1![Cursor::new_with_highlight(
-        pos! {l 1 o 1},
-        pos! {l 0 o 1}
-    )]);
-
-    tab_out_preserves_non_white_space_on(buffer);
-}
-
-#[test]
-fn tab_out_preserves_non_white_space_on_this_reduced_in_a_different_way_example() {
-    let mut buffer = t_b!(" 2b");
-    buffer.set_cursors_from_vec1(vec1![Cursor::new_with_highlight(
-        pos! {l 1 o 0},
-        pos! {l 0 o 1}
-    )]);
-
-    tab_out_preserves_non_white_space_on(buffer);
+    
+    #[test]
+    fn on_this_reduced_example() {
+        let mut buffer = t_b!(" 2b");
+        buffer.set_cursors_from_vec1(vec1![Cursor::new_with_highlight(
+            pos! {l 1 o 1},
+            pos! {l 0 o 1}
+        )]);
+    
+        on(buffer);
+    }
+    
+    #[test]
+    fn on_this_reduced_in_a_different_way_example() {
+        let mut buffer = t_b!(" 2b");
+        buffer.set_cursors_from_vec1(vec1![Cursor::new_with_highlight(
+            pos! {l 1 o 0},
+            pos! {l 0 o 1}
+        )]);
+    
+        on(buffer);
+    }
 }
 
 mod strip_trailing_whitespace_preserves_line_count {
@@ -1339,566 +1354,6 @@ fn get_insert_edit_produces_the_expected_edit_on_this_multi_cursor_cr_lf_example
     assert_eq!(edit, expected);
 }
 
-mod does_not_lose_characters {
-    use super::{*, assert_eq, dbg};
-    fn on<TestEdits: Borrow<[TestEdit]>>(
-        initial_buffer: TextBuffer,
-        edits: TestEdits,
-    ) {
-        let mut counts = get_counts(&initial_buffer);
-        let mut buffer = deep_clone(&initial_buffer);
-    
-        for edit in edits.borrow().iter() {
-            TestEdit::apply_with_counts(&mut buffer, &mut counts, edit);
-        }
-    
-        counts.retain(|_, v| *v != 0);
-    
-        counts_assert!(buffer, counts);
-    }
-
-    proptest! {
-        #[test]
-        fn test_spec_all((buffer, edits) in arb::text_buffer_and_test_edits(SOME_AMOUNT, TestEditSpec::All)) {
-            on(buffer, edits);
-        }
-    
-        #[test]
-        fn inserts((buffer, edits) in arb::text_buffer_and_test_edits(SOME_AMOUNT, TestEditSpec::Insert)) {
-            on(buffer, edits);
-        }
-    
-        #[test]
-        fn non_control_inserts((buffer, edits) in arb::text_buffer_and_test_edits(SOME_AMOUNT, TestEditSpec::RegexInsert("\\PC"))) {
-            on(buffer, edits);
-        }
-    
-        #[test]
-        fn non_cr_inserts((buffer, edits) in arb::text_buffer_and_test_edits(SOME_AMOUNT, TestEditSpec::RegexInsert("[^\r]"))) {
-            on(buffer, edits);
-        }
-    
-        #[test]
-        fn set_cursor_heavy((buffer, edits) in arb::text_buffer_and_test_edits(SOME_AMOUNT, TestEditSpec::SetCursorHeavy)) {
-            on(buffer, edits);
-        }
-    
-        #[test]
-        fn tab_in_out_heavy((buffer, edits) in arb::text_buffer_and_test_edits(SOME_AMOUNT, TestEditSpec::TabInOutHeavy)) {
-            on(buffer, edits);
-        }
-    
-        #[test]
-        fn delete_and_tab_in_out_heavy((buffer, edits) in arb::text_buffer_and_test_edits(SOME_AMOUNT, TestEditSpec::DeleteAndTabInOutHeavy)) {
-            on(buffer, edits);
-        }
-    
-        #[test]
-        fn delete_then_tab_out(buffer in arb::text_buffer_with_valid_cursors(), edits in arb::test_edit_delete_then_tab_out_vec()) {
-            on(buffer, edits);
-        }
-    }
-
-    #[test]
-    fn in_this_generated_case() {
-        use TestEdit::*;
-        on(
-            t_b!(""),
-            [InsertString("\u{b}".to_string()), DragCursors(pos!{l 0 o 0}), TabIn]
-        );
-    }
-    
-    #[test]
-    fn in_this_reduced_generated_case() {
-        use TestEdit::*;
-    
-        let mut buffer = t_b!("");
-        let mut counts = get_counts(&buffer);
-    
-    
-        dbg!(get_counts(&buffer), &counts);
-        TestEdit::apply_with_counts(&mut buffer, &mut counts, &InsertString("\n".to_string()));
-        dbg!(get_counts(&buffer), &counts);
-        TestEdit::apply_with_counts(&mut buffer, &mut counts, &DragCursors(pos!{l 0 o 0}));
-        dbg!(&buffer);
-        dbg!(get_counts(&buffer), &counts);
-        TestEdit::apply_with_counts(&mut buffer, &mut counts, &TabIn);
-        dbg!(get_counts(&buffer), &counts);
-    
-        counts.retain(|_, v| *v != 0);
-    
-        counts_assert!(buffer, counts);
-    }
-    
-    #[test]
-    fn in_this_tab_in_tab_in_tab_out_case() {
-        use TestEdit::*;
-        on(
-            t_b!(""),
-            [TabIn, TabIn, TabOut]
-        );
-    }
-    
-    #[test]
-    fn in_this_extend_selection_case() {
-        use TestEdit::*;
-        on(
-            t_b!(""),
-            [
-                InsertString("\u{b}\t".to_owned()),
-                ExtendSelectionForAllCursors(Move::ToBufferStart),
-                TabIn
-            ]
-        );
-    }
-    
-    #[test]
-    fn in_this_reduced_extend_selection_case() {
-        use TestEdit::*;
-    
-        let mut buffer = t_b!("");
-        let mut counts = get_counts(&buffer);
-    
-    
-        dbg!(get_counts(&buffer), &counts);
-        TestEdit::apply_with_counts(&mut buffer, &mut counts, &InsertString("\u{b}\t".to_owned()));
-        dbg!(get_counts(&buffer), &counts);
-        TestEdit::apply_with_counts(&mut buffer, &mut counts, &ExtendSelectionForAllCursors(Move::ToBufferStart));
-        dbg!(&buffer);
-        dbg!(get_counts(&buffer), &counts);
-        TestEdit::apply_with_counts(&mut buffer, &mut counts, &TabIn);
-        dbg!(get_counts(&buffer), &counts);
-    
-        counts.retain(|_, v| *v != 0);
-    
-        counts_assert!(buffer, counts);
-    }
-    
-    #[test]
-    fn in_this_further_reduced_extend_selection_case() {
-        use TestEdit::*;
-    
-        let mut buffer = t_b!("");
-        let mut counts = get_counts(&buffer);
-    
-    
-        dbg!(get_counts(&buffer), &counts);
-        TestEdit::apply_with_counts(&mut buffer, &mut counts, &InsertString("\u{b}\t".to_owned()));
-        dbg!(get_counts(&buffer), &counts);
-        TestEdit::apply_with_counts(&mut buffer, &mut counts, &ExtendSelectionForAllCursors(Move::ToBufferStart));
-        dbg!(&buffer);
-        dbg!(get_counts(&buffer), &counts);
-        TestEdit::apply_with_counts(&mut buffer, &mut counts, &TabIn);
-        dbg!(get_counts(&buffer), &counts);
-    
-        counts.retain(|_, v| *v != 0);
-    
-        counts_assert!(buffer, counts);
-    }
-    
-    #[test]
-    fn in_this_delete_lines_case() {
-        use TestEdit::*;
-        use ReplaceOrAdd::*;
-        let mut buffer = t_b!("\u{2028}ૠ�🌀");
-    
-        buffer.set_cursor(cur!{l 0 o 0 h l 1 o 0}, Replace);
-        on(
-            buffer,
-            [DeleteLines]
-        );
-    }
-    
-    #[test]
-    fn in_this_reduced_delete_lines_case() {
-        use TestEdit::*;
-        use ReplaceOrAdd::*;
-        let mut buffer = t_b!("\na");
-    
-        buffer.set_cursor(cur!{l 0 o 0 h l 1 o 0}, Replace);
-        on(
-            buffer,
-            [DeleteLines]
-        );
-    }
-    
-    #[test]
-    fn in_this_single_newline_delete_lines_case() {
-        use TestEdit::*;
-    
-        on(
-            t_b!("\n"),
-            [DeleteLines]
-        );
-    }
-    
-    #[test]
-    fn in_this_more_complicated_delete_lines_case() {
-        use TestEdit::*;
-    
-        on(
-            t_b!("a"),
-            [
-                Insert('\n'),
-                InsertString("\\\u{b}\u{b}\\".to_string()),
-                SetCursor(pos!{l 3 o 2}, ReplaceOrAdd::Add),
-                DeleteLines
-            ]
-        );
-    }
-    
-    #[test]
-    fn in_this_reduced_more_complicated_delete_lines_case() {
-        use TestEdit::*;
-    
-        let mut buffer = t_b!("\n\\\u{b}\u{b}\\a", vec1![
-            cur!{l 3 o 2},
-            cur!{l 3 o 1}
-        ]);
-        let mut counts = get_counts(&buffer);
-    
-        dbg!(get_counts(&buffer), &counts);
-        dbg!(&buffer);
-        TestEdit::apply_with_counts(&mut buffer, &mut counts, &DeleteLines);
-        dbg!(get_counts(&buffer), &counts);
-        dbg!(&buffer);
-    
-        counts.retain(|_, v| *v != 0);
-    
-        counts_assert!(buffer, counts);
-    }
-    
-    #[test]
-    fn in_this_further_reduced_more_complicated_delete_lines_case() {
-        use TestEdit::*;
-    
-        let mut buffer = t_b!("\n\\\n\n\\a", vec1![
-            cur!{l 3 o 2},
-            cur!{l 3 o 1}
-        ]);
-        let mut counts = get_counts(&buffer);
-    
-        dbg!(get_counts(&buffer), &counts);
-        dbg!(&buffer);
-        TestEdit::apply_with_counts(&mut buffer, &mut counts, &DeleteLines);
-        dbg!(get_counts(&buffer), &counts);
-        dbg!(&buffer);
-    
-        counts.retain(|_, v| *v != 0);
-    
-        counts_assert!(buffer, counts);
-    }
-    
-    #[test]
-    fn in_minimal_tab_in_case() {
-        use TestEdit::*;
-        on(
-            t_b!(""),
-            [TabIn]
-        );
-    }
-    
-    #[test]
-    fn in_this_tab_in_case() {
-        use TestEdit::*;
-        use ReplaceOrAdd::*;
-        let mut buffer = t_b!("\u{a0}");
-    
-        let mut cursor = cur!{l 0 o 1 h l 0 o 0};
-        cursor.sticky_offset = CharOffset(0);
-    
-        buffer.set_cursor(cursor, Replace);
-        on(
-            buffer,
-            [TabIn]
-        );
-    }
-    
-    #[test]
-    fn in_this_reduced_tab_in_case() {
-        use TestEdit::*;
-        use ReplaceOrAdd::*;
-        let mut buffer = t_b!("\u{a0}");
-    
-        let mut cursor = cur!{l 0 o 1 h l 0 o 0};
-        cursor.sticky_offset = CharOffset(0);
-    
-        buffer.set_cursor(cursor, Replace);
-        let mut counts = get_counts(&buffer);
-    
-        TestEdit::apply_with_counts(&mut buffer, &mut counts, &TabIn);
-    
-        counts.retain(|_, v| *v != 0);
-    
-        counts_assert!(buffer, counts);
-    }
-    
-    
-    #[test]
-    fn in_this_delete_then_tab_in_case() {
-        use TestEdit::*;
-        use ReplaceOrAdd::*;
-        use Move::*;
-        let mut buffer = t_b!("\u{a0}");
-    
-        let mut cursor = cur!{l 0 o 1 h l 0 o 0};
-        cursor.sticky_offset = CharOffset(0);
-    
-        buffer.set_cursor(cursor, Replace);
-        on(
-            buffer,
-            [
-                SetCursor(pos!{l 0 o 0}, Add),
-                ExtendSelectionForAllCursors(Up),
-                ExtendSelectionForAllCursors(Left),
-                Delete,
-                SetCursor(pos!{l 0 o 2}, Add),
-                ExtendSelectionForAllCursors(Up),
-                ExtendSelectionForAllCursors(Left),
-                TabIn
-            ]
-        );
-    }
-    
-    #[test]
-    fn in_this_two_space_then_zero_delete_then_tab_in_case() {
-        use TestEdit::*;
-        use ReplaceOrAdd::*;
-        use Move::*;
-        let buffer = t_b!("  0");
-    
-        on(
-            buffer,
-            [
-                SetCursor(pos!{l 0 o 0}, Add),
-                ExtendSelectionForAllCursors(Up),
-                ExtendSelectionForAllCursors(Left),
-                Delete,
-                SetCursor(pos!{l 0 o 2}, Add),
-                ExtendSelectionForAllCursors(Up),
-                ExtendSelectionForAllCursors(Left),
-                TabIn
-            ]
-        );
-    }
-    
-    #[test]
-    fn in_this_reduced_two_space_then_zero_delete_then_tab_in_case() {
-        use TestEdit::*;
-        use ReplaceOrAdd::*;
-        use Move::*;
-        let initial_buffer = t_b!("  0");
-    
-        let mut counts = get_counts(&initial_buffer);
-        let mut buffer = deep_clone(&initial_buffer);
-    
-        let edits = [
-                SetCursor(pos!{l 0 o 0}, Add),
-                SetCursor(pos!{l 0 o 2}, Add),
-                ExtendSelectionForAllCursors(Left),
-                TabIn
-            ];
-    
-        for edit in edits.iter() {
-            TestEdit::apply_with_counts(&mut buffer, &mut counts, edit);
-        }
-    
-        counts.retain(|_, v| *v != 0);
-    
-        counts_assert!(buffer, counts);
-    }
-    
-    #[test]
-    fn in_this_duplicate_lines_case() {
-        use TestEdit::*;
-        use ReplaceOrAdd::*;
-        on(
-            t_b!(" "),
-            [SetCursor(pos!{l 0 o 1}, Add), DuplicateLines]
-        );
-    }
-    
-    #[test]
-    fn in_this_duplicate_lines_vertical_tab_case() {
-        use TestEdit::*;
-        use Move::*;
-        on(
-            t_b!(""),
-            [InsertString("\u{b}\u{b}".to_string()), MoveAllCursors(ToBufferEnd), Delete, DuplicateLines]
-        );
-    }
-    
-    #[test]
-    fn in_this_toggle_case_case() {
-        use TestEdit::*;
-        use Move::*;
-        on(
-            t_b!("abc"),
-            [ToggleCase]
-        );
-    }
-    
-    #[test]
-    fn in_this_toggle_case_tab_out_case() {
-        use TestEdit::*;
-        use Move::*;
-        let mut buffer = t_b!("abc");
-        buffer.select_all();
-    
-        on(
-            buffer,
-            [ToggleCase, TabOut]
-        );
-    }
-    
-    #[test]
-    fn in_this_unicode_toggle_case_tab_out_case() {
-        use TestEdit::*;
-        use Move::*;
-        let mut buffer = t_b!("a\u{119da}");
-        buffer.select_all();
-    
-        on(
-            buffer,
-            [ToggleCase, TabOut]
-        );
-    }
-    
-    #[test]
-    fn in_this_unicode_toggle_case_case() {
-        use TestEdit::*;
-        use Move::*;
-        let mut buffer = t_b!("a\u{119da}");
-        buffer.select_all();
-    
-        {
-            // TODO move to separate test, or delete.
-            let mut buffer = buffer.clone();
-            let mut counts = get_counts(&buffer);
-            TestEdit::apply_with_counts(&mut buffer, &mut counts, &ToggleCase);
-            std::dbg!(&counts);
-            assert_eq!(buffer.borrow_rope(), Rope::from("A\u{119da}"));
-        }
-    
-        on(
-            buffer,
-            [ToggleCase]
-        );
-    }
-
-    #[test]
-    fn in_this_two_wide_selection_tab_in_case() {
-        use TestEdit::*;
-        use ReplaceOrAdd::*;
-        let mut buffer = t_b!("!\u{2000}");
-    
-        let mut cursor = cur!{l 0 o 2 h l 0 o 0};
-        cursor.sticky_offset = d!();
-        buffer.set_cursor(cursor, Replace);
-    
-        let mut counts = get_counts(&buffer);
-    
-        dbg!(&counts);
-        TestEdit::apply_with_counts(&mut buffer, &mut counts, &TabIn);
-        dbg!(&counts);
-    
-        counts.retain(|_, v| *v != 0);
-    
-        counts_assert!(buffer, counts);
-    }
-    
-    #[test]
-    fn in_this_two_tab_in_case() {
-        use TestEdit::*;
-        use ReplaceOrAdd::*;
-        let mut buffer = t_b!("A");
-    
-        buffer.set_cursor(cur!{l 0 o 0 h l 0 o 1}, Replace);
-    
-        let mut counts = get_counts(&buffer);
-    
-        dbg!(&counts);
-        TestEdit::apply_with_counts(&mut buffer, &mut counts, &TabIn);
-        dbg!(&counts);
-        TestEdit::apply_with_counts(&mut buffer, &mut counts, &SetCursor(pos!{l 0 o 0}, Add));
-        dbg!(&counts);
-        TestEdit::apply_with_counts(&mut buffer, &mut counts, &TabIn);
-        dbg!(&counts);
-        counts.retain(|_, v| *v != 0);
-    
-        counts_assert!(buffer, counts);
-    }
-    
-    #[test]
-    fn in_this_no_insert_auto_indent_case() {
-        use TestEdit::*;
-        on(
-            t_b!("123"),
-            [AutoIndentSelection]
-        );
-    }
-    
-    
-    #[test]
-    fn in_this_basic_auto_indent_case() {
-        use TestEdit::*;
-        on(
-            t_b!(""),
-            [Insert('a'), AutoIndentSelection]
-        );
-    }
-    
-    #[test]
-    fn in_this_basic_auto_indent_case_reduction() {
-        use TestEdit::*;
-        let initial_buffer = t_b!("");
-        let mut counts = get_counts(&initial_buffer);
-        let mut buffer = deep_clone(&initial_buffer);
-    
-        TestEdit::apply_with_counts(&mut buffer, &mut counts, &Insert('a'));
-        TestEdit::apply_with_counts(&mut buffer, &mut counts, &AutoIndentSelection);
-    
-        counts.retain(|_, v| *v != 0);
-    
-        counts_assert!(buffer, counts);
-    }
-    
-    #[test]
-    fn in_this_set_cursor_heavy_case() {
-        use TestEdit::*;
-        use ReplaceOrAdd::*;
-        let mut buffer = t_b!("a ");
-        buffer.set_cursor(cur!{l 0 o 0 h l 0 o 1}, Replace);
-        on(
-            buffer,
-            [SetCursor(pos!{l 0 o 2}, Add), Delete]
-        );
-    }
-    
-    #[test]
-    fn in_this_tab_out_then_in_case() {
-        use TestEdit::*;
-        use ReplaceOrAdd::*;
-        let mut buffer = t_b!("!\u{2000}");
-    
-        let mut cursor = cur!{l 0 o 1 h l 0 o 0};
-        cursor.sticky_offset = CharOffset(0);
-    
-        buffer.set_cursor(cursor, Replace);
-    
-        let mut counts = get_counts(&buffer);
-    
-        dbg!(&counts);
-        TestEdit::apply_with_counts(&mut buffer, &mut counts, &TabOut);
-        dbg!(&counts);
-        TestEdit::apply_with_counts(&mut buffer, &mut counts, &TabIn);
-        dbg!(&counts);
-        counts.retain(|_, v| *v != 0);
-    
-        counts_assert!(buffer, counts);
-    }
-}
-
 #[test]
 fn toggle_case_does_what_is_expected_with_this_unicode_selection() {
     use TestEdit::*;
@@ -2003,7 +1458,7 @@ fn this_tab_in_edit_does_what_is_expected_with_this_selection() {
 }
 
 #[test]
-fn get_tab_in_edit_produces_the_expected_edit_with_this_selection() {
+fn edit_with_this_selection() {
     use ReplaceOrAdd::*;
     let mut buffer = t_b!(" 0");
     buffer.set_cursor(cur!{l 0 o 1 h l 0 o 0}, Replace);
@@ -2317,87 +1772,3 @@ fn delete_lines_deletes_the_expected_amount_of_lines_in_this_reduced_less_small_
     );
 }
 
-mod strip_trailing_whitespace_does_not_increase_the_amount_of_characters {
-    use super::{assert_eq, *};
-
-    fn on(mut buffer: TextBuffer) {
-        let initial_string = String::from(&buffer);
-        let initial_counts = get_normalized_newline_counts(&buffer);
-
-        TestEdit::apply(&mut buffer, TestEdit::StripTrailingWhitespace);
-
-        let final_counts = get_normalized_newline_counts(&buffer);
-
-        for c in final_counts.keys() {
-            assert!(
-                initial_counts.get(c).is_some(),
-                r#"
-                {c:?} was unexpectedly added by stripping trailng whitespace
-                initial:
-                {initial_string:?}
-                final:
-                {:?}
-                "#,
-                String::from(&buffer)
-            );
-        }
-
-        assert!(
-            initial_counts.keys().count() >= final_counts.keys().count()
-        );
-
-        for c in initial_counts.keys() {
-            let initial_count = initial_counts.get(c).unwrap();
-            if let Some(final_count) = final_counts.get(c) {
-                if *c == '\n' {
-                    assert!(
-                        initial_count >= final_count,
-                        r#"final count for linebreak characters was {final_count},
-                        which is more than the initial count of {initial_count}
-                        initial:
-                        {initial_string:?}
-                        final:
-                        {:?}
-                        "#,
-                        String::from(&buffer)
-                    );
-                } else {
-                    assert!(
-                        initial_count >= final_count,
-                        r#"final count for {c:?} was {final_count},
-                        which is more than the initial count of {initial_count}
-                        initial:
-                        {initial_string:?}
-                        final:
-                        {:?}
-                        "#,
-                        String::from(&buffer)
-                    );
-                }
-            }
-        }
-    }
-
-    proptest! {
-        #[test]
-        fn strip_trailing_whitespace_does_not_increase_the_amount_of_characters(
-            buffer in arb::text_buffer_with_many_cursors(),
-        ) {
-            on(buffer);
-        }
-    }
-
-    #[test]
-    fn on_this_simple_generated_example() {
-        let mut buffer = t_b!("\u{2029}");
-        buffer.set_cursor(cur!{l 1 o 0 h l 0 o 0}, ReplaceOrAdd::Replace);
-        on(buffer);
-    }
-
-    #[test]
-    fn on_this_complex_generated_example() {
-        let mut buffer = t_b!("+\r\u{3e7ae}/�I\u{b}");
-        buffer.set_cursor(cur!{l 0 o 1}, ReplaceOrAdd::Add);
-        on(buffer);
-    }
-}

@@ -85,6 +85,10 @@ mod cursor_manipulation;
 #[cfg(feature = "edit_tests")]
 /// TODO? Not all edit tests are here now. So this could use a rename.
 mod edit_tests;
+#[cfg(feature = "strip_trailing_whitespace_does_not_increase_the_amount_of_characters")]
+mod strip_trailing_whitespace_does_not_increase_the_amount_of_characters;
+#[cfg(feature = "does_not_lose_characters")]
+mod does_not_lose_characters;
 #[cfg(feature = "included_files")]
 mod included_files;
 #[cfg(feature = "undo_redo")]
