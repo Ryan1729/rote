@@ -99,10 +99,7 @@ mod floating_point_tests {
     use super::*;
     use proptest::proptest;
     use std::f32::{MAX, MIN, MIN_POSITIVE};
-    use std::num::FpCategory::{Infinite, Normal};
-    #[cfg(feature = "do_proptests")]
-    use std::num::FpCategory::{Zero};
-    #[cfg(feature = "do_proptests")]
+    use std::num::FpCategory::{Infinite, Normal, Zero};
     use pub_arb_std::usual;
 
 

@@ -2,9 +2,14 @@ use super::{*, dbg};
 
 
 use arb::{Counts, TestEdit, get_counts};
-use proptest::proptest;
 #[cfg(feature = "do_proptests")]
-use arb::{TestEditSpec, SOME_AMOUNT}; 
+use proptest::proptest;
+#[cfg(not(feature = "do_proptests"))]
+macro_rules! proptest {
+    ($($tokens: tt)*) => {}
+}
+#[cfg(feature = "do_proptests")]
+use arb::{TestEditSpec, SOME_AMOUNT};
 
 use text_buffer_testing::counts_assert;
 
