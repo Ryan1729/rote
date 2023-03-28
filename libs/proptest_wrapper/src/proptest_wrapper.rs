@@ -1,5 +1,13 @@
+#[cfg(not(feature = "do_proptests"))]
+#[macro_export]
+macro_rules! proptest {
+    ($($tokens: tt)*) => {}
+}
+
+#[cfg(feature = "do_proptests")]
+pub use proptest::{proptest};
+
 pub use proptest::{
-    proptest,
     prop_compose,
     prop_oneof
 };

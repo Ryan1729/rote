@@ -8,3 +8,7 @@ path = "./src/proptest_wrapper.rs"
 
 [dependencies]
 proptest = "1.1.0"
+
+[features]
+deafult = ["do_proptests"]
+do_proptests = []

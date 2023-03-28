@@ -1,7 +1,11 @@
 use super::{*, dbg};
 
-use arb::{Counts, TestEdit, TestEditSpec, SOME_AMOUNT, get_counts};
+
+use arb::{Counts, TestEdit, get_counts};
 use proptest::proptest;
+#[cfg(feature = "do_proptests")]
+use arb::{TestEditSpec, SOME_AMOUNT}; 
+
 use text_buffer_testing::counts_assert;
 
 fn on<TestEdits: Borrow<[TestEdit]>>(
