@@ -95,11 +95,19 @@ mod included_files;
 mod undo_redo {
     use super::*;
 
-    use arb::{TestEdit, TestEditSpec, SOME_AMOUNT};
+    use arb::{TestEdit};
     use macros::{dbg};
     use crate::{assert_text_buffer_eq_ignoring_history, t_b, TextBuffer};
     use pretty_assertions::assert_eq;
-    use proptest::{proptest};
+
+    #[cfg(feature = "do_proptests")]
+    use proptest::proptest;
+    #[cfg(not(feature = "do_proptests"))]
+    macro_rules! proptest {
+        ($($tokens: tt)*) => {}
+    }
+    #[cfg(feature = "do_proptests")]
+    use arb::{TestEditSpec, SOME_AMOUNT};
 
     use std::borrow::Borrow;
 
