@@ -97,3 +97,13 @@ fn in_this_reduced_generated_case_reduction() {
 
     assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
 }
+
+#[test]
+fn on_this_basic_auto_indent_case() {
+    use TestEdit::*;
+    let edits = [
+        Insert('a'),
+        AutoIndentSelection,
+    ];
+    on(edits, 1);
+}
