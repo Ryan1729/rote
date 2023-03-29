@@ -66,7 +66,7 @@ pub_arb_text_pos = { path = "../pub_arb/text_pos" }
 pub_arb_vec1 = { path = "../pub_arb/vec1" }
 
 [features]
-default = ["uncategorized_tests", "cursor_manipulation", "edit_tests", "strip_trailing_whitespace_does_not_increase_the_amount_of_characters", "does_not_lose_characters", "included_files", "undo_redo", "inserting_then_deleting", "do_proptests"]
+default = ["uncategorized_tests", "cursor_manipulation", "edit_tests", "strip_trailing_whitespace_does_not_increase_the_amount_of_characters", "does_not_lose_characters", "included_files", "undo_redo_general", "undo_redo_works", "undo_redo_does_not_allow_applying_stale_redos", "inserting_then_deleting", "do_proptests"]
 extra-prints = ["edit/extra-prints"]
 pub_arb = ["regex", "text_buffer_testing", "proptest", "pretty_assertions", "pub_arb_cursors", "pub_arb_edit", "pub_arb_std", "pub_arb_text_pos", "pub_arb_vec1"]
 # enables tests becasue some take a long time to compile {
@@ -76,7 +76,9 @@ edit_tests = []
 strip_trailing_whitespace_does_not_increase_the_amount_of_characters = []
 does_not_lose_characters = []
 included_files = []
-undo_redo = []
+undo_redo_general = []
+undo_redo_works = []
+undo_redo_does_not_allow_applying_stale_redos = []
 inserting_then_deleting = []
 # }
 # So, to compile and run only certain tests you can run the following in the same

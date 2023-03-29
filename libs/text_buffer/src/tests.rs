@@ -91,7 +91,24 @@ mod strip_trailing_whitespace_does_not_increase_the_amount_of_characters;
 mod does_not_lose_characters;
 #[cfg(feature = "included_files")]
 mod included_files;
-#[cfg(feature = "undo_redo")]
-mod undo_redo;
+
+mod undo_redo {
+    use super::*;
+
+    use arb::{TestEdit, TestEditSpec, SOME_AMOUNT};
+    use macros::{dbg};
+    use crate::{assert_text_buffer_eq_ignoring_history, t_b, TextBuffer};
+    use pretty_assertions::assert_eq;
+    use proptest::{proptest};
+
+    use std::borrow::Borrow;
+
+    #[cfg(feature = "undo_redo_general")]
+    mod general;
+    #[cfg(feature = "undo_redo_works")]
+    mod works;
+    #[cfg(feature = "undo_redo_does_not_allow_applying_stale_redos")]
+    mod does_not_allow_applying_stale_redos;
+}
 #[cfg(feature = "inserting_then_deleting")]
 mod inserting_then_deleting;
