@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc d7d47cca2bab87c395bd8db09c92f6cb53ba196d29cd4e3026312330b52986a0 # shrinks to (r, (e1, e2)) = (["'𐇥Ѩ𑙬x<¥(\u{a0}ዄ𞡲𑻧𐆠ஐa\u{2009}ಯ\u{591}𐩮cᳺbe=`"], (Edit { range_edits: [RangeEdits { insert_range: Some(RangeEdit { chars: "$:", range: AbsoluteCharOffsetRange { min: AbsoluteCharOffset(1), max: AbsoluteCharOffset(1) } }), delete_range: None }], cursors: Change { old: Cursors { cursors: [cur!{l 0 o 0 state: ->|(Line>),}] }, new: Cursors { cursors: [cur!{l 0 o 0}] } } }, Edit { range_edits: [RangeEdits { insert_range: Some(RangeEdit { chars: "¥(磢\u{2}\u{8a9a1}", range: AbsoluteCharOffsetRange { min: AbsoluteCharOffset(0), max: AbsoluteCharOffset(6) } }), delete_range: Some(RangeEdit { chars: "Ѩ𫭾|\u{7d02d}Ⱥ�\t&�", range: AbsoluteCharOffsetRange { min: AbsoluteCharOffset(6), max: AbsoluteCharOffset(6) } }) }, RangeEdits { insert_range: Some(RangeEdit { chars: "=¥\u{107cd3}\u{c8ea5}s\u{b}\u{868b1}`%\u{5cb3b}\u{b9909}'%<'\u{77b51}\u{db229}\u{feff}Ⱥ", range: AbsoluteCharOffsetRange { min: AbsoluteCharOffset(3), max: AbsoluteCharOffset(12) } }), delete_range: None }], cursors: Change { old: Cursors { cursors: [cur!{l 0 o 0}] }, new: Cursors { cursors: [cur!{l 0 o 0}] } } }))

@@ -1,5 +1,5 @@
 use crate::{Change, Edit, CursoredRope};
-use proptest::{option, prop_compose, Strategy};
+use proptest::{option, prop_compose, Strategy, extra::any_string};
 use cursors::Cursors;
 use vec1::{Vec1};
 use pub_arb_cursors::{valid_cursors_for_rope};
@@ -10,6 +10,19 @@ use rope_pos::AbsoluteCharOffsetRange;
 use core::borrow::Borrow;
 
 const SOME_AMOUNT: usize = 16;
+
+#[macro_export]
+macro_rules! r {
+    ($s:expr) => {
+        Rope::from_str(&$s)
+    };
+}
+
+prop_compose! {
+    pub fn rope()(s in any_string()) -> Rope {
+        r!(s)
+    }
+}
 
 prop_compose! {
     pub fn absolute_char_offset(max_len: usize)(offset in 0..=max_len) -> AbsoluteCharOffset {
@@ -60,6 +73,17 @@ pub fn edit<'rope, R: 'rope + Borrow<Rope>>(rope: R) -> impl Strategy<Value = Ed
                 range_edits,
                 cursors,
             })
+    })
+}
+
+pub fn edit_pair<'rope, R: 'rope + Borrow<Rope> + Clone>(rope: R) -> impl Strategy<Value = (Edit, Edit)> + 'rope {
+    (edit(rope.clone()), edit(rope.clone()))
+}
+
+pub fn rope_and_edit_pair() -> impl Strategy<Value = (Rope, (Edit, Edit))> {
+    rope().prop_flat_map(|rope| {
+        (edit(rope.clone()), edit(rope.clone()))
+            .prop_map(move |(e1, e2)| (rope.clone(), (e1, e2)))
     })
 }
 

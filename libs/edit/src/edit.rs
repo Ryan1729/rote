@@ -1182,6 +1182,26 @@ pub struct Edit {
     cursors: Change<Cursors>,
 }
 
+impl core::ops::AddAssign for Edit {
+    fn add_assign(&mut self, _other: Self) {
+        // TODO probably make a list of (RangeEdits, Change<Cursor>) and sort it 
+        // properly for Cursors.
+        // Seems plausible to make that the actual representation, so we can just
+        // add the extra capacity then binary search and insert things
+        //*self.range_edits.extend(other.range_edits);
+        //*self.cursors.extend(other.range_edits);
+    }
+}
+
+impl core::ops::Add for Edit {
+    type Output = Self;
+
+    fn add(mut self, other: Self) -> Self {
+        self += other;
+        self
+    }
+}
+
 impl Edit {
     #[must_use]
     pub fn range_edits(&self) -> &Vec1<RangeEdits> {
@@ -1715,6 +1735,9 @@ pub mod tests {
             a!("ab    " "ab");
         }
     }
+
+    #[cfg(test)]
+    mod addition;
 }
 
 fn push_slice(
