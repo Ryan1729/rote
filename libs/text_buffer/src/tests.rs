@@ -93,6 +93,8 @@ mod does_not_lose_characters;
 mod included_files;
 
 mod undo_redo {
+    #![allow(unused)] // TODO  remove the need for this when building only, say, edit_tests
+
     use super::*;
 
     use arb::{TestEdit};

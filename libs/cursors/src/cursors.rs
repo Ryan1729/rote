@@ -1,5 +1,6 @@
 #![deny(unused)]
 use core::cmp::{max, min};
+use core::borrow::{Borrow, BorrowMut};
 use editor_types::{Cursor, SetPositionAction};
 use panic_safe_rope::{Rope};
 use vec1::{Vec1, vec1};
@@ -25,6 +26,7 @@ macro_rules! curs {
 impl Cursors {
     /// We require a rope parameter only so we can make sure the cursors are within the given
     /// rope's bounds.
+    #[cfg(not(feature = "new_sorting"))]
     #[must_use]
     pub fn new(rope: &Rope, mut cursors: Vec1<Cursor>) -> Self {
         use std::cmp::Reverse;
@@ -48,6 +50,16 @@ impl Cursors {
         cursors.sort_by_key(|w| Reverse(*w));
 
         Self::clamp_vec_to_rope(&mut cursors, rope);
+
+        Self { cursors }
+    }
+
+    /// We require a rope parameter only so we can make sure the cursors are within the given
+    /// rope's bounds.
+    #[cfg(feature = "new_sorting")]
+    #[must_use]
+    pub fn new(rope: &Rope, mut cursors: Vec1<Cursor>) -> Self {
+        sort::sort(rope, &mut cursors);
 
         Self { cursors }
     }
@@ -95,8 +107,14 @@ impl Cursors {
         self.cursors.last()
     }
 
+    #[cfg(not(feature = "new_sorting"))]
     pub fn clamp_to_rope(&mut self, rope: &Rope) {
         Self::clamp_vec_to_rope(&mut self.cursors, rope);
+    }
+
+    #[cfg(feature = "new_sorting")]
+    pub fn clamp_to_rope(&mut self, rope: &Rope) {
+        sort::clamp_vec_to_rope(&mut self.cursors, rope);
     }
 
     fn clamp_vec_to_rope(cursors: &mut Vec1<Cursor>, rope: &Rope) {
@@ -245,3 +263,197 @@ pub mod tests {
     pub mod arb;
 }
 
+pub trait Mergable : Borrow<Cursor> + BorrowMut<Cursor> {
+    fn merge_assign(&mut self, other: &mut Self, cursor: Cursor);
+}
+
+impl Mergable for Cursor {
+    fn merge_assign(&mut self, _other: &mut Self, cursor: Cursor) {
+        *self = cursor;
+    }
+}
+
+#[cfg_attr(not(feature = "new_sorting"), allow(unused))]
+mod sort {
+    use crate::Mergable;
+    use core::{borrow::{Borrow, BorrowMut}, cmp::{max, min}};
+    use panic_safe_rope::{Rope};
+    use rope_pos::{clamp_position, offset_pair};
+    use vec1::{Vec1};
+    use editor_types::{Cursor, SetPositionAction};
+
+    pub(crate) fn sort<C: Mergable>(
+        rope: &Rope,
+        mut cs: &mut Vec1<C>
+    ) {
+        use std::cmp::Reverse;
+        use editor_types::Position;
+        use panic_safe_rope::LineIndex;
+
+        // This pre-clamping is needed to make the sorting work as expected in
+        // particular cases where the cursor is (somehow) past the end of the line.
+        for c in cs.iter_mut() {
+            let c = c.borrow_mut();
+            let pos = c.get_position();
+
+            if let Some(line) = rope.line(LineIndex(pos.line)) {
+                use panic_safe_rope::RopeSliceTrait;
+                let final_offset = line.len_chars();
+                if pos.offset > final_offset {
+                    c.set_position(Position{ offset: final_offset, ..pos });
+                }
+            }
+        }
+
+        cs.sort_by_key(|c_holder| {
+            let c: &Cursor = Borrow::<Cursor>::borrow(c_holder);
+            let c: Cursor = *c;
+            Reverse(c)
+        });
+
+        clamp_vec_to_rope(&mut cs, rope);
+    }
+
+    pub(crate) fn clamp_vec_to_rope<C: Mergable>(cs: &mut Vec1<C>, rope: &Rope) {
+        for c in cs.iter_mut() {
+            let c = c.borrow_mut();
+            let (p_op, h_op) = offset_pair(rope, c);
+
+            if h_op.is_none() {
+                if let Some(h) = c.get_highlight_position() {
+                    c.set_highlight_position(clamp_position(rope, h));
+                }
+            }
+
+            if p_op.is_none() {
+                let clamped = clamp_position(rope, c.get_position());
+                c.set_position_custom(
+                    clamped,
+                    SetPositionAction::ClearHighlightOnlyIfItMatchesNewPosition,
+                );
+
+                if h_op.is_none() {
+                    c.set_highlight_position(clamped);
+                }
+            }
+        }
+
+        merge_overlaps(cs);
+    }
+
+    /// Assumes that the cursors are sorted
+    fn merge_overlaps<C: Mergable>(cs: &mut Vec1<C>) {
+        let mut len;
+
+        while {
+            len = cs.len();
+            merge_overlaps_once(cs);
+
+            len > cs.len()
+        } {}
+    }
+
+    fn merge_overlaps_once<C: Mergable>(cs: &mut Vec1<C>) {
+        // It's probably possible to write an in-place version of this function, or at least to
+        // reduce the memory allocation but currently that seems like premature optimization.
+        // Addendum: The currently unstable get_many_mut method may help with this.
+
+        let len = cs.len();
+
+        if len <= 1 {
+            return;
+        }
+
+        let mut keepers: Vec<usize> = Vec::with_capacity(len);
+
+        let slice = cs.as_mut_slice();
+        for index in 1..len {
+            use std::cmp::Ordering::*;
+
+            #[derive(Copy, Clone, Debug)]
+            enum MaxWas {
+                P,
+                H,
+            }
+
+            macro_rules! get_tuple {
+                ($c: ident) => {{
+                    let p = $c.get_position();
+                    let h = $c.get_highlight_position().unwrap_or(p);
+                    match p.cmp(&h) {
+                        o @ (Less | Equal) => (p, h, o),
+                        Greater => (h, p, Greater),
+                    }
+                }};
+            }
+
+            let (left, right) = slice.split_at_mut(index);
+
+            // The len == 1 check above should ensure that we have at least 2 elements
+            // and starting at 1 and going until len - 1, inclusive, should mean each
+            // of these should always have an element.
+            let last = left.last_mut().expect("left should have an element");
+            let current = right.first_mut().expect("right should have an element");
+
+            // We intuitively expect something called `c1` to be <= `c2`. Or at least the
+            // opposite is counter-intuitive. Because the Vec1 should be in reverse order,
+            // we swap the order here.
+            let c1: &mut Cursor = BorrowMut::<Cursor>::borrow_mut(current);
+            let c1: Cursor = *c1;
+            let c2: &mut Cursor = BorrowMut::<Cursor>::borrow_mut(last);
+            let c2: Cursor = *c2;
+
+            match (get_tuple!(c1), get_tuple!(c2)) {
+                ((c1_min, c1_max, c1_ordering), (c2_min, c2_max, c2_ordering))
+                    // if they overlap
+                    if (c1_min <= c2_min && c1_max >= c2_min)
+                    || (c1_min <= c2_max && c1_max >= c2_max) =>
+                {
+                    // The merged c should highlight the union of the areas highlighed by
+                    // the two cs.
+
+                    let max_was = match (c1_max.cmp(&c2_max), c1_ordering, c2_ordering) {
+                        (Greater | Equal, Greater, _)
+                        | (Less, _, Greater) => MaxWas::P,
+                        (Greater, Less | Equal, _)
+                        | (Less, _, Less | Equal)
+                        // If the two cs are the same it doesn't matter
+                        // which one we keep.
+                        | (Equal, _, _) => MaxWas::H,
+                    };
+
+                    // Keep the new one and pop the previous keeper index so that
+                    // the next window we look at will contain the right previous
+                    // one
+                    match max_was {
+                        MaxWas::P => {
+                            let mut merged = Cursor::new(max(c1_max, c2_max));
+                            merged.set_highlight_position(min(c1_min, c2_min));
+                            current.merge_assign(last, merged);
+                        }
+                        MaxWas::H => {
+                            let mut merged = Cursor::new(min(c1_min, c2_min));
+                            merged.set_highlight_position(max(c1_max, c2_max));
+                            current.merge_assign(last, merged);
+                        }
+                    }
+                    keepers.pop();
+                }
+                _ => {},
+            }
+            keepers.push(index);
+        }
+
+        assert!(
+            keepers.len() != 0,
+            "We push every iteration, and only after popping at most once per iteration"
+        );
+
+        let mut i = 0;
+        cs.retain(|_| {
+            let should_keep = keepers.binary_search(&i).is_ok();
+            i += 1;
+            should_keep
+        }).expect("retain should not drain all the elements!");
+    }
+}

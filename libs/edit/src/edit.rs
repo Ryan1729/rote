@@ -1174,12 +1174,20 @@ pub fn get_duplicate_lines_edit(
     )
 }
 
+//struct SubEdit {
+    //range_edits: RangeEdits,
+    //cursor: Change<Cursor>,
+//}
+
 /// The length of `range_edits` must be greater than or equal to the length of the
 /// two `Vec1`s in `cursors`. This is because we assume this is the case in `read_at`
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Edit {
+    //sub_edits: Vec1<SubEdit>,
+    // TODO replace this with the above {
     range_edits: Vec1<RangeEdits>,
     cursors: Change<Cursors>,
+    //}
 }
 
 impl core::ops::AddAssign for Edit {
