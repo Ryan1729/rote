@@ -366,6 +366,9 @@ mod sort {
 
         let mut keepers: Vec<usize> = Vec::with_capacity(len);
 
+        // Assume we want to keep the first one until proven othewise.
+        keepers.push(0);
+
         let slice = cs.as_mut_slice();
         for index in 1..len {
             use std::cmp::Ordering::*;
