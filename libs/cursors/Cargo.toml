@@ -38,6 +38,5 @@ pub_arb_text_pos = { path = "../pub_arb/text_pos" }
 pub_arb_vec1 = { path = "../pub_arb/vec1" }
 
 [features]
-default = ["new_sorting"]
+default = []
 pub_arb = ["proptest", "pub_arb_platform_types", "pub_arb_text_pos", "pub_arb_vec1"]
-new_sorting = []
