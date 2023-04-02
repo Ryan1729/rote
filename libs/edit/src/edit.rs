@@ -1,4 +1,5 @@
 #![deny(unused)]
+
 use cursors::Cursors;
 use editor_types::{Cursor, SetPositionAction, cur};
 use macros::{CheckedSub, d, some_or, dbg};
@@ -1174,20 +1175,14 @@ pub fn get_duplicate_lines_edit(
     )
 }
 
-//struct SubEdit {
-    //range_edits: RangeEdits,
-    //cursor: Change<Cursor>,
-//}
-
-/// The length of `range_edits` must be greater than or equal to the length of the
-/// two `Vec1`s in `cursors`. This is because we assume this is the case in `read_at`
+/// It was previously true that
+/// > The length of `range_edits` must be greater than or equal to the length of the
+/// > two `Vec1`s in `cursors`. This is because we assume this is the case in `read_at`
+/// But this is no longer the case becasue we removed read_at!
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Edit {
-    //sub_edits: Vec1<SubEdit>,
-    // TODO replace this with the above {
     range_edits: Vec1<RangeEdits>,
     cursors: Change<Cursors>,
-    //}
 }
 
 impl core::ops::AddAssign for Edit {
@@ -1219,25 +1214,6 @@ impl Edit {
     #[must_use]
     pub fn cursors(&self) -> &Change<Cursors> {
         &self.cursors
-    }
-
-    #[must_use]
-    pub fn read_at(&self, i: usize) -> Option<(Change<Option<&Cursor>>, &RangeEdits)> {
-        let old_cursors = self.cursors.old.borrow_cursors();
-        let new_cursors = self.cursors.new.borrow_cursors();
-
-        let len = self.range_edits.len();
-
-        if i >= len {
-            return None;
-        }
-
-        let old = old_cursors.get(i);
-        let new = new_cursors.get(i);
-
-        Some(
-            (Change {old, new}, &self.range_edits[i])
-        )
     }
 
     // TODO write a test that fails when we add a new field that isn't counted here.

@@ -414,13 +414,12 @@ impl Parsers {
                     }}
                 }
                 if let Some(tree) = buffer_state.tree.as_mut() {
-                    for i in 0..edit.range_edits().len() {
+                    let range_edits = edit.range_edits();
+                    for i in 0..range_edits.len() {
                         let input_edit = {
                             perf_viz::record_guard!("convert edit");
-                            let (
-                                Change{ old, new },
-                                RangeEdits{ delete_range, insert_range }
-                            ) = some_or!(edit.read_at(i), cont!());
+                            let RangeEdits{ delete_range, insert_range } =
+                                some_or!(range_edits.get(i), cont!());
 
                             let (start_byte, old_end_byte, new_end_byte) =
                             match dbg!(delete_range, insert_range) {
@@ -475,60 +474,28 @@ impl Parsers {
                             let old_end_byte = some_or!(old_end_byte, cont!()).0;
                             let new_end_byte = some_or!(new_end_byte, cont!()).0;
 
-                            let (start_pos, old_end_pos, new_end_pos) = match (old, new) {
-                                (Some(old), Some(new)) => {
-                                    let old_pos = old.get_position();
-                                    let old_h_pos = old.get_highlight_position_or_position();
-                                    let old_min = min(old_pos, old_h_pos);
-                                    let old_end_pos = max(old_pos, old_h_pos);
-
-                                    let new_pos = new.get_position();
-                                    let new_h_pos = new.get_highlight_position_or_position();
-                                    let new_min = min(new_pos, new_h_pos);
-                                    let new_end_pos = max(new_pos, new_h_pos);
-
-                                    let start_pos = min(old_min, new_min);
-
-                                    (start_pos, old_end_pos, new_end_pos)
-                                },
-                                (Some(old), None) => {
-                                    let old_pos = old.get_position();
-                                    let old_h_pos = old.get_highlight_position_or_position();
-                                    let old_min = min(old_pos, old_h_pos);
-                                    let old_end_pos = max(old_pos, old_h_pos);
-
-                                    let start_pos = old_min;
-
-                                    (start_pos, old_end_pos, start_pos)
-                                },
-                                (None, Some(new)) => {
-                                    let new_pos = new.get_position();
-                                    let new_h_pos = new.get_highlight_position_or_position();
-                                    let new_min = min(new_pos, new_h_pos);
-                                    let new_end_pos = max(new_pos, new_h_pos);
-
-                                    let start_pos = new_min;
-
-                                    (start_pos, start_pos, new_end_pos)
-                                },
-                                (None, None) => cont!(),
-                            };
-
                             dbg!(InputEdit{
                                 start_byte,
                                 old_end_byte,
                                 new_end_byte,
+                                // I think these only matter for whitespace (newline) 
+                                // sensitive languages. It would be something like
+                                // call rope.byte_to_line to get the row,
+                                // then call line_to_byte to get the start of the
+                                // row, then subtract that from the byte to get the
+                                // column. That's O(log n), which seems worth
+                                // avoiding, given it happens every keystroke!
                                 start_position: Point{
-                                    row: start_pos.line,
-                                    column: start_pos.offset.0
+                                    row: 0,
+                                    column: 0,
                                 },
                                 old_end_position: Point{
-                                    row: old_end_pos.line,
-                                    column: old_end_pos.offset.0
+                                    row: 0,
+                                    column: 0,
                                 },
                                 new_end_position: Point{
-                                    row: new_end_pos.line,
-                                    column: new_end_pos.offset.0
+                                    row: 0,
+                                    column: 0,
                                 },
                             })
                         };

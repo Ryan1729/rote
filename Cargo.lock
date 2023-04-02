@@ -1577,7 +1577,9 @@ name = "parsers"
 version = "0.1.0"
 dependencies = [
  "cc",
+ "cursors",
  "edit",
+ "editor_types",
  "fast_hash",
  "macros",
  "perf_viz",
@@ -1585,6 +1587,7 @@ dependencies = [
  "proptest_wrapper",
  "pub_arb_rust_code",
  "tree-sitter",
+ "vec1 0.1.0",
 ]
 
 [[package]]

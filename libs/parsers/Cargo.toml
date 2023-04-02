@@ -30,7 +30,10 @@ path = "../perf_viz"
 path = "../platform_types"
 
 [dev-dependencies]
+cursors = { path = "../cursors" }
+editor_types = { path = "../editor_types" }
 proptest = { package = "proptest_wrapper", path = "../proptest_wrapper" }
+vec1 = { path = "../vec1" }
 
 [dev-dependencies.pub_arb_rust_code]
 path = "../pub_arb/rust_code"

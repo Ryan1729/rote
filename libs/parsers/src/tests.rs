@@ -2,10 +2,6 @@ use super::*;
 
 use platform_types::BorrowRope;
 
-// This test demonstrates what I believe is a bug in tree-sitter. We have an
-// attempted workaround, in `parsers.rs` but if this test starts passing in the
-// future, we should be able to stop ignoring, and/or delete this test.
-#[ignore]
 #[test]
 fn asking_to_parse_the_empty_string_twice_does_not_panic() {
     let rust_lang = unsafe { tree_sitter_rust() };
@@ -24,7 +20,6 @@ fn asking_to_parse_the_empty_string_twice_does_not_panic() {
 
     assert!(final_tree.is_some());
 }
-
 
 #[test]
 fn parsers_rust_to_c_abort_does_not_happen() {
@@ -74,6 +69,72 @@ fn parsers_rust_to_c_abort_does_not_happen() {
         &buffer_name,
         parser_kind
     );
+
+    // if we didn't panic/abort yet, the test passed.
+}
+
+#[test]
+fn this_acknowedge_edit_does_not_cause_get_spans_to_panic_or_abort() {
+    u!{BufferName, ParserKind, Style}
+    use cursors::{Cursors, curs};
+    use editor_types::{Cursor, cur, pos, *};
+    use vec1::{vec1};
+
+    let mut parsers = Parsers::default();
+
+    let parser_kind = Rust(Extra);
+
+    let buffer_name = Path("fakefile.rs".into());
+
+    let s = r#"fn main() {
+    println!("hi");
+}"#;
+    let rope = Rope::from(s);
+
+    let cursors = curs!{rope, cur!{l 2 o 1}};
+
+    let mut rope = edit::CursoredRope::new(
+        rope,
+        cursors
+    );
+
+    // pre-condition check
+    parsers.get_spans(
+        rope.borrow_rope().into(),
+        &buffer_name,
+        parser_kind
+    );
+
+    let mut expected_last_span_index = Some(s.len() - 1);
+
+    for _ in 0..s.len() {
+        let edit = edit::get_delete_edit(&rope);
+
+        parsers.acknowledge_edit(
+            &buffer_name,
+            parser_kind,
+            &edit,
+            rope.borrow_rope()
+        );
+    
+        rope.apply(&edit);
+    
+        let spans = parsers.get_spans(
+            rope.borrow_rope().into(),
+            &buffer_name,
+            parser_kind
+        );std::dbg!(&spans);
+        
+        assert_eq!(
+            expected_last_span_index,
+            spans.into_iter().last().map(|s| s.one_past_end.0)
+        );
+        expected_last_span_index = expected_last_span_index
+            .and_then(|x| x.checked_sub(1));
+        if expected_last_span_index == Some(0) {
+            expected_last_span_index = None;
+        }
+    }
 
     // if we didn't panic/abort yet, the test passed.
 }
