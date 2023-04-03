@@ -2,7 +2,7 @@
 #![allow(unreachable_code)]
 use macros::{d, dbg, fmt_debug, fmt_display, some_or, u};
 use platform_types::{BufferName, Rope, Spans};
-use edit::{Change, Edit, RangeEdits};
+use edit::{Edit, RangeEdits};
 
 use tree_sitter::{
     InputEdit,
@@ -15,10 +15,7 @@ use tree_sitter::{
     Tree,
 };
 
-use std::{
-    borrow::Cow,
-    cmp::{max, min}
-};
+use std::{borrow::Cow};
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub enum Style {

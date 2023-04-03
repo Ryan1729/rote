@@ -759,7 +759,20 @@ pub fn get_strip_trailing_whitespace_edit(
 }
 
 #[must_use]
-pub fn get_auto_indent_selection_add_if_needed_edit(rope: &CursoredRope) -> Edit {
+pub fn get_auto_indent_selection_edit(rope: &CursoredRope) -> Edit {
+    let add_edit = get_auto_indent_selection_add_if_needed_edit(rope);
+
+    let mut rope = rope.clone();
+
+    rope.apply(&add_edit);
+
+    let remove_edit = get_auto_indent_selection_remove_if_needed_edit(&rope);
+
+    add_edit.then(remove_edit)
+}
+
+#[must_use]
+fn get_auto_indent_selection_add_if_needed_edit(rope: &CursoredRope) -> Edit {
     fn append(s: &mut CountedString, pav: PrefixAppendView) {
         let mut delta = desired_indent_delta(pav.rope, pav.cursor);
         while delta > 0 {
@@ -777,7 +790,7 @@ pub fn get_auto_indent_selection_add_if_needed_edit(rope: &CursoredRope) -> Edit
 }
 
 #[must_use]
-pub fn get_auto_indent_selection_remove_if_needed_edit(rope: &CursoredRope) -> Edit {
+fn get_auto_indent_selection_remove_if_needed_edit(rope: &CursoredRope) -> Edit {
     // TODO make API that makes expressing a change to a line that depends on the
     // surrounding lines simple. (maybe change `get_line_slicing_edit` to have 
     // access to the rope?)
@@ -1185,26 +1198,6 @@ pub struct Edit {
     cursors: Change<Cursors>,
 }
 
-impl core::ops::AddAssign for Edit {
-    fn add_assign(&mut self, _other: Self) {
-        // TODO probably make a list of (RangeEdits, Change<Cursor>) and sort it 
-        // properly for Cursors.
-        // Seems plausible to make that the actual representation, so we can just
-        // add the extra capacity then binary search and insert things
-        //*self.range_edits.extend(other.range_edits);
-        //*self.cursors.extend(other.range_edits);
-    }
-}
-
-impl core::ops::Add for Edit {
-    type Output = Self;
-
-    fn add(mut self, other: Self) -> Self {
-        self += other;
-        self
-    }
-}
-
 impl Edit {
     #[must_use]
     pub fn range_edits(&self) -> &Vec1<RangeEdits> {
@@ -1241,12 +1234,24 @@ impl Edit {
 
         output
     }
+
+    #[must_use]
+    fn then(mut self, other: Edit) -> Edit {
+        self.range_edits.extend(other.range_edits);
+        Edit {
+            range_edits: self.range_edits,
+            cursors: Change{
+                old: self.cursors.old,
+                new: other.cursors.new,
+            },
+        }
+    }
 }
 
 impl From<Change<Cursors>> for Edit {
     fn from(cursors: Change<Cursors>) -> Edit {
         Edit {
-            range_edits: cursors.new.mapped_ref(|_| d!()),
+            range_edits: vec1![d!()],
             cursors,
         }
     }

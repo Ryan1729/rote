@@ -885,26 +885,11 @@ impl <const EDIT_COUNT: usize> TextBuffer<EDIT_COUNT> {
         )
     }
 
-    pub fn auto_indent_selection(&mut self, _listener: PossibleParserEditListener) -> PossibleEditedTransition {
-        None
-        //// FIXME: make these the same edit, for un/redo purposes.
-        //let add_transition = self.record_edit(
-            //edit::get_auto_indent_selection_add_if_needed_edit(&self.rope),
-            //// TODO make it so we don't need to do this.
-            //None,
-        //);
-//
-        //let remove_transition = self.record_edit(
-            //edit::get_auto_indent_selection_remove_if_needed_edit(&self.rope),
-            //listener,
-        //);
-//
-        //match (add_transition, remove_transition) {
-            //(None, other)|(other, None) => other,
-            //(Some(a_t), Some(r_t)) if a_t == r_t => Some(a_t),
-            //// They are opposite and therefore cancel each other out.
-            //(Some(_), Some(_)) => None,
-        //}
+    pub fn auto_indent_selection(&mut self, listener: PossibleParserEditListener) -> PossibleEditedTransition {
+        self.record_edit(
+            edit::get_auto_indent_selection_edit(&self.rope),
+            listener,
+        )
     }
 
     pub fn duplicate_lines(&mut self, listener: PossibleParserEditListener) -> PossibleEditedTransition {

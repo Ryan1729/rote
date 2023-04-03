@@ -6,7 +6,7 @@ fn then_applying_is_the_same_as_applying_in_sequence_on(
     rope: Rope,
     (e1, e2): (Edit, Edit),
 ) {
-    let e3 = e1.clone() + e2.clone();
+    let e3 = e1.clone().then(e2.clone());
     let unedited = CursoredRope::from(rope);
 
     let added = {
