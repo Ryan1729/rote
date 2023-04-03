@@ -672,12 +672,15 @@ struct LineEnds {
 #[must_use]
 pub fn get_tab_out_edit(rope: &CursoredRope) -> Edit {
     fn tab_out_step(
-        line: RopeLine,
-        LineEnds {
-            before_break_if_selected,
-            after_break_if_selected,
+        LineSlicingEditStepInfo {
+            line,
+            ends: LineEnds {
+                before_break_if_selected,
+                after_break_if_selected,
+                ..
+            },
             ..
-        }: LineEnds,
+        }: LineSlicingEditStepInfo,
         chars: &mut String,
     ) {
         let first_non_white_space_offset: Option<CharOffset> =
@@ -701,12 +704,16 @@ pub fn get_tab_out_edit(rope: &CursoredRope) -> Edit {
 
 // This is exposed outside of its usage scope so tests can see it.
 fn strip_trailing_whitespace_step(
-    line: RopeLine,
-    LineEnds {
-        before_break_if_selected,
-        after_break_if_selected,
-        after_break,
-    }: LineEnds,
+    LineSlicingEditStepInfo {
+        line,
+        ends: LineEnds {
+            before_break_if_selected,
+            after_break_if_selected,
+            after_break,
+            ..
+        },
+        ..
+    }: LineSlicingEditStepInfo,
     chars: &mut String,
 ) {
     if after_break_if_selected == CharOffset(0) {
@@ -791,42 +798,53 @@ fn get_auto_indent_selection_add_if_needed_edit(rope: &CursoredRope) -> Edit {
 
 #[must_use]
 fn get_auto_indent_selection_remove_if_needed_edit(rope: &CursoredRope) -> Edit {
-    // TODO make API that makes expressing a change to a line that depends on the
-    // surrounding lines simple. (maybe change `get_line_slicing_edit` to have 
-    // access to the rope?)
-    // Then use it to actually implement this part.
-    //fn f(
-        //line: RopeLine,
-        //LineEnds {
-            //after_break,
-            //..
-        //}: LineEnds,
-        //chars: &mut String
-    //) {
-        //if let Some(sliced_line) = line.slice(..after_break) {
-            //push_slice(chars, sliced_line);
-        //}
-    //}
-//    get_line_slicing_edit(rope, f)
-    get_line_slicing_edit(rope, strip_trailing_whitespace_step)
+    fn get_auto_indent_selection_remove_step(
+        LineSlicingEditStepInfo {
+            line,
+            ends: LineEnds {
+                after_break_if_selected,
+                ..
+            },
+            rope,
+            cursor,
+        }: LineSlicingEditStepInfo,
+        chars: &mut String
+    ) {
+        let delta = std::dbg!(desired_indent_delta(rope, cursor));
+
+        let delete_count: usize = if delta < 0 && delta != isize::MIN {
+            -delta as usize
+        } else {
+            0
+        };
+
+        if let Some(sliced_line) = line.slice(CharOffset(delete_count)..after_break_if_selected) {
+            push_slice(chars, sliced_line);
+        }
+    }
+    get_line_slicing_edit(rope, get_auto_indent_selection_remove_step)
 }
 
 type IndentDelta = isize;
 type IndentPoint = isize;
 
+// TODO add tests for this so we can debug it 
 fn desired_indent_delta(rope: &Rope, cursor: Cursor) -> IndentDelta {
     macro_rules! indent_of {
         ($line: ident) => ({
+            std::dbg!(&$line);
             let mut indent = 0;
             for c in $line.chars() {
                 if c != ' ' { break }
                 indent += 1;
             }
-            indent
+            std::dbg!(indent)
         })
     }
 
-    let Some(mut lines) = rope.lines_at_reversed(cursor.get_position().line) else {
+    let Some(mut lines) = rope.lines_at_reversed(
+        cursor.get_position().line.saturating_add(1)
+    ) else {
         return 0;
     };
 
@@ -840,7 +858,7 @@ fn desired_indent_delta(rope: &Rope, cursor: Cursor) -> IndentDelta {
         let line_indent: IndentPoint = indent_of!(line);
         if line_indent > current_indent {
             // Found line on same level.
-            return line_indent.saturating_sub(current_indent);
+            return std::dbg!(line_indent.saturating_sub(current_indent));
         } else if line_indent < current_indent {
             let offset = final_non_newline_offset_for_rope_line(line);
             if let Some(last_char) = line.chars_at(offset)
@@ -855,7 +873,8 @@ fn desired_indent_delta(rope: &Rope, cursor: Cursor) -> IndentDelta {
                 }
             }
             // Seems too indented right now.
-            return current_indent.saturating_sub(line_indent);
+            std::dbg!("Seems too indented right now");
+            return std::dbg!(line_indent).saturating_sub(std::dbg!(current_indent));
         } else {
             // Need more info to decide
         }
@@ -875,12 +894,15 @@ pub fn get_toggle_single_line_comments_edit(rope: &CursoredRope) -> Edit {
     // part being a bottleneck seems unlikely.
     if all_selected_lines_have_leading_comments(rope) {
         fn remove_leading_comments_step(
-            line: RopeLine,
-            LineEnds {
-                before_break_if_selected,
-                after_break_if_selected,
+            LineSlicingEditStepInfo {
+                line,
+                ends: LineEnds {
+                    before_break_if_selected,
+                    after_break_if_selected,
+                    ..
+                },
                 ..
-            }: LineEnds,
+            }: LineSlicingEditStepInfo,
             chars: &mut String,
         ) {
             let first_non_white_space_offset: Option<CharOffset> =
@@ -945,10 +967,17 @@ fn all_selected_lines_have_leading_comments(
     true
 }
 
+struct LineSlicingEditStepInfo<'rope> {
+    line: RopeLine<'rope>,
+    ends: LineEnds,
+    rope: &'rope Rope,
+    cursor: Cursor,
+}
+
 /// We expect the step to push the characters that are NOT deleted onto the string
 /// Yes this is a slightly awkward API, but I think it is the least awkward of the
 /// considered possibilities.
-type LineSlicingEditStep = fn(RopeLine, LineEnds, &mut String);
+type LineSlicingEditStep = fn(LineSlicingEditStepInfo, &mut String);
 
 fn get_line_slicing_edit(
     rope: &CursoredRope,
@@ -1009,13 +1038,17 @@ fn get_line_slicing_edit(
                 };
 
                 step(
-                    line,
-                    LineEnds {
-                        before_break_if_selected,
-                        after_break_if_selected,
-                        after_break,
+                    LineSlicingEditStepInfo {
+                        line,
+                        ends: LineEnds {
+                            before_break_if_selected,
+                            after_break_if_selected,
+                            after_break,
+                        },
+                        rope,
+                        cursor: cursor_info.cursor,
                     },
-                    &mut chars
+                    &mut chars,
                 );
             }
 
@@ -1680,8 +1713,12 @@ pub mod tests {
                 let mut chars = String::new();
 
                 strip_trailing_whitespace_step(
-                    line,
-                    rel_sel,
+                    LineSlicingEditStepInfo {
+                        line,
+                        ends: rel_sel,
+                        rope: &rope,
+                        cursor: d!(),
+                    },
                     &mut chars,
                 );
 
