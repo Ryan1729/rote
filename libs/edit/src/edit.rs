@@ -810,7 +810,7 @@ fn get_auto_indent_selection_remove_if_needed_edit(rope: &CursoredRope) -> Edit 
         }: LineSlicingEditStepInfo,
         chars: &mut String
     ) {
-        let delta = std::dbg!(desired_indent_delta(rope, cursor));
+        let delta = desired_indent_delta(rope, cursor);
 
         let delete_count: usize = if delta < 0 && delta != isize::MIN {
             -delta as usize
@@ -858,8 +858,8 @@ fn desired_indent_delta(rope: &Rope, cursor: Cursor) -> IndentDelta {
         let line_indent: IndentPoint = indent_of!(line);
         if line_indent > current_indent {
             // Found line on same level.
-            return std::dbg!(line_indent.saturating_sub(current_indent));
-        } else if line_indent < current_indent {
+            return line_indent.saturating_sub(current_indent);
+        } else {
             let offset = final_non_newline_offset_for_rope_line(line);
             if let Some(last_char) = line.chars_at(offset)
                 .and_then(|mut cs| cs.next()) {
@@ -872,12 +872,11 @@ fn desired_indent_delta(rope: &Rope, cursor: Cursor) -> IndentDelta {
                     return TAB_STR_CHAR_COUNT as _;
                 }
             }
-            // Seems too indented right now.
-            std::dbg!("Seems too indented right now");
-            return std::dbg!(line_indent).saturating_sub(std::dbg!(current_indent));
-        } else {
-            // Need more info to decide
+            // Seems either too indented right now, or just enough indented
+            return line_indent.saturating_sub(current_indent);
         }
+        // TODO We really don't ever need to look more than one line in advance?
+        // This seems suspicious. Probably need to test more cases.
     }
 
     // Stick with the indent of all the above lines
@@ -1764,6 +1763,9 @@ pub mod tests {
 
     #[cfg(test)]
     mod addition;
+
+    #[cfg(test)]
+    mod desired_indent_delta_returns_the_expected_result;
 }
 
 fn push_slice(
