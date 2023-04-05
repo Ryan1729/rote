@@ -450,8 +450,16 @@ struct PrefixAppendView<'rope> {
     cursor: Cursor,
 }
 
+#[derive(Clone, Copy, Debug, Default)]
+enum OffsetAdjustment {
+    #[default]
+    None,
+    ToStartOfLine,
+}
+
 struct PrefixSpec {
     append: fn (&mut CountedString, PrefixAppendView),
+    offset_adjustment: OffsetAdjustment,
 }
 
 #[derive(Clone)]
@@ -521,10 +529,22 @@ fn get_insert_prefix_edit(
                     }
                 );
 
+                let offset = match spec.offset_adjustment {
+                    OffsetAdjustment::None => cursor_info.offset,
+                    OffsetAdjustment::ToStartOfLine => {
+                        // Note: this is O(log(Rope chars))
+                        rope.char_to_line(cursor_info.offset)
+                            .and_then(|line_index| {
+                                rope.line_to_char(line_index)
+                            })
+                            .unwrap_or(cursor_info.offset)
+                    },
+                };
+
                 get_standard_insert_range_edits(
                     rope,
                     cursor,
-                    cursor_info.offset,
+                    offset,
                     chars,
                 )
             } else {
@@ -659,6 +679,7 @@ pub fn get_tab_in_edit(rope: &CursoredRope) -> Edit {
         rope,
         &PrefixSpec {
             append,
+            offset_adjustment: d!(),
         }
     )
 }
@@ -792,6 +813,7 @@ fn get_auto_indent_selection_add_if_needed_edit(rope: &CursoredRope) -> Edit {
         rope,
         &PrefixSpec {
             append,
+            offset_adjustment: OffsetAdjustment::ToStartOfLine,
         }
     )
 }
@@ -836,7 +858,6 @@ fn desired_indent_delta(rope: &Rope, cursor: Cursor) -> IndentDelta {
                 if c != ' ' { break }
                 indent += 1;
             }
-            std::dbg!(&$line, stringify!($line), indent);
             indent
         })
     }
@@ -862,8 +883,8 @@ fn desired_indent_delta(rope: &Rope, cursor: Cursor) -> IndentDelta {
             let mut output: IndentDelta = line_indent.saturating_sub(current_indent);
 
             let offset = final_non_newline_offset_for_rope_line(line);
-            if let Some(last_char) = std::dbg!(line.chars_at(offset)
-                .and_then(|mut cs| cs.prev())) {
+            if let Some(last_char) = line.chars_at(offset)
+                .and_then(|mut cs| cs.prev()) {
                 if last_char == '{' 
                 || last_char == '[' 
                 || last_char == '('
@@ -931,6 +952,7 @@ pub fn get_toggle_single_line_comments_edit(rope: &CursoredRope) -> Edit {
             rope,
             &PrefixSpec {
                 append,
+                offset_adjustment: d!(),
             }
         )
     }
