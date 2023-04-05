@@ -46,3 +46,39 @@ fn on_this_under_indented_example() {
         1
     );
 }
+
+#[test]
+fn on_this_already_indented_brace_example() {
+    a!(r#"
+{
+    a
+}
+"#, 
+        cur!{l 2 o 0},
+        0
+    );
+}
+
+#[test]
+fn on_this_over_indented_brace_example() {
+    a!(r#"
+{
+     a
+}
+"#, 
+        cur!{l 2 o 0},
+        -1
+    );
+}
+
+#[test]
+fn on_this_under_indented_brace_example() {
+    a!(r#"
+{
+   a
+}
+"#, 
+        cur!{l 2 o 0},
+        1
+    );
+}

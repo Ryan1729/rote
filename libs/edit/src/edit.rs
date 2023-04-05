@@ -828,17 +828,16 @@ fn get_auto_indent_selection_remove_if_needed_edit(rope: &CursoredRope) -> Edit 
 type IndentDelta = isize;
 type IndentPoint = isize;
 
-// TODO add tests for this so we can debug it 
 fn desired_indent_delta(rope: &Rope, cursor: Cursor) -> IndentDelta {
     macro_rules! indent_of {
         ($line: ident) => ({
-            std::dbg!(&$line);
             let mut indent = 0;
             for c in $line.chars() {
                 if c != ' ' { break }
                 indent += 1;
             }
-            std::dbg!(indent)
+            std::dbg!(&$line, stringify!($line), indent);
+            indent
         })
     }
 
@@ -860,20 +859,22 @@ fn desired_indent_delta(rope: &Rope, cursor: Cursor) -> IndentDelta {
             // Found line on same level.
             return line_indent.saturating_sub(current_indent);
         } else {
+            let mut output: IndentDelta = line_indent.saturating_sub(current_indent);
+
             let offset = final_non_newline_offset_for_rope_line(line);
-            if let Some(last_char) = line.chars_at(offset)
-                .and_then(|mut cs| cs.next()) {
+            if let Some(last_char) = std::dbg!(line.chars_at(offset)
+                .and_then(|mut cs| cs.prev())) {
                 if last_char == '{' 
                 || last_char == '[' 
                 || last_char == '('
                 // For python-likes (or really long rust types, I guess?)
                 || last_char == ':' {
                     // Found a line that introduces a new indent level
-                    return TAB_STR_CHAR_COUNT as _;
+                    output += TAB_STR_CHAR_COUNT as IndentDelta;
                 }
             }
             // Seems either too indented right now, or just enough indented
-            return line_indent.saturating_sub(current_indent);
+            return output;
         }
         // TODO We really don't ever need to look more than one line in advance?
         // This seems suspicious. Probably need to test more cases.
