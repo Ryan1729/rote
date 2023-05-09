@@ -98,7 +98,7 @@ where 'title: 'title
         // > In OpenGl, only a single context can be current in a thread at a time.
         // > Making a new context current will make the old one not current.
         // > Contexts can only be sent to different threads if they are not current.
-        // So, as I understand it, this is only unsafe becasue of issues regarding
+        // So, as I understand it, this is only unsafe because of issues regarding
         // sending contexts to other threads. Therefore, I think we can reasonably
         // use this here in `init` without making `init` into an `unsafe fn`, if
         // we make the struct holding the context `!Send`, meaning it cannot be sent

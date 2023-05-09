@@ -281,7 +281,7 @@ pub struct ScrollXY {
 fmt_debug!(for ScrollXY: ScrollXY {x, y} in "slxy!({}, {})", x, y);
 fmt_display!(for ScrollXY: ScrollXY {x, y} in "({}, {})", x, y);
 
-/// This uses `slxy` becasue `scxy`, or `srxy` seem confusable with being for
+/// This uses `slxy` because `scxy`, or `srxy` seem confusable with being for
 /// `ScreenSpaceXY`. `soxy` seems less evocative of scrolling than `slxy`.
 #[macro_export]
 macro_rules! _slxy {

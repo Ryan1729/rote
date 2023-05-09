@@ -1246,7 +1246,7 @@ pub fn get_duplicate_lines_edit(
 /// It was previously true that
 /// > The length of `range_edits` must be greater than or equal to the length of the
 /// > two `Vec1`s in `cursors`. This is because we assume this is the case in `read_at`
-/// But this is no longer the case becasue we removed read_at!
+/// But this is no longer the case because we removed read_at!
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Edit {
     range_edits: Vec1<RangeEdits>,
@@ -1720,7 +1720,7 @@ pub mod tests {
     mod strip_trailing_whitespace_step_returns_the_expected_result {
         use crate::*;
 
-        // Short for assert. We can be this brief becasue this is specific to this
+        // Short for assert. We can be this brief because this is specific to this
         // module
         macro_rules! a {
             ($from: literal $to: literal) => {

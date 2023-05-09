@@ -22,7 +22,7 @@
 #    later, after being bit by it, if that ever happens.
 # items-after-statements triggers even if a const is introduced after statement that 
 #    does not use the constant. I personally find putting the constant directly above
-#    its first use to be easier to read, since I don;t need to go look back at what 
+#    its first use to be easier to read, since I don't need to go look back at what 
 #    the value of the constant is.
 # trait-duplication-in-bounds seems to currently be producing false positives.
 

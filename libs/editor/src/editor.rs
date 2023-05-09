@@ -103,7 +103,7 @@ mod clipboard_history {
             )
         }
 
-        // Short for assert. We can be this brief becasue this is lexically scoped.
+        // Short for assert. We can be this brief because this is lexically scoped.
         macro_rules! a {
             ($a: expr, $b: expr) => {
                 let a = $a;

@@ -2,7 +2,7 @@ use crate::{desired_indent_delta};
 use editor_types::{CharOffset, Cursor, Position, cur, pos};
 use panic_safe_rope::Rope;
 
-// Short for assert. We can be this brief becasue this is specific to this
+// Short for assert. We can be this brief because this is specific to this
 // module
 macro_rules! a {
     ($rope: expr, $cursor: expr, $expected: expr) => {

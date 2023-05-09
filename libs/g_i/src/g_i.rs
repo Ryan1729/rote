@@ -420,7 +420,7 @@ macro_rules! svec1 {
     }
 }
 
-/// This module exists becasue we had a proc macro that we use to make sure that only 
+/// This module exists because we had a proc macro that we use to make sure that only 
 /// the methods that mutate SelectableVec1 can change its fields. But it didn't seem
 /// to be worth the compile time in the end.
 mod selectable_vec1 {
