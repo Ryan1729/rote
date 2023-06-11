@@ -7,4 +7,4 @@ edition = "2021"
 path = "src/atomically.rs"
 
 [dependencies]
-atomicwrites = "0.3"
+atomicwrites = { path = "../rust-atomicwrites" }
