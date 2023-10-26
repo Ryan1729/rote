@@ -15,7 +15,7 @@ repository = "https://github.com/untitaker/rust-atomicwrites"
 exclude = ["/.travis.yml", "/Makefile", "/appveyor.yml"]
 
 [dependencies]
-tempfile = "3.6"
+tempfile = "3"
 
 [target.'cfg(unix)'.dependencies]
 rustix = { version = "0.38.0", features = ["fs"] }
