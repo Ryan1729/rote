@@ -395,6 +395,8 @@ pub enum Event<CustomEvent: 'static = ()> {
 
 pub const DEFAULT_TARGET_RATE: RatePerSecond = 250.0;
 
+
+
 impl <A> State<'static, A> {
     pub fn run<F>(self, target_rate: Option<RatePerSecond>, mut event_handler: F) -> !
     where
@@ -406,9 +408,13 @@ impl <A> State<'static, A> {
 
         let mut hidpi_factor = 1.0;
 
+        let chosen_target_rate = target_rate.unwrap_or(DEFAULT_TARGET_RATE);
+
+        let report_interval = chosen_target_rate * (1023./1024.);
+
         let mut loop_helper = spin_sleep::LoopHelper::builder()
-            .report_interval_s(1./500.)
-            .build_with_target_rate(target_rate.unwrap_or(DEFAULT_TARGET_RATE));
+            .report_interval_s(report_interval)
+            .build_with_target_rate(chosen_target_rate);
         let mut is_focused = true;
 
         let mut running = true;
