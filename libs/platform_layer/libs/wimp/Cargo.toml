@@ -12,7 +12,7 @@ path = "./src/wimp.rs"
 [dependencies]
 atomically = { path = "../atomically" }
 editor_thread = { path = "../editor_thread" }
-file_chooser = { path = "../file_chooser" }
+file_chooser = { path = "../file_chooser", optional=true }
 macros = { path = "../../../macros" }
 path_mailbox = { path = "../path_mailbox" }
 platform_types = { path = "../../../platform_types" }
@@ -40,6 +40,7 @@ invariant-checking = [
 time-render = ["window_layer/time-render"]
 extra-prints = ["shared/extra-prints", "wimp_render/extra-prints"]
 print-raw-input = []
+native-file-chooser = ["dep:file_chooser"]
 
 [dev-dependencies]
 criterion = "0.3"

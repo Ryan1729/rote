@@ -727,20 +727,31 @@ pub fn run(
         }
 
         macro_rules! file_chooser_call {
-            ($event_proxy: expr, $func: ident, $default_path: expr, $path: ident in $event: expr) => {
-                let proxy =
-                    std::sync::Arc::new(std::sync::Mutex::new($event_proxy.clone()));
-                let proxy = proxy.clone();
-                file_chooser::$func(
-                    $default_path,
-                    move |$path: PathBuf| {
-                        let _bye = proxy
-                            .lock()
-                            .expect("file_chooser thread private mutex locked!?")
-                            .send_event($event);
-                    }
-                )
-            };
+            ($r_s: ident, $func: ident, $default_path: expr, $path: ident in $event: expr) => ({
+                #[cfg(not(feature = "native-file-chooser"))]
+                {
+                    handle_platform_error!(
+                        $r_s,
+                        "This version of rote was built without the native file dialog.\nConsider using the --file command instead."
+                    );
+                }
+
+                #[cfg(feature = "native-file-chooser")]
+                {
+                    let proxy =
+                        std::sync::Arc::new(std::sync::Mutex::new($r_s.event_proxy.clone()));
+                    let proxy = proxy.clone();
+                    file_chooser::$func(
+                        $default_path,
+                        move |$path: PathBuf| {
+                            let _bye = proxy
+                                .lock()
+                                .expect("file_chooser thread private mutex locked!?")
+                                .send_event($event);
+                        }
+                    );
+                }
+            });
         }
 
         macro_rules! switch_menu_mode {
@@ -889,7 +900,7 @@ pub fn run(
             }]
             [CTRL, O, "Open file.", r_s {
                 file_chooser_call!(
-                    r_s.event_proxy,
+                    r_s,
                     single,
                     v_s!(r_s).view.current_path(),
                     p in CustomEvent::OpenFile(p)
@@ -903,7 +914,7 @@ pub fn run(
                 match label.name.clone() {
                     BufferName::Scratch(_) => {
                         file_chooser_call!(
-                            r_s.event_proxy,
+                            r_s,
                             save,
                             v_s!(r_s).view.current_path(),
                             p in CustomEvent::SaveNewFile(p, i)
@@ -999,9 +1010,10 @@ pub fn run(
                 ));
             }]
             [CTRL | SHIFT, S, "Save new file.", r_s {
+                #[cfg(feature = "native-file-chooser")]
                 let i = v_s!(r_s).view.current_text_index();
                 file_chooser_call!(
-                    r_s.event_proxy,
+                    r_s,
                     save,
                     v_s!(r_s).view.current_path(),
                     p in CustomEvent::SaveNewFile(p, i)

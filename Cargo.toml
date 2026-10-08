@@ -26,7 +26,7 @@ path = "./libs/platform_layer"
 [dev-dependencies]
 
 [features]
-default = []
+default = ["native-file-chooser"]
 disable-fade-alpha = ["platform_layer/disable-fade-alpha"]
 no-spinning-sleep = ["platform_layer/no-spinning-sleep"]
 skip-updating-editor-thread = ["platform_layer/skip-updating-editor-thread"]
@@ -36,6 +36,7 @@ flame-chart = ["perf_viz/flame-chart"]
 flame-graph = ["perf_viz/flame-graph"]
 extra-prints = ["platform_types/extra-prints", "platform_layer/extra-prints", "editor/extra-prints"]
 print-raw-input = ["platform_layer/print-raw-input"]
+native-file-chooser = ["platform_layer/native-file-chooser"]
 
 [profile.test]
 opt-level = 1
