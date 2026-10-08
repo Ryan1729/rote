@@ -1526,7 +1526,6 @@ mod cursored_rope {
     }
 
     impl BorrowRope for CursoredRope {
-        #[must_use]
         fn borrow_rope(&self) -> &Rope {
             &self.rope
         }
