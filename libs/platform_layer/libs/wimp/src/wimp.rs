@@ -15,7 +15,7 @@ use wimp_render::{get_find_replace_info, FindReplaceInfo, get_go_to_position_inf
 use wimp_types::{ui, ui::{PhysicalButtonState, Navigation}, transform_at, BufferStatus, BufferStatusTransition, CustomEvent, get_clipboard, Dimensions, LabelledCommand, RunConsts, RunState, Pids, PidKind, EditorThreadInput, EditedFilesThread, ViewRunState, DebugMenuState, DpiFactor};
 use macros::{d, dbg};
 use platform_types::{screen_positioning::screen_to_text_box, *};
-use shared::{Res};
+use shared::{Res, TITLE};
 use edited_storage::{canonicalize, load_tab, load_previous_tabs, LoadedTab};
 
 /// # Errors
@@ -38,112 +38,144 @@ pub fn run(
         }
     }
 
-    let title = "rote";
+    struct StartConfig {
+        data_dir: Option<PathBuf>,
+        hidpi_factor_override: Option<f32>,
+        extra_paths: Vec<edited_storage::CanonicalPath>,
+    }
+
+    enum InitTask {
+        StdoutThenExit(String),
+        Start(StartConfig),
+    }
+
+    fn calculate_init_task(mut args: impl Iterator<Item = String>) -> Res<InitTask> {
+        use std::fmt::Write;
+
+        let mut data_dir = None;
+        let mut hidpi_factor_override = None;
+        // We expect the program to most often be opened with either 0 or 1 extra paths.
+        let mut extra_paths = Vec::with_capacity(1);
+
+        const VERSION: &str = "--version";
+        const HELP: &str = "--help";
+        const DATA_DIR_OVERRIDE: &str = "--data-dir-override";
+        const HIDPI_OVERRIDE: &str = "--hidpi-override";
+        const LICENSE: &str = "--license";
+        const FILE: &str = "--file";
+
+        while let Some(s) = args.next() {
+            let s: &str = &s;
+            match s {
+                HELP => {
+                    let accepted_args = [VERSION, HELP, DATA_DIR_OVERRIDE, HIDPI_OVERRIDE, LICENSE, FILE];
+                    let mut output = String::with_capacity(128);
+                    writeln!(&mut output, "accepted args: ")?;
+                    for arg in &accepted_args {
+                        write!(&mut output, "    {}", arg)?;
+                        if *arg == DATA_DIR_OVERRIDE {
+                            write!(&mut output, " <data directory path>")?;
+                        }
+                        if *arg == HIDPI_OVERRIDE {
+                            write!(&mut output, " <hidpi factor (positive floating point number)>")?;
+                        }
+                        if *arg == FILE {
+                            write!(&mut output, " <path of file to open>")?;
+                        }
+                        writeln!(&mut output, "")?;
+                    }
+                    return Ok(InitTask::StdoutThenExit(output))
+                }
+                VERSION => {
+                    // We expect the main crate to unconditionally print the version.
+                    // This is because the main crate has access to the correct
+                    // version value through the "CARGO_PKG_VERSION" env var.
+                    return Ok(InitTask::StdoutThenExit(String::with_capacity(0)))
+                }
+                DATA_DIR_OVERRIDE => {
+                    data_dir = Some(args.next().ok_or_else(|| {
+                        format!(
+                            "{0} needs an argument. For example: {0} ./data",
+                            DATA_DIR_OVERRIDE
+                        )
+                    })?)
+                    .map(PathBuf::from);
+
+                    data_dir = data_dir.map(|dd| dd.canonicalize().unwrap_or(dd));
+                }
+                HIDPI_OVERRIDE => {
+                    hidpi_factor_override = Some(args.next().ok_or_else(|| {
+                        format!(
+                            "{0} needs an argument. For example: {0} 1.5",
+                            HIDPI_OVERRIDE
+                        )
+                    })?)
+                    .and_then(|s| {
+                        use std::str::FromStr;
+                        window_layer::ScaleFactor::from_str(&s)
+                            .ok()
+                    });
+                }
+                LICENSE => {
+                    let mut output = String::with_capacity(128);
+                    writeln!(&mut output, "{} program by Ryan Wiedemann.", TITLE)?;
+                    writeln!(&mut output, "Source and license available at:")?;
+                    writeln!(&mut output, "    https://github.com/Ryan1729/{}", TITLE)?;
+                    writeln!(&mut output, "")?;
+                    writeln!(&mut output, "License for the font:")?;
+                    writeln!(&mut output, "{}", window_layer::FONT_LICENSE)?;
+                    return Ok(InitTask::StdoutThenExit(output))
+                }
+                FILE => {
+                    let path = args.next().ok_or_else(|| {
+                        format!(
+                            "{0} needs an argument. For example: {0} ./file.txt",
+                            FILE
+                        )
+                    })
+                    // Would it be better to open the window and display a path error
+                    // there instead of `?` here?
+                    // If someone specified a file, they probably want to open that
+                    // particular file, or maybe they made a typo, either way, they
+                    // probably would rather have the feedback in their terminal or
+                    // whatever, so they can correct the file name. Hence, `?`.
+                    .map(PathBuf::from)?;
+
+                    // See comment above for why `?`.
+                    extra_paths.push(canonicalize(path)?);
+                }
+                _ => {
+                    return Err(format!("unknown arg {:?}", s).into());
+                }
+            }
+        }
+
+        Ok(InitTask::Start(StartConfig {
+            data_dir,
+            hidpi_factor_override,
+            extra_paths,
+        }))
+    }
 
     let mut args = std::env::args();
     //exe name
     args.next();
 
-    let mut data_dir = None;
-    let mut hidpi_factor_override = None;
-    // We expect the program to most often be opened with either 0 or 1 extra paths.
-    let mut extra_paths = Vec::with_capacity(1);
+    let start_config = match calculate_init_task(args)? {
+        InitTask::StdoutThenExit(s) => {
+            println!("{s}");
+            std::process::exit(0)
+        },
+        InitTask::Start(start_config) => start_config,
+    };
 
-    const VERSION: &str = "--version";
-    const HELP: &str = "--help";
-    const DATA_DIR_OVERRIDE: &str = "--data-dir-override";
-    const HIDPI_OVERRIDE: &str = "--hidpi-override";
-    const LICENSE: &str = "--license";
-    const FILE: &str = "--file";
-
-    while let Some(s) = args.next() {
-        let s: &str = &s;
-        match s {
-            HELP => {
-                let accepted_args = [VERSION, HELP, DATA_DIR_OVERRIDE, HIDPI_OVERRIDE, LICENSE, FILE];
-                println!("accepted args: ");
-                for arg in &accepted_args {
-                    print!("    {}", arg);
-                    if *arg == DATA_DIR_OVERRIDE {
-                        print!(" <data directory path>");
-                    }
-                    if *arg == HIDPI_OVERRIDE {
-                        print!(" <hidpi factor (positive floating point number)>");
-                    }
-                    if *arg == FILE {
-                        print!(" <path of file to open>");
-                    }
-                    println!();
-                }
-                std::process::exit(0)
-            }
-            VERSION => {
-                // We expect the main crate to unconditionally print the version.
-                // This is because the main crate has access to the correct
-                // version value through the "CARGO_PKG_VERSION" env var.
-                std::process::exit(0)
-            }
-            DATA_DIR_OVERRIDE => {
-                data_dir = Some(args.next().ok_or_else(|| {
-                    format!(
-                        "{0} needs an argument. For example: {0} ./data",
-                        DATA_DIR_OVERRIDE
-                    )
-                })?)
-                .map(PathBuf::from);
-
-                data_dir = data_dir.map(|dd| dd.canonicalize().unwrap_or(dd));
-            }
-            HIDPI_OVERRIDE => {
-                hidpi_factor_override = Some(args.next().ok_or_else(|| {
-                    format!(
-                        "{0} needs an argument. For example: {0} 1.5",
-                        HIDPI_OVERRIDE
-                    )
-                })?)
-                .and_then(|s| {
-                    use std::str::FromStr;
-                    window_layer::ScaleFactor::from_str(&s)
-                        .ok()
-                });
-            }
-            LICENSE => {
-                println!("{} program by Ryan Wiedemann.", title);
-                println!("Source and license available at:");
-                println!("    https://github.com/Ryan1729/{}", title);
-                println!();
-                println!("License for the font:");
-                println!("{}", window_layer::FONT_LICENSE);
-                std::process::exit(0)
-            }
-            FILE => {
-                let path = args.next().ok_or_else(|| {
-                    format!(
-                        "{0} needs an argument. For example: {0} ./file.txt",
-                        FILE
-                    )
-                })
-                // Would it be better to open the window and display a path error
-                // there instead of `?` here?
-                // If someone specified a file, they probably want to open that
-                // particular file, or maybe they made a typo, either way, they
-                // probably would rather have the feedback in their terminal or
-                // whatever, so they can correct the file name. Hence, `?`.
-                .map(PathBuf::from)?;
-
-                // See comment above for why `?`.
-                extra_paths.push(canonicalize(path)?);
-            }
-            _ => {
-                eprintln!("unknown arg {:?}", s);
-                std::process::exit(1)
-            }
-        }
-    }
+    let data_dir = start_config.data_dir;
+    let hidpi_factor_override = start_config.hidpi_factor_override;
+    let extra_paths = start_config.extra_paths;
 
     let data_dir = data_dir
         .or_else(|| {
-            directories::ProjectDirs::from("com", "ryanwiedemann", title)
+            directories::ProjectDirs::from("com", "ryanwiedemann", TITLE)
                 .map(|proj_dirs| proj_dirs.data_dir().to_owned())
         })
         .ok_or("Could not find app data dir")?;
@@ -191,7 +223,7 @@ pub fn run(
                     Ok(duration) => format!("{}\n", duration.as_nanos()),
                     Err(e) => format!("-{}\n", e.duration().as_nanos()),
                 };
-    
+
                 f.write_all(thing_to_write.as_bytes())
             }
         );
@@ -210,7 +242,7 @@ pub fn run(
     if previous_instance_is_running {
         println!(
             "Previous instance of {} detected, or at least a file at:\n{}",
-            title,
+            TITLE,
             running_lock_path.to_string_lossy()
         );
 
@@ -311,7 +343,7 @@ pub fn run(
         match window_layer::init::<'_, '_, CustomEvent>(
             hidpi_factor_override.unwrap_or(HIDPI_DEFAULT),
             wimp_render::TEXT_BACKGROUND_COLOUR,
-            title.into(),
+            TITLE.into(),
         ) {
             Ok(s) => s,
             Err(e) => {
@@ -732,7 +764,9 @@ pub fn run(
                 {
                     handle_platform_error!(
                         $r_s,
-                        "This version of rote was built without the native file dialog.\nConsider using the --file command instead."
+                        format!(
+                            "This version of {TITLE} was built without the native file dialog.\nConsider using the --file command instead."
+                        )
                     );
                 }
 
@@ -1142,7 +1176,7 @@ pub fn run(
             macro_rules! load_file {
                 ($path: expr) => {{
                     let unparsed_path = $path;
-    
+
                     match canonicalize(&unparsed_path).and_then(|p| {
                         let last_path_tried = p.path.to_owned();
                         load_tab(p)
@@ -1159,9 +1193,9 @@ pub fn run(
                             } else {
                                 Input::AddOrSelectBuffer(name, data)
                             };
-    
+
                             call_u_and_r!(input);
-    
+
                             // Notify the user that the file loaded, if we are not
                             // already in focus.
                             use window_layer::UserAttentionType;
@@ -1507,7 +1541,7 @@ pub fn run(
                             {
                                 let mut total = 0.0;
 
-                                // For this display, we want some fewer decimal 
+                                // For this display, we want some fewer decimal
                                 // places, and so are fine with some precision loss.
                                 #[allow(clippy::cast_precision_loss)]
 
@@ -1526,7 +1560,7 @@ pub fn run(
 
                         fns.set_title(&format!(
                             "{}{} {:.0} FPS v{: >6.3} ms e{: >6.3} ms(e-u{: >6.3} ms e-r{: >6.3} ms(e-br{: >6.3} ms p{}) e-st{: >6.3} ms e-mr{: >6.3} ms) {:?} click {:?}",
-                            title,
+                            TITLE,
                             if cfg!(debug_assertions) {
                                 " DEBUG"
                             } else {

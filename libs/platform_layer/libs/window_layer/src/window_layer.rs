@@ -29,8 +29,17 @@ pub use glutin_wrapper::{
         WindowEvent,
         ElementState,
         StartCause,
+        // TODO make functionally identical copies of these,
+        // put them in a new window_layer_types crate, and
+        // stop exporting them from here. Move things that 
+        // rely only on them into that crate too.
+        //
+        // Make conversion functions from/into these types 
+        // if needed.
+        // {
         ModifiersState,
         VirtualKeyCode as KeyCode,
+        // }
     },
     event_loop::{
         EventLoop,
