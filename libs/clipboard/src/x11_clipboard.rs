@@ -26,6 +26,7 @@ pub trait Selection {
     fn atom(atoms: &Atoms) -> Atom;
 }
 
+#[allow(unused)]
 pub struct Primary;
 
 impl Selection for Primary {

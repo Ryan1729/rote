@@ -47,7 +47,10 @@ pub use glutin_wrapper::{
     },
 };
 
-use glutin_wrapper::{dpi, event_loop::ControlFlow};
+use glutin_wrapper::{
+    dpi, 
+    event_loop::{ControlFlow, EventLoopBuilder}
+};
 pub use std::time::Duration;
 
 #[must_use]
@@ -82,7 +85,7 @@ where 'title: 'title
         window::WindowBuilder,
     };
 
-    let events: EventLoop<CustomEvent> = EventLoop::with_user_event();
+    let events: EventLoop<CustomEvent> = EventLoopBuilder::with_user_event().build();
 
     let mut window_builder = WindowBuilder::new()
         .with_inner_size(

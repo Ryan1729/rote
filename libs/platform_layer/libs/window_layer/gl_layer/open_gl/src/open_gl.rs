@@ -5,9 +5,10 @@ use std::{ffi::CString, mem, ptr, str};
 use gl33::{*, global_loader::*};
 use gl33::global_loader::load_global_gl;
 
-use gl_layer_types::{DEPTH_MIN, DEPTH_MAX, Dimensions, Vertex, VERTEX_SPEC, Res, U24};
+use gl_layer_types::{DEPTH_MIN, DEPTH_MAX, Dimensions, Vertex, VERTEX_SPEC, U24};
 
 use macros::{invariants_checked};
+use shared::{Res};
 
 pub type LoadFnOutput = *const core::ffi::c_void;
 pub type LoadFn<'a> = dyn Fn(*const u8) -> LoadFnOutput + 'a;

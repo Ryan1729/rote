@@ -9,8 +9,6 @@ pub type Dimensions = (U24, U24);
 
 use std::borrow::Cow;
 
-pub type Res<T> = Result<T, Box<dyn std::error::Error>>;
-
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Point {
     pub x: f32,

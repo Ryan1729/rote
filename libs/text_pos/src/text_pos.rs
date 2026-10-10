@@ -53,7 +53,6 @@ impl macros::CheckedAdd for AbsoluteCharOffset {
 impl macros::SaturatingAdd<CharOffset> for AbsoluteCharOffset {
     type Output = AbsoluteCharOffset;
 
-    #[must_use]
     fn saturating_add(self, other: CharOffset) -> AbsoluteCharOffset {
         AbsoluteCharOffset(self.0.saturating_add(other.0))
     }
@@ -105,7 +104,6 @@ impl macros::CheckedSub<CharOffset> for AbsoluteCharOffset {
 impl macros::SaturatingSub<CharOffset> for AbsoluteCharOffset {
     type Output = AbsoluteCharOffset;
 
-    #[must_use]
     fn saturating_sub(self, other: CharOffset) -> AbsoluteCharOffset {
         AbsoluteCharOffset(self.0.saturating_sub(other.0))
     }
@@ -219,7 +217,7 @@ pub fn unappend_positions(left: Position, right: Position) -> Position {
     }
 }
 
-#[cfg(any(tests, feature = "pub_arb"))]
+#[cfg(any(test, feature = "pub_arb"))]
 pub mod tests {
     use super::*;
     pub mod arb {

@@ -3,10 +3,11 @@ use screen_space::{
     CharDim,
     char_dim, ssr,
 };
-use gl_layer_types::{Dimensions, Vertex, VertexStruct, set_alpha, TextOrRect, Res};
+use gl_layer_types::{Dimensions, Vertex, VertexStruct, set_alpha, TextOrRect};
 
 #[allow(unused_imports)]
 use macros::{d, dbg};
+use shared::Res;
 
 use glyph_brush::{
     Rect,

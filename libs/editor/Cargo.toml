@@ -81,6 +81,7 @@ default = []
 invariant-checking = []
 extra-prints = ["text_buffer/extra-prints"]
 no-cache = []
+pub_arb = []
 
 [[bench]]
 name = "user_input"

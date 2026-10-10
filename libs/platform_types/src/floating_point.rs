@@ -8,7 +8,7 @@ pub fn usual_f32_minimal_increase<F32: Into<f32>>(x: F32) -> f32 {
     let non_sign_bits = x.to_bits() & ALL_BUT_SIGN_BIT;
     // if is 0 or -0
     if non_sign_bits == 0 {
-        std::f32::MIN_POSITIVE
+        f32::MIN_POSITIVE
     } else {
         let sign_bit = x.to_bits() & SIGN_BIT;
         let sign = if sign_bit == 0 { 1 } else { -1 };
@@ -42,7 +42,7 @@ pub fn usual_f32_minimal_decrease<F32: Into<f32>>(x: F32) -> f32 {
     let non_sign_bits = x.to_bits() & ALL_BUT_SIGN_BIT;
     // if is 0 or -0
     if non_sign_bits == 0 {
-        -std::f32::MIN_POSITIVE
+        -f32::MIN_POSITIVE
     } else {
         let sign_bit = x.to_bits() & SIGN_BIT;
         let sign = if sign_bit == 0 { 1 } else { -1 };

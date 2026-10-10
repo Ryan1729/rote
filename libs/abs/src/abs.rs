@@ -49,7 +49,7 @@ impl Pos {
     const FRAC_BIT_MASK: i64 = Self::SCALE - 1;
     const TRUNC_BIT_MASK: i64 = !Self::FRAC_BIT_MASK;
 
-    pub const MIN: Pos = Pos(-i64::max_value());
+    pub const MIN: Pos = Pos(-i64::MAX);
     pub const NEGATIVE_ONE: Pos = Pos(-Self::SCALE);
     pub const MAX_NEGATIVE: Pos = Pos(-1);
     pub const ZERO: Pos = Pos(0);
@@ -64,8 +64,8 @@ impl Pos {
     pub const TWO_FIFTY_SIX: Pos = Pos(Self::SCALE << 8);
 
     pub const TWO_TO_THE_TWENTY_THREE: Pos = Pos(Self::SCALE << 23);
-    pub const MAX: Pos = Pos(i64::max_value());
-    // This is actually slightly higher than `i64::max_value()`, so comparing
+    pub const MAX: Pos = Pos(i64::MAX);
+    // This is actually slightly higher than `i64::MAX`, so comparing
     // to this for saturation purposes gives the correct answer.
     #[allow(clippy::cast_precision_loss)]
     const MAX_F64: f64 = Self::MAX.0 as f64;
@@ -770,7 +770,7 @@ impl Ratio {
     pub const ONE_TWENTY_EIGHT: Ratio = Ratio(127);
     pub const TWO_FIFTY_SIX: Ratio = Ratio(255);
 
-    const ZERO_BITS: RatioBits = RatioBits::min_value();
+    const ZERO_BITS: RatioBits = RatioBits::MIN;
 
     #[must_use]
     pub fn from_bits(bits: RatioBits) -> Self {

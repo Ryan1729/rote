@@ -1,6 +1,7 @@
 [package]
 name = "atomicwrites"
 version = "0.4.1"
+edition = "2024"
 
 authors = ["Markus Unterwaditzer <markus-honeypot@unterwaditzer.net>"]
 license = "MIT"

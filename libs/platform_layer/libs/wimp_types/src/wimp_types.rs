@@ -291,7 +291,7 @@ mod view {
         }
 
         #[must_use]
-        pub fn menu(&self) -> WimpMenu {
+        pub fn menu(&self) -> WimpMenu<'_> {
             WimpMenu {
                 platform_menu: &self.buffers.platform_view.menu,
                 local_menu: &self.local_menu,

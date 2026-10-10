@@ -9,7 +9,7 @@ pub(crate) fn to_rope_line(rope_slice: ropey::RopeSlice) -> RopeLine {
     })
 }
 
-pub(crate) fn to_chunk((s, byte_idx, char_index, line_idx): (&str, usize, usize, usize)) -> Chunk {
+pub(crate) fn to_chunk((s, byte_idx, char_index, line_idx): (&str, usize, usize, usize)) -> Chunk<'_> {
     (s, ByteIndex(byte_idx), AbsoluteCharOffset(char_index), LineIndex(line_idx))
 }
 

@@ -764,15 +764,14 @@ impl<'font, V> Glyphed<'font, V> {
                         None
                     },
                     Ok(Some(rasterizer::Coords{ texture, pixel })) => {
-                        use std::f32::INFINITY;
                         const INFINITY_RECT: Rect = Rect {
                             min: Point {
-                                x: -INFINITY,
-                                y: -INFINITY,
+                                x: -f32::INFINITY,
+                                y: -f32::INFINITY,
                             },
                             max: Point {
-                                x: INFINITY,
-                                y: INFINITY,
+                                x: f32::INFINITY,
+                                y: f32::INFINITY,
                             },
                         };
 

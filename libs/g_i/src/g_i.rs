@@ -18,7 +18,7 @@ impl Length {
     /// This returns a `usize` to make comparing to usize lengths conveinient.
     #[must_use]
     pub const fn max_value() -> usize {
-        LengthSize::max_value() as usize
+        LengthSize::MAX as usize
     }
 
     /// This takes a `usize` to make creation from usize lengths, where we don't care about
@@ -55,7 +55,7 @@ impl IndexPart {
     /// This returns a `usize` to make comparing to usize lengths conveinient.
     #[must_use]
     pub const fn max_value() -> usize {
-        (LengthSize::max_value() - 1) as usize
+        (LengthSize::MAX - 1) as usize
     }
 
     /// This takes a `usize` to make creation from usize lengths, where we don't care about
@@ -565,7 +565,7 @@ mod selectable_vec1 {
         pub fn get_current_element_mut(&mut self) -> &mut A {
             // We can't use the same thing as we do in `get_current_element` because of the 
             // borrow checker. This may eventually be resolved by non-lexical lifetimes.
-            let i = self.current_index().get(self.index_state).unwrap_or(usize::max_value());
+            let i = self.current_index().get(self.index_state).unwrap_or(usize::MAX);
             if i < self.elements.len() {
                 // This indexing is valid because of the length check. Additionally, 
                 // `set_current_index` doesn't set the value if it is invalid.
@@ -884,12 +884,12 @@ mod selectable_vec1 {
     }
     
     impl<A> SelectableVec1<A> {
-        pub fn iter(&self) -> std::slice::Iter<A> {
+        pub fn iter(&self) -> std::slice::Iter<'_, A> {
             self.elements.iter()
         }
     
         #[must_use]
-        pub fn iter_with_indexes(&self) -> IterWithIndexes<A> {
+        pub fn iter_with_indexes(&self) -> IterWithIndexes<'_, A> {
             IterWithIndexes {
                 index: self.first_index(),
                 iter: self.iter(),

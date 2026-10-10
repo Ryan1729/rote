@@ -12,6 +12,7 @@ gl_layer_types = {path = "../gl_layer_types"}
 glyph_brush = {path = "glyph-brush"}
 linebreak = {path = "linebreak"}
 macros = { path = "../../../../../macros" }
+shared = { path = "../../../shared" }
 is_linebreak_char = { path = "../../../../../is_linebreak_char" }
 perf_viz = { path = "../../../../../perf_viz" }
 screen_space = { path = "../../../../../screen_space" }
@@ -24,5 +25,8 @@ pub_arb_std = { path = "../../../../../pub_arb/std"}
 [features]
 default = ["show-control-pictures"]
 show-control-pictures = []
+extra-prints = []
 # Feature below this only affect tests
 dump-all-characters-texture = []
+pub_arb = []
+

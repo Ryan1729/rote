@@ -582,7 +582,7 @@ fn get_insert_prefix_edit(
                     let start = highlight_start_for_line.0;
                     let previous_offset = min(
                         first_highlighted_non_white_space_offset
-                            .unwrap_or(CharOffset(usize::max_value())),
+                            .unwrap_or(CharOffset(usize::MAX)),
                         highlight_end_for_line,
                     );
 

@@ -301,7 +301,7 @@ impl Rope {
     /// Returns `None` if `byte_idx` is out of bounds (i.e. `byte_idx > len_bytes()`).
     #[inline]
     #[perf_viz::record]
-    pub fn chunk_at_byte(&self, byte_idx: ByteIndex) -> Option<Chunk> {
+    pub fn chunk_at_byte(&self, byte_idx: ByteIndex) -> Option<Chunk<'_>> {
         macros::some_if!(
             byte_idx <= self.len_bytes().0 => self.rope.chunk_at_byte(byte_idx.0)
         )
@@ -312,7 +312,7 @@ impl Rope {
     /// Returns `None` if `char_idx` is out of bounds (i.e. `char_idx > len_chars()`).
     #[inline]
     #[perf_viz::record]
-    pub fn chunk_at_char(&self, char_idx: AbsoluteCharOffset) -> Option<Chunk> {
+    pub fn chunk_at_char(&self, char_idx: AbsoluteCharOffset) -> Option<Chunk<'_>> {
         macros::some_if!(
             char_idx <= self.len_chars().0 => self.rope.chunk_at_char(char_idx.0)
         )
@@ -323,7 +323,7 @@ impl Rope {
     /// Returns `None` if `line_break_idx` is out of bounds (i.e. `line_break_idx > len_lines()`).
     #[inline]
     #[perf_viz::record]
-    pub fn chunk_at_line_break(&self, line_break_idx: usize) -> Option<Chunk> {
+    pub fn chunk_at_line_break(&self, line_break_idx: usize) -> Option<Chunk<'_>> {
         macros::some_if!(
             line_break_idx <= self.len_lines().0 => self.rope.chunk_at_line_break(line_break_idx)
         )
@@ -333,14 +333,14 @@ impl Rope {
     #[must_use]
     #[inline]
     #[perf_viz::record]
-    pub fn bytes(&self) -> ropey::iter::Bytes {
+    pub fn bytes(&self) -> ropey::iter::Bytes<'_> {
         self.rope.bytes()
     }
 
     #[must_use]
     #[inline]
     #[perf_viz::record]
-    pub fn chars(&self) -> ropey::iter::Chars {
+    pub fn chars(&self) -> ropey::iter::Chars<'_> {
         self.rope.chars()
     }
 
@@ -348,7 +348,7 @@ impl Rope {
     #[inline]
     #[perf_viz::record]
     /// Returns `None` if `char_idx` is out of bounds (i.e. `char_idx > len_chars()`).
-    pub fn chars_at(&self, char_idx: AbsoluteCharOffset) -> Option<ropey::iter::Chars> {
+    pub fn chars_at(&self, char_idx: AbsoluteCharOffset) -> Option<ropey::iter::Chars<'_>> {
         macros::some_if!(
             char_idx <= self.len_chars() => self.rope.chars_at(char_idx.0)
         )
@@ -358,13 +358,13 @@ impl Rope {
     /// Equivalent to `r.chars_at(r.len_chars()).unwrap()`
     #[inline]
     #[perf_viz::record]
-    pub fn chars_at_end(&self) -> ropey::iter::Chars {
+    pub fn chars_at_end(&self) -> ropey::iter::Chars<'_> {
         self.rope.chars_at(self.rope.len_chars())
     }
 
     #[inline]
     #[perf_viz::record]
-    pub fn lines(&self) -> Lines {
+    pub fn lines(&self) -> Lines<'_> {
         self.rope.lines().map(to_rope_line)
     }
 
@@ -372,7 +372,7 @@ impl Rope {
     /// Returns `None` if `line_break_idx` is out of bounds (i.e. `line_break_idx > len_lines()`).
     #[inline]
     #[perf_viz::record]
-    pub fn lines_at(&self, line_break_idx: usize) -> Option<Lines> {
+    pub fn lines_at(&self, line_break_idx: usize) -> Option<Lines<'_>> {
         macros::some_if!(
             line_break_idx <= self.len_lines() => self.rope.lines_at(line_break_idx).map(to_rope_line)
         )
@@ -382,7 +382,7 @@ impl Rope {
     /// Returns `None` if `line_break_idx` is out of bounds (i.e. `line_break_idx > len_lines()`).
     #[inline]
     #[perf_viz::record]
-    pub fn lines_at_reversed(&self, line_break_idx: usize) -> Option<Lines> {
+    pub fn lines_at_reversed(&self, line_break_idx: usize) -> Option<Lines<'_>> {
         macros::some_if!(
             line_break_idx <= self.len_lines() => self.rope.lines_at(line_break_idx).reversed().map(to_rope_line)
         )
@@ -391,7 +391,7 @@ impl Rope {
     #[must_use]
     #[inline]
     #[perf_viz::record]
-    pub fn chunks(&self) -> ropey::iter::Chunks {
+    pub fn chunks(&self) -> ropey::iter::Chunks<'_> {
         self.rope.chunks()
     }
 
@@ -399,7 +399,7 @@ impl Rope {
     /// Returns `None`  if `line_idx` is out of bounds (i.e. `line_idx >= len_lines()`).
     #[inline]
     #[perf_viz::record]
-    pub fn line(&self, line_idx: LineIndex) -> Option<RopeLine> {
+    pub fn line(&self, line_idx: LineIndex) -> Option<RopeLine<'_>> {
         macros::some_if!(
             line_idx < self.len_lines().0 => to_rope_line(self.rope.line(line_idx.0))
         )
@@ -410,7 +410,7 @@ impl Rope {
     /// end is out of bounds (i.e. `end > len_chars()`).
     #[inline]
     #[perf_viz::record]
-    pub fn slice<R>(&self, char_range: R) -> Option<RopeSlice>
+    pub fn slice<R>(&self, char_range: R) -> Option<RopeSlice<'_>>
     where
         R: RangeBounds<AbsoluteCharOffset>,
     {
@@ -423,7 +423,7 @@ impl Rope {
     /// Equivalent to `slice(..0)` except it always returns a `RopeSlice`
     #[inline]
     #[perf_viz::record]
-    pub fn empty_slice(&self) -> RopeSlice {
+    pub fn empty_slice(&self) -> RopeSlice<'_> {
         RopeSlice {
             rope_slice: self.rope.slice(..0),
         }
@@ -433,7 +433,7 @@ impl Rope {
     /// Equivalent to `slice(..)` except it always returns a `RopeSlice`
     #[inline]
     #[perf_viz::record]
-    pub fn full_slice(&self) -> RopeSlice {
+    pub fn full_slice(&self) -> RopeSlice<'_> {
         RopeSlice {
             rope_slice: self.rope.slice(0..self.len_chars().0),
         }

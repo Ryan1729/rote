@@ -59,8 +59,8 @@ mod per_backend {
         Cache {
             cache: gpu_cache::Cache::builder()
                 .dimensions(256, 256)
-                .scale_tolerance(0.5)
-                .position_tolerance(0.25)
+                .scale_tolerance(0.5_f32)
+                .position_tolerance(0.25_f32)
                 .align_4x4(false)
                 .build()
         }

@@ -89,7 +89,8 @@ macro_rules! hash {
             fn hash<H: std::hash::Hasher>(&self, $state: &mut H) {
                 let $self = self;
                 $code
-            }        }
+            }
+        }
     }
 }
 
@@ -174,7 +175,7 @@ fn ord_works_in_this_nested_key_function_case_example() {
         False,
         True
     }
-    
+
     macro_rules! ord_bool_key {
         ($o: expr) => {{
             use OrdBool::*;
@@ -220,24 +221,24 @@ pub mod traits {
         #[must_use]
         fn checked_add(self, rhs: Rhs) -> Option<Self::Output>;
     }
-    
+
     pub trait CheckedSub<Rhs = Self> {
         type Output;
-    
+
         #[must_use]
         fn checked_sub(self, rhs: Rhs) -> Option<Self::Output>;
     }
-    
+
     pub trait SaturatingAdd<Rhs = Self> {
         type Output;
-    
+
         #[must_use]
         fn saturating_add(self, rhs: Rhs) -> Self::Output;
     }
-    
+
     pub trait SaturatingSub<Rhs = Self> {
         type Output;
-    
+
         #[must_use]
         fn saturating_sub(self, rhs: Rhs) -> Self::Output;
     }
@@ -356,7 +357,7 @@ macro_rules! usize_newtype {
 
         impl $name {
             pub fn max_value() -> Self {
-                Self(usize::max_value())
+                Self(usize::MAX)
             }
         }
     };
@@ -455,9 +456,9 @@ macro_rules! d {
 }
 
 /// Short for `use something::*;`.
-/// 
+///
 /// This is intended mainly for enum imports.
-/// So 
+/// So
 /// ```rust
 /// # enum SomeEnum { /* ... */ }
 /// use SomeEnum::*;
@@ -486,7 +487,7 @@ macro_rules! u {
     () => {
         /// This seems like the most common use case that that is not specific to a particular file.
         /// Note that you cannot always use this to import itself, so you may need to spell out either
-        /// `use super::*;` or the macro import. 
+        /// `use super::*;` or the macro import.
         use super::*;
     }
 }
@@ -518,14 +519,14 @@ macro_rules! fmt_display {
     );
 }
 
-/// collapse default mode Example: 
+/// collapse default mode Example:
 /// ```
 /// # #[macro_use] extern crate macros; fn main() {
 /// struct Ex {
 ///     blank_me: i32,
 ///     show_me: String,
 /// }
-/// 
+///
 /// fmt_debug!(collapse default for Ex : me {
 ///     blank_if_default!(blank_me);
 ///     field!(show_me);
@@ -561,15 +562,15 @@ macro_rules! fmt_debug {
         impl std::fmt::Debug for $name {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 let mut s = f.debug_struct(stringify!($name));
-        
+
                 let $self = self;
 
-                macro_rules! field { 
+                macro_rules! field {
                     ($field: ident) => {
                         s.field(stringify!($field), &$self.$field);
                     }
                 }
-        
+
                 fn is_default_value<D: Default + PartialEq<D>>(value: &D) -> bool {
                     value == &D::default()
                 }
@@ -590,13 +591,13 @@ macro_rules! fmt_debug {
                         }
                     }
                 }
-        
+
                 $code;
-        
+
                 if any_defaulted {
                     s.field(".. d!", &());
                 }
-        
+
                 s.finish()
             }
         }
@@ -722,12 +723,13 @@ macro_rules! dbg {
     ($val:expr,) => { dbg!($val) };
     ($($val:expr),+ $(,)?) => {
         if $crate::extra_prints!() {
-            std::dbg!($($val),+,)        } else {
+            std::dbg!($($val),+,)
+        } else {
             ($($val),+,)
         }
     };
     ($($args: tt)*) => {
-        
+
     };
 }
 

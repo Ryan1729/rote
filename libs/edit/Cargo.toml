@@ -50,4 +50,5 @@ pub_arb_vec1 = { path = "../pub_arb/vec1" }
 [features]
 default = []
 extra-prints = []
+invariant-checking = []
 pub_arb = ["proptest", "pub_arb_cursors", "pub_arb_vec1"]

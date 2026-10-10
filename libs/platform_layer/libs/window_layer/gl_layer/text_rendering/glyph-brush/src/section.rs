@@ -3,7 +3,7 @@
 
 use crate::{FontId};
 use rasterizer::{Colour, Scale};
-use std::{borrow::Cow, f32, hash::*};
+use std::{borrow::Cow, hash::*};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SectionGeometry {

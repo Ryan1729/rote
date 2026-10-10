@@ -1272,7 +1272,7 @@ mod query {
     // flamegraphs. And if this is indeed faster, I should avoid allocating
     // this Vec every time.
     #[cfg(not(feature = "tree-traversal"))]
-    fn nodes_from_tree(tree: &Tree) -> Vec<Node> {
+    fn nodes_from_tree(tree: &Tree) -> Vec<Node<'_>> {
         DepthFirst::new(tree).map(|(_, node)| node).collect::<Vec<_>>()
     }
 

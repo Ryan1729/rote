@@ -365,11 +365,11 @@ impl EditorBuffers {
 }
 
 impl EditorBuffers {
-    pub fn iter(&self) -> std::slice::Iter<EditorBuffer> {
+    pub fn iter(&self) -> std::slice::Iter<'_, EditorBuffer> {
         self.buffers.iter()
     }
 
-    pub fn iter_with_indexes(&self) -> g_i::IterWithIndexes<EditorBuffer> {
+    pub fn iter_with_indexes(&self) -> g_i::IterWithIndexes<'_, EditorBuffer> {
         self.buffers.iter_with_indexes()
     }
 }

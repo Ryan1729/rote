@@ -91,20 +91,20 @@ pub trait RopeSliceTrait<'rope> {
     fn bytes(&self) -> Bytes<'rope>;
 
     /// Returns `None` if `byte_idx` is out of bounds (i.e. `byte_idx > len_bytes()`).
-    fn bytes_at(&self, byte_idx: ByteIndex) -> Option<Bytes>;
+    fn bytes_at(&self, byte_idx: ByteIndex) -> Option<Bytes<'_>>;
 
     fn chars(&self) -> Chars<'rope>;
 
     /// Returns `None` if `char_idx` is out of bounds (i.e. `char_idx > len_chars()`).
-    fn chars_at(&self, char_idx: CharOffset) -> Option<Chars>;
+    fn chars_at(&self, char_idx: CharOffset) -> Option<Chars<'_>>;
 
     /// Equivalent to `r.chars_at(r.len_chars()).unwrap()`
-    fn chars_at_end(&self) -> Chars;
+    fn chars_at_end(&self) -> Chars<'_>;
 
     fn lines(&self) -> Lines<'rope>;
 
     /// Returns `None` if `line_break_idx` is out of bounds (i.e. `line_break_idx > len_lines()`).
-    fn lines_at(&self, line_break_idx: usize) -> Option<Lines>;
+    fn lines_at(&self, line_break_idx: usize) -> Option<Lines<'_>>;
 
     fn chunks(&self) -> Chunks<'rope>;
 
@@ -225,7 +225,7 @@ impl<'rope> RopeSliceTrait<'rope> for RopeSlice<'rope> {
     }
 
     /// Returns `None` if `byte_idx` is out of bounds (i.e. `byte_idx > len_bytes()`).
-    fn bytes_at(&self, byte_idx: ByteIndex) -> Option<Bytes> {
+    fn bytes_at(&self, byte_idx: ByteIndex) -> Option<Bytes<'_>> {
         macros::some_if!(
             byte_idx.0 <= self.len_bytes().0 => self.rope_slice.bytes_at(byte_idx.0)
         )
@@ -238,7 +238,7 @@ impl<'rope> RopeSliceTrait<'rope> for RopeSlice<'rope> {
 
     /// Returns `None` if `char_idx` is out of bounds (i.e. `char_idx > len_chars()`).
     #[inline]
-    fn chars_at(&self, char_idx: CharOffset) -> Option<Chars> {
+    fn chars_at(&self, char_idx: CharOffset) -> Option<Chars<'_>> {
         macros::some_if!(
             char_idx <= self.len_chars() => self.rope_slice.chars_at(char_idx.0)
         )
@@ -246,7 +246,7 @@ impl<'rope> RopeSliceTrait<'rope> for RopeSlice<'rope> {
 
     /// Equivalent to `r.chars_at(r.len_chars()).unwrap()`
     #[inline]
-    fn chars_at_end(&self) -> Chars {
+    fn chars_at_end(&self) -> Chars<'_> {
         self.rope_slice.chars_at(self.rope_slice.len_chars())
     }
 
@@ -257,7 +257,7 @@ impl<'rope> RopeSliceTrait<'rope> for RopeSlice<'rope> {
 
     /// Returns `None` if `line_break_idx` is out of bounds (i.e. `line_break_idx > len_lines()`).
     #[inline]
-    fn lines_at(&self, line_break_idx: usize) -> Option<Lines> {
+    fn lines_at(&self, line_break_idx: usize) -> Option<Lines<'_>> {
         macros::some_if!(
             line_break_idx <= self.len_lines() => self.rope_slice.lines_at(line_break_idx).map(to_rope_line)
         )
@@ -492,7 +492,7 @@ impl<'rope> RopeSliceTrait<'rope> for RopeLine<'rope> {
     }
 
     /// Returns `None` if `byte_idx` is out of bounds (i.e. `byte_idx > len_bytes()`).
-    fn bytes_at(&self, byte_idx: ByteIndex) -> Option<Bytes> {
+    fn bytes_at(&self, byte_idx: ByteIndex) -> Option<Bytes<'_>> {
         self.0.bytes_at(byte_idx)
     }
 
@@ -502,13 +502,13 @@ impl<'rope> RopeSliceTrait<'rope> for RopeLine<'rope> {
     }
 
     /// Returns `None` if `char_idx` is out of bounds (i.e. `char_idx > len_chars()`).
-    fn chars_at(&self, char_idx: CharOffset) -> Option<Chars> {
+    fn chars_at(&self, char_idx: CharOffset) -> Option<Chars<'_>> {
         self.0.chars_at(char_idx)
     }
 
     /// Equivalent to `r.chars_at(r.len_chars()).unwrap()`
     #[inline]
-    fn chars_at_end(&self) -> Chars {
+    fn chars_at_end(&self) -> Chars<'_> {
         self.0.chars_at_end()
     }
 
@@ -518,7 +518,7 @@ impl<'rope> RopeSliceTrait<'rope> for RopeLine<'rope> {
     }
 
     /// Returns `None` if `line_break_idx` is out of bounds (i.e. `line_break_idx > len_lines()`).
-    fn lines_at(&self, line_break_idx: usize) -> Option<Lines> {
+    fn lines_at(&self, line_break_idx: usize) -> Option<Lines<'_>> {
         self.0.lines_at(line_break_idx)
     }
 

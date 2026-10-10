@@ -295,7 +295,7 @@ fn get_line_char_iterator<R: std::ops::RangeBounds<CharOffset>>(
     let take = match range.end_bound() {
         Included(CharOffset(o)) => *o,
         Excluded(CharOffset(o)) => (*o).saturating_sub(1),
-        Unbounded => usize::max_value(),
+        Unbounded => usize::MAX,
     } - skip;
     
     let final_offset = final_non_newline_offset_for_rope_line(line);

@@ -1741,6 +1741,7 @@ dependencies = [
  "if_changed",
  "macros",
  "perf_viz",
+ "shared",
 ]
 
 [[package]]
@@ -2827,6 +2828,7 @@ dependencies = [
  "proptest_wrapper",
  "pub_arb_std",
  "screen_space",
+ "shared",
  "ttf-parser 0.15.1",
 ]
 

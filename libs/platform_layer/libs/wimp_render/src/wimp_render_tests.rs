@@ -7,7 +7,7 @@ use macros::{dbg, d};
 use proptest::{Just, Strategy, prop_compose, proptest,};
 
 mod arb {
-    pub use pub_arb_abs::{abs_pos, abs_length, abs_vector};
+    pub use pub_arb_abs::{abs_length, abs_vector};
 }
 
 #[test]
