@@ -138,9 +138,9 @@ checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
 
 [[package]]
 name = "bitflags"
-version = "2.6.0"
+version = "2.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b048fb63fd8b5923fc5aa7b340d8e156aec7ec02f0c78fa8a6ddc2613f6f71de"
+checksum = "3ded4057c258ba199e2d26386d3af3780957ecaee6c4ef4041c6b4b8b97c0b06"
 
 [[package]]
 name = "block"
@@ -2024,7 +2024,7 @@ checksum = "b4c2511913b88df1637da85cc8d96ec8e43a3f8bb8ccb71ee1ac240d6f3df58d"
 dependencies = [
  "bit-set",
  "bit-vec",
- "bitflags 2.6.0",
+ "bitflags 2.13.2",
  "lazy_static 1.4.0",
  "num-traits",
  "rand 0.8.5",
@@ -2314,7 +2314,7 @@ version = "0.5.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed2bf2547551a7053d6fdfafda3f938979645c44812fbfcda098faae3f1a362d"
 dependencies = [
- "bitflags 2.6.0",
+ "bitflags 2.13.2",
 ]
 
 [[package]]
@@ -2444,7 +2444,7 @@ version = "0.38.37"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8acb788b847c24f28525660c4d7758620a7210875711f79e7f663cc152726811"
 dependencies = [
- "bitflags 2.6.0",
+ "bitflags 2.13.2",
  "errno",
  "libc",
  "linux-raw-sys",
@@ -3241,6 +3241,7 @@ dependencies = [
  "wimp_render",
  "wimp_types",
  "window_layer",
+ "window_layer_types",
 ]
 
 [[package]]
@@ -3271,6 +3272,7 @@ dependencies = [
  "proptest_wrapper",
  "shared",
  "window_layer",
+ "window_layer_types",
 ]
 
 [[package]]
@@ -3323,6 +3325,14 @@ dependencies = [
  "platform_types",
  "screen_space",
  "spin_sleep",
+ "window_layer_types",
+]
+
+[[package]]
+name = "window_layer_types"
+version = "0.1.0"
+dependencies = [
+ "bitflags 2.13.2",
 ]
 
 [[package]]

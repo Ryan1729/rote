@@ -49,4 +49,5 @@ members = [
     "libs/perf_viz",
     "libs/platform_types",
     "libs/platform_layer",
+    "libs/platform_layer/libs/window_layer_types",
 ]

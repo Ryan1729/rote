@@ -1,4 +1,5 @@
-use window_layer::{ModifiersState, KeyCode};
+use window_layer_types::{ModifiersState};
+use window_layer::{KeyCode};
 use macros::{d, ord, u};
 use platform_types::{screen_positioning::*, abs, g_i, Input, Cmd, EditedTransition, TimeSpan, BufferLabel, BufferName};
 

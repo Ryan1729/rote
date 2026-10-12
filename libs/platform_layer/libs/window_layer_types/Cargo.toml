@@ -1,0 +1,10 @@
+[package]
+name = "window_layer_types"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+path = "src/window_layer_types.rs"
+
+[dependencies]
+bitflags = { version = "2.13.2", features = [] }

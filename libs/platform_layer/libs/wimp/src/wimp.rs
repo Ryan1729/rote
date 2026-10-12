@@ -593,7 +593,8 @@ pub fn run(
             }};
         }
 
-        use window_layer::{MouseButton, ModifiersState, KeyCode};
+        use window_layer_types::{ModifiersState};
+        use window_layer::{MouseButton, KeyCode};
 
         macro_rules! call_u_and_r {
             ($input:expr) => {
@@ -1354,7 +1355,7 @@ pub fn run(
                 if (!modifiers).intersects(!CTRL) => {
                     v_s!().ui.left_mouse_state = PhysicalButtonState::PressedThisFrame;
 
-                    let replace_or_add = if modifiers.ctrl() {
+                    let replace_or_add = if modifiers.intersects(CTRL) {
                         ReplaceOrAdd::Add
                     } else {
                         ReplaceOrAdd::Replace

@@ -24,6 +24,7 @@ shared = { path = "../shared" }
 wimp_render = { path = "../wimp_render" }
 wimp_types = { path = "../wimp_types" }
 window_layer = { path = "../window_layer" }
+window_layer_types = { path = "../window_layer_types" }
 spin_sleep = "0.3"
 directories = "2.0"
 

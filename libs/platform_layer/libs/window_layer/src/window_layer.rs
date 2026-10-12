@@ -6,6 +6,8 @@ type PhantomUnsend = PhantomData<MutexGuard<'static, ()>>;
 
 pub use screen_space::{abs, CharDim, ScreenSpaceXY, ssxy};
 
+use window_layer_types::{ModifiersState};
+
 pub use gl_layer::{
     z_to_f32,
     DEFAULT_Z,
@@ -37,7 +39,7 @@ pub use glutin_wrapper::{
         // Make conversion functions from/into these types 
         // if needed.
         // {
-        ModifiersState,
+        //ModifiersState,
         VirtualKeyCode as KeyCode,
         // }
     },
@@ -49,7 +51,13 @@ pub use glutin_wrapper::{
 
 use glutin_wrapper::{
     dpi, 
-    event_loop::{ControlFlow, EventLoopBuilder}
+    event_loop::{
+        ControlFlow,
+        EventLoopBuilder,
+    },
+    event::{
+        ModifiersState as ModifiersStateLegacy,
+    }
 };
 pub use std::time::Duration;
 
@@ -542,7 +550,9 @@ impl <A> State<'static, A> {
                             );
                         }
                         WindowEvent::ModifiersChanged(modifiers_state) => {
-                            modifiers = modifiers_state;
+                            modifiers = ModifiersState::from_bits_retain(
+                                modifiers_state.bits()
+                            );
                         }
                         WindowEvent::KeyboardInput {
                             input:
