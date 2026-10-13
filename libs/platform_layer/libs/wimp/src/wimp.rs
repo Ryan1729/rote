@@ -593,8 +593,8 @@ pub fn run(
             }};
         }
 
-        use window_layer_types::{ModifiersState};
-        use window_layer::{MouseButton, KeyCode};
+        use window_layer_types::{ModifiersState, KeyCode};
+        use window_layer::{MouseButton};
 
         macro_rules! call_u_and_r {
             ($input:expr) => {
