@@ -593,8 +593,11 @@ pub fn run(
             }};
         }
 
-        use window_layer_types::{ModifiersState, KeyCode};
-        use window_layer::{MouseButton};
+        use window_layer_types::{
+            KeyCode,
+            ModifiersState,
+            MouseButton
+        };
 
         macro_rules! call_u_and_r {
             ($input:expr) => {
@@ -1108,7 +1111,7 @@ pub fn run(
         }
 
         window_state.run(TARGET_RATE.into(), move |event, mut fns| {
-            use window_layer::{Event, ElementState, MouseScrollDelta};
+            use window_layer::{Event, ElementState};
 
             macro_rules! quit {
                 () => {{
@@ -1295,7 +1298,7 @@ pub fn run(
                     perform_command!(&(modifiers, keycode));
                 }
                 Event::MouseWheel {
-                    delta: MouseScrollDelta::LineDelta(_, y),
+                    delta: y,
                     modifiers,
                 } if modifiers.is_empty() => {
                     let ui = &mut v_s!().ui;
@@ -1307,7 +1310,7 @@ pub fn run(
                     }
                 }
                 Event::MouseWheel {
-                    delta: MouseScrollDelta::LineDelta(_, y),
+                    delta: y,
                     modifiers,
                 } if modifiers == SHIFT => {
                     let ui = &mut v_s!().ui;

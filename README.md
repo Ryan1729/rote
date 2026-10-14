@@ -14,6 +14,17 @@ This is a text editor, designed for my own use. It's at the point that I can and
 
 ____
 
+## Dependencies
+
+* Rust as distributed via rustup.rs
+* A number of other libraries and build tools, depending on what features are enabled
+
+On `Debian` based Linux distros, (e.g. `Ubuntu`) those additional libraries can be installed with:
+
+```
+sudo apt-get install build-essential cmake libgtk-3-dev libxcb-composite0-dev
+```
+
 ## Building
 
 ```
@@ -43,11 +54,7 @@ or
 
 We use `nativefiledialog` which on linux relies on some the development versions of libraries which are not always installed.
 
-On `Ubuntu` based Linux distros these can be installed with:
-
-```
-sudo apt-get install libgtk-3-dev libxcb-composite0-dev
-```
+Install these as described in the Dependencies section.
 
 ____
 

@@ -6,7 +6,11 @@ type PhantomUnsend = PhantomData<MutexGuard<'static, ()>>;
 
 pub use screen_space::{abs, CharDim, ScreenSpaceXY, ssxy};
 
-use window_layer_types::{KeyCode, ModifiersState};
+use window_layer_types::{
+    KeyCode,
+    ModifiersState,
+    MouseButton,
+};
 
 pub use gl_layer::{
     z_to_f32,
@@ -26,8 +30,6 @@ pub use glutin_wrapper::{
         UserAttentionType,
     },
     event::{
-        MouseButton,
-        MouseScrollDelta,
         WindowEvent,
         ElementState,
         StartCause,
@@ -383,7 +385,7 @@ pub enum Event<CustomEvent: 'static = ()> {
         modifiers: ModifiersState,
     },
     MouseWheel {
-        delta: MouseScrollDelta,
+        delta: f32,
         modifiers: ModifiersState,
     },
     ScaleFactorChanged(ScaleFactor),
@@ -721,18 +723,29 @@ impl <A> State<'static, A> {
                             )
                         },
                         WindowEvent::MouseInput {
-                            button,
+                            button: mouse_button,
                             state,
                             ..
-                        } => pass_down!(
-                            Event::MouseInput { button, state, modifiers }
-                        ),
+                        } => {
+                            let button = match mouse_button {
+                                glutin_wrapper::event::MouseButton::Left => MouseButton::Left,
+                                glutin_wrapper::event::MouseButton::Right => MouseButton::Right,
+                                glutin_wrapper::event::MouseButton::Middle => MouseButton::Middle,
+                                glutin_wrapper::event::MouseButton::Other(other) => MouseButton::Other(other),
+                            };
+
+                            pass_down!(
+                                Event::MouseInput { button, state, modifiers }
+                            )
+                        },
                         WindowEvent::MouseWheel {
-                            delta,
+                            delta: glutin_wrapper::event::MouseScrollDelta::LineDelta(_, delta),
                             ..
-                        } => pass_down!(
-                            Event::MouseWheel { delta, modifiers }
-                        ),
+                        } => {
+                            pass_down!(
+                                Event::MouseWheel { delta, modifiers }
+                            )
+                        },
                         WindowEvent::CursorMoved {
                             position,
                             ..
