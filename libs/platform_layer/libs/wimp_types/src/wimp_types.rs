@@ -1,12 +1,52 @@
 use window_layer_types::{ModifiersState, KeyCode};
 use macros::{d, ord, u};
-use platform_types::{screen_positioning::*, abs, g_i, Input, Cmd, EditedTransition, TimeSpan, BufferLabel, BufferName};
+use platform_types::{screen_positioning::*, abs, g_i, Input, Cmd, EditedTransition, Position, TimeSpan, BufferLabel, BufferName};
 
 use std::collections::{VecDeque, BTreeMap};
 use std::path::PathBuf;
 use std::cmp::min;
 
 pub use clipboard::{get_clipboard, Clipboard};
+
+pub struct CanonicalPath {
+    pub path: PathBuf,
+    pub position: Option<Position>,
+}
+
+impl <'path> CanonicalPath {
+    #[must_use]
+    pub fn to_string_lossy(&'path self) -> std::borrow::Cow<'path, str> {
+        use std::borrow::Cow::{Borrowed, Owned};
+
+        if let Some(position) = self.position {
+            if let Some(os_str) = self.path.file_name() {
+                let mut file_name = os_str.to_owned();
+                file_name.push::<String>(format!(":{}", position.line));
+
+                let adjusted_path = self.path.with_file_name(file_name);
+                let cow = adjusted_path.to_string_lossy();
+
+                return match cow {
+                    Borrowed(s) => Owned(s.to_owned()),
+                    Owned(s) => Owned(s)
+                };
+            }
+        }
+
+        self.path.to_string_lossy()
+    }
+}
+
+pub struct StartConfig {
+    pub data_dir: PathBuf,
+    pub running_lock_path: PathBuf,
+    pub edited_files_index_path_buf: PathBuf,
+    pub edited_files_dir_buf: PathBuf,
+    pub path_mailbox_path: PathBuf,
+    pub extra_paths: Vec<CanonicalPath>,
+    pub startup_description: String,
+    pub hidpi_factor_override: Option<f32>,
+}
 
 // Parts of RunState that represent externally chosen, absolute dimensions of things,
 // including the window, from which the sizes of several UI elements are derived.

@@ -1890,9 +1890,15 @@ checksum = "1df8c4ec4b0627e53bdf214615ad287367e482558cf84b109250b37464dc03ae"
 name = "platform_layer"
 version = "0.0.1"
 dependencies = [
+ "atomically",
+ "directories",
+ "edited_storage",
  "macros",
  "platform_types",
+ "shared",
  "wimp",
+ "wimp_types",
+ "window_layer",
 ]
 
 [[package]]
@@ -3223,9 +3229,7 @@ dependencies = [
 name = "wimp"
 version = "0.0.1"
 dependencies = [
- "atomically",
  "criterion",
- "directories",
  "edited_storage",
  "editor",
  "editor_thread",

@@ -7,9 +7,15 @@ description = "platform layer(s) for rote"
 license = "Apache-2.0"
 
 [dependencies]
-wimp = { path = "./libs/wimp" }
-platform_types = { path = "../platform_types" }
+atomically = { path = "./libs/atomically" }
+edited_storage = { path = "./libs/edited_storage" }
 macros = { path = "../macros" }
+platform_types = { path = "../platform_types" }
+shared = { path = "./libs/shared" }
+wimp = { path = "./libs/wimp" }
+wimp_types = { path = "./libs/wimp_types" }
+window_layer = { path = "./libs/window_layer" }
+directories = "2.0"
 
 [features]
 default = []

@@ -4,7 +4,7 @@ use platform_types::*;
 // TODO eliminate this dependency
 use rand::{thread_rng, Rng};
 
-use wimp_types::{BufferInfo, BufferStatus, BufferStatusTransition};
+use wimp_types::{BufferInfo, BufferStatus, BufferStatusTransition, CanonicalPath};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use macros::{d, fmt_display};
@@ -134,35 +134,6 @@ fmt_display!{
 }
 
 impl std::error::Error for CanonicalizeError {}
-
-pub struct CanonicalPath {
-    pub path: PathBuf,
-    pub position: Option<Position>,
-}
-
-impl <'path> CanonicalPath {
-    #[must_use]
-    pub fn to_string_lossy(&'path self) -> std::borrow::Cow<'path, str> {
-        use std::borrow::Cow::{Borrowed, Owned};
-
-        if let Some(position) = self.position {
-            if let Some(os_str) = self.path.file_name() {
-                let mut file_name = os_str.to_owned();
-                file_name.push::<String>(format!(":{}", position.line));
-
-                let adjusted_path = self.path.with_file_name(file_name);
-                let cow = adjusted_path.to_string_lossy();
-
-                return match cow {
-                    Borrowed(s) => Owned(s.to_owned()),
-                    Owned(s) => Owned(s)
-                };
-            }
-        }
-
-        self.path.to_string_lossy()
-    }
-}
 
 /// # Errors
 /// Retruns an error if the path cannot be parsed correctly, or the 

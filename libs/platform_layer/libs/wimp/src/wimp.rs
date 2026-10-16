@@ -7,7 +7,6 @@
 
 use std::{
     collections::VecDeque,
-    io::Write,
     path::{PathBuf},
     time::Duration,
 };
@@ -17,305 +16,22 @@ use macros::{d, dbg};
 use platform_types::{screen_positioning::screen_to_text_box, *};
 use shared::{Res, TITLE};
 use edited_storage::{canonicalize, load_tab, load_previous_tabs, LoadedTab};
+use wimp_types::StartConfig;
 
 /// # Errors
 /// Returns an error if there is an error before the eventloop has started.
 #[perf_viz::record]
 pub fn run(
-    editor_api: EditorAPI
+    editor_api: EditorAPI,
+    start_config: StartConfig,
 ) -> Res<()> {
-    const EVENTS_PER_FRAME: usize = 16;
-
-    if cfg!(target_os = "linux") {
-        use std::env;
-        // winit wayland is currently still wip
-        if env::var("WINIT_UNIX_BACKEND").is_err() {
-            env::set_var("WINIT_UNIX_BACKEND", "x11");
-        }
-        // disables vsync sometimes on x11
-        if env::var("vblank_mode").is_err() {
-            env::set_var("vblank_mode", "0");
-        }
-    }
-
-    struct StartConfig {
-        data_dir: Option<PathBuf>,
-        hidpi_factor_override: Option<f32>,
-        extra_paths: Vec<edited_storage::CanonicalPath>,
-    }
-
-    enum InitTask {
-        StdoutThenExit(String),
-        Start(StartConfig),
-    }
-
-    fn calculate_init_task(mut args: impl Iterator<Item = String>) -> Res<InitTask> {
-        use std::fmt::Write;
-
-        let mut data_dir = None;
-        let mut hidpi_factor_override = None;
-        // We expect the program to most often be opened with either 0 or 1 extra paths.
-        let mut extra_paths = Vec::with_capacity(1);
-
-        const VERSION: &str = "--version";
-        const HELP: &str = "--help";
-        const DATA_DIR_OVERRIDE: &str = "--data-dir-override";
-        const HIDPI_OVERRIDE: &str = "--hidpi-override";
-        const LICENSE: &str = "--license";
-        const FILE: &str = "--file";
-
-        while let Some(s) = args.next() {
-            let s: &str = &s;
-            match s {
-                HELP => {
-                    let accepted_args = [VERSION, HELP, DATA_DIR_OVERRIDE, HIDPI_OVERRIDE, LICENSE, FILE];
-                    let mut output = String::with_capacity(128);
-                    writeln!(&mut output, "accepted args: ")?;
-                    for arg in &accepted_args {
-                        write!(&mut output, "    {}", arg)?;
-                        if *arg == DATA_DIR_OVERRIDE {
-                            write!(&mut output, " <data directory path>")?;
-                        }
-                        if *arg == HIDPI_OVERRIDE {
-                            write!(&mut output, " <hidpi factor (positive floating point number)>")?;
-                        }
-                        if *arg == FILE {
-                            write!(&mut output, " <path of file to open>")?;
-                        }
-                        writeln!(&mut output, "")?;
-                    }
-                    return Ok(InitTask::StdoutThenExit(output))
-                }
-                VERSION => {
-                    // We expect the main crate to unconditionally print the version.
-                    // This is because the main crate has access to the correct
-                    // version value through the "CARGO_PKG_VERSION" env var.
-                    return Ok(InitTask::StdoutThenExit(String::with_capacity(0)))
-                }
-                DATA_DIR_OVERRIDE => {
-                    data_dir = Some(args.next().ok_or_else(|| {
-                        format!(
-                            "{0} needs an argument. For example: {0} ./data",
-                            DATA_DIR_OVERRIDE
-                        )
-                    })?)
-                    .map(PathBuf::from);
-
-                    data_dir = data_dir.map(|dd| dd.canonicalize().unwrap_or(dd));
-                }
-                HIDPI_OVERRIDE => {
-                    hidpi_factor_override = Some(args.next().ok_or_else(|| {
-                        format!(
-                            "{0} needs an argument. For example: {0} 1.5",
-                            HIDPI_OVERRIDE
-                        )
-                    })?)
-                    .and_then(|s| {
-                        use std::str::FromStr;
-                        window_layer::ScaleFactor::from_str(&s)
-                            .ok()
-                    });
-                }
-                LICENSE => {
-                    let mut output = String::with_capacity(128);
-                    writeln!(&mut output, "{} program by Ryan Wiedemann.", TITLE)?;
-                    writeln!(&mut output, "Source and license available at:")?;
-                    writeln!(&mut output, "    https://github.com/Ryan1729/{}", TITLE)?;
-                    writeln!(&mut output, "")?;
-                    writeln!(&mut output, "License for the font:")?;
-                    writeln!(&mut output, "{}", window_layer::FONT_LICENSE)?;
-                    return Ok(InitTask::StdoutThenExit(output))
-                }
-                FILE => {
-                    let path = args.next().ok_or_else(|| {
-                        format!(
-                            "{0} needs an argument. For example: {0} ./file.txt",
-                            FILE
-                        )
-                    })
-                    // Would it be better to open the window and display a path error
-                    // there instead of `?` here?
-                    // If someone specified a file, they probably want to open that
-                    // particular file, or maybe they made a typo, either way, they
-                    // probably would rather have the feedback in their terminal or
-                    // whatever, so they can correct the file name. Hence, `?`.
-                    .map(PathBuf::from)?;
-
-                    // See comment above for why `?`.
-                    extra_paths.push(canonicalize(path)?);
-                }
-                _ => {
-                    return Err(format!("unknown arg {:?}", s).into());
-                }
-            }
-        }
-
-        Ok(InitTask::Start(StartConfig {
-            data_dir,
-            hidpi_factor_override,
-            extra_paths,
-        }))
-    }
-
-    let mut args = std::env::args();
-    //exe name
-    args.next();
-
-    let start_config = match calculate_init_task(args)? {
-        InitTask::StdoutThenExit(s) => {
-            println!("{s}");
-            std::process::exit(0)
-        },
-        InitTask::Start(start_config) => start_config,
-    };
-
-    let data_dir = start_config.data_dir;
+    let running_lock_path = start_config.running_lock_path;
+    let edited_files_index_path_buf = start_config.edited_files_index_path_buf;
+    let edited_files_dir_buf = start_config.edited_files_dir_buf;
+    let path_mailbox_path = start_config.path_mailbox_path;
     let hidpi_factor_override = start_config.hidpi_factor_override;
     let extra_paths = start_config.extra_paths;
-
-    let data_dir = data_dir
-        .or_else(|| {
-            directories::ProjectDirs::from("com", "ryanwiedemann", TITLE)
-                .map(|proj_dirs| proj_dirs.data_dir().to_owned())
-        })
-        .ok_or("Could not find app data dir")?;
-
-    match std::fs::metadata(&data_dir) {
-        Ok(meta) => {
-            if meta.is_dir() {
-                Ok(())
-            } else {
-                Err("data_dir existed but was not a directory!".to_owned())
-            }
-        }
-        Err(err) => {
-            if err.kind() == std::io::ErrorKind::NotFound {
-                std::fs::create_dir_all(&data_dir)
-                    .map_err(|e| e.to_string())
-                    .and_then(|_| {
-                        std::fs::metadata(&data_dir)
-                            .map_err(|e| e.to_string())
-                            .and_then(|meta| {
-                                if meta.is_dir() {
-                                    Ok(())
-                                } else {
-                                    Err("data_dir was created but was not a directory!".to_owned())
-                                }
-                            })
-                    })
-            } else {
-                Err(err.to_string())
-            }
-        }
-    }?;
-
-    let running_lock_path = data_dir.join("running.lock");
-    use atomically::Overwrites;
-    let previous_instance_is_running = {
-        let res = atomically::write(
-            &running_lock_path,
-            Overwrites::Disallow,
-            |f| {
-                // In some sense it doesn't matter what we write here, but it seems like it
-                // would be nice for it to be different each time it is written.
-                use std::time::{SystemTime, UNIX_EPOCH};
-                let thing_to_write = match SystemTime::now().duration_since(UNIX_EPOCH) {
-                    Ok(duration) => format!("{}\n", duration.as_nanos()),
-                    Err(e) => format!("-{}\n", e.duration().as_nanos()),
-                };
-
-                f.write_all(thing_to_write.as_bytes())
-            }
-        );
-
-        match res {
-            Ok(()) => false,
-            Err(io_error) if io_error.kind() == std::io::ErrorKind::AlreadyExists =>  {
-                true
-            },
-            Err(_) => { return res.map_err(From::from); }
-        }
-    };
-
-    let path_mailbox_path = data_dir.join("path_mailbox_path.txt");
-
-    if previous_instance_is_running {
-        println!(
-            "Previous instance of {} detected, or at least a file at:\n{}",
-            TITLE,
-            running_lock_path.to_string_lossy()
-        );
-
-        let path_count = extra_paths.len();
-        if path_count > 0 {
-            println!(
-                "Adding path{} to {} for the other instance to read.",
-                if path_count == 1 { "" } else { "s" },
-                path_mailbox_path.to_string_lossy(),
-            );
-
-            // This `inner` function lets us use `?` while also capturing the `Res`
-            // afterward.
-            let inner = |path_mailbox_path: PathBuf| -> Res<()> {
-                let path_list = {
-                    use std::fs::OpenOptions;
-
-                    let mut path_mailbox = OpenOptions::new()
-                        .read(true)
-                        .write(true)
-                        .create(true)
-                        .open(&path_mailbox_path)?;
-
-                    // `read_to_string` apparently already reads the file metadata
-                    // to figure out how much to reserve. TODO: confirm this.
-                    let mut path_list = String::new();
-
-                    use std::io::Read;
-                    path_mailbox.read_to_string(&mut path_list)?;
-
-                    for p in extra_paths {
-                        use std::fmt::Write;
-                        // Regarding `to_string_lossy`, in other places, e.g.
-                        // `edited_storage`, we already don't support non-Unicode
-                        // paths.
-                        // TODO: is there a reasonable way to avoid these extra
-                        // allocations?
-                        let _write_on_string_cannot_fail =
-                            writeln!(&mut path_list, "{}", p.to_string_lossy());
-                    }
-
-                    path_list
-                };
-
-                atomically::write(
-                    &path_mailbox_path,
-                    Overwrites::Allow,
-                    |f| {
-                        f.write_all(path_list.as_bytes())
-                    }
-                ).map_err(From::from)
-            };
-
-            let res = inner(path_mailbox_path);
-
-            if let Ok(()) = res {
-                println!("Seems like we were able to write to the mailbox.");
-            } else {
-                println!("Mailbox write failed.");
-                return res;
-            }
-        }
-
-        std::process::exit(0)
-    }
-
-    let edited_files_dir_buf = data_dir.join("edited_files_v1/");
-    let edited_files_index_path_buf = data_dir.join("edited_files_v1_index.txt");
-
-    use window_layer::ScaleFactor;
-    const HIDPI_INCREMENT_BY: ScaleFactor = 1./12.;
-    const HIDPI_MINIMUM: ScaleFactor = HIDPI_INCREMENT_BY;
-    const HIDPI_DEFAULT: ScaleFactor = 1.;
+    let startup_description = start_config.startup_description;
 
     fn on_shutdown(running_lock_path: PathBuf) {
         let running_lock_path_string =
@@ -339,6 +55,25 @@ pub fn run(
         };
     }
 
+    const EVENTS_PER_FRAME: usize = 16;
+
+    if cfg!(target_os = "linux") {
+        use std::env;
+        // winit wayland is currently still wip
+        if env::var("WINIT_UNIX_BACKEND").is_err() {
+            env::set_var("WINIT_UNIX_BACKEND", "x11");
+        }
+        // disables vsync sometimes on x11
+        if env::var("vblank_mode").is_err() {
+            env::set_var("vblank_mode", "0");
+        }
+    }
+
+    use window_layer::ScaleFactor;
+    const HIDPI_INCREMENT_BY: ScaleFactor = 1./12.;
+    const HIDPI_MINIMUM: ScaleFactor = HIDPI_INCREMENT_BY;
+    const HIDPI_DEFAULT: ScaleFactor = 1.;
+
     let window_state: window_layer::State<'_, CustomEvent> =
         match window_layer::init::<'_, '_, CustomEvent>(
             hidpi_factor_override.unwrap_or(HIDPI_DEFAULT),
@@ -354,13 +89,6 @@ pub fn run(
 
     let event_proxy = window_layer::create_event_proxy(&window_state);
 
-    let startup_description = format!(
-        "data_dir: \n{}", data_dir.to_string_lossy()
-    );
-
-    use std::sync::mpsc::{channel};
-
-
     let pids = Pids { window: std::process::id(), ..d!() };
 
     let (path_mailbox_in_sink, path_mailbox_join_handle)
@@ -373,6 +101,8 @@ pub fn run(
             on_shutdown,
         );
     let mut path_mailbox_join_handle = Some(path_mailbox_join_handle);
+
+    use std::sync::mpsc::{channel};
 
     // into the edited files thread
     let (edited_files_in_sink, edited_files_in_source) = channel();

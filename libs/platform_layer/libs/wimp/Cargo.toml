@@ -10,7 +10,6 @@ license = "Apache-2.0"
 path = "./src/wimp.rs"
 
 [dependencies]
-atomically = { path = "../atomically" }
 editor_thread = { path = "../editor_thread" }
 file_chooser = { path = "../file_chooser", optional=true }
 macros = { path = "../../../macros" }
@@ -26,7 +25,6 @@ wimp_types = { path = "../wimp_types" }
 window_layer = { path = "../window_layer" }
 window_layer_types = { path = "../window_layer_types" }
 spin_sleep = "0.3"
-directories = "2.0"
 
 
 [features]
