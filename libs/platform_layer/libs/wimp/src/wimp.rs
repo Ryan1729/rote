@@ -11,9 +11,10 @@ use std::{
     time::Duration,
 };
 use wimp_render::{get_find_replace_info, FindReplaceInfo, get_go_to_position_info, GoToPositionInfo, ViewOutput, ViewAction};
-use wimp_types::{ui, ui::{PhysicalButtonState, Navigation}, transform_at, BufferStatus, BufferStatusTransition, CustomEvent, get_clipboard, Dimensions, LabelledCommand, RunConsts, RunState, Pids, PidKind, EditorThreadInput, EditedFilesThread, ViewRunState, DebugMenuState, DpiFactor};
+use wimp_types::{ui, ui::{PhysicalButtonState, Navigation}, transform_at, BufferStatus, get_clipboard, Dimensions, LabelledCommand, RunConsts, RunState, Pids, EditorThreadInput, EditedFilesThread, ViewRunState, DebugMenuState, DpiFactor};
 use macros::{d, dbg};
 use platform_types::{screen_positioning::screen_to_text_box, *};
+use platform_layer_types::{BufferStatusTransition, CustomEvent, EventSender, PidKind};
 use shared::{Res, TITLE};
 use edited_storage::{canonicalize, load_tab, load_previous_tabs, LoadedTab};
 use wimp_types::StartConfig;
@@ -137,10 +138,9 @@ pub fn run(
                                             }
                                         }
                                         Err(e) => {
-                                            let _hope_it_gets_there =
-                                                proxy.send_event(CustomEvent::EditedBufferError(
-                                                    e.to_string(),
-                                                ));
+                                            proxy.send(CustomEvent::EditedBufferError(
+                                                e.to_string(),
+                                            ));
                                         }
                                     }
                                 }
@@ -158,7 +158,7 @@ pub fn run(
                         }
                     }
 
-                    let _hope_it_gets_there = proxy.send_event(CustomEvent::SendBuffersToBeSaved);
+                    proxy.send(CustomEvent::SendBuffersToBeSaved);
 
                     if let Ok(message) = edited_files_in_source.recv() {
                         handle_message!(message);
@@ -323,11 +323,7 @@ pub fn run(
             }};
         }
 
-        use window_layer_types::{
-            KeyCode,
-            ModifiersState,
-            MouseButton
-        };
+        use window_layer_types::{ModifiersState, KeyCode, MouseButton};
 
         macro_rules! call_u_and_r {
             ($input:expr) => {
@@ -512,10 +508,10 @@ pub fn run(
                     file_chooser::$func(
                         $default_path,
                         move |$path: PathBuf| {
-                            let _bye = proxy
+                            proxy
                                 .lock()
                                 .expect("file_chooser thread private mutex locked!?")
-                                .send_event($event);
+                                .send($event);
                         }
                     );
                 }

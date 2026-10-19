@@ -15,6 +15,7 @@ file_chooser = { path = "../file_chooser", optional=true }
 macros = { path = "../../../macros" }
 path_mailbox = { path = "../path_mailbox" }
 platform_types = { path = "../../../platform_types" }
+platform_layer_types = { path = "../platform_layer_types" }
 if_changed = { path = "../../../if_changed" }
 perf_viz = { path = "../../../perf_viz" }
 perf_viz_proc_macro = { path = "../../../perf_viz/libs/perf_viz_proc_macro" }

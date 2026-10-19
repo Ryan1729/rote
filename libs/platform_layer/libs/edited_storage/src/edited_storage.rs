@@ -4,7 +4,8 @@ use platform_types::*;
 // TODO eliminate this dependency
 use rand::{thread_rng, Rng};
 
-use wimp_types::{BufferInfo, BufferStatus, BufferStatusTransition, CanonicalPath};
+use platform_layer_types::{BufferStatusTransition};
+use wimp_types::{BufferInfo, BufferStatus, CanonicalPath};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use macros::{d, fmt_display};

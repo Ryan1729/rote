@@ -12,6 +12,7 @@ if_changed = { path = "../../../if_changed" }
 macros = { path = "../../../macros" }
 perf_viz = { path = "../../../perf_viz" }
 platform_types = { path = "../../../platform_types" }
+platform_layer_types = { path = "../platform_layer_types" }
 shared = { path = "../shared" }
 window_layer = { path = "../window_layer" }
 window_layer_types = { path = "../window_layer_types" }

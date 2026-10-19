@@ -727,6 +727,7 @@ name = "edited_storage"
 version = "0.1.0"
 dependencies = [
  "macros",
+ "platform_layer_types",
  "platform_types",
  "proptest_wrapper",
  "rand 0.7.3",
@@ -767,6 +768,7 @@ name = "editor_thread"
 version = "0.1.0"
 dependencies = [
  "macros",
+ "platform_layer_types",
  "platform_types",
  "wimp_types",
  "window_layer",
@@ -1850,6 +1852,7 @@ name = "path_mailbox"
 version = "0.1.0"
 dependencies = [
  "atomically",
+ "platform_layer_types",
  "wimp_types",
  "window_layer",
 ]
@@ -1899,6 +1902,14 @@ dependencies = [
  "wimp",
  "wimp_types",
  "window_layer",
+]
+
+[[package]]
+name = "platform_layer_types"
+version = "0.1.0"
+dependencies = [
+ "macros",
+ "platform_types",
 ]
 
 [[package]]
@@ -3239,6 +3250,7 @@ dependencies = [
  "path_mailbox",
  "perf_viz",
  "perf_viz_proc_macro",
+ "platform_layer_types",
  "platform_types",
  "shared",
  "spin_sleep",
@@ -3272,6 +3284,7 @@ dependencies = [
  "libc",
  "macros",
  "perf_viz",
+ "platform_layer_types",
  "platform_types",
  "proptest_wrapper",
  "shared",
@@ -3326,6 +3339,7 @@ dependencies = [
  "gl_layer",
  "glutin_wrapper",
  "perf_viz",
+ "platform_layer_types",
  "platform_types",
  "screen_space",
  "spin_sleep",

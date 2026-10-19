@@ -1,6 +1,7 @@
 use window_layer_types::{ModifiersState, KeyCode};
 use macros::{d, ord, u};
-use platform_types::{screen_positioning::*, abs, g_i, Input, Cmd, EditedTransition, Position, TimeSpan, BufferLabel, BufferName};
+use platform_types::{screen_positioning::*, abs, g_i, Input, Cmd, Position, TimeSpan, BufferLabel, BufferName};
+use platform_layer_types::{BufferStatusTransition, CustomEvent, PID};
 
 use std::collections::{VecDeque, BTreeMap};
 use std::path::PathBuf;
@@ -84,23 +85,6 @@ pub struct BufferInfo {
 pub enum EditedFilesThread {
     Quit,
     Buffers(g_i::State, Vec<BufferInfo>),
-}
-
-pub type PID = u32;
-
-#[derive(Clone, Debug)]
-pub enum PidKind {
-    PathMailbox,
-}
-
-#[derive(Clone, Debug)]
-pub enum CustomEvent {
-    OpenFile(PathBuf),
-    SaveNewFile(PathBuf, g_i::Index),
-    SendBuffersToBeSaved,
-    EditedBufferError(String),
-    Pid(PidKind, PID),
-    MarkBufferStatusTransition(PathBuf, g_i::Index, BufferStatusTransition),
 }
 
 /// This module exists because when adding WIMP only UI elements we found that
@@ -1080,29 +1064,6 @@ pub enum BufferStatus {
     EditedAndUnSaved,
 }
 d!(for BufferStatus: BufferStatus::Unedited);
-
-/// A representaion of how a `BufferStatus` can change. Having this be a separate data type allows
-/// us to keep all of the reading of a `BufferStatusMap` on a single thread.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum BufferStatusTransition {
-    /// The copy in memory has changed, so we know that it may not match the what is on disk any longer.
-    Edit,
-    /// The temp file on disk has been updated to match what is in memory.
-    SaveTemp,
-    /// The copy on disk at the buffer's path has been updated to match what is in memory.
-    Save,
-}
-
-impl From<EditedTransition> for BufferStatusTransition {
-    fn from(e_t: EditedTransition) -> Self {
-        u!{BufferStatusTransition};
-        u!{EditedTransition};
-        match e_t {
-            ToEdited => Edit,
-            ToUnedited => Save,
-        }
-    }
-}
 
 #[must_use]
 pub fn transform_status(

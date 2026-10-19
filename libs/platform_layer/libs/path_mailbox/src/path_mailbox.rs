@@ -1,9 +1,10 @@
+use platform_layer_types::{CustomEvent, EventSender, PidKind};
+use window_layer::EventLoopProxy;
+
 use std::path::PathBuf;
 use std::sync::mpsc::{channel, Sender};
 use std::thread::JoinHandle;
 use std::time::Duration;
-use window_layer::EventLoopProxy;
-use wimp_types::{CustomEvent, PidKind};
 
 #[derive(Debug)]
 pub enum Thread {
@@ -27,14 +28,12 @@ pub fn start_thread(
         std::thread::Builder::new()
             .name("path_mailbox".to_string())
             .spawn(move || {
-                {
-                    let _hope_it_gets_there = proxy.send_event(
-                        CustomEvent::Pid(
-                            PidKind::PathMailbox,
-                            std::process::id()
-                        )
-                    );
-                }
+                proxy.send(
+                    CustomEvent::Pid(
+                        PidKind::PathMailbox,
+                        std::process::id()
+                    )
+                );
                 // If we got an error we should still keep this thread going
                 // in case the error is temporary.
                 macro_rules! continue_if_err {
@@ -78,18 +77,17 @@ pub fn start_thread(
                     );
 
                     for line in path_mailbox_string.lines() {
-                        let _hope_it_gets_there =
-                            proxy.send_event(CustomEvent::OpenFile(
-                                // We don't know the CWD of the instance that put
-                                // this in the mailbox, so it does not make sense
-                                // to canonicalize this path ourselves. The code
-                                // putting the line in here must do that.
-                                // ... That said, it's convenient to fuse the
-                                // canonicalization and position parsing, so any
-                                // canonicalizing that happens shouldn't hurt,
-                                // given the path is canonical already.
-                                std::path::PathBuf::from(line)
-                            ));
+                        proxy.send(CustomEvent::OpenFile(
+                            // We don't know the CWD of the instance that put
+                            // this in the mailbox, so it does not make sense
+                            // to canonicalize this path ourselves. The code
+                            // putting the line in here must do that.
+                            // ... That said, it's convenient to fuse the
+                            // canonicalization and position parsing, so any
+                            // canonicalizing that happens shouldn't hurt,
+                            // given the path is canonical already.
+                            std::path::PathBuf::from(line)
+                        ));
                     }
                 }
             })

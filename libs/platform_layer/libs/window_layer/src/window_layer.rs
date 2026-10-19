@@ -35,10 +35,23 @@ pub use glutin_wrapper::{
         StartCause,
     },
     event_loop::{
-        EventLoop,
-        EventLoopProxy
+        EventLoop,    
     },
 };
+
+use platform_layer_types::{
+    CustomEvent,
+    EventSender,
+};
+
+#[derive(Clone, Debug)]
+pub struct EventLoopProxy<T: 'static>(glutin_wrapper::event_loop::EventLoopProxy<T>);
+
+impl EventSender for EventLoopProxy<CustomEvent> {
+    fn send(&self, event: CustomEvent) {
+        let _hope_it_gets_there = self.0.send_event(event);
+    }
+}
 
 use glutin_wrapper::{
     dpi, 
@@ -177,7 +190,7 @@ pub fn get_char_dims<CustomEvent>(
 pub fn create_event_proxy<CustomEvent>(
     state: &State<'_, CustomEvent>,
 ) -> EventLoopProxy<CustomEvent> {
-    state.events.create_proxy()
+    EventLoopProxy(state.events.create_proxy())
 }
 
 #[derive(Clone, Copy, Debug, Default)]

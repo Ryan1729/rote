@@ -3,7 +3,8 @@ use std::thread::JoinHandle;
 
 use macros::u;
 use platform_types::{BufferName, Cmd, EditorAPI, Input, LoadBufferViewsResult, View};
-use wimp_types::{BufferInfo, BufferStatusTransition, CustomEvent, EditedFilesThread, EditorThreadInput};
+use platform_layer_types::{BufferStatusTransition, CustomEvent, EventSender};
+use wimp_types::{BufferInfo, EditedFilesThread, EditorThreadInput};
 use window_layer::EventLoopProxy;
 
 // I suspect we wouldn't notice the difference if we were to box this, and this way
@@ -148,7 +149,7 @@ pub fn start(
                                     });
                                 },
                                 Err(err) => {
-                                    let _hope_it_gets_there = proxy.send_event(
+                                    proxy.send(
                                         CustomEvent::EditedBufferError(
                                             err
                                         )
@@ -179,7 +180,7 @@ pub fn start(
                                 .map_err(|e| e.to_string())
                         ) {
                             Ok(_) => {
-                                let _hope_that_gets_there = proxy.send_event(
+                                proxy.send(
                                     CustomEvent::MarkBufferStatusTransition(
                                         path,
                                         index,

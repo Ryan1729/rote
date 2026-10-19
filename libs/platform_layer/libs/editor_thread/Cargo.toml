@@ -8,6 +8,7 @@ path = "src/editor_thread.rs"
 
 [dependencies]
 platform_types = { path = "../../../platform_types" }
+platform_layer_types = { path = "../platform_layer_types" }
 macros = { path = "../../../macros" }
 wimp_types = { path = "../wimp_types" }
 window_layer = { path = "../window_layer" }
