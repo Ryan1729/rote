@@ -4,7 +4,7 @@
 ///! multiple such crates. [platform_types](platform_types) is the exernal interface, this crate
 ///! is the internal interface.
 
-use macros::{d, u};
+use macros::{u};
 use platform_types::{g_i, EditedTransition};
 
 use std::path::PathBuf;
@@ -53,6 +53,6 @@ pub enum CustomEvent {
 /// but in practice, we don't really have anything meaningful to do with the error in the places 
 /// we use it. If we wanted to have retry logic or something, that could be implemented in the
 /// itrait implementation, as opposed to being dealt with separately for every call to `send`.
-pub trait EventSender: Clone {
+pub trait EventSender: Clone + core::fmt::Debug + std::marker::Send + 'static {
     fn send(&self, event: CustomEvent);
 }

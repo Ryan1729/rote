@@ -4,13 +4,19 @@ use std::sync::MutexGuard;
 /// See [here](https://stackoverflow.com/a/71945606).
 type PhantomUnsend = PhantomData<MutexGuard<'static, ()>>;
 
-pub use screen_space::{abs, CharDim, ScreenSpaceXY, ssxy};
+use screen_space::{abs, CharDim, ScreenSpaceXY, ssxy};
 
 use window_layer_types::{
+    Dimensions,
     KeyCode,
     ModifiersState,
     MouseButton,
+    RatePerSecond,
+    ScaleFactor,
 };
+
+// TODO To prepare to add a second backend, reduce the API of this crate, then make a dummy cfg
+// compile option that provides dummy versions of the API. Make any changes this inspires.
 
 pub use gl_layer::{
     z_to_f32,
@@ -45,9 +51,9 @@ use platform_layer_types::{
 };
 
 #[derive(Clone, Debug)]
-pub struct EventLoopProxy<T: 'static>(glutin_wrapper::event_loop::EventLoopProxy<T>);
+pub struct EventLoopProxy(glutin_wrapper::event_loop::EventLoopProxy<CustomEvent>);
 
-impl EventSender for EventLoopProxy<CustomEvent> {
+impl EventSender for EventLoopProxy {
     fn send(&self, event: CustomEvent) {
         let _hope_it_gets_there = self.0.send_event(event);
     }
@@ -61,7 +67,7 @@ use glutin_wrapper::{
     },
     event::VirtualKeyCode,
 };
-pub use std::time::Duration;
+use std::time::Duration;
 
 #[must_use]
 pub fn initial_dt(target_rate: Option<RatePerSecond>) -> Duration {
@@ -73,16 +79,14 @@ pub fn initial_dt(target_rate: Option<RatePerSecond>) -> Duration {
     ) as u64)
 }
 
-pub type RGBA = [f32; 4];
-
 /// The clear colour currently flashes up on exit.
 /// # Errors
 /// Returns `Err` if the underlying windowing and/or graphics library calls do.
-pub fn init<'font, 'title, CustomEvent>(
+pub fn init<'font, 'title>(
     hidpi_factor: ScaleFactor,
-    clear: RGBA,
+    clear: window_layer_types::RGBA,
     title: Option<&'title str>,
-) -> Result<State<'font, CustomEvent>, Box<dyn std::error::Error>>
+) -> Result<State<'font>, Box<dyn std::error::Error>>
 // See https://github.com/rust-lang/rust/issues/80618 for description of this one
 // weird trick.
 where 'title: 'title
@@ -171,7 +175,7 @@ where 'title: 'title
 type Context = glutin_wrapper::ContextWrapper<glutin_wrapper::PossiblyCurrent, glutin_wrapper::window::Window>;
 
 #[derive(Debug)]
-pub struct State<'font, CustomEvent: 'static = ()> {
+pub struct State<'font> {
     gl_state: gl_layer::State<'font>,
     events: EventLoop<CustomEvent>,
     context: Context,
@@ -180,37 +184,23 @@ pub struct State<'font, CustomEvent: 'static = ()> {
     unsend: PhantomUnsend,
 }
 
-pub fn get_char_dims<CustomEvent>(
-    state: &State<'_, CustomEvent>,
+pub fn get_char_dims(
+    state: &State<'_>,
     text_sizes: &[f32],
 ) -> Vec<CharDim> {
     gl_layer::get_char_dims(&state.gl_state, text_sizes)
 }
 
-pub fn create_event_proxy<CustomEvent>(
-    state: &State<'_, CustomEvent>,
-) -> EventLoopProxy<CustomEvent> {
+pub fn create_event_proxy(
+    state: &State<'_>,
+) -> EventLoopProxy {
     EventLoopProxy(state.events.create_proxy())
 }
 
-#[derive(Clone, Copy, Debug, Default)]
-pub struct Dimensions {
-    pub width: abs::Length,
-    pub height: abs::Length,
-}
-
-impl core::fmt::Display for Dimensions {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "({}, {})", self.width, self.height)
-    }
-}
-
-impl From<dpi::PhysicalSize<u32>> for Dimensions {
-    fn from(dimensions: dpi::PhysicalSize<u32>) -> Self {
-        Dimensions {
-            width: abs::Length::from(dimensions.width),
-            height: abs::Length::from(dimensions.height),
-        }
+fn physical_size_to_dimensions(dimensions: dpi::PhysicalSize<u32>) -> Dimensions {
+    Dimensions {
+        width: abs::Length::from(dimensions.width),
+        height: abs::Length::from(dimensions.height),
     }
 }
 
@@ -224,20 +214,21 @@ fn converting_to_local_dimensions_returns_the_expected_result_in_this_example() 
         height,
     };
 
-    let dimensions = Dimensions::from(example);
+    let dimensions = physical_size_to_dimensions(example);
 
     assert_eq!(f32::from(dimensions.width), width as f32);
     assert_eq!(f32::from(dimensions.height), height as f32);
 }
 
 #[must_use]
-pub fn dimensions<A>(
-    state: &State<'_, A>,
+pub fn dimensions(
+    state: &State<'_>,
 ) -> Dimensions {
-    state.context
+    physical_size_to_dimensions(
+        state.context
         .window()
         .inner_size()
-        .into()
+    )
 }
 
 fn render_inner<'font>(
@@ -265,12 +256,6 @@ fn render_inner<'font>(
 
     Ok(())
 }
-
-pub type RatePerSecond = spin_sleep::RatePerSecond;
-
-/// AKA `hidpi_factor`/`DpiFactor`. The text rendering library only accepts `f32`,
-/// so there's not much point in higher precision elsewhere.
-pub type ScaleFactor = f32;
 
 #[derive(Debug)]
 pub struct Fns<'running, 'gl, 'font, 'control, 'loop_helper, 'context> {
@@ -419,13 +404,13 @@ pub const DEFAULT_TARGET_RATE: RatePerSecond = 250.0;
 
 
 
-impl <A> State<'static, A> {
+impl State<'static> {
     pub fn run<F>(self, target_rate: Option<RatePerSecond>, mut event_handler: F) -> !
     where
-        F: 'static + FnMut(Event<A>, Fns),
+        F: 'static + FnMut(Event<CustomEvent>, Fns),
     {
         let mut gl_state = self.gl_state;
-        let events: EventLoop<A> = self.events;
+        let events: EventLoop<CustomEvent> = self.events;
         let context = self.context;
 
         let mut hidpi_factor = 1.0;
@@ -494,7 +479,7 @@ impl <A> State<'static, A> {
                     Event::MainEventsCleared
                 ),
                 GWEvent::UserEvent(e) => pass_down!(
-                    Event::UserEvent::<A>(e)
+                    Event::UserEvent::<CustomEvent>(e)
                 ),
                 GWEvent::WindowEvent { event, .. } => {
                     match event {

@@ -1,7 +1,7 @@
 use window_layer_types::{ModifiersState, KeyCode};
 use macros::{d, ord, u};
 use platform_types::{screen_positioning::*, abs, g_i, Input, Cmd, Position, TimeSpan, BufferLabel, BufferName};
-use platform_layer_types::{BufferStatusTransition, CustomEvent, PID};
+use platform_layer_types::{BufferStatusTransition, PID};
 
 use std::collections::{VecDeque, BTreeMap};
 use std::path::PathBuf;
@@ -53,7 +53,7 @@ pub struct StartConfig {
 // including the window, from which the sizes of several UI elements are derived.
 #[derive(Clone, Copy, Debug)]
 pub struct Dimensions {
-    pub window: window_layer::Dimensions,
+    pub window: window_layer_types::Dimensions,
     pub hidpi_factor_override: Option<DpiFactor>,
     pub current_hidpi_factor: DpiFactor,
     pub font: FontInfo,
@@ -62,7 +62,7 @@ pub struct Dimensions {
 impl Default for Dimensions {
     fn default() -> Self {
         Self {
-            window: window_layer::Dimensions{
+            window: window_layer_types::Dimensions{
                 width: abs::Length::from(1024),
                 height: abs::Length::from(768),
             },
@@ -395,10 +395,10 @@ pub struct DebugMenuState {
     pub startup_description: String,
     pub pids: Pids,
     pub editor_buffers_size_in_bytes: usize,
-    pub last_hidpi_factors: [window_layer::ScaleFactor; 4],
+    pub last_hidpi_factors: [window_layer_types::ScaleFactor; 4],
     pub status_line_rect: ScreenSpaceRect,
     pub mouse_pos: ScreenSpaceXY,
-    pub window: window_layer::Dimensions,
+    pub window: window_layer_types::Dimensions,
 }
 
 impl DebugMenuState {
@@ -523,7 +523,7 @@ pub struct ViewRunState {
 }
 
 // TODO use the ScaleFactor name everywhere.
-pub type DpiFactor = window_layer::ScaleFactor;
+pub type DpiFactor = window_layer_types::ScaleFactor;
 
 /// State owned by the `run` function, which can be uniquely borrowed by other functions called inside `run`.
 #[derive(Debug)]
@@ -531,7 +531,7 @@ pub struct RunState {
     pub view_state: ViewRunState,
     pub cmds: VecDeque<Cmd>,
     pub editor_in_sink: std::sync::mpsc::Sender<EditorThreadInput>,
-    pub event_proxy: window_layer::EventLoopProxy<CustomEvent>,
+    pub event_proxy: window_layer::EventLoopProxy,
     pub clipboard: Clipboard,
 }
 

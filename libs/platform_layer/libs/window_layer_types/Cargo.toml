@@ -7,4 +7,5 @@ edition = "2024"
 path = "src/window_layer_types.rs"
 
 [dependencies]
+screen_space = { path = "../../../screen_space" }
 bitflags = { version = "2.13.2", features = [] }

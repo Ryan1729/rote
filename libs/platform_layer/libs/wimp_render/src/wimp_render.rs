@@ -217,7 +217,7 @@ pub fn view<'view>(
 
     let dimensions = *dimensions;
 
-    let window_layer::Dimensions{ width, height } = dimensions.window;
+    let window_layer_types::Dimensions{ width, height } = dimensions.window;
     let FontInfo {
         ref text_char_dim,
         ref status_char_dim,
@@ -726,7 +726,7 @@ fn rect_command_button (
     command_key: CommandKey,
 ) {
     let Dimensions {
-        window: window_layer::Dimensions{ height, .. },
+        window: window_layer_types::Dimensions{ height, .. },
         ..
     } = pen.dimensions;
     let SpacingAllSpec { margin, .. } = get_menu_spacing(height);
@@ -768,7 +768,7 @@ fn outline_command_button<'view> (
     }
 }
 
-use window_layer::abs::{Length, Ratio};
+use abs::{Length, Ratio};
 
 const DEFAULT_LIST_WINDOW_SIZE: ListSelectionWindowSize
     = {
@@ -1305,7 +1305,7 @@ pub fn make_active_tab_visible(
     view: &View,
     Dimensions {
         font: FontInfo { tab_char_dim, .. },
-        window: window_layer::Dimensions{ width: window_width, .. },
+        window: window_layer_types::Dimensions{ width: window_width, .. },
         ..
     }: Dimensions,
 ) -> Option<()> {
@@ -1774,7 +1774,7 @@ pub fn get_find_replace_info(
             find_replace_char_dim,
             ..
         },
-        window: window_layer::Dimensions { width, height },
+        window: window_layer_types::Dimensions { width, height },
         ..
     }: Dimensions,
 ) -> FindReplaceInfo {
@@ -1861,7 +1861,7 @@ pub fn get_file_switcher_info(
             tab_char_dim,
             ..
         },
-        window: window_layer::Dimensions{ width, height },
+        window: window_layer_types::Dimensions{ width, height },
         ..
     }: Dimensions,
 ) -> FileSwitcherInfo {
@@ -1930,7 +1930,7 @@ pub fn get_go_to_position_info(
             tab_char_dim,
             ..
         },
-        window: window_layer::Dimensions{ width, height },
+        window: window_layer_types::Dimensions{ width, height },
         ..
     }: Dimensions,
 ) -> GoToPositionInfo {
@@ -1998,7 +1998,7 @@ pub fn get_command_menu_info(
             tab_char_dim,
             ..
         },
-        window: window_layer::Dimensions{ width, .. },
+        window: window_layer_types::Dimensions{ width, .. },
         ..
     } = dimensions;
 
@@ -2055,7 +2055,7 @@ pub fn get_debug_menu_info(
             tab_char_dim,
             ..
         },
-        window: window_layer::Dimensions{ width, .. },
+        window: window_layer_types::Dimensions{ width, .. },
         ..
     } = dimensions;
 
@@ -2107,7 +2107,7 @@ pub fn cover_text_area_info(
             tab_char_dim,
             ..
         },
-        window: window_layer::Dimensions{ width, height },
+        window: window_layer_types::Dimensions{ width, height },
         ..
     }: Dimensions,
 ) -> CoverTextAreaInfo {
@@ -2154,7 +2154,7 @@ pub fn get_edit_buffer_xywh(
             ref tab_char_dim,
             ..
         },
-        window: window_layer::Dimensions{ width, height },
+        window: window_layer_types::Dimensions{ width, height },
         ..
     } = dimensions;
     u!{WimpMenuMode}

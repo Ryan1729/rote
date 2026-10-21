@@ -1902,6 +1902,7 @@ dependencies = [
  "wimp",
  "wimp_types",
  "window_layer",
+ "window_layer_types",
 ]
 
 [[package]]
@@ -3264,6 +3265,7 @@ dependencies = [
 name = "wimp_render"
 version = "0.1.0"
 dependencies = [
+ "abs",
  "if_changed",
  "macros",
  "perf_viz",
@@ -3273,6 +3275,7 @@ dependencies = [
  "shared",
  "wimp_types",
  "window_layer",
+ "window_layer_types",
 ]
 
 [[package]]
@@ -3351,6 +3354,7 @@ name = "window_layer_types"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.13.2",
+ "screen_space",
 ]
 
 [[package]]

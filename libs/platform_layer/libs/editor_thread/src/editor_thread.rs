@@ -5,7 +5,6 @@ use macros::u;
 use platform_types::{BufferName, Cmd, EditorAPI, Input, LoadBufferViewsResult, View};
 use platform_layer_types::{BufferStatusTransition, CustomEvent, EventSender};
 use wimp_types::{BufferInfo, EditedFilesThread, EditorThreadInput};
-use window_layer::EventLoopProxy;
 
 // I suspect we wouldn't notice the difference if we were to box this, and this way
 // has fewer moving parts.
@@ -21,7 +20,7 @@ pub enum Output {
 /// return a `Vec` of at least length one when passed a length one slice.
 pub fn start(
     editor_api: EditorAPI,
-    proxy: EventLoopProxy<CustomEvent>,
+    proxy: impl EventSender,
     edited_files_in_sink: Sender<EditedFilesThread>,
 ) -> (Sender<EditorThreadInput>, Receiver<Output>, JoinHandle<()>) {
     // into the editor thread

@@ -86,7 +86,7 @@ mod init {
                     })?)
                     .and_then(|s| {
                         use std::str::FromStr;
-                        window_layer::ScaleFactor::from_str(&s)
+                        window_layer_types::ScaleFactor::from_str(&s)
                             .ok()
                     });
                 }

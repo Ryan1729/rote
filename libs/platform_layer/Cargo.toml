@@ -15,6 +15,7 @@ shared = { path = "./libs/shared" }
 wimp = { path = "./libs/wimp" }
 wimp_types = { path = "./libs/wimp_types" }
 window_layer = { path = "./libs/window_layer" }
+window_layer_types = { path = "./libs/window_layer_types" }
 directories = "2.0"
 
 [features]

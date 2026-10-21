@@ -1,5 +1,7 @@
 
 use bitflags::bitflags;
+use screen_space::{abs};
+
 
 bitflags! {
     /// Represents the current state of the keyboard modifiers
@@ -17,6 +19,35 @@ bitflags! {
         const LOGO = 0b100 << 9;
     }
 }
+
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
+pub enum MouseButton {
+    Left,
+    Right,
+    Middle,
+    Other(u16),
+}
+
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Dimensions {
+    pub width: abs::Length,
+    pub height: abs::Length,
+}
+
+impl core::fmt::Display for Dimensions {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "({}, {})", self.width, self.height)
+    }
+}
+
+pub type RGBA = [f32; 4];
+
+pub type RatePerSecond = f64;
+
+/// AKA `hidpi_factor`/`DpiFactor`. The text rendering library only accepts `f32`,
+/// so there's not much point in higher precision elsewhere.
+pub type ScaleFactor = f32;
 
 /// Symbolic name for a keyboard key.
 #[derive(Debug, Hash, Ord, PartialOrd, PartialEq, Eq, Clone, Copy)]
@@ -218,12 +249,4 @@ pub enum KeyCode {
     Copy,
     Paste,
     Cut,
-}
-
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
-pub enum MouseButton {
-    Left,
-    Right,
-    Middle,
-    Other(u16),
-}
+} // KeyCode

@@ -1,5 +1,4 @@
 use platform_layer_types::{CustomEvent, EventSender, PidKind};
-use window_layer::EventLoopProxy;
 
 use std::path::PathBuf;
 use std::sync::mpsc::{channel, Sender};
@@ -18,7 +17,7 @@ pub struct Paths {
 
 pub fn start_thread(
     paths: Paths,
-    proxy: EventLoopProxy<CustomEvent>,
+    proxy: impl EventSender,
     on_shutdown: fn(PathBuf),
 ) -> (Sender<Thread>, JoinHandle<()>) {
     // into the path mailbox thread

@@ -70,13 +70,13 @@ pub fn run(
         }
     }
 
-    use window_layer::ScaleFactor;
+    use window_layer_types::ScaleFactor;
     const HIDPI_INCREMENT_BY: ScaleFactor = 1./12.;
     const HIDPI_MINIMUM: ScaleFactor = HIDPI_INCREMENT_BY;
     const HIDPI_DEFAULT: ScaleFactor = 1.;
 
-    let window_state: window_layer::State<'_, CustomEvent> =
-        match window_layer::init::<'_, '_, CustomEvent>(
+    let window_state: window_layer::State<'_> =
+        match window_layer::init::<'_, '_>(
             hidpi_factor_override.unwrap_or(HIDPI_DEFAULT),
             wimp_render::TEXT_BACKGROUND_COLOUR,
             TITLE.into(),
@@ -309,7 +309,7 @@ pub fn run(
 
     let (mut last_click_x, mut last_click_y) = (d!(), d!());
 
-    const TARGET_RATE: window_layer::RatePerSecond = 128.0; //250.0);
+    const TARGET_RATE: window_layer_types::RatePerSecond = 128.0; //250.0);
     let mut dt = window_layer::initial_dt(TARGET_RATE.into());
 
     {
