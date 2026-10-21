@@ -263,7 +263,9 @@ pub struct Fns<'running, 'gl, 'font, 'control, 'loop_helper, 'context> {
     gl_state: &'gl mut gl_layer::State<'font>,
     control_flow: &'control mut ControlFlow,
     dimensions: Dimensions,
-    loop_helper: &'loop_helper mut spin_sleep::LoopHelper,
+    last_tick_duration: Duration,
+    interval: &'loop_helper mut spin_sleep_util::Interval,
+    rate_reporter: &'loop_helper mut spin_sleep_util::RateReporter,
     context: &'context Context,
     is_focused: bool,
 }
@@ -286,7 +288,7 @@ impl Fns<'_, '_, '_, '_, '_, '_> {
 
     #[must_use]
     pub fn report_rate(&mut self) -> Option<RatePerSecond> {
-        self.loop_helper.report_rate()
+        self.rate_reporter.increment_and_report()
     }
 
     /// # Errors
@@ -347,18 +349,21 @@ impl Fns<'_, '_, '_, '_, '_, '_> {
 
     pub fn loop_sleep(&mut self) {
         perf_viz::start_record!("sleepin'");
-        if cfg!(feature="no-spinning-sleep") {
-            self.loop_helper.loop_sleep_no_spin();
+        let tick_start = if cfg!(feature="no-spinning-sleep") {
+            self.interval.tick_no_spin()
         } else if self.is_focused {
-            self.loop_helper.loop_sleep();
+            self.interval.tick()
         } else {
-            self.loop_helper.loop_sleep_no_spin();
-        }
+            self.interval.tick_no_spin()
+        };
+
+        self.last_tick_duration = std::time::Instant::now() - tick_start;
+
         perf_viz::end_record!("sleepin'");
     }
 
     pub fn loop_start(&mut self) -> Duration {
-        self.loop_helper.loop_start()
+        self.last_tick_duration
     }
 
     /// Equivalent to calling `loop_sleep` then calling `loop_start`
@@ -417,11 +422,11 @@ impl State<'static> {
 
         let chosen_target_rate = target_rate.unwrap_or(DEFAULT_TARGET_RATE);
 
-        let report_interval = chosen_target_rate * (1023./1024.);
+        let target_duration = Duration::from_secs_f64(1.0 / chosen_target_rate);
 
-        let mut loop_helper = spin_sleep::LoopHelper::builder()
-            .report_interval_s(report_interval)
-            .build_with_target_rate(chosen_target_rate);
+        let mut interval = spin_sleep_util::interval(target_duration);
+        let mut rate_reporter = spin_sleep_util::RateReporter::new(Duration::from_secs(1));
+
         let mut is_focused = true;
 
         let mut running = true;
@@ -449,7 +454,9 @@ impl State<'static> {
                             width: abs::Length::from(dimensions.width),
                             height: abs::Length::from(dimensions.height),
                         },
-                        loop_helper: &mut loop_helper,
+                        last_tick_duration: <_>::default(),
+                        interval: &mut interval,
+                        rate_reporter: &mut rate_reporter,
                         context: &context,
                         is_focused,
                     }

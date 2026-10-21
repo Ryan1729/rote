@@ -13,7 +13,7 @@ platform_layer_types = { path = "../platform_layer_types" }
 window_layer_types = { path = "../window_layer_types" }
 perf_viz = { path = "../../../perf_viz" }
 screen_space = { path = "../../../screen_space" }
-spin_sleep = "0.3"
+spin_sleep_util = "0"
 
 [dev-dependencies]
 # for some of the examples
