@@ -2,6 +2,7 @@ pub use gl_layer_types::*;
 
 use platform_types::{CharDim};
 use shared::Res;
+use window_layer_types::{TextOrRect};
 
 pub struct State<'font> {
     open_gl: open_gl::State,

@@ -1,4 +1,3 @@
-use platform_types::{ScreenSpaceRect, ScrollXY};
 use macros::{d};
 
 mod u24;
@@ -6,8 +5,6 @@ pub use u24::U24;
 
 /// `(width, height)`
 pub type Dimensions = (U24, U24);
-
-use std::borrow::Cow;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Point {
@@ -135,62 +132,4 @@ mod z_depth_tests {
     fn depth_max_is_correct() {
         assert_eq!(DEPTH_MAX, z_to_f32(0))
     }
-}
-
-
-#[derive(Clone, Debug)]
-pub struct VisualSpec {
-    pub rect: ScreenSpaceRect,
-    /// Rgba colour of rendered item. Defaults to black.
-    pub colour: [f32; 4],
-    /// Z values for use in depth testing. Defaults to 32768
-    pub z: u16,
-}
-
-pub const DEFAULT_Z: u16 = 32768;
-
-d!(for VisualSpec: VisualSpec{
-    rect: d!(),
-    colour: [0.0, 0.0, 0.0, 1.0],
-    z: DEFAULT_Z,
-});
-
-#[derive(Clone, Debug)]
-pub enum TextLayout {
-    Unbounded,
-    UnboundedLayoutClipped(ScreenSpaceRect, ScrollXY)
-}
-
-d!(for TextLayout: TextLayout::Unbounded);
-
-#[derive(Clone, Debug)]
-pub struct TextSpec<'text> {
-    pub spec: VisualSpec,
-    pub text: &'text str,
-    /// The font size
-    pub size: f32,
-    pub layout: TextLayout,
-}
-
-#[derive(Clone, Debug)]
-pub struct ColouredText<'text> {
-    pub text: Cow<'text, str>,
-    pub colour: [f32; 4]
-}
-
-#[derive(Clone, Debug)]
-pub struct MulticolourTextSpec<'text> {
-    /// The font size
-    pub size: f32,
-    pub layout: TextLayout,
-    pub rect: ScreenSpaceRect,
-    pub z: u16,
-    pub text: Vec<ColouredText<'text>>
-}
-
-#[derive(Clone, Debug)]
-pub enum TextOrRect<'text> {
-    Rect(VisualSpec),
-    Text(TextSpec<'text>),
-    MulticolourText(MulticolourTextSpec<'text>)
 }

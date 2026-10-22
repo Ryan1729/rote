@@ -1,7 +1,11 @@
 
-use bitflags::bitflags;
-use screen_space::{abs};
+use macros::d;
+use platform_types::{ScrollXY};
+use screen_space::{abs, ScreenSpaceRect};
 
+use bitflags::bitflags;
+use std::borrow::Cow;
+use std::time::Duration;
 
 bitflags! {
     /// Represents the current state of the keyboard modifiers
@@ -45,9 +49,80 @@ pub type RGBA = [f32; 4];
 
 pub type RatePerSecond = f64;
 
+#[must_use]
+pub fn initial_dt(target_rate: Option<RatePerSecond>) -> Duration {
+    // This value only affects the first frame, and probably will only be used for
+    // visual stuff anyway.
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    Duration::from_nanos((
+        (1.0 / target_rate.unwrap_or(
+            250.//DEFAULT_TARGET_RATE
+        )) * 1_000_000_000.0
+    ) as u64)
+}
+
 /// AKA `hidpi_factor`/`DpiFactor`. The text rendering library only accepts `f32`,
 /// so there's not much point in higher precision elsewhere.
 pub type ScaleFactor = f32;
+
+pub type Z = u16;
+
+#[derive(Clone, Debug)]
+pub struct VisualSpec {
+    pub rect: ScreenSpaceRect,
+    /// Rgba colour of rendered item. Defaults to black.
+    pub colour: RGBA,
+    /// Z values for use in depth testing. Defaults to 32768
+    pub z: Z,
+}
+
+pub const DEFAULT_Z: Z = 32768;
+
+d!(for VisualSpec: VisualSpec{
+    rect: d!(),
+    colour: [0.0, 0.0, 0.0, 1.0],
+    z: DEFAULT_Z,
+});
+
+#[derive(Clone, Debug)]
+pub enum TextLayout {
+    Unbounded,
+    UnboundedLayoutClipped(ScreenSpaceRect, ScrollXY)
+}
+
+d!(for TextLayout: TextLayout::Unbounded);
+
+#[derive(Clone, Debug)]
+pub struct TextSpec<'text> {
+    pub spec: VisualSpec,
+    pub text: &'text str,
+    /// The font size
+    pub size: f32,
+    pub layout: TextLayout,
+}
+
+#[derive(Clone, Debug)]
+pub struct ColouredText<'text> {
+    pub text: Cow<'text, str>,
+    pub colour: [f32; 4]
+}
+
+#[derive(Clone, Debug)]
+pub struct MulticolourTextSpec<'text> {
+    /// The font size
+    pub size: f32,
+    pub layout: TextLayout,
+    pub rect: ScreenSpaceRect,
+    pub z: Z,
+    pub text: Vec<ColouredText<'text>>
+}
+
+#[derive(Clone, Debug)]
+pub enum TextOrRect<'text> {
+    Rect(VisualSpec),
+    Text(TextSpec<'text>),
+    MulticolourText(MulticolourTextSpec<'text>)
+}
 
 /// Symbolic name for a keyboard key.
 #[derive(Debug, Hash, Ord, PartialOrd, PartialEq, Eq, Clone, Copy)]

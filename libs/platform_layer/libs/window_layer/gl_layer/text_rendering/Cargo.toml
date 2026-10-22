@@ -9,6 +9,7 @@ path = "./src/text_rendering.rs"
 
 [dependencies]
 gl_layer_types = {path = "../gl_layer_types"}
+window_layer_types = {path = "../../../window_layer_types"}
 glyph_brush = {path = "glyph-brush"}
 linebreak = {path = "linebreak"}
 macros = { path = "../../../../../macros" }

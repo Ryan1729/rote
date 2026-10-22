@@ -3,7 +3,8 @@ use screen_space::{
     CharDim,
     char_dim, ssr,
 };
-use gl_layer_types::{Dimensions, Vertex, VertexStruct, set_alpha, TextOrRect};
+use gl_layer_types::{Dimensions, Vertex, VertexStruct, set_alpha, z_to_f32};
+use window_layer_types::{ColouredText, MulticolourTextSpec, TextLayout, TextOrRect, TextSpec, VisualSpec};
 
 #[allow(unused_imports)]
 use macros::{d, dbg};
@@ -299,8 +300,6 @@ impl <'font> State<'font> {
 
         perf_viz::start_record!("for &text_or_rects");
         for t_or_r in text_or_rects {
-            use gl_layer_types::*;
-
             let glyph_brush = &mut self.glyph_brush;
 
             macro_rules! queue {

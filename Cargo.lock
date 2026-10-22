@@ -1097,6 +1097,7 @@ dependencies = [
  "platform_types",
  "shared",
  "text_rendering",
+ "window_layer_types",
 ]
 
 [[package]]
@@ -2866,6 +2867,7 @@ dependencies = [
  "screen_space",
  "shared",
  "ttf-parser 0.15.1",
+ "window_layer_types",
 ]
 
 [[package]]
@@ -3372,6 +3374,8 @@ name = "window_layer_types"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.13.2",
+ "macros",
+ "platform_types",
  "screen_space",
 ]
 

@@ -1,5 +1,5 @@
 #![deny(bindings_with_variant_name, unused)]
-use window_layer::{ColouredText, MulticolourTextSpec, TextLayout, TextOrRect, TextSpec, VisualSpec};
+use window_layer_types::{ColouredText, MulticolourTextSpec, TextLayout, TextOrRect, TextSpec, VisualSpec};
 use wimp_types::{CommandsMap, LocalMenu, View, WimpMenuMode, WimpMenu, FindReplaceMode, ui_id, ui, ui::{ButtonState}, BufferStatus, CommandKey, Dimensions, RunConsts, ViewRunState, ui::{ListSelection, ListSelectionWindowSize}, command_keys};
 use macros::{c, d, dbg, invariant_assert, u};
 use platform_types::{
@@ -1390,7 +1390,7 @@ d!(for OutlineButtonSpec<'static>: OutlineButtonSpec {
     layout: TextLayout::Unbounded,
     margin: d!(),
     rect: d!(),
-    z: window_layer::DEFAULT_Z,
+    z: window_layer_types::DEFAULT_Z,
     underline: d!(),
     overline: d!(),
 });

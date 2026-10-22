@@ -9,6 +9,7 @@ path = "./src/gl_layer.rs"
 
 [dependencies]
 gl_layer_types = { path = "gl_layer_types" }
+window_layer_types = { path = "../../window_layer_types" }
 open_gl = { path = "open_gl" }
 text_rendering = { path = "text_rendering" }
 perf_viz = { path = "../../../../perf_viz" }

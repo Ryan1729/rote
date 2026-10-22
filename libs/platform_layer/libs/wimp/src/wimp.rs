@@ -75,7 +75,10 @@ pub fn run(
     const HIDPI_MINIMUM: ScaleFactor = HIDPI_INCREMENT_BY;
     const HIDPI_DEFAULT: ScaleFactor = 1.;
 
-    let window_state: window_layer::State<'_> =
+    let (window_state, event_proxy): (
+        window_layer::State<'_>,
+        window_layer::EventProxy
+    ) =
         match window_layer::init::<'_, '_>(
             hidpi_factor_override.unwrap_or(HIDPI_DEFAULT),
             wimp_render::TEXT_BACKGROUND_COLOUR,
@@ -87,8 +90,6 @@ pub fn run(
                 return Err(e)
             },
         };
-
-    let event_proxy = window_layer::create_event_proxy(&window_state);
 
     let pids = Pids { window: std::process::id(), ..d!() };
 
@@ -309,8 +310,7 @@ pub fn run(
 
     let (mut last_click_x, mut last_click_y) = (d!(), d!());
 
-    const TARGET_RATE: window_layer_types::RatePerSecond = 128.0; //250.0);
-    let mut dt = window_layer::initial_dt(TARGET_RATE.into());
+    let mut dt = <_>::default();
 
     {
         macro_rules! mouse_within_radius {
@@ -836,7 +836,7 @@ pub fn run(
             }]
         }
 
-        window_state.run(TARGET_RATE.into(), move |event, mut fns| {
+        window_state.run(move |event, mut fns| {
             use window_layer::{Event, ElementState};
 
             macro_rules! quit {

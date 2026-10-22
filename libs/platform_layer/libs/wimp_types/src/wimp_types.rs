@@ -531,7 +531,7 @@ pub struct RunState {
     pub view_state: ViewRunState,
     pub cmds: VecDeque<Cmd>,
     pub editor_in_sink: std::sync::mpsc::Sender<EditorThreadInput>,
-    pub event_proxy: window_layer::EventLoopProxy,
+    pub event_proxy: window_layer::EventProxy,
     pub clipboard: Clipboard,
 }
 
