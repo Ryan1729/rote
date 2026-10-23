@@ -837,7 +837,7 @@ pub fn run(
         }
 
         window_state.run(move |event, mut fns| {
-            use window_layer::{Event, ElementState};
+            use window_layer::{Event, ElementState, KeyboardInput};
 
             macro_rules! quit {
                 () => {{
@@ -869,7 +869,7 @@ pub fn run(
             }
 
             if cfg!(feature = "print-raw-input") {
-                if let Event::KeyboardInput { keycode, state, .. } = event {
+                if let Event::KeyboardInput(KeyboardInput{ keycode, state, .. }) = event {
                     println!(
                         "{:?}",
                         (
@@ -928,9 +928,9 @@ pub fn run(
 
                             // Notify the user that the file loaded, if we are not
                             // already in focus.
-                            use window_layer::UserAttentionType;
-                            fns.request_user_attention(
-                                Some(UserAttentionType::Informational)
+                            use window_layer_types::AttentionMode;
+                            fns.request_attention_mode(
+                                AttentionMode::Urgent,
                             );
                         }
                         Err(err) => {
@@ -966,10 +966,11 @@ pub fn run(
                     dbg!("set to ", is_focused);
                     v_s!().ui.window_is_focused = is_focused;
                     if is_focused {
+                        use window_layer_types::AttentionMode;
                         // X11 requires us to explicitly unset the window
-                        // attention.
-                        fns.request_user_attention(
-                            None
+                        // urgency. Other platforms fade it out automatically.
+                        fns.request_attention_mode(
+                            AttentionMode::Neutral
                         );
                     }
                 }
@@ -1015,14 +1016,18 @@ pub fn run(
                         }
                     }
                 }
-                Event::KeyboardInput {
+                Event::KeyboardInput(KeyboardInput {
                     state: ElementState::Pressed,
                     keycode,
                     modifiers,
                     ..
-                } => {
+                }) => {
                     perform_command!(&(modifiers, keycode));
                 }
+                Event::KeyboardInput(KeyboardInput {
+                    state: ElementState::Released,
+                    ..
+                }) => {}
                 Event::MouseWheel {
                     delta: y,
                     modifiers,
@@ -1047,6 +1052,7 @@ pub fn run(
                         call_u_and_r!(Input::ScrollHorizontally(scroll_y));
                     }
                 }
+                Event::MouseWheel { .. } => {}
                 Event::CursorMoved {
                     position,
                     modifiers,
@@ -1108,6 +1114,9 @@ pub fn run(
                     last_click_x = ui.mouse_pos.x;
                     last_click_y = ui.mouse_pos.y;
                 },
+                Event::MouseInput {
+                    ..
+                } => {},
                 Event::MainEventsCleared => {
                     perf_viz::start_record!("MainEventsCleared");
                     let index_state = v_s!().view.index_state();
@@ -1402,7 +1411,6 @@ pub fn run(
                         handle_platform_error!(r_s, e);
                     }
                 },
-                _ => {}
             }
         });
     }

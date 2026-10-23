@@ -1,6 +1,17 @@
 // TODO To prepare to add a second backend, reduce the API of this crate, then make a dummy cfg
 // compile option that provides dummy versions of the API. Make any changes this inspires.
 
+use window_layer_types::{
+    AttentionMode,
+    Dimensions,
+    KeyCode,
+    ModifiersState,
+    MouseButton,
+    RatePerSecond,
+    ScaleFactor,
+    TextOrRect,
+};
+
 // https://internals.rust-lang.org/t/cfg-keyword-for-if-multiple-more-than-one/15751/4
 const _: () = {
     let enabled_features = {
@@ -17,6 +28,8 @@ const _: () = {
 
 #[cfg(feature = "glutin-window-layer")]
 mod glutin_window_layer {
+    use super::*;
+
     use std::marker::PhantomData;
     use std::sync::MutexGuard;
     
@@ -25,34 +38,26 @@ mod glutin_window_layer {
 
     use screen_space::{abs, CharDim, ScreenSpaceXY, ssxy};
 
-    use window_layer_types::{
-        Dimensions,
-        KeyCode,
-        ModifiersState,
-        MouseButton,
-        RatePerSecond,
-        ScaleFactor,
-        TextOrRect,
-    };
-
     pub use gl_layer::{FONT_LICENSE};
     use gl_layer::{U24};
     
     pub use glutin_wrapper::{
         window::{
             CursorIcon,
-            UserAttentionType,
         },
         event::{
             WindowEvent,
             ElementState,
-            StartCause,
         },
         event_loop::{
             EventLoop,    
         },
     };
-    
+    use glutin_wrapper::{
+        event::{StartCause},
+        window::{UserAttentionType},
+    };
+
     use platform_layer_types::{
         CustomEvent,
         EventSender,
@@ -323,9 +328,12 @@ mod glutin_window_layer {
             );
         }
     
-        pub fn request_user_attention(&self, attention: Option<UserAttentionType>) {
+        pub fn request_attention_mode(&self, attention: AttentionMode) {
             self.context.window().request_user_attention(
-                attention
+                match attention {
+                    AttentionMode::Neutral => None,
+                    AttentionMode::Urgent => Some(UserAttentionType::Informational),
+                }
             );
         }
     
@@ -370,17 +378,27 @@ mod glutin_window_layer {
             self.loop_sleep();
             self.loop_start()
         }
+    }    
+
+    pub struct KeyboardInput {
+        pub state: ElementState,
+        pub keycode: KeyCode,
+        pub modifiers: ModifiersState,
     }
-    
-    #[non_exhaustive]
-    pub enum Event<CustomEvent: 'static = ()> {
+
+    // TODO can we simplify this type any more?
+    // Reducing the amount of messages we to 
+    // only those the app actually uses, reduces
+    // the amount new platforms need to support.
+    // We should consider the possibility of 
+    // wanting to add functionality to the app,
+    // later however, at not make adding that
+    // back more painful than necessary.
+    // Should we flatten the CustomEvent part?
+    pub enum Event {
         CloseRequested,
         RedrawRequested,
-        KeyboardInput {
-            state: ElementState,
-            keycode: KeyCode,
-            modifiers: ModifiersState,
-        },
+        KeyboardInput(KeyboardInput),
         MouseInput {
             state: ElementState,
             button: MouseButton,
@@ -434,7 +452,7 @@ mod glutin_window_layer {
             events.run(move |event, _, control_flow| {
                 use glutin_wrapper::{
                     event::{
-                        KeyboardInput,
+                        KeyboardInput as GWKeyboardInput,
                         Event as GWEvent
                     },
                 };
@@ -545,7 +563,7 @@ mod glutin_window_layer {
                             }
                             WindowEvent::KeyboardInput {
                                 input:
-                                    KeyboardInput {
+                                    GWKeyboardInput {
                                         state,
                                         virtual_keycode: Some(virtual_keycode),
                                         ..
@@ -719,7 +737,7 @@ mod glutin_window_layer {
                                 };
     
                                 pass_down!(
-                                    Event::KeyboardInput { state, keycode, modifiers }
+                                    Event::KeyboardInput(KeyboardInput { state, keycode, modifiers })
                                 )
                             },
                             WindowEvent::MouseInput {
@@ -780,6 +798,8 @@ use glutin_window_layer as selected_window_layer;
 
 #[cfg(feature = "dummy-window-layer")]
 mod dummy_window_layer {
+    use super::*;
+
     // No font implies no license needed.
     pub const FONT_LICENSE: &str = "";
 
@@ -793,7 +813,7 @@ mod dummy_window_layer {
     }
 
     #[derive(Debug)]
-    pub struct Fns<'running, 'gl, 'font, 'control, 'loop_helper, 'context>;
+    pub struct Fns;//<'running, 'gl, 'font, 'control, 'loop_helper, 'context>;
 }
 #[cfg(feature = "dummy-window-layer")]
 use dummy_window_layer as selected_window_layer;
@@ -808,6 +828,6 @@ pub use selected_window_layer::{
     FONT_LICENSE,
     Fns,
     get_char_dims,
+    KeyboardInput,
     State,
-    UserAttentionType,
 };

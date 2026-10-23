@@ -32,6 +32,13 @@ pub enum MouseButton {
     Other(u16),
 }
 
+/// Some platforms have modes for windows that indicate that the window requires
+/// user attention. It is valid for a platform to ignore this value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AttentionMode {
+    Neutral,
+    Urgent,
+}
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Dimensions {
