@@ -75,14 +75,16 @@ pub fn run(
     const HIDPI_MINIMUM: ScaleFactor = HIDPI_INCREMENT_BY;
     const HIDPI_DEFAULT: ScaleFactor = 1.;
 
-    let (window_state, event_proxy): (
-        window_layer::State<'_>,
-        window_layer::EventProxy
-    ) =
-        match window_layer::init::<'_, '_>(
+    let window_layer::InitOutput{
+        state: window_state,
+        event_proxy,
+        char_dims: initial_char_dims,
+        dimensions: initial_dimensions,
+    } = match window_layer::init::<'_, '_>(
             hidpi_factor_override.unwrap_or(HIDPI_DEFAULT),
             wimp_render::TEXT_BACKGROUND_COLOUR,
             TITLE.into(),
+            &wimp_render::TEXT_SIZES,
         ) {
             Ok(s) => s,
             Err(e) => {
@@ -208,17 +210,14 @@ pub fn run(
     }
 
     let (mut r_s, editor_in_sink, editor_out_source, mut editor_join_handle) = {
-        let char_dims = window_layer::get_char_dims(
-            &window_state,
-            &wimp_render::TEXT_SIZES,
-        );
+        let char_dims = initial_char_dims;
 
         let current_hidpi_factor = HIDPI_DEFAULT;
         let resolved_hidpi_factor = hidpi_factor_override.unwrap_or(current_hidpi_factor);
 
         let dimensions = Dimensions {
             font: wimp_render::get_font_info(&char_dims),
-            window: window_layer::dimensions(&window_state),
+            window: initial_dimensions,
             hidpi_factor_override,
             current_hidpi_factor,
         };
@@ -412,9 +411,8 @@ pub fn run(
             v_s!(r_s).debug_menu_state.last_hidpi_factors.rotate_right(1);
             v_s!(r_s).debug_menu_state.last_hidpi_factors[0] = hidpi_factor;
 
-            fns.set_dimensions(
-                hidpi_factor as _,
-                v_s!(r_s).dimensions.window,
+            fns.set_scale_factor(
+                hidpi_factor as _
             );
 
             let char_dims = fns.get_char_dims(
@@ -952,8 +950,8 @@ pub fn run(
                         scale_factor,
                     );
                 }
-                Event::Resized => {
-                    v_s!().dimensions.window = fns.dimensions();
+                Event::Resized(dimensions) => {
+                    v_s!().dimensions.window = dimensions;
 
                     call_u_and_r!(
                         get_non_font_size_dependents_input!(

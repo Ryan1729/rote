@@ -63,10 +63,12 @@ pub fn get_char_dims(state: &State, text_sizes: &[f32]) -> Vec<CharDim> {
     state.text_rendering.get_char_dims(text_sizes)
 }
 
-pub fn set_dimensions(state: &mut State, hidpi_factor: f32, dimensions: Dimensions) {
-    state.open_gl.set_dimensions(dimensions);
-
+pub fn set_hidpi_factor(state: &mut State, hidpi_factor: f32) {
     state.text_rendering.set_dimensions(hidpi_factor);
+}
+
+pub fn set_dimensions(state: &mut State, dimensions: Dimensions) {
+    state.open_gl.set_dimensions(dimensions);
 }
 
 #[perf_viz::record]

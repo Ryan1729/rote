@@ -82,6 +82,13 @@ mod glutin_window_layer {
     };
     use std::time::Duration;
 
+    pub struct InitOutput<'font> {
+        pub state: State<'font>,
+        pub event_proxy: EventProxy,
+        pub char_dims: Vec<CharDim>,
+        pub dimensions: Dimensions,
+    }
+
     /// The clear colour currently flashes up on exit.
     /// # Errors
     /// Returns `Err` if the underlying windowing and/or graphics library calls do.
@@ -89,8 +96,9 @@ mod glutin_window_layer {
         hidpi_factor: ScaleFactor,
         clear: window_layer_types::RGBA,
         title: Option<&'title str>,
+        text_sizes: &'title [f32],
     ) -> Result<
-        (State<'font>, EventProxy),
+        InitOutput<'font>,
         Box<dyn std::error::Error>
     >
     // See https://github.com/rust-lang/rust/issues/80618 for description of this one
@@ -177,9 +185,16 @@ mod glutin_window_layer {
             unsend: PhantomData,
         };
 
-        let proxy = EventProxy(state.events.create_proxy());
-
-        Ok((state, proxy))
+        Ok(InitOutput {
+            event_proxy: EventProxy(state.events.create_proxy()),
+            char_dims: gl_layer::get_char_dims(&state.gl_state, text_sizes),
+            dimensions: physical_size_to_dimensions(
+                state.context
+                .window()
+                .inner_size()
+            ),
+            state,
+        })
     }
     
     type Context = glutin_wrapper::ContextWrapper<glutin_wrapper::PossiblyCurrent, glutin_wrapper::window::Window>;
@@ -192,13 +207,6 @@ mod glutin_window_layer {
         // See note inside `init` for why we make this struct `!Send` by including this
         // field.
         unsend: PhantomUnsend,
-    }
-    
-    pub fn get_char_dims(
-        state: &State<'_>,
-        text_sizes: &[f32],
-    ) -> Vec<CharDim> {
-        gl_layer::get_char_dims(&state.gl_state, text_sizes)
     }
     
     fn physical_size_to_dimensions(dimensions: dpi::PhysicalSize<u32>) -> Dimensions {
@@ -223,18 +231,7 @@ mod glutin_window_layer {
         assert_eq!(f32::from(dimensions.width), width as f32);
         assert_eq!(f32::from(dimensions.height), height as f32);
     }
-    
-    #[must_use]
-    pub fn dimensions(
-        state: &State<'_>,
-    ) -> Dimensions {
-        physical_size_to_dimensions(
-            state.context
-            .window()
-            .inner_size()
-        )
-    }
-    
+
     fn render_inner<'font>(
         state: &mut gl_layer::State<'font>,
         context: &Context,
@@ -266,7 +263,6 @@ mod glutin_window_layer {
         running: &'running mut bool,
         gl_state: &'gl mut gl_layer::State<'font>,
         control_flow: &'control mut ControlFlow,
-        dimensions: Dimensions,
         last_tick_duration: Duration,
         interval: &'loop_helper mut spin_sleep_util::Interval,
         rate_reporter: &'loop_helper mut spin_sleep_util::RateReporter,
@@ -283,11 +279,6 @@ mod glutin_window_layer {
             }
     
             *self.control_flow = ControlFlow::Exit;
-        }
-    
-        #[must_use]
-        pub fn dimensions(&self) -> Dimensions {
-            self.dimensions
         }
     
         #[must_use]
@@ -313,18 +304,13 @@ mod glutin_window_layer {
             gl_layer::get_char_dims(self.gl_state, text_sizes)
         }
     
-        pub fn set_dimensions(
+        pub fn set_scale_factor(
             &mut self,
             scale_factor: ScaleFactor,
-            dimensions: Dimensions
         ) {
-            gl_layer::set_dimensions(
+            gl_layer::set_hidpi_factor(
                 self.gl_state,
                 scale_factor,
-                (
-                    U24::from_u32_saturating(dimensions.width.trunc_to_u32()),
-                    U24::from_u32_saturating(dimensions.height.trunc_to_u32())
-                ),
             );
         }
     
@@ -409,7 +395,7 @@ mod glutin_window_layer {
             modifiers: ModifiersState,
         },
         ScaleFactorChanged(ScaleFactor),
-        Resized,
+        Resized(window_layer_types::Dimensions),
         Focused(bool),
         ReceivedCharacter(char),
         CursorMoved {
@@ -427,13 +413,11 @@ mod glutin_window_layer {
     impl State<'static> {
         pub fn run<F>(self, mut event_handler: F) -> !
         where
-            F: 'static + FnMut(Event<CustomEvent>, Fns),
+            F: 'static + FnMut(Event, Fns),
         {
             let mut gl_state = self.gl_state;
             let events: EventLoop<CustomEvent> = self.events;
             let context = self.context;
-    
-            let mut hidpi_factor = 1.0;
     
             let target_duration = Duration::from_secs_f64(1.0 / DEFAULT_TARGET_RATE);
     
@@ -443,9 +427,6 @@ mod glutin_window_layer {
             let mut is_focused = true;
     
             let mut running = true;
-            let mut dimensions = context
-                .window()
-                .inner_size();
     
             let mut modifiers = ModifiersState::default();
     
@@ -463,10 +444,6 @@ mod glutin_window_layer {
                             running: &mut running,
                             gl_state: &mut gl_state,
                             control_flow,
-                            dimensions: Dimensions {
-                                width: abs::Length::from(dimensions.width),
-                                height: abs::Length::from(dimensions.height),
-                            },
                             last_tick_duration: <_>::default(),
                             interval: &mut interval,
                             rate_reporter: &mut rate_reporter,
@@ -499,7 +476,7 @@ mod glutin_window_layer {
                         Event::MainEventsCleared
                     ),
                     GWEvent::UserEvent(e) => pass_down!(
-                        Event::UserEvent::<CustomEvent>(e)
+                        Event::UserEvent(e)
                     ),
                     GWEvent::WindowEvent { event, .. } => {
                         match event {
@@ -516,19 +493,14 @@ mod glutin_window_layer {
                                 // be truncated, anyway.
                                 #[allow(clippy::cast_possible_truncation)]
                                 let scale_factor = scale_factor as _;
-                                hidpi_factor = scale_factor;
     
-                                gl_layer::set_dimensions(
+                                gl_layer::set_hidpi_factor(
                                     &mut gl_state,
-                                    hidpi_factor,
-                                    (
-                                        U24::from_u32_saturating(dimensions.width),
-                                        U24::from_u32_saturating(dimensions.height)
-                                    ),
+                                    scale_factor,
                                 );
     
                                 pass_down!(
-                                    Event::ScaleFactorChanged(hidpi_factor)
+                                    Event::ScaleFactorChanged(scale_factor)
                                 );
                             }
                             WindowEvent::Focused(window_is_focused) => {
@@ -542,18 +514,16 @@ mod glutin_window_layer {
                             ),
                             WindowEvent::Resized(size) => {
                                 context.resize(size);
-                                dimensions = size;
                                 gl_layer::set_dimensions(
                                     &mut gl_state,
-                                    hidpi_factor as _,
                                     (
-                                        U24::from_u32_saturating(dimensions.width),
-                                        U24::from_u32_saturating(dimensions.height)
+                                        U24::from_u32_saturating(size.width),
+                                        U24::from_u32_saturating(size.height)
                                     ),
                                 );
-    
+
                                 pass_down!(
-                                    Event::Resized
+                                    Event::Resized(physical_size_to_dimensions(size))
                                 );
                             }
                             WindowEvent::ModifiersChanged(modifiers_state) => {
@@ -821,13 +791,12 @@ use dummy_window_layer as selected_window_layer;
 pub use selected_window_layer::{
     init,
     CursorIcon,
-    dimensions,
     Event,
     ElementState,
     EventProxy,
     FONT_LICENSE,
     Fns,
-    get_char_dims,
+    InitOutput,
     KeyboardInput,
     State,
 };
