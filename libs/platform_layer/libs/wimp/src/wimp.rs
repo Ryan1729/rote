@@ -70,12 +70,12 @@ pub fn run(
         }
     }
 
-    use window_layer_types::ScaleFactor;
+    use window_layer_types::{InitOutput, ScaleFactor};
     const HIDPI_INCREMENT_BY: ScaleFactor = 1./12.;
     const HIDPI_MINIMUM: ScaleFactor = HIDPI_INCREMENT_BY;
     const HIDPI_DEFAULT: ScaleFactor = 1.;
 
-    let window_layer::InitOutput{
+    let InitOutput {
         state: window_state,
         event_proxy,
         char_dims: initial_char_dims,
@@ -835,7 +835,14 @@ pub fn run(
         }
 
         window_state.run(move |event, mut fns| {
-            use window_layer::{Event, ElementState, KeyboardInput};
+            use window_layer_types::{
+                Event,
+                ButtonState,
+                KeyboardInput,
+                MouseWheel,
+                MouseInput,
+                CursorMoved,
+            };
 
             macro_rules! quit {
                 () => {{
@@ -1015,7 +1022,7 @@ pub fn run(
                     }
                 }
                 Event::KeyboardInput(KeyboardInput {
-                    state: ElementState::Pressed,
+                    state: ButtonState::Pressed,
                     keycode,
                     modifiers,
                     ..
@@ -1023,13 +1030,13 @@ pub fn run(
                     perform_command!(&(modifiers, keycode));
                 }
                 Event::KeyboardInput(KeyboardInput {
-                    state: ElementState::Released,
+                    state: ButtonState::Released,
                     ..
                 }) => {}
-                Event::MouseWheel {
+                Event::MouseWheel(MouseWheel{
                     delta: y,
                     modifiers,
-                } if modifiers.is_empty() => {
+                }) if modifiers.is_empty() => {
                     let ui = &mut v_s!().ui;
                     let scroll_y = abs::Vector::from(y * wimp_render::SCROLL_MULTIPLIER);
                     if wimp_render::inside_tab_area(ui.mouse_pos, v_s!().dimensions.font) {
@@ -1038,10 +1045,10 @@ pub fn run(
                         call_u_and_r!(Input::ScrollVertically(scroll_y));
                     }
                 }
-                Event::MouseWheel {
+                Event::MouseWheel(MouseWheel{
                     delta: y,
                     modifiers,
-                } if modifiers == SHIFT => {
+                }) if modifiers == SHIFT => {
                     let ui = &mut v_s!().ui;
                     let scroll_y = abs::Vector::from(y * wimp_render::SCROLL_MULTIPLIER);
                     if wimp_render::inside_tab_area(ui.mouse_pos, v_s!().dimensions.font) {
@@ -1050,41 +1057,37 @@ pub fn run(
                         call_u_and_r!(Input::ScrollHorizontally(scroll_y));
                     }
                 }
-                Event::MouseWheel { .. } => {}
-                Event::CursorMoved {
+                Event::MouseWheel(_) => {}
+                Event::CursorMoved(CursorMoved{
                     position,
-                    modifiers,
-                } => {
+                    modifiers: m,
+                }) if m.is_empty() => {
                     let ui = &mut v_s!().ui;
                     ui.mouse_pos = position;
 
-                    match modifiers {
-                        m if m.is_empty() => {
-                            let cursor_icon = if wimp_render::should_show_text_cursor(
-                                ui.mouse_pos,
-                                v_s!().view.menu_mode(),
-                                v_s!().dimensions
-                            ) {
-                                window_layer::CursorIcon::Text
-                            } else {
-                                d!()
-                            };
+                    let cursor_icon = if wimp_render::should_show_text_cursor(
+                        ui.mouse_pos,
+                        v_s!().view.menu_mode(),
+                        v_s!().dimensions
+                    ) {
+                        window_layer_types::CursorIcon::Text
+                    } else {
+                        d!()
+                    };
 
-                            fns.set_cursor_icon(cursor_icon);
+                    fns.set_cursor_icon(cursor_icon);
 
-                            if ui.left_mouse_state.is_pressed() && !mouse_within_radius!() {
-                                call_u_and_r!(Input::DragCursors(text_box_xy!()));
-                            }
-                        }
-                        _ => {}
+                    if ui.left_mouse_state.is_pressed() && !mouse_within_radius!() {
+                        call_u_and_r!(Input::DragCursors(text_box_xy!()));
                     }
                 }
-                Event::MouseInput {
+                Event::CursorMoved(_) => {}
+                Event::MouseInput(MouseInput {
                     button: MouseButton::Left,
-                    state: ElementState::Pressed,
+                    state: ButtonState::Pressed,
                     modifiers,
-                } // Allow things like Shift-Alt-Click as plain click, but disallow
-                  // Super-Shift-Alt-Click.
+                })  // Allow things like Shift-Alt-Click as plain click, but disallow
+                    // Super-Shift-Alt-Click.
                 if (!modifiers).intersects(!CTRL) => {
                     v_s!().ui.left_mouse_state = PhysicalButtonState::PressedThisFrame;
 
@@ -1102,19 +1105,17 @@ pub fn run(
 
                     call_u_and_r!(input);
                 },
-                Event::MouseInput {
+                Event::MouseInput(MouseInput {
                     button: MouseButton::Left,
-                    state: ElementState::Released,
+                    state: ButtonState::Released,
                     ..
-                } => {
+                }) => {
                     let ui = &mut v_s!().ui;
                     ui.left_mouse_state = PhysicalButtonState::ReleasedThisFrame;
                     last_click_x = ui.mouse_pos.x;
                     last_click_y = ui.mouse_pos.y;
                 },
-                Event::MouseInput {
-                    ..
-                } => {},
+                Event::MouseInput(_) => {},
                 Event::MainEventsCleared => {
                     perf_viz::start_record!("MainEventsCleared");
                     let index_state = v_s!().view.index_state();

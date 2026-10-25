@@ -1,11 +1,19 @@
 
 use macros::d;
 use platform_types::{ScrollXY};
-use screen_space::{abs, ScreenSpaceRect};
+use platform_layer_types::{CustomEvent};
+use screen_space::{abs, CharDim, ScreenSpaceXY, ScreenSpaceRect};
 
 use bitflags::bitflags;
 use std::borrow::Cow;
 use std::time::Duration;
+
+pub struct InitOutput<State, EventProxy> {
+    pub state: State,
+    pub event_proxy: EventProxy,
+    pub char_dims: Vec<CharDim>,
+    pub dimensions: Dimensions,
+}
 
 bitflags! {
     /// Represents the current state of the keyboard modifiers
@@ -24,12 +32,13 @@ bitflags! {
     }
 }
 
+#[non_exhaustive]
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum MouseButton {
     Left,
-    Right,
-    Middle,
-    Other(u16),
+    //Right,
+    //Middle,
+    //Other(u16),
 }
 
 /// Some platforms have modes for windows that indicate that the window requires
@@ -131,6 +140,71 @@ pub enum TextOrRect<'text> {
     MulticolourText(MulticolourTextSpec<'text>)
 }
 
+#[non_exhaustive]
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Hash)]
+pub enum CursorIcon {
+    /// The platform-dependent default cursor.
+    #[default]
+    Default,
+    /// Indicates text that may be selected or edited.
+    Text,
+}
+
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
+pub enum ButtonState {
+    Pressed,
+    Released
+}
+
+pub struct KeyboardInput {
+    pub state: ButtonState,
+    pub keycode: KeyCode,
+    pub modifiers: ModifiersState,
+}
+
+pub struct MouseInput {
+    pub state: ButtonState,
+    pub button: MouseButton,
+    pub modifiers: ModifiersState,
+}
+
+pub struct MouseWheel {
+    pub delta: f32,
+    pub modifiers: ModifiersState,
+}
+
+pub struct CursorMoved {
+    pub position: ScreenSpaceXY,
+    pub modifiers: ModifiersState
+}
+
+// TODO can we simplify this type any more?
+// Reducing the amount of messages we to 
+// only those the app actually uses, reduces
+// the amount new platforms need to support.
+// We should consider the possibility of 
+// wanting to add functionality to the app,
+// later however, at not make adding that
+// back more painful than necessary.
+// Should we flatten the CustomEvent part?
+pub enum Event {
+    CloseRequested,
+    RedrawRequested,
+    KeyboardInput(KeyboardInput),
+    MouseInput(MouseInput),
+    MouseWheel(MouseWheel),
+    ScaleFactorChanged(ScaleFactor),
+    Resized(Dimensions),
+    Focused(bool),
+    ReceivedCharacter(char),
+    CursorMoved(CursorMoved),
+    /// Only sent if we are not in the process of shutting down.
+    MainEventsCleared,
+    Init,
+    UserEvent(CustomEvent)
+}
+
+#[non_exhaustive]
 /// Symbolic name for a keyboard key.
 #[derive(Debug, Hash, Ord, PartialOrd, PartialEq, Eq, Clone, Copy)]
 #[repr(u32)]

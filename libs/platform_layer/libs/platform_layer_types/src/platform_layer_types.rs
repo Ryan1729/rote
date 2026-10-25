@@ -1,7 +1,7 @@
 ///! This crate is distinct from [platform_types](platform_types) in that this crate is intended
 ///! to not be used outside the [platform_layer](platform_layer) folder. But, it is meant to 
 ///! be accessible to every crate inisde the platform layer, and to house things useful across
-///! multiple such crates. [platform_types](platform_types) is the exernal interface, this crate
+///! multiple such crates. [platform_types](platform_types) is the external interface, this crate
 ///! is the internal interface.
 
 use macros::{u};

@@ -3375,6 +3375,7 @@ version = "0.1.0"
 dependencies = [
  "bitflags 2.13.2",
  "macros",
+ "platform_layer_types",
  "platform_types",
  "screen_space",
 ]

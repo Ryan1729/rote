@@ -20,7 +20,7 @@ spin_sleep_util = "0"
 platform_types = { path = "../../../platform_types" }
 
 [features]
-default = ["glutin-window-layer"]
+default = ["glutin-window-layer"]#["dummy-window-layer"]#
 glutin-window-layer = []
 dummy-window-layer = []
 invariant-checking = ["gl_layer/invariant-checking"]

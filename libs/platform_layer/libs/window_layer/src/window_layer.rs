@@ -3,8 +3,16 @@
 
 use window_layer_types::{
     AttentionMode,
+    ButtonState,
+    CursorIcon,
+    CursorMoved,
+    MouseInput,
+    MouseWheel,
     Dimensions,
+    Event,
+    InitOutput,
     KeyCode,
+    KeyboardInput,
     ModifiersState,
     MouseButton,
     RatePerSecond,
@@ -30,31 +38,22 @@ const _: () = {
 mod glutin_window_layer {
     use super::*;
 
-    use std::marker::PhantomData;
-    use std::sync::MutexGuard;
-    
-    /// See [here](https://stackoverflow.com/a/71945606).
-    type PhantomUnsend = PhantomData<MutexGuard<'static, ()>>;
-
-    use screen_space::{abs, CharDim, ScreenSpaceXY, ssxy};
-
     pub use gl_layer::{FONT_LICENSE};
     use gl_layer::{U24};
     
-    pub use glutin_wrapper::{
-        window::{
-            CursorIcon,
-        },
+    use glutin_wrapper::{
+        dpi,
         event::{
-            WindowEvent,
             ElementState,
+            StartCause,
+            WindowEvent,
+            VirtualKeyCode,
         },
         event_loop::{
-            EventLoop,    
+            ControlFlow,
+            EventLoop,
+            EventLoopBuilder,  
         },
-    };
-    use glutin_wrapper::{
-        event::{StartCause},
         window::{UserAttentionType},
     };
 
@@ -62,6 +61,15 @@ mod glutin_window_layer {
         CustomEvent,
         EventSender,
     };
+
+    use screen_space::{abs, CharDim, ssxy};
+
+    use std::marker::PhantomData;
+    use std::sync::MutexGuard;
+    use std::time::Duration;
+    
+    /// See [here](https://stackoverflow.com/a/71945606).
+    type PhantomUnsend = PhantomData<MutexGuard<'static, ()>>;
     
     #[derive(Clone, Debug)]
     pub struct EventProxy(glutin_wrapper::event_loop::EventLoopProxy<CustomEvent>);
@@ -71,23 +79,6 @@ mod glutin_window_layer {
             let _hope_it_gets_there = self.0.send_event(event);
         }
     }
-    
-    use glutin_wrapper::{
-        dpi, 
-        event_loop::{
-            ControlFlow,
-            EventLoopBuilder,
-        },
-        event::VirtualKeyCode,
-    };
-    use std::time::Duration;
-
-    pub struct InitOutput<'font> {
-        pub state: State<'font>,
-        pub event_proxy: EventProxy,
-        pub char_dims: Vec<CharDim>,
-        pub dimensions: Dimensions,
-    }
 
     /// The clear colour currently flashes up on exit.
     /// # Errors
@@ -96,14 +87,15 @@ mod glutin_window_layer {
         hidpi_factor: ScaleFactor,
         clear: window_layer_types::RGBA,
         title: Option<&'title str>,
-        text_sizes: &'title [f32],
+        text_sizes: &'font [f32],
     ) -> Result<
-        InitOutput<'font>,
+        InitOutput<State, EventProxy>,
         Box<dyn std::error::Error>
     >
     // See https://github.com/rust-lang/rust/issues/80618 for description of this one
     // weird trick.
-    where 'title: 'title
+    where 'title: 'title,
+        'font: 'font
     {
         use glutin_wrapper::{
             Api,
@@ -200,8 +192,8 @@ mod glutin_window_layer {
     type Context = glutin_wrapper::ContextWrapper<glutin_wrapper::PossiblyCurrent, glutin_wrapper::window::Window>;
     
     #[derive(Debug)]
-    pub struct State<'font> {
-        gl_state: gl_layer::State<'font>,
+    pub struct State {
+        gl_state: gl_layer::State<'static>,
         events: EventLoop<CustomEvent>,
         context: Context,
         // See note inside `init` for why we make this struct `!Send` by including this
@@ -324,7 +316,11 @@ mod glutin_window_layer {
         }
     
         pub fn set_cursor_icon(&mut self, cursor_icon: CursorIcon) {
-            self.context.window().set_cursor_icon(cursor_icon);
+            self.context.window().set_cursor_icon(match cursor_icon {
+                CursorIcon::Default => glutin_wrapper::window::CursorIcon::Default,
+                CursorIcon::Text => glutin_wrapper::window::CursorIcon::Text,
+                _ => return,
+            });
         }
     
         pub fn request_redraw(&self) {
@@ -364,53 +360,11 @@ mod glutin_window_layer {
             self.loop_sleep();
             self.loop_start()
         }
-    }    
-
-    pub struct KeyboardInput {
-        pub state: ElementState,
-        pub keycode: KeyCode,
-        pub modifiers: ModifiersState,
-    }
-
-    // TODO can we simplify this type any more?
-    // Reducing the amount of messages we to 
-    // only those the app actually uses, reduces
-    // the amount new platforms need to support.
-    // We should consider the possibility of 
-    // wanting to add functionality to the app,
-    // later however, at not make adding that
-    // back more painful than necessary.
-    // Should we flatten the CustomEvent part?
-    pub enum Event {
-        CloseRequested,
-        RedrawRequested,
-        KeyboardInput(KeyboardInput),
-        MouseInput {
-            state: ElementState,
-            button: MouseButton,
-            modifiers: ModifiersState,
-        },
-        MouseWheel {
-            delta: f32,
-            modifiers: ModifiersState,
-        },
-        ScaleFactorChanged(ScaleFactor),
-        Resized(window_layer_types::Dimensions),
-        Focused(bool),
-        ReceivedCharacter(char),
-        CursorMoved {
-            position: ScreenSpaceXY,
-            modifiers: ModifiersState
-        },
-        /// Only sent if we are not in the process of shutting down.
-        MainEventsCleared,
-        Init,
-        UserEvent(CustomEvent)
     }
     
     const DEFAULT_TARGET_RATE: RatePerSecond = 128.0; //250.0;
     
-    impl State<'static> {
+    impl State {
         pub fn run<F>(self, mut event_handler: F) -> !
         where
             F: 'static + FnMut(Event, Fns),
@@ -420,7 +374,7 @@ mod glutin_window_layer {
             let context = self.context;
     
             let target_duration = Duration::from_secs_f64(1.0 / DEFAULT_TARGET_RATE);
-    
+
             let mut interval = spin_sleep_util::interval(target_duration);
             let mut rate_reporter = spin_sleep_util::RateReporter::new(Duration::from_secs(1));
     
@@ -707,7 +661,14 @@ mod glutin_window_layer {
                                 };
     
                                 pass_down!(
-                                    Event::KeyboardInput(KeyboardInput { state, keycode, modifiers })
+                                    Event::KeyboardInput(KeyboardInput{
+                                        state: match state {
+                                            ElementState::Pressed => ButtonState::Pressed,
+                                            ElementState::Released => ButtonState::Released,
+                                        },
+                                        keycode,
+                                        modifiers
+                                    })
                                 )
                             },
                             WindowEvent::MouseInput {
@@ -715,23 +676,30 @@ mod glutin_window_layer {
                                 state,
                                 ..
                             } => {
-                                let button = match mouse_button {
-                                    glutin_wrapper::event::MouseButton::Left => MouseButton::Left,
-                                    glutin_wrapper::event::MouseButton::Right => MouseButton::Right,
-                                    glutin_wrapper::event::MouseButton::Middle => MouseButton::Middle,
-                                    glutin_wrapper::event::MouseButton::Other(other) => MouseButton::Other(other),
+                                match mouse_button {
+                                    glutin_wrapper::event::MouseButton::Left => {
+                                        pass_down!(
+                                            Event::MouseInput(MouseInput{ 
+                                                button: MouseButton::Left,
+                                                state: match state {
+                                                    ElementState::Pressed => ButtonState::Pressed,
+                                                    ElementState::Released => ButtonState::Released,
+                                                },
+                                                modifiers
+                                            })
+                                        )
+                                    },
+                                    glutin_wrapper::event::MouseButton::Right
+                                    | glutin_wrapper::event::MouseButton::Middle
+                                    | glutin_wrapper::event::MouseButton::Other(_) => {},
                                 };
-    
-                                pass_down!(
-                                    Event::MouseInput { button, state, modifiers }
-                                )
                             },
                             WindowEvent::MouseWheel {
                                 delta: glutin_wrapper::event::MouseScrollDelta::LineDelta(_, delta),
                                 ..
                             } => {
                                 pass_down!(
-                                    Event::MouseWheel { delta, modifiers }
+                                    Event::MouseWheel(MouseWheel{ delta, modifiers })
                                 )
                             },
                             WindowEvent::CursorMoved {
@@ -748,10 +716,10 @@ mod glutin_window_layer {
                                 #[allow(clippy::cast_possible_truncation)]
                                 let y = position.y as f32;
                                 pass_down!(
-                                    Event::CursorMoved {
+                                    Event::CursorMoved(CursorMoved{
                                         position: ssxy!{x, y},
                                         modifiers
-                                    }
+                                    })
                                 );
                             },
                             _ => {}
@@ -770,13 +738,29 @@ use glutin_window_layer as selected_window_layer;
 mod dummy_window_layer {
     use super::*;
 
+    pub fn init<'font, 'title>(
+        hidpi_factor: ScaleFactor,
+        clear: window_layer_types::RGBA,
+        title: Option<&'title str>,
+        text_sizes: &'title [f32],
+    ) -> Result<
+        InitOutput<'font>,
+        Box<dyn std::error::Error>
+    >
+    // See https://github.com/rust-lang/rust/issues/80618 for description of this one
+    // weird trick.
+    where 'title: 'title
+    {
+        Err("dummy init impl".into())
+    }
+
     // No font implies no license needed.
     pub const FONT_LICENSE: &str = "";
 
     #[derive(Clone, Debug)]
-    pub struct EventLoopProxy;
+    pub struct EventProxy;
     
-    impl EventSender for EventLoopProxy {
+    impl EventSender for EventProxy {
         fn send(&self, event: CustomEvent) {
             let _hope_it_gets_there = self.0.send_event(event);
         }
@@ -790,13 +774,8 @@ use dummy_window_layer as selected_window_layer;
 
 pub use selected_window_layer::{
     init,
-    CursorIcon,
-    Event,
-    ElementState,
     EventProxy,
     FONT_LICENSE,
     Fns,
-    InitOutput,
-    KeyboardInput,
     State,
 };

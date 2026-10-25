@@ -9,5 +9,6 @@ path = "src/window_layer_types.rs"
 [dependencies]
 macros = { path = "../../../macros" }
 platform_types = { path = "../../../platform_types" }
+platform_layer_types = { path = "../platform_layer_types" }
 screen_space = { path = "../../../screen_space" }
 bitflags = { version = "2.13.2", features = [] }
