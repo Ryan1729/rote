@@ -179,10 +179,10 @@ pub struct CursorMoved {
 }
 
 // TODO can we simplify this type any more?
-// Reducing the amount of messages we to 
+// Reducing the amount of messages we to
 // only those the app actually uses, reduces
 // the amount new platforms need to support.
-// We should consider the possibility of 
+// We should consider the possibility of
 // wanting to add functionality to the app,
 // later however, at not make adding that
 // back more painful than necessary.

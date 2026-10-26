@@ -411,11 +411,8 @@ pub fn run(
             v_s!(r_s).debug_menu_state.last_hidpi_factors.rotate_right(1);
             v_s!(r_s).debug_menu_state.last_hidpi_factors[0] = hidpi_factor;
 
-            fns.set_scale_factor(
-                hidpi_factor as _
-            );
-
-            let char_dims = fns.get_char_dims(
+            let char_dims = fns.set_scale_factor(
+                hidpi_factor as _,
                 &wimp_render::TEXT_SIZES,
             );
 
@@ -436,7 +433,7 @@ pub fn run(
             ($modifiers: expr, $main_key: ident, $label: literal, $r_s: ident $(,)? $fns: ident $code: block) => {{
                 fn command(
                     $r_s: &mut CommandVars,
-                    $fns: &mut window_layer::Fns<'_, '_, '_, '_, '_, '_>,
+                    $fns: &mut window_layer::Fns<'_, '_>,
                 ) {
                     $code
                 }
@@ -834,7 +831,7 @@ pub fn run(
             }]
         }
 
-        window_state.run(move |event, mut fns| {
+        window_layer::run(window_state, move |event, mut fns| {
             use window_layer_types::{
                 Event,
                 ButtonState,
@@ -970,14 +967,6 @@ pub fn run(
                 Event::Focused(is_focused) => {
                     dbg!("set to ", is_focused);
                     v_s!().ui.window_is_focused = is_focused;
-                    if is_focused {
-                        use window_layer_types::AttentionMode;
-                        // X11 requires us to explicitly unset the window
-                        // urgency. Other platforms fade it out automatically.
-                        fns.request_attention_mode(
-                            AttentionMode::Neutral
-                        );
-                    }
                 }
                 Event::ReceivedCharacter(mut c) => {
                     if c != '\u{1}'    // "start of heading" (sent with Ctrl-a)
