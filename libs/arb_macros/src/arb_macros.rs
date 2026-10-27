@@ -49,6 +49,9 @@ fn arb_enum_works_on_this_no_args_example() {
 
 #[test]
 fn arb_enum_works_on_this_single_arg_example() {
+    // We don't care about the warning that the HasByte
+    // variant's payload wasn't read.
+    #[allow(dead_code)]
     #[derive(Clone, Copy, Debug)]
     enum E {
         Single,

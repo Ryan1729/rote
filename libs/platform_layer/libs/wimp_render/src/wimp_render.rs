@@ -1,6 +1,22 @@
 #![deny(bindings_with_variant_name, unused)]
 use window_layer_types::{ColouredText, MulticolourTextSpec, TextLayout, TextOrRect, TextSpec, VisualSpec};
-use wimp_types::{CommandsMap, LocalMenu, View, WimpMenuMode, WimpMenu, FindReplaceMode, ui_id, ui, ui::{ButtonState}, BufferStatus, CommandKey, Dimensions, RunConsts, ViewRunState, ui::{ListSelection, ListSelectionWindowSize}, command_keys};
+use wimp_types::{
+    CommandsMap,
+    LocalMenu,
+    View,
+    WimpMenuMode,
+    WimpMenu,
+    FindReplaceMode,
+    ui_id,
+    ui,
+    ui::{ButtonState, ListSelection, ListSelectionWindowSize},
+    BufferStatus, 
+    CommandKey,
+    Dimensions,
+    RunConsts,
+    ViewRunState,
+    command_keys
+};
 use macros::{c, d, dbg, invariant_assert, u};
 use platform_types::{
     *,
@@ -230,6 +246,7 @@ pub fn view<'view>(
 
     let buffer_count: usize = view.buffers_count().into();
 
+    // TODO Stop allocating new text_or_rects every frame.
     let mut text_or_rects = Vec::with_capacity(buffer_count * PER_BUFFER_TEXT_OR_RECT_ESTIMATE);
 
     let mut action = ViewAction::None;

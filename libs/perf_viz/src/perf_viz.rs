@@ -101,8 +101,8 @@ fn merge_spans(spans: &mut Vec<flame::Span>) {
     // Sort so spans to be merged are adjacent and spans with the most children are
     // merged into to minimise allocations.
     spans.sort_unstable_by(|s1, s2| {
-        let a = (&s1.name, s1.depth, usize::max_value() - s1.children.len());
-        let b = (&s2.name, s2.depth, usize::max_value() - s2.children.len());
+        let a = (&s1.name, s1.depth, usize::MAX - s1.children.len());
+        let b = (&s2.name, s2.depth, usize::MAX - s2.children.len());
         a.cmp(&b)
     });
 

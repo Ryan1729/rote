@@ -440,7 +440,7 @@ fn make_nth_tab_visible_if_present_terminates_in_reasonable_time_on_this_example
     let mut ui = d!();
     make_nth_tab_visible_if_present(
         &mut ui,
-        usize::max_value(),
+        usize::MAX,
         abs::Length::ONE,
         SOME_SCREEN_WIDTH
     );
@@ -541,7 +541,7 @@ fn render_file_switcher_menu_selects_the_fileswitcher_buffer_when_the_navigation
 }
 
 #[test]
-/// This is meant to reproduce a bug we had that caused the list selection to reset 
+/// This is meant to reproduce a bug we had that caused the list selection to reset
 /// to a default state when pressing up after scrolling down.
 fn render_file_switcher_menu_does_not_reset_in_this_case() {
     let view: View = d!();

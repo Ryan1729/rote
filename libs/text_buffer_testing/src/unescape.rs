@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-pub fn str(input: &str) -> Cow<str> {
+pub fn str(input: &str) -> Cow<'_, str> {
     #[derive(Clone, Copy)]
     enum State {
         NotEscaped,
@@ -98,7 +98,7 @@ pub fn str(input: &str) -> Cow<str> {
         Some(s) => Cow::Owned(s),
         None => Cow::Borrowed(input),
     }
-    
+
 }
 
 #[test]

@@ -4,7 +4,7 @@ use proptest::prop_compose;
 
 prop_compose!{
     pub fn path_buf()(
-        s in ".*\\.fakefile" 
+        s in ".*\\.fakefile"
     ) -> std::path::PathBuf {
         std::path::PathBuf::from(s)
     }
@@ -39,7 +39,7 @@ pub mod f32 {
     prop_compose!{
         pub fn within_0_to_1()(f in proptest::f32::POSITIVE | proptest::f32::ZERO) -> f32 {
             if f > 1.0 {
-               f / std::f32::MAX 
+               f / f32::MAX
             } else {
                 f
             }
@@ -53,6 +53,6 @@ pub mod f32 {
     }
 
 
-    
+
 }
 pub use crate::f32::*;

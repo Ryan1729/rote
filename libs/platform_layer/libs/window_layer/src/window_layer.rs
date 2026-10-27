@@ -83,20 +83,15 @@ mod glutin_window_layer {
     /// The clear colour currently flashes up on exit.
     /// # Errors
     /// Returns `Err` if the underlying windowing and/or graphics library calls do.
-    pub fn init<'font, 'title>(
+    pub fn init(
         hidpi_factor: ScaleFactor,
         clear: window_layer_types::RGBA,
-        title: Option<&'title str>,
-        text_sizes: &'font [f32],
+        title: Option<&str>,
+        text_sizes: &[f32],
     ) -> Result<
         InitOutput<State, EventProxy>,
         Box<dyn std::error::Error>
-    >
-    // See https://github.com/rust-lang/rust/issues/80618 for description of this one
-    // weird trick.
-    where 'title: 'title,
-        'font: 'font
-    {
+    > {
         use glutin_wrapper::{
             Api,
             GlProfile,
@@ -191,9 +186,11 @@ mod glutin_window_layer {
 
     type Context = glutin_wrapper::ContextWrapper<glutin_wrapper::PossiblyCurrent, glutin_wrapper::window::Window>;
 
+    type GLState = gl_layer::State<'static>;
+
     #[derive(Debug)]
     pub struct State {
-        gl_state: gl_layer::State<'static>,
+        gl_state: GLState,
         events: EventLoop<CustomEvent>,
         context: Context,
         // See note inside `init` for why we make this struct `!Send` by including this
@@ -224,18 +221,19 @@ mod glutin_window_layer {
         assert_eq!(f32::from(dimensions.height), height as f32);
     }
 
-    fn render_inner<'font>(
-        state: &mut gl_layer::State<'font>,
-        context: &Context,
+    /// # Errors
+    /// Returns `Err` if the underlying windowing and/or graphics library calls do.
+    pub fn render(
+        fns: &mut Fns,
         text_or_rects: &[TextOrRect],
     ) -> Result<(), Box<dyn std::error::Error>> {
         // TODO is this call expensive enough to be worth avoiding?
-        let dimensions = context
+        let dimensions = fns.context
             .window()
             .inner_size();
 
         gl_layer::render(
-            state,
+            fns.gl_state,
             text_or_rects,
             (
                 U24::from_u32_saturating(dimensions.width),
@@ -244,16 +242,16 @@ mod glutin_window_layer {
         );
 
         perf_viz::start_record!("swap_buffers");
-        context.swap_buffers()?;
+        fns.context.swap_buffers()?;
         perf_viz::end_record!("swap_buffers");
 
         Ok(())
     }
 
     #[derive(Debug)]
-    pub struct Fns<'fns, 'state> {
+    pub struct Fns<'fns> {
         running: &'fns mut bool,
-        gl_state: &'fns mut gl_layer::State<'state>,
+        gl_state: &'fns mut GLState,
         control_flow: &'fns mut ControlFlow,
         last_tick_duration: Duration,
         interval: &'fns mut spin_sleep_util::Interval,
@@ -262,7 +260,7 @@ mod glutin_window_layer {
         is_focused: bool,
     }
 
-    impl Fns<'_, '_> {
+    impl Fns<'_> {
         pub fn quit(&mut self) {
             if *self.running {
                 *self.running = false;
@@ -271,16 +269,6 @@ mod glutin_window_layer {
             }
 
             *self.control_flow = ControlFlow::Exit;
-        }
-
-        /// # Errors
-        /// Returns `Err` if the underlying windowing and/or graphics library calls do.
-        pub fn render(&mut self, text_or_rects: &[TextOrRect]) -> Result<(), Box<dyn std::error::Error>> {
-            render_inner(
-                self.gl_state,
-                self.context,
-                text_or_rects,
-            )
         }
 
         /// Queues a RedrawRequested event. The reccomendation for clients is to put the rendering
@@ -360,7 +348,7 @@ mod glutin_window_layer {
     }
 
     pub fn run<F>(
-        State{ mut gl_state, events, context, unsend: _, }: State,
+        State { mut gl_state, events, context, unsend: _, }: State,
         mut event_handler: F
     ) -> !
     where
@@ -751,11 +739,11 @@ mod dummy_window_layer {
     #[derive(Debug)]
     pub struct State;
 
-    pub fn init<'font, 'title>(
+    pub fn init(
         hidpi_factor: ScaleFactor,
         clear: window_layer_types::RGBA,
-        title: Option<&'title str>,
-        text_sizes: &'title [f32],
+        title: Option<&str>,
+        text_sizes: &[f32],
     ) -> Result<
         InitOutput<State, EventProxy>,
         Box<dyn std::error::Error>
@@ -789,5 +777,6 @@ pub use selected_window_layer::{
     FONT_LICENSE,
     Fns,
     State,
+    render,
     run,
 };

@@ -80,7 +80,7 @@ pub fn run(
         event_proxy,
         char_dims: initial_char_dims,
         dimensions: initial_dimensions,
-    } = match window_layer::init::<'_, '_>(
+    } = match window_layer::init(
             hidpi_factor_override.unwrap_or(HIDPI_DEFAULT),
             wimp_render::TEXT_BACKGROUND_COLOUR,
             TITLE.into(),
@@ -433,7 +433,7 @@ pub fn run(
             ($modifiers: expr, $main_key: ident, $label: literal, $r_s: ident $(,)? $fns: ident $code: block) => {{
                 fn command(
                     $r_s: &mut CommandVars,
-                    $fns: &mut window_layer::Fns<'_, '_>,
+                    $fns: &mut window_layer::Fns,
                 ) {
                     $code
                 }
@@ -1176,8 +1176,7 @@ pub fn run(
                             dt,
                         );
 
-                    // TODO Stop allocating new text_or_rects every frame.
-                    fns.render(&text_or_rects)
+                    window_layer::render(&mut fns, &text_or_rects)
                         .expect("fns didn't work");
 
                     perf_viz::start_record!("r_s.cmds");

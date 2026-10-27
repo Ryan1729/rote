@@ -1,5 +1,6 @@
 use screen_space::ssr;
-use gl_layer_types::{TextOrRect, TextLayout, TextSpec, U24, VisualSpec};
+use gl_layer_types::{U24};
+use window_layer_types::{TextOrRect, TextLayout, TextSpec, VisualSpec};
 
 // These were used in `wimp_render` at the time of writing.
 const TEXT_SIZE: f32 = 32.0;
@@ -10,13 +11,13 @@ const TAB_SIZE: f32 = 16.0;
 const TEXT_SIZES: [f32; 4] = [TEXT_SIZE, STATUS_SIZE, TAB_SIZE, FIND_REPLACE_SIZE];
 
 /// As of this writing, we use OpenGL to render the text. Specifically, we maintain
-/// a sinlge GPU texture containing the glyphs. OpenGL implementations (that is, the 
+/// a sinlge GPU texture containing the glyphs. OpenGL implementations (that is, the
 /// combinations of hardware and drivers) expose a `GL_MAX_TEXTURE_SIZE` value,
 /// indicating the maximum size of a texture. For example, a value of 8192 indicates
 /// that an 8192 by 8192 texture is the maximum allowed. The OpenGL 3.3 spec states
 /// that the minimum required value is 1024, (see Table 6.38), so we ensure support
-/// for that. As a worrying aside, The OpenGL ES (ES for embedded systems) spec says 
-/// the minimum is 64. 
+/// for that. As a worrying aside, The OpenGL ES (ES for embedded systems) spec says
+/// the minimum is 64.
 ///
 /// The current implementation only ever uses one GPU texture and attempts to
 /// increase the GPU texture size if the requested set of glyphs will not fit in the
@@ -32,7 +33,7 @@ fn rendering_all_the_characters_in_the_font_do_not_cause_the_texture_to_get_too_
         assert!(w <= MAX_TEXTURE_SIZE.into(), "pre-condition failure");
         assert!(h <= MAX_TEXTURE_SIZE.into(), "pre-condition failure");
     }
-    
+
     let all_chars = all_chars();
 
     let sizes = &TEXT_SIZES.map(|size| {
@@ -111,7 +112,7 @@ fn all_chars() -> String {
         text_rendering::FONT_BYTES,
         0
     ).unwrap();
-    
+
     let tables = face.tables();
 
     let subtables = tables.cmap.unwrap().subtables;
