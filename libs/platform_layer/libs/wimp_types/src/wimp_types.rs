@@ -776,6 +776,10 @@ pub mod ui {
 
         #[perf_viz::record]
         pub fn add_dt(&mut self, dt: std::time::Duration) {
+            // TODO This seems to sometimes end up collecting enough into the accumulators
+            // that the fade doesn't start for a long time. And if we adjust the offset
+            // multiple here, that affects the regular fade a lot. This needs reworking, 
+            // I think.
             let offset = dt.as_secs_f32() * 1.5;
 
             if self.fade_solid_override_accumulator > 0.0 {

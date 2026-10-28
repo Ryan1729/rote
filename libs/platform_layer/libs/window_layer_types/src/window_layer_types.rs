@@ -65,6 +65,18 @@ pub type RGBA = [f32; 4];
 
 pub type RatePerSecond = f64;
 
+#[derive(Clone, Copy, Debug)]
+pub enum Freshness {
+    Stale,
+    Fresh,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct RateReport {
+    pub rate: RatePerSecond,
+    pub freshness: Freshness
+}
+
 #[must_use]
 pub fn initial_dt(target_rate: Option<RatePerSecond>) -> Duration {
     // This value only affects the first frame, and probably will only be used for

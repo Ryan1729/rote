@@ -15,12 +15,14 @@ use window_layer_types::{
     MouseWheel,
     Dimensions,
     Event,
+    Freshness,
     InitOutput,
     KeyCode,
     KeyboardInput,
     ModifiersState,
     MouseButton,
     RatePerSecond,
+    RateReport,
     ScaleFactor,
     TextOrRect,
 };
@@ -248,16 +250,32 @@ mod glutin_window_layer {
         Ok(())
     }
 
+    #[must_use]
+    pub fn report_rate(fns: &mut Fns) -> RateReport {
+        let mut freshness = Freshness::Stale;
+        if let Some(fresh_rate) = fns.rate_reporter.increment_and_report() {
+            *fns.last_rate = fresh_rate;
+            freshness = Freshness::Fresh;
+        }
+
+        RateReport {
+            rate: *fns.last_rate,
+            freshness,
+        }
+    }
+
+    // TODO give this a better name. "Refs"? "Handle"?
     #[derive(Debug)]
     pub struct Fns<'fns> {
         running: &'fns mut bool,
         gl_state: &'fns mut GLState,
         control_flow: &'fns mut ControlFlow,
-        last_tick_duration: Duration,
+        last_tick_duration: &'fns mut Duration,
         interval: &'fns mut spin_sleep_util::Interval,
+        last_rate: &'fns mut RatePerSecond,
         rate_reporter: &'fns mut spin_sleep_util::RateReporter,
         context: &'fns Context,
-        is_focused: bool,
+        is_focused: &'fns bool,
     }
 
     impl Fns<'_> {
@@ -312,27 +330,22 @@ mod glutin_window_layer {
         }
 
         pub fn loop_start(&mut self) -> Duration {
-            self.last_tick_duration
+            *self.last_tick_duration
         }
 
         pub fn loop_sleep(&mut self) {
             perf_viz::start_record!("sleepin'");
             let tick_start = if cfg!(feature="no-spinning-sleep") {
                 self.interval.tick_no_spin()
-            } else if self.is_focused {
+            } else if *self.is_focused {
                 self.interval.tick()
             } else {
                 self.interval.tick_no_spin()
             };
 
-            self.last_tick_duration = std::time::Instant::now() - tick_start;
+            *self.last_tick_duration = std::time::Instant::now() - tick_start;
 
             perf_viz::end_record!("sleepin'");
-        }
-
-        #[must_use]
-        pub fn report_rate(&mut self) -> Option<RatePerSecond> {
-            self.rate_reporter.increment_and_report()
         }
     }
 
@@ -356,7 +369,12 @@ mod glutin_window_layer {
     {
         let target_duration = Duration::from_secs_f64(1.0 / DEFAULT_TARGET_RATE);
 
+        let mut last_tick_duration = <_>::default();
         let mut interval = spin_sleep_util::interval(target_duration);
+
+        // Starting with the target avoids a blip at the beginning, in the expected case 
+        // that we hit close to it.
+        let mut last_rate = DEFAULT_TARGET_RATE;
         let mut rate_reporter = spin_sleep_util::RateReporter::new(Duration::from_secs(1));
 
         let mut is_focused = true;
@@ -379,11 +397,12 @@ mod glutin_window_layer {
                         running: &mut running,
                         gl_state: &mut gl_state,
                         control_flow,
-                        last_tick_duration: <_>::default(),
+                        last_tick_duration: &mut last_tick_duration,
                         interval: &mut interval,
+                        last_rate: &mut last_rate,
                         rate_reporter: &mut rate_reporter,
                         context: &context,
-                        is_focused,
+                        is_focused: &is_focused,
                     }
                 }};
             }
@@ -778,5 +797,6 @@ pub use selected_window_layer::{
     Fns,
     State,
     render,
+    report_rate,
     run,
 };

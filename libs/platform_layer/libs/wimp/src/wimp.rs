@@ -831,7 +831,7 @@ pub fn run(
             }]
         }
 
-        window_layer::run(window_state, move |event, mut fns| {
+        window_layer::run(window_state, move |event, ref mut fns| {
             use window_layer_types::{
                 Event,
                 ButtonState,
@@ -900,7 +900,7 @@ pub fn run(
                 ($key: expr) => {
                     if let Some(LabelledCommand{ label, command }) = r_c.commands.get($key) {
                         dbg!(label);
-                        command(&mut r_s, &mut fns);
+                        command(&mut r_s, fns);
                     }
                 }
             }
@@ -950,7 +950,7 @@ pub fn run(
                 Event::ScaleFactorChanged(scale_factor) => {
                     set_current_hidpi_factor(
                         &mut r_s,
-                        &mut fns,
+                        fns,
                         scale_factor,
                     );
                 }
@@ -1176,7 +1176,7 @@ pub fn run(
                             dt,
                         );
 
-                    window_layer::render(&mut fns, &text_or_rects)
+                    window_layer::render(fns, &text_or_rects)
                         .expect("fns didn't work");
 
                     perf_viz::start_record!("r_s.cmds");
@@ -1219,7 +1219,10 @@ pub fn run(
                     }
 
                     perf_viz::start_record!("report_rate");
-                    if let Some(render_rate) = fns.report_rate() {
+                    if let window_layer_types::RateReport {
+                        freshness: window_layer_types::Freshness::Fresh,
+                        rate: render_rate,
+                    } = window_layer::report_rate(fns) {
                         macro_rules! ms_from_span {
                             ($span: expr) => {
                                 $span

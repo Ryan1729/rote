@@ -1,6 +1,6 @@
 /// This is meant to be the smallest reasonable example, and perhaps a template
 /// for other examples/applications.
-use window_layer::{TextLayout, TextOrRect, TextSpec, VisualSpec};
+use window_layer_types::{InitOutput, TextLayout, TextOrRect, TextSpec, VisualSpec};
 use screen_space::{ScreenSpaceRect, ssxy};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -9,25 +9,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut frame_count: u32 = 0;
 
-    let window_state = window_layer::init::<'_, '_, ()>(
+    let InitOutput {
+        state: window_state,
+        mut dimensions,
+        ..
+    } = window_layer::init(
         1.,
         [0.3, 0.3, 0.3, 1.0],
-        "hello-world".into()
+        "hello-world".into(),
+        &[TEXT_SIZE],
     )?;
 
-    window_state.run(None, move |event, mut fns| {
-        use window_layer::{Event, ElementState, KeyCode};
+    window_layer::run(window_state, move |event, ref mut fns| {
+        use window_layer_types::{Event, ButtonState, KeyboardInput, KeyCode};
         match event {
             Event::CloseRequested => fns.quit(),
+            Event::Resized(new_dimensions) => {
+                dimensions = new_dimensions;
+            }
             Event::RedrawRequested => {
                 frame_count = frame_count.wrapping_add(1);
-                let dimensions = fns.dimensions();
+
                 let width = f32::from(dimensions.width);
                 let height = f32::from(dimensions.height);
 
                 let mut text_and_rects = Vec::with_capacity(16);
 
-                let rate = fns.report_rate().unwrap_or_default();
+                let rate = window_layer::report_rate(fns).rate;
 
                 let text = &format!(
                     "Hello world! {rate:.2} FPS on frame {frame_count}"
@@ -47,20 +55,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     layout: TextLayout::Unbounded,
                 }));
 
-                fns.render(&text_and_rects)
+                window_layer::render(fns, &text_and_rects)
                     .expect("fns.render didn't work");
 
-                fns.loop_sleep_start();
+                fns.loop_sleep();
+                fns.loop_start();
             }
             Event::MainEventsCleared => {
                 // Queue a RedrawRequested event so we draw the updated view quickly.
                 fns.request_redraw();
             }
-            Event::KeyboardInput {
-                state: ElementState::Pressed,
+            Event::KeyboardInput(KeyboardInput {
+                state: ButtonState::Pressed,
                 keycode,
                 ..
-            } => {
+            }) => {
                 match keycode {
                     KeyCode::Escape => {
                         fns.quit();
