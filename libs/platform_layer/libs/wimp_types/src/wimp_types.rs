@@ -560,7 +560,7 @@ pub mod command_keys {
     }
 }
 
-pub type CommandFn = fn(&mut RunState, &mut window_layer::Fns);
+pub type CommandFn = fn(&mut RunState, &mut window_layer::Handle);
 
 pub struct LabelledCommand {
     pub label: &'static str,

@@ -82,6 +82,7 @@ mod glutin_window_layer {
         }
     }
 
+    /// Initialize the underlying windowing and/or graphics library.
     /// The clear colour currently flashes up on exit.
     /// # Errors
     /// Returns `Err` if the underlying windowing and/or graphics library calls do.
@@ -226,16 +227,16 @@ mod glutin_window_layer {
     /// # Errors
     /// Returns `Err` if the underlying windowing and/or graphics library calls do.
     pub fn render(
-        fns: &mut Fns,
+        handle: &mut Handle,
         text_or_rects: &[TextOrRect],
     ) -> Result<(), Box<dyn std::error::Error>> {
         // TODO is this call expensive enough to be worth avoiding?
-        let dimensions = fns.context
+        let dimensions = handle.context
             .window()
             .inner_size();
 
         gl_layer::render(
-            fns.gl_state,
+            handle.gl_state,
             text_or_rects,
             (
                 U24::from_u32_saturating(dimensions.width),
@@ -244,41 +245,45 @@ mod glutin_window_layer {
         );
 
         perf_viz::start_record!("swap_buffers");
-        fns.context.swap_buffers()?;
+        handle.context.swap_buffers()?;
         perf_viz::end_record!("swap_buffers");
 
         Ok(())
     }
 
     #[must_use]
-    pub fn report_rate(fns: &mut Fns) -> RateReport {
+    pub fn report_rate(handle: &mut Handle) -> RateReport {
         let mut freshness = Freshness::Stale;
-        if let Some(fresh_rate) = fns.rate_reporter.increment_and_report() {
-            *fns.last_rate = fresh_rate;
+        if let Some(fresh_rate) = handle.rate_reporter.increment_and_report() {
+            *handle.last_rate = fresh_rate;
             freshness = Freshness::Fresh;
         }
 
         RateReport {
-            rate: *fns.last_rate,
+            rate: *handle.last_rate,
             freshness,
         }
     }
 
-    // TODO give this a better name. "Refs"? "Handle"?
-    #[derive(Debug)]
-    pub struct Fns<'fns> {
-        running: &'fns mut bool,
-        gl_state: &'fns mut GLState,
-        control_flow: &'fns mut ControlFlow,
-        last_tick_duration: &'fns mut Duration,
-        interval: &'fns mut spin_sleep_util::Interval,
-        last_rate: &'fns mut RatePerSecond,
-        rate_reporter: &'fns mut spin_sleep_util::RateReporter,
-        context: &'fns Context,
-        is_focused: &'fns bool,
+    pub fn set_title(handle: &mut Handle, title: &str) {
+        handle.context.window().set_title(title);
     }
 
-    impl Fns<'_> {
+    /// A handle to various APIs that are useful to have inside the event handler.
+    #[derive(Debug)]
+    pub struct Handle<'handle> {
+        running: &'handle mut bool,
+        gl_state: &'handle mut GLState,
+        control_flow: &'handle mut ControlFlow,
+        last_tick_duration: &'handle mut Duration,
+        interval: &'handle mut spin_sleep_util::Interval,
+        last_rate: &'handle mut RatePerSecond,
+        rate_reporter: &'handle mut spin_sleep_util::RateReporter,
+        context: &'handle Context,
+        is_focused: &'handle bool,
+    }
+
+    impl Handle<'_> {
         pub fn quit(&mut self) {
             if *self.running {
                 *self.running = false;
@@ -325,10 +330,6 @@ mod glutin_window_layer {
             });
         }
 
-        pub fn set_title(&self, title: &str) {
-            self.context.window().set_title(title);
-        }
-
         pub fn loop_start(&mut self) -> Duration {
             *self.last_tick_duration
         }
@@ -365,14 +366,14 @@ mod glutin_window_layer {
         mut event_handler: F
     ) -> !
     where
-        F: 'static + FnMut(Event, Fns),
+        F: 'static + FnMut(Event, Handle),
     {
         let target_duration = Duration::from_secs_f64(1.0 / DEFAULT_TARGET_RATE);
 
         let mut last_tick_duration = <_>::default();
         let mut interval = spin_sleep_util::interval(target_duration);
 
-        // Starting with the target avoids a blip at the beginning, in the expected case 
+        // Starting with the target avoids a blip at the beginning, in the expected case
         // that we hit close to it.
         let mut last_rate = DEFAULT_TARGET_RATE;
         let mut rate_reporter = spin_sleep_util::RateReporter::new(Duration::from_secs(1));
@@ -391,9 +392,9 @@ mod glutin_window_layer {
                 },
             };
 
-            macro_rules! fns {
+            macro_rules! handle {
                 () => {{
-                    Fns {
+                    Handle {
                         running: &mut running,
                         gl_state: &mut gl_state,
                         control_flow,
@@ -411,7 +412,7 @@ mod glutin_window_layer {
                 ($event: expr $(,)?) => {
                     event_handler(
                         $event,
-                        fns!()
+                        handle!()
                     )
                 };
             }
@@ -775,14 +776,14 @@ mod dummy_window_layer {
     }
 
     #[derive(Debug)]
-    pub struct Fns;
+    pub struct Handle;
 
     pub fn run<F>(
         _state: State,
         _event_handler: F
     ) -> !
     where
-        F: 'static + FnMut(Event, Fns),
+        F: 'static + FnMut(Event, Handle),
     {
         loop {}
     }
@@ -790,13 +791,17 @@ mod dummy_window_layer {
 #[cfg(feature = "dummy-window-layer")]
 use dummy_window_layer as selected_window_layer;
 
+// Having things be free functions makes checking that different layer backends
+// have implemented all the pieces easier, since the compiler encforces it when
+// building this crate alone, or in a very small example.
 pub use selected_window_layer::{
     init,
     EventProxy,
     FONT_LICENSE,
-    Fns,
+    Handle,
     State,
     render,
     report_rate,
     run,
+    set_title,
 };

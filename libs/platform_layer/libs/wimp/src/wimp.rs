@@ -398,7 +398,7 @@ pub fn run(
 
         fn set_current_hidpi_factor(
             r_s: &mut RunState,
-            fns: &mut window_layer::Fns,
+            handle: &mut window_layer::Handle,
             mut factor: DpiFactor
         ) {
             if !(factor >= HIDPI_MINIMUM) {
@@ -411,7 +411,7 @@ pub fn run(
             v_s!(r_s).debug_menu_state.last_hidpi_factors.rotate_right(1);
             v_s!(r_s).debug_menu_state.last_hidpi_factors[0] = hidpi_factor;
 
-            let char_dims = fns.set_scale_factor(
+            let char_dims = handle.set_scale_factor(
                 hidpi_factor as _,
                 &wimp_render::TEXT_SIZES,
             );
@@ -430,10 +430,10 @@ pub fn run(
             ($modifiers: expr, $main_key: ident, $label: literal, $r_s: ident $code: block) => {{
                 register_command!($modifiers, $main_key, $label, $r_s, _unused_identifier $code)
             }};
-            ($modifiers: expr, $main_key: ident, $label: literal, $r_s: ident $(,)? $fns: ident $code: block) => {{
+            ($modifiers: expr, $main_key: ident, $label: literal, $r_s: ident $(,)? $handle: ident $code: block) => {{
                 fn command(
                     $r_s: &mut CommandVars,
-                    $fns: &mut window_layer::Fns,
+                    $handle: &mut window_layer::Handle,
                 ) {
                     $code
                 }
@@ -739,14 +739,14 @@ pub fn run(
             [CTRL | ALT | SHIFT, L, "Switch document parsing to previous language.", state {
                 call_u_and_r!(state, Input::PreviousLanguage);
             }]
-            [CTRL | ALT, Equals /* AKA unshifted Plus */, "Increase DPI factor.", r_s, fns {
-                set_current_hidpi_factor(r_s, fns, get_hidpi_factor!(r_s) + HIDPI_INCREMENT_BY);
+            [CTRL | ALT, Equals /* AKA unshifted Plus */, "Increase DPI factor.", r_s, handle {
+                set_current_hidpi_factor(r_s, handle, get_hidpi_factor!(r_s) + HIDPI_INCREMENT_BY);
             }]
-            [CTRL | ALT, Minus, "Decrease DPI factor.", r_s, fns {
-                set_current_hidpi_factor(r_s, fns, get_hidpi_factor!(r_s) - HIDPI_INCREMENT_BY);
+            [CTRL | ALT, Minus, "Decrease DPI factor.", r_s, handle {
+                set_current_hidpi_factor(r_s, handle, get_hidpi_factor!(r_s) - HIDPI_INCREMENT_BY);
             }]
-            [CTRL | ALT, Key1, "Reset DPI factor.", r_s, fns {
-                set_current_hidpi_factor(r_s, fns, HIDPI_DEFAULT);
+            [CTRL | ALT, Key1, "Reset DPI factor.", r_s, handle {
+                set_current_hidpi_factor(r_s, handle, HIDPI_DEFAULT);
             }]
             [CTRL | SHIFT, Home, "Move all cursors to buffer start.", state {
                 call_u_and_r!(state, Input::ExtendSelectionForAllCursors(
@@ -831,7 +831,7 @@ pub fn run(
             }]
         }
 
-        window_layer::run(window_state, move |event, ref mut fns| {
+        window_layer::run(window_state, move |event, ref mut handle| {
             use window_layer_types::{
                 Event,
                 ButtonState,
@@ -866,7 +866,7 @@ pub fn run(
 
                     perf_viz::output!();
 
-                    fns.quit();
+                    handle.quit();
                 }};
             }
 
@@ -900,7 +900,7 @@ pub fn run(
                 ($key: expr) => {
                     if let Some(LabelledCommand{ label, command }) = r_c.commands.get($key) {
                         dbg!(label);
-                        command(&mut r_s, fns);
+                        command(&mut r_s, handle);
                     }
                 }
             }
@@ -931,7 +931,7 @@ pub fn run(
                             // Notify the user that the file loaded, if we are not
                             // already in focus.
                             use window_layer_types::AttentionMode;
-                            fns.request_attention_mode(
+                            handle.request_attention_mode(
                                 AttentionMode::Urgent,
                             );
                         }
@@ -950,7 +950,7 @@ pub fn run(
                 Event::ScaleFactorChanged(scale_factor) => {
                     set_current_hidpi_factor(
                         &mut r_s,
-                        fns,
+                        handle,
                         scale_factor,
                     );
                 }
@@ -1064,7 +1064,7 @@ pub fn run(
                         d!()
                     };
 
-                    fns.set_cursor_icon(cursor_icon);
+                    handle.set_cursor_icon(cursor_icon);
 
                     if ui.left_mouse_state.is_pressed() && !mouse_within_radius!() {
                         call_u_and_r!(Input::DragCursors(text_box_xy!()));
@@ -1158,13 +1158,13 @@ pub fn run(
                     buffer_status_map.migrate_all(index_state);
 
                     // Queue a RedrawRequested event so we draw the updated view quickly.
-                    fns.request_redraw();
+                    handle.request_redraw();
                     perf_viz::end_record!("MainEventsCleared");
                 }
                 Event::Init => {
                     // At least try to measure the first frame accurately
                     perf_viz::start_record!("main loop");
-                    dt = fns.loop_start();
+                    dt = handle.loop_start();
                 }
                 Event::RedrawRequested => {
                     perf_viz::start_record!("frame");
@@ -1176,8 +1176,8 @@ pub fn run(
                             dt,
                         );
 
-                    window_layer::render(fns, &text_or_rects)
-                        .expect("fns didn't work");
+                    window_layer::render(handle, &text_or_rects)
+                        .expect("handle didn't work");
 
                     perf_viz::start_record!("r_s.cmds");
                     for _ in 0..EVENTS_PER_FRAME {
@@ -1222,7 +1222,7 @@ pub fn run(
                     if let window_layer_types::RateReport {
                         freshness: window_layer_types::Freshness::Fresh,
                         rate: render_rate,
-                    } = window_layer::report_rate(fns) {
+                    } = window_layer::report_rate(handle) {
                         macro_rules! ms_from_span {
                             ($span: expr) => {
                                 $span
@@ -1287,38 +1287,41 @@ pub fn run(
                             }
                         );
 
-                        fns.set_title(&format!(
-                            "{}{} {:.0} FPS v{: >6.3} ms e{: >6.3} ms(e-u{: >6.3} ms e-r{: >6.3} ms(e-br{: >6.3} ms p{}) e-st{: >6.3} ms e-mr{: >6.3} ms) {:?} click {:?}",
-                            TITLE,
-                            if cfg!(debug_assertions) {
-                                " DEBUG"
-                            } else {
-                                ""
-                            },
-                            render_rate, // AKA FPS
-                            view_function_ms,
-                            editor_overall_ms,
-                            editor_update_ms,
-                            editor_render_ms,
-                            editor_buffer_render_ms,
-                            parse_total,
-                            editor_status_line_ms,
-                            editor_menu_render_ms,
-                            (v_s!().ui.mouse_pos.x, v_s!().ui.mouse_pos.y),
-                            (last_click_x, last_click_y),
-                        ));
+                        window_layer::set_title(
+                            handle,
+                            &format!(
+                                "{}{} {:.0} FPS v{: >6.3} ms e{: >6.3} ms(e-u{: >6.3} ms e-r{: >6.3} ms(e-br{: >6.3} ms p{}) e-st{: >6.3} ms e-mr{: >6.3} ms) {:?} click {:?}",
+                                TITLE,
+                                if cfg!(debug_assertions) {
+                                    " DEBUG"
+                                } else {
+                                    ""
+                                },
+                                render_rate, // AKA FPS
+                                view_function_ms,
+                                editor_overall_ms,
+                                editor_update_ms,
+                                editor_render_ms,
+                                editor_buffer_render_ms,
+                                parse_total,
+                                editor_status_line_ms,
+                                editor_menu_render_ms,
+                                (v_s!().ui.mouse_pos.x, v_s!().ui.mouse_pos.y),
+                                (last_click_x, last_click_y),
+                            )
+                        );
                     }
                     perf_viz::end_record!("report_rate");
 
                     perf_viz::end_record!("frame");
 
-                    fns.loop_sleep();
+                    handle.loop_sleep();
 
                     perf_viz::end_record!("main loop");
                     perf_viz::start_record!("main loop");
 
                     // We want to track the time that the message loop takes too!
-                    dt = fns.loop_start();
+                    dt = handle.loop_start();
                 }
                 Event::UserEvent(e) => match e {
                     CustomEvent::Pid(kind, pid) => {

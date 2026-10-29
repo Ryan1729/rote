@@ -20,10 +20,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         &[TEXT_SIZE],
     )?;
 
-    window_layer::run(window_state, move |event, ref mut fns| {
+    window_layer::run(window_state, move |event, ref mut handle| {
         use window_layer_types::{Event, ButtonState, KeyboardInput, KeyCode};
         match event {
-            Event::CloseRequested => fns.quit(),
+            Event::CloseRequested => handle.quit(),
             Event::Resized(new_dimensions) => {
                 dimensions = new_dimensions;
             }
@@ -35,7 +35,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 let mut text_and_rects = Vec::with_capacity(16);
 
-                let rate = window_layer::report_rate(fns).rate;
+                let rate = window_layer::report_rate(handle).rate;
 
                 let text = &format!(
                     "Hello world! {rate:.2} FPS on frame {frame_count}"
@@ -55,15 +55,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     layout: TextLayout::Unbounded,
                 }));
 
-                window_layer::render(fns, &text_and_rects)
-                    .expect("fns.render didn't work");
+                window_layer::render(handle, &text_and_rects)
+                    .expect("handle.render didn't work");
 
-                fns.loop_sleep();
-                fns.loop_start();
+                handle.loop_sleep();
+                handle.loop_start();
             }
             Event::MainEventsCleared => {
                 // Queue a RedrawRequested event so we draw the updated view quickly.
-                fns.request_redraw();
+                handle.request_redraw();
             }
             Event::KeyboardInput(KeyboardInput {
                 state: ButtonState::Pressed,
@@ -72,7 +72,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }) => {
                 match keycode {
                     KeyCode::Escape => {
-                        fns.quit();
+                        handle.quit();
                     },
                     _ => (),
                 };

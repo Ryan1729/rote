@@ -63,8 +63,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "text-colour-changes example".into()
     )?;
 
-    window_state.run(None, move |event, mut fns| {
-        use window_layer::{Event, ElementState, KeyCode};
+    window_layer::run(window_state, move |event, ref mut handle| {
+        use window_layer_types::{Event, ButtonState, KeyboardInput, KeyCode};
 
         macro_rules! advance {
             () => {
@@ -75,12 +75,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         match event {
-            Event::CloseRequested => fns.quit(),
+            Event::CloseRequested => handle.quit(),
             Event::RedrawRequested => {
                 if auto_advance {
                     advance!();
                 }
-                let dimensions = fns.dimensions();
+                let dimensions = handle.dimensions();
                 let width = dimensions.width.get();
                 let height = dimensions.height.get();
 
@@ -235,14 +235,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
 
-                fns.render(&text_and_rects)
-                    .expect("fns.render didn't work");
+                handle.render(&text_and_rects)
+                    .expect("handle.render didn't work");
 
-                fns.loop_sleep_start();
+                handle.loop_sleep_start();
             }
             Event::MainEventsCleared => {
                 // Queue a RedrawRequested event so we draw the updated view quickly.
-                fns.request_redraw();
+                handle.request_redraw();
             }
             Event::KeyboardInput {
                 state: ElementState::Pressed,
@@ -252,7 +252,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 const SHIFT: u16 = 65535 / 16;
                 match keycode {
                     KeyCode::Escape => {
-                        fns.quit();
+                        handle.quit();
                     }
                     KeyCode::Up => {
                         second_z = second_z.saturating_sub(SHIFT);
@@ -279,7 +279,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             } if !modifiers.shift() => {
                 match keycode {
                     KeyCode::Escape => {
-                        fns.quit();
+                        handle.quit();
                     }
                     KeyCode::Up => {
                         second_z = second_z.saturating_sub(1);

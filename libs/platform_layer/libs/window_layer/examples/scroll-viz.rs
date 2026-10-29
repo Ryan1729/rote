@@ -1,10 +1,13 @@
 /// This is an example/test that is used to ensure that the scroll related stuff exported by
 /// `platform_types` works properly. This visual stuff is eaiser to verify visually.
-use window_layer::{TextLayout, TextOrRect, TextSpec, VisualSpec};
+use window_layer_types::{InitOutput, ModifiersState, TextLayout, TextOrRect, TextSpec, VisualSpec};
 use platform_types::{abs, screen_positioning::*};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     const HELP_SIZE: f32 = 16.0;
+
+    const CTRL: ModifiersState = ModifiersState::CTRL;
+    const SHIFT: ModifiersState = ModifiersState::SHIFT;
 
     let first_colour = [0.0, 0.6, 0.6, 1.0];
     let text_colour = [0.9, 0.9, 0.9, 1.0];
@@ -24,14 +27,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut visibility_attempt = VisibilityAttemptResult::Succeeded;
     let mut attempt_count = 0;
 
-    let window_state = window_layer::init::<'_, '_, ()>(
+    let InitOutput {
+        state: window_state,
+        mut dimensions,
+        ..
+    } = window_layer::init(
         1.,
         [0.3, 0.3, 0.3, 1.0],
-        "scroll visualiztion example/test".into()
+        "scroll visualiztion example/test".into(),
+        &[HELP_SIZE],
     )?;
 
     let mut text_box_xywh = {
-        let dimensions = window_layer::dimensions(&window_state);
         let width = f32::from(dimensions.width);
         let height = f32::from(dimensions.height);
 
@@ -43,13 +50,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
     };
 
-    window_state.run(None, move |event, mut fns| {
-        use window_layer::{Event, ElementState, KeyCode, MouseScrollDelta};
+    window_layer::run(window_state, move |event, ref mut handle| {
+        use window_layer_types::{Event, ButtonState, KeyboardInput, MouseWheel, KeyCode};
         match event {
-            Event::CloseRequested => fns.quit(),
+            Event::CloseRequested => handle.quit(),
+            Event::Resized(new_dimensions) => {
+                dimensions = new_dimensions;
+            },
             Event::RedrawRequested => {
-                let dimensions = fns.dimensions();
-
                 let mut text_and_rects = Vec::with_capacity(16);
 
                 text_and_rects.push(TextOrRect::Rect(VisualSpec {
@@ -133,23 +141,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     layout: TextLayout::Unbounded,
                 }));
 
-                fns.render(&text_and_rects)
-                    .expect("fns.render didn't work");
+                window_layer::render(handle, &text_and_rects)
+                    .expect("handle.render didn't work");
 
-                fns.loop_sleep_start();
+                handle.loop_sleep();
+                handle.loop_start();
             }
             Event::MainEventsCleared => {
                 // Queue a RedrawRequested event so we draw the updated view quickly.
-                fns.request_redraw();
+                handle.request_redraw();
             }
-            Event::KeyboardInput {
-                state: ElementState::Pressed,
+            Event::KeyboardInput(KeyboardInput {
+                state: ButtonState::Pressed,
                 keycode,
                 modifiers,
-            } if modifiers.shift() && !modifiers.ctrl() => {
+            }) if modifiers == SHIFT => {
                 match keycode {
                     KeyCode::Escape => {
-                        fns.quit();
+                        handle.quit();
                     }
                     KeyCode::Up => {
                         text_box_xywh.xy.y -= move_amount;
@@ -166,14 +175,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     _ => {}
                 }
             },
-            Event::KeyboardInput {
-                state: ElementState::Pressed,
+            Event::KeyboardInput(KeyboardInput {
+                state: ButtonState::Pressed,
                 keycode,
                 modifiers,
-            } if !modifiers.shift() && modifiers.ctrl() => {
+            }) if modifiers == CTRL => {
                 match keycode {
                     KeyCode::Escape => {
-                        fns.quit();
+                        handle.quit();
                     }
                     KeyCode::Up => {
                         text_box_xywh.wh.h =
@@ -194,14 +203,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     _ => {}
                 }
             },
-            Event::KeyboardInput {
-                state: ElementState::Pressed,
+            Event::KeyboardInput(KeyboardInput {
+                state: ButtonState::Pressed,
                 keycode,
                 modifiers,
-            } if modifiers.is_empty() => {
+            }) if modifiers.is_empty() => {
                 match keycode {
                     KeyCode::Escape => {
-                        fns.quit();
+                        handle.quit();
                     }
                     KeyCode::Up => {
                         cursor_xy.y -= move_amount;
@@ -234,18 +243,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     _ => (),
                 }
             }
-            Event::MouseWheel {
-                delta: MouseScrollDelta::LineDelta(_, y),
+            Event::MouseWheel(MouseWheel {
+                delta: y,
                 modifiers,
                 ..
-            } if modifiers.is_empty() => {
+            }) if modifiers.is_empty() => {
                 scroll_xy.y += abs::Vector::from(y * 16.0);
             }
-            Event::MouseWheel {
-                delta: MouseScrollDelta::LineDelta(_, y),
+            Event::MouseWheel(MouseWheel {
+                delta: y,
                 modifiers,
                 ..
-            } if modifiers.shift() => {
+            }) if modifiers == SHIFT => {
                 scroll_xy.x += abs::Vector::from(y * 16.0);
             }
             _ => {}

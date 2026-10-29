@@ -24,8 +24,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "z-layers example".into()
     )?;
 
-    window_state.run(None, move |event, mut fns| {
-        use window_layer::{Event, ElementState, KeyCode};
+    window_layer::run(window_state, move |event, ref mut fns| {
+        use window_layer_types::{Event, ButtonState, KeyboardInput, KeyCode};
 
         macro_rules! advance {
             () => {
