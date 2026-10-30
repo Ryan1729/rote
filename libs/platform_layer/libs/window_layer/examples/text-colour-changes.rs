@@ -1,12 +1,14 @@
-/// This is an example/test that was originally made wit hthe intent of demonstrating a bug where
+/// This is an example/test that was originally made with the intent of demonstrating a bug where
 /// the colour of text, when changed from one colour to another and back again, would get stuck,
 /// and it would not change when it was expected to.
-use window_layer::{ColouredText, TextLayout, TextOrRect, TextSpec, VisualSpec};
+use window_layer_types::{ColouredText, InitOutput, ModifiersState, TextLayout, TextOrRect, TextSpec, VisualSpec};
 use screen_space::{ScreenSpaceRect, ssxy};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     const TEXT_SIZE: f32 = 128.0;
     const HELP_SIZE: f32 = 16.0;
+
+    const SHIFT: ModifiersState = ModifiersState::SHIFT;
 
     /// All I claim about this is that it favours dimmer colours sometimes.
     macro_rules! grey_scale_dim {
@@ -57,10 +59,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut alt_colour = false;
     let mut auto_advance = false;
 
-    let window_state = window_layer::init::<'_, '_, ()>(
+    let InitOutput {
+        state: window_state,
+        mut dimensions,
+        ..
+    } = window_layer::init(
         1.,
         [0.3, 0.3, 0.3, 1.0],
-        "text-colour-changes example".into()
+        "text-colour-changes example".into(),
+        &[TEXT_SIZE, HELP_SIZE],
     )?;
 
     window_layer::run(window_state, move |event, ref mut handle| {
@@ -75,12 +82,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         match event {
-            Event::CloseRequested => handle.quit(),
+            Event::CloseRequested => window_layer::quit(handle),
+            Event::Resized(new_dimensions) => {
+                dimensions = new_dimensions;
+            },
             Event::RedrawRequested => {
                 if auto_advance {
                     advance!();
                 }
-                let dimensions = handle.dimensions();
                 let width = dimensions.width.get();
                 let height = dimensions.height.get();
 
@@ -235,24 +244,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
 
-                handle.render(&text_and_rects)
-                    .expect("handle.render didn't work");
+                window_layer::render(handle, &text_and_rects)
+                    .expect("window_layer::render didn't work");
 
-                handle.loop_sleep_start();
+                window_layer::loop_sleep(handle);
+                window_layer::loop_start(handle);
             }
             Event::MainEventsCleared => {
                 // Queue a RedrawRequested event so we draw the updated view quickly.
-                handle.request_redraw();
+                window_layer::request_redraw(handle);
             }
-            Event::KeyboardInput {
-                state: ElementState::Pressed,
+            Event::KeyboardInput(KeyboardInput {
+                state: ButtonState::Pressed,
                 keycode,
                 modifiers,
-            } if modifiers.shift() => {
+            }) if modifiers == SHIFT => {
                 const SHIFT: u16 = 65535 / 16;
                 match keycode {
                     KeyCode::Escape => {
-                        handle.quit();
+                        window_layer::quit(handle);
                     }
                     KeyCode::Up => {
                         second_z = second_z.saturating_sub(SHIFT);
@@ -272,14 +282,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     _ => {}
                 }
             },
-            Event::KeyboardInput {
-                state: ElementState::Pressed,
+            Event::KeyboardInput(KeyboardInput {
+                state: ButtonState::Pressed,
                 keycode,
                 modifiers,
-            } if !modifiers.shift() => {
+            }) => {
                 match keycode {
                     KeyCode::Escape => {
-                        handle.quit();
+                        window_layer::quit(handle);
                     }
                     KeyCode::Up => {
                         second_z = second_z.saturating_sub(1);

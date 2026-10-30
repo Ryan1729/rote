@@ -224,6 +224,20 @@ mod glutin_window_layer {
         assert_eq!(f32::from(dimensions.height), height as f32);
     }
 
+    /// A handle to various APIs that are useful to have inside the event handler.
+    #[derive(Debug)]
+    pub struct Handle<'handle> {
+        running: &'handle mut bool,
+        gl_state: &'handle mut GLState,
+        control_flow: &'handle mut ControlFlow,
+        last_tick_duration: &'handle mut Duration,
+        interval: &'handle mut spin_sleep_util::Interval,
+        last_rate: &'handle mut RatePerSecond,
+        rate_reporter: &'handle mut spin_sleep_util::RateReporter,
+        context: &'handle Context,
+        is_focused: &'handle bool,
+    }
+
     /// # Errors
     /// Returns `Err` if the underlying windowing and/or graphics library calls do.
     pub fn render(
@@ -269,90 +283,74 @@ mod glutin_window_layer {
         handle.context.window().set_title(title);
     }
 
-    /// A handle to various APIs that are useful to have inside the event handler.
-    #[derive(Debug)]
-    pub struct Handle<'handle> {
-        running: &'handle mut bool,
-        gl_state: &'handle mut GLState,
-        control_flow: &'handle mut ControlFlow,
-        last_tick_duration: &'handle mut Duration,
-        interval: &'handle mut spin_sleep_util::Interval,
-        last_rate: &'handle mut RatePerSecond,
-        rate_reporter: &'handle mut spin_sleep_util::RateReporter,
-        context: &'handle Context,
-        is_focused: &'handle bool,
+    pub fn quit(handle: &mut Handle) {
+        if *handle.running {
+            *handle.running = false;
+
+            gl_layer::cleanup(handle.gl_state);
+        }
+
+        *handle.control_flow = ControlFlow::Exit;
     }
 
-    impl Handle<'_> {
-        pub fn quit(&mut self) {
-            if *self.running {
-                *self.running = false;
+    /// Queues a RedrawRequested event. The reccomendation for clients is to put the rendering
+    /// code in the response to that event type, so that the platform can insert extra ones
+    /// in certain cases.
+    pub fn request_redraw(handle: &Handle) {
+        handle.context.window().request_redraw();
+    }
 
-                gl_layer::cleanup(self.gl_state);
-            }
+    /// We return the char dims here because changing the scale factor
+    /// causes them to change. We rquire the text sizes only in order
+    /// to calculate the char dims.
+    #[must_use]
+    pub fn set_scale_factor(
+        handle: &mut Handle,
+        scale_factor: ScaleFactor,
+        text_sizes: &[f32],
+    ) -> Vec<CharDim> {
+        gl_layer::set_hidpi_factor(
+            handle.gl_state,
+            scale_factor,
+        );
 
-            *self.control_flow = ControlFlow::Exit;
-        }
+        gl_layer::get_char_dims(handle.gl_state, text_sizes)
+    }
 
-        /// Queues a RedrawRequested event. The reccomendation for clients is to put the rendering
-        /// code in the response to that event type, so that the platform can insert extra ones
-        /// in certain cases.
-        pub fn request_redraw(&self) {
-            self.context.window().request_redraw();
-        }
+    pub fn request_attention_mode(handle: &Handle, attention: AttentionMode) {
+        request_attention_mode_context(handle.context, attention);
+    }
 
-        /// We return the char dims here because changing the scale factor
-        /// causes them to change. We rquire the text sizes only in order
-        /// to calculate the char dims.
-        #[must_use]
-        pub fn set_scale_factor(
-            &mut self,
-            scale_factor: ScaleFactor,
-            text_sizes: &[f32],
-        ) -> Vec<CharDim> {
-            gl_layer::set_hidpi_factor(
-                self.gl_state,
-                scale_factor,
-            );
+    pub fn set_cursor_icon(handle: &mut Handle, cursor_icon: CursorIcon) {
+        handle.context.window().set_cursor_icon(match cursor_icon {
+            CursorIcon::Default => glutin_wrapper::window::CursorIcon::Default,
+            CursorIcon::Text => glutin_wrapper::window::CursorIcon::Text,
+            _ => return,
+        });
+    }
 
-            gl_layer::get_char_dims(self.gl_state, text_sizes)
-        }
+    pub fn loop_start(handle: &mut Handle) -> Duration {
+        *handle.last_tick_duration
+    }
 
-        pub fn request_attention_mode(&self, attention: AttentionMode) {
-            request_attention_mode(self.context, attention);
-        }
+    pub fn loop_sleep(handle: &mut Handle) {
+        perf_viz::start_record!("sleepin'");
+        let tick_start = if cfg!(feature="no-spinning-sleep") {
+            handle.interval.tick_no_spin()
+        } else if *handle.is_focused {
+            handle.interval.tick()
+        } else {
+            handle.interval.tick_no_spin()
+        };
 
-        pub fn set_cursor_icon(&mut self, cursor_icon: CursorIcon) {
-            self.context.window().set_cursor_icon(match cursor_icon {
-                CursorIcon::Default => glutin_wrapper::window::CursorIcon::Default,
-                CursorIcon::Text => glutin_wrapper::window::CursorIcon::Text,
-                _ => return,
-            });
-        }
+        *handle.last_tick_duration = std::time::Instant::now() - tick_start;
 
-        pub fn loop_start(&mut self) -> Duration {
-            *self.last_tick_duration
-        }
-
-        pub fn loop_sleep(&mut self) {
-            perf_viz::start_record!("sleepin'");
-            let tick_start = if cfg!(feature="no-spinning-sleep") {
-                self.interval.tick_no_spin()
-            } else if *self.is_focused {
-                self.interval.tick()
-            } else {
-                self.interval.tick_no_spin()
-            };
-
-            *self.last_tick_duration = std::time::Instant::now() - tick_start;
-
-            perf_viz::end_record!("sleepin'");
-        }
+        perf_viz::end_record!("sleepin'");
     }
 
     const DEFAULT_TARGET_RATE: RatePerSecond = 128.0; //250.0;
 
-    fn request_attention_mode(context: &Context, attention: AttentionMode) {
+    fn request_attention_mode_context(context: &Context, attention: AttentionMode) {
         context.window().request_user_attention(
             match attention {
                 AttentionMode::Neutral => None,
@@ -462,7 +460,7 @@ mod glutin_window_layer {
                                 use window_layer_types::AttentionMode;
                                 // X11 requires us to explicitly unset the window
                                 // urgency. Other platforms fade it out automatically.
-                                request_attention_mode(
+                                request_attention_mode_context(
                                     &context,
                                     AttentionMode::Neutral
                                 );
@@ -795,13 +793,20 @@ use dummy_window_layer as selected_window_layer;
 // have implemented all the pieces easier, since the compiler encforces it when
 // building this crate alone, or in a very small example.
 pub use selected_window_layer::{
-    init,
     EventProxy,
     FONT_LICENSE,
     Handle,
     State,
+    init,
+    loop_start,
+    loop_sleep,
+    quit,
     render,
     report_rate,
+    request_attention_mode,
+    request_redraw,
     run,
+    set_cursor_icon,
     set_title,
+    set_scale_factor,
 };

@@ -2,12 +2,14 @@
 /// allows, actually work. This might seems like a silly thing to have to test, but GPUs and OpenGL
 /// are silly things. Besides, this should be a nice simple example of how to setup a simple
 /// scene with this crate.
-use window_layer::{TextLayout, TextOrRect, TextSpec, VisualSpec};
+use window_layer_types::{InitOutput, ModifiersState, TextLayout, TextOrRect, TextSpec, VisualSpec};
 use screen_space::{ScreenSpaceRect, ssxy};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     const TEXT_SIZE: f32 = 128.0;
     const HELP_SIZE: f32 = 16.0;
+
+    const SHIFT: ModifiersState = ModifiersState::SHIFT;
 
     let first_colour = [0.0, 0.6, 0.6, 1.0];
     let text_colour = [0.9, 0.9, 0.9, 1.0];
@@ -18,13 +20,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut second_z: u16 = first_z + 1;
     let mut auto_advance = false;
 
-    let window_state = window_layer::init::<'_, '_, ()>(
+    let InitOutput {
+        state: window_state,
+        mut dimensions,
+        ..
+    } = window_layer::init(
         1.,
         [0.3, 0.3, 0.3, 1.0],
-        "z-layers example".into()
+        "z-layers example".into(),
+        &[TEXT_SIZE, HELP_SIZE],
     )?;
 
-    window_layer::run(window_state, move |event, ref mut fns| {
+    window_layer::run(window_state, move |event, ref mut handle| {
         use window_layer_types::{Event, ButtonState, KeyboardInput, KeyCode};
 
         macro_rules! advance {
@@ -35,12 +42,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         match event {
-            Event::CloseRequested => fns.quit(),
+            Event::CloseRequested => window_layer::quit(handle),
+            Event::Resized(new_dimensions) => {
+                dimensions = new_dimensions;
+            },
             Event::RedrawRequested => {
                 if auto_advance {
                     advance!();
                 }
-                let dimensions = fns.dimensions();
                 let width = f32::from(dimensions.width);
                 let height = f32::from(dimensions.height);
 
@@ -146,7 +155,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     second_z,
                     second_z_sub_1,
                     second_z_sub_2,
-                    (window_layer::z_to_f32(first_z), window_layer::z_to_f32(second_z))
+                    (gl_layer::z_to_f32(first_z), gl_layer::z_to_f32(second_z))
                 );
                 text_and_rects.push(TextOrRect::Text(TextSpec {
                     text: &z_text,
@@ -176,20 +185,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     layout: TextLayout::Unbounded,
                 }));
 
-                fns.render(&text_and_rects)
-                    .expect("fns.render didn't work");
+                window_layer::render(handle, &text_and_rects)
+                    .expect("window_layer::render didn't work");
 
-                fns.loop_sleep_start();
+                window_layer::loop_sleep(handle);
+                window_layer::loop_start(handle);
             }
-            Event::KeyboardInput {
-                state: ElementState::Pressed,
+            Event::KeyboardInput(KeyboardInput {
+                state: ButtonState::Pressed,
                 keycode,
                 modifiers,
-            } if modifiers.shift() => {
+            }) if modifiers == SHIFT => {
                 const SHIFT: u16 = 65535 / 16;
                 match keycode {
                     KeyCode::Escape => {
-                        fns.quit();
+                        window_layer::quit(handle);
                     }
                     KeyCode::Up => {
                         second_z = second_z.saturating_sub(SHIFT);
@@ -208,16 +218,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             },
             Event::MainEventsCleared => {
                 // Queue a RedrawRequested event so we draw the updated view quickly.
-                fns.request_redraw();
+                window_layer::request_redraw(handle);
             }
-            Event::KeyboardInput {
-                state: ElementState::Pressed,
+            Event::KeyboardInput(KeyboardInput {
+                state: ButtonState::Pressed,
                 keycode,
                 modifiers,
-            } if !modifiers.shift() => {
+            })=> {
                 match keycode {
                     KeyCode::Escape => {
-                        fns.quit();
+                        window_layer::quit(handle);
                     }
                     KeyCode::Up => {
                         second_z = second_z.saturating_sub(1);

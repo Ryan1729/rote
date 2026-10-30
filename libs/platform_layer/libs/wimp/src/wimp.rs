@@ -411,7 +411,8 @@ pub fn run(
             v_s!(r_s).debug_menu_state.last_hidpi_factors.rotate_right(1);
             v_s!(r_s).debug_menu_state.last_hidpi_factors[0] = hidpi_factor;
 
-            let char_dims = handle.set_scale_factor(
+            let char_dims = window_layer::set_scale_factor(
+                handle,
                 hidpi_factor as _,
                 &wimp_render::TEXT_SIZES,
             );
@@ -866,7 +867,7 @@ pub fn run(
 
                     perf_viz::output!();
 
-                    handle.quit();
+                    window_layer::quit(handle);
                 }};
             }
 
@@ -931,7 +932,8 @@ pub fn run(
                             // Notify the user that the file loaded, if we are not
                             // already in focus.
                             use window_layer_types::AttentionMode;
-                            handle.request_attention_mode(
+                            window_layer::request_attention_mode(
+                                handle,
                                 AttentionMode::Urgent,
                             );
                         }
@@ -1064,7 +1066,7 @@ pub fn run(
                         d!()
                     };
 
-                    handle.set_cursor_icon(cursor_icon);
+                    window_layer::set_cursor_icon(handle, cursor_icon);
 
                     if ui.left_mouse_state.is_pressed() && !mouse_within_radius!() {
                         call_u_and_r!(Input::DragCursors(text_box_xy!()));
@@ -1158,13 +1160,13 @@ pub fn run(
                     buffer_status_map.migrate_all(index_state);
 
                     // Queue a RedrawRequested event so we draw the updated view quickly.
-                    handle.request_redraw();
+                    window_layer::request_redraw(handle);
                     perf_viz::end_record!("MainEventsCleared");
                 }
                 Event::Init => {
                     // At least try to measure the first frame accurately
                     perf_viz::start_record!("main loop");
-                    dt = handle.loop_start();
+                    dt = window_layer::loop_start(handle);
                 }
                 Event::RedrawRequested => {
                     perf_viz::start_record!("frame");
@@ -1315,13 +1317,13 @@ pub fn run(
 
                     perf_viz::end_record!("frame");
 
-                    handle.loop_sleep();
+                    window_layer::loop_sleep(handle);
 
                     perf_viz::end_record!("main loop");
                     perf_viz::start_record!("main loop");
 
                     // We want to track the time that the message loop takes too!
-                    dt = handle.loop_start();
+                    dt = window_layer::loop_start(handle);
                 }
                 Event::UserEvent(e) => match e {
                     CustomEvent::Pid(kind, pid) => {

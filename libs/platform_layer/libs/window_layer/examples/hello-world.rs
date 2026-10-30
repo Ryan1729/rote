@@ -23,7 +23,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     window_layer::run(window_state, move |event, ref mut handle| {
         use window_layer_types::{Event, ButtonState, KeyboardInput, KeyCode};
         match event {
-            Event::CloseRequested => handle.quit(),
+            Event::CloseRequested => window_layer::quit(handle),
             Event::Resized(new_dimensions) => {
                 dimensions = new_dimensions;
             }
@@ -56,14 +56,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }));
 
                 window_layer::render(handle, &text_and_rects)
-                    .expect("handle.render didn't work");
+                    .expect("window_layer::render didn't work");
 
-                handle.loop_sleep();
-                handle.loop_start();
+                window_layer::loop_sleep(handle);
+                window_layer::loop_start(handle);
             }
             Event::MainEventsCleared => {
                 // Queue a RedrawRequested event so we draw the updated view quickly.
-                handle.request_redraw();
+                window_layer::request_redraw(handle);
             }
             Event::KeyboardInput(KeyboardInput {
                 state: ButtonState::Pressed,
@@ -72,7 +72,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }) => {
                 match keycode {
                     KeyCode::Escape => {
-                        handle.quit();
+                        window_layer::quit(handle);
                     },
                     _ => (),
                 };
