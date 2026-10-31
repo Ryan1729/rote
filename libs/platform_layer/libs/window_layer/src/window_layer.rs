@@ -1,6 +1,8 @@
 // TODO To prepare to add a second backend, reduce the API of this crate, then make a dummy cfg
 // compile option that provides dummy versions of the API. Make any changes this inspires.
 
+#![cfg_attr(feature = "dummy-window-layer", allow(unused_imports))]
+
 use platform_layer_types::{
     CustomEvent,
     EventSender,
@@ -751,30 +753,67 @@ mod dummy_window_layer {
     pub struct EventProxy;
 
     impl EventSender for EventProxy {
-        fn send(&self, event: CustomEvent) {}
+        fn send(&self, _event: CustomEvent) {}
     }
 
     #[derive(Debug)]
     pub struct State;
 
     pub fn init(
-        hidpi_factor: ScaleFactor,
-        clear: window_layer_types::RGBA,
-        title: Option<&str>,
-        text_sizes: &[f32],
+        _hidpi_factor: ScaleFactor,
+        _clear: window_layer_types::RGBA,
+        _title: Option<&str>,
+        _text_sizes: &[f32],
     ) -> Result<
         InitOutput<State, EventProxy>,
         Box<dyn std::error::Error>
     >
-    // See https://github.com/rust-lang/rust/issues/80618 for description of this one
-    // weird trick.
-    where 'title: 'title
     {
         Err("dummy init impl".into())
     }
 
     #[derive(Debug)]
     pub struct Handle;
+
+    pub fn render(
+        _handle: &mut Handle,
+        _text_or_rects: &[TextOrRect],
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        Ok(())
+    }
+
+    #[must_use]
+    pub fn report_rate(_handle: &mut Handle) -> RateReport {
+        RateReport {
+            rate: <_>::default(),
+            freshness: Freshness::Stale,
+        }
+    }
+
+    pub fn set_title(_handle: &mut Handle, _title: &str) {}
+
+    pub fn quit(_handle: &mut Handle) {}
+
+    pub fn request_redraw(_handle: &Handle) {}
+
+    #[must_use]
+    pub fn set_scale_factor(
+        _handle: &mut Handle,
+        _scale_factor: ScaleFactor,
+        _text_sizes: &[f32],
+    ) -> Vec<screen_space::CharDim> {
+        <_>::default()
+    }
+
+    pub fn request_attention_mode(_handle: &Handle, _attention: AttentionMode) {}
+
+    pub fn set_cursor_icon(_handle: &mut Handle, _cursor_icon: CursorIcon) {}
+
+    pub fn loop_start(_handle: &mut Handle) -> std::time::Duration {
+        <_>::default()
+    }
+
+    pub fn loop_sleep(_handle: &mut Handle) {}
 
     pub fn run<F>(
         _state: State,
