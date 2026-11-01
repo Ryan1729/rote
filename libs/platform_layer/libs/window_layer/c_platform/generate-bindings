@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# bindgen was installed by running:
+# cargo install bindgen-cli
+# As of this writing there are additional requirements.
+# See https://rust-lang.github.io/rust-bindgen/requirements.html
+
+mkdir -p src/sys/
+
+bindgen wrapper.h -o src/sys/bindings.rs \
+--allowlist-function '^platform_.*'                           \
+--blocklist-type '^__.*'                                      \
+-- --std=c23
+
+

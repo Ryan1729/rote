@@ -1,0 +1,12 @@
+[package]
+name = "c_platform"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+path="src/c_platform.rs"
+
+[dependencies]
+
+[build-dependencies]
+cc = "1.0"

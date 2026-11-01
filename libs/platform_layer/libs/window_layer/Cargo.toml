@@ -7,8 +7,9 @@ edition = "2021"
 path = "src/window_layer.rs"
 
 [dependencies]
-gl_layer = { path = "gl_layer" }
-glutin_wrapper = { path = "glutin_wrapper" }
+c_platform = { path = "c_platform", optional=true }
+gl_layer = { path = "gl_layer", optional=true }
+glutin_wrapper = { path = "glutin_wrapper", optional=true }
 platform_layer_types = { path = "../platform_layer_types" }
 window_layer_types = { path = "../window_layer_types" }
 perf_viz = { path = "../../../perf_viz" }
@@ -20,9 +21,10 @@ spin_sleep_util = "0"
 platform_types = { path = "../../../platform_types" }
 
 [features]
-default = ["glutin-window-layer"]#["dummy-window-layer"]#
-glutin-window-layer = []
+default = ["c-dummy-window-layer"]#["glutin-window-layer"]#["dummy-window-layer"]#
+glutin-window-layer = ["gl_layer", "glutin_wrapper"]
 dummy-window-layer = []
+c-dummy-window-layer = ["c_platform"]
 invariant-checking = ["gl_layer/invariant-checking"]
 no-spinning-sleep = []
 time-render = ["gl_layer/time-render"]

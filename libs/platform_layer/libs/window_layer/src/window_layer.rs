@@ -34,6 +34,7 @@ const _: () = {
     let enabled_features = {
         cfg!(feature = "glutin-window-layer") as u32
         + cfg!(feature = "dummy-window-layer") as u32
+        + cfg!(feature = "c-dummy-window-layer") as u32
     };
 
     match enabled_features {
@@ -827,6 +828,93 @@ mod dummy_window_layer {
 }
 #[cfg(feature = "dummy-window-layer")]
 use dummy_window_layer as selected_window_layer;
+
+#[cfg(feature = "c-dummy-window-layer")]
+mod c_dummy_window_layer {
+    use super::*;
+
+    // No font implies no license needed.
+    pub const FONT_LICENSE: &str = "";
+
+    #[derive(Clone, Debug)]
+    pub struct EventProxy;
+
+    impl EventSender for EventProxy {
+        fn send(&self, _event: CustomEvent) {}
+    }
+
+    #[derive(Debug)]
+    pub struct State;
+
+    pub fn init(
+        _hidpi_factor: ScaleFactor,
+        _clear: window_layer_types::RGBA,
+        _title: Option<&str>,
+        _text_sizes: &[f32],
+    ) -> Result<
+        InitOutput<State, EventProxy>,
+        Box<dyn std::error::Error>
+    >
+    {
+        // TODO return an Ok
+        Err("c-dummy init impl".into())
+    }
+
+    #[derive(Debug)]
+    pub struct Handle;
+
+    pub fn render(
+        _handle: &mut Handle,
+        _text_or_rects: &[TextOrRect],
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        Ok(())
+    }
+
+    #[must_use]
+    pub fn report_rate(_handle: &mut Handle) -> RateReport {
+        RateReport {
+            rate: <_>::default(),
+            freshness: Freshness::Stale,
+        }
+    }
+
+    pub fn set_title(_handle: &mut Handle, _title: &str) {}
+
+    pub fn quit(_handle: &mut Handle) {}
+
+    pub fn request_redraw(_handle: &Handle) {}
+
+    #[must_use]
+    pub fn set_scale_factor(
+        _handle: &mut Handle,
+        _scale_factor: ScaleFactor,
+        _text_sizes: &[f32],
+    ) -> Vec<screen_space::CharDim> {
+        <_>::default()
+    }
+
+    pub fn request_attention_mode(_handle: &Handle, _attention: AttentionMode) {}
+
+    pub fn set_cursor_icon(_handle: &mut Handle, _cursor_icon: CursorIcon) {}
+
+    pub fn loop_start(_handle: &mut Handle) -> std::time::Duration {
+        <_>::default()
+    }
+
+    pub fn loop_sleep(_handle: &mut Handle) {}
+
+    pub fn run<F>(
+        _state: State,
+        _event_handler: F
+    ) -> !
+    where
+        F: 'static + FnMut(Event, Handle),
+    {
+        c_platform::run()
+    }
+}
+#[cfg(feature = "c-dummy-window-layer")]
+use c_dummy_window_layer as selected_window_layer;
 
 // Having things be free functions makes checking that different layer backends
 // have implemented all the pieces easier, since the compiler encforces it when
