@@ -5,13 +5,32 @@ use std::{ffi::CString, mem, ptr, str};
 use gl33::{*, global_loader::*};
 use gl33::global_loader::load_global_gl;
 
-use gl_layer_types::{DEPTH_MIN, DEPTH_MAX, Dimensions, Vertex, VERTEX_SPEC, U24};
+use window_layer_types::{DEPTH_MIN, DEPTH_MAX, Vertex, U24Dimensions, U24};
 
 use macros::{invariants_checked};
 use shared::{Res};
 
 pub type LoadFnOutput = *const core::ffi::c_void;
 pub type LoadFn<'a> = dyn Fn(*const u8) -> LoadFnOutput + 'a;
+
+/// ```text
+/// [
+///     left_top * 3,
+///     override_alpha,
+///     right_bottom * 2,
+///     tex_left_top * 2,
+///     tex_right_bottom * 2,
+///     colour * 4, 
+/// ]
+/// ```
+const VERTEX_SPEC: [(&str, i32); 6] = [
+    ("left_top", 3),
+    ("override_alpha", 1),
+    ("right_bottom", 2),
+    ("tex_left_top", 2),
+    ("tex_right_bottom", 2),
+    ("colour", 4),
+];
 
 type GLint = i32;
 type GLuint = u32;
@@ -124,7 +143,7 @@ impl State {
     // nul char.
     pub unsafe fn new(
         clear_colour: [f32; 4], // the clear colour currently flashes up on exit.
-        dimensions: Dimensions,
+        dimensions: U24Dimensions,
         load_fn: &LoadFn<'_>,
     ) -> Res<Self> {
         // Load the OpenGL function pointers
@@ -156,7 +175,7 @@ impl State {
     #[inline]
     fn new_inner(
         clear_colour: [f32; 4], // the clear colour currently flashes up on exit.
-        (width, height): Dimensions,
+        (width, height): U24Dimensions,
     ) -> Res<Self> {
         // We don't care if GL constants wrap. They only care about the bits.
         #[allow(clippy::cast_possible_wrap)]
@@ -397,7 +416,7 @@ impl State {
     }
 
     pub fn resize_texture(
-        (new_width, new_height): Dimensions,
+        (new_width, new_height): U24Dimensions,
     ) {
         let (new_width, new_height) = (
             GLsizei::from(new_width).0,

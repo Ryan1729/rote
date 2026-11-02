@@ -9,7 +9,7 @@ path = "./src/open_gl.rs"
 
 [dependencies]
 gl33 = "0.2.1"
-gl_layer_types = { path = "../gl_layer_types" }
+window_layer_types = { path = "../../../window_layer_types" }
 if_changed = { path = "../../../../../if_changed" }
 perf_viz = { path = "../../../../../perf_viz" }
 macros = { path = "../../../../../macros" }

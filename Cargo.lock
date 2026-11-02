@@ -1202,10 +1202,10 @@ name = "glyph_brush"
 version = "0.6.3"
 dependencies = [
  "fast_hash",
- "gl_layer_types",
  "if_changed",
  "perf_viz",
  "rasterizer",
+ "window_layer_types",
 ]
 
 [[package]]
@@ -1747,11 +1747,11 @@ name = "open_gl"
 version = "0.1.0"
 dependencies = [
  "gl33",
- "gl_layer_types",
  "if_changed",
  "macros",
  "perf_viz",
  "shared",
+ "window_layer_types",
 ]
 
 [[package]]
@@ -2274,10 +2274,10 @@ dependencies = [
 name = "rasterizer"
 version = "0.1.0"
 dependencies = [
- "gl_layer_types",
  "glyph_brush_draw_cache",
  "macros",
  "rusttype",
+ "window_layer_types",
 ]
 
 [[package]]
@@ -2863,7 +2863,6 @@ dependencies = [
 name = "text_rendering"
 version = "0.1.0"
 dependencies = [
- "gl_layer_types",
  "glyph_brush",
  "is_linebreak_char",
  "linebreak",

@@ -8,6 +8,12 @@ use bitflags::bitflags;
 use std::borrow::Cow;
 use std::time::Duration;
 
+mod u24;
+pub use u24::U24;
+
+/// `(width, height)`
+pub type U24Dimensions = (U24, U24);
+
 pub struct InitOutput<State, EventProxy> {
     pub state: State,
     pub event_proxy: EventProxy,
@@ -150,6 +156,92 @@ pub enum TextOrRect<'text> {
     Rect(VisualSpec),
     Text(TextSpec<'text>),
     MulticolourText(MulticolourTextSpec<'text>)
+}
+
+pub type Vertex = [f32; 14];
+
+pub fn set_alpha(vertex: &mut Vertex, alpha: f32) {
+    vertex[3] = alpha;
+}
+
+pub struct VertexStruct {
+    pub left_top_x: f32,
+    pub left_top_y: f32,
+    pub left_top_z: f32,
+    pub override_alpha: f32,
+    pub right_bottom_x: f32,
+    pub right_bottom_y: f32,
+    pub tex_left_top_x: f32,
+    pub tex_left_top_y: f32,
+    pub tex_right_bottom_x: f32,
+    pub tex_right_bottom_y: f32,
+    pub colour_r: f32,
+    pub colour_g: f32,
+    pub colour_b: f32,
+    pub colour_a: f32,
+}
+
+impl VertexStruct {
+    #[must_use]
+    pub fn into_vertex(self) -> Vertex {
+        [
+            self.left_top_x,
+            self.left_top_y,
+            self.left_top_z,
+            self.override_alpha,
+            self.right_bottom_x,
+            self.right_bottom_y,
+            self.tex_left_top_x,
+            self.tex_left_top_y,
+            self.tex_right_bottom_x,
+            self.tex_right_bottom_y,
+            self.colour_r,
+            self.colour_g,
+            self.colour_b,
+            self.colour_a,
+        ]
+    }
+}
+
+/// We use these values so that the default 24 bit depth buffer contains at least 2^16
+/// mutually distinct values which are *continuous* which makes mapping them from a u16 easier.
+/// Normally, the z values are clamped to be inside [0.0, 1.0], but given only 24 bits of
+/// precision, even values within that smaller range are not alwasys distinguishable.
+pub const DEPTH_MIN: f32 = 0.3125; // AKA z_to_f32(0)
+pub const DEPTH_MAX: f32 = 0.624_992_4; // AKA z_to_f32(65535)
+
+#[must_use]
+pub fn z_to_f32(z: u16) -> f32 {
+    // for some bizarre reason OpenGL maps most of the depth precision to the middle of the range
+    // see https://developer.nvidia.com/content/depth-precision-visualized
+    // so we map the u16 to be within the range [0.25, 0.75] in the following way:
+    //          s: sign, e: exponent, f: fraction
+    //          seee eeee  efff ffff  ffff ffff  ffff ffff
+    // `0.25 == 0011_1110__1000_0000__0000_0000__0000_0000`
+    // `0.75 == 0011_1111__0100_0000__0000_0000__0000_0000`
+    let minimum_bits: u32 = 0.25f32.to_bits();
+    // bitwise negation to make larger incoming z mean closer rather than farther away.
+    let z_bits = (u32::from(!z)) << 7;
+    // iteratively arrived at to shift the ends of the range towards the middle.
+    let shift_towards_middle = 1 << 21;
+
+    f32::from_bits(minimum_bits + z_bits + shift_towards_middle)
+}
+
+/// Once `to_bits` and `from_bits` are stabilized as const, these will be unnecessary, since then
+/// we can just define the consts to be what we are checking they are here.
+#[cfg(test)]
+mod z_depth_tests {
+    use super::*;
+    #[test]
+    fn depth_min_is_correct() {
+        assert_eq!(DEPTH_MIN, z_to_f32(65535))
+    }
+
+    #[test]
+    fn depth_max_is_correct() {
+        assert_eq!(DEPTH_MAX, z_to_f32(0))
+    }
 }
 
 #[non_exhaustive]

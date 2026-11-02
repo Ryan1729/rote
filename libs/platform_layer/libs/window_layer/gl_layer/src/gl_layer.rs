@@ -2,7 +2,7 @@ pub use gl_layer_types::*;
 
 use platform_types::{CharDim};
 use shared::Res;
-use window_layer_types::{TextOrRect};
+use window_layer_types::{TextOrRect, U24Dimensions};
 
 pub struct State<'font> {
     open_gl: open_gl::State,
@@ -67,7 +67,7 @@ pub fn set_hidpi_factor(state: &mut State, hidpi_factor: f32) {
     state.text_rendering.set_dimensions(hidpi_factor);
 }
 
-pub fn set_dimensions(state: &mut State, dimensions: Dimensions) {
+pub fn set_dimensions(state: &mut State, dimensions: U24Dimensions) {
     state.open_gl.set_dimensions(dimensions);
 }
 
@@ -75,11 +75,11 @@ pub fn set_dimensions(state: &mut State, dimensions: Dimensions) {
 pub fn render(
     state: &mut State,
     text_or_rects: &[TextOrRect],
-    dimensions: Dimensions,
+    dimensions: U24Dimensions,
 ) {
     state.open_gl.begin_frame();
 
-    let resize_texture = |(new_width, new_height): Dimensions| {
+    let resize_texture = |(new_width, new_height): U24Dimensions| {
         eprint!("\r                            \r");
         eprintln!("Resizing glyph texture -> {}x{}", new_width, new_height);
 

@@ -3,7 +3,7 @@
 #[cfg(not(any(feature = "rusttype", feature = "glyph_brush_draw_cache")))]
 compile_error!("Either feature \"rusttype\" or \"glyph_brush_draw_cache\" must be enabled for this crate.");
 
-use gl_layer_types::{Dimensions, U24};
+use window_layer_types::{U24Dimensions, U24};
 
 /// RGBA `[0, 1]` colour data.
 pub type Colour = [f32; 4];
@@ -31,7 +31,7 @@ pub use per_backend::*;
 //
 #[cfg(feature = "rusttype")]
 mod per_backend {
-    use crate::{Colour, Coords, Dimensions, U24};
+    use crate::{Colour, Coords, U24Dimensions, U24};
 
     pub use rusttype::{
         Font, PositionedGlyph as Glyph, GlyphId,
@@ -97,7 +97,7 @@ mod per_backend {
     }
 
     #[must_use]
-    pub fn dimensions(cache: &Cache<'_>) -> Dimensions {
+    pub fn dimensions(cache: &Cache<'_>) -> U24Dimensions {
         let (w, h) = cache.cache.dimensions();
         macros::invariant_assert!(w <= U24::MAX);
         macros::invariant_assert!(h <= U24::MAX);
@@ -137,7 +137,7 @@ mod per_backend {
 
     pub fn resize_texture(
         cache: &mut Cache<'_>,
-        (new_width, new_height): Dimensions,
+        (new_width, new_height): U24Dimensions,
     ) {
         cache.cache
             .to_builder()

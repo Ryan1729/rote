@@ -49,7 +49,7 @@ mod glutin_window_layer {
     use super::*;
 
     pub use gl_layer::{FONT_LICENSE};
-    use gl_layer::{U24};
+    use window_layer_types::{U24};
 
     use glutin_wrapper::{
         dpi,
@@ -847,17 +847,32 @@ mod c_dummy_window_layer {
     pub struct State;
 
     pub fn init(
-        _hidpi_factor: ScaleFactor,
+        hidpi_factor: ScaleFactor,
         _clear: window_layer_types::RGBA,
         _title: Option<&str>,
-        _text_sizes: &[f32],
+        text_sizes: &[f32],
     ) -> Result<
         InitOutput<State, EventProxy>,
         Box<dyn std::error::Error>
     >
     {
-        // TODO return an Ok
-        Err("c-dummy init impl".into())
+        let text_rendering_state = text_rendering::new(
+            hidpi_factor
+        )?;
+
+        let state = State {
+            text_rendering_state,
+        };
+
+        // A real implementation should create the window now, and report the actual dimensions.
+        let dimensions = <_>::default();
+
+        Ok(InitOutput {
+            event_proxy: EventProxy,
+            char_dims: text_rendering::get_char_dims(&state.text_rendering_state, text_sizes),
+            dimension,
+            state,
+        })
     }
 
     #[derive(Debug)]

@@ -3,8 +3,7 @@ use screen_space::{
     CharDim,
     char_dim, ssr,
 };
-use gl_layer_types::{Dimensions, Vertex, VertexStruct, set_alpha, z_to_f32};
-use window_layer_types::{ColouredText, MulticolourTextSpec, TextLayout, TextOrRect, TextSpec, VisualSpec};
+use window_layer_types::{ColouredText, MulticolourTextSpec, TextLayout, TextOrRect, TextSpec, U24Dimensions, VisualSpec, Vertex, VertexStruct, set_alpha, z_to_f32};
 
 #[allow(unused_imports)]
 use macros::{d, dbg};
@@ -272,11 +271,11 @@ impl <'font> State<'font> {
         );
     }
     #[must_use]
-    pub fn texture_dimensions(&self) -> Dimensions {
+    pub fn texture_dimensions(&self) -> U24Dimensions {
         self.glyph_brush.texture_dimensions()
     }
 
-    pub(crate) fn resize_texture(&mut self, dimensions: Dimensions) {
+    pub(crate) fn resize_texture(&mut self, dimensions: U24Dimensions) {
         self.glyph_brush.resize_texture(dimensions);
     }
 
@@ -285,13 +284,13 @@ impl <'font> State<'font> {
     pub fn render_vertices<Update, Resize>(
         &mut self,
         text_or_rects: &[TextOrRect],
-        dimensions: Dimensions,
+        dimensions: U24Dimensions,
         mut update_texture: Update,
         mut resize_texture: Resize,
     ) -> Option<Vec<Vertex>>
     where
         for <'r> Update: FnMut(TextureRect, &'r [u8]),
-        Resize: FnMut(Dimensions),
+        Resize: FnMut(U24Dimensions),
     {
         use TextOrRect::*;
 

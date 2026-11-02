@@ -21,7 +21,7 @@ spin_sleep_util = "0"
 platform_types = { path = "../../../platform_types" }
 
 [features]
-default = ["c-dummy-window-layer"]#["glutin-window-layer"]#["dummy-window-layer"]#
+default = ["glutin-window-layer"]#["dummy-window-layer"]#["c-dummy-window-layer"]#
 glutin-window-layer = ["gl_layer", "glutin_wrapper"]
 dummy-window-layer = []
 c-dummy-window-layer = ["c_platform"]
