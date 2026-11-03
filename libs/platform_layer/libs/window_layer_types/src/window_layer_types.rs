@@ -203,6 +203,15 @@ impl VertexStruct {
     }
 }
 
+/// A `TextureRect` specifies a rectangular integer section of the given texture.
+#[derive(Clone, Copy, Debug)]
+pub struct TextureRect {
+    pub x: U24,
+    pub y: U24,
+    pub w: U24,
+    pub h: U24,
+}
+
 /// We use these values so that the default 24 bit depth buffer contains at least 2^16
 /// mutually distinct values which are *continuous* which makes mapping them from a u16 easier.
 /// Normally, the z values are clamped to be inside [0.0, 1.0], but given only 24 bits of

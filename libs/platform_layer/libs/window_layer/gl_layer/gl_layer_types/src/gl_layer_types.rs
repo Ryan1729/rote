@@ -1,5 +1,3 @@
-use macros::{d};
-
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Point {
     pub x: f32,

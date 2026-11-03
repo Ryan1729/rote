@@ -13,6 +13,7 @@ readme="README.md"
 path = "./src/glyph_brush.rs"
 
 [dependencies]
+# Currently does not show the text, unclear when or how that happened.
 #rasterizer = { path = "../rasterizer", features = ["glyph_brush_draw_cache"] }
 rasterizer = { path = "../rasterizer", features = ["rusttype"] }
 window_layer_types = { path = "../../../window_layer_types" }

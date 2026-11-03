@@ -3,7 +3,7 @@
 #[cfg(not(any(feature = "rusttype", feature = "glyph_brush_draw_cache")))]
 compile_error!("Either feature \"rusttype\" or \"glyph_brush_draw_cache\" must be enabled for this crate.");
 
-use window_layer_types::{U24Dimensions, U24};
+use window_layer_types::{TextureRect, U24Dimensions, U24};
 
 /// RGBA `[0, 1]` colour data.
 pub type Colour = [f32; 4];
@@ -15,9 +15,6 @@ pub type TextureCoords = per_backend::Rect;
 /// A `PixelCoords` struct specifies floating point coordinates on the screen
 /// for the given glyph.
 pub type PixelCoords = per_backend::Rect;
-
-/// A `TextureRect` specifies a rectangular integer section of the given texture.
-pub type TextureRect = per_backend::TextureRect;
 
 pub struct Coords {
     pub texture: TextureCoords,
@@ -31,7 +28,7 @@ pub use per_backend::*;
 //
 #[cfg(feature = "rusttype")]
 mod per_backend {
-    use crate::{Colour, Coords, U24Dimensions, U24};
+    use crate::{Colour, Coords, TextureRect, U24Dimensions, U24};
 
     pub use rusttype::{
         Font, PositionedGlyph as Glyph, GlyphId,
@@ -42,12 +39,13 @@ mod per_backend {
 
     use rusttype::gpu_cache;
 
-    #[derive(Clone, Copy, Debug)]
-    pub struct TextureRect {
-        pub x: U24,
-        pub y: U24,
-        pub w: U24,
-        pub h: U24,
+    pub fn font_from_bytes(bytes: &[u8]) -> Result<Font<'_>, Box<dyn std::error::Error + 'static>> {
+        Font::try_from_bytes(bytes)
+            .ok_or("Embedded font was invalid".into())
+    }
+
+    pub fn scale_from_f32(x: f32) -> Scale {
+        Scale::uniform(x)
     }
 
     pub struct Cache<'font>{
@@ -188,6 +186,11 @@ mod per_backend {
     }
 
     #[must_use]
+    pub fn get_id(glyph: &Glyph) -> GlyphId {
+        glyph.id()
+    }
+
+    #[must_use]
     pub fn get_advance_width(_: &Font, glyph: &Glyph) -> f32 {
         glyph.unpositioned().h_metrics().advance_width
     }
@@ -196,6 +199,14 @@ mod per_backend {
     pub fn get_line_height(font: &Font, scale: Scale) -> f32 {
         let v_metrics = font.v_metrics(scale);
         v_metrics.ascent - v_metrics.descent + v_metrics.line_gap
+    }
+
+    pub fn get_ascent(font: &Font, scale: Scale) -> f32 {
+        font.v_metrics(scale).ascent
+    }
+
+    pub fn pair_kerning(font: &Font, scale: Scale, first: GlyphId, second: GlyphId) -> f32 {
+        font.pair_kerning(scale, first, second)
     }
 
     #[must_use]
@@ -224,7 +235,7 @@ mod per_backend {
 
 #[cfg(feature = "glyph_brush_draw_cache")]
 mod per_backend {
-    use crate::{Colour, Coords};
+    use crate::{Colour, Coords, TextureRect, U24Dimensions, U24};
 
     pub use glyph_brush_draw_cache::{
         ab_glyph::{
@@ -243,12 +254,9 @@ mod per_backend {
             ScaleFont as _,
         },
         DrawCache,
-        Rectangle,
     };
 
     use std::marker::PhantomData;
-
-    pub type TextureRect = Rectangle<u32>;
 
     pub struct Cache<'font>{
         cache: DrawCache,
@@ -261,8 +269,8 @@ mod per_backend {
         Cache {
             cache: DrawCache::builder()
                 .dimensions(256, 256)
-                .scale_tolerance(0.5)
-                .position_tolerance(0.25)
+                .scale_tolerance(0.5f32)
+                .position_tolerance(0.25f32)
                 .align_4x4(false)
                 .build(),
             allow_lifetime_param: PhantomData,
@@ -283,14 +291,27 @@ mod per_backend {
     pub fn cache_queued<'font, UpdateTexture>(
         cache: &mut Cache<'font>,
         fonts: &[Font],
-        update_texture: UpdateTexture
+        mut update_texture: UpdateTexture
     ) -> Result<CachedBy, CacheWriteErr>
     where for <'r> UpdateTexture: FnMut(TextureRect, &'r [u8]) {
-        cache.cache.cache_queued(fonts, update_texture)
+        cache.cache.cache_queued(
+            fonts,
+            |rect, bytes| update_texture(
+                TextureRect {
+                    x: U24::from_u32_saturating(rect.min[0]),
+                    y: U24::from_u32_saturating(rect.min[1]),
+                    w: U24::from_u32_saturating(rect.max[0] - rect.min[0]),
+                    h: U24::from_u32_saturating(rect.max[1] - rect.min[1]),
+                },
+                bytes
+            )
+        )
     }
 
-    pub fn dimensions<'font>(cache: &Cache<'font>) -> (u32, u32) {
-        cache.cache.dimensions()
+    pub fn dimensions<'font>(cache: &Cache<'font>) -> U24Dimensions {
+        let (w, h) = cache.cache.dimensions();
+
+        (U24::from_u32_saturating(w), U24::from_u32_saturating(h))
     }
 
     /// This has no variants because we're just trying to match the signature for
@@ -317,18 +338,30 @@ mod per_backend {
 
     pub fn resize_texture<'font>(
         cache: &mut Cache<'font>,
-        new_width: u32,
-        new_height: u32,
+        (new_width, new_height): U24Dimensions,
     ) {
         cache.cache
             .to_builder()
-            .dimensions(new_width, new_height)
+            .dimensions(new_width.into(), new_height.into())
             .rebuild(&mut cache.cache);
     }
 
-    pub struct Font<'font>{
+    pub struct Font<'font> {
         font: ab_glyph::FontVec,
         allow_lifetime_param: PhantomData<&'font ()>,
+    }
+
+    pub fn font_from_bytes(bytes: &[u8]) -> Result<Font<'_>, Box<dyn std::error::Error + 'static>> {
+        // TODO Use a ab_glyph::FontRef instead, since we are apparently
+        // carting the lifetime generic around anyway?
+        Ok(Font {
+            font: ab_glyph::FontVec::try_from_vec(bytes.into())?,
+            allow_lifetime_param: PhantomData,
+        })   
+    }
+
+    pub fn scale_from_f32(x: f32) -> Scale {
+        Scale::from(x)
     }
 
     #[derive(Clone, Debug)]
@@ -375,6 +408,11 @@ mod per_backend {
         glyph.glyph.scale
     }
 
+    #[must_use]
+    pub fn get_id(glyph: &Glyph) -> GlyphId {
+        glyph.glyph.id
+    }
+
     pub fn get_advance_width(font: &Font, glyph: &Glyph) -> f32 {
         font.font.as_scaled(glyph.glyph.scale).h_advance(glyph.glyph.id)
     }
@@ -382,6 +420,15 @@ mod per_backend {
     pub fn get_line_height(font: &Font, scale: Scale) -> f32 {
         let scale_font = font.font.as_scaled(scale);
         scale_font.height() + scale_font.line_gap()
+    }
+
+    pub fn get_ascent(font: &Font, scale: Scale) -> f32 {
+        let scale_font = font.font.as_scaled(scale);
+        scale_font.ascent()
+    }
+
+    pub fn pair_kerning(font: &Font, scale: Scale, first: GlyphId, second: GlyphId) -> f32 {
+        font.font.as_scaled(scale).font.kern_unscaled(first, second)
     }
 
     pub fn intersects(font: &Font, glyph: &Glyph, clip: &Rect) -> bool {
@@ -430,6 +477,12 @@ mod per_backend {
         }
         fn glyph_count(&self) -> usize {
             self.font.glyph_count()
+        }
+        fn codepoint_ids(&self) -> ab_glyph::CodepointIdIter<'_> { 
+            self.font.codepoint_ids()
+        }
+        fn glyph_raster_image(&self, id: GlyphId, thing: u16) -> Option<ab_glyph::GlyphImage<'_>> {
+            self.font.glyph_raster_image(id, thing)
         }
     }
 }

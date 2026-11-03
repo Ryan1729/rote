@@ -3,7 +3,7 @@ use screen_space::{
     CharDim,
     char_dim, ssr,
 };
-use window_layer_types::{ColouredText, MulticolourTextSpec, TextLayout, TextOrRect, TextSpec, U24Dimensions, VisualSpec, Vertex, VertexStruct, set_alpha, z_to_f32};
+use window_layer_types::{ColouredText, MulticolourTextSpec, TextLayout, TextureRect, TextOrRect, TextSpec, U24Dimensions, VisualSpec, Vertex, VertexStruct, set_alpha, z_to_f32};
 
 #[allow(unused_imports)]
 use macros::{d, dbg};
@@ -11,7 +11,7 @@ use shared::Res;
 
 use glyph_brush::{
     Rect,
-    Font, Scale,
+    Scale,
     Bounds, BrushAction, BrushError, GlyphBrush,
     RectSpec, PixelCoords, Section, SectionText, VariedSection,
     AdditionalRects, GlyphVertex,
@@ -253,8 +253,6 @@ mod text_layouts {
 }
 use text_layouts::{Unbounded, UnboundedLayoutClipped};
 
-pub type TextureRect = glyph_brush::TextureRect;
-
 pub struct State<'font> {
     pub(crate) glyph_brush: GlyphBrush<'font, Vertex>,
     pub(crate) hidpi_factor: f32,
@@ -457,19 +455,18 @@ pub const FONT_LICENSE: &str = include_str!("./fonts/LICENSE");
 /// # Errors
 /// Fails if the embedded font bytes are invalid.
 pub fn new(hidpi_factor: f32) -> Res<State<'static>> {
-    let font = Font::try_from_bytes(FONT_BYTES)
-        .ok_or("Embedded font was invalid")?;
+    let font = glyph_brush::font_from_bytes(FONT_BYTES)?;
 
     Ok(
         State {
-            glyph_brush: GlyphBrush::using_font(font.clone()),
+            glyph_brush: GlyphBrush::using_font(font),
             hidpi_factor,
         }
     )
 }
 
 fn get_scale(size: f32, hidpi_factor: f32) -> Scale {
-    Scale::uniform((size * hidpi_factor).round())
+    glyph_brush::scale_from_f32((size * hidpi_factor).round())
 }
 
 #[inline]
@@ -610,7 +607,7 @@ mod unbounded {
             let characters = &self.characters;
             let mut caret = point(
                 0.0,
-                characters.font.v_metrics(characters.scale).ascent
+                glyph_brush::get_ascent(characters.font, characters.scale),
             );
             let mut line: UnboundedLine = UnboundedLine{
                 glyphs: Vec::new(),
@@ -662,10 +659,11 @@ mod unbounded {
                         Then again, four is more explicit, and keeps more code in the 
                         shared part.
                         */
+                        let new_id = glyph_brush::get_id(&glyph);
                         if let Some(id) = last_glyph_id.take() {
-                            layout_width += font.pair_kerning(scale, id, glyph.id());
+                            layout_width += glyph_brush::pair_kerning(font, scale, id, new_id);
                         }
-                        last_glyph_id = Some(glyph.id());
+                        last_glyph_id = Some(new_id);
                     }
         
                     if !control {

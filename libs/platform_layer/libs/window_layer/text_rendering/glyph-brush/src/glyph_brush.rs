@@ -6,18 +6,27 @@ use std::{
     hash::{Hash, Hasher},
     mem,
 };
-use window_layer_types::{U24Dimensions, U24};
+use window_layer_types::{TextureRect, U24Dimensions, U24};
 
 mod section;
 
 pub use rasterizer::{
     Colour,
     CalculatedGlyph,
-    Font, GlyphId, Point, Glyph,
-    Rect, Scale,
+    Font, 
+    font_from_bytes,
+    get_ascent,
+    Glyph,
+    GlyphId,
+    pair_kerning,
+    Point,
+    Rect,
+    Scale,
+    scale_from_f32,
     point,
     new_cache,
     new_glyph,
+    get_id,
     get_line_height,
     get_advance_width,
     add_position,
@@ -550,7 +559,6 @@ where
 
 pub type TextureCoords = rasterizer::TextureCoords;
 pub type PixelCoords = rasterizer::PixelCoords;
-pub type TextureRect = rasterizer::TextureRect;
 
 /// A Bounds struct specifies floating point coordinates on the screen, inside
 /// of which the text should be rendered, and outside of which the text
