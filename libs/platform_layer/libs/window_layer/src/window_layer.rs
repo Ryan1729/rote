@@ -32,7 +32,8 @@ use window_layer_types::{
 // https://internals.rust-lang.org/t/cfg-keyword-for-if-multiple-more-than-one/15751/4
 const _: () = {
     let enabled_features = {
-        cfg!(feature = "glutin-window-layer") as u32
+        cfg!(feature = "glutin-window-layer-0-29") as u32
+        + cfg!(feature = "glutin-window-layer-0-32") as u32
         + cfg!(feature = "dummy-window-layer") as u32
         + cfg!(feature = "c-dummy-window-layer") as u32
     };
@@ -44,7 +45,730 @@ const _: () = {
     }
 };
 
-#[cfg(feature = "glutin-window-layer")]
+#[cfg(feature = "glutin-window-layer-0-32")]
+mod glutin_window_layer {
+    use super::*;
+
+    pub use gl_layer::{FONT_LICENSE};
+    use window_layer_types::{U24};
+
+    use winit::{
+        dpi,
+        event::{
+            self,
+            ElementState,
+            StartCause,
+            WindowEvent,
+        },
+        event_loop::{
+            ActiveEventLoop,
+            EventLoop,
+            EventLoopBuilder,
+        },
+        keyboard::KeyCode as InputKeyCode,
+        window::{
+            self,
+            Window,
+            WindowAttributes,
+            UserAttentionType,
+        },
+    };
+
+    use screen_space::{abs, CharDim, ssxy};
+
+    use std::marker::PhantomData;
+    use std::sync::MutexGuard;
+    use std::time::Duration;
+
+    /// See [here](https://stackoverflow.com/a/71945606).
+    type PhantomUnsend = PhantomData<MutexGuard<'static, ()>>;
+
+    #[derive(Clone, Debug)]
+    pub struct EventProxy(winit::event_loop::EventLoopProxy<CustomEvent>);
+
+    impl EventSender for EventProxy {
+        fn send(&self, event: CustomEvent) {
+            let _hope_it_gets_there = self.0.send_event(event);
+        }
+    }
+
+    /// Initialize the underlying windowing and/or graphics library.
+    /// The clear colour currently flashes up on exit.
+    /// # Errors
+    /// Returns `Err` if the underlying windowing and/or graphics library calls do.
+    pub fn init(
+        hidpi_factor: ScaleFactor,
+        clear: window_layer_types::RGBA,
+        title: Option<&str>,
+        text_sizes: &[f32],
+    ) -> Result<
+        InitOutput<State, EventProxy>,
+        Box<dyn std::error::Error>
+    > {
+        use glutin_wrapper::{
+            Api,
+            GlProfile,
+            GlRequest,
+            ContextBuilder,
+        };
+
+        let events: EventLoop<CustomEvent> = EventLoop::<CustomEvent>::with_user_event().build()?;
+
+        Ok(InitOutput {
+            event_proxy: EventProxy(state.events.create_proxy()),
+            char_dims: gl_layer::get_char_dims(&state.gl_state, text_sizes),
+            dimensions: physical_size_to_dimensions(
+                state
+                .window()
+                .inner_size()
+            ),
+            state,
+        })
+    }
+
+    type GLState = gl_layer::State<'static>;
+
+    #[derive(Debug)]
+    pub struct State {
+        events: EventLoop<CustomEvent>,
+        title: Option<String>,
+    }
+
+    fn physical_size_to_dimensions(dimensions: dpi::PhysicalSize<u32>) -> Dimensions {
+        Dimensions {
+            width: abs::Length::from(dimensions.width),
+            height: abs::Length::from(dimensions.height),
+        }
+    }
+
+    #[test]
+    fn converting_to_local_dimensions_returns_the_expected_result_in_this_example() {
+        let width = 1366u32;
+        let height = 768u32;
+
+        let example = dpi::PhysicalSize {
+            width,
+            height,
+        };
+
+        let dimensions = physical_size_to_dimensions(example);
+
+        assert_eq!(f32::from(dimensions.width), width as f32);
+        assert_eq!(f32::from(dimensions.height), height as f32);
+    }
+
+    /// A handle to various APIs that are useful to have inside the event handler.
+    #[derive(Debug)]
+    pub struct Handle<'handle> {
+        running: &'handle mut bool,
+        gl_state: &'handle mut GLState,
+        active_event_loop: &'handle ActiveEventLoop,
+        last_tick_duration: &'handle mut Duration,
+        interval: &'handle mut spin_sleep_util::Interval,
+        last_rate: &'handle mut RatePerSecond,
+        rate_reporter: &'handle mut spin_sleep_util::RateReporter,
+        context: Option<&'handle Context>,
+        is_focused: &'handle bool,
+    }
+
+    impl Handle<'_> {
+        fn window(&self) -> &Window {
+            todo!("Implement Window init")
+        }
+    }
+
+    /// # Errors
+    /// Returns `Err` if the underlying windowing and/or graphics library calls do.
+    pub fn render(
+        handle: &mut Handle,
+        text_or_rects: &[TextOrRect],
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        // TODO is this call expensive enough to be worth avoiding?
+        let dimensions = handle
+            .window()
+            .inner_size();
+
+        gl_layer::render(
+            handle.gl_state,
+            text_or_rects,
+            (
+                U24::from_u32_saturating(dimensions.width),
+                U24::from_u32_saturating(dimensions.height)
+            )
+        );
+
+        perf_viz::start_record!("swap_buffers");
+        handle.context.swap_buffers()?;
+        perf_viz::end_record!("swap_buffers");
+
+        Ok(())
+    }
+
+    #[must_use]
+    pub fn report_rate(handle: &mut Handle) -> RateReport {
+        let mut freshness = Freshness::Stale;
+        if let Some(fresh_rate) = handle.rate_reporter.increment_and_report() {
+            *handle.last_rate = fresh_rate;
+            freshness = Freshness::Fresh;
+        }
+
+        RateReport {
+            rate: *handle.last_rate,
+            freshness,
+        }
+    }
+
+    pub fn set_title(handle: &mut Handle, title: &str) {
+        handle.window().set_title(title);
+    }
+
+    pub fn quit(handle: &mut Handle) {
+        if *handle.running {
+            *handle.running = false;
+
+            gl_layer::cleanup(handle.gl_state);
+        }
+
+        handle.active_event_loop.exit();
+    }
+
+    /// Queues a RedrawRequested event. The reccomendation for clients is to put the rendering
+    /// code in the response to that event type, so that the platform can insert extra ones
+    /// in certain cases.
+    pub fn request_redraw(handle: &Handle) {
+        handle.window().request_redraw();
+    }
+
+    /// We return the char dims here because changing the scale factor
+    /// causes them to change. We rquire the text sizes only in order
+    /// to calculate the char dims.
+    #[must_use]
+    pub fn set_scale_factor(
+        handle: &mut Handle,
+        scale_factor: ScaleFactor,
+        text_sizes: &[f32],
+    ) -> Vec<CharDim> {
+        gl_layer::set_hidpi_factor(
+            handle.gl_state,
+            scale_factor,
+        );
+
+        gl_layer::get_char_dims(handle.gl_state, text_sizes)
+    }
+
+    pub fn request_attention_mode(handle: &Handle, attention: AttentionMode) {
+        request_attention_mode_window(handle.window(), attention);
+    }
+
+    pub fn set_cursor_icon(handle: &mut Handle, cursor_icon: CursorIcon) {
+        handle.window().set_cursor_icon(match cursor_icon {
+            CursorIcon::Default => window::CursorIcon::Default,
+            CursorIcon::Text => window::CursorIcon::Text,
+            _ => return,
+        });
+    }
+
+    pub fn loop_start(handle: &mut Handle) -> Duration {
+        *handle.last_tick_duration
+    }
+
+    pub fn loop_sleep(handle: &mut Handle) {
+        perf_viz::start_record!("sleepin'");
+        let tick_start = if cfg!(feature="no-spinning-sleep") {
+            handle.interval.tick_no_spin()
+        } else if *handle.is_focused {
+            handle.interval.tick()
+        } else {
+            handle.interval.tick_no_spin()
+        };
+
+        *handle.last_tick_duration = std::time::Instant::now() - tick_start;
+
+        perf_viz::end_record!("sleepin'");
+    }
+
+    const DEFAULT_TARGET_RATE: RatePerSecond = 128.0; //250.0;
+
+    fn request_attention_mode_window(window: &Window, attention: AttentionMode) {
+        window.request_user_attention(
+            match attention {
+                AttentionMode::Neutral => None,
+                AttentionMode::Urgent => Some(UserAttentionType::Informational),
+            }
+        );
+    }
+
+    pub fn run<F>(
+        State { events, title, }: State,
+        mut event_handler: F
+    ) -> !
+    where
+        F: 'static + FnMut(Event, Handle),
+    {
+        // FIXME Seems like we'll need to wait to init the context until we get a Resumed
+        // event, and thus hold it in an Option or something, at least as evidenced by the
+        // glutin example code using winit
+
+        let target_duration = Duration::from_secs_f64(1.0 / DEFAULT_TARGET_RATE);
+
+        let mut last_tick_duration = <_>::default();
+        let mut interval = spin_sleep_util::interval(target_duration);
+
+        // Starting with the target avoids a blip at the beginning, in the expected case
+        // that we hit close to it.
+        let mut last_rate = DEFAULT_TARGET_RATE;
+        let mut rate_reporter = spin_sleep_util::RateReporter::new(Duration::from_secs(1));
+
+        struct Context {
+            window: Window,
+            gl_state: GLState,
+            // FIXME This Box is probably not needed?
+            surface: Box<dyn GLSurface>,
+            // See note inside `init` for why we make this struct `!Send` by including this
+            // field.
+            // FIXME is this needed?
+            unsend: PhantomUnsend,
+        }
+
+        let mut context: Option<Context> = None;
+
+        let mut is_focused = true;
+
+        let mut running = true;
+
+        let mut modifiers = ModifiersState::default();
+
+        // FIXME The run_app method is repalcing this. It's literally removed in the
+        // current beta for winit (0.31.0-beta.4). So, we should convert over, even
+        // if we switch over to the current stable
+        events.run(move |event, active_event_loop| {
+            use winit::{
+                event::{
+                    Event as GWEvent,
+                    KeyEvent,
+                },
+            };
+
+            macro_rules! handle {
+                () => {{
+                    Handle {
+                        running: &mut running,
+                        gl_state: &mut gl_state,
+                        active_event_loop,
+                        last_tick_duration: &mut last_tick_duration,
+                        interval: &mut interval,
+                        last_rate: &mut last_rate,
+                        rate_reporter: &mut rate_reporter,
+                        context: context.as_ref(),
+                        is_focused: &is_focused,
+                    }
+                }};
+            }
+
+            macro_rules! pass_down {
+                ($event: expr $(,)?) => {
+                    event_handler(
+                        $event,
+                        handle!()
+                    )
+                };
+            }
+
+            match event {
+                GWEvent::Resumed => {
+                    if window.is_none() {
+                        let mut window_attrs = WindowAttributes::default()
+                            .with_inner_size(
+                                dpi::Size::Logical(dpi::LogicalSize::new(683.0, 393.0))
+                            );
+                        if let Some(title) = title {
+                            window_attrs = window_attrs.with_title(title);
+                        }
+
+                        window = Some(
+                            active_event_loop
+                            .create_window(window_attrs)
+                            .expect("Could not create window")
+                        );
+                    }
+
+                    if context.is_none() {
+                        //let context_builder = ContextBuilder::new()
+                            //.with_gl_profile(GlProfile::Core)
+                            ////As of now we only need 3.3 for GL_TIME_ELAPSED. Otherwise we could use 3.2.
+                            //.with_gl(GlRequest::Specific(Api::OpenGl, (3, 3)))
+                            //.with_srgb(true)
+                            //.with_depth_buffer(24)
+                            //.build_windowed(
+                                //window_builder,
+                                //&events,
+                            //)?;
+                        //context =
+                            //// SAFETY: A quote from the glutin docs on `make_current`
+                            //// > In OpenGl, only a single context can be current in a thread at a time.
+                            //// > Making a new context current will make the old one not current.
+                            //// > Contexts can only be sent to different threads if they are not current.
+                            //// So, as I understand it, this is only unsafe because of issues regarding
+                            //// sending contexts to other threads. Therefore, I think we can reasonably
+                            //// use this here in `init` without making `init` into an `unsafe fn`, if
+                            //// we make the struct holding the context `!Send`, meaning it cannot be sent
+                            //// to other threads at all.
+                            //Some(unsafe { context_builder.make_current() }
+                                //.map_err(|(_, e)| e)?);
+                //
+                        //let load_fn = &|symbol: *const u8| {
+                            //let symbol = symbol.cast();
+                            //// SAFETY: The underlying library has promised to pass us a nul
+                            //// terminated pointer.
+                            //let cstr = unsafe { std::ffi::CStr::from_ptr(symbol) };
+                //
+                            //if let Ok(s) = cstr.to_str() {
+                                //// The glutin docs say the following:
+                                //// "Returns the address of an OpenGL function."
+                                //// Given there are no qualifiers there, it seems like we can
+                                //// assume that if we have a context then this call should work.
+                                //context.get_proc_address(s).cast()
+                            //} else {
+                                //// This case is not expected to happen, but the underlying
+                                //// library is specifically documented to not expect this to
+                                //// panic, and instead expects a null pointer on errors, so
+                                //// we'll return that if this case ever happens.
+                                //std::ptr::null()
+                            //}
+                        //};
+
+                        // SAFETY:
+                        // In the below closure, we avoid panicking to uphold the documented safety
+                        // invariant:
+                        // "The passed `load_fn` must always return accurate function pointer
+                        // values, or null on failure."
+                        //let gl_state = unsafe { gl_layer::init(
+                            //hidpi_factor,
+                            //clear,
+                            //load_fn,
+                        //) }?;
+                //
+                        //let state = State {
+                            //gl_state,
+                            //events,
+                            //title: title.map(|s| s.to_owned()),
+                            //unsend: PhantomData,
+                        //};
+
+                        todo!()
+                    }
+                },
+                GWEvent::NewEvents(StartCause::Init) => pass_down!(
+                    Event::Init
+                ),
+                GWEvent::UserEvent(e) => pass_down!(
+                    Event::UserEvent(e)
+                ),
+                GWEvent::WindowEvent { event, .. } => {
+                    match event {
+                        WindowEvent::CloseRequested => pass_down!(
+                            Event::CloseRequested
+                        ),
+                        WindowEvent::RedrawRequested => pass_down!(
+                            Event::RedrawRequested
+                        ),
+                        WindowEvent::ScaleFactorChanged {
+                            scale_factor,
+                            ..
+                        } => {
+                            // We don't need this to be totally accurate, just close
+                            // enough that the  UI is comfortably usable. And this
+                            // value is unlikely to fall into the range that would
+                            // be truncated, anyway.
+                            #[allow(clippy::cast_possible_truncation)]
+                            let scale_factor = scale_factor as _;
+
+                            gl_layer::set_hidpi_factor(
+                                &mut gl_state,
+                                scale_factor,
+                            );
+
+                            pass_down!(
+                                Event::ScaleFactorChanged(scale_factor)
+                            );
+                        }
+                        WindowEvent::Focused(window_is_focused) => {
+                            is_focused = window_is_focused;
+
+                            if is_focused
+                            && let Some(win) = window.as_ref() {
+                                use window_layer_types::AttentionMode;
+                                // X11 requires us to explicitly unset the window
+                                // urgency. Other platforms fade it out automatically.
+                                request_attention_mode_window(
+                                    win,
+                                    AttentionMode::Neutral
+                                );
+                            }
+
+                            pass_down!(
+                                Event::Focused(is_focused)
+                            );
+                        },
+                        WindowEvent::Resized(size) => {
+                            if let Some(ctx) = context.as_ref() {
+                                ctx.surface.resize(size);
+                                gl_layer::set_dimensions(
+                                    &mut gl_state,
+                                    (
+                                        U24::from_u32_saturating(size.width),
+                                        U24::from_u32_saturating(size.height)
+                                    ),
+                                );
+    
+                                pass_down!(
+                                    Event::Resized(physical_size_to_dimensions(size))
+                                );
+                            }
+                        }
+                        WindowEvent::ModifiersChanged(new_modifiers) => {
+                            modifiers = ModifiersState::from_bits_retain(
+                                new_modifiers.state().bits()
+                            );
+                        }
+                        WindowEvent::KeyboardInput {
+                            event:
+                                KeyEvent {
+                                    state,
+                                    physical_key: winit::keyboard::PhysicalKey::Code(input_keycode),
+                                    text,
+                                    ..
+                                },
+                            ..
+                        } => {
+                            if let Some(keycode) = calculate_keycode(input_keycode) {
+                                pass_down!(
+                                    Event::KeyboardInput(KeyboardInput{
+                                        state: match state {
+                                            ElementState::Pressed => ButtonState::Pressed,
+                                            ElementState::Released => ButtonState::Released,
+                                        },
+                                        keycode,
+                                        modifiers
+                                    })
+                                )
+                            }
+
+                            if let Some(c) = 
+                                text.and_then(|s| if s.len() == 1 { s.as_str().chars().next() } else { None })
+                            {
+                                pass_down!(Event::ReceivedCharacter(c))
+                            }
+                        },
+                        WindowEvent::MouseInput {
+                            button: mouse_button,
+                            state,
+                            ..
+                        } => {
+                            match mouse_button {
+                                event::MouseButton::Left => {
+                                    pass_down!(
+                                        Event::MouseInput(MouseInput{
+                                            button: MouseButton::Left,
+                                            state: match state {
+                                                ElementState::Pressed => ButtonState::Pressed,
+                                                ElementState::Released => ButtonState::Released,
+                                            },
+                                            modifiers
+                                        })
+                                    )
+                                },
+                                event::MouseButton::Right
+                                | event::MouseButton::Middle
+                                | event::MouseButton::Other(_) => {},
+                            };
+                        },
+                        WindowEvent::MouseWheel {
+                            delta: event::MouseScrollDelta::LineDelta(_, delta),
+                            ..
+                        } => {
+                            pass_down!(
+                                Event::MouseWheel(MouseWheel{ delta, modifiers })
+                            )
+                        },
+                        WindowEvent::CursorMoved {
+                            position,
+                            ..
+                        } => {
+                            // We don't need this to be totally accurate,
+                            // just close enough that the  UI is comfortably
+                            // usable. And this value is unlikely to fall
+                            // into the range that would be truncated,
+                            // anyway.
+                            #[allow(clippy::cast_possible_truncation)]
+                            let x = position.x as f32;
+                            #[allow(clippy::cast_possible_truncation)]
+                            let y = position.y as f32;
+                            pass_down!(
+                                Event::CursorMoved(CursorMoved{
+                                    position: ssxy!{x, y},
+                                    modifiers
+                                })
+                            );
+                        },
+                        _ => {}
+                    }
+                },
+                _ => {}
+            }
+        }).expect("events.run returned an error!");
+        panic!(); // need to "return" a ! for now
+    }
+
+    fn calculate_keycode(input_keycode: InputKeyCode) -> Option<KeyCode> {
+        let keycode = match input_keycode {
+            InputKeyCode::Digit1 => KeyCode::Key1,
+            InputKeyCode::Digit2 => KeyCode::Key2,
+            InputKeyCode::Digit3 => KeyCode::Key3,
+            InputKeyCode::Digit4 => KeyCode::Key4,
+            InputKeyCode::Digit5 => KeyCode::Key5,
+            InputKeyCode::Digit6 => KeyCode::Key6,
+            InputKeyCode::Digit7 => KeyCode::Key7,
+            InputKeyCode::Digit8 => KeyCode::Key8,
+            InputKeyCode::Digit9 => KeyCode::Key9,
+            InputKeyCode::Digit0 => KeyCode::Key0,
+            InputKeyCode::KeyA => KeyCode::A,
+            InputKeyCode::KeyB => KeyCode::B,
+            InputKeyCode::KeyC => KeyCode::C,
+            InputKeyCode::KeyD => KeyCode::D,
+            InputKeyCode::KeyE => KeyCode::E,
+            InputKeyCode::KeyF => KeyCode::F,
+            InputKeyCode::KeyG => KeyCode::G,
+            InputKeyCode::KeyH => KeyCode::H,
+            InputKeyCode::KeyI => KeyCode::I,
+            InputKeyCode::KeyJ => KeyCode::J,
+            InputKeyCode::KeyK => KeyCode::K,
+            InputKeyCode::KeyL => KeyCode::L,
+            InputKeyCode::KeyM => KeyCode::M,
+            InputKeyCode::KeyN => KeyCode::N,
+            InputKeyCode::KeyO => KeyCode::O,
+            InputKeyCode::KeyP => KeyCode::P,
+            InputKeyCode::KeyQ => KeyCode::Q,
+            InputKeyCode::KeyR => KeyCode::R,
+            InputKeyCode::KeyS => KeyCode::S,
+            InputKeyCode::KeyT => KeyCode::T,
+            InputKeyCode::KeyU => KeyCode::U,
+            InputKeyCode::KeyV => KeyCode::V,
+            InputKeyCode::KeyW => KeyCode::W,
+            InputKeyCode::KeyX => KeyCode::X,
+            InputKeyCode::KeyY => KeyCode::Y,
+            InputKeyCode::KeyZ => KeyCode::Z,
+            InputKeyCode::Escape => KeyCode::Escape,
+            InputKeyCode::F1 => KeyCode::F1,
+            InputKeyCode::F2 => KeyCode::F2,
+            InputKeyCode::F3 => KeyCode::F3,
+            InputKeyCode::F4 => KeyCode::F4,
+            InputKeyCode::F5 => KeyCode::F5,
+            InputKeyCode::F6 => KeyCode::F6,
+            InputKeyCode::F7 => KeyCode::F7,
+            InputKeyCode::F8 => KeyCode::F8,
+            InputKeyCode::F9 => KeyCode::F9,
+            InputKeyCode::F10 => KeyCode::F10,
+            InputKeyCode::F11 => KeyCode::F11,
+            InputKeyCode::F12 => KeyCode::F12,
+            InputKeyCode::F13 => KeyCode::F13,
+            InputKeyCode::F14 => KeyCode::F14,
+            InputKeyCode::F15 => KeyCode::F15,
+            InputKeyCode::F16 => KeyCode::F16,
+            InputKeyCode::F17 => KeyCode::F17,
+            InputKeyCode::F18 => KeyCode::F18,
+            InputKeyCode::F19 => KeyCode::F19,
+            InputKeyCode::F20 => KeyCode::F20,
+            InputKeyCode::F21 => KeyCode::F21,
+            InputKeyCode::F22 => KeyCode::F22,
+            InputKeyCode::F23 => KeyCode::F23,
+            InputKeyCode::F24 => KeyCode::F24,
+            InputKeyCode::ScrollLock => KeyCode::Scroll,
+            InputKeyCode::Pause => KeyCode::Pause,
+            InputKeyCode::Insert => KeyCode::Insert,
+            InputKeyCode::Home => KeyCode::Home,
+            InputKeyCode::Delete => KeyCode::Delete,
+            InputKeyCode::End => KeyCode::End,
+            InputKeyCode::PageDown => KeyCode::PageDown,
+            InputKeyCode::PageUp => KeyCode::PageUp,
+            InputKeyCode::ArrowLeft => KeyCode::Left,
+            InputKeyCode::ArrowUp => KeyCode::Up,
+            InputKeyCode::ArrowRight => KeyCode::Right,
+            InputKeyCode::ArrowDown => KeyCode::Down,
+            InputKeyCode::Enter => KeyCode::Return,
+            InputKeyCode::Space => KeyCode::Space,
+            InputKeyCode::NumLock => KeyCode::Numlock,
+            InputKeyCode::Numpad0 => KeyCode::Numpad0,
+            InputKeyCode::Numpad1 => KeyCode::Numpad1,
+            InputKeyCode::Numpad2 => KeyCode::Numpad2,
+            InputKeyCode::Numpad3 => KeyCode::Numpad3,
+            InputKeyCode::Numpad4 => KeyCode::Numpad4,
+            InputKeyCode::Numpad5 => KeyCode::Numpad5,
+            InputKeyCode::Numpad6 => KeyCode::Numpad6,
+            InputKeyCode::Numpad7 => KeyCode::Numpad7,
+            InputKeyCode::Numpad8 => KeyCode::Numpad8,
+            InputKeyCode::Numpad9 => KeyCode::Numpad9,
+            InputKeyCode::NumpadAdd => KeyCode::NumpadAdd,
+            InputKeyCode::NumpadDivide => KeyCode::NumpadDivide,
+            InputKeyCode::NumpadDecimal => KeyCode::NumpadDecimal,
+            InputKeyCode::NumpadComma => KeyCode::NumpadComma,
+            InputKeyCode::NumpadEnter => KeyCode::NumpadEnter,
+            InputKeyCode::NumpadEqual => KeyCode::NumpadEquals,
+            InputKeyCode::NumpadMultiply => KeyCode::NumpadMultiply,
+            InputKeyCode::NumpadSubtract => KeyCode::NumpadSubtract,
+            InputKeyCode::Quote => KeyCode::Apostrophe,
+            InputKeyCode::Backslash => KeyCode::Backslash,
+            InputKeyCode::LaunchApp2 => KeyCode::Calculator,
+            InputKeyCode::Comma => KeyCode::Comma,
+            InputKeyCode::Convert => KeyCode::Convert,
+            InputKeyCode::Equal => KeyCode::Equals,
+            InputKeyCode::Backquote => KeyCode::Grave,
+            InputKeyCode::AltLeft => KeyCode::LAlt,
+            InputKeyCode::BracketLeft => KeyCode::LBracket,
+            InputKeyCode::ControlLeft => KeyCode::LControl,
+            InputKeyCode::ShiftLeft => KeyCode::LShift,
+            InputKeyCode::SuperLeft => KeyCode::LWin,
+            InputKeyCode::LaunchMail => KeyCode::Mail,
+            InputKeyCode::MediaSelect => KeyCode::MediaSelect,
+            InputKeyCode::MediaStop => KeyCode::MediaStop,
+            InputKeyCode::Minus => KeyCode::Minus,
+            InputKeyCode::AudioVolumeMute => KeyCode::Mute,
+            InputKeyCode::LaunchApp1 => KeyCode::MyComputer,
+            InputKeyCode::BrowserForward => KeyCode::NavigateForward,
+            InputKeyCode::BrowserBack => KeyCode::NavigateBackward,
+            InputKeyCode::MediaTrackNext => KeyCode::NextTrack,
+            InputKeyCode::NonConvert => KeyCode::NoConvert,
+            InputKeyCode::Period => KeyCode::Period,
+            InputKeyCode::MediaPlayPause => KeyCode::PlayPause,
+            InputKeyCode::Power => KeyCode::Power,
+            InputKeyCode::MediaTrackPrevious => KeyCode::PrevTrack,
+            InputKeyCode::AltRight => KeyCode::RAlt,
+            InputKeyCode::BracketRight => KeyCode::RBracket,
+            InputKeyCode::ControlRight => KeyCode::RControl,
+            InputKeyCode::ShiftRight => KeyCode::RShift,
+            InputKeyCode::SuperRight => KeyCode::RWin,
+            InputKeyCode::Semicolon => KeyCode::Semicolon,
+            InputKeyCode::Slash => KeyCode::Slash,
+            InputKeyCode::Sleep => KeyCode::Sleep,
+            InputKeyCode::PrintScreen => KeyCode::Sysrq,
+            InputKeyCode::Tab => KeyCode::Tab,
+            InputKeyCode::AudioVolumeDown => KeyCode::VolumeDown,
+            InputKeyCode::AudioVolumeUp => KeyCode::VolumeUp,
+            InputKeyCode::WakeUp => KeyCode::Wake,
+            InputKeyCode::IntlYen => KeyCode::Yen,
+            InputKeyCode::Copy => KeyCode::Copy,
+            InputKeyCode::Paste => KeyCode::Paste,
+            InputKeyCode::Cut => KeyCode::Cut,
+            _ => return None,
+        };
+
+        Some(keycode)
+    }
+}
+#[cfg(feature = "glutin-window-layer-0-32")]
+use glutin_window_layer as selected_window_layer;
+
+#[cfg(feature = "glutin-window-layer-0-29")]
 mod glutin_window_layer {
     use super::*;
 
@@ -55,6 +779,7 @@ mod glutin_window_layer {
         dpi,
         event::{
             ElementState,
+            KeyboardInput as GWKeyboardInput,
             StartCause,
             WindowEvent,
             VirtualKeyCode,
@@ -388,7 +1113,6 @@ mod glutin_window_layer {
         events.run(move |event, _, control_flow| {
             use glutin_wrapper::{
                 event::{
-                    KeyboardInput as GWKeyboardInput,
                     Event as GWEvent
                 },
             };
@@ -740,7 +1464,7 @@ mod glutin_window_layer {
         })
     }
 }
-#[cfg(feature = "glutin-window-layer")]
+#[cfg(feature = "glutin-window-layer-0-29")]
 use glutin_window_layer as selected_window_layer;
 
 #[cfg(feature = "dummy-window-layer")]

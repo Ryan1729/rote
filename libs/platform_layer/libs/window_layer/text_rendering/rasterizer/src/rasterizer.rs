@@ -23,6 +23,9 @@ pub struct Coords {
 
 pub use per_backend::*;
 
+// TODO? Add a backend that uses the crate `swash`, I guess by using the rusttype versions of the parts
+// that swash doesn't cover, including caching? Probably involves vendoring rusttype
+
 //
 // rusttype
 //
@@ -260,8 +263,6 @@ mod per_backend {
 
     pub struct Cache<'font>{
         cache: DrawCache,
-        // We'll need this before can compile under glyph_brush_draw_cache
-        //cache: glyph_brush_draw_cache::DrawCache,
         allow_lifetime_param: PhantomData<&'font ()>,
     }
 

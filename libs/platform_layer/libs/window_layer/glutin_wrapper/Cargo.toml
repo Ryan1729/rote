@@ -7,7 +7,12 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-# latest as of 2026-10-05
-#glutin = "0.32.3"
 # Maybe newest without api changes?
-glutin = "0.29.1"
+glutin_0_29 = { package = "glutin", version = "0.29.1", optional = true }
+# latest as of 2026-10-05
+glutin_0_32 = { package = "glutin", version = "0.32.3", optional = true }
+
+[features]
+default = []
+glutin-0-32 = ["dep:glutin_0_32"]
+glutin-0-29 = ["dep:glutin_0_29"]
