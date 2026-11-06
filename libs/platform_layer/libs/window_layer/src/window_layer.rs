@@ -118,6 +118,9 @@ mod glutin_window_layer {
             event_proxy: EventProxy(state.events.create_proxy()),
             char_dims: gl_layer::get_char_dims(&state.gl_state, text_sizes),
             dimensions: physical_size_to_dimensions(
+                // Uh oh, we need to defer this until the window actually appears!
+                // I think that implies changing the external API to update to 
+                // this set of deps.
                 state
                 .window()
                 .inner_size()
@@ -353,7 +356,6 @@ mod glutin_window_layer {
                 () => {{
                     Handle {
                         running: &mut running,
-                        gl_state: &mut gl_state,
                         active_event_loop,
                         last_tick_duration: &mut last_tick_duration,
                         interval: &mut interval,
@@ -376,7 +378,7 @@ mod glutin_window_layer {
 
             match event {
                 GWEvent::Resumed => {
-                    if window.is_none() {
+                    if let Some(ctx) = context.as_mut_ref() {
                         let mut window_attrs = WindowAttributes::default()
                             .with_inner_size(
                                 dpi::Size::Logical(dpi::LogicalSize::new(683.0, 393.0))
@@ -385,11 +387,11 @@ mod glutin_window_layer {
                             window_attrs = window_attrs.with_title(title);
                         }
 
-                        window = Some(
+                        ctx.window = 
                             active_event_loop
                             .create_window(window_attrs)
                             .expect("Could not create window")
-                        );
+                            ;
                     }
 
                     if context.is_none() {
@@ -483,25 +485,27 @@ mod glutin_window_layer {
                             #[allow(clippy::cast_possible_truncation)]
                             let scale_factor = scale_factor as _;
 
-                            gl_layer::set_hidpi_factor(
-                                &mut gl_state,
-                                scale_factor,
-                            );
-
-                            pass_down!(
-                                Event::ScaleFactorChanged(scale_factor)
-                            );
+                            if let Some(ctx) = context.as_ref_mut() {
+                                gl_layer::set_hidpi_factor(
+                                    &mut ctx.gl_state,
+                                    scale_factor,
+                                );
+    
+                                pass_down!(
+                                    Event::ScaleFactorChanged(scale_factor)
+                                );
+                            }
                         }
                         WindowEvent::Focused(window_is_focused) => {
                             is_focused = window_is_focused;
 
                             if is_focused
-                            && let Some(win) = window.as_ref() {
+                            && let Some(ctx) = context.as_ref_mut() {
                                 use window_layer_types::AttentionMode;
                                 // X11 requires us to explicitly unset the window
                                 // urgency. Other platforms fade it out automatically.
                                 request_attention_mode_window(
-                                    win,
+                                    &mut ctx.window,
                                     AttentionMode::Neutral
                                 );
                             }
@@ -511,10 +515,10 @@ mod glutin_window_layer {
                             );
                         },
                         WindowEvent::Resized(size) => {
-                            if let Some(ctx) = context.as_ref() {
+                            if let Some(ctx) = context.as_mut_ref() {
                                 ctx.surface.resize(size);
                                 gl_layer::set_dimensions(
-                                    &mut gl_state,
+                                    &mut ctx.gl_state,
                                     (
                                         U24::from_u32_saturating(size.width),
                                         U24::from_u32_saturating(size.height)
