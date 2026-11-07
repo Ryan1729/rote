@@ -4304,6 +4304,7 @@ dependencies = [
  "platform_types",
  "screen_space",
  "spin_sleep_util",
+ "text_rendering",
  "window_layer_types",
  "winit 0.30.13",
 ]

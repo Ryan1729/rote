@@ -105,26 +105,33 @@ mod glutin_window_layer {
         InitOutput<State, EventProxy>,
         Box<dyn std::error::Error>
     > {
-        use glutin_wrapper::{
-            Api,
-            GlProfile,
-            GlRequest,
-            ContextBuilder,
-        };
+        //use glutin_wrapper::{
+            //Api,
+            //GlProfile,
+            //GlRequest,
+            //ContextBuilder,
+        //};
 
         let events: EventLoop<CustomEvent> = EventLoop::<CustomEvent>::with_user_event().build()?;
 
+        let state = State {
+            events,
+            title: title.map(|s| s.to_owned()),
+            text_rendering_state: text_rendering::new(
+                hidpi_factor
+            )?,
+        };
+
         Ok(InitOutput {
             event_proxy: EventProxy(state.events.create_proxy()),
-            char_dims: gl_layer::get_char_dims(&state.gl_state, text_sizes),
-            dimensions: physical_size_to_dimensions(
-                // Uh oh, we need to defer this until the window actually appears!
-                // I think that implies changing the external API to update to 
-                // this set of deps.
-                state
-                .window()
-                .inner_size()
-            ),
+            char_dims: state.text_rendering_state.get_char_dims(text_sizes),
+            // We would need to defer getting the actual size until the window actually appears!
+            // So, to retain the API for now, we stuff something in here.
+            // Eventually, I guess change the API to mind this limitation?
+            dimensions: Dimensions {
+                width: abs::Length::from(1024),
+                height: abs::Length::from(768),
+            },
             state,
         })
     }
@@ -135,6 +142,7 @@ mod glutin_window_layer {
     pub struct State {
         events: EventLoop<CustomEvent>,
         title: Option<String>,
+        text_rendering_state: text_rendering::State<'static>,
     }
 
     fn physical_size_to_dimensions(dimensions: dpi::PhysicalSize<u32>) -> Dimensions {
@@ -160,17 +168,30 @@ mod glutin_window_layer {
         assert_eq!(f32::from(dimensions.height), height as f32);
     }
 
+    type Surface = dyn glutin_wrapper::surface::GlSurface<glutin_wrapper::surface::WindowSurface, SurfaceType = (), Context = ()>;
+
+    #[derive(Debug)]
+    struct Context {
+        window: Window,
+        gl_state: GLState,
+        // FIXME This Box is probably not needed?
+        surface: Box<Surface>,
+        // See note inside `init` for why we make this struct `!Send` by including this
+        // field.
+        // FIXME is this needed?
+        unsend: PhantomUnsend,
+    }
+
     /// A handle to various APIs that are useful to have inside the event handler.
     #[derive(Debug)]
     pub struct Handle<'handle> {
         running: &'handle mut bool,
-        gl_state: &'handle mut GLState,
         active_event_loop: &'handle ActiveEventLoop,
         last_tick_duration: &'handle mut Duration,
         interval: &'handle mut spin_sleep_util::Interval,
         last_rate: &'handle mut RatePerSecond,
         rate_reporter: &'handle mut spin_sleep_util::RateReporter,
-        context: Option<&'handle Context>,
+        context: Option<&'handle mut Context>,
         is_focused: &'handle bool,
     }
 
@@ -186,23 +207,25 @@ mod glutin_window_layer {
         handle: &mut Handle,
         text_or_rects: &[TextOrRect],
     ) -> Result<(), Box<dyn std::error::Error>> {
-        // TODO is this call expensive enough to be worth avoiding?
-        let dimensions = handle
-            .window()
-            .inner_size();
-
-        gl_layer::render(
-            handle.gl_state,
-            text_or_rects,
-            (
-                U24::from_u32_saturating(dimensions.width),
-                U24::from_u32_saturating(dimensions.height)
-            )
-        );
-
-        perf_viz::start_record!("swap_buffers");
-        handle.context.swap_buffers()?;
-        perf_viz::end_record!("swap_buffers");
+        if let Some(ctx) = handle.context {
+            // TODO is this call expensive enough to be worth avoiding?
+            let dimensions = ctx
+                .window
+                .inner_size();
+    
+            gl_layer::render(
+                &mut ctx.gl_state,
+                text_or_rects,
+                (
+                    U24::from_u32_saturating(dimensions.width),
+                    U24::from_u32_saturating(dimensions.height)
+                )
+            );
+    
+            perf_viz::start_record!("swap_buffers");
+            ctx.surface.swap_buffers()?;
+            perf_viz::end_record!("swap_buffers");
+        }
 
         Ok(())
     }
@@ -229,7 +252,9 @@ mod glutin_window_layer {
         if *handle.running {
             *handle.running = false;
 
-            gl_layer::cleanup(handle.gl_state);
+            if let Some(ctx) = handle.context.as_mut() {
+                gl_layer::cleanup(&ctx.gl_state);
+            }
         }
 
         handle.active_event_loop.exit();
@@ -251,12 +276,16 @@ mod glutin_window_layer {
         scale_factor: ScaleFactor,
         text_sizes: &[f32],
     ) -> Vec<CharDim> {
-        gl_layer::set_hidpi_factor(
-            handle.gl_state,
-            scale_factor,
-        );
-
-        gl_layer::get_char_dims(handle.gl_state, text_sizes)
+        if let Some(ctx) = handle.context.as_mut() {
+            gl_layer::set_hidpi_factor(
+                &mut ctx.gl_state,
+                scale_factor,
+            );
+    
+            gl_layer::get_char_dims(&ctx.gl_state, text_sizes)
+        } else {
+            vec![]
+        }
     }
 
     pub fn request_attention_mode(handle: &Handle, attention: AttentionMode) {
@@ -302,7 +331,7 @@ mod glutin_window_layer {
     }
 
     pub fn run<F>(
-        State { events, title, }: State,
+        State { events, title, text_rendering_state, }: State,
         mut event_handler: F
     ) -> !
     where
@@ -321,17 +350,6 @@ mod glutin_window_layer {
         // that we hit close to it.
         let mut last_rate = DEFAULT_TARGET_RATE;
         let mut rate_reporter = spin_sleep_util::RateReporter::new(Duration::from_secs(1));
-
-        struct Context {
-            window: Window,
-            gl_state: GLState,
-            // FIXME This Box is probably not needed?
-            surface: Box<dyn GLSurface>,
-            // See note inside `init` for why we make this struct `!Send` by including this
-            // field.
-            // FIXME is this needed?
-            unsend: PhantomUnsend,
-        }
 
         let mut context: Option<Context> = None;
 
@@ -361,7 +379,7 @@ mod glutin_window_layer {
                         interval: &mut interval,
                         last_rate: &mut last_rate,
                         rate_reporter: &mut rate_reporter,
-                        context: context.as_ref(),
+                        context: context.as_mut(),
                         is_focused: &is_focused,
                     }
                 }};
@@ -378,7 +396,7 @@ mod glutin_window_layer {
 
             match event {
                 GWEvent::Resumed => {
-                    if let Some(ctx) = context.as_mut_ref() {
+                    if let Some(ctx) = context.as_mut() {
                         let mut window_attrs = WindowAttributes::default()
                             .with_inner_size(
                                 dpi::Size::Logical(dpi::LogicalSize::new(683.0, 393.0))
@@ -485,7 +503,7 @@ mod glutin_window_layer {
                             #[allow(clippy::cast_possible_truncation)]
                             let scale_factor = scale_factor as _;
 
-                            if let Some(ctx) = context.as_ref_mut() {
+                            if let Some(ctx) = context.as_mut() {
                                 gl_layer::set_hidpi_factor(
                                     &mut ctx.gl_state,
                                     scale_factor,
@@ -500,7 +518,7 @@ mod glutin_window_layer {
                             is_focused = window_is_focused;
 
                             if is_focused
-                            && let Some(ctx) = context.as_ref_mut() {
+                            && let Some(ctx) = context.as_mut() {
                                 use window_layer_types::AttentionMode;
                                 // X11 requires us to explicitly unset the window
                                 // urgency. Other platforms fade it out automatically.
@@ -515,7 +533,7 @@ mod glutin_window_layer {
                             );
                         },
                         WindowEvent::Resized(size) => {
-                            if let Some(ctx) = context.as_mut_ref() {
+                            if let Some(ctx) = context.as_mut() {
                                 ctx.surface.resize(size);
                                 gl_layer::set_dimensions(
                                     &mut ctx.gl_state,

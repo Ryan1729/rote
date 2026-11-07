@@ -258,6 +258,12 @@ pub struct State<'font> {
     pub(crate) hidpi_factor: f32,
 }
 
+impl <'font> core::fmt::Debug for State<'font> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "text_rendering::State")
+    }
+}
+
 impl <'font> State<'font> {
     pub fn set_dimensions(&mut self, hidpi_factor: f32) {
         self.hidpi_factor = hidpi_factor;
