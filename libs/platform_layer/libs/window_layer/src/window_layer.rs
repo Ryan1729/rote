@@ -47,36 +47,67 @@ const _: () = {
 
 #[cfg(feature = "glutin-window-layer-0-32")]
 mod glutin_window_layer {
+    #![allow(unused)] // TODO remove this, and actual unused stuff, once this builds
+
     use super::*;
 
     pub use gl_layer::{FONT_LICENSE};
     use window_layer_types::{U24};
 
-    use winit::{
-        dpi,
-        event::{
-            self,
-            ElementState,
-            StartCause,
-            WindowEvent,
+    // 
+    // Planned steps:
+    //
+    // * Get this compiling and ruinning at all, by copying from [the example](https://github.com/rust-windowing/glutin/blob/master/glutin_examples/src/lib.rs)
+    //     * At first it's fine if it just renders the example triangle, instead of the actual app
+    // * Make it render the actual app, copying stuff out of the relevant crates of ours, like gl_layer and open_gl.
+    // * Cut out what we can, without breaking things
+    // * Decide whether to retire the old versions (leaning yes, once we have the new version working unless it's like slow or something)
+    // * See whether we still have motivation to do the rgfw backend
+
+    use glutin_wrapper::{
+        config::{Config, ConfigTemplateBuilder, GetGlConfig},
+        prelude::{GlDisplay, PossiblyCurrentContext},
+        surface::{Surface, SwapInterval, WindowSurface},
+        winit_wrapper::{
+            dpi,
+            event::{
+                self,
+                ElementState,
+                StartCause,
+                WindowEvent,
+                Event as GWEvent,
+                KeyEvent,
+            },
+            event_loop::{
+                self,
+                ActiveEventLoop,
+                EventLoop,
+                EventLoopBuilder,
+            },
+            keyboard::KeyCode as InputKeyCode,
+            window::{
+                self,
+                Window,
+                WindowAttributes,
+                UserAttentionType,
+            },
+            keyboard,
+            DisplayBuilder,
+            GlWindow
         },
-        event_loop::{
-            ActiveEventLoop,
-            EventLoop,
-            EventLoopBuilder,
-        },
-        keyboard::KeyCode as InputKeyCode,
-        window::{
-            self,
-            Window,
-            WindowAttributes,
-            UserAttentionType,
-        },
+        gl_wrapper as gl,
     };
+
+    type GLfloat = f32;
 
     use screen_space::{abs, CharDim, ssxy};
 
+    use std::cell::RefCell;
+    use std::error::Error;
+    use std::ffi::{CStr, CString};
     use std::marker::PhantomData;
+    use std::ops::Deref;
+    use std::rc::Rc;
     use std::sync::MutexGuard;
     use std::time::Duration;
 
@@ -84,7 +115,7 @@ mod glutin_window_layer {
     type PhantomUnsend = PhantomData<MutexGuard<'static, ()>>;
 
     #[derive(Clone, Debug)]
-    pub struct EventProxy(winit::event_loop::EventLoopProxy<CustomEvent>);
+    pub struct EventProxy(event_loop::EventLoopProxy<CustomEvent>);
 
     impl EventSender for EventProxy {
         fn send(&self, event: CustomEvent) {
@@ -168,14 +199,14 @@ mod glutin_window_layer {
         assert_eq!(f32::from(dimensions.height), height as f32);
     }
 
-    type Surface = dyn glutin_wrapper::surface::GlSurface<glutin_wrapper::surface::WindowSurface, SurfaceType = (), Context = ()>;
+    type GWSurface = dyn glutin_wrapper::surface::GlSurface<glutin_wrapper::surface::WindowSurface, SurfaceType = (), Context = ()>;
 
     #[derive(Debug)]
     struct Context {
         window: Window,
         gl_state: GLState,
         // FIXME This Box is probably not needed?
-        surface: Box<Surface>,
+        surface: Box<GWSurface>,
         // See note inside `init` for why we make this struct `!Send` by including this
         // field.
         // FIXME is this needed?
@@ -330,6 +361,80 @@ mod glutin_window_layer {
         );
     }
 
+    fn window_attributes(title: Option<&str>) -> WindowAttributes {
+        let mut window_attrs = WindowAttributes::default()
+            .with_inner_size(
+                dpi::Size::Logical(dpi::LogicalSize::new(683.0, 393.0))
+            );
+        if let Some(title) = title {
+            window_attrs = window_attrs.with_title(title);
+        }
+
+        window_attrs
+    }
+
+    enum GlDisplayCreationState {
+        /// The display was not build yet.
+        Builder(Box<DisplayBuilder>),
+        /// The display was already created for the application.
+        Init,
+    }
+
+    struct App {
+        template: ConfigTemplateBuilder,
+        renderer: Option<Renderer>,
+        // NOTE: `AppState` carries the `Window`, thus it should be dropped after everything else.
+        state: Option<AppState>,
+        gl_context: Option<PossiblyCurrentContext>,
+        gl_display: GlDisplayCreationState,
+        exit_state: Rc<RefCell<Result<(), Box<dyn Error>>>>,
+    }
+
+    impl App {
+        fn new(
+            template: ConfigTemplateBuilder,
+            display_builder: DisplayBuilder,
+            exit_state: Rc<RefCell<Result<(), Box<dyn Error>>>>,
+        ) -> Self {
+            Self {
+                template,
+                gl_display: GlDisplayCreationState::Builder(Box::new(display_builder)),
+                exit_state,
+                gl_context: None,
+                state: None,
+                renderer: None,
+            }
+        }
+    }
+
+    impl Drop for App {
+        fn drop(&mut self) {
+            // NOTE: The handling below is only needed due to nvidia on Wayland to
+            // not crash on exit due to nvidia driver touching the Wayland
+            // display from on `exit` hook.
+            let Some(_gl_display) = self.gl_context.take().map(|context| context.display()) else {
+                return;
+            };
+    
+            // Clear the window.
+            self.state = None;
+            #[cfg(egl_backend)]
+            #[allow(irrefutable_let_patterns)]
+            if let glutin::display::Display::Egl(display) = _gl_display {
+                unsafe {
+                    display.terminate();
+                }
+            }
+        }
+    }
+    
+    struct AppState {
+        gl_surface: Surface<WindowSurface>,
+        // NOTE: Window should be dropped after all resources created using its
+        // raw-window-handle.
+        window: Box<dyn Window>,
+    }
+
     pub fn run<F>(
         State { events, title, text_rendering_state, }: State,
         mut event_handler: F
@@ -359,17 +464,7 @@ mod glutin_window_layer {
 
         let mut modifiers = ModifiersState::default();
 
-        // FIXME The run_app method is repalcing this. It's literally removed in the
-        // current beta for winit (0.31.0-beta.4). So, we should convert over, even
-        // if we switch over to the current stable
-        events.run(move |event, active_event_loop| {
-            use winit::{
-                event::{
-                    Event as GWEvent,
-                    KeyEvent,
-                },
-            };
-
+        let on_event = move |event, active_event_loop| {
             macro_rules! handle {
                 () => {{
                     Handle {
@@ -557,7 +652,7 @@ mod glutin_window_layer {
                             event:
                                 KeyEvent {
                                     state,
-                                    physical_key: winit::keyboard::PhysicalKey::Code(input_keycode),
+                                    physical_key: keyboard::PhysicalKey::Code(input_keycode),
                                     text,
                                     ..
                                 },
@@ -602,7 +697,7 @@ mod glutin_window_layer {
                                 },
                                 event::MouseButton::Right
                                 | event::MouseButton::Middle
-                                | event::MouseButton::Other(_) => {},
+                                /*| event::MouseButton::Other(_) */ => {},
                             };
                         },
                         WindowEvent::MouseWheel {
@@ -638,7 +733,27 @@ mod glutin_window_layer {
                 },
                 _ => {}
             }
-        }).expect("events.run returned an error!");
+        };
+
+        // The template will match only the configurations supporting rendering
+        // to windows.
+        //
+        // XXX We force transparency only on macOS, given that EGL on X11 doesn't
+        // have it, but we still want to show window. The macOS situation is like
+        // that, because we can query only one config at a time on it, but all
+        // normal platforms will return multiple configs, so we can find the config
+        // with transparency ourselves inside the `reduce`.
+        let template =
+            ConfigTemplateBuilder::new().with_alpha_size(8).with_transparency(cfg!(cgl_backend));
+    
+        let display_builder = DisplayBuilder::new().with_window_attributes(Some(window_attributes()));
+
+        let exit_state = Rc::new(RefCell::new(Ok(())));
+        let app = App::new(template, display_builder, exit_state.clone(), on_event);
+
+        events.run_app(app).expect("events.run returned an error!");
+
+        exit_state.replace(Ok(())).expect("exit_state was an error!");
         panic!(); // need to "return" a ! for now
     }
 
@@ -749,7 +864,7 @@ mod glutin_window_layer {
             InputKeyCode::BracketLeft => KeyCode::LBracket,
             InputKeyCode::ControlLeft => KeyCode::LControl,
             InputKeyCode::ShiftLeft => KeyCode::LShift,
-            InputKeyCode::SuperLeft => KeyCode::LWin,
+            //InputKeyCode::SuperLeft => KeyCode::LWin,
             InputKeyCode::LaunchMail => KeyCode::Mail,
             InputKeyCode::MediaSelect => KeyCode::MediaSelect,
             InputKeyCode::MediaStop => KeyCode::MediaStop,
@@ -768,7 +883,7 @@ mod glutin_window_layer {
             InputKeyCode::BracketRight => KeyCode::RBracket,
             InputKeyCode::ControlRight => KeyCode::RControl,
             InputKeyCode::ShiftRight => KeyCode::RShift,
-            InputKeyCode::SuperRight => KeyCode::RWin,
+            //InputKeyCode::SuperRight => KeyCode::RWin,
             InputKeyCode::Semicolon => KeyCode::Semicolon,
             InputKeyCode::Slash => KeyCode::Slash,
             InputKeyCode::Sleep => KeyCode::Sleep,
@@ -786,6 +901,188 @@ mod glutin_window_layer {
 
         Some(keycode)
     }
+
+    // TODO replace with actual rendering of the text editor
+    pub struct Renderer {
+        program: gl::types::GLuint,
+        vao: gl::types::GLuint,
+        vbo: gl::types::GLuint,
+        gl: gl::Gl,
+    }
+    
+    impl Renderer {
+        pub fn new<D: GlDisplay>(gl_display: &D) -> Self {
+            unsafe {
+                let gl = gl::Gl::load_from(&|symbol| {
+                    let symbol = CString::new(symbol).unwrap();
+                    gl_display.get_proc_address(symbol.as_c_str()).cast()
+                }).unwrap();
+    
+                if let Some(renderer) = get_gl_string(&gl, gl::RENDERER) {
+                    println!("Running on {}", renderer.to_string_lossy());
+                }
+                if let Some(version) = get_gl_string(&gl, gl::VERSION) {
+                    println!("OpenGL Version {}", version.to_string_lossy());
+                }
+    
+                if let Some(shaders_version) = get_gl_string(&gl, gl::SHADING_LANGUAGE_VERSION) {
+                    println!("Shaders version on {}", shaders_version.to_string_lossy());
+                }
+    
+                let vertex_shader = create_shader(&gl, gl::VERTEX_SHADER, VERTEX_SHADER_SOURCE);
+                let fragment_shader = create_shader(&gl, gl::FRAGMENT_SHADER, FRAGMENT_SHADER_SOURCE);
+    
+                let program = gl.CreateProgram();
+    
+                gl.AttachShader(program, vertex_shader);
+                gl.AttachShader(program, fragment_shader);
+    
+                gl.LinkProgram(program);
+    
+                gl.UseProgram(program);
+    
+                gl.DeleteShader(vertex_shader);
+                gl.DeleteShader(fragment_shader);
+    
+                let mut vao = std::mem::zeroed();
+                gl.GenVertexArrays(1, &mut vao);
+                gl.BindVertexArray(vao);
+    
+                let mut vbo = std::mem::zeroed();
+                gl.GenBuffers(1, &mut vbo);
+                gl.BindBuffer(gl::ARRAY_BUFFER, vbo);
+                gl.BufferData(
+                    gl::ARRAY_BUFFER,
+                    (VERTEX_DATA.len() * std::mem::size_of::<f32>()) as gl::types::GLsizeiptr,
+                    VERTEX_DATA.as_ptr() as *const _,
+                    gl::STATIC_DRAW,
+                );
+    
+                let pos_attrib = gl.GetAttribLocation(program, c"position".as_ptr() as *const _);
+                let color_attrib = gl.GetAttribLocation(program, c"color".as_ptr() as *const _);
+                gl.VertexAttribPointer(
+                    pos_attrib as gl::types::GLuint,
+                    2,
+                    gl::FLOAT,
+                    0,
+                    5 * std::mem::size_of::<f32>() as gl::types::GLsizei,
+                    std::ptr::null(),
+                );
+                gl.VertexAttribPointer(
+                    color_attrib as gl::types::GLuint,
+                    3,
+                    gl::FLOAT,
+                    0,
+                    5 * std::mem::size_of::<f32>() as gl::types::GLsizei,
+                    (2 * std::mem::size_of::<f32>()) as *const () as *const _,
+                );
+                gl.EnableVertexAttribArray(pos_attrib as gl::types::GLuint);
+                gl.EnableVertexAttribArray(color_attrib as gl::types::GLuint);
+    
+                Self { program, vao, vbo, gl }
+            }
+        }
+    
+        pub fn draw(&self) {
+            self.draw_with_clear_color(0.1, 0.1, 0.1, 0.9)
+        }
+    
+        pub fn draw_with_clear_color(
+            &self,
+            red: GLfloat,
+            green: GLfloat,
+            blue: GLfloat,
+            alpha: GLfloat,
+        ) {
+            unsafe {
+                self.gl.UseProgram(self.program);
+    
+                self.gl.BindVertexArray(self.vao);
+                self.gl.BindBuffer(gl::ARRAY_BUFFER, self.vbo);
+    
+                self.gl.ClearColor(red, green, blue, alpha);
+                self.gl.Clear(gl::COLOR_BUFFER_BIT);
+                self.gl.DrawArrays(gl::TRIANGLES, 0, 3);
+            }
+        }
+    
+        pub fn resize(&self, width: i32, height: i32) {
+            unsafe {
+                self.gl.Viewport(0, 0, width, height);
+            }
+        }
+    }
+    
+    impl Deref for Renderer {
+        type Target = gl::Gl;
+    
+        fn deref(&self) -> &Self::Target {
+            &self.gl
+        }
+    }
+    
+    impl Drop for Renderer {
+        fn drop(&mut self) {
+            unsafe {
+                self.gl.DeleteProgram(self.program);
+                self.gl.DeleteBuffers(1, &self.vbo);
+                self.gl.DeleteVertexArrays(1, &self.vao);
+            }
+        }
+    }
+    
+    unsafe fn create_shader(
+        gl: &gl::Gl,
+        shader: gl::types::GLenum,
+        source: &[u8],
+    ) -> gl::types::GLuint {
+        unsafe {
+            let shader = gl.CreateShader(shader);
+            gl.ShaderSource(shader, 1, [source.as_ptr().cast()].as_ptr(), std::ptr::null());
+            gl.CompileShader(shader);
+            shader
+        }
+    }
+    
+    fn get_gl_string(gl: &gl::Gl, variant: gl::types::GLenum) -> Option<&'static CStr> {
+        unsafe {
+            let s = gl.GetString(variant);
+            (!s.is_null()).then(|| CStr::from_ptr(s.cast()))
+        }
+    }
+    
+    #[rustfmt::skip]
+    static VERTEX_DATA: [f32; 15] = [
+        -0.5, -0.5,  1.0,  0.0,  0.0,
+         0.0,  0.5,  0.0,  1.0,  0.0,
+         0.5, -0.5,  0.0,  0.0,  1.0,
+    ];
+    
+    const VERTEX_SHADER_SOURCE: &[u8] = b"
+    #version 100
+    precision mediump float;
+    
+    attribute vec2 position;
+    attribute vec3 color;
+    
+    varying vec3 v_color;
+    
+    void main() {
+        gl_Position = vec4(position, 0.0, 1.0);
+        v_color = color;
+    }
+    \0";
+    
+    const FRAGMENT_SHADER_SOURCE: &[u8] = b"
+    #version 100
+    precision mediump float;
+    
+    varying vec3 v_color;
+    
+    void main() {
+        gl_FragColor = vec4(v_color, 1.0);
+    }
+    \0";
 }
 #[cfg(feature = "glutin-window-layer-0-32")]
 use glutin_window_layer as selected_window_layer;

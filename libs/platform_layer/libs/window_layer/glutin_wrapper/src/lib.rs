@@ -17,6 +17,40 @@ const _: () = {
 
 #[cfg(feature = "glutin-0-32")]
 pub use glutin_0_32::*;
+#[cfg(feature = "glutin-0-32")]
+pub mod winit_wrapper {
+    pub use glutin_winit::*;
+    pub use winit::*;
+}
+#[cfg(feature = "glutin-0-32")]
+pub mod gl_wrapper {
+    pub use gl33::*;
+    // A compatibility layer with the glutin example, which we plan to remove later {
+    pub use gl33::{
+        GlFns as Gl,
+        GL_ARRAY_BUFFER as ARRAY_BUFFER,
+        GL_COLOR_BUFFER_BIT as COLOR_BUFFER_BIT,
+        GL_FLOAT as FLOAT,
+        GL_FRAGMENT_SHADER as FRAGMENT_SHADER,
+        GL_RENDERER as RENDERER,
+        GL_TRIANGLES as TRIANGLES,
+        GL_SHADING_LANGUAGE_VERSION as SHADING_LANGUAGE_VERSION,
+        GL_STATIC_DRAW as STATIC_DRAW,
+        GL_VERTEX_SHADER as VERTEX_SHADER,
+        GL_VERSION as VERSION,
+    };
+    pub mod types {
+        pub use gl33::{
+            GLenum,
+        };
+
+        pub type GLuint = u32;
+        pub type GLsizei = isize;
+        pub type GLsizeiptr = isize;
+    }
+    // }
+}
+
 
 #[cfg(feature = "glutin-0-29")]
 pub use glutin_0_29::*;

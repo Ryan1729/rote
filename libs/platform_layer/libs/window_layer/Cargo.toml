@@ -11,7 +11,6 @@ c_platform = { path = "c_platform", optional = true }
 gl_layer = { path = "gl_layer", optional = true }
 glutin_wrapper = { path = "glutin_wrapper", optional = true }
 text_rendering = { path = "text_rendering", optional = true }
-winit = { version = "0.30.13", optional = true }
 platform_layer_types = { path = "../platform_layer_types" }
 window_layer_types = { path = "../window_layer_types" }
 perf_viz = { path = "../../../perf_viz" }
@@ -24,7 +23,7 @@ platform_types = { path = "../../../platform_types" }
 
 [features]
 default = ["glutin-window-layer-0-32"]#["dummy-window-layer"]#["c-dummy-window-layer"]#["glutin-window-layer-0-29"]#
-glutin-window-layer-0-32 = ["dep:text_rendering", "dep:winit", "gl_layer", "glutin_wrapper", "glutin_wrapper/glutin-0-32"]
+glutin-window-layer-0-32 = ["dep:text_rendering", "gl_layer", "glutin_wrapper", "glutin_wrapper/glutin-0-32"]
 glutin-window-layer-0-29 = ["gl_layer", "glutin_wrapper", "glutin_wrapper/glutin-0-29"]
 dummy-window-layer = []
 c-dummy-window-layer = ["c_platform"]
