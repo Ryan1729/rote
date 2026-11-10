@@ -44,8 +44,8 @@ pub mod gl_wrapper {
             GLenum,
         };
 
-        pub type GLuint = u32;
-        pub type GLsizei = isize;
+        pub type GLuint = std::os::raw::c_uint;
+        pub type GLsizei = std::os::raw::c_int;
         pub type GLsizeiptr = isize;
     }
     // }

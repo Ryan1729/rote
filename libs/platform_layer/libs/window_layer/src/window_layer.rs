@@ -66,7 +66,8 @@ mod glutin_window_layer {
 
     use glutin_wrapper::{
         config::{Config, ConfigTemplateBuilder, GetGlConfig},
-        prelude::{GlDisplay, PossiblyCurrentContext},
+        context::{PossiblyCurrentContext},
+        prelude::{GlDisplay},
         surface::{Surface, SwapInterval, WindowSurface},
         winit_wrapper::{
             dpi,
@@ -106,6 +107,7 @@ mod glutin_window_layer {
     use std::error::Error;
     use std::ffi::{CStr, CString};
     use std::marker::PhantomData;
+    use std::num::NonZeroU32;
     use std::ops::Deref;
     use std::rc::Rc;
     use std::sync::MutexGuard;
@@ -201,7 +203,6 @@ mod glutin_window_layer {
 
     type GWSurface = dyn glutin_wrapper::surface::GlSurface<glutin_wrapper::surface::WindowSurface, SurfaceType = (), Context = ()>;
 
-    #[derive(Debug)]
     struct Context {
         window: Window,
         gl_state: GLState,
@@ -211,6 +212,17 @@ mod glutin_window_layer {
         // field.
         // FIXME is this needed?
         unsend: PhantomUnsend,
+    }
+
+    impl core::fmt::Debug for Context {
+        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            f.debug_struct("Context")
+             .field("window", &self.window)
+             .field("gl_state", &self.gl_state)
+             .field("surface", &"GWSurface")
+             .field("unsend", &self.unsend)
+             .finish()
+        }
     }
 
     /// A handle to various APIs that are useful to have inside the event handler.
@@ -380,6 +392,15 @@ mod glutin_window_layer {
         Init,
     }
 
+    type EventHandler = ();
+
+    struct AppState {
+        gl_surface: Surface<WindowSurface>,
+        // NOTE: Window should be dropped after all resources created using its
+        // raw-window-handle.
+        window: Window,
+    }
+
     struct App {
         template: ConfigTemplateBuilder,
         renderer: Option<Renderer>,
@@ -388,6 +409,7 @@ mod glutin_window_layer {
         gl_context: Option<PossiblyCurrentContext>,
         gl_display: GlDisplayCreationState,
         exit_state: Rc<RefCell<Result<(), Box<dyn Error>>>>,
+        on_event: EventHandler,
     }
 
     impl App {
@@ -395,6 +417,7 @@ mod glutin_window_layer {
             template: ConfigTemplateBuilder,
             display_builder: DisplayBuilder,
             exit_state: Rc<RefCell<Result<(), Box<dyn Error>>>>,
+            on_event: EventHandler,
         ) -> Self {
             Self {
                 template,
@@ -403,12 +426,14 @@ mod glutin_window_layer {
                 gl_context: None,
                 state: None,
                 renderer: None,
+                on_event,
             }
         }
     }
 
     impl Drop for App {
         fn drop(&mut self) {
+            use glutin_wrapper::display::GetGlDisplay;
             // NOTE: The handling below is only needed due to nvidia on Wayland to
             // not crash on exit due to nvidia driver touching the Wayland
             // display from on `exit` hook.
@@ -427,12 +452,152 @@ mod glutin_window_layer {
             }
         }
     }
+
+    impl ApplicationHandler for App {
+        fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+            let (window, gl_config) = match &self.gl_display {
+                // We just created the event loop, so initialize the display, pick the config, and
+                // create the context.
+                GlDisplayCreationState::Builder(display_builder) => {
+                    let (window, gl_config) = match display_builder.clone().build(
+                        event_loop,
+                        self.template.clone(),
+                        gl_config_picker,
+                    ) {
+                        Ok((window, gl_config)) => (window.unwrap(), gl_config),
+                        Err(err) => {
+                            self.exit_state = Err(err);
+                            event_loop.exit();
+                            return;
+                        },
+                    };
     
-    struct AppState {
-        gl_surface: Surface<WindowSurface>,
-        // NOTE: Window should be dropped after all resources created using its
-        // raw-window-handle.
-        window: Box<dyn Window>,
+                    println!("Picked a config with {} samples", gl_config.num_samples());
+    
+                    // Mark the display as initialized to not recreate it on resume, since the
+                    // display is valid until we explicitly destroy it.
+                    self.gl_display = GlDisplayCreationState::Init;
+    
+                    // Create gl context.
+                    self.gl_context =
+                        Some(create_gl_context(&window, &gl_config).treat_as_possibly_current());
+    
+                    (window, gl_config)
+                },
+                GlDisplayCreationState::Init => {
+                    println!("Recreating window in `resumed`");
+                    // Pick the config which we already use for the context.
+                    let gl_config = self.gl_context.as_ref().unwrap().config();
+                    match glutin_winit::finalize_window(event_loop, window_attributes(), &gl_config) {
+                        Ok(window) => (window, gl_config),
+                        Err(err) => {
+                            self.exit_state = Err(err.into());
+                            event_loop.exit();
+                            return;
+                        },
+                    }
+                },
+            };
+    
+            let attrs = window
+                .build_surface_attributes(Default::default())
+                .expect("Failed to build surface attributes");
+            let gl_surface =
+                unsafe { gl_config.display().create_window_surface(&gl_config, &attrs).unwrap() };
+    
+            // The context needs to be current for the Renderer to set up shaders and
+            // buffers. It also performs function loading, which needs a current context on
+            // WGL.
+            let gl_context = self.gl_context.as_ref().unwrap();
+            gl_context.make_current(&gl_surface).unwrap();
+    
+            self.renderer.get_or_insert_with(|| Renderer::new(&gl_config.display()));
+    
+            // Try setting vsync.
+            if let Err(res) = gl_surface
+                .set_swap_interval(gl_context, SwapInterval::Wait(NonZeroU32::new(1).unwrap()))
+            {
+                eprintln!("Error setting vsync: {res:?}");
+            }
+    
+            assert!(self.state.replace(AppState { gl_surface, window }).is_none());
+        }
+    
+        fn suspended(&mut self, _event_loop: &ActiveEventLoop) {
+            // This event is only raised on Android, where the backing NativeWindow for a GL
+            // Surface can appear and disappear at any moment.
+            println!("Android window removed");
+    
+            // Destroy the GL Surface and un-current the GL Context before ndk-glue releases
+            // the window back to the system.
+            self.state = None;
+    
+            // Make context not current.
+            self.gl_context = Some(
+                self.gl_context.take().unwrap().make_not_current().unwrap().treat_as_possibly_current(),
+            );
+        }
+    
+        fn window_event(
+            &mut self,
+            event_loop: &ActiveEventLoop,
+            _window_id: winit::window::WindowId,
+            event: WindowEvent,
+        ) {
+            match event {
+                WindowEvent::Resized(size) if size.width != 0 && size.height != 0 => {
+                    // Some platforms like EGL require resizing GL surface to update the size
+                    // Notable platforms here are Wayland and macOS, other don't require it
+                    // and the function is no-op, but it's wise to resize it for portability
+                    // reasons.
+                    if let Some(AppState { gl_surface, window: _ }) = self.state.as_ref() {
+                        let gl_context = self.gl_context.as_ref().unwrap();
+                        gl_surface.resize(
+                            gl_context,
+                            NonZeroU32::new(size.width).unwrap(),
+                            NonZeroU32::new(size.height).unwrap(),
+                        );
+    
+                        let renderer = self.renderer.as_ref().unwrap();
+                        renderer.resize(size.width as i32, size.height as i32);
+                    }
+                },
+                WindowEvent::CloseRequested
+                | WindowEvent::KeyboardInput {
+                    event: KeyEvent { logical_key: Key::Named(NamedKey::Escape), .. },
+                    ..
+                } => event_loop.exit(),
+                _ => (),
+            }
+        }
+    
+        fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
+            // NOTE: The handling below is only needed due to nvidia on Wayland to not crash
+            // on exit due to nvidia driver touching the Wayland display from on
+            // `exit` hook.
+            let _gl_display = self.gl_context.take().unwrap().display();
+    
+            // Clear the window.
+            self.state = None;
+            #[cfg(egl_backend)]
+            #[allow(irrefutable_let_patterns)]
+            if let glutin::display::Display::Egl(display) = _gl_display {
+                unsafe {
+                    display.terminate();
+                }
+            }
+        }
+    
+        fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+            if let Some(AppState { gl_surface, window }) = self.state.as_ref() {
+                let gl_context = self.gl_context.as_ref().unwrap();
+                let renderer = self.renderer.as_ref().unwrap();
+                renderer.draw();
+                window.request_redraw();
+    
+                gl_surface.swap_buffers(gl_context).unwrap();
+            }
+        }
     }
 
     pub fn run<F>(
@@ -464,6 +629,7 @@ mod glutin_window_layer {
 
         let mut modifiers = ModifiersState::default();
 
+        // TODO actually, this can just be a match in `window_event` in the App trait impl
         let on_event = move |event, active_event_loop| {
             macro_rules! handle {
                 () => {{
@@ -629,6 +795,16 @@ mod glutin_window_layer {
                         },
                         WindowEvent::Resized(size) => {
                             if let Some(ctx) = context.as_mut() {
+                    let gl_context = self.gl_context.as_ref().unwrap();
+                    gl_surface.resize(
+                        gl_context,
+                        NonZeroU32::new(size.width).unwrap(),
+                        NonZeroU32::new(size.height).unwrap(),
+                    );
+
+                    let renderer = self.renderer.as_ref().unwrap();
+                    renderer.resize(size.width as i32, size.height as i32);
+
                                 ctx.surface.resize(size);
                                 gl_layer::set_dimensions(
                                     &mut ctx.gl_state,
@@ -746,12 +922,12 @@ mod glutin_window_layer {
         let template =
             ConfigTemplateBuilder::new().with_alpha_size(8).with_transparency(cfg!(cgl_backend));
     
-        let display_builder = DisplayBuilder::new().with_window_attributes(Some(window_attributes()));
+        let display_builder = DisplayBuilder::new().with_window_attributes(Some(window_attributes(title.as_deref())));
 
         let exit_state = Rc::new(RefCell::new(Ok(())));
-        let app = App::new(template, display_builder, exit_state.clone(), on_event);
+        let mut app = App::new(template, display_builder, exit_state.clone(), on_event);
 
-        events.run_app(app).expect("events.run returned an error!");
+        events.run_app(&mut app).expect("events.run returned an error!");
 
         exit_state.replace(Ok(())).expect("exit_state was an error!");
         panic!(); // need to "return" a ! for now
@@ -914,8 +1090,8 @@ mod glutin_window_layer {
         pub fn new<D: GlDisplay>(gl_display: &D) -> Self {
             unsafe {
                 let gl = gl::Gl::load_from(&|symbol| {
-                    let symbol = CString::new(symbol).unwrap();
-                    gl_display.get_proc_address(symbol.as_c_str()).cast()
+                    let c_str = std::ffi::CStr::from_ptr(symbol as *const i8);
+                    gl_display.get_proc_address(c_str).cast()
                 }).unwrap();
     
                 if let Some(renderer) = get_gl_string(&gl, gl::RENDERER) {
