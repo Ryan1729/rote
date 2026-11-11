@@ -19,9 +19,13 @@ const _: () = {
 pub use glutin_0_32::*;
 #[cfg(feature = "glutin-0-32")]
 pub mod winit_wrapper {
-    pub use glutin_winit::*;
     pub use winit::*;
 }
+#[cfg(feature = "glutin-0-32")]
+pub mod glutin_winit_wrapper {
+    pub use glutin_winit::*;
+}
+
 #[cfg(feature = "glutin-0-32")]
 pub mod gl_wrapper {
     pub use gl33::*;

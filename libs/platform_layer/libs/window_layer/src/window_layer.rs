@@ -54,7 +54,7 @@ mod glutin_window_layer {
     pub use gl_layer::{FONT_LICENSE};
     use window_layer_types::{U24};
 
-    // 
+    //
     // Planned steps:
     //
     // * Get this compiling and ruinning at all, by copying from [the example](https://github.com/rust-windowing/glutin/blob/master/glutin_examples/src/lib.rs)
@@ -65,11 +65,17 @@ mod glutin_window_layer {
     // * See whether we still have motivation to do the rgfw backend
 
     use glutin_wrapper::{
-        config::{Config, ConfigTemplateBuilder, GetGlConfig},
-        context::{PossiblyCurrentContext},
-        prelude::{GlDisplay},
-        surface::{Surface, SwapInterval, WindowSurface},
+        config::{GlConfig, Config, ConfigTemplateBuilder, GetGlConfig},
+        context::{ContextApi, ContextAttributesBuilder, NotCurrentContext, NotCurrentGlContext, PossiblyCurrentContext, PossiblyCurrentGlContext, Version},
+        display::{GetGlDisplay, GlDisplay},
+        surface::{GlSurface, Surface, SwapInterval, WindowSurface},
+        glutin_winit_wrapper::{
+            DisplayBuilder,
+            GlWindow,
+            finalize_window,
+        },
         winit_wrapper::{
+            application::ApplicationHandler,
             dpi,
             event::{
                 self,
@@ -85,16 +91,15 @@ mod glutin_window_layer {
                 EventLoop,
                 EventLoopBuilder,
             },
-            keyboard::KeyCode as InputKeyCode,
+            keyboard::{self, Key, keyboard::KeyCode as InputKeyCode, NamedKey},
+            raw_window_handle::HasWindowHandle,
             window::{
                 self,
                 Window,
                 WindowAttributes,
+                WindowId,
                 UserAttentionType,
             },
-            keyboard,
-            DisplayBuilder,
-            GlWindow
         },
         gl_wrapper as gl,
     };
@@ -250,25 +255,26 @@ mod glutin_window_layer {
         handle: &mut Handle,
         text_or_rects: &[TextOrRect],
     ) -> Result<(), Box<dyn std::error::Error>> {
-        if let Some(ctx) = handle.context {
-            // TODO is this call expensive enough to be worth avoiding?
-            let dimensions = ctx
-                .window
-                .inner_size();
-    
-            gl_layer::render(
-                &mut ctx.gl_state,
-                text_or_rects,
-                (
-                    U24::from_u32_saturating(dimensions.width),
-                    U24::from_u32_saturating(dimensions.height)
-                )
-            );
-    
-            perf_viz::start_record!("swap_buffers");
-            ctx.surface.swap_buffers()?;
-            perf_viz::end_record!("swap_buffers");
-        }
+        // TODO restore
+        //if let Some(ctx) = handle.context {
+            //// TODO is this call expensive enough to be worth avoiding?
+            //let dimensions = ctx
+                //.window
+                //.inner_size();
+//
+            //gl_layer::render(
+                //&mut ctx.gl_state,
+                //text_or_rects,
+                //(
+                    //U24::from_u32_saturating(dimensions.width),
+                    //U24::from_u32_saturating(dimensions.height)
+                //)
+            //);
+//
+            //perf_viz::start_record!("swap_buffers");
+            //ctx.surface.swap_buffers()?;
+            //perf_viz::end_record!("swap_buffers");
+        //}
 
         Ok(())
     }
@@ -324,7 +330,7 @@ mod glutin_window_layer {
                 &mut ctx.gl_state,
                 scale_factor,
             );
-    
+
             gl_layer::get_char_dims(&ctx.gl_state, text_sizes)
         } else {
             vec![]
@@ -394,12 +400,67 @@ mod glutin_window_layer {
 
     type EventHandler = ();
 
+    fn create_gl_context(window: &Window, gl_config: &Config) -> NotCurrentContext {
+        let raw_window_handle = window.window_handle().ok().map(|wh| wh.as_raw());
+
+        // The context creation part.
+        let context_attributes = ContextAttributesBuilder::new().build(raw_window_handle);
+
+        // Since glutin by default tries to create OpenGL core context, which may not be
+        // present we should try gles.
+        let fallback_context_attributes = ContextAttributesBuilder::new()
+            .with_context_api(ContextApi::Gles(None))
+            .build(raw_window_handle);
+
+        // There are also some old devices that support neither modern OpenGL nor GLES.
+        // To support these we can try and create a 2.1 context.
+        let legacy_context_attributes = ContextAttributesBuilder::new()
+            .with_context_api(ContextApi::OpenGl(Some(Version::new(2, 1))))
+            .build(raw_window_handle);
+
+        // Reuse the uncurrented context from a suspended() call if it exists, otherwise
+        // this is the first time resumed() is called, where the context still
+        // has to be created.
+        let gl_display = gl_config.display();
+
+        unsafe {
+            gl_display.create_context(gl_config, &context_attributes).unwrap_or_else(|_| {
+                gl_display.create_context(gl_config, &fallback_context_attributes).unwrap_or_else(
+                    |_| {
+                        gl_display
+                            .create_context(gl_config, &legacy_context_attributes)
+                            .expect("failed to create context")
+                    },
+                )
+            })
+        }
+    }
+
+    // Find the config with the maximum number of samples, so our triangle will be
+    // smooth.
+    pub fn gl_config_picker(configs: Box<dyn Iterator<Item = Config> + '_>) -> Config {
+        configs
+            .reduce(|accum, config| {
+                let transparency_check = config.supports_transparency().unwrap_or(false)
+                    & !accum.supports_transparency().unwrap_or(false);
+
+                if transparency_check || config.num_samples() > accum.num_samples() {
+                    config
+                } else {
+                    accum
+                }
+            })
+            .unwrap()
+    }
+
     struct AppState {
         gl_surface: Surface<WindowSurface>,
         // NOTE: Window should be dropped after all resources created using its
         // raw-window-handle.
         window: Window,
     }
+
+    type ExitState = Result<(), Box<dyn Error>>
 
     struct App {
         template: ConfigTemplateBuilder,
@@ -408,16 +469,21 @@ mod glutin_window_layer {
         state: Option<AppState>,
         gl_context: Option<PossiblyCurrentContext>,
         gl_display: GlDisplayCreationState,
-        exit_state: Rc<RefCell<Result<(), Box<dyn Error>>>>,
+        exit_state: ExitState,
         on_event: EventHandler,
+        modifiers: ModifiersState,
+        is_focused: bool,
+        context: Option<Context>,
+        title: Option<String>,
     }
 
     impl App {
         fn new(
             template: ConfigTemplateBuilder,
             display_builder: DisplayBuilder,
-            exit_state: Rc<RefCell<Result<(), Box<dyn Error>>>>,
+            exit_state: ExitState,
             on_event: EventHandler,
+            title: Option<String>,
         ) -> Self {
             Self {
                 template,
@@ -427,6 +493,10 @@ mod glutin_window_layer {
                 state: None,
                 renderer: None,
                 on_event,
+                modifiers: ModifiersState::default(),
+                is_focused: false,
+                context: None,
+                title,
             }
         }
     }
@@ -440,7 +510,7 @@ mod glutin_window_layer {
             let Some(_gl_display) = self.gl_context.take().map(|context| context.display()) else {
                 return;
             };
-    
+
             // Clear the window.
             self.state = None;
             #[cfg(egl_backend)]
@@ -453,7 +523,23 @@ mod glutin_window_layer {
         }
     }
 
-    impl ApplicationHandler for App {
+    fn pass_down(app: &mut App, active_event_loop: &ActiveEventLoop, event: Event) {
+         (app.event_handler)(
+            event,
+            Handle {
+                running: &mut app.running,
+                active_event_loop,
+                last_tick_duration: &mut app.last_tick_duration,
+                interval: &mut app.interval,
+                last_rate: &mut app.last_rate,
+                rate_reporter: &mut app.rate_reporter,
+                context: app.context.as_mut(),
+                is_focused: &app.is_focused,
+            }
+        )
+    }
+
+    impl ApplicationHandler<CustomEvent> for App {
         fn resumed(&mut self, event_loop: &ActiveEventLoop) {
             let (window, gl_config) = match &self.gl_display {
                 // We just created the event loop, so initialize the display, pick the config, and
@@ -471,24 +557,24 @@ mod glutin_window_layer {
                             return;
                         },
                     };
-    
+
                     println!("Picked a config with {} samples", gl_config.num_samples());
-    
+
                     // Mark the display as initialized to not recreate it on resume, since the
                     // display is valid until we explicitly destroy it.
                     self.gl_display = GlDisplayCreationState::Init;
-    
+
                     // Create gl context.
                     self.gl_context =
                         Some(create_gl_context(&window, &gl_config).treat_as_possibly_current());
-    
+
                     (window, gl_config)
                 },
                 GlDisplayCreationState::Init => {
                     println!("Recreating window in `resumed`");
                     // Pick the config which we already use for the context.
                     let gl_config = self.gl_context.as_ref().unwrap().config();
-                    match glutin_winit::finalize_window(event_loop, window_attributes(), &gl_config) {
+                    match finalize_window(event_loop, window_attributes(self.title.as_deref()), &gl_config) {
                         Ok(window) => (window, gl_config),
                         Err(err) => {
                             self.exit_state = Err(err.into());
@@ -498,52 +584,68 @@ mod glutin_window_layer {
                     }
                 },
             };
-    
+
             let attrs = window
                 .build_surface_attributes(Default::default())
                 .expect("Failed to build surface attributes");
             let gl_surface =
                 unsafe { gl_config.display().create_window_surface(&gl_config, &attrs).unwrap() };
-    
+
             // The context needs to be current for the Renderer to set up shaders and
             // buffers. It also performs function loading, which needs a current context on
             // WGL.
             let gl_context = self.gl_context.as_ref().unwrap();
             gl_context.make_current(&gl_surface).unwrap();
-    
+
             self.renderer.get_or_insert_with(|| Renderer::new(&gl_config.display()));
-    
+
             // Try setting vsync.
             if let Err(res) = gl_surface
                 .set_swap_interval(gl_context, SwapInterval::Wait(NonZeroU32::new(1).unwrap()))
             {
                 eprintln!("Error setting vsync: {res:?}");
             }
-    
+
             assert!(self.state.replace(AppState { gl_surface, window }).is_none());
         }
-    
+
         fn suspended(&mut self, _event_loop: &ActiveEventLoop) {
+            use glutin_wrapper::context::{NotCurrentGlContext, PossiblyCurrentGlContext};
             // This event is only raised on Android, where the backing NativeWindow for a GL
             // Surface can appear and disappear at any moment.
             println!("Android window removed");
-    
+
             // Destroy the GL Surface and un-current the GL Context before ndk-glue releases
             // the window back to the system.
             self.state = None;
-    
+
             // Make context not current.
             self.gl_context = Some(
                 self.gl_context.take().unwrap().make_not_current().unwrap().treat_as_possibly_current(),
             );
         }
-    
+
+        fn new_events(&mut self, event_loop: &ActiveEventLoop, cause: StartCause) {
+            if let StartCause::Init = cause {
+                pass_down(self, event_loop, Event::Init)
+            }
+        }
+        fn user_event(&mut self, event_loop: &ActiveEventLoop, event: CustomEvent) {
+            pass_down(self, event_loop, Event::UserEvent(event))
+        }
+
         fn window_event(
             &mut self,
             event_loop: &ActiveEventLoop,
-            _window_id: winit::window::WindowId,
+            _window_id: WindowId,
             event: WindowEvent,
         ) {
+            macro_rules! pass_down {
+                ($event: expr) => {
+                    pass_down(self, event_loop, $event)
+                }
+            }
+
             match event {
                 WindowEvent::Resized(size) if size.width != 0 && size.height != 0 => {
                     // Some platforms like EGL require resizing GL surface to update the size
@@ -557,26 +659,169 @@ mod glutin_window_layer {
                             NonZeroU32::new(size.width).unwrap(),
                             NonZeroU32::new(size.height).unwrap(),
                         );
-    
+
                         let renderer = self.renderer.as_ref().unwrap();
                         renderer.resize(size.width as i32, size.height as i32);
                     }
+
+                    if let Some(ctx) = self.context.as_mut() {
+                        gl_layer::set_dimensions(
+                            &mut ctx.gl_state,
+                            (
+                                U24::from_u32_saturating(size.width),
+                                U24::from_u32_saturating(size.height)
+                            ),
+                        );
+
+                        pass_down!(
+                            Event::Resized(physical_size_to_dimensions(size))
+                        );
+                    }
                 },
-                WindowEvent::CloseRequested
-                | WindowEvent::KeyboardInput {
-                    event: KeyEvent { logical_key: Key::Named(NamedKey::Escape), .. },
+                WindowEvent::RedrawRequested => pass_down!(
+                    Event::RedrawRequested
+                ),
+                WindowEvent::ScaleFactorChanged {
+                    scale_factor,
                     ..
-                } => event_loop.exit(),
-                _ => (),
+                } => {
+                    // We don't need this to be totally accurate, just close
+                    // enough that the  UI is comfortably usable. And this
+                    // value is unlikely to fall into the range that would
+                    // be truncated, anyway.
+                    #[allow(clippy::cast_possible_truncation)]
+                    let scale_factor = scale_factor as _;
+
+                    if let Some(ctx) = self.context.as_mut() {
+                        gl_layer::set_hidpi_factor(
+                            &mut ctx.gl_state,
+                            scale_factor,
+                        );
+
+                        pass_down!(
+                            Event::ScaleFactorChanged(scale_factor)
+                        );
+                    }
+                }
+                WindowEvent::Focused(window_is_focused) => {
+                    self.is_focused = window_is_focused;
+
+                    if self.is_focused
+                    && let Some(ctx) = self.context.as_mut() {
+                        use window_layer_types::AttentionMode;
+                        // X11 requires us to explicitly unset the window
+                        // urgency. Other platforms fade it out automatically.
+                        request_attention_mode_window(
+                            &mut ctx.window,
+                            AttentionMode::Neutral
+                        );
+                    }
+
+                    pass_down!(
+                        Event::Focused(self.is_focused)
+                    );
+                },
+                WindowEvent::ModifiersChanged(new_modifiers) => {
+                    self.modifiers = ModifiersState::from_bits_retain(
+                        new_modifiers.state().bits()
+                    );
+                }
+                WindowEvent::KeyboardInput {
+                    event:
+                        KeyEvent {
+                            state,
+                            physical_key: keyboard::PhysicalKey::Code(input_keycode),
+                            text,
+                            ..
+                        },
+                    ..
+                } => {
+                    if let Some(keycode) = calculate_keycode(input_keycode) {
+                        pass_down!(
+                            Event::KeyboardInput(KeyboardInput{
+                                state: match state {
+                                    ElementState::Pressed => ButtonState::Pressed,
+                                    ElementState::Released => ButtonState::Released,
+                                },
+                                keycode,
+                                modifiers: self.modifiers,
+                            })
+                        )
+                    }
+
+                    if let Some(c) =
+                        text.and_then(|s| if s.len() == 1 { s.as_str().chars().next() } else { None })
+                    {
+                        pass_down!(Event::ReceivedCharacter(c))
+                    }
+                },
+                WindowEvent::MouseInput {
+                    button: mouse_button,
+                    state,
+                    ..
+                } => {
+                    match mouse_button {
+                        event::MouseButton::Left => {
+                            pass_down!(
+                                Event::MouseInput(MouseInput{
+                                    button: MouseButton::Left,
+                                    state: match state {
+                                        ElementState::Pressed => ButtonState::Pressed,
+                                        ElementState::Released => ButtonState::Released,
+                                    },
+                                    modifiers: self.modifiers
+                                })
+                            )
+                        },
+                        event::MouseButton::Right
+                        | event::MouseButton::Middle
+                        /*| event::MouseButton::Other(_) */ => {},
+                    };
+                },
+                WindowEvent::MouseWheel {
+                    delta: event::MouseScrollDelta::LineDelta(_, delta),
+                    ..
+                } => {
+                    pass_down!(
+                        Event::MouseWheel(MouseWheel{ delta, modifiers: self.modifiers })
+                    )
+                },
+                WindowEvent::CursorMoved {
+                    position,
+                    ..
+                } => {
+                    // We don't need this to be totally accurate,
+                    // just close enough that the  UI is comfortably
+                    // usable. And this value is unlikely to fall
+                    // into the range that would be truncated,
+                    // anyway.
+                    #[allow(clippy::cast_possible_truncation)]
+                    let x = position.x as f32;
+                    #[allow(clippy::cast_possible_truncation)]
+                    let y = position.y as f32;
+                    pass_down!(
+                        Event::CursorMoved(CursorMoved{
+                            position: ssxy!{x, y},
+                            modifiers
+                        })
+                    );
+                },
+                WindowEvent::CloseRequested => {
+                    pass_down!(
+                        Event::CloseRequested
+                    );
+                    event_loop.exit();
+                },
+                _ => {},
             }
         }
-    
+
         fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
             // NOTE: The handling below is only needed due to nvidia on Wayland to not crash
             // on exit due to nvidia driver touching the Wayland display from on
             // `exit` hook.
             let _gl_display = self.gl_context.take().unwrap().display();
-    
+
             // Clear the window.
             self.state = None;
             #[cfg(egl_backend)]
@@ -587,14 +832,16 @@ mod glutin_window_layer {
                 }
             }
         }
-    
+
+        // TODO call the render function in response to RedrawRequested window events instead
+        // Winit reccomends that event over this method
         fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
             if let Some(AppState { gl_surface, window }) = self.state.as_ref() {
                 let gl_context = self.gl_context.as_ref().unwrap();
                 let renderer = self.renderer.as_ref().unwrap();
                 renderer.draw();
                 window.request_redraw();
-    
+
                 gl_surface.swap_buffers(gl_context).unwrap();
             }
         }
@@ -629,288 +876,6 @@ mod glutin_window_layer {
 
         let mut modifiers = ModifiersState::default();
 
-        // TODO actually, this can just be a match in `window_event` in the App trait impl
-        let on_event = move |event, active_event_loop| {
-            macro_rules! handle {
-                () => {{
-                    Handle {
-                        running: &mut running,
-                        active_event_loop,
-                        last_tick_duration: &mut last_tick_duration,
-                        interval: &mut interval,
-                        last_rate: &mut last_rate,
-                        rate_reporter: &mut rate_reporter,
-                        context: context.as_mut(),
-                        is_focused: &is_focused,
-                    }
-                }};
-            }
-
-            macro_rules! pass_down {
-                ($event: expr $(,)?) => {
-                    event_handler(
-                        $event,
-                        handle!()
-                    )
-                };
-            }
-
-            match event {
-                GWEvent::Resumed => {
-                    if let Some(ctx) = context.as_mut() {
-                        let mut window_attrs = WindowAttributes::default()
-                            .with_inner_size(
-                                dpi::Size::Logical(dpi::LogicalSize::new(683.0, 393.0))
-                            );
-                        if let Some(title) = title {
-                            window_attrs = window_attrs.with_title(title);
-                        }
-
-                        ctx.window = 
-                            active_event_loop
-                            .create_window(window_attrs)
-                            .expect("Could not create window")
-                            ;
-                    }
-
-                    if context.is_none() {
-                        //let context_builder = ContextBuilder::new()
-                            //.with_gl_profile(GlProfile::Core)
-                            ////As of now we only need 3.3 for GL_TIME_ELAPSED. Otherwise we could use 3.2.
-                            //.with_gl(GlRequest::Specific(Api::OpenGl, (3, 3)))
-                            //.with_srgb(true)
-                            //.with_depth_buffer(24)
-                            //.build_windowed(
-                                //window_builder,
-                                //&events,
-                            //)?;
-                        //context =
-                            //// SAFETY: A quote from the glutin docs on `make_current`
-                            //// > In OpenGl, only a single context can be current in a thread at a time.
-                            //// > Making a new context current will make the old one not current.
-                            //// > Contexts can only be sent to different threads if they are not current.
-                            //// So, as I understand it, this is only unsafe because of issues regarding
-                            //// sending contexts to other threads. Therefore, I think we can reasonably
-                            //// use this here in `init` without making `init` into an `unsafe fn`, if
-                            //// we make the struct holding the context `!Send`, meaning it cannot be sent
-                            //// to other threads at all.
-                            //Some(unsafe { context_builder.make_current() }
-                                //.map_err(|(_, e)| e)?);
-                //
-                        //let load_fn = &|symbol: *const u8| {
-                            //let symbol = symbol.cast();
-                            //// SAFETY: The underlying library has promised to pass us a nul
-                            //// terminated pointer.
-                            //let cstr = unsafe { std::ffi::CStr::from_ptr(symbol) };
-                //
-                            //if let Ok(s) = cstr.to_str() {
-                                //// The glutin docs say the following:
-                                //// "Returns the address of an OpenGL function."
-                                //// Given there are no qualifiers there, it seems like we can
-                                //// assume that if we have a context then this call should work.
-                                //context.get_proc_address(s).cast()
-                            //} else {
-                                //// This case is not expected to happen, but the underlying
-                                //// library is specifically documented to not expect this to
-                                //// panic, and instead expects a null pointer on errors, so
-                                //// we'll return that if this case ever happens.
-                                //std::ptr::null()
-                            //}
-                        //};
-
-                        // SAFETY:
-                        // In the below closure, we avoid panicking to uphold the documented safety
-                        // invariant:
-                        // "The passed `load_fn` must always return accurate function pointer
-                        // values, or null on failure."
-                        //let gl_state = unsafe { gl_layer::init(
-                            //hidpi_factor,
-                            //clear,
-                            //load_fn,
-                        //) }?;
-                //
-                        //let state = State {
-                            //gl_state,
-                            //events,
-                            //title: title.map(|s| s.to_owned()),
-                            //unsend: PhantomData,
-                        //};
-
-                        todo!()
-                    }
-                },
-                GWEvent::NewEvents(StartCause::Init) => pass_down!(
-                    Event::Init
-                ),
-                GWEvent::UserEvent(e) => pass_down!(
-                    Event::UserEvent(e)
-                ),
-                GWEvent::WindowEvent { event, .. } => {
-                    match event {
-                        WindowEvent::CloseRequested => pass_down!(
-                            Event::CloseRequested
-                        ),
-                        WindowEvent::RedrawRequested => pass_down!(
-                            Event::RedrawRequested
-                        ),
-                        WindowEvent::ScaleFactorChanged {
-                            scale_factor,
-                            ..
-                        } => {
-                            // We don't need this to be totally accurate, just close
-                            // enough that the  UI is comfortably usable. And this
-                            // value is unlikely to fall into the range that would
-                            // be truncated, anyway.
-                            #[allow(clippy::cast_possible_truncation)]
-                            let scale_factor = scale_factor as _;
-
-                            if let Some(ctx) = context.as_mut() {
-                                gl_layer::set_hidpi_factor(
-                                    &mut ctx.gl_state,
-                                    scale_factor,
-                                );
-    
-                                pass_down!(
-                                    Event::ScaleFactorChanged(scale_factor)
-                                );
-                            }
-                        }
-                        WindowEvent::Focused(window_is_focused) => {
-                            is_focused = window_is_focused;
-
-                            if is_focused
-                            && let Some(ctx) = context.as_mut() {
-                                use window_layer_types::AttentionMode;
-                                // X11 requires us to explicitly unset the window
-                                // urgency. Other platforms fade it out automatically.
-                                request_attention_mode_window(
-                                    &mut ctx.window,
-                                    AttentionMode::Neutral
-                                );
-                            }
-
-                            pass_down!(
-                                Event::Focused(is_focused)
-                            );
-                        },
-                        WindowEvent::Resized(size) => {
-                            if let Some(ctx) = context.as_mut() {
-                    let gl_context = self.gl_context.as_ref().unwrap();
-                    gl_surface.resize(
-                        gl_context,
-                        NonZeroU32::new(size.width).unwrap(),
-                        NonZeroU32::new(size.height).unwrap(),
-                    );
-
-                    let renderer = self.renderer.as_ref().unwrap();
-                    renderer.resize(size.width as i32, size.height as i32);
-
-                                ctx.surface.resize(size);
-                                gl_layer::set_dimensions(
-                                    &mut ctx.gl_state,
-                                    (
-                                        U24::from_u32_saturating(size.width),
-                                        U24::from_u32_saturating(size.height)
-                                    ),
-                                );
-    
-                                pass_down!(
-                                    Event::Resized(physical_size_to_dimensions(size))
-                                );
-                            }
-                        }
-                        WindowEvent::ModifiersChanged(new_modifiers) => {
-                            modifiers = ModifiersState::from_bits_retain(
-                                new_modifiers.state().bits()
-                            );
-                        }
-                        WindowEvent::KeyboardInput {
-                            event:
-                                KeyEvent {
-                                    state,
-                                    physical_key: keyboard::PhysicalKey::Code(input_keycode),
-                                    text,
-                                    ..
-                                },
-                            ..
-                        } => {
-                            if let Some(keycode) = calculate_keycode(input_keycode) {
-                                pass_down!(
-                                    Event::KeyboardInput(KeyboardInput{
-                                        state: match state {
-                                            ElementState::Pressed => ButtonState::Pressed,
-                                            ElementState::Released => ButtonState::Released,
-                                        },
-                                        keycode,
-                                        modifiers
-                                    })
-                                )
-                            }
-
-                            if let Some(c) = 
-                                text.and_then(|s| if s.len() == 1 { s.as_str().chars().next() } else { None })
-                            {
-                                pass_down!(Event::ReceivedCharacter(c))
-                            }
-                        },
-                        WindowEvent::MouseInput {
-                            button: mouse_button,
-                            state,
-                            ..
-                        } => {
-                            match mouse_button {
-                                event::MouseButton::Left => {
-                                    pass_down!(
-                                        Event::MouseInput(MouseInput{
-                                            button: MouseButton::Left,
-                                            state: match state {
-                                                ElementState::Pressed => ButtonState::Pressed,
-                                                ElementState::Released => ButtonState::Released,
-                                            },
-                                            modifiers
-                                        })
-                                    )
-                                },
-                                event::MouseButton::Right
-                                | event::MouseButton::Middle
-                                /*| event::MouseButton::Other(_) */ => {},
-                            };
-                        },
-                        WindowEvent::MouseWheel {
-                            delta: event::MouseScrollDelta::LineDelta(_, delta),
-                            ..
-                        } => {
-                            pass_down!(
-                                Event::MouseWheel(MouseWheel{ delta, modifiers })
-                            )
-                        },
-                        WindowEvent::CursorMoved {
-                            position,
-                            ..
-                        } => {
-                            // We don't need this to be totally accurate,
-                            // just close enough that the  UI is comfortably
-                            // usable. And this value is unlikely to fall
-                            // into the range that would be truncated,
-                            // anyway.
-                            #[allow(clippy::cast_possible_truncation)]
-                            let x = position.x as f32;
-                            #[allow(clippy::cast_possible_truncation)]
-                            let y = position.y as f32;
-                            pass_down!(
-                                Event::CursorMoved(CursorMoved{
-                                    position: ssxy!{x, y},
-                                    modifiers
-                                })
-                            );
-                        },
-                        _ => {}
-                    }
-                },
-                _ => {}
-            }
-        };
-
         // The template will match only the configurations supporting rendering
         // to windows.
         //
@@ -921,11 +886,11 @@ mod glutin_window_layer {
         // with transparency ourselves inside the `reduce`.
         let template =
             ConfigTemplateBuilder::new().with_alpha_size(8).with_transparency(cfg!(cgl_backend));
-    
+
         let display_builder = DisplayBuilder::new().with_window_attributes(Some(window_attributes(title.as_deref())));
 
-        let exit_state = Rc::new(RefCell::new(Ok(())));
-        let mut app = App::new(template, display_builder, exit_state.clone(), on_event);
+        let exit_state = Ok(());
+        let mut app = App::new(template, display_builder, exit_state, on_event, title);
 
         events.run_app(&mut app).expect("events.run returned an error!");
 
@@ -1085,7 +1050,7 @@ mod glutin_window_layer {
         vbo: gl::types::GLuint,
         gl: gl::Gl,
     }
-    
+
     impl Renderer {
         pub fn new<D: GlDisplay>(gl_display: &D) -> Self {
             unsafe {
@@ -1093,37 +1058,37 @@ mod glutin_window_layer {
                     let c_str = std::ffi::CStr::from_ptr(symbol as *const i8);
                     gl_display.get_proc_address(c_str).cast()
                 }).unwrap();
-    
+
                 if let Some(renderer) = get_gl_string(&gl, gl::RENDERER) {
                     println!("Running on {}", renderer.to_string_lossy());
                 }
                 if let Some(version) = get_gl_string(&gl, gl::VERSION) {
                     println!("OpenGL Version {}", version.to_string_lossy());
                 }
-    
+
                 if let Some(shaders_version) = get_gl_string(&gl, gl::SHADING_LANGUAGE_VERSION) {
                     println!("Shaders version on {}", shaders_version.to_string_lossy());
                 }
-    
+
                 let vertex_shader = create_shader(&gl, gl::VERTEX_SHADER, VERTEX_SHADER_SOURCE);
                 let fragment_shader = create_shader(&gl, gl::FRAGMENT_SHADER, FRAGMENT_SHADER_SOURCE);
-    
+
                 let program = gl.CreateProgram();
-    
+
                 gl.AttachShader(program, vertex_shader);
                 gl.AttachShader(program, fragment_shader);
-    
+
                 gl.LinkProgram(program);
-    
+
                 gl.UseProgram(program);
-    
+
                 gl.DeleteShader(vertex_shader);
                 gl.DeleteShader(fragment_shader);
-    
+
                 let mut vao = std::mem::zeroed();
                 gl.GenVertexArrays(1, &mut vao);
                 gl.BindVertexArray(vao);
-    
+
                 let mut vbo = std::mem::zeroed();
                 gl.GenBuffers(1, &mut vbo);
                 gl.BindBuffer(gl::ARRAY_BUFFER, vbo);
@@ -1133,7 +1098,7 @@ mod glutin_window_layer {
                     VERTEX_DATA.as_ptr() as *const _,
                     gl::STATIC_DRAW,
                 );
-    
+
                 let pos_attrib = gl.GetAttribLocation(program, c"position".as_ptr() as *const _);
                 let color_attrib = gl.GetAttribLocation(program, c"color".as_ptr() as *const _);
                 gl.VertexAttribPointer(
@@ -1154,15 +1119,15 @@ mod glutin_window_layer {
                 );
                 gl.EnableVertexAttribArray(pos_attrib as gl::types::GLuint);
                 gl.EnableVertexAttribArray(color_attrib as gl::types::GLuint);
-    
+
                 Self { program, vao, vbo, gl }
             }
         }
-    
+
         pub fn draw(&self) {
             self.draw_with_clear_color(0.1, 0.1, 0.1, 0.9)
         }
-    
+
         pub fn draw_with_clear_color(
             &self,
             red: GLfloat,
@@ -1172,31 +1137,31 @@ mod glutin_window_layer {
         ) {
             unsafe {
                 self.gl.UseProgram(self.program);
-    
+
                 self.gl.BindVertexArray(self.vao);
                 self.gl.BindBuffer(gl::ARRAY_BUFFER, self.vbo);
-    
+
                 self.gl.ClearColor(red, green, blue, alpha);
                 self.gl.Clear(gl::COLOR_BUFFER_BIT);
                 self.gl.DrawArrays(gl::TRIANGLES, 0, 3);
             }
         }
-    
+
         pub fn resize(&self, width: i32, height: i32) {
             unsafe {
                 self.gl.Viewport(0, 0, width, height);
             }
         }
     }
-    
+
     impl Deref for Renderer {
         type Target = gl::Gl;
-    
+
         fn deref(&self) -> &Self::Target {
             &self.gl
         }
     }
-    
+
     impl Drop for Renderer {
         fn drop(&mut self) {
             unsafe {
@@ -1206,7 +1171,7 @@ mod glutin_window_layer {
             }
         }
     }
-    
+
     unsafe fn create_shader(
         gl: &gl::Gl,
         shader: gl::types::GLenum,
@@ -1219,42 +1184,42 @@ mod glutin_window_layer {
             shader
         }
     }
-    
+
     fn get_gl_string(gl: &gl::Gl, variant: gl::types::GLenum) -> Option<&'static CStr> {
         unsafe {
             let s = gl.GetString(variant);
             (!s.is_null()).then(|| CStr::from_ptr(s.cast()))
         }
     }
-    
+
     #[rustfmt::skip]
     static VERTEX_DATA: [f32; 15] = [
         -0.5, -0.5,  1.0,  0.0,  0.0,
          0.0,  0.5,  0.0,  1.0,  0.0,
          0.5, -0.5,  0.0,  0.0,  1.0,
     ];
-    
+
     const VERTEX_SHADER_SOURCE: &[u8] = b"
     #version 100
     precision mediump float;
-    
+
     attribute vec2 position;
     attribute vec3 color;
-    
+
     varying vec3 v_color;
-    
+
     void main() {
         gl_Position = vec4(position, 0.0, 1.0);
         v_color = color;
     }
     \0";
-    
+
     const FRAGMENT_SHADER_SOURCE: &[u8] = b"
     #version 100
     precision mediump float;
-    
+
     varying vec3 v_color;
-    
+
     void main() {
         gl_FragColor = vec4(v_color, 1.0);
     }
