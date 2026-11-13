@@ -91,7 +91,7 @@ mod glutin_window_layer {
                 EventLoop,
                 EventLoopBuilder,
             },
-            keyboard::{self, Key, keyboard::KeyCode as InputKeyCode, NamedKey},
+            keyboard::{self, Key, KeyCode as InputKeyCode, NamedKey},
             raw_window_handle::HasWindowHandle,
             window::{
                 self,
@@ -243,12 +243,6 @@ mod glutin_window_layer {
         is_focused: &'handle bool,
     }
 
-    impl Handle<'_> {
-        fn window(&self) -> &Window {
-            todo!("Implement Window init")
-        }
-    }
-
     /// # Errors
     /// Returns `Err` if the underlying windowing and/or graphics library calls do.
     pub fn render(
@@ -294,7 +288,9 @@ mod glutin_window_layer {
     }
 
     pub fn set_title(handle: &mut Handle, title: &str) {
-        handle.window().set_title(title);
+        if let Some(ctx) = handle.context.as_mut() {
+            ctx.window.set_title(title);
+        }
     }
 
     pub fn quit(handle: &mut Handle) {
@@ -313,7 +309,9 @@ mod glutin_window_layer {
     /// code in the response to that event type, so that the platform can insert extra ones
     /// in certain cases.
     pub fn request_redraw(handle: &Handle) {
-        handle.window().request_redraw();
+        if let Some(ctx) = handle.context.as_ref() {
+            ctx.window.request_redraw();
+        }
     }
 
     /// We return the char dims here because changing the scale factor
@@ -338,15 +336,19 @@ mod glutin_window_layer {
     }
 
     pub fn request_attention_mode(handle: &Handle, attention: AttentionMode) {
-        request_attention_mode_window(handle.window(), attention);
+        if let Some(ctx) = handle.context.as_ref() {
+            request_attention_mode_window(&ctx.window, attention);
+        }
     }
 
     pub fn set_cursor_icon(handle: &mut Handle, cursor_icon: CursorIcon) {
-        handle.window().set_cursor_icon(match cursor_icon {
-            CursorIcon::Default => window::CursorIcon::Default,
-            CursorIcon::Text => window::CursorIcon::Text,
-            _ => return,
-        });
+        if let Some(ctx) = handle.context.as_mut() {
+            ctx.window.set_cursor_icon(match cursor_icon {
+                CursorIcon::Default => window::CursorIcon::Default,
+                CursorIcon::Text => window::CursorIcon::Text,
+                _ => return,
+            });
+        }
     }
 
     pub fn loop_start(handle: &mut Handle) -> Duration {
@@ -397,8 +399,6 @@ mod glutin_window_layer {
         /// The display was already created for the application.
         Init,
     }
-
-    type EventHandler = ();
 
     fn create_gl_context(window: &Window, gl_config: &Config) -> NotCurrentContext {
         let raw_window_handle = window.window_handle().ok().map(|wh| wh.as_raw());
@@ -460,7 +460,9 @@ mod glutin_window_layer {
         window: Window,
     }
 
-    type ExitState = Result<(), Box<dyn Error>>
+    type ExitState = Rc<RefCell<Result<(), Box<dyn Error>>>>;
+
+    type EventHandler = Box<dyn 'static + FnMut(Event, Handle)>;
 
     struct App {
         template: ConfigTemplateBuilder,
@@ -470,11 +472,16 @@ mod glutin_window_layer {
         gl_context: Option<PossiblyCurrentContext>,
         gl_display: GlDisplayCreationState,
         exit_state: ExitState,
-        on_event: EventHandler,
         modifiers: ModifiersState,
         is_focused: bool,
+        running: bool,
         context: Option<Context>,
         title: Option<String>,
+        last_tick_duration: Duration,
+        interval: spin_sleep_util::Interval,
+        last_rate: RatePerSecond,
+        rate_reporter: spin_sleep_util::RateReporter,
+        event_handler: EventHandler,
     }
 
     impl App {
@@ -482,9 +489,19 @@ mod glutin_window_layer {
             template: ConfigTemplateBuilder,
             display_builder: DisplayBuilder,
             exit_state: ExitState,
-            on_event: EventHandler,
             title: Option<String>,
+            event_handler: EventHandler,
         ) -> Self {
+            let target_duration = Duration::from_secs_f64(1.0 / DEFAULT_TARGET_RATE);
+
+            let mut last_tick_duration = <_>::default();
+            let mut interval = spin_sleep_util::interval(target_duration);
+    
+            // Starting with the target avoids a blip at the beginning, in the expected case
+            // that we hit close to it.
+            let mut last_rate = DEFAULT_TARGET_RATE;
+            let mut rate_reporter = spin_sleep_util::RateReporter::new(Duration::from_secs(1));
+
             Self {
                 template,
                 gl_display: GlDisplayCreationState::Builder(Box::new(display_builder)),
@@ -492,11 +509,16 @@ mod glutin_window_layer {
                 gl_context: None,
                 state: None,
                 renderer: None,
-                on_event,
                 modifiers: ModifiersState::default(),
                 is_focused: false,
+                running: true,
                 context: None,
                 title,
+                last_tick_duration,
+                interval,
+                last_rate,
+                rate_reporter,
+                event_handler,
             }
         }
     }
@@ -552,7 +574,7 @@ mod glutin_window_layer {
                     ) {
                         Ok((window, gl_config)) => (window.unwrap(), gl_config),
                         Err(err) => {
-                            self.exit_state = Err(err);
+                            *self.exit_state.borrow_mut() = Err(err);
                             event_loop.exit();
                             return;
                         },
@@ -577,7 +599,7 @@ mod glutin_window_layer {
                     match finalize_window(event_loop, window_attributes(self.title.as_deref()), &gl_config) {
                         Ok(window) => (window, gl_config),
                         Err(err) => {
-                            self.exit_state = Err(err.into());
+                            *self.exit_state.borrow_mut() = Err(err.into());
                             event_loop.exit();
                             return;
                         },
@@ -775,7 +797,9 @@ mod glutin_window_layer {
                         },
                         event::MouseButton::Right
                         | event::MouseButton::Middle
-                        /*| event::MouseButton::Other(_) */ => {},
+                        | event::MouseButton::Back
+                        | event::MouseButton::Forward
+                        | event::MouseButton::Other(_) => {},
                     };
                 },
                 WindowEvent::MouseWheel {
@@ -802,7 +826,7 @@ mod glutin_window_layer {
                     pass_down!(
                         Event::CursorMoved(CursorMoved{
                             position: ssxy!{x, y},
-                            modifiers
+                            modifiers: self.modifiers,
                         })
                     );
                 },
@@ -854,28 +878,6 @@ mod glutin_window_layer {
     where
         F: 'static + FnMut(Event, Handle),
     {
-        // FIXME Seems like we'll need to wait to init the context until we get a Resumed
-        // event, and thus hold it in an Option or something, at least as evidenced by the
-        // glutin example code using winit
-
-        let target_duration = Duration::from_secs_f64(1.0 / DEFAULT_TARGET_RATE);
-
-        let mut last_tick_duration = <_>::default();
-        let mut interval = spin_sleep_util::interval(target_duration);
-
-        // Starting with the target avoids a blip at the beginning, in the expected case
-        // that we hit close to it.
-        let mut last_rate = DEFAULT_TARGET_RATE;
-        let mut rate_reporter = spin_sleep_util::RateReporter::new(Duration::from_secs(1));
-
-        let mut context: Option<Context> = None;
-
-        let mut is_focused = true;
-
-        let mut running = true;
-
-        let mut modifiers = ModifiersState::default();
-
         // The template will match only the configurations supporting rendering
         // to windows.
         //
@@ -889,8 +891,14 @@ mod glutin_window_layer {
 
         let display_builder = DisplayBuilder::new().with_window_attributes(Some(window_attributes(title.as_deref())));
 
-        let exit_state = Ok(());
-        let mut app = App::new(template, display_builder, exit_state, on_event, title);
+        let exit_state = Rc::new(RefCell::new(Ok(())));
+        let mut app = App::new(
+            template,
+            display_builder,
+            exit_state.clone(),
+            title,
+            Box::new(event_handler),
+        );
 
         events.run_app(&mut app).expect("events.run returned an error!");
 
