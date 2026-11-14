@@ -143,17 +143,11 @@ mod glutin_window_layer {
         InitOutput<State, EventProxy>,
         Box<dyn std::error::Error>
     > {
-        //use glutin_wrapper::{
-            //Api,
-            //GlProfile,
-            //GlRequest,
-            //ContextBuilder,
-        //};
-
         let events: EventLoop<CustomEvent> = EventLoop::<CustomEvent>::with_user_event().build()?;
 
         let state = State {
             events,
+            clear,
             title: title.map(|s| s.to_owned()),
             text_rendering_state: text_rendering::new(
                 hidpi_factor
@@ -179,6 +173,7 @@ mod glutin_window_layer {
     #[derive(Debug)]
     pub struct State {
         events: EventLoop<CustomEvent>,
+        clear: window_layer_types::RGBA,
         title: Option<String>,
         text_rendering_state: text_rendering::State<'static>,
     }
@@ -240,6 +235,10 @@ mod glutin_window_layer {
         last_rate: &'handle mut RatePerSecond,
         rate_reporter: &'handle mut spin_sleep_util::RateReporter,
         context: Option<&'handle mut Context>,
+        renderer: &'handle mut Option<Renderer>,
+        app_state: &'handle mut Option<AppState>,
+        gl_context: &'handle mut GlContext,
+        clear: window_layer_types::RGBA,
         is_focused: &'handle bool,
     }
 
@@ -249,26 +248,29 @@ mod glutin_window_layer {
         handle: &mut Handle,
         text_or_rects: &[TextOrRect],
     ) -> Result<(), Box<dyn std::error::Error>> {
-        // TODO restore
-        //if let Some(ctx) = handle.context {
-            //// TODO is this call expensive enough to be worth avoiding?
-            //let dimensions = ctx
-                //.window
-                //.inner_size();
-//
-            //gl_layer::render(
-                //&mut ctx.gl_state,
-                //text_or_rects,
-                //(
-                    //U24::from_u32_saturating(dimensions.width),
-                    //U24::from_u32_saturating(dimensions.height)
-                //)
-            //);
-//
-            //perf_viz::start_record!("swap_buffers");
-            //ctx.surface.swap_buffers()?;
-            //perf_viz::end_record!("swap_buffers");
-        //}
+        if let Some(ctx) = handle.context.as_mut() {
+            // TODO is this call expensive enough to be worth avoiding?
+            let dimensions = ctx
+                .window
+                .inner_size();
+
+            gl_layer::render(
+                &mut ctx.gl_state,
+                text_or_rects,
+                (
+                    U24::from_u32_saturating(dimensions.width),
+                    U24::from_u32_saturating(dimensions.height)
+                )
+            );
+        }
+
+        if let Some(AppState { gl_surface, window }) = handle.app_state.as_ref() {
+            let gl_context = handle.gl_context.as_ref().unwrap();
+            let renderer = handle.renderer.as_ref().unwrap();
+            renderer.draw_with_clear_color(handle.clear);
+
+            gl_surface.swap_buffers(gl_context).unwrap();
+        }
 
         Ok(())
     }
@@ -343,7 +345,7 @@ mod glutin_window_layer {
 
     pub fn set_cursor_icon(handle: &mut Handle, cursor_icon: CursorIcon) {
         if let Some(ctx) = handle.context.as_mut() {
-            ctx.window.set_cursor_icon(match cursor_icon {
+            ctx.window.set_cursor(match cursor_icon {
                 CursorIcon::Default => window::CursorIcon::Default,
                 CursorIcon::Text => window::CursorIcon::Text,
                 _ => return,
@@ -436,15 +438,10 @@ mod glutin_window_layer {
         }
     }
 
-    // Find the config with the maximum number of samples, so our triangle will be
-    // smooth.
-    pub fn gl_config_picker(configs: Box<dyn Iterator<Item = Config> + '_>) -> Config {
+    fn gl_config_picker(configs: Box<dyn Iterator<Item = Config> + '_>) -> Config {
         configs
             .reduce(|accum, config| {
-                let transparency_check = config.supports_transparency().unwrap_or(false)
-                    & !accum.supports_transparency().unwrap_or(false);
-
-                if transparency_check || config.num_samples() > accum.num_samples() {
+                if config.num_samples() > accum.num_samples() {
                     config
                 } else {
                     accum
@@ -453,6 +450,7 @@ mod glutin_window_layer {
             .unwrap()
     }
 
+    #[derive(Debug)]
     struct AppState {
         gl_surface: Surface<WindowSurface>,
         // NOTE: Window should be dropped after all resources created using its
@@ -464,18 +462,21 @@ mod glutin_window_layer {
 
     type EventHandler = Box<dyn 'static + FnMut(Event, Handle)>;
 
+    type GlContext = Option<PossiblyCurrentContext>;
+
     struct App {
         template: ConfigTemplateBuilder,
         renderer: Option<Renderer>,
         // NOTE: `AppState` carries the `Window`, thus it should be dropped after everything else.
         state: Option<AppState>,
-        gl_context: Option<PossiblyCurrentContext>,
+        gl_context: GlContext,
         gl_display: GlDisplayCreationState,
         exit_state: ExitState,
         modifiers: ModifiersState,
         is_focused: bool,
         running: bool,
         context: Option<Context>,
+        clear: window_layer_types::RGBA,
         title: Option<String>,
         last_tick_duration: Duration,
         interval: spin_sleep_util::Interval,
@@ -489,6 +490,7 @@ mod glutin_window_layer {
             template: ConfigTemplateBuilder,
             display_builder: DisplayBuilder,
             exit_state: ExitState,
+            clear: window_layer_types::RGBA,
             title: Option<String>,
             event_handler: EventHandler,
         ) -> Self {
@@ -512,7 +514,9 @@ mod glutin_window_layer {
                 modifiers: ModifiersState::default(),
                 is_focused: false,
                 running: true,
+                // TODO set this somewhere
                 context: None,
+                clear,
                 title,
                 last_tick_duration,
                 interval,
@@ -557,6 +561,10 @@ mod glutin_window_layer {
                 rate_reporter: &mut app.rate_reporter,
                 context: app.context.as_mut(),
                 is_focused: &app.is_focused,
+                renderer: &mut app.renderer,
+                app_state: &mut app.state,
+                gl_context: &mut app.gl_context,
+                clear: app.clear,
             }
         )
     }
@@ -856,38 +864,17 @@ mod glutin_window_layer {
                 }
             }
         }
-
-        // TODO call the render function in response to RedrawRequested window events instead
-        // Winit reccomends that event over this method
-        fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
-            if let Some(AppState { gl_surface, window }) = self.state.as_ref() {
-                let gl_context = self.gl_context.as_ref().unwrap();
-                let renderer = self.renderer.as_ref().unwrap();
-                renderer.draw();
-                window.request_redraw();
-
-                gl_surface.swap_buffers(gl_context).unwrap();
-            }
-        }
     }
 
     pub fn run<F>(
-        State { events, title, text_rendering_state, }: State,
+        State { events, title, text_rendering_state, clear }: State,
         mut event_handler: F
     ) -> !
     where
         F: 'static + FnMut(Event, Handle),
     {
-        // The template will match only the configurations supporting rendering
-        // to windows.
-        //
-        // XXX We force transparency only on macOS, given that EGL on X11 doesn't
-        // have it, but we still want to show window. The macOS situation is like
-        // that, because we can query only one config at a time on it, but all
-        // normal platforms will return multiple configs, so we can find the config
-        // with transparency ourselves inside the `reduce`.
         let template =
-            ConfigTemplateBuilder::new().with_alpha_size(8).with_transparency(cfg!(cgl_backend));
+            ConfigTemplateBuilder::new().with_alpha_size(8);
 
         let display_builder = DisplayBuilder::new().with_window_attributes(Some(window_attributes(title.as_deref())));
 
@@ -896,6 +883,7 @@ mod glutin_window_layer {
             template,
             display_builder,
             exit_state.clone(),
+            clear,
             title,
             Box::new(event_handler),
         );
@@ -903,7 +891,8 @@ mod glutin_window_layer {
         events.run_app(&mut app).expect("events.run returned an error!");
 
         exit_state.replace(Ok(())).expect("exit_state was an error!");
-        panic!(); // need to "return" a ! for now
+        
+        std::process::exit(0)
     }
 
     fn calculate_keycode(input_keycode: InputKeyCode) -> Option<KeyCode> {
@@ -1059,6 +1048,13 @@ mod glutin_window_layer {
         gl: gl::Gl,
     }
 
+    impl core::fmt::Debug for Renderer {
+        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            f.debug_struct("Renderer")
+             .finish()
+        }
+    }
+
     impl Renderer {
         pub fn new<D: GlDisplay>(gl_display: &D) -> Self {
             unsafe {
@@ -1132,16 +1128,9 @@ mod glutin_window_layer {
             }
         }
 
-        pub fn draw(&self) {
-            self.draw_with_clear_color(0.1, 0.1, 0.1, 0.9)
-        }
-
         pub fn draw_with_clear_color(
             &self,
-            red: GLfloat,
-            green: GLfloat,
-            blue: GLfloat,
-            alpha: GLfloat,
+            [red, green, blue, alpha]: window_layer_types::RGBA
         ) {
             unsafe {
                 self.gl.UseProgram(self.program);
