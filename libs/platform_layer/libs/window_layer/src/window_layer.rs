@@ -135,7 +135,7 @@ mod glutin_window_layer {
     /// # Errors
     /// Returns `Err` if the underlying windowing and/or graphics library calls do.
     pub fn init(
-        hidpi_factor: ScaleFactor,
+        initial_scale_factor: ScaleFactor,
         clear: window_layer_types::RGBA,
         title: Option<&str>,
         text_sizes: &[f32],
@@ -147,10 +147,11 @@ mod glutin_window_layer {
 
         let state = State {
             events,
+            initial_scale_factor,
             clear,
             title: title.map(|s| s.to_owned()),
             text_rendering_state: text_rendering::new(
-                hidpi_factor
+                initial_scale_factor
             )?,
         };
 
@@ -173,6 +174,7 @@ mod glutin_window_layer {
     #[derive(Debug)]
     pub struct State {
         events: EventLoop<CustomEvent>,
+        initial_scale_factor: ScaleFactor,
         clear: window_layer_types::RGBA,
         title: Option<String>,
         text_rendering_state: text_rendering::State<'static>,
@@ -201,30 +203,6 @@ mod glutin_window_layer {
         assert_eq!(f32::from(dimensions.height), height as f32);
     }
 
-    type GWSurface = dyn glutin_wrapper::surface::GlSurface<glutin_wrapper::surface::WindowSurface, SurfaceType = (), Context = ()>;
-
-    struct Context {
-        window: Window,
-        gl_state: GLState,
-        // FIXME This Box is probably not needed?
-        surface: Box<GWSurface>,
-        // See note inside `init` for why we make this struct `!Send` by including this
-        // field.
-        // FIXME is this needed?
-        unsend: PhantomUnsend,
-    }
-
-    impl core::fmt::Debug for Context {
-        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-            f.debug_struct("Context")
-             .field("window", &self.window)
-             .field("gl_state", &self.gl_state)
-             .field("surface", &"GWSurface")
-             .field("unsend", &self.unsend)
-             .finish()
-        }
-    }
-
     /// A handle to various APIs that are useful to have inside the event handler.
     #[derive(Debug)]
     pub struct Handle<'handle> {
@@ -234,7 +212,6 @@ mod glutin_window_layer {
         interval: &'handle mut spin_sleep_util::Interval,
         last_rate: &'handle mut RatePerSecond,
         rate_reporter: &'handle mut spin_sleep_util::RateReporter,
-        context: Option<&'handle mut Context>,
         renderer: &'handle mut Option<Renderer>,
         app_state: &'handle mut Option<AppState>,
         gl_context: &'handle mut GlContext,
@@ -248,23 +225,19 @@ mod glutin_window_layer {
         handle: &mut Handle,
         text_or_rects: &[TextOrRect],
     ) -> Result<(), Box<dyn std::error::Error>> {
-        if let Some(ctx) = handle.context.as_mut() {
+        if let Some(AppState { gl_surface, window, gl_state }) = handle.app_state.as_mut() {
             // TODO is this call expensive enough to be worth avoiding?
-            let dimensions = ctx
-                .window
-                .inner_size();
+            let dimensions = window.inner_size();
 
             gl_layer::render(
-                &mut ctx.gl_state,
+                gl_state,
                 text_or_rects,
                 (
                     U24::from_u32_saturating(dimensions.width),
                     U24::from_u32_saturating(dimensions.height)
                 )
             );
-        }
 
-        if let Some(AppState { gl_surface, window }) = handle.app_state.as_ref() {
             let gl_context = handle.gl_context.as_ref().unwrap();
             let renderer = handle.renderer.as_ref().unwrap();
             renderer.draw_with_clear_color(handle.clear);
@@ -290,8 +263,8 @@ mod glutin_window_layer {
     }
 
     pub fn set_title(handle: &mut Handle, title: &str) {
-        if let Some(ctx) = handle.context.as_mut() {
-            ctx.window.set_title(title);
+        if let Some(AppState { window, .. }) = handle.app_state.as_mut() {
+            window.set_title(title);
         }
     }
 
@@ -299,8 +272,8 @@ mod glutin_window_layer {
         if *handle.running {
             *handle.running = false;
 
-            if let Some(ctx) = handle.context.as_mut() {
-                gl_layer::cleanup(&ctx.gl_state);
+            if let Some(AppState { gl_state, .. }) = handle.app_state.as_ref() {
+                gl_layer::cleanup(gl_state);
             }
         }
 
@@ -311,8 +284,8 @@ mod glutin_window_layer {
     /// code in the response to that event type, so that the platform can insert extra ones
     /// in certain cases.
     pub fn request_redraw(handle: &Handle) {
-        if let Some(ctx) = handle.context.as_ref() {
-            ctx.window.request_redraw();
+        if let Some(AppState { window, .. }) = handle.app_state.as_ref() {
+            window.request_redraw();
         }
     }
 
@@ -325,27 +298,27 @@ mod glutin_window_layer {
         scale_factor: ScaleFactor,
         text_sizes: &[f32],
     ) -> Vec<CharDim> {
-        if let Some(ctx) = handle.context.as_mut() {
+        if let Some(AppState { gl_state, .. }) = handle.app_state.as_mut() {
             gl_layer::set_hidpi_factor(
-                &mut ctx.gl_state,
+                gl_state,
                 scale_factor,
             );
 
-            gl_layer::get_char_dims(&ctx.gl_state, text_sizes)
+            gl_layer::get_char_dims(&gl_state, text_sizes)
         } else {
             vec![]
         }
     }
 
     pub fn request_attention_mode(handle: &Handle, attention: AttentionMode) {
-        if let Some(ctx) = handle.context.as_ref() {
-            request_attention_mode_window(&ctx.window, attention);
+        if let Some(AppState { window, .. }) = handle.app_state.as_ref() {
+            request_attention_mode_window(window, attention);
         }
     }
 
     pub fn set_cursor_icon(handle: &mut Handle, cursor_icon: CursorIcon) {
-        if let Some(ctx) = handle.context.as_mut() {
-            ctx.window.set_cursor(match cursor_icon {
+        if let Some(AppState { window, .. }) = handle.app_state.as_ref() {
+            window.set_cursor(match cursor_icon {
                 CursorIcon::Default => window::CursorIcon::Default,
                 CursorIcon::Text => window::CursorIcon::Text,
                 _ => return,
@@ -452,6 +425,7 @@ mod glutin_window_layer {
 
     #[derive(Debug)]
     struct AppState {
+        gl_state: GLState,
         gl_surface: Surface<WindowSurface>,
         // NOTE: Window should be dropped after all resources created using its
         // raw-window-handle.
@@ -475,7 +449,7 @@ mod glutin_window_layer {
         modifiers: ModifiersState,
         is_focused: bool,
         running: bool,
-        context: Option<Context>,
+        initial_scale_factor: ScaleFactor,
         clear: window_layer_types::RGBA,
         title: Option<String>,
         last_tick_duration: Duration,
@@ -490,6 +464,7 @@ mod glutin_window_layer {
             template: ConfigTemplateBuilder,
             display_builder: DisplayBuilder,
             exit_state: ExitState,
+            initial_scale_factor: ScaleFactor,
             clear: window_layer_types::RGBA,
             title: Option<String>,
             event_handler: EventHandler,
@@ -514,8 +489,7 @@ mod glutin_window_layer {
                 modifiers: ModifiersState::default(),
                 is_focused: false,
                 running: true,
-                // TODO set this somewhere
-                context: None,
+                initial_scale_factor,
                 clear,
                 title,
                 last_tick_duration,
@@ -559,7 +533,6 @@ mod glutin_window_layer {
                 interval: &mut app.interval,
                 last_rate: &mut app.last_rate,
                 rate_reporter: &mut app.rate_reporter,
-                context: app.context.as_mut(),
                 is_focused: &app.is_focused,
                 renderer: &mut app.renderer,
                 app_state: &mut app.state,
@@ -636,7 +609,37 @@ mod glutin_window_layer {
                 eprintln!("Error setting vsync: {res:?}");
             }
 
-            assert!(self.state.replace(AppState { gl_surface, window }).is_none());
+            let load_fn = &|symbol: *const u8| {
+                let symbol = symbol.cast();
+                // SAFETY: The underlying library has promised to pass us a nul
+                // terminated pointer.
+                let cstr = unsafe { std::ffi::CStr::from_ptr(symbol) };
+    
+                // The glutin docs say the following:
+                // "Returns the address of an OpenGL function."
+                // Given there are no qualifiers there, it seems like we can
+                // assume that if we have a context then this call should work.
+                gl_config.display().get_proc_address(cstr).cast()
+            };
+
+            // SAFETY:
+            // In the passed closure, we avoid panicking to uphold the documented safety
+            // invariant:
+            // "The passed `load_fn` must always return accurate function pointer
+            // values, or null on failure."
+            let gl_state = unsafe { gl_layer::init(
+                self.initial_scale_factor,
+                self.clear,
+                load_fn,
+            ) }.expect("gl_layer::init error");
+
+            let new_state = AppState {
+                gl_surface,
+                window,
+                gl_state,
+            };
+
+            assert!(self.state.replace(new_state).is_none());
         }
 
         fn suspended(&mut self, _event_loop: &ActiveEventLoop) {
@@ -682,7 +685,7 @@ mod glutin_window_layer {
                     // Notable platforms here are Wayland and macOS, other don't require it
                     // and the function is no-op, but it's wise to resize it for portability
                     // reasons.
-                    if let Some(AppState { gl_surface, window: _ }) = self.state.as_ref() {
+                    if let Some(AppState { gl_surface, gl_state, ..}) = self.state.as_mut() {
                         let gl_context = self.gl_context.as_ref().unwrap();
                         gl_surface.resize(
                             gl_context,
@@ -692,11 +695,9 @@ mod glutin_window_layer {
 
                         let renderer = self.renderer.as_ref().unwrap();
                         renderer.resize(size.width as i32, size.height as i32);
-                    }
 
-                    if let Some(ctx) = self.context.as_mut() {
                         gl_layer::set_dimensions(
-                            &mut ctx.gl_state,
+                            gl_state,
                             (
                                 U24::from_u32_saturating(size.width),
                                 U24::from_u32_saturating(size.height)
@@ -722,9 +723,9 @@ mod glutin_window_layer {
                     #[allow(clippy::cast_possible_truncation)]
                     let scale_factor = scale_factor as _;
 
-                    if let Some(ctx) = self.context.as_mut() {
+                    if let Some(AppState { gl_state, ..}) = self.state.as_mut() {
                         gl_layer::set_hidpi_factor(
-                            &mut ctx.gl_state,
+                            gl_state,
                             scale_factor,
                         );
 
@@ -737,12 +738,12 @@ mod glutin_window_layer {
                     self.is_focused = window_is_focused;
 
                     if self.is_focused
-                    && let Some(ctx) = self.context.as_mut() {
+                    && let Some(AppState { window, ..}) = self.state.as_mut() {
                         use window_layer_types::AttentionMode;
                         // X11 requires us to explicitly unset the window
                         // urgency. Other platforms fade it out automatically.
                         request_attention_mode_window(
-                            &mut ctx.window,
+                            window,
                             AttentionMode::Neutral
                         );
                     }
@@ -867,7 +868,7 @@ mod glutin_window_layer {
     }
 
     pub fn run<F>(
-        State { events, title, text_rendering_state, clear }: State,
+        State { events, title, text_rendering_state, clear, initial_scale_factor }: State,
         mut event_handler: F
     ) -> !
     where
@@ -883,6 +884,7 @@ mod glutin_window_layer {
             template,
             display_builder,
             exit_state.clone(),
+            initial_scale_factor,
             clear,
             title,
             Box::new(event_handler),
@@ -1343,7 +1345,7 @@ mod glutin_window_layer {
         };
 
         // SAFETY:
-        // In the below closure, we avoid panicking to uphold the documented safety
+        // In the passed closure, we avoid panicking to uphold the documented safety
         // invariant:
         // "The passed `load_fn` must always return accurate function pointer
         // values, or null on failure."
