@@ -212,7 +212,6 @@ mod glutin_window_layer {
         interval: &'handle mut spin_sleep_util::Interval,
         last_rate: &'handle mut RatePerSecond,
         rate_reporter: &'handle mut spin_sleep_util::RateReporter,
-        renderer: &'handle mut Option<Renderer>,
         app_state: &'handle mut Option<AppState>,
         gl_context: &'handle mut GlContext,
         clear: window_layer_types::RGBA,
@@ -239,8 +238,6 @@ mod glutin_window_layer {
             );
 
             let gl_context = handle.gl_context.as_ref().unwrap();
-            let renderer = handle.renderer.as_ref().unwrap();
-            renderer.draw_with_clear_color(handle.clear);
 
             gl_surface.swap_buffers(gl_context).unwrap();
         }
@@ -440,7 +437,6 @@ mod glutin_window_layer {
 
     struct App {
         template: ConfigTemplateBuilder,
-        renderer: Option<Renderer>,
         // NOTE: `AppState` carries the `Window`, thus it should be dropped after everything else.
         state: Option<AppState>,
         gl_context: GlContext,
@@ -485,7 +481,6 @@ mod glutin_window_layer {
                 exit_state,
                 gl_context: None,
                 state: None,
-                renderer: None,
                 modifiers: ModifiersState::default(),
                 is_focused: false,
                 running: true,
@@ -534,7 +529,6 @@ mod glutin_window_layer {
                 last_rate: &mut app.last_rate,
                 rate_reporter: &mut app.rate_reporter,
                 is_focused: &app.is_focused,
-                renderer: &mut app.renderer,
                 app_state: &mut app.state,
                 gl_context: &mut app.gl_context,
                 clear: app.clear,
@@ -560,8 +554,6 @@ mod glutin_window_layer {
                             return;
                         },
                     };
-
-                    println!("Picked a config with {} samples", gl_config.num_samples());
 
                     // Mark the display as initialized to not recreate it on resume, since the
                     // display is valid until we explicitly destroy it.
@@ -599,8 +591,6 @@ mod glutin_window_layer {
             // WGL.
             let gl_context = self.gl_context.as_ref().unwrap();
             gl_context.make_current(&gl_surface).unwrap();
-
-            self.renderer.get_or_insert_with(|| Renderer::new(&gl_config.display()));
 
             // Try setting vsync.
             if let Err(res) = gl_surface
@@ -692,9 +682,6 @@ mod glutin_window_layer {
                             NonZeroU32::new(size.width).unwrap(),
                             NonZeroU32::new(size.height).unwrap(),
                         );
-
-                        let renderer = self.renderer.as_ref().unwrap();
-                        renderer.resize(size.width as i32, size.height as i32);
 
                         gl_layer::set_dimensions(
                             gl_state,
@@ -847,6 +834,10 @@ mod glutin_window_layer {
                 },
                 _ => {},
             }
+        }
+
+        fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+            pass_down(self, event_loop, Event::MainEventsCleared)
         }
 
         fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
@@ -1041,188 +1032,6 @@ mod glutin_window_layer {
 
         Some(keycode)
     }
-
-    // TODO replace with actual rendering of the text editor
-    pub struct Renderer {
-        program: gl::types::GLuint,
-        vao: gl::types::GLuint,
-        vbo: gl::types::GLuint,
-        gl: gl::Gl,
-    }
-
-    impl core::fmt::Debug for Renderer {
-        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-            f.debug_struct("Renderer")
-             .finish()
-        }
-    }
-
-    impl Renderer {
-        pub fn new<D: GlDisplay>(gl_display: &D) -> Self {
-            unsafe {
-                let gl = gl::Gl::load_from(&|symbol| {
-                    let c_str = std::ffi::CStr::from_ptr(symbol as *const i8);
-                    gl_display.get_proc_address(c_str).cast()
-                }).unwrap();
-
-                if let Some(renderer) = get_gl_string(&gl, gl::RENDERER) {
-                    println!("Running on {}", renderer.to_string_lossy());
-                }
-                if let Some(version) = get_gl_string(&gl, gl::VERSION) {
-                    println!("OpenGL Version {}", version.to_string_lossy());
-                }
-
-                if let Some(shaders_version) = get_gl_string(&gl, gl::SHADING_LANGUAGE_VERSION) {
-                    println!("Shaders version on {}", shaders_version.to_string_lossy());
-                }
-
-                let vertex_shader = create_shader(&gl, gl::VERTEX_SHADER, VERTEX_SHADER_SOURCE);
-                let fragment_shader = create_shader(&gl, gl::FRAGMENT_SHADER, FRAGMENT_SHADER_SOURCE);
-
-                let program = gl.CreateProgram();
-
-                gl.AttachShader(program, vertex_shader);
-                gl.AttachShader(program, fragment_shader);
-
-                gl.LinkProgram(program);
-
-                gl.UseProgram(program);
-
-                gl.DeleteShader(vertex_shader);
-                gl.DeleteShader(fragment_shader);
-
-                let mut vao = std::mem::zeroed();
-                gl.GenVertexArrays(1, &mut vao);
-                gl.BindVertexArray(vao);
-
-                let mut vbo = std::mem::zeroed();
-                gl.GenBuffers(1, &mut vbo);
-                gl.BindBuffer(gl::ARRAY_BUFFER, vbo);
-                gl.BufferData(
-                    gl::ARRAY_BUFFER,
-                    (VERTEX_DATA.len() * std::mem::size_of::<f32>()) as gl::types::GLsizeiptr,
-                    VERTEX_DATA.as_ptr() as *const _,
-                    gl::STATIC_DRAW,
-                );
-
-                let pos_attrib = gl.GetAttribLocation(program, c"position".as_ptr() as *const _);
-                let color_attrib = gl.GetAttribLocation(program, c"color".as_ptr() as *const _);
-                gl.VertexAttribPointer(
-                    pos_attrib as gl::types::GLuint,
-                    2,
-                    gl::FLOAT,
-                    0,
-                    5 * std::mem::size_of::<f32>() as gl::types::GLsizei,
-                    std::ptr::null(),
-                );
-                gl.VertexAttribPointer(
-                    color_attrib as gl::types::GLuint,
-                    3,
-                    gl::FLOAT,
-                    0,
-                    5 * std::mem::size_of::<f32>() as gl::types::GLsizei,
-                    (2 * std::mem::size_of::<f32>()) as *const () as *const _,
-                );
-                gl.EnableVertexAttribArray(pos_attrib as gl::types::GLuint);
-                gl.EnableVertexAttribArray(color_attrib as gl::types::GLuint);
-
-                Self { program, vao, vbo, gl }
-            }
-        }
-
-        pub fn draw_with_clear_color(
-            &self,
-            [red, green, blue, alpha]: window_layer_types::RGBA
-        ) {
-            unsafe {
-                self.gl.UseProgram(self.program);
-
-                self.gl.BindVertexArray(self.vao);
-                self.gl.BindBuffer(gl::ARRAY_BUFFER, self.vbo);
-
-                self.gl.ClearColor(red, green, blue, alpha);
-                self.gl.Clear(gl::COLOR_BUFFER_BIT);
-                self.gl.DrawArrays(gl::TRIANGLES, 0, 3);
-            }
-        }
-
-        pub fn resize(&self, width: i32, height: i32) {
-            unsafe {
-                self.gl.Viewport(0, 0, width, height);
-            }
-        }
-    }
-
-    impl Deref for Renderer {
-        type Target = gl::Gl;
-
-        fn deref(&self) -> &Self::Target {
-            &self.gl
-        }
-    }
-
-    impl Drop for Renderer {
-        fn drop(&mut self) {
-            unsafe {
-                self.gl.DeleteProgram(self.program);
-                self.gl.DeleteBuffers(1, &self.vbo);
-                self.gl.DeleteVertexArrays(1, &self.vao);
-            }
-        }
-    }
-
-    unsafe fn create_shader(
-        gl: &gl::Gl,
-        shader: gl::types::GLenum,
-        source: &[u8],
-    ) -> gl::types::GLuint {
-        unsafe {
-            let shader = gl.CreateShader(shader);
-            gl.ShaderSource(shader, 1, [source.as_ptr().cast()].as_ptr(), std::ptr::null());
-            gl.CompileShader(shader);
-            shader
-        }
-    }
-
-    fn get_gl_string(gl: &gl::Gl, variant: gl::types::GLenum) -> Option<&'static CStr> {
-        unsafe {
-            let s = gl.GetString(variant);
-            (!s.is_null()).then(|| CStr::from_ptr(s.cast()))
-        }
-    }
-
-    #[rustfmt::skip]
-    static VERTEX_DATA: [f32; 15] = [
-        -0.5, -0.5,  1.0,  0.0,  0.0,
-         0.0,  0.5,  0.0,  1.0,  0.0,
-         0.5, -0.5,  0.0,  0.0,  1.0,
-    ];
-
-    const VERTEX_SHADER_SOURCE: &[u8] = b"
-    #version 100
-    precision mediump float;
-
-    attribute vec2 position;
-    attribute vec3 color;
-
-    varying vec3 v_color;
-
-    void main() {
-        gl_Position = vec4(position, 0.0, 1.0);
-        v_color = color;
-    }
-    \0";
-
-    const FRAGMENT_SHADER_SOURCE: &[u8] = b"
-    #version 100
-    precision mediump float;
-
-    varying vec3 v_color;
-
-    void main() {
-        gl_FragColor = vec4(v_color, 1.0);
-    }
-    \0";
 }
 #[cfg(feature = "glutin-window-layer-0-32")]
 use glutin_window_layer as selected_window_layer;

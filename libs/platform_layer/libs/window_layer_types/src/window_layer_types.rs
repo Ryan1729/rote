@@ -269,23 +269,27 @@ pub enum ButtonState {
     Released
 }
 
+#[derive(Debug)]
 pub struct KeyboardInput {
     pub state: ButtonState,
     pub keycode: KeyCode,
     pub modifiers: ModifiersState,
 }
 
+#[derive(Debug)]
 pub struct MouseInput {
     pub state: ButtonState,
     pub button: MouseButton,
     pub modifiers: ModifiersState,
 }
 
+#[derive(Debug)]
 pub struct MouseWheel {
     pub delta: f32,
     pub modifiers: ModifiersState,
 }
 
+#[derive(Debug)]
 pub struct CursorMoved {
     pub position: ScreenSpaceXY,
     pub modifiers: ModifiersState
@@ -300,6 +304,7 @@ pub struct CursorMoved {
 // later however, at not make adding that
 // back more painful than necessary.
 // Should we flatten the CustomEvent part?
+#[derive(Debug)]
 pub enum Event {
     CloseRequested,
     RedrawRequested,
