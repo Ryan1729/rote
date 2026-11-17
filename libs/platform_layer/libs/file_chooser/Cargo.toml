@@ -8,4 +8,4 @@ edition = "2021"
 path = "./src/file_chooser.rs"
 
 [dependencies]
-rfd = "0.8.2"
+rfd = "0.18.0"
