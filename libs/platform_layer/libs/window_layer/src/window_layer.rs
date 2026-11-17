@@ -47,8 +47,6 @@ const _: () = {
 
 #[cfg(feature = "glutin-window-layer-0-32")]
 mod glutin_window_layer {
-    #![allow(unused)] // TODO remove this, and actual unused stuff, once this builds
-
     use super::*;
 
     pub use gl_layer::{FONT_LICENSE};
@@ -82,16 +80,14 @@ mod glutin_window_layer {
                 ElementState,
                 StartCause,
                 WindowEvent,
-                Event as GWEvent,
                 KeyEvent,
             },
             event_loop::{
                 self,
                 ActiveEventLoop,
                 EventLoop,
-                EventLoopBuilder,
             },
-            keyboard::{self, Key, KeyCode as InputKeyCode, NamedKey},
+            keyboard::{self, KeyCode as InputKeyCode},
             raw_window_handle::HasWindowHandle,
             window::{
                 self,
@@ -101,25 +97,15 @@ mod glutin_window_layer {
                 UserAttentionType,
             },
         },
-        gl_wrapper as gl,
     };
-
-    type GLfloat = f32;
 
     use screen_space::{abs, CharDim, ssxy};
 
     use std::cell::RefCell;
     use std::error::Error;
-    use std::ffi::{CStr, CString};
-    use std::marker::PhantomData;
     use std::num::NonZeroU32;
-    use std::ops::Deref;
     use std::rc::Rc;
-    use std::sync::MutexGuard;
     use std::time::Duration;
-
-    /// See [here](https://stackoverflow.com/a/71945606).
-    type PhantomUnsend = PhantomData<MutexGuard<'static, ()>>;
 
     #[derive(Clone, Debug)]
     pub struct EventProxy(event_loop::EventLoopProxy<CustomEvent>);
@@ -214,7 +200,6 @@ mod glutin_window_layer {
         rate_reporter: &'handle mut spin_sleep_util::RateReporter,
         app_state: &'handle mut Option<AppState>,
         gl_context: &'handle mut GlContext,
-        clear: window_layer_types::RGBA,
         is_focused: &'handle bool,
     }
 
@@ -467,13 +452,13 @@ mod glutin_window_layer {
         ) -> Self {
             let target_duration = Duration::from_secs_f64(1.0 / DEFAULT_TARGET_RATE);
 
-            let mut last_tick_duration = <_>::default();
-            let mut interval = spin_sleep_util::interval(target_duration);
+            let last_tick_duration = <_>::default();
+            let interval = spin_sleep_util::interval(target_duration);
     
             // Starting with the target avoids a blip at the beginning, in the expected case
             // that we hit close to it.
-            let mut last_rate = DEFAULT_TARGET_RATE;
-            let mut rate_reporter = spin_sleep_util::RateReporter::new(Duration::from_secs(1));
+            let last_rate = DEFAULT_TARGET_RATE;
+            let rate_reporter = spin_sleep_util::RateReporter::new(Duration::from_secs(1));
 
             Self {
                 template,
@@ -531,7 +516,6 @@ mod glutin_window_layer {
                 is_focused: &app.is_focused,
                 app_state: &mut app.state,
                 gl_context: &mut app.gl_context,
-                clear: app.clear,
             }
         )
     }
@@ -860,7 +844,7 @@ mod glutin_window_layer {
 
     pub fn run<F>(
         State { events, title, text_rendering_state, clear, initial_scale_factor }: State,
-        mut event_handler: F
+        event_handler: F
     ) -> !
     where
         F: 'static + FnMut(Event, Handle),
