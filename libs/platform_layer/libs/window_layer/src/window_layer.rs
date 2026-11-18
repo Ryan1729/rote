@@ -32,8 +32,7 @@ use window_layer_types::{
 // https://internals.rust-lang.org/t/cfg-keyword-for-if-multiple-more-than-one/15751/4
 const _: () = {
     let enabled_features = {
-        cfg!(feature = "glutin-window-layer-0-29") as u32
-        + cfg!(feature = "glutin-window-layer-0-32") as u32
+        cfg!(feature = "glutin-window-layer-0-32") as u32
         + cfg!(feature = "dummy-window-layer") as u32
         + cfg!(feature = "c-dummy-window-layer") as u32
     };
@@ -1820,7 +1819,9 @@ mod c_dummy_window_layer {
     }
 
     #[derive(Debug)]
-    pub struct State;
+    pub struct State {
+        text_rendering_state: text_rendering::State<'static>
+    }
 
     pub fn init(
         hidpi_factor: ScaleFactor,
@@ -1845,8 +1846,8 @@ mod c_dummy_window_layer {
 
         Ok(InitOutput {
             event_proxy: EventProxy,
-            char_dims: text_rendering::get_char_dims(&state.text_rendering_state, text_sizes),
-            dimension,
+            char_dims: state.text_rendering_state.get_char_dims(text_sizes),
+            dimensions,
             state,
         })
     }
