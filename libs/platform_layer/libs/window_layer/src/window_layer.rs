@@ -1896,13 +1896,39 @@ mod c_dummy_window_layer {
     pub fn loop_sleep(_handle: &mut Handle) {}
 
     pub fn run<F>(
-        _state: State,
+        state: State,
         _event_handler: F
     ) -> !
     where
         F: 'static + FnMut(Event, Handle),
     {
-        c_platform::run()
+        let update_and_render = |ctx: *mut c_platform::Context| {
+            let state_ptr: *mut State = ctx.user_data as *mut State;
+            // SAFETY: We trust the underlying c library to not mess 
+            // with the data we passed it, and especially not on a 
+            // different thread, and to either return it to us
+            // unmolested, or at worst, possibly to pass us back a
+            // null pointer.
+            let state_opt: Option<&mut State> = unsafe { state_ptr.as_mut() };
+
+            let Some(state) = state_opt else {
+                eprintln!("State/user_data pointer was null!");
+
+                return c_platform::COMMAND_EXIT
+            };
+
+            // Merely something to prove we actually have a state
+            dbg!(state.text_rendering_state.get_char_dims(&[12.0, 34.0]));
+
+            c_platform::COMMAND_NONE
+        };
+
+        let state_ptr: *mut State = &mut state;
+        let user_data: *mut c_platform::Opaque = state_ptr.cast();
+        // TODO stuff closure into user data instead ala
+        // https://stackoverflow.com/questions/32270030/how-do-i-convert-a-rust-closure-to-a-c-style-callback
+
+        c_platform::run(user_data, update_and_render)
     }
 }
 #[cfg(feature = "c-dummy-window-layer")]
