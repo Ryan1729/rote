@@ -453,7 +453,7 @@ mod glutin_window_layer {
 
             let last_tick_duration = <_>::default();
             let interval = spin_sleep_util::interval(target_duration);
-    
+
             // Starting with the target avoids a blip at the beginning, in the expected case
             // that we hit close to it.
             let last_rate = DEFAULT_TARGET_RATE;
@@ -587,7 +587,7 @@ mod glutin_window_layer {
                 // SAFETY: The underlying library has promised to pass us a nul
                 // terminated pointer.
                 let cstr = unsafe { std::ffi::CStr::from_ptr(symbol) };
-    
+
                 // The glutin docs say the following:
                 // "Returns the address of an OpenGL function."
                 // Given there are no qualifiers there, it seems like we can
@@ -867,7 +867,7 @@ mod glutin_window_layer {
         events.run_app(&mut app).expect("events.run returned an error!");
 
         exit_state.replace(Ok(())).expect("exit_state was an error!");
-        
+
         std::process::exit(0)
     }
 
@@ -1902,20 +1902,20 @@ mod c_dummy_window_layer {
     where
         F: 'static + FnMut(Event, Handle),
     {
-        let update_and_render = |ctx: *mut c_platform::Context| {
-            let state_ptr: *mut State = ctx.user_data as *mut State;
-            // SAFETY: We trust the underlying c library to not mess 
-            // with the data we passed it, and especially not on a 
-            // different thread, and to either return it to us
-            // unmolested, or at worst, possibly to pass us back a
-            // null pointer.
-            let state_opt: Option<&mut State> = unsafe { state_ptr.as_mut() };
-
-            let Some(state) = state_opt else {
-                eprintln!("State/user_data pointer was null!");
-
-                return c_platform::COMMAND_EXIT
-            };
+        let update_and_render = move |ctx: *mut c_platform::Context| {
+            //let state_ptr: *mut State = ctx.user_data as *mut State;
+            //// SAFETY: We trust the underlying c library to not mess
+            //// with the data we passed it, and especially not on a
+            //// different thread, and to either return it to us
+            //// unmolested, or at worst, possibly to pass us back a
+            //// null pointer.
+            //let state_opt: Option<&mut State> = unsafe { state_ptr.as_mut() };
+//
+            //let Some(state) = state_opt else {
+                //eprintln!("State/user_data pointer was null!");
+//
+                //return c_platform::COMMAND_EXIT
+            //};
 
             // Merely something to prove we actually have a state
             dbg!(state.text_rendering_state.get_char_dims(&[12.0, 34.0]));
@@ -1923,12 +1923,26 @@ mod c_dummy_window_layer {
             c_platform::COMMAND_NONE
         };
 
-        let state_ptr: *mut State = &mut state;
-        let user_data: *mut c_platform::Opaque = state_ptr.cast();
-        // TODO stuff closure into user data instead ala
+        // Reportedly we need the double indirection because the closure is 16 bytes, not 8
         // https://stackoverflow.com/questions/32270030/how-do-i-convert-a-rust-closure-to-a-c-style-callback
+        let u_and_r: Box<Box<dyn FnMut(*mut c_platform::Context) -> c_platform::Command>> = Box::new(Box::new(update_and_render));
 
-        c_platform::run(user_data, update_and_render)
+        let user_data: *mut c_platform::Opaque = Box::into_raw(u_and_r).cast();
+        // TODO stuff closure into user data instead ala
+
+
+        extern "C" fn window_layer_update_and_render(ctx: *mut c_platform::Context) -> c_platform::Command {
+            dbg!(ctx);
+            let closure: &mut &mut dyn FnMut(*mut c_platform::Context) -> c_platform::Command = unsafe {
+                core::mem::transmute((*ctx).user_data)
+            };
+
+            closure(ctx)
+        }
+
+        c_platform::run(user_data, window_layer_update_and_render)
+
+        // Note that not getting here implies not dropping u_and_r
     }
 }
 #[cfg(feature = "c-dummy-window-layer")]

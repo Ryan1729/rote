@@ -12,13 +12,11 @@ pub use sys::{
 
 pub use ::std::os::raw::c_void as Opaque;
 
-pub fn run<F>(
+pub fn run(
     // TODO expose the rest of the platfomr_run options
     user_data: *mut Opaque,
     u_and_r: extern "C" fn(ctx: *mut Context) -> Command,
-) -> ! 
-where
-    F: 'static + FnMut(Context),
+) -> !
 {
     // SAFETY: platform_run_options is known to be valid when zeroed.
     let mut options = unsafe {
