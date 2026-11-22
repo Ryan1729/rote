@@ -35,6 +35,7 @@ const _: () = {
         cfg!(feature = "glutin-window-layer-0-32") as u32
         + cfg!(feature = "dummy-window-layer") as u32
         + cfg!(feature = "c-dummy-window-layer") as u32
+        + cfg!(feature = "c-linux-posix-window-layer") as u32
     };
 
     match enabled_features {
@@ -1903,20 +1904,6 @@ mod c_dummy_window_layer {
         F: 'static + FnMut(Event, Handle),
     {
         let update_and_render = move |ctx: *mut c_platform::Context| {
-            //let state_ptr: *mut State = ctx.user_data as *mut State;
-            //// SAFETY: We trust the underlying c library to not mess
-            //// with the data we passed it, and especially not on a
-            //// different thread, and to either return it to us
-            //// unmolested, or at worst, possibly to pass us back a
-            //// null pointer.
-            //let state_opt: Option<&mut State> = unsafe { state_ptr.as_mut() };
-//
-            //let Some(state) = state_opt else {
-                //eprintln!("State/user_data pointer was null!");
-//
-                //return c_platform::COMMAND_EXIT
-            //};
-
             // Merely something to prove we actually have a state
             dbg!(state.text_rendering_state.get_char_dims(&[12.0, 34.0]));
 
@@ -1928,11 +1915,8 @@ mod c_dummy_window_layer {
         let u_and_r: Box<Box<dyn FnMut(*mut c_platform::Context) -> c_platform::Command>> = Box::new(Box::new(update_and_render));
 
         let user_data: *mut c_platform::Opaque = Box::into_raw(u_and_r).cast();
-        // TODO stuff closure into user data instead ala
-
 
         extern "C" fn window_layer_update_and_render(ctx: *mut c_platform::Context) -> c_platform::Command {
-            dbg!(ctx);
             let closure: &mut &mut dyn FnMut(*mut c_platform::Context) -> c_platform::Command = unsafe {
                 core::mem::transmute((*ctx).user_data)
             };
@@ -1947,6 +1931,133 @@ mod c_dummy_window_layer {
 }
 #[cfg(feature = "c-dummy-window-layer")]
 use c_dummy_window_layer as selected_window_layer;
+
+#[cfg(feature = "c-linux-posix-window-layer")]
+mod c_linux_posix_window_layer {
+    use super::*;
+
+    // No font implies no license needed.
+    pub const FONT_LICENSE: &str = "";
+
+    #[derive(Clone, Debug)]
+    pub struct EventProxy;
+
+    impl EventSender for EventProxy {
+        fn send(&self, _event: CustomEvent) {}
+    }
+
+    #[derive(Debug)]
+    pub struct State {
+        text_rendering_state: text_rendering::State<'static>
+    }
+
+    pub fn init(
+        hidpi_factor: ScaleFactor,
+        _clear: window_layer_types::RGBA,
+        _title: Option<&str>,
+        text_sizes: &[f32],
+    ) -> Result<
+        InitOutput<State, EventProxy>,
+        Box<dyn std::error::Error>
+    >
+    {
+        let text_rendering_state = text_rendering::new(
+            hidpi_factor
+        )?;
+
+        let state = State {
+            text_rendering_state,
+        };
+
+        // A real implementation should create the window now, and report the actual dimensions.
+        let dimensions = <_>::default();
+
+        Ok(InitOutput {
+            event_proxy: EventProxy,
+            char_dims: state.text_rendering_state.get_char_dims(text_sizes),
+            dimensions,
+            state,
+        })
+    }
+
+    #[derive(Debug)]
+    pub struct Handle;
+
+    pub fn render(
+        _handle: &mut Handle,
+        _text_or_rects: &[TextOrRect],
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        Ok(())
+    }
+
+    #[must_use]
+    pub fn report_rate(_handle: &mut Handle) -> RateReport {
+        RateReport {
+            rate: <_>::default(),
+            freshness: Freshness::Stale,
+        }
+    }
+
+    pub fn set_title(_handle: &mut Handle, _title: &str) {}
+
+    pub fn quit(_handle: &mut Handle) {}
+
+    pub fn request_redraw(_handle: &Handle) {}
+
+    #[must_use]
+    pub fn set_scale_factor(
+        _handle: &mut Handle,
+        _scale_factor: ScaleFactor,
+        _text_sizes: &[f32],
+    ) -> Vec<screen_space::CharDim> {
+        <_>::default()
+    }
+
+    pub fn request_attention_mode(_handle: &Handle, _attention: AttentionMode) {}
+
+    pub fn set_cursor_icon(_handle: &mut Handle, _cursor_icon: CursorIcon) {}
+
+    pub fn loop_start(_handle: &mut Handle) -> std::time::Duration {
+        <_>::default()
+    }
+
+    pub fn loop_sleep(_handle: &mut Handle) {}
+
+    pub fn run<F>(
+        state: State,
+        _event_handler: F
+    ) -> !
+    where
+        F: 'static + FnMut(Event, Handle),
+    {
+        let update_and_render = move |ctx: *mut c_platform::Context| {
+            // Merely something to prove we actually have a state
+            dbg!(state.text_rendering_state.get_char_dims(&[12.0, 34.0]));
+
+            c_platform::COMMAND_NONE
+        };
+
+        // Reportedly we need the double indirection because the closure is 16 bytes, not 8
+        // https://stackoverflow.com/questions/32270030/how-do-i-convert-a-rust-closure-to-a-c-style-callback
+        let u_and_r: Box<Box<dyn FnMut(*mut c_platform::Context) -> c_platform::Command>> = Box::new(Box::new(update_and_render));
+
+        let user_data: *mut c_platform::Opaque = Box::into_raw(u_and_r).cast();
+
+        extern "C" fn window_layer_update_and_render(ctx: *mut c_platform::Context) -> c_platform::Command {
+            let closure: &mut &mut dyn FnMut(*mut c_platform::Context) -> c_platform::Command = unsafe {
+                core::mem::transmute((*ctx).user_data)
+            };
+
+            closure(ctx)
+        }
+
+        c_platform::run(user_data, window_layer_update_and_render)
+
+        // Note that not getting here implies not dropping u_and_r
+    }
+}
+#[cfg(feature = "c-linux-posix-window-layer")]
+use c_linux_posix_window_layer as selected_window_layer;
 
 // Having things be free functions makes checking that different layer backends
 // have implemented all the pieces easier, since the compiler encforces it when
