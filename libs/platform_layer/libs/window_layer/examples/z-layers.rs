@@ -148,14 +148,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }));
 
                 let z_text = format!(
-                    "{},{},{}\n{},{},{}{:#?}",
+                    "{},{},{}\n{},{},{}",
                     first_z,
                     first_z_sub_1,
                     first_z_sub_2,
                     second_z,
                     second_z_sub_1,
                     second_z_sub_2,
-                    (gl_layer::z_to_f32(first_z), gl_layer::z_to_f32(second_z))
                 );
                 text_and_rects.push(TextOrRect::Text(TextSpec {
                     text: &z_text,

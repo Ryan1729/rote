@@ -423,4 +423,10 @@ mod tests {
         assert_eq!(c1.cmp(&c2), Equal);
         assert_eq!(c2.cmp(&c1), Equal);
     }
+
+    #[test]
+    fn cursor_position_borrowing_works() {
+        let cursor = Cursor::new(pos! {});
+        let _pos_ref: &Position = cursor.borrow();
+    }
 }

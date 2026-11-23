@@ -188,14 +188,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }));
 
                 let z_text = format!(
-                    "{},{},{}\n{},{},{}{:#?}",
+                    "{},{},{}\n{},{},{}",
                     first_z,
                     first_z_sub_1,
                     first_z_sub_2,
                     second_z,
                     second_z_sub_1,
                     second_z_sub_2,
-                    (gl_layer::z_to_f32(first_z), gl_layer::z_to_f32(second_z))
                 );
                 text_and_rects.push(TextOrRect::Text(TextSpec {
                     text: &z_text,
@@ -229,14 +228,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     for t_or_r in text_and_rects.iter_mut() {
                         use TextOrRect::*;
                         match t_or_r {
-                            Rect(ref mut spec) => {
+                            Rect(spec) => {
                                 spec.colour = grey_scale_dim!(spec.colour);
                             },
-                            Text(ref mut spec) => {
+                            Text(spec) => {
                                 spec.spec.colour = grey_scale_bright!(spec.spec.colour);
                             },
-                            MulticolourText(ref mut spec) => {
-                                for ColouredText { ref mut colour, .. } in spec.text.iter_mut() {
+                            MulticolourText(spec) => {
+                                for ColouredText { colour, .. } in spec.text.iter_mut() {
                                     *colour = grey_scale_bright!(*colour)
                                 }
                             }

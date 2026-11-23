@@ -3,6 +3,10 @@
 
 .vscode/*
 
+# Tarpaulin
+
+tarpaulin-report.html
+
 # Project specific
 
 temp_out

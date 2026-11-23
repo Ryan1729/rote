@@ -1,6 +1,27 @@
+#!/bin/bash
+
+# https://stackoverflow.com/a/20460402 with changes
+# string_contains haystack needle
+string_contains() { case $1 in *$2* ) return 0;; *) return 1;; esac ;}
 
 # As of this writing nextest doesn't run doc tests, and running the tests it runs
 # and then only the doc tests with cargo-test is slower that just using cargo-test.
 # That makes it unacceptable for this script which is meant to test all the tests.
 
-cargo test --color=always --workspace -- "$@" -Zunstable-options --report-time 2>&1
+
+nightly_only_options=""
+if string_contains "$(rustup toolchain list)" "nightly"
+then
+    nightly_only_options="-Zunstable-options --report-time"
+fi
+
+# The threshold we were at when we started
+#threshold_flag="--fail-under 53.29"
+# Where we are now
+threshold_flag="--fail-under 53.29"
+# Where we'd like to get, via adding tests and with judicious use of the 
+# `#[cfg(not(tarpaulin_include))]` attribute
+#threshold_flag="--fail-under 100"
+
+cargo test --color=always --workspace -- "$@" $nightly_only_options \
+&& cargo tarpaulin --color=always --workspace --out html $threshold_flag --skip-clean

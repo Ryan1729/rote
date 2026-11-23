@@ -12,6 +12,6 @@ path="src/c_platform.rs"
 cc = "1.0"
 
 [features]
-default = []
+default = ["c-platform-dummy"]
 c-platform-dummy = []
 c-platform-linux-posix = []

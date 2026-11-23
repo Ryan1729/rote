@@ -1,5 +1,5 @@
 #include "platform.h"
-// FIXME Need to add this, and several oter libraries that we included in the main c file in the prototype
+// FIXME Need to add this, and several other libraries that we included in the main c file in the prototype
 // #include "rasterize.h"
 
 #ifndef _POSIX_C_SOURCE

@@ -1,6 +1,5 @@
 use screen_space::ssr;
-use gl_layer_types::{U24};
-use window_layer_types::{TextOrRect, TextLayout, TextSpec, VisualSpec};
+use window_layer_types::{TextOrRect, TextLayout, TextSpec, VisualSpec, U24};
 
 // These were used in `wimp_render` at the time of writing.
 const TEXT_SIZE: f32 = 32.0;
