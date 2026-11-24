@@ -1,6 +1,7 @@
 #![cfg_attr(feature = "pub_arb", allow(dead_code))]
 #![cfg_attr(feature = "pub_arb", allow(unused_macros))]
 #![cfg_attr(feature = "pub_arb", allow(unused_imports))]
+#![cfg_attr(test, allow(unused_imports))]
 
 #![deny(array_into_iter)]
 use super::{r, *};

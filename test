@@ -18,8 +18,14 @@ fi
 # The threshold we were at when we started
 #threshold_flag="--fail-under 53.29"
 # Where we are now
-threshold_flag="--fail-under 53.29"
-# Where we'd like to get, via adding tests and with judicious use of the 
+# (We are seeing fluctuations in test coverage, plausibly from proptests.
+# We should endeavor to understand where that is coming from, and consider
+# eliminating that source of variation, perhaps by adding plain tests, or
+# adding a way to run only non-random tests, and measure only that coverage.
+# In the interim, we can lower our threshold by say 0.1 percent below the
+# observed value, when bumping it up.)
+threshold_flag="--fail-under 53.39"
+# Where we'd like to get, via adding tests and with judicious use of the
 # `#[cfg(not(tarpaulin_include))]` attribute
 #threshold_flag="--fail-under 100"
 

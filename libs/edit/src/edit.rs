@@ -832,6 +832,8 @@ fn get_auto_indent_selection_remove_if_needed_edit(rope: &CursoredRope) -> Edit 
         }: LineSlicingEditStepInfo,
         chars: &mut String
     ) {
+        use is_linebreak_char::is_linebreak_char;
+
         let delta = desired_indent_delta(rope, cursor);
 
         let delete_count: usize = if delta < 0 && delta != isize::MIN {
@@ -840,8 +842,24 @@ fn get_auto_indent_selection_remove_if_needed_edit(rope: &CursoredRope) -> Edit 
             0
         };
 
-        if let Some(sliced_line) = line.slice(CharOffset(delete_count)..after_break_if_selected) {
+        // Autoindenting should never delete non-whitespace characters,
+        // and it should leave newlines alone as well.
+
+        let mut all_deletable = true;
+        for c in line.chars().take(delete_count) {
+            if c.is_whitespace() && !is_linebreak_char(c) {
+                continue
+            }
+
+            all_deletable = false;
+            break
+        }
+
+        if all_deletable
+        && let Some(sliced_line) = line.slice(CharOffset(delete_count)..after_break_if_selected) {
             push_slice(chars, sliced_line);
+        } else {
+            push_slice(chars, line.into());
         }
     }
     get_line_slicing_edit(rope, get_auto_indent_selection_remove_step)
@@ -873,9 +891,10 @@ fn desired_indent_delta(rope: &Rope, cursor: Cursor) -> IndentDelta {
     };
 
     let current_indent: IndentPoint = indent_of!(current_line);
-    
+
     while let Some(line) = lines.next() {
         let line_indent: IndentPoint = indent_of!(line);
+
         if line_indent > current_indent {
             // Found line on same level.
             return line_indent.saturating_sub(current_indent);
@@ -885,8 +904,8 @@ fn desired_indent_delta(rope: &Rope, cursor: Cursor) -> IndentDelta {
             let offset = final_non_newline_offset_for_rope_line(line);
             if let Some(last_char) = line.chars_at(offset)
                 .and_then(|mut cs| cs.prev()) {
-                if last_char == '{' 
-                || last_char == '[' 
+                if last_char == '{'
+                || last_char == '['
                 || last_char == '('
                 // For python-likes (or really long rust types, I guess?)
                 || last_char == ':' {
@@ -999,6 +1018,14 @@ struct LineSlicingEditStepInfo<'rope> {
 /// We expect the step to push the characters that are NOT deleted onto the string
 /// Yes this is a slightly awkward API, but I think it is the least awkward of the
 /// considered possibilities.
+// TODO After running into a case where we assumed the API was to push the ones
+// that were deleted on, I think this API should be changed. Perhaps to returning
+// something like:
+// enum SliceKind {
+//     RetainAll,
+//     KeepThese,
+// }
+// and we pass a &mut SliceKind in, with the &mut String
 type LineSlicingEditStep = fn(LineSlicingEditStepInfo, &mut String);
 
 fn get_line_slicing_edit(

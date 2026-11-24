@@ -103,6 +103,15 @@ fn in_this_reduced_generated_case() {
 }
 
 #[test]
+fn in_this_generated_auto_indent_case() {
+    use TestEdit::*;
+    on(
+        t_b!(""),
+        [InsertString("0\u{b} ".to_string()), SelectAll, AutoIndentSelection]
+    );
+}
+
+#[test]
 fn in_this_tab_in_tab_in_tab_out_case() {
     use TestEdit::*;
     on(
