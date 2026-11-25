@@ -1,6 +1,6 @@
 #![deny(clippy::float_arithmetic)]
 use macros::{
-    add_assign, d, fmt_debug, fmt_display, integer_newtype, ord, sub_assign, usize_newtype,
+    add_assign, fmt_debug, fmt_display, integer_newtype, ord, sub_assign, usize_newtype,
 };
 
 /// The nth space between utf8 characters. So in the string "aöc" there are
@@ -186,34 +186,6 @@ impl std::str::FromStr for Position {
             .map(CharOffset).unwrap_or_default();
 
         Ok(Position { line, offset })
-    }
-}
-
-/// Semantically this is concatenate strings with these final positions together and take the final
-/// position. That is, if a string that has as its final position, the position on the left hand
-/// side, is concatenated at the beginning of a string with a final position of the position on the
-/// right hand side, the resulting string will have the position that results applying this
-/// function.
-#[must_use]
-pub fn append_positions(left: Position, right: Position) -> Position {
-    Position {
-        line: left.line + right.line,
-        offset: right.offset + if right.line == 0 { left.offset } else { d!() },
-    }
-}
-
-/// The inverse of `append_positions`. That is,
-/// `unappend_positions(append_positions(p, q), q) == p`
-// TODO proptest this property
-#[must_use]
-pub fn unappend_positions(left: Position, right: Position) -> Position {
-    Position {
-        line: left.line - right.line,
-        offset: CharOffset(left.offset.0.saturating_sub(if left.line == right.line {
-            right.offset.0
-        } else {
-            0
-        })),
     }
 }
 

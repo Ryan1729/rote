@@ -1,15 +1,13 @@
 pub use gl_layer_types::*;
 
-use platform_types::{CharDim};
 use shared::Res;
 use window_layer_types::{TextOrRect, U24Dimensions};
 
-pub struct State<'font> {
+pub struct State {
     open_gl: open_gl::State,
-    text_rendering: text_rendering::State<'font>,
 }
 
-macros::fmt_debug!(for State<'_>: _ in "{}", "State");
+macros::fmt_debug!(for State: _ in "{}", "State");
 
 pub use text_rendering::FONT_LICENSE;
 
@@ -19,27 +17,23 @@ pub use text_rendering::FONT_LICENSE;
 /// # Errors
 /// Returns `Err` if errors occur during the text rendering or Open GL
 /// initialization.
-pub unsafe fn init<'load_fn>(
-    hidpi_factor: f32,
+pub unsafe fn init<'load_fn, 'font>(
     clear_colour: [f32; 4],
     load_fn: &open_gl::LoadFn<'load_fn>,
-) -> Res<State<'static>> {
+    text_rendering: &text_rendering::State<'font>
+) -> Res<State> {
     init_inner(
-        hidpi_factor,
         clear_colour,
         load_fn,
+        text_rendering,
     )
 }
 
-fn init_inner<'load_fn>(
-    hidpi_factor: f32,
+fn init_inner<'load_fn, 'font>(
     clear_colour: [f32; 4],
     load_fn: &open_gl::LoadFn<'load_fn>,
-) -> Res<State<'static>> {
-    let text_rendering_state = text_rendering::new(
-        hidpi_factor
-    )?;
-
+    text_rendering_state: &text_rendering::State<'font>
+) -> Res<State> {
     Ok(
         State {
             open_gl: 
@@ -53,18 +47,8 @@ fn init_inner<'load_fn>(
                     load_fn
                 )
             }?,
-            text_rendering: text_rendering_state,
         }
     )
-}
-
-#[must_use]
-pub fn get_char_dims(state: &State, text_sizes: &[f32]) -> Vec<CharDim> {
-    state.text_rendering.get_char_dims(text_sizes)
-}
-
-pub fn set_hidpi_factor(state: &mut State, hidpi_factor: f32) {
-    state.text_rendering.set_dimensions(hidpi_factor);
 }
 
 pub fn set_dimensions(state: &mut State, dimensions: U24Dimensions) {
@@ -72,10 +56,11 @@ pub fn set_dimensions(state: &mut State, dimensions: U24Dimensions) {
 }
 
 #[perf_viz::record]
-pub fn render(
+pub fn render<'font>(
     state: &mut State,
     text_or_rects: &[TextOrRect],
     dimensions: U24Dimensions,
+    text_rendering: &mut text_rendering::State<'font>
 ) {
     state.open_gl.begin_frame();
 
@@ -86,7 +71,7 @@ pub fn render(
         open_gl::State::resize_texture((new_width, new_height));
     };
 
-    let replacement_vertices = state.text_rendering.render_vertices(
+    let replacement_vertices = text_rendering.render_vertices(
         text_or_rects,
         dimensions,
         |rect: window_layer_types::TextureRect, tex_data: &_| {
