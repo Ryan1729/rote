@@ -742,10 +742,9 @@ mod glutin_window_layer {
                                 modifiers: self.modifiers,
                             })
                         )
-                    }
-
-                    if let Some(c) =
-                        text.and_then(|s| if s.len() == 1 { s.as_str().chars().next() } else { None })
+                    } else if state == ElementState::Pressed
+                    && self.modifiers.is_empty()
+                    && let Some(c) = text.and_then(|s| if s.len() == 1 { s.as_str().chars().next() } else { None })
                     {
                         pass_down!(Event::ReceivedCharacter(c))
                     }
@@ -1004,6 +1003,7 @@ mod glutin_window_layer {
             InputKeyCode::Copy => KeyCode::Copy,
             InputKeyCode::Paste => KeyCode::Paste,
             InputKeyCode::Cut => KeyCode::Cut,
+            InputKeyCode::Backspace => KeyCode::Back,
             _ => return None,
         };
 

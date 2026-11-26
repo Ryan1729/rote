@@ -900,7 +900,7 @@ pub fn run(
             macro_rules! perform_command {
                 ($key: expr) => {
                     if let Some(LabelledCommand{ label, command }) = r_c.commands.get($key) {
-                        dbg!(label);
+                        std::dbg!(label);
                         command(&mut r_s, handle);
                     }
                 }
