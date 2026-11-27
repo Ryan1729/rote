@@ -742,7 +742,8 @@ mod glutin_window_layer {
                                 modifiers: self.modifiers,
                             })
                         )
-                    } else if state == ElementState::Pressed
+                    }
+                    if state == ElementState::Pressed
                     && self.modifiers.is_empty()
                     && let Some(c) = text.and_then(|s| if s.len() == 1 { s.as_str().chars().next() } else { None })
                     {
