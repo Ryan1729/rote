@@ -87,7 +87,7 @@ mod glutin_window_layer {
                 ActiveEventLoop,
                 EventLoop,
             },
-            keyboard::{self, KeyCode as InputKeyCode},
+            keyboard::{self, KeyCode as InputKeyCode, SmolStr},
             raw_window_handle::HasWindowHandle,
             window::{
                 self,
@@ -415,6 +415,70 @@ mod glutin_window_layer {
 
     type GlContext = Option<PossiblyCurrentContext>;
 
+    type EventBuffer = [Option<Event>; 16];
+
+    fn keyboard_input_to_events(
+        event_buffer: &mut EventBuffer,
+        modifiers: ModifiersState,
+        state: ElementState,
+        input_key_code: InputKeyCode,
+        text: Option<SmolStr>,
+    ) {
+        let mut last_free_index = 0;
+
+        if let Some(keycode) = calculate_keycode(input_key_code) {
+            event_buffer[last_free_index] = Some(
+                Event::KeyboardInput(KeyboardInput{
+                    state: match state {
+                        ElementState::Pressed => ButtonState::Pressed,
+                        ElementState::Released => ButtonState::Released,
+                    },
+                    keycode,
+                    modifiers,
+                })
+            );
+            last_free_index += 1;
+        }
+
+        if state == ElementState::Pressed
+        && modifiers.is_empty()
+        && let Some(c) = text.and_then(|s| if s.len() == 1 { s.as_str().chars().next() } else { None })
+        {
+            event_buffer[last_free_index] = Some(
+                Event::ReceivedCharacter(c)
+            );
+            
+            {
+                #![allow(unused_assignments)]
+                last_free_index += 1;
+            }
+        }
+    }
+
+    #[cfg(test)]
+    mod keyboard_input_to_events_works_on {
+        use super::*;
+
+        #[test]
+        fn this_shift_case() {
+            let mut event_buffer = EventBuffer::default();
+
+            keyboard_input_to_events(
+                &mut event_buffer,
+                ModifiersState::SHIFT,
+                ElementState::Pressed,
+                InputKeyCode::Digit1,
+                Some("!".into())
+            );
+
+            assert!(
+                matches!(event_buffer[0], Some(Event::ReceivedCharacter('!'))),
+                "{:?}",
+                event_buffer[0]
+            );
+        }
+    }
+
     struct App {
         template: ConfigTemplateBuilder,
         // NOTE: `AppState` carries the `Window`, thus it should be dropped after everything else.
@@ -725,29 +789,20 @@ mod glutin_window_layer {
                     event:
                         KeyEvent {
                             state,
-                            physical_key: keyboard::PhysicalKey::Code(input_keycode),
+                            physical_key: keyboard::PhysicalKey::Code(input_key_code),
                             text,
                             ..
                         },
                     ..
                 } => {
-                    if let Some(keycode) = calculate_keycode(input_keycode) {
-                        pass_down!(
-                            Event::KeyboardInput(KeyboardInput{
-                                state: match state {
-                                    ElementState::Pressed => ButtonState::Pressed,
-                                    ElementState::Released => ButtonState::Released,
-                                },
-                                keycode,
-                                modifiers: self.modifiers,
-                            })
-                        )
-                    }
-                    if state == ElementState::Pressed
-                    && self.modifiers.is_empty()
-                    && let Some(c) = text.and_then(|s| if s.len() == 1 { s.as_str().chars().next() } else { None })
-                    {
-                        pass_down!(Event::ReceivedCharacter(c))
+                    let mut event_buffer: EventBuffer = [const { None }; 16];
+
+                    keyboard_input_to_events(&mut event_buffer, self.modifiers, state, input_key_code, text);
+
+                    for event_opt in event_buffer {
+                        if let Some(event) = event_opt {
+                            pass_down!(event)
+                        }
                     }
                 },
                 WindowEvent::MouseInput {
@@ -865,8 +920,8 @@ mod glutin_window_layer {
         std::process::exit(0)
     }
 
-    fn calculate_keycode(input_keycode: InputKeyCode) -> Option<KeyCode> {
-        let keycode = match input_keycode {
+    fn calculate_keycode(input_key_code: InputKeyCode) -> Option<KeyCode> {
+        let keycode = match input_key_code {
             InputKeyCode::Digit1 => KeyCode::Key1,
             InputKeyCode::Digit2 => KeyCode::Key2,
             InputKeyCode::Digit3 => KeyCode::Key3,
