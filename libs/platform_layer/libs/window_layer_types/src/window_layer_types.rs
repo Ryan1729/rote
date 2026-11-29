@@ -55,7 +55,7 @@ pub enum AttentionMode {
     Urgent,
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Dimensions {
     pub width: abs::Length,
     pub height: abs::Length,
@@ -269,27 +269,27 @@ pub enum ButtonState {
     Released
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct KeyboardInput {
     pub state: ButtonState,
     pub keycode: KeyCode,
     pub modifiers: ModifiersState,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct MouseInput {
     pub state: ButtonState,
     pub button: MouseButton,
     pub modifiers: ModifiersState,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct MouseWheel {
     pub delta: f32,
     pub modifiers: ModifiersState,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct CursorMoved {
     pub position: ScreenSpaceXY,
     pub modifiers: ModifiersState
@@ -304,7 +304,7 @@ pub struct CursorMoved {
 // later however, at not make adding that
 // back more painful than necessary.
 // Should we flatten the CustomEvent part?
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Event {
     CloseRequested,
     RedrawRequested,

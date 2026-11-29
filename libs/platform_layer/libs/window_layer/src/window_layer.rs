@@ -460,6 +460,30 @@ mod glutin_window_layer {
         use super::*;
 
         #[test]
+        fn this_basic_case() {
+            let mut event_buffer = EventBuffer::default();
+
+            keyboard_input_to_events(
+                &mut event_buffer,
+                ModifiersState::default(),
+                ElementState::Pressed,
+                InputKeyCode::Digit1,
+                Some("1".into())
+            );
+
+            assert_eq!(
+                event_buffer[0],
+                Some(Event::KeyboardInput(
+                    KeyboardInput {
+                        state: ButtonState::Pressed,
+                        keycode: KeyCode::Key1,
+                        modifiers: ModifiersState::default(),
+                    },
+                ))
+            );
+        }
+
+        #[test]
         fn this_shift_case() {
             let mut event_buffer = EventBuffer::default();
 
@@ -473,6 +497,34 @@ mod glutin_window_layer {
 
             assert!(
                 matches!(event_buffer[0], Some(Event::ReceivedCharacter('!'))),
+                "{:?}",
+                event_buffer[0]
+            );
+        }
+
+        #[test]
+        fn this_ctrl_case() {
+            let mut event_buffer = EventBuffer::default();
+
+            keyboard_input_to_events(
+                &mut event_buffer,
+                ModifiersState::CTRL,
+                ElementState::Pressed,
+                InputKeyCode::KeyA,
+                Some("a".into())
+            );
+
+            assert!(
+                matches!(
+                    event_buffer[0],
+                    Some(Event::KeyboardInput(
+                        KeyboardInput {
+                            state: ButtonState::Pressed,
+                            keycode: KeyCode::A,
+                            modifiers: ModifiersState::CTRL,
+                        },
+                    ))
+                ),
                 "{:?}",
                 event_buffer[0]
             );
@@ -796,11 +848,12 @@ mod glutin_window_layer {
                     ..
                 } => {
                     let mut event_buffer: EventBuffer = [const { None }; 16];
-
+                    std::dbg!(self.modifiers, state, input_key_code, &text);
                     keyboard_input_to_events(&mut event_buffer, self.modifiers, state, input_key_code, text);
 
                     for event_opt in event_buffer {
                         if let Some(event) = event_opt {
+                            std::dbg!(&event);
                             pass_down!(event)
                         }
                     }

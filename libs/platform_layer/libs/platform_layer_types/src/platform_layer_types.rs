@@ -11,7 +11,7 @@ use std::path::PathBuf;
 
 pub type PID = u32;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum PidKind {
     PathMailbox,
 }
@@ -39,7 +39,7 @@ impl From<EditedTransition> for BufferStatusTransition {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum CustomEvent {
     OpenFile(PathBuf),
     SaveNewFile(PathBuf, g_i::Index),
