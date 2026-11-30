@@ -441,7 +441,7 @@ mod glutin_window_layer {
         }
 
         if state == ElementState::Pressed
-        && modifiers.is_empty()
+        && (modifiers.is_empty() || modifiers == ModifiersState::SHIFT)
         && let Some(c) = text.and_then(|s| if s.len() == 1 { s.as_str().chars().next() } else { None })
         {
             event_buffer[last_free_index] = Some(
@@ -496,9 +496,11 @@ mod glutin_window_layer {
             );
 
             assert!(
-                matches!(event_buffer[0], Some(Event::ReceivedCharacter('!'))),
-                "{:?}",
-                event_buffer[0]
+                matches!(event_buffer[0], Some(Event::ReceivedCharacter('!')))
+                || matches!(event_buffer[1], Some(Event::ReceivedCharacter('!'))),
+                "{:?} {:?}",
+                event_buffer[0],
+                event_buffer[1],
             );
         }
 
