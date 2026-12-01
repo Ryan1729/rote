@@ -107,3 +107,42 @@ fn on_this_basic_auto_indent_case() {
     ];
     on(edits, 1);
 }
+
+#[test]
+fn in_this_generated_tab_case() {
+    use TestEdit::*;
+    use Move::*;
+    let edits =  [
+        TabIn,
+        MoveCursors(
+            0,
+            ToLineStart,
+        ),
+        Insert(
+            '\u{b}',
+        ),
+        AutoIndentSelection,
+        ToggleCase,
+        StripTrailingWhitespace,
+    ];
+    on(edits, 0);
+}
+
+#[test]
+fn in_this_reduced_generated_tab_case() {
+    use TestEdit::*;
+    use Move::*;
+    let edits =  [
+        TabIn,
+        MoveCursors(
+            0,
+            ToLineStart,
+        ),
+        Insert(
+            '\n',
+        ),
+        AutoIndentSelection,
+        StripTrailingWhitespace,
+    ];
+    on(edits, 0);
+}

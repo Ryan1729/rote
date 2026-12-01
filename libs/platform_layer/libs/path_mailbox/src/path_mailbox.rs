@@ -95,3 +95,33 @@ pub fn start_thread(
 
     (in_sink, join_handle)
 }
+
+#[cfg(test)]
+mod start_thread_does_not_panic {
+    use super::*;
+
+    fn dummy_on_shutdown(_: PathBuf) {}
+
+    #[derive(Clone, Debug, Default)]
+    struct DummyEventSender;
+
+    impl EventSender for DummyEventSender {
+        fn send(&self, _: CustomEvent) {}
+    }
+
+    #[test]
+    fn on_immeadiate_join() {
+        let (in_sink, join_handle) = start_thread(
+            Paths {
+                running_lock: "./test-scratch/running.lock".into(),
+                mailbox: "./test-scratch/mailbox/".into(),
+            },
+            DummyEventSender::default(),
+            dummy_on_shutdown,
+        );
+
+        in_sink.send(Thread::Quit).expect("Sending Quit should work");
+
+        let _ = join_handle.join();
+    }
+}
