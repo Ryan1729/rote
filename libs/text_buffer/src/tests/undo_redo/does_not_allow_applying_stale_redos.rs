@@ -142,7 +142,92 @@ fn in_this_reduced_generated_tab_case() {
             '\n',
         ),
         AutoIndentSelection,
-        StripTrailingWhitespace,
+    ];
+    on(edits, 0);
+}
+
+#[test]
+fn in_this_reduced_generated_tab_case_different_index() {
+    use TestEdit::*;
+    use Move::*;
+    let edits =  [
+        TabIn,
+        MoveCursors(
+            0,
+            ToLineStart,
+        ),
+        Insert(
+            '\n',
+        ),
+        AutoIndentSelection,
+    ];
+    on(edits, 2);
+}
+
+#[test]
+fn in_this_reduced_generated_tab_case_reduction() {
+    use TestEdit::*;
+    use Move::*;
+
+    let initial_buffer: TextBuffer = d!();
+    let mut buffer: TextBuffer = deep_clone(&initial_buffer);
+
+    let index = 0;
+    let len = 5;
+
+    TestEdit::apply(&mut buffer, TabIn);
+    TestEdit::apply(
+        &mut buffer,
+        MoveCursors(
+            0,
+            ToLineStart,
+        )
+    );
+    TestEdit::apply(&mut buffer, Insert('\n'));
+    TestEdit::apply(&mut buffer, AutoIndentSelection);
+
+    for _ in (0..len + 2).rev() {
+        buffer.undo(None);
+    }
+    /*
+    // This test is failing in a way that involves edits like this:
+    // Does it make sense to just filter those out? Would that fix it?
+    RangeEdit {
+        chars: "",
+        range: AbsoluteCharOffsetRange {
+            min: AbsoluteCharOffset(
+                1,
+            ),
+            max: AbsoluteCharOffset(
+                1,
+            ),
+        },
+    }
+    */
+
+    assert_text_buffer_eq_ignoring_history!(buffer, initial_buffer);
+}
+
+#[test]
+fn in_this_basic_tab_case() {
+    use TestEdit::*;
+    let edits = [
+        TabIn,
+    ];
+    on(edits, 0);
+}
+
+#[test]
+fn in_this_tab_case() {
+    use TestEdit::*;
+    use Move::*;
+    let edits =  [
+        TabIn,
+        MoveCursors(
+            0,
+            ToLineStart,
+        ),
+        AutoIndentSelection,
     ];
     on(edits, 0);
 }

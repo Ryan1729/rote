@@ -1635,7 +1635,8 @@ mod cursored_rope {
             // is possible for all possible edits, but in practice I think the edits we will actually
             // produce will work out. The tests should tell us if we're wrong!
             for range_edits in edit.range_edits.iter() {
-                if let Some(RangeEdit { range, .. }) = range_edits.delete_range {
+                if let Some(RangeEdit { range, .. }) = range_edits.delete_range
+                {
                     let remove_option = self.rope.remove(range.range());
                     macros::invariant_assert!(
                         remove_option.is_some(),
@@ -1648,8 +1649,16 @@ mod cursored_rope {
                 if let Some(RangeEdit {
                     ref chars, range, ..
                 }) = range_edits.insert_range
+                // This makes tests pass, but it shouldn't be needed! And might even break things?
+                //&& !range.is_empty()
+                // These seems like it would make more sense, but does not make the test pass!
+                //&& !chars.is_empty()
                 {
                     let offset = range.min();
+                    //if chars.is_empty() 
+                    {
+                        std::dbg!(offset, chars, range.is_empty(), chars.is_empty());
+                    }
                     let insert_option = self.rope.insert(offset, chars);
                     macros::invariant_assert!(
                         insert_option.is_some(),
